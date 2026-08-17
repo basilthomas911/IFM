@@ -76,6 +76,19 @@ public static class InfrastructureProbe
     public static async Task<IReadOnlyList<TcpConnectionEvidence>> GetProcessTcpConnectionsAsync(
         int processId,
         CancellationToken cancellationToken)
+        => (await GetTcpConnectionsAsync(cancellationToken).ConfigureAwait(false))
+            .Where(row => row.ProcessId == processId)
+            .ToArray();
+
+    public static async Task<IReadOnlyList<TcpConnectionEvidence>> GetPortTcpConnectionsAsync(
+        int port,
+        CancellationToken cancellationToken)
+        => (await GetTcpConnectionsAsync(cancellationToken).ConfigureAwait(false))
+            .Where(row => GetPort(row.LocalEndpoint) == port || GetPort(row.RemoteEndpoint) == port)
+            .ToArray();
+
+    static async Task<IReadOnlyList<TcpConnectionEvidence>> GetTcpConnectionsAsync(
+        CancellationToken cancellationToken)
     {
         using Process process = Process.Start(new ProcessStartInfo
         {
@@ -101,8 +114,7 @@ public static class InfrastructureProbe
             var columns = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             if (columns.Length < 5
                 || !string.Equals(columns[0], "TCP", StringComparison.OrdinalIgnoreCase)
-                || !int.TryParse(columns[^1], out var rowProcessId)
-                || rowProcessId != processId)
+                || !int.TryParse(columns[^1], out var rowProcessId))
                 continue;
 
             connections.Add(new TcpConnectionEvidence(

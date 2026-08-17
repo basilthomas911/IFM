@@ -74,7 +74,8 @@ public sealed class G0EventObserver : IAsyncDisposable
                 "G0-Status",
                 StatusConsoleLoggedEvent.Actor,
                 [StatusConsoleLoggedEvent.Verb],
-                HandleStatusAsync).ConfigureAwait(false);
+                HandleStatusAsync,
+                ActorType.Notify).ConfigureAwait(false);
             await StartListenerAsync(
                 "G0-MarketDataFeed",
                 MarketDataFeedStartedEvent.Actor,
@@ -152,7 +153,8 @@ public sealed class G0EventObserver : IAsyncDisposable
         string id,
         string actor,
         List<string> verbs,
-        Func<string, NatsMsg<byte[]>, ValueTask> handler)
+        Func<string, NatsMsg<byte[]>, ValueTask> handler,
+        ActorType actorType = ActorType.Event)
     {
         var listener = new NatsActorEventListener(
             new NatsEventListenerOptions { Url = _url },
@@ -163,7 +165,7 @@ public sealed class G0EventObserver : IAsyncDisposable
             id,
             new Dictionary<ActorMailboxId, List<string>>
             {
-                [new ActorMailboxId(ActorType.Event, actor)] = verbs
+                [new ActorMailboxId(actorType, actor)] = verbs
             },
             handler).ConfigureAwait(false);
     }

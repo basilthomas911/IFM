@@ -137,7 +137,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     public async Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceProviderRefresh = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         ValidateDate(valueDate, nameof(valueDate));
@@ -152,7 +153,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             ?? throw new FuturesContractRolloverConfigurationException(
                 $"The futures-contract rollover row for '{normalizedSymbol}' is missing.");
 
-        if (!string.IsNullOrWhiteSpace(existing.ContractId)
+        if (!forceProviderRefresh
+            && !string.IsNullOrWhiteSpace(existing.ContractId)
             && existing.NextRolloverDate is { } currentRolloverDate
             && valueDate < currentRolloverDate)
             return false;

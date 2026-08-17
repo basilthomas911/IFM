@@ -26,7 +26,8 @@ public sealed class G0Configuration
     public required TimeSpan ReadinessTimeout { get; init; }
     public required TimeSpan StartupTimeout { get; init; }
     public required TimeSpan ShutdownTimeout { get; init; }
-    public int ExpectedActorTypeCount { get; init; } = 81;
+    public required TimeSpan AuditTimeout { get; init; }
+    public int ExpectedActorTypeCount { get; init; } = 83;
 
     public bool UsesProductionFmp => string.Equals(FmpAdapter, ProductionAdapter, StringComparison.OrdinalIgnoreCase);
 
@@ -67,7 +68,8 @@ public sealed class G0Configuration
             ReadinessTimeout = ReadTimeout("IFM_G0_READINESS_TIMEOUT_SECONDS", 60),
             StartupTimeout = ReadTimeout("IFM_G0_STARTUP_TIMEOUT_SECONDS", 120),
             ShutdownTimeout = ReadTimeout("IFM_G0_SHUTDOWN_TIMEOUT_SECONDS", 15),
-            ExpectedActorTypeCount = ReadInt("IFM_G0_ACTOR_TYPE_COUNT", 81)
+            AuditTimeout = ReadTimeout("IFM_G0_AUDIT_TIMEOUT_SECONDS", 1800),
+            ExpectedActorTypeCount = ReadInt("IFM_G0_ACTOR_TYPE_COUNT", 83)
         };
     }
 
@@ -84,6 +86,8 @@ public sealed class G0Configuration
             errors.Add($"Desktop executable does not exist: {DesktopExecutable}");
         if (ExpectedActorTypeCount <= 0)
             errors.Add("Expected actor-type count must be positive.");
+        if (AuditTimeout <= TimeSpan.Zero)
+            errors.Add("Audit timeout must be positive.");
 
         if (UsesProductionFmp && !FmpCredentialPresent)
             errors.Add("FMP_API_KEY is required for the production FMP adapter.");

@@ -39,9 +39,12 @@ public class TradePlacementCommandApi(ICommandServiceApi commandService)
     /// be used to track the operation.</remarks>
     /// <param name="tradePlacementId">The identifier of the trade placement to be started.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the initiated trade placement operation.</returns>
-    public async Task<ServiceResult<Guid>> StartTradePlacementAsync(TradePlacementId tradePlacementId)
+    public async Task<ServiceResult<Guid>> StartTradePlacementAsync(
+        TradePlacementId tradePlacementId,
+        CancellationToken cancellationToken = default)
         => await new StartTradePlacementCommand(tradePlacementId)
-            .ExecuteAsync(e => _commandService.PostCommandAsync(TradePlacementUriPath.Signal, e));
+            .ExecuteAsync(e => _commandService.PostCommandAsync(TradePlacementUriPath.Start, e))
+            .WaitAsync(cancellationToken);
 
     /// <summary>
     /// Stops an ongoing trade placement operation.
@@ -51,8 +54,11 @@ public class TradePlacementCommandApi(ICommandServiceApi commandService)
     /// failure of the operation.</remarks>
     /// <param name="tradePlacementId">The unique identifier of the trade placement to stop.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the identifier of the stopped trade placement.</returns>
-    public async Task<ServiceResult<Guid>> StopTradePlacementAsync(TradePlacementId tradePlacementId)
+    public async Task<ServiceResult<Guid>> StopTradePlacementAsync(
+        TradePlacementId tradePlacementId,
+        CancellationToken cancellationToken = default)
         => await new StopTradePlacementCommand(tradePlacementId)
-            .ExecuteAsync(e => _commandService.PostCommandAsync(TradePlacementUriPath.Signal, e));
+            .ExecuteAsync(e => _commandService.PostCommandAsync(TradePlacementUriPath.Stop, e))
+            .WaitAsync(cancellationToken);
 
 }

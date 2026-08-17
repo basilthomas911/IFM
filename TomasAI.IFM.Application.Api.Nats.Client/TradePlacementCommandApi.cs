@@ -56,7 +56,9 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
     /// be used to track the operation.</remarks>
     /// <param name="tradePlacementId">The identifier of the trade placement to be started.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the initiated trade placement operation.</returns>
-    public async Task<ServiceResult<Guid>> StartTradePlacementAsync(TradePlacementId tradePlacementId)
+    public async Task<ServiceResult<Guid>> StartTradePlacementAsync(
+        TradePlacementId tradePlacementId,
+        CancellationToken cancellationToken = default)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
@@ -69,7 +71,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StartTradePlacementCommand.Actor, StartTradePlacementCommand.Verb, tradePlacementId.Format()),
                 ErrorCode = StartTradePlacementCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -86,7 +88,9 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
     /// failure of the operation.</remarks>
     /// <param name="tradePlacementId">The unique identifier of the trade placement to stop.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the identifier of the stopped trade placement.</returns>
-    public async Task<ServiceResult<Guid>> StopTradePlacementAsync(TradePlacementId tradePlacementId)
+    public async Task<ServiceResult<Guid>> StopTradePlacementAsync(
+        TradePlacementId tradePlacementId,
+        CancellationToken cancellationToken = default)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
@@ -99,7 +103,7 @@ public class TradePlacementCommandApi(IActorProducer actorProducer)
                 Subject = new ActorSubject(ActorType.Command, StopTradePlacementCommand.Actor, StopTradePlacementCommand.Verb, tradePlacementId.Format()),
                 ErrorCode = StopTradePlacementCommand.ErrorId
             };
-            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId);
+            serviceResult = await RequestCommandAsync(cmd, cmd.EntityId, cancellationToken);
         }
         catch (Exception ex)
         {

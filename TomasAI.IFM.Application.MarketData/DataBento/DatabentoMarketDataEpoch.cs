@@ -78,7 +78,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
         ValueDate = valueDate;
         _feeds = feeds;
-        _publisher = publisher;
+        _publisher = new ReferenceCountedTickAggregationEventPublisher(publisher);
         _options = options;
         _timeProvider = timeProvider;
         _optionRoutes = new DatabentoOptionRouteRegistry(options.MaximumConcurrentOptionChains);
@@ -157,19 +157,31 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             _lastPrices = new DatabentoLastPriceStore(
                 ValueDate, _options.LastPriceCapacity);
             var mappings = new DatabentoTickContractMappingStore();
-            foreach (var resolved in _catalog.ResolvedContracts)
+            var contractsByDataset = _catalog.ResolvedContracts
+                .GroupBy(static resolved => resolved.Dataset, StringComparer.Ordinal)
+                .Select(static group => (Dataset: group.Key, Contracts: group.ToArray()))
+                .ToArray();
+            foreach (var group in contractsByDataset)
             {
-                mappings.SetTickMapping(
-                    resolved.Dataset,
-                    ValueDate,
-                    resolved.Detail.Instrument.PublisherId,
-                    resolved.Detail.Instrument.InstrumentId,
-                    resolved.Registration.DomainContractId,
-                    resolved.Registration.AssetTypeId,
-                    CreateContractDetails(resolved));
-                _lastPrices.RegisterContract(
-                    resolved.Registration.DomainContractId,
-                    resolved.Registration.AssetTypeId);
+                for (var index = 0; index < group.Contracts.Length; index++)
+                {
+                    var resolved = group.Contracts[index];
+                    var instrument = _options.FeedOptions.DataSource
+                        == FeedDataSourceMode.Synthetic
+                            ? new InstrumentKey(1, checked((uint)index + 1))
+                            : resolved.Detail.Instrument;
+                    mappings.SetTickMapping(
+                        resolved.Dataset,
+                        ValueDate,
+                        instrument.PublisherId,
+                        instrument.InstrumentId,
+                        resolved.Registration.DomainContractId,
+                        resolved.Registration.AssetTypeId,
+                        CreateContractDetails(resolved));
+                    _lastPrices.RegisterContract(
+                        resolved.Registration.DomainContractId,
+                        resolved.Registration.AssetTypeId);
+                }
             }
 
             var aggregationsByDataset = new Dictionary<string, TickAggregationService>(
@@ -178,12 +190,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                 StringComparer.Ordinal);
             try
             {
-                foreach (var group in _catalog.ResolvedContracts.GroupBy(
-                    static resolved => resolved.Dataset,
-                    StringComparer.Ordinal))
+                foreach (var group in contractsByDataset)
                 {
-                    var dataset = group.Key;
-                    var contracts = group.ToArray();
+                    var dataset = group.Dataset;
+                    var contracts = group.Contracts;
                     var feed = _feeds.CreateTickerFeed(
                         _options.FeedOptions with { Dataset = dataset });
                     TickAggregationService? aggregation = null;
@@ -248,17 +258,32 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
+            // Close epoch admission before beginning the potentially blocking
+            // provider drain. Realtime work already queued by the feed can then
+            // observe a typed stopped-epoch result instead of reacquiring routes.
+            Volatile.Write(ref _started, 0);
             _optionRoutes.Clear();
             _liveRouter.Clear();
-            List<Exception>? failures = null;
-            foreach (var aggregation in Volatile.Read(ref _aggregationsByDataset).Values)
-            {
-                try { await aggregation.StopAsync().ConfigureAwait(false); }
-                catch (Exception exception) { (failures ??= []).Add(exception); }
-            }
+            var stopTasks = Volatile.Read(ref _aggregationsByDataset).Values
+                .Select(static aggregation => Task.Run(async () =>
+                {
+                    try
+                    {
+                        await aggregation.StopAsync().ConfigureAwait(false);
+                        return (Exception?)null;
+                    }
+                    catch (Exception exception)
+                    {
+                        return exception;
+                    }
+                }))
+                .ToArray();
+            var stopResults = await Task.WhenAll(stopTasks).ConfigureAwait(false);
+            var failures = stopResults.Where(static exception => exception is not null)
+                .Cast<Exception>()
+                .ToList();
             _lastPrices?.Invalidate();
-            Volatile.Write(ref _started, 0);
-            if (failures is not null)
+            if (failures.Count != 0)
                 throw new AggregateException("The DataBento epoch stop failed.", failures);
         }
         finally { _lifecycle.Release(); }
@@ -348,6 +373,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             await aggregation.DisposeAsync().ConfigureAwait(false);
         foreach (var operations in _operations)
             await operations.DisposeAsync().ConfigureAwait(false);
+        await _publisher.DisposeAsync().ConfigureAwait(false);
         _lastPrices?.Dispose();
         _lifecycle.Dispose();
     }

@@ -14,12 +14,17 @@ public class NatsCommandApi(IActorProducer actorProducer)
     /// </summary>
     protected async ValueTask<ServiceResult<Guid>> RequestCommandAsync<TCommand, TEntityId>(
         TCommand command,
-        TEntityId entityId)
+        TEntityId entityId,
+        CancellationToken cancellationToken = default)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
         var actorResult = await _actorProducer
-            .RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, entityId);
+            .RequestAsync<TCommand, TEntityId, GuidResult>(
+                command.Subject,
+                command,
+                entityId,
+                cancellationToken);
         return new ServiceResult<Guid>
         {
             Success = actorResult.Success,

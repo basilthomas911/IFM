@@ -1,0 +1,170 @@
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+
+namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
+
+/// <summary>
+/// Establishes the small, authoritative Development data baseline required by G0.
+/// Data enters through the public NATS command API and is verified through public queries.
+/// </summary>
+public static class G0DevelopmentDataFixture
+{
+    const int WindowSize = 20;
+
+    public static async Task<G0DevelopmentSeedResult> EnsureAsync(
+        G0QuerySession session,
+        FuturesContractV2ReadModel contract,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var eodSeeded = await EnsureEodAsync(session, contract, valueDate, timeout, cancellationToken);
+        var barSeeded = await EnsureBarAsync(session, contract, valueDate, timeout, cancellationToken);
+        return new G0DevelopmentSeedResult(valueDate, eodSeeded, barSeeded);
+    }
+
+    static async Task<bool> EnsureEodAsync(
+        G0QuerySession session,
+        FuturesContractV2ReadModel contract,
+        DateOnly valueDate,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var existing = await session.MarketDataFeed
+            .GetLastFuturesEodDataAsync(contract.ContractId, contract.LastTradeDate)
+            .WaitAsync(timeout, cancellationToken);
+        if (existing.Success && existing.Value is not null)
+            return false;
+
+        var range = Enumerable.Range(0, WindowSize)
+            .Select(offset => CreateEod(contract, valueDate.AddDays(-offset), 5400m - offset * 5m))
+            .ToArray();
+        var tick = new FuturesTickDataV2ReadModel(
+            contract.ContractId,
+            valueDate,
+            tickId: 1,
+            tickTime: new TimeOnly(12, 0),
+            price: range[0].ClosePrice,
+            size: 100);
+        var normalCurve = new NormalCurveTableReadModel([new NormalCurveDataReadModel(0, 50)]);
+        var response = await session.MarketDataFeedCommands.InsertFuturesEodDataAsync(
+                valueDate,
+                tick,
+                contract,
+                range[0],
+                range,
+                normalCurve,
+                WindowSize,
+                Array.Empty<VixFuturesEodDataReadModel>())
+            .WaitAsync(timeout, cancellationToken);
+        if (!response.Success)
+            throw new InvalidOperationException($"G0 EOD seed command failed: {response.ErrorMessage}");
+
+        await WaitUntilAsync(
+            async () =>
+            {
+                var result = await session.MarketDataFeed
+                    .GetLastFuturesEodDataAsync(contract.ContractId, contract.LastTradeDate)
+                    .WaitAsync(timeout, cancellationToken);
+                return result.Success && result.Value is not null;
+            },
+            timeout,
+            "G0 EOD seed was accepted but did not become durable.",
+            cancellationToken);
+        return true;
+    }
+
+    static async Task<bool> EnsureBarAsync(
+        G0QuerySession session,
+        FuturesContractV2ReadModel contract,
+        DateOnly valueDate,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var existing = await session.MarketDataFeed
+            .GetLastFuturesBarDataAsync(contract.ContractId, contract.Symbol, valueDate)
+            .WaitAsync(timeout, cancellationToken);
+        if (existing.Success && existing.Value is not null)
+            return false;
+
+        var bar = new FuturesBarDataReadModel(
+            contract.ContractId,
+            contract.Symbol,
+            valueDate,
+            DateTime.UtcNow,
+            BarRateType.Minute,
+            barValue: 5400m,
+            upTrendTrigger: 0.65,
+            downTrendTrigger: 0.35);
+        var response = await session.MarketDataFeedCommands.InsertFuturesBarDataAsync(bar)
+            .WaitAsync(timeout, cancellationToken);
+        if (!response.Success)
+            throw new InvalidOperationException($"G0 bar seed command failed: {response.ErrorMessage}");
+
+        await WaitUntilAsync(
+            async () =>
+            {
+                var result = await session.MarketDataFeed
+                    .GetLastFuturesBarDataAsync(contract.ContractId, contract.Symbol, valueDate)
+                    .WaitAsync(timeout, cancellationToken);
+                return result.Success && result.Value is not null;
+            },
+            timeout,
+            "G0 bar seed was accepted but did not become durable.",
+            cancellationToken);
+        return true;
+    }
+
+    static FuturesEodDataV2ReadModel CreateEod(
+        FuturesContractV2ReadModel contract,
+        DateOnly valueDate,
+        decimal close)
+        => new(
+            contract.ContractId,
+            valueDate,
+            contract.Symbol,
+            openPrice: close - 10m,
+            highPrice: close + 15m,
+            lowPrice: close - 20m,
+            closePrice: close,
+            volume: 100_000,
+            dailyPercentChange: 0.2,
+            dailyStdDev: 0.01,
+            dailyStdDevAmount: 50,
+            upperBand: (double)(close + 100m),
+            mean: (double)close,
+            lowerBand: (double)(close - 100m),
+            marketDirection: MarketDirectionType.NeutralUp,
+            marketVolatility: MarketVolatilityType.Normal,
+            priceDirection: PriceDirectionType.Rising,
+            priceVolatility: PriceVolatilityType.Falling,
+            windowSize: WindowSize);
+
+    static async Task WaitUntilAsync(
+        Func<Task<bool>> predicate,
+        TimeSpan timeout,
+        string timeoutMessage,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            if (await predicate())
+                return;
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(200), timeoutSource.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+        throw new TimeoutException(timeoutMessage);
+    }
+}
+
+public sealed record G0DevelopmentSeedResult(DateOnly ValueDate, bool EodSeeded, bool BarSeeded);

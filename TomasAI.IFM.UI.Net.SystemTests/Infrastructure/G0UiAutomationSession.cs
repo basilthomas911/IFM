@@ -13,9 +13,9 @@ public sealed class G0UiAutomationSession : IDisposable
     readonly UIA3Automation _automation;
     Window? _window;
 
-    public G0UiAutomationSession(System.Diagnostics.Process process)
+    public G0UiAutomationSession(int processId)
     {
-        _application = FlaUI.Core.Application.Attach(process);
+        _application = FlaUI.Core.Application.Attach(processId);
         _automation = new UIA3Automation();
     }
 
@@ -60,31 +60,31 @@ public sealed class G0UiAutomationSession : IDisposable
 
     public IReadOnlyDictionary<string, bool> ReadToolbarEnabledState()
     {
-        string[] automationIds =
-        [
-            "tradeButton",
-            "marketDataButton",
-            "fundButton",
-            "referenceButton",
-            "systemAdminButton"
-        ];
-        return automationIds.ToDictionary(
-            id => id,
-            id => Window.FindFirstDescendant(cf => cf.ByAutomationId(id))?.IsEnabled ?? false,
+        Dictionary<string, string> controls = new(StringComparer.Ordinal)
+        {
+            ["tradeButton"] = "Trade Orders",
+            ["marketDataButton"] = "Market Data",
+            ["fundButton"] = "Funds",
+            ["referenceButton"] = "Reference",
+            ["systemAdminButton"] = "System"
+        };
+        return controls.ToDictionary(
+            pair => pair.Key,
+            pair => FindDescendant(pair.Key, pair.Value)?.IsEnabled ?? false,
             StringComparer.Ordinal);
     }
 
     public G0EconomicCalendarUiState ReadEconomicCalendarState()
     {
-        var date = Window.FindFirstDescendant(cf => cf.ByAutomationId("txtCalendarDate"))
+        var date = FindDescendant("txtCalendarDate", "Economic calendar date")
             ?? throw new InvalidOperationException("Economic-calendar date control was not found.");
-        var country = Window.FindFirstDescendant(cf => cf.ByAutomationId("ddlCountryCodes"))
+        var country = FindDescendant("ddlCountryCodes", "Economic calendar country")
             ?? throw new InvalidOperationException("Economic-calendar country control was not found.");
-        var list = Window.FindFirstDescendant(cf => cf.ByAutomationId("lstEconomicCalendar"))
+        var list = FindDescendant("lstEconomicCalendar", "Economic calendar list")
             ?? throw new InvalidOperationException("Economic-calendar list control was not found.");
         return new G0EconomicCalendarUiState(
-            date.Name ?? string.Empty,
-            country.Name ?? string.Empty,
+            date.AsTextBox().Text ?? string.Empty,
+            country.AsComboBox().SelectedItem?.Text ?? string.Empty,
             list.FindAllDescendants().Length);
     }
 
@@ -121,21 +121,53 @@ public sealed class G0UiAutomationSession : IDisposable
         _application.Dispose();
     }
 
+    AutomationElement? FindDescendant(string automationId, string accessibleName)
+    {
+        try
+        {
+            var byId = Window.FindFirstDescendant(cf => cf.ByAutomationId(automationId));
+            if (byId is not null)
+                return byId;
+        }
+        catch
+        {
+            // Some WinForms providers do not expose AutomationId for hosted controls.
+        }
+
+        return Window.FindFirstDescendant(cf => cf.ByName(accessibleName));
+    }
+
     static void AppendElement(StringBuilder builder, AutomationElement element, int depth)
     {
         builder.Append(' ', depth * 2)
-            .Append(element.ControlType)
+            .Append(SafeRead(() => element.ControlType.ToString()))
             .Append(" Name=")
-            .Append(element.Name)
+            .Append(SafeRead(() => element.Name))
             .Append(" AutomationId=")
-            .Append(element.AutomationId)
+            .Append(SafeRead(() => element.AutomationId))
             .Append(" Enabled=")
-            .AppendLine(element.IsEnabled.ToString());
+            .AppendLine(SafeRead(() => element.IsEnabled.ToString()));
 
         if (depth >= 20)
             return;
-        foreach (var child in element.FindAllChildren())
-            AppendElement(builder, child, depth + 1);
+        try
+        {
+            foreach (var child in element.FindAllChildren())
+                AppendElement(builder, child, depth + 1);
+        }
+        catch (Exception exception)
+        {
+            builder.Append(' ', (depth + 1) * 2)
+                .Append("<children unavailable: ")
+                .Append(exception.Message)
+                .AppendLine(">");
+        }
+    }
+
+    static string SafeRead(Func<string?> read)
+    {
+        try { return read() ?? string.Empty; }
+        catch (Exception exception) { return $"<unavailable: {exception.Message}>"; }
     }
 }
 

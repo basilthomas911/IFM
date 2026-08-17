@@ -69,7 +69,18 @@ public static class FuturesMarketPriceUpdated
                     "the realtime event entity and price snapshot identities do not match");
             }
 
-            var contracts = await streamOwnership.EnsureAsync(marketDataApi).ConfigureAwait(false);
+            FuturesItiSignalStreamContracts contracts;
+            try
+            {
+                contracts = await streamOwnership.EnsureAsync(marketDataApi).ConfigureAwait(false);
+            }
+            catch (MarketDataApiNotRunningException)
+            {
+                // Feed shutdown closes epoch admission before draining already
+                // accepted ticks. Those late realtime notifications are expected
+                // and must not reacquire stream routes or create an error storm.
+                return true;
+            }
             var esContract = contracts.Es;
             if (!StringComparer.Ordinal.Equals(esContract.ContractId, @event.Price.ContractId))
                 return true;

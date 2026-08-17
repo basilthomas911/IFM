@@ -32,6 +32,8 @@ public class YieldCurveRateCommandActor(
     : BaseEventSourceCommandActor<YieldCurveRateCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
 {
     public const string ActorName = "YieldCurveRateCommand";
+    static readonly IValidationRules<YieldCurveRateReadModel> ValidationRules =
+        new YieldCurveRateValidationRules();
     readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
     IEventSourceActorStateRepository<YieldCurveRateCommandState> _repo = default!;
 
@@ -131,8 +133,7 @@ public class YieldCurveRateCommandActor(
         else
             await _dbEventSource.InsertCommandLogAsync(
                 cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
-        var yieldCurveRateValidationRules = IsArgumentNull.Set(context.Container.Resolve<IValidationRules<YieldCurveRateReadModel>>());
-        GetValidationErrors(cmd, yieldCurveRateValidationRules)
+        GetValidationErrors(cmd, ValidationRules)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 

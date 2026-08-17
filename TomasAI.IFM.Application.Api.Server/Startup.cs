@@ -457,10 +457,22 @@ public static class Startup
             var contracts = config
                 .GetSection("AppSettings:Databento:Contracts")
                 .Get<DatabentoContractRegistration[]>() ?? [];
+            var feedOptions = DatabentoFeedOptions.ForProfile(
+                deploymentProfile, dataset);
+            var configuredSynthetic = config
+                .GetSection("AppSettings:Databento:Synthetic")
+                .Get<SyntheticFeedOptions>();
+            if (configuredSynthetic is not null
+                && feedOptions.DataSource == FeedDataSourceMode.Synthetic)
+            {
+                feedOptions = feedOptions with
+                {
+                    Synthetic = configuredSynthetic
+                };
+            }
             var runtimeOptions = new DatabentoMarketDataRuntimeOptions
             {
-                FeedOptions = DatabentoFeedOptions.ForProfile(
-                    deploymentProfile, dataset),
+                FeedOptions = feedOptions,
                 Contracts = contracts
             };
             services.AddDatabentoMarketDataServices();

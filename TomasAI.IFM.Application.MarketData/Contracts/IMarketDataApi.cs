@@ -31,7 +31,8 @@ public interface IMarketDataApi
 
     /// <summary>
     /// Resolves and persists the currently traded futures contract when the
-    /// symbol's rollover configuration is incomplete or due.
+    /// symbol's rollover configuration is incomplete, due, or explicitly
+    /// refreshed by startup reconciliation.
     /// </summary>
     /// <returns>
     /// <see langword="true"/> when the stored next-rollover date was first set
@@ -40,7 +41,8 @@ public interface IMarketDataApi
     Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool forceProviderRefresh = false);
 
     /// <summary>
     /// Reads the latest normalized market-price hot-cache snapshot without checking stream ownership.

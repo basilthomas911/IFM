@@ -31,11 +31,56 @@ public class ActorMarketDataAnalyticsCommandApiTests
                 Arg.Is<GenerateFuturesRsiSignalCommand>(command =>
                     command.FuturesRsiSignalId == signalId &&
                     command.FuturesPrice == 6425.25m &&
+                    command.CommandId != Guid.Empty &&
                     command.ErrorCode == GenerateFuturesRsiSignalCommand.ErrorId &&
                     command.Subject.Is(
                         ActorType.Command,
                         GenerateFuturesRsiSignalCommand.Actor,
                         GenerateFuturesRsiSignalCommand.Verb)));
+    }
+
+    [Fact]
+    public async Task PeriodSignalGenerationAssignsUniqueNonEmptyCommandIds()
+    {
+        var context = Substitute.For<IEventActorContext>();
+        var expected = new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()));
+        var commands = new List<ICommand>();
+        context.RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(
+                Arg.Do<GenerateFuturesRsiSignalCommand>(commands.Add))
+            .Returns(expected);
+        context.RequestAsync<GenerateFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(
+                Arg.Do<GenerateFuturesAtrSignalCommand>(commands.Add))
+            .Returns(expected);
+        context.RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(
+                Arg.Do<GenerateFuturesAdxSignalCommand>(commands.Add))
+            .Returns(expected);
+        context.RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(
+                Arg.Do<GenerateFuturesMacdSignalCommand>(commands.Add))
+            .Returns(expected);
+        var api = new ActorMarketDataAnalyticsCommandApi(context);
+        var valueDate = new DateOnly(2026, 8, 17);
+        var timestamp = new TimeOnly(12, 30);
+
+        await api.GenerateFuturesRsiSignalAsync(
+            new FuturesRsiSignalId("ESU6", valueDate, TimeFrameType.FifteenSeconds, 13, timestamp),
+            6425.25m);
+        await api.GenerateFuturesRsiSignalAsync(
+            new FuturesRsiSignalId("ESU6", valueDate, TimeFrameType.OneMinute, 13, timestamp),
+            6425.25m);
+        await api.GenerateFuturesAtrSignalAsync(
+            new FuturesAtrSignalId("ESU6", valueDate, TimeFrameType.FifteenSeconds, 14, timestamp),
+            6425.25m);
+        await api.GenerateFuturesAdxSignalAsync(
+            new FuturesAdxSignalId("ESU6", valueDate, TimeFrameType.FifteenSeconds, 14, timestamp),
+            6425.25m);
+        await api.GenerateFuturesMacdSignalAsync(
+            new FuturesMacdSignalId("ESU6", valueDate, TimeFrameType.FifteenSeconds, 9, 12, 26, timestamp),
+            6425.25m);
+
+        commands.Should().HaveCount(5);
+        commands.Select(command => command.CommandId)
+            .Should().NotContain(Guid.Empty)
+            .And.OnlyHaveUniqueItems();
     }
 
     [Fact]

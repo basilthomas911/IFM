@@ -47,8 +47,9 @@ public sealed class DatabentoProductionEpochTests
             QueryQueueCapacity = 4,
             LastPriceCapacity = 2
         };
+        var publisher = new NoOpPublisher();
         var epochFactory = new DatabentoMarketDataEpochFactory(
-            provider, new NoOpPublisher(), runtimeOptions);
+            provider, publisher, runtimeOptions);
         await using var api = new DatabentoMarketDataApi(
             epochFactory,
             new DatabentoMarketDataApiOptions());
@@ -81,6 +82,7 @@ public sealed class DatabentoProductionEpochTests
         Assert.Null(api.ActiveValueDate);
         Assert.Equal(1, provider.Feed.StartCount);
         Assert.Equal(1, provider.Feed.StopCount);
+        Assert.Equal(TimeSpan.FromSeconds(5), provider.Feed.StopTimeout);
         Assert.True(provider.Feed.Disposed);
     }
 
@@ -95,7 +97,13 @@ public sealed class DatabentoProductionEpochTests
             "VXU6", "VX", new InstrumentKey(8, 84), ContractKind.Future,
             new DateOnly(2026, 9, 16), null, "VXU6",
             "XCBF.PITCH", "CFE");
-        var provider = new FakeFeedFactory([es, vx]);
+        using var concurrentCatalogBarrier = new CountdownEvent(2);
+        using var concurrentStopBarrier = new CountdownEvent(2);
+        var provider = new FakeFeedFactory([es, vx])
+        {
+            CatalogQueryBarrier = concurrentCatalogBarrier,
+            StopBarrier = concurrentStopBarrier
+        };
         var configuredOptions = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = DatabentoFeedOptions.ForProfile(
@@ -114,13 +122,15 @@ public sealed class DatabentoProductionEpochTests
                 "VX20260916", "VX future", "VX", "VXU6", "FUT", "USD",
                 "CFE", "1000", new DateOnly(2026, 9, 16), true)]);
         var runtimeOptions = configuredOptions with { Contracts = registry };
+        var publisher = new NoOpPublisher();
         var epochFactory = new DatabentoMarketDataEpochFactory(
-            provider, new NoOpPublisher(), runtimeOptions);
+            provider, publisher, runtimeOptions);
         await using var api = new DatabentoMarketDataApi(
             epochFactory, new DatabentoMarketDataApiOptions());
 
         await api.StartAsync(valueDate);
 
+        Assert.True(concurrentCatalogBarrier.IsSet);
         Assert.NotNull(await api.GetFuturesContractAsync("ES20260918"));
         Assert.NotNull(await api.GetFuturesContractAsync("VX20260916"));
         Assert.Equal(["GLBX.MDP3", "XCBF.PITCH"],
@@ -130,9 +140,12 @@ public sealed class DatabentoProductionEpochTests
 
         await api.StopAsync(valueDate);
 
+        Assert.True(concurrentStopBarrier.IsSet);
         Assert.All(provider.Feeds.Values, feed => Assert.Equal(1, feed.StartCount));
         Assert.All(provider.Feeds.Values, feed => Assert.Equal(1, feed.StopCount));
         Assert.All(provider.Feeds.Values, feed => Assert.True(feed.Disposed));
+        Assert.Equal(1, publisher.StartCount);
+        Assert.Equal(1, publisher.StopCount);
     }
 
     private static ContractDetail Detail(
@@ -166,27 +179,34 @@ public sealed class DatabentoProductionEpochTests
     private sealed class FakeFeedFactory(IReadOnlyList<ContractDetail> details)
         : IDatabentoFeedFactory
     {
+        internal CountdownEvent? CatalogQueryBarrier { get; init; }
+        internal CountdownEvent? StopBarrier { get; init; }
         internal Dictionary<string, FakeTickerFeed> Feeds { get; } =
             new(StringComparer.Ordinal);
         internal FakeTickerFeed Feed => Feeds.Values.Single();
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options)
         {
             var feed = new FakeTickerFeed(
-                details.Where(detail => detail.Dataset == options.Dataset).ToArray());
+                details.Where(detail => detail.Dataset == options.Dataset).ToArray(),
+                options.DataSource,
+                StopBarrier);
             Feeds.Add(options.Dataset, feed);
             return feed;
         }
         public IDatabentoMarketDataQueries CreateMarketDataQueries(
-            DatabentoFeedOptions options) => new FakeQueries(details
-                .Where(detail => detail.Dataset == options.Dataset)
-                .ToDictionary(item => item.RawSymbol, StringComparer.Ordinal));
+            DatabentoFeedOptions options) => new FakeQueries(
+                details.Where(detail => detail.Dataset == options.Dataset)
+                    .ToDictionary(item => item.RawSymbol, StringComparer.Ordinal),
+                CatalogQueryBarrier);
         public IDatabentoOptionChainFeed CreateOptionChainFeed(
             DatabentoFeedOptions options) => throw new NotSupportedException();
         public IDatabentoLatestPriceClient CreateLatestPriceClient(
             DatabentoFeedOptions options) => throw new NotSupportedException();
     }
 
-    private sealed class FakeQueries(Dictionary<string, ContractDetail> details)
+    private sealed class FakeQueries(
+        Dictionary<string, ContractDetail> details,
+        CountdownEvent? catalogQueryBarrier = null)
         : IDatabentoMarketDataQueries
     {
         public OptionChainDefinitions GetChainDefinitions(
@@ -213,11 +233,22 @@ public sealed class DatabentoProductionEpochTests
             details.Values.Where(item => item.Ticker == ticker).ToArray();
         public IReadOnlyList<ContractDetail?> GetContractDetails(
             string[] contractNames,
-            TimeSpan? timeout = null) =>
-            contractNames.Select(name => details.GetValueOrDefault(name)).ToArray();
+            TimeSpan? timeout = null)
+        {
+            if (catalogQueryBarrier is not null)
+            {
+                catalogQueryBarrier.Signal();
+                if (!catalogQueryBarrier.Wait(TimeSpan.FromSeconds(2)))
+                    throw new TimeoutException("Dataset catalogs were not queried concurrently.");
+            }
+            return contractNames.Select(name => details.GetValueOrDefault(name)).ToArray();
+        }
     }
 
-    private sealed class FakeTickerFeed(IReadOnlyList<ContractDetail> details)
+    private sealed class FakeTickerFeed(
+        IReadOnlyList<ContractDetail> details,
+        FeedDataSourceMode dataSource,
+        CountdownEvent? stopBarrier)
         : IDatabentoTickerFeed
     {
         private readonly BlockingReader _reader = new();
@@ -227,6 +258,7 @@ public sealed class DatabentoProductionEpochTests
 
         internal int StartCount { get; private set; }
         internal int StopCount { get; private set; }
+        internal TimeSpan? StopTimeout { get; private set; }
         internal bool Disposed { get; private set; }
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) =>
@@ -235,17 +267,28 @@ public sealed class DatabentoProductionEpochTests
         public void Stop(TimeSpan timeout)
         {
             StopCount++;
+            StopTimeout = timeout;
+            if (stopBarrier is not null)
+            {
+                stopBarrier.Signal();
+                if (!stopBarrier.Wait(TimeSpan.FromSeconds(2)))
+                    throw new TimeoutException("Dataset feeds were not stopped concurrently.");
+            }
             _reader.Complete();
         }
         public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey instrument) =>
             throw new NotSupportedException();
         public IMultiplexedTickerBatchReader GetMultiplexedReader() => _reader;
         public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
-            _subscriptions.Select(subscription =>
+            _subscriptions.Select((subscription, index) =>
             {
                 var detail = _details[subscription.Symbol];
                 return new TickerInstrumentRegistration(
-                    subscription.Symbol, detail.RawSymbol, detail.Instrument);
+                    subscription.Symbol,
+                    detail.RawSymbol,
+                    dataSource == FeedDataSourceMode.Synthetic
+                        ? new InstrumentKey(1, checked((uint)index + 1))
+                        : detail.Instrument);
             }).ToArray();
         public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
         public void Dispose()
@@ -276,8 +319,11 @@ public sealed class DatabentoProductionEpochTests
     private sealed class NoOpPublisher : ITickAggregationEventPublisher
     {
         public bool IsRunning { get; private set; }
+        internal int StartCount { get; private set; }
+        internal int StopCount { get; private set; }
         public ValueTask StartAsync()
         {
+            StartCount++;
             IsRunning = true;
             return ValueTask.CompletedTask;
         }
@@ -294,6 +340,7 @@ public sealed class DatabentoProductionEpochTests
         }
         public ValueTask StopAsync()
         {
+            StopCount++;
             IsRunning = false;
             return ValueTask.CompletedTask;
         }

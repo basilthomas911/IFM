@@ -17,6 +17,9 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
     public MarketEconomicCalendarView()
     {
         InitializeComponent();
+        txtCalendarDate.AccessibleName = "Economic calendar date";
+        ddlCountryCodes.AccessibleName = "Economic calendar country";
+        lstEconomicCalendar.AccessibleName = "Economic calendar list";
     }
 
     /// <summary>Creates, starts, and loads the lifecycle-owned calendar ViewModel.</summary>

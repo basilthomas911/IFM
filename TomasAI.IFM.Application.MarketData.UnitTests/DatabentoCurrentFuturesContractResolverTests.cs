@@ -30,7 +30,7 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
     public async Task UsesCboeFuturesDatasetForVx()
     {
         var factory = new FakeFeedFactory([
-            Detail("VXU6", "VX", new DateOnly(2026, 9, 16), "CFE")]);
+            Detail("VX/U6", "VX", new DateOnly(2026, 9, 16), "CFE")]);
         var resolver = new DatabentoCurrentFuturesContractResolver(factory, Options());
 
         await resolver.ResolveAsync("VX", new DateOnly(2026, 8, 14));

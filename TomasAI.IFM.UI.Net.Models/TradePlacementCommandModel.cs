@@ -18,15 +18,25 @@ public class TradePlacementCommandModel(
     /// </summary>
     /// <param name="contractId"></param>
     /// <param name="valueDate"></param>
-    public async Task StartTradePlacementAsync(string contractId, DateOnly valueDate)
-        => await ExecuteCommandAsync(() => _commandApi.StartTradePlacementAsync(new(contractId, valueDate)));
+    public Task<Guid> StartTradePlacementAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+        => ExecuteCommandAsync(() => _commandApi.StartTradePlacementAsync(
+            new(contractId, valueDate),
+            cancellationToken));
 
     /// <summary>
     /// stop trade placement signal service
     /// </summary>
     /// <param name="contractId"></param>
     /// <param name="valueDate"></param>
-    public async Task StopTradePlacementAsync(string contractId, DateOnly valueDate)
-        => await ExecuteCommandAsync(() => _commandApi.StopTradePlacementAsync(new(contractId, valueDate)));
+    public Task<Guid> StopTradePlacementAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+        => ExecuteCommandAsync(() => _commandApi.StopTradePlacementAsync(
+            new(contractId, valueDate),
+            cancellationToken));
 
 }

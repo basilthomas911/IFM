@@ -94,6 +94,7 @@ namespace TomasAI.IFM.UI.Net
             if (string.IsNullOrWhiteSpace(natsServerUri))
                 throw new InvalidOperationException("AppSettings:NatsServerUri is required.");
 
+            _container!.RegisterInstance(TimeProvider.System);
             //_container!.RegisterSingleton<IJsonSerializer, SystemTextJsonSerializer>();
             _container!.RegisterSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
             _container!.RegisterInstance<INatsProducerOptions>(new NatsProducerOptions { Url = natsServerUri });

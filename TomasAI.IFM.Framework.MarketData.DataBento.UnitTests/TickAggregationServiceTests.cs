@@ -298,6 +298,37 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
+    public async Task Incomplete_feed_stop_returns_without_waiting_for_worker_and_can_be_retried()
+    {
+        var valueDate = new DateOnly(2026, 8, 10);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new RetryStopFeed(instrument);
+        var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            new CapturingPublisher(),
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate,
+                FeedStopTimeout = TimeSpan.FromMilliseconds(50)
+            });
+
+        await service.StartAsync();
+
+        var failure = await Assert.ThrowsAsync<AggregateException>(
+            () => service.StopAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1)));
+        Assert.IsType<FeedStopDrainIncompleteException>(failure.InnerException);
+        Assert.True(service.IsRunning);
+
+        await service.StopAsync();
+        Assert.False(service.IsRunning);
+        await service.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Futures_option_ticks_use_the_same_persistence_pipeline_and_hot_store()
     {
         var valueDate = new DateOnly(2026, 8, 10);
@@ -692,6 +723,36 @@ public sealed class TickAggregationServiceTests
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
         public void Start(TimeSpan timeout) { }
         public void Stop(TimeSpan timeout) => _channel.Complete();
+        public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey key) => _channel;
+        public IMultiplexedTickerBatchReader GetMultiplexedReader()
+        {
+            if (_leased) throw new InvalidOperationException();
+            _leased = true;
+            return new MultiplexedTickerBatchReader([(instrument, _channel)], () => _leased = false);
+        }
+        public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
+            [new TickerInstrumentRegistration("ES", "ESU6", instrument)];
+        public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
+        public void Dispose() => _channel.Complete();
+    }
+
+    private sealed class RetryStopFeed(InstrumentKey instrument) : IDatabentoTickerFeed
+    {
+        private readonly BoundedBatchChannel _channel = new(4, 64);
+        private bool _leased;
+        private int _stopAttempts;
+
+        public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
+        public void Start(TimeSpan timeout) { }
+        public void Stop(TimeSpan timeout)
+        {
+            if (Interlocked.Increment(ref _stopAttempts) == 1)
+            {
+                throw new FeedStopDrainIncompleteException(
+                    "Synthetic final drain did not complete before the deadline.");
+            }
+            _channel.Complete();
+        }
         public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey key) => _channel;
         public IMultiplexedTickerBatchReader GetMultiplexedReader()
         {

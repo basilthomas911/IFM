@@ -2,9 +2,9 @@
 
 **Status:** Phase A runtime-complete; Phase B remains deferred for FMP
 
-**Version:** 1.5
+**Version:** 1.6
 
-**Validation date:** 2026-08-10
+**Validation date:** 2026-08-17
 
 **Application contract:**
 `TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi`
@@ -72,7 +72,7 @@ runtime-connectivity, and pre-implementation harness gates are all resolved.
   source sequence, event timestamp, receive timestamp, sizes, and quote counts.
 - [x] Futures `TickAggregationService` exists and exposes service/configured/
   running ticker status by domain futures contract ID.
-- [x] DataBento synthetic/native unit tests pass: **97 passed, 0 failed,
+- [x] DataBento synthetic/native unit tests pass: **106 passed, 0 failed,
   0 skipped**.
 - [x] A DataBento credential is configured in the validation environment. Its
   value was not read or recorded.
@@ -86,13 +86,21 @@ runtime-connectivity, and pre-implementation harness gates are all resolved.
   live-only Historical and streaming calls complete successfully.
 - [x] Windows Historical HTTPS uses Windows certificate-policy validation after
   the OpenSSL handshake; an explicit `SSL_CERT_FILE` remains supported.
-- [x] The application Gate 4 and production-epoch suite passes: **52 passed, 0 failed,
-  0 skipped**, including atomic enriched-reader semantics.
+- [x] The Application MarketData suite passes: **69 passed, 0 failed,
+  0 skipped**, including atomic enriched-reader semantics, concurrent
+  independent-dataset catalog/stop barriers, and single-start/single-stop
+  ownership of the reference-counted epoch publisher.
+- [x] Live ES and VX raw-symbol contract hydration passes: **2 passed, 0
+  failed, 0 skipped**.
+- [x] The accepted UI Development G0 process audit passes all **25** startup,
+  initialization, transport, signal, import, rendering, shutdown, and cleanup
+  checks, including the correlated market-data feed-stop terminal event.
 - [x] Framework MarketData contract tests pass: **46 passed, 0 failed,
   0 skipped**, including the enriched option-reader surface.
 - [x] Typed application exceptions define lifecycle, lookup, mapping, price,
   aggregation, route-conflict, chain-conflict, and capacity failures.
-- [x] FMP credential is unavailable, as confirmed by the user.
+- [x] An FMP credential is configured in the validation environment. Its value
+  was not read or recorded; Phase B remains separately deferred by scope.
 
 ## 4. Method-by-method implementation feasibility
 
@@ -103,8 +111,8 @@ until the implementation and its required live tests pass.
 
 | # | `IMarketDataApi` method | Design | FMP dependency | Existing DataBento foundation | Required implementation/validation | Runtime |
 | ---: | --- | --- | --- | --- | --- | --- |
-| 1 | `StartAsync` | Validated | None | Feed factory, contract queries, ticker feed, option feed, aggregation service | Application epoch/factory, bounded operation runner, option service, lifecycle rollback, DI | Phase A runtime gate passed |
-| 2 | `StopAsync` | Validated | None | Feed stop/drain and aggregation shutdown exist | Reverse-order epoch drain, option/chain shutdown, aggregate failures, stale-reader invalidation | Phase A runtime gate passed |
+| 1 | `StartAsync` | Validated | None | Feed factory, contract queries, ticker feed, option feed, aggregation service | Application epoch/factory, concurrent independent-dataset catalog hydration through bounded operation runners, option service, lifecycle rollback, DI | Phase A runtime gate passed |
+| 2 | `StopAsync` | Validated | None | Feed stop/drain and aggregation shutdown exist | Concurrent independent-dataset drain with the five-second actor default, option/chain shutdown, aggregate failures, stale-reader invalidation | Phase A runtime gate passed |
 | 3 | `GetFuturesContractAsync` | Validated | None | Exact/bulk details and bidirectional contract/instrument mapping exist | Application resolver/mapper, catalog, bounded sync-call runner, typed miss/ambiguity behavior | Phase A runtime gate passed |
 | 4 | `GetFuturesContractsAsync` | Validated | None | Batch contract details exist | Input-order/duplicate preservation, grouped lookup, all-or-nothing mapping | Phase A runtime gate passed |
 | 5 | `GetFuturesOptionContractAsync` | Validated | None | Contract mapping and option definitions exist | Application option resolver/mapper and exact underlying/maturity/right/strike checks | Phase A runtime gate passed |
@@ -121,7 +129,7 @@ until the implementation and its required live tests pass.
 | 16 | `StartStreamingFuturesOptionChainDataAsync` | Validated structurally | **Required** | Chain definitions, resolved chain subscription, one shared reader, underlying ticker status exist | Session manager, chain tick service, transient publishers/state, Black-76 adapter, underlying hot price, application-supplied FMP Treasury rate | **DEFERRED-FMP** |
 | 17 | `StopStreamingFuturesOptionChainDataAsync` | Validated | None to stop | Option-chain feed supports stop and disposal | Session lookup, drain, transient-state removal, dependency lease release | Phase A manager/stop gate passed; end-to-end deferred with #16 |
 | 18 | `IsTickDataStreamActive`, `TryGetLastTickPrice`, `TryGetLastOptionTickPrice` | Validated | None for raw trade/quote; existing pricing context for optional Greeks | Multi-asset TickAggregation owner registry and hot cache | Owner-idempotent first/final route transitions, stream-independent decimal snapshots, sequence-aligned optional Greeks, shutdown route cleanup | Unit and cross-component integration gates passed |
-| 19 | `TryGetCurrentlyTradedFuturesContract`, `UpdateCurrentlyTradedFuturesContractAsync` | Validated | DataBento definitions only when a rollover row is incomplete or due | Startup rollover table, persisted futures contracts, atomic runtime registry | Case-insensitive allocation-free lookup, ES/VX registry replacement, due-date persistence, startup blocking validation | Unit, Scylla integration, and realtime ITI route gates passed |
+| 19 | `TryGetCurrentlyTradedFuturesContract`, `UpdateCurrentlyTradedFuturesContractAsync` | Validated | DataBento definitions when a rollover row is incomplete/due or startup forces provider revalidation | Startup rollover table, persisted futures contracts, atomic runtime registry | Case-insensitive allocation-free lookup, ES/VX registry replacement, due-date persistence, startup provider refresh and blocking validation | Unit, Scylla integration, and realtime ITI route gates passed |
 
 ### Feasibility conclusion
 
@@ -478,8 +486,9 @@ integration and smoke results above validate both corrections.
 - Full API implementation approved to start: **No**
 - DataBento live-provider gates G2/G3: **Approved**
 - Application implementation-harness gate G4: **Approved**
-- Immediate owner/action: retain the Phase A runtime and benchmark gates while
-  proceeding to Phase B only after an FMP credential is available.
+- Immediate owner/action: retain the Phase A runtime and benchmark gates;
+  schedule the still-deferred Phase B implementation independently now that an
+  FMP credential is available.
 - FMP-dependent method: explicitly deferred; it does not prevent completing
   the Phase A design and implementation after its independent gates pass.
 

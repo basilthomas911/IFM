@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -125,6 +126,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
     [InlineData("inactive-es")]
     [InlineData("inactive-vx")]
     [InlineData("missing-vx-price")]
+    [InlineData("stopping-api")]
     public async Task IneligibleCoreNatsTrade_DoesNotCreateDurableItiSignals(
         string condition)
     {
@@ -146,6 +148,13 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 marketDataApi.GetFuturesPriceAsync(VxContractId)
                     .Returns(Task.FromException<decimal>(
                         new FuturesLastPriceUnavailableException(VxContractId)));
+                break;
+            case "stopping-api":
+                marketDataApi.IsTickDataStreamActive(EsContractId).Returns(false);
+                marketDataApi.StartStreamingFuturesTickDataAsync(
+                        EsContractId,
+                        Arg.Any<TickerStreamOwner?>())
+                    .Returns(Task.FromException<bool>(new MarketDataApiNotRunningException()));
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(condition));

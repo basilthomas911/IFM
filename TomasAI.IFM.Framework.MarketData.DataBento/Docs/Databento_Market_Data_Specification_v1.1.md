@@ -1887,7 +1887,10 @@ Paper trading deliberately uses production strictness so permissions, CPU reserv
 
 - `Development`: synthetic data, automatic P-core pinning, `PinnedOnly`, all
   platform `Require...` flags false, ring locking and low-latency GC requested.
-  A caller may explicitly opt into licensed `DatabentoLive` data.
+  A caller may explicitly opt into licensed `DatabentoLive` data. The API Server
+  Development deployment explicitly paces its synthetic source at ten records
+  per second per dataset so it behaves as a continuous workstation feed and its
+  accepted records can complete the normal five-second final drain.
 - `PaperTrading` and `Production`: live data, automatic P-core pinning,
   `ExcludeFromProcessWorkers`, ring locking enabled, and every affinity,
   isolation, priority, lock, base-page, NUMA, and GC `Require...` flag true.

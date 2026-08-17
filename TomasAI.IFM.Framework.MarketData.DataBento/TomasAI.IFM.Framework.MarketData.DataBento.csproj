@@ -28,15 +28,15 @@
   <ItemGroup Condition="'$(DatabentoNativeImplementation)' == 'Cpp' and Exists('..\native\DatabentoFeed.Native\out\$(DatabentoNativeBuildKind)\$(Configuration)\databento_feed_native.dll')">
     <None Include="..\native\DatabentoFeed.Native\out\$(DatabentoNativeBuildKind)\$(Configuration)\*.dll"
           Link="runtimes\win-x64\native\%(Filename)%(Extension)"
-          CopyToOutputDirectory="PreserveNewest"
-          CopyToPublishDirectory="PreserveNewest" />
+          CopyToOutputDirectory="Always"
+          CopyToPublishDirectory="Always" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(DatabentoNativeImplementation)' == 'Rust' and Exists('..\native.rust\DatabentoFeed.Rust\out\$(DatabentoNativeBuildKind)\$(Configuration)\databento_feed_native.dll')">
     <None Include="..\native.rust\DatabentoFeed.Rust\out\$(DatabentoNativeBuildKind)\$(Configuration)\*.dll"
           Link="runtimes\win-x64\native\%(Filename)%(Extension)"
-          CopyToOutputDirectory="PreserveNewest"
-          CopyToPublishDirectory="PreserveNewest" />
+          CopyToOutputDirectory="Always"
+          CopyToPublishDirectory="Always" />
   </ItemGroup>
 
 </Project>

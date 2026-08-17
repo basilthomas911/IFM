@@ -53,7 +53,7 @@ public sealed class G0InfrastructureTests
               "status": "Healthy",
               "description": "ready",
               "durationMilliseconds": 1.2,
-              "data": { "registeredActorTypes": 81 }
+              "data": { "registeredActorTypes": 83 }
             }
           }
         }
@@ -65,7 +65,7 @@ public sealed class G0InfrastructureTests
 
         document.Should().NotBeNull();
         document!.Status.Should().Be("Healthy");
-        document.RegisteredActorTypes.Should().Be(81);
+        document.RegisteredActorTypes.Should().Be(83);
     }
 
     [Theory]
@@ -133,6 +133,7 @@ public sealed class G0InfrastructureTests
             DeterministicAdapterApproved = false,
             ReadinessTimeout = TimeSpan.FromSeconds(1),
             StartupTimeout = TimeSpan.FromSeconds(1),
-            ShutdownTimeout = TimeSpan.FromSeconds(1)
+            ShutdownTimeout = TimeSpan.FromSeconds(1),
+            AuditTimeout = TimeSpan.FromSeconds(1)
         };
 }

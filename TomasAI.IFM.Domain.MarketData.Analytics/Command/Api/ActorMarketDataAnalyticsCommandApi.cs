@@ -42,6 +42,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
             sourceSequence,
             sourceEventTimestamp)
         {
+            CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesRsiSignalCommand.Actor,
@@ -106,6 +107,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         var entityId = signalId.ToEntityId();
         GenerateFuturesMacdSignalCommand command = new(signalId, futuresPrice)
         {
+            CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesMacdSignalCommand.Actor,
@@ -130,6 +132,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         var entityId = signalId.ToEntityId();
         GenerateFuturesAdxSignalCommand command = new(signalId, futuresPrice)
         {
+            CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesAdxSignalCommand.Actor,
@@ -154,6 +157,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
         var entityId = signalId.ToEntityId();
         GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice)
         {
+            CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 GenerateFuturesAtrSignalCommand.Actor,
@@ -195,6 +199,7 @@ public sealed class ActorMarketDataAnalyticsCommandApi(IEventActorContext contex
             futuresItiSignalData,
             vixFuturesPrice)
         {
+            CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
                 UpdateFuturesTradeSignalCommand.Actor,

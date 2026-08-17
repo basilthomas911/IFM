@@ -40,7 +40,10 @@ public sealed class FuturesContractRolloverStartupCheck(
         foreach (var symbol in RequiredSymbols)
         {
             await marketDataApi.UpdateCurrentlyTradedFuturesContractAsync(
-                symbol, valueDate, cancellationToken).ConfigureAwait(false);
+                symbol,
+                valueDate,
+                cancellationToken,
+                forceProviderRefresh: true).ConfigureAwait(false);
         }
 
         var validated = await store.GetFuturesContractRolloversAsync(cancellationToken)

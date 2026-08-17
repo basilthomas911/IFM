@@ -30,6 +30,12 @@ queries DataBento only when:
 - `nextRolloverDate` is empty; or
 - `valueDate >= nextRolloverDate`.
 
+The startup reconciliation passes `forceProviderRefresh: true`, so every host
+start also revalidates the current ES and VX assignments against DataBento.
+This repairs a stale provider identity or a changed nearest eligible contract
+before the market-data epoch is admitted. Ordinary callers retain the
+incomplete-or-due behavior above.
+
 The argument is a futures root symbol, not a contract ID, because an incomplete
 bootstrap row has no contract ID yet. The resolver queries `<symbol>.FUT`, keeps
 futures whose maturity is at least `valueDate + 1 day`, and selects the nearest
@@ -101,4 +107,5 @@ longer authoritative for those current contracts.
 The market-data unit suite verifies nearest-maturity selection, ES and VX
 dataset routing, and the typed no-contract failure. The Scylla integration suite
 verifies bootstrap insertion, DataBento-resolution substitution, atomic
-persistence, startup validation, return values, and idempotent second startup.
+persistence, startup provider revalidation, return values, and cleanup of its
+ES/VX fixture rows after each test.

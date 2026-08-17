@@ -188,6 +188,7 @@ public class UiArchitectureBaselineTests
         startup.Should().Contain("RegisterSingleton<IActorProducer>");
         startup.Should().Contain("RegisterSingleton<NatsConnectionManager>");
         startup.Should().Contain("RegisterSingleton<YieldCurveRateEditViewModel>");
+        startup.Should().Contain("RegisterInstance(TimeProvider.System)");
         startup.Should().NotContain("CommandServiceApiClient");
         startup.Should().NotContain("QueryServiceApiClient");
         startup.Should().NotContain("IHttpClientFactory");

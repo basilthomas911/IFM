@@ -37,7 +37,7 @@ public sealed class G0StartupAuditTests
             }
         };
         var recorder = new G0AuditRecorder(run);
-        using var auditTimeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        using var auditTimeout = new CancellationTokenSource(configuration.AuditTimeout);
         var cancellationToken = auditTimeout.Token;
 
         OwnedProcess? api = null;
@@ -161,17 +161,22 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-007", "Await desktop NATS readiness",
-                $"Desktop PID has an established NATS connection to port {configuration.NatsUri.Port}.",
+                $"The desktop establishes NATS transport to port {configuration.NatsUri.Port}, directly or through typed UI-initiated traffic when a local container proxy owns the socket.",
                 async token =>
                 {
                     RequireDesktop(desktop);
-                    var connections = await WaitForConnectionsAsync(
+                    RequireObserver(observer);
+                    var readiness = await WaitForDesktopNatsReadinessAsync(
                         desktop!.Process.Id,
-                        rows => rows.Any(row => InfrastructureProbe.GetPort(row.RemoteEndpoint) == configuration.NatsUri.Port),
+                        observer!,
+                        configuration.NatsUri.Port,
                         configuration.ReadinessTimeout,
                         token);
-                    await WriteConnectionsAsync(evidence, "desktop-nats-ready.json", connections, token);
-                    return Observation("Desktop NATS connection is established.", ["network/desktop-nats-ready.json"]);
+                    await WriteConnectionsAsync(evidence, "desktop-nats-ready.json", readiness.ProcessConnections, token);
+                    await WriteConnectionsAsync(evidence, "nats-endpoint-ready.json", readiness.EndpointConnections, token);
+                    return Observation(
+                        $"Desktop NATS transport established; evidence={readiness.EvidenceKind}.",
+                        ["network/desktop-nats-ready.json", "network/nats-endpoint-ready.json"]);
                 });
 
             await Step("G0-008", "Find the responsive main window",
@@ -179,7 +184,7 @@ public sealed class G0StartupAuditTests
                 async token =>
                 {
                     RequireDesktop(desktop);
-                    automation = new G0UiAutomationSession(desktop!.Process);
+                    automation = new G0UiAutomationSession(desktop!.Process.Id);
                     var window = await automation.WaitForMainWindowAsync(configuration.StartupTimeout, token);
                     if (!window.Title.Contains("Investment Fund Manager", StringComparison.OrdinalIgnoreCase)
                         || !window.Title.Contains("DEV", StringComparison.OrdinalIgnoreCase))
@@ -189,17 +194,22 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-009", "Audit desktop network transport",
-                "Desktop uses NATS and has no connection to API HTTP port 22543.",
+                "Typed UI command traffic proves NATS use and the desktop has no connection to API HTTP port 22543.",
                 async token =>
                 {
                     RequirePassed(recorder, "G0-007", "A desktop NATS connection must exist.");
+                    RequireObserver(observer);
+                    await observer!.WaitForAsync(
+                        HasUiInitiatedNatsTraffic,
+                        configuration.ReadinessTimeout,
+                        token);
                     var connections = await InfrastructureProbe.GetProcessTcpConnectionsAsync(desktop!.Process.Id, token);
                     await WriteConnectionsAsync(evidence, "desktop-network-audit.json", connections, token);
-                    if (!connections.Any(row => InfrastructureProbe.GetPort(row.RemoteEndpoint) == configuration.NatsUri.Port))
-                        throw new InvalidOperationException("Desktop has no NATS connection.");
                     if (connections.Any(row => InfrastructureProbe.GetPort(row.RemoteEndpoint) == configuration.ApiReadyUri.Port))
                         throw new InvalidOperationException("Desktop directly connected to the API HTTP port.");
-                    return Observation("Desktop transport is NATS-only for application messaging.", ["network/desktop-network-audit.json"]);
+                    return Observation(
+                        "Typed UI-initiated NATS traffic was observed and the desktop has no API HTTP connection.",
+                        ["network/desktop-network-audit.json", "network/nats-events.json"]);
                 });
 
             await Step("G0-010", "Observe initial listeners and reference-data command intake",
@@ -241,6 +251,8 @@ public sealed class G0StartupAuditTests
                 {
                     RequireQueries(queries);
                     RequireContract(esContract);
+                    var seed = await G0DevelopmentDataFixture.EnsureAsync(
+                        queries!, esContract!, configuration.ReadinessTimeout, token);
                     var eod = await queries!.MarketDataFeed
                         .GetLastFuturesEodDataAsync(esContract!.ContractId, esContract.LastTradeDate)
                         .WaitAsync(configuration.ReadinessTimeout, token);
@@ -255,7 +267,9 @@ public sealed class G0StartupAuditTests
                     if (!bar.Success || bar.Value is null) unavailable.Add($"bar: {bar.ErrorMessage}");
                     if (unavailable.Count > 0)
                         throw new G0DependencyException("Deterministic startup state is incomplete: " + string.Join("; ", unavailable));
-                    return Observation("Latest ES EOD, trade-signal, and bar records loaded.");
+                    return Observation(
+                        $"Latest ES EOD, trade-signal, and bar records loaded; "
+                        + $"Development seed date={seed.ValueDate:yyyy-MM-dd}; EOD inserted={seed.EodSeeded}; bar inserted={seed.BarSeeded}.");
                 });
 
             await Step("G0-013", "Observe automatic FMP yield-curve import",
@@ -488,7 +502,7 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-025", "Verify bounded exit and cleanup",
-                "No desktop process, network connection, listener, signal timer, or harness backend remains.",
+                "No error-coded status, desktop process, network connection, listener, signal timer, or harness backend remains.",
                 async token =>
                 {
                     List<string> cleanupFailures = [];
@@ -515,6 +529,17 @@ public sealed class G0StartupAuditTests
                     }
                     if (observer is not null)
                     {
+                        var errorStatuses = observer.Events
+                            .Where(IsErrorCodedStatus)
+                            .ToArray();
+                        if (errorStatuses.Length != 0)
+                        {
+                            cleanupFailures.Add(
+                                $"Observed {errorStatuses.Length} error-coded status message(s): "
+                                + string.Join(" | ", errorStatuses
+                                    .Take(3)
+                                    .Select(row => $"{row.EntityId}: {row.Message}")));
+                        }
                         await observer.WriteEvidenceAsync(evidence, token);
                         await observer.DisposeAsync();
                         observer = null;
@@ -531,7 +556,7 @@ public sealed class G0StartupAuditTests
                         throw new InvalidOperationException(string.Join(Environment.NewLine, cleanupFailures));
                     cleanupSucceeded = true;
                     return Observation(
-                        "Desktop exited normally; NATS/query observers stopped; harness-owned API was removed; no desktop TCP connections remain.",
+                        "No error-coded status was observed; desktop exited normally; NATS/query observers stopped; harness-owned API was removed; no desktop TCP connections remain.",
                         ["network/desktop-after-exit.json", "network/nats-events.json", "processes/api-final.json", "processes/desktop-final.json"]);
                 });
         }
@@ -646,19 +671,38 @@ public sealed class G0StartupAuditTests
             throw new G0DependencyException("The application value date is unavailable.", G0StepStatus.SkippedDependency);
     }
 
-    static async Task<IReadOnlyList<TcpConnectionEvidence>> WaitForConnectionsAsync(
+    static async Task<G0DesktopNatsReadiness> WaitForDesktopNatsReadinessAsync(
         int processId,
-        Func<IReadOnlyList<TcpConnectionEvidence>, bool> predicate,
+        G0EventObserver observer,
+        int natsPort,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(timeout);
+        IReadOnlyList<TcpConnectionEvidence> processConnections = [];
+        IReadOnlyList<TcpConnectionEvidence> endpointConnections = [];
         while (!timeoutSource.IsCancellationRequested)
         {
-            var rows = await InfrastructureProbe.GetProcessTcpConnectionsAsync(processId, timeoutSource.Token);
-            if (predicate(rows))
-                return rows;
+            try
+            {
+                processConnections = await InfrastructureProbe.GetProcessTcpConnectionsAsync(
+                    processId,
+                    timeoutSource.Token);
+                endpointConnections = await InfrastructureProbe.GetPortTcpConnectionsAsync(
+                    natsPort,
+                    timeoutSource.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (processConnections.Any(row => InfrastructureProbe.GetPort(row.RemoteEndpoint) == natsPort))
+                return new G0DesktopNatsReadiness(processConnections, endpointConnections, "desktop PID socket");
+            if (endpointConnections.Count > 0 && HasUiInitiatedNatsTraffic(observer.Events))
+                return new G0DesktopNatsReadiness(processConnections, endpointConnections, "typed UI traffic through endpoint proxy");
+
             try
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(200), timeoutSource.Token);
@@ -668,8 +712,11 @@ public sealed class G0StartupAuditTests
                 break;
             }
         }
-        throw new TimeoutException($"Expected process network state was not observed within {timeout}.");
+        throw new TimeoutException($"Desktop NATS readiness was not observed within {timeout}.");
     }
+
+    static bool HasUiInitiatedNatsTraffic(IReadOnlyList<G0ObservedEvent> events)
+        => events.Any(row => row.Verb == "Imported" && row.Family is "YieldCurve" or "EconomicCalendar");
 
     static Task WriteConnectionsAsync(
         G0EvidenceWriter evidence,
@@ -773,4 +820,17 @@ public sealed class G0StartupAuditTests
     static int CountStatus(IReadOnlyList<G0ObservedEvent> events, string text)
         => events.Count(row => row.Family == "Status"
             && row.Message.Contains(text, StringComparison.OrdinalIgnoreCase));
+
+    static bool IsErrorCodedStatus(G0ObservedEvent row)
+    {
+        if (row.Family != "Status") return false;
+        var separator = row.Message.IndexOf(':');
+        return separator > 0
+            && row.Message.AsSpan(0, separator).IndexOfAnyExceptInRange('0', '9') < 0;
+    }
 }
+
+public sealed record G0DesktopNatsReadiness(
+    IReadOnlyList<TcpConnectionEvidence> ProcessConnections,
+    IReadOnlyList<TcpConnectionEvidence> EndpointConnections,
+    string EvidenceKind);

@@ -16,12 +16,14 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb;
 
 [Collection(SecuritiesDatabaseNonParallelCollection.Name)]
 public sealed class FuturesContractRolloverStartupIntegrationTests(
-    SecuritiesDatabaseFixture fixture) : IClassFixture<SecuritiesDatabaseFixture>
+    SecuritiesDatabaseFixture fixture) :
+    IClassFixture<SecuritiesDatabaseFixture>,
+    IAsyncLifetime
 {
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
 
     [Fact]
-    public async Task StartupSeedsResolvesPersistsAndThenSkipsCurrentRows()
+    public async Task StartupSeedsResolvesPersistsAndRefreshesCurrentRows()
     {
         await ResetAsync();
         var resolver = new FakeResolver();
@@ -53,7 +55,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             && row.ContractId == "VX20260916"
             && row.NextRolloverDate == new DateOnly(2026, 9, 16));
         second.Should().Contain(row => row.Symbol == "ES" && row.ContractId == "ES20260918");
-        resolver.CallCount.Should().Be(2, "the second startup must not re-query current rows");
+        resolver.CallCount.Should().Be(4, "startup must revalidate provider identities even before rollover is due");
 
         var es = await fixture.Db.GetFuturesContractAsync("ES20260918");
         var vx = await fixture.Db.GetFuturesContractAsync("VX20260916");
@@ -68,7 +70,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             && registration.AssetTypeId == AssetTypeId.Futures);
         registry.Should().Contain(registration =>
             registration.DomainContractId == "VX20260916"
-            && registration.ProviderContractName == "VXU6"
+            && registration.ProviderContractName == "VX/U6"
             && registration.Dataset == "XCBF.PITCH"
             && registration.AssetTypeId == AssetTypeId.Futures);
     }
@@ -160,6 +162,10 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         }
     }
 
+    public Task InitializeAsync() => ResetAsync();
+
+    public Task DisposeAsync() => ResetAsync();
+
     private sealed class FakeResolver(bool failVx = false) : IDatabentoCurrentFuturesContractResolver
     {
         internal int CallCount { get; private set; }
@@ -181,7 +187,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
                 $"{symbol}{maturity:yyyyMMdd}",
                 $"{symbol} integration contract",
                 symbol,
-                symbol == "VX" ? "VXU6" : maturity.Month == 12 ? "ESZ6" : "ESU6",
+                symbol == "VX" ? "VX/U6" : maturity.Month == 12 ? "ESZ6" : "ESU6",
                 "FUT",
                 "USD",
                 symbol == "VX" ? "CFE" : "CME",

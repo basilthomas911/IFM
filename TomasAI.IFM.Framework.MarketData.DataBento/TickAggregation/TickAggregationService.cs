@@ -346,7 +346,15 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             try { ClearAllStreams(); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
             try { _feed.Stop(_options.FeedStopTimeout); }
-            catch (Exception exception) { (failures ??= []).Add(exception); }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                // The feed owns its still-live producer, drain, buffers, and
+                // published leases after an incomplete bounded stop. Do not wait
+                // indefinitely for channel completion or reclaim those resources;
+                // leave the service in Stopping so a later StopAsync can retry.
+                throw new AggregateException("Tick aggregation shutdown failed.", failures);
+            }
             try { if (_worker is not null) await _worker.ConfigureAwait(false); }
             catch (Exception exception) { (failures ??= []).Add(exception); }
             try { await FlushAllAsync(QuoteEmissionReason.FeedStopped).ConfigureAwait(false); }

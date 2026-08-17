@@ -84,29 +84,36 @@ Every step has one of these statuses:
 | G0-002 | Probe the configured NATS endpoint | Broker accepts a connection on the configured endpoint, normally port 4222 |
 | G0-003 | Probe required PostgreSQL, ScyllaDB, and Redis services | Each configured service reports reachable/ready, or the exact missing dependency is recorded |
 | G0-004 | Start `TomasAI.IFM.Application.Api.Server` in Development | Process remains alive and logs are captured |
-| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 81 registered actor types, independent of dynamically started entity instances |
+| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 83 registered actor types, independent of dynamically started entity instances |
 | G0-006 | Launch the configured desktop executable | Initial target is `TomasAI.IFM.UI.Net`; PID and start time are recorded |
-| G0-007 | Await desktop NATS readiness | Connection is established through readiness logic without a fixed startup delay |
+| G0-007 | Await desktop NATS readiness | A direct desktop-PID socket is recorded when the host exposes it; when a local container proxy owns the loopback socket, an active endpoint connection plus typed UI-initiated import traffic proves readiness without a fixed startup delay |
 | G0-008 | Find the responsive main window | `IFMAppView` appears, has the expected title, and responds to UI Automation |
-| G0-009 | Audit desktop network transport | Desktop PID has NATS connection(s), normally port 4222, and no connection to API HTTP port 22543 |
-| G0-010 | Observe initial status, application, and reference-data terminal-listener startup | Status, application, yield-curve, and economic-calendar startup listeners become active before their commands; unexpected listener errors fail the relevant step |
+| G0-009 | Audit desktop network transport | Typed UI-initiated command/event traffic proves NATS use, the endpoint connection table is captured, and the desktop PID has no connection to API HTTP port 22543 |
+| G0-010 | Observe initial status and reference-data command intake | Typed `Notify.StatusConsoleEvent` traffic and both parameter-only reference-data import events are observed; unexpected listener errors fail the relevant step |
 | G0-011 | Query currently traded ES futures contracts | A configured current contract is returned; absence is currently `BlockedDependency` due to test data |
-| G0-012 | Load conditional latest EOD, signal, and bar state | Runs when the current contract and seed state exist; otherwise records the specific dependency |
+| G0-012 | Load latest EOD, signal, and bar state | Missing Development EOD and bar prerequisites are established through the public NATS command API and confirmed through queries; the trade signal remains an independently required durable domain result |
 | G0-013 | Observe automatic FMP yield-curve import | The UI submits the parameter-only domain import command, retains its command ID, and observes the matching complete event; provider acquisition occurs behind `IReferenceDataApi`, and the durable MarketData query state matches the accepted provider result, including a valid zero-row result |
 | G0-014 | Observe automatic FMP economic-calendar import | The UI submits the parameter-only domain import command, retains its command ID, and observes the matching complete event; provider acquisition occurs behind `IReferenceDataApi`, and the durable MarketData query state matches the accepted provider result, including a valid zero-row result |
 | G0-015 | Verify startup-import lifecycle policy | Both terminal listeners started before command submission, matched only the exact command ID, stopped after the bounded attempt, and issued no retry; a failed or unobserved normal-path import fails G0 even though the UI must report it and continue startup |
 | G0-016 | Query and render application value date | A valid value date is returned and shown in the shell state; reference-data imports were attempted before this live-trading-hours gate |
 | G0-017 | Render economic-calendar country/date/list state | Requires imported or seeded data; selected filters and displayed result are recorded |
-| G0-018 | Observe EOD, bar, trade-signal, placement, and feed-reset consumer startup | Each required consumer starts exactly once without an unhandled error |
+| G0-018 | Observe EOD, bar, trade-signal, placement, and feed-reset consumer startup | Each required consumer starts exactly once without an unhandled error; the retained legacy trade-placement actor request is bounded to five seconds, reports unavailable state, does not retry, and cannot block the remaining startup sequence |
 | G0-019 | Start the configured current futures feed | Requires G0-011; command acceptance and correlated event/status are recorded |
 | G0-020 | Start the authoritative intraday analytics profile | For the active ES contract and value date, observe exactly 24 typed `Started` events: RSI-13, ATR-14, ADX-14, and MACD-9/12/26 for 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours; no daily-or-longer actor is started |
 | G0-021 | Reach initialized shell state | Status reports that all 24 intraday signal actors started, then reports initialization complete and enables applicable toolbar actions; any partial signal-start result is a failed G0 step and must show that no retry occurred |
 | G0-022 | Request main-window close | Normal UI close is accepted without force-killing the process |
 | G0-023 | Observe analytics, listener, and producer shutdown | Observe matching stop completion for the same 24 intraday signal identities; owned consumers and shared producers stop without duplicate stops or a self-stop deadlock |
 | G0-024 | Observe conditional feed-stop behavior | If a feed was started, stop command/event completion is captured |
-| G0-025 | Verify bounded process exit and cleanup | Desktop exits within the approved threshold; no orphan UI process, desktop network connection, listener, or signal timer remains |
+| G0-025 | Verify bounded process exit and cleanup | Desktop exits within the approved threshold; no error-coded status message, orphan UI process, desktop network connection, listener, or signal timer remains |
 
-The initial shutdown reference measurement is 5.4 seconds. The implemented default automated threshold is 15 seconds and can be changed explicitly with `IFM_G0_SHUTDOWN_TIMEOUT_SECONDS` when an approved environment requires a different bound.
+The initial shutdown reference measurement is 5.4 seconds. The implemented default automated threshold is 15 seconds and can be changed explicitly with `IFM_G0_SHUTDOWN_TIMEOUT_SECONDS` when an approved environment requires a different bound. The entire non-short-circuiting audit has an independent 30-minute default ceiling, configurable with `IFM_G0_AUDIT_TIMEOUT_SECONDS`; this preserves evidence collection and cleanup when several bounded steps fail in one run.
+
+The Development API host uses provider-backed DataBento contract discovery but
+a deterministic synthetic tick source paced at ten records per second per
+dataset. This exercises the complete durable tick path as a continuous feed
+without injecting the unpaced qualification burst into the G0 lifecycle window;
+normal stop still drains every accepted record and must emit its correlated
+successful terminal event.
 
 ### Current expected baseline
 
@@ -118,7 +125,9 @@ G0 must determine environment readiness at run time instead of describing either
 
 The authoritative intraday startup profile is also implemented and integration-tested through NATS. The G0 process test must still prove that the actual desktop startup selects the current ES contract, starts all 24 configured entity instances, reaches initialization complete, and stops the same instances on close. These dynamic entity instances do not change the API host's registered actor-type count.
 
-The missing `YieldCurveRateEditViewModel` composition registration found during the controlled run has been corrected and is protected by an architecture regression assertion.
+The missing `YieldCurveRateEditViewModel` and `TimeProvider` composition registrations found during controlled runs have been corrected and are protected by architecture regression assertions. Yield-curve command validation owns its stateless validation rules directly, so startup imports no longer depend on an undeclared actor-container registration. Calendar controls expose stable accessibility names for process-level assertions, while automation-tree evidence tolerates unsupported provider properties. The retained legacy trade-placement signal start/stop calls now accept cancellation, use a five-second UI bound, and issue a stop only after a confirmed start, preventing an unavailable legacy actor from holding startup or shutdown for the transport's two-minute default request timeout.
+
+The accepted Development baseline is run `20260817-010601-112b79e32ccb44fbb35cf651fc1e4d4a`: all 25 required checks passed in 48 seconds and cleanup succeeded. This includes unique audit identities for actor-internal signal generation, absence of error-coded status messages, and the correlated feed-stop terminal event after both dataset-specific aggregators drained through their shared epoch publisher. The reviewed result is retained in [`TestResults/G0-Development-2026-08-17.md`](TestResults/G0-Development-2026-08-17.md).
 
 ## Evidence and result contract
 
@@ -158,7 +167,7 @@ Before G0 can pass, the Development UI test fixture needs:
 - a DataBento native/runtime build that supports the startup contract-catalog query required by `FuturesContractRolloverStartupService`;
 - one known application value date;
 - one currently traded ES futures contract;
-- deterministic latest EOD, signal, and bar data for that contract where the startup branch requires them;
+- deterministic latest EOD, signal, and bar data for that contract where the startup branch requires them; G0 may create missing EOD and bar records through the domain command API and verifies them through queries, while a trade signal remains a prerequisite;
 - FMP enabled in the API Server and a valid `FMP_API_KEY` available to that process, or an explicitly approved deterministic adapter with representative treasury and economic-calendar responses;
 - representative imported or deterministic seeded data for rendered-state assertions that require non-empty rows; a valid 0-row provider import remains a successful domain outcome and is recorded as such;
 - expected intraday signal identities derived from the active ES contract and value date using the authoritative 15-second, 1-minute, 5-minute, 15-minute, 1-hour, and 4-hour profile;
@@ -291,7 +300,7 @@ The package and compile validation command is:
 
 ```powershell
 dotnet restore TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj
-dotnet build TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-restore
+dotnet build TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-restore -p:DatabentoEnableLive=true
 ```
 
 G0 is implemented as an opt-in process test. Execute it in an unlocked interactive Windows session with the approved Development services and deterministic data:
@@ -299,7 +308,7 @@ G0 is implemented as an opt-in process test. Execute it in an unlocked interacti
 ```powershell
 $env:FMP_API_KEY = '<credential>'
 $env:IFM_RUN_UI_G0 = '1'
-dotnet test TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-restore --filter Category=G0Process
+dotnet test TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-build --filter Category=G0Process
 ```
 
 Normal test runs do not launch the API Server or desktop. The non-process infrastructure coverage is selected with `--filter Category=G0Infrastructure`. Defaults and the complete `IFM_G0_*` override schema are documented in `TomasAI.IFM.UI.Net.SystemTests/Startup/README.md` and enforced by `G0Configuration`.

@@ -23,6 +23,6 @@ public sealed record DatabentoMarketDataRuntimeOptions
     public int MaximumConcurrentOptionChains { get; init; } = 8;
     public TimeSpan ProviderQueryTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan FeedStartTimeout { get; init; } = TimeSpan.FromSeconds(30);
-    public TimeSpan FeedStopTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan FeedStopTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan ReaderPollTimeout { get; init; } = TimeSpan.FromMilliseconds(50);
 }

@@ -12,15 +12,14 @@ try
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
     await app.MapEventModelActorsAsync(logger);
+    var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
     try
     {
         await app.RunAsync();
     }
     finally
     {
-        await app.Services
-            .GetRequiredService<IActorSupervisor>()
-            .ShutdownAsync(CancellationToken.None);
+        await actorSupervisor.ShutdownAsync(CancellationToken.None);
     }
 }
 catch (Exception ex)

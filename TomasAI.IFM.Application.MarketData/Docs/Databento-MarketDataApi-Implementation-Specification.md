@@ -456,7 +456,7 @@ public sealed record DatabentoMarketDataApiOptions
         TimeSpan.FromSeconds(30);
 
     public TimeSpan FeedStopTimeout { get; init; } =
-        TimeSpan.FromSeconds(30);
+        TimeSpan.FromSeconds(5);
 
     public int MaximumConcurrentProviderOperations { get; init; } = 2;
 
@@ -518,12 +518,15 @@ One API singleton owns at most one `DatabentoMarketDataEpoch`. A private
 - immutable futures and option contract indexes;
 - dataset-bound query client and epoch-bound hot-price reader provider;
 - the bounded provider operation runner;
-- one configured futures feed and `ITickAggregationService`;
+- one configured futures feed and `ITickAggregationService` per provider
+  dataset represented in the epoch;
 - one configured futures-option feed and option streaming service;
 - a bounded option-chain session registry keyed by domain underlying contract
   ID and exact maturity;
 - one transient option-chain state store plus live engine/UI publishers;
 - active futures and option contract sets;
+- one reference-counted epoch publisher shared by those dataset-specific
+  aggregation services;
 - feed, publisher, and application health sources.
 
 The current `TickAggregationOptions` and feed subscriptions are immutable, so a
@@ -565,8 +568,10 @@ Behavior:
 6. Verify kind, expiry/maturity, raw symbol, publisher/instrument identity, and
    definition-date consistency.
 7. Populate the complete futures tick mapping store.
-8. Create the futures ticker feed, subscribe the resolved raw-symbol universe,
-   and construct the existing `TickAggregationService`.
+8. For each represented dataset, create a futures ticker feed, subscribe that
+   dataset's resolved raw-symbol universe, and construct its
+   `TickAggregationService`. All services acquire the same reference-counted
+   epoch publisher, whose transport starts once.
 9. Create the option ticker feed, subscribe the resolved option raw-symbol
    universe to quote data, and construct the option streaming service.
 10. Create an empty, bounded option-chain session manager and transient state
@@ -603,8 +608,10 @@ Behavior:
 6. Clear option activations so no new option events are enqueued.
 7. Stop native option intake, drain option batches and the bounded publisher,
    then release the option reader/feed.
-8. Await the futures aggregation service's existing data-safe `StopAsync`,
-   including managed batches, partial quote buffers, and publisher envelopes.
+8. Concurrently await each independent dataset aggregation service's data-safe
+   `StopAsync`, including managed batches and partial quote buffers. The shared
+   publisher remains running while any service holds a reference and is stopped
+   once, by the final release, after every accepted publisher envelope drains.
 9. Drain admitted query/snapshot operations within their provider timeouts.
 10. Clear active sets, publish stopped health, dispose the epoch, and clear the
    stored callback.
@@ -844,10 +851,18 @@ bool TryGetCurrentlyTradedFuturesContract(
 Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
     string symbol,
     DateOnly valueDate,
-    CancellationToken cancellationToken = default);
+    CancellationToken cancellationToken = default,
+    bool forceProviderRefresh = false);
 ```
 
-Startup reconciliation populates one atomic runtime state containing both DataBento registrations and the full persisted current-contract models. The synchronous `TryGet` operation is a case-insensitive in-memory symbol lookup with no provider or storage access; per-tick domain handlers use it to validate current ES/VX identity. The update operation consults DataBento and persists a replacement only when the master rollover row is incomplete or due. See `Documents/system/Futures-Contract-Rollover-Startup.md` for the startup admission and persistence rules.
+Startup reconciliation populates one atomic runtime state containing both DataBento registrations and the full persisted current-contract models. The synchronous `TryGet` operation is a case-insensitive in-memory symbol lookup with no provider or storage access; per-tick domain handlers use it to validate current ES/VX identity. Ordinary update calls consult DataBento and persist a replacement only when the master rollover row is incomplete or due. Startup sets `forceProviderRefresh` so stale provider identities and nearest-contract assignments are revalidated before epoch admission. See `Documents/system/Futures-Contract-Rollover-Startup.md` for the startup admission and persistence rules.
+
+The epoch builds tick mappings from the runtime feed mode. Live feeds use the
+publisher/instrument identities returned by DataBento definitions. Synthetic
+feeds assign deterministic publisher `1` and a dataset-local one-based
+instrument sequence matching the immutable subscription order. The catalog
+metadata remains live/provider-authored in Development, but synthetic records
+must never be routed through those live instrument keys.
 
 ### 9.10 `GetFuturesLastPriceReader`
 
@@ -1172,7 +1187,8 @@ introducing public Guid parameters into `IMarketDataApi`.
 
 Start order:
 
-1. validate complete mappings and fixed universe;
+1. validate complete mappings and fixed universe concurrently across the
+   independent dataset runners;
 2. start the provider-independent publisher;
 3. acquire the multiplexed reader;
 4. start the waiting worker;
@@ -1181,7 +1197,13 @@ Start order:
 
 Stop performs the reverse data-safe order: stop native intake, drain managed
 batches, close activation, drain publisher events, release reader/batches, stop
-publisher, dispose feed.
+publisher, dispose feed. Independent dataset feeds stop concurrently with the
+five-second actor default. An incomplete bounded feed stop returns its typed
+failure without awaiting an output worker whose channel cannot yet complete;
+the feed retains ownership and a later stop can retry. The API Server's
+Development deployment paces each synthetic dataset at ten records per second,
+preventing a qualification-style burst from masquerading as a workstation
+lifecycle failure.
 
 ### 11.5 Option-chain session manager and tick service
 
@@ -2111,6 +2133,7 @@ Coding begins after these decisions are accepted.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.7 | 2026-08-17 | Made multi-dataset epoch startup/catalog hydration and feed shutdown concurrent, established a five-second feed-stop bound, and made the shared tick-event publisher reference-counted so its transport starts once and remains available until the final dataset aggregation drains. Recorded the accepted 25/25 Development G0 lifecycle result. |
 | 1.6 | 2026-08-10 | Removed the redundant application `IMarketDataSnapshotApi`; contract-definition queries, hot-price access, and live controls now use only `IMarketDataApi`. Clarified that one application API may own multiple protocol-specific DataBento query/feed transports inside the same epoch. |
 | 1.5 | 2026-08-10 | Recorded the Phase A production implementation: application-owned epoch/API orchestration, bounded bidirectional contract resolution, multi-asset aggregation, allocation-free DataBento hot readers, transient activation routing and publishers, non-persistent option-chain sessions/state/drain, separate DI boundaries, health, unit/live gates, and benchmark evidence. FMP rate selection, Black-76 production enrichment, and public option-chain start remain Phase B. |
 | 1.4 | 2026-08-10 | Extended `IFuturesOptionLastPriceReader` with atomic quote/trade-with-Greeks reads; made the provider-neutral Greeks and enriched snapshot contracts authoritative in Framework MarketData; specified availability-versus-validity, exact quote sequence coherence, quote-derived trade Greeks, post-stop invalidation, and ingestion-time rather than reader-time calculation. Also clarified that `TickAggregationService` is the multi-asset raw-tick pipeline for futures and futures options. |

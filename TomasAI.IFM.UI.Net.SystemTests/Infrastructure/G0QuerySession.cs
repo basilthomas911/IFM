@@ -18,11 +18,13 @@ public sealed class G0QuerySession : IAsyncDisposable
             _connectionManager);
         MarketData = new MarketDataQueryApi(_producer);
         MarketDataFeed = new MarketDataFeedQueryApi(_producer);
+        MarketDataFeedCommands = new MarketDataFeedCommandApi(_producer);
         MarketDataAnalytics = new MarketDataAnalyticsQueryApi(_producer);
     }
 
     public MarketDataQueryApi MarketData { get; }
     public MarketDataFeedQueryApi MarketDataFeed { get; }
+    public MarketDataFeedCommandApi MarketDataFeedCommands { get; }
     public MarketDataAnalyticsQueryApi MarketDataAnalytics { get; }
 
     public ValueTask StartAsync(string runId, CancellationToken cancellationToken)

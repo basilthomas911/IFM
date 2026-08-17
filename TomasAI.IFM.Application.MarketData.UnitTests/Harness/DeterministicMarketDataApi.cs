@@ -29,7 +29,8 @@ internal sealed class DeterministicMarketDataApi(
     public Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceProviderRefresh = false)
         => throw new NotSupportedException("The deterministic live-price harness has no rollover store.");
 
     public bool TryGetLastTickPrice(

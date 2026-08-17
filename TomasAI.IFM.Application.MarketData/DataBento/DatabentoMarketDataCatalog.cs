@@ -55,14 +55,17 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         var resolved = new ResolvedContract[registrations.Length];
         var indexed = registrations.Select(static (registration, index) =>
             (Registration: registration, Index: index));
-        foreach (var group in indexed.GroupBy(item =>
-            DatabentoDatasetSelection.Resolve(options, item.Registration),
-            StringComparer.Ordinal))
+        var groups = indexed.GroupBy(item =>
+                DatabentoDatasetSelection.Resolve(options, item.Registration),
+                StringComparer.Ordinal)
+            .Select(group => (Dataset: group.Key, Entries: group.ToArray()))
+            .ToArray();
+        var groupTasks = groups.Select(async group =>
         {
-            if (!operationsByDataset.TryGetValue(group.Key, out var operations))
+            if (!operationsByDataset.TryGetValue(group.Dataset, out var operations))
                 throw new InvalidOperationException(
-                    $"No DataBento operation runner is configured for dataset '{group.Key}'.");
-            var entries = group.ToArray();
+                    $"No DataBento operation runner is configured for dataset '{group.Dataset}'.");
+            var entries = group.Entries;
             var names = entries.Select(item => item.Registration.ProviderContractName).ToArray();
             var details = await operations.RunAsync(
                 queries =>
@@ -86,8 +89,9 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                 cancellationToken).ConfigureAwait(false);
             if (details.Count != entries.Length)
                 throw new MarketDataContractMappingException(
-                    "epoch", $"the provider batch result count did not match the request for dataset '{group.Key}'");
+                    "epoch", $"the provider batch result count did not match the request for dataset '{group.Dataset}'");
 
+            var groupResults = new (int Index, ResolvedContract Contract)[entries.Length];
             for (var index = 0; index < entries.Length; index++)
             {
                 var entry = entries[index];
@@ -95,18 +99,24 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                 var detail = details[index] ?? throw new MarketDataContractNotFoundException(
                     registration.DomainContractId);
                 ValidateKind(registration, detail);
-                resolved[entry.Index] = new ResolvedContract(
+                groupResults[index] = (entry.Index, new ResolvedContract(
                     registration,
-                    group.Key,
+                    group.Dataset,
                     detail,
                     registration.AssetTypeId == AssetTypeId.Futures
                         ? MapFutures(registration.DomainContractId, detail)
                         : null,
                     registration.AssetTypeId == AssetTypeId.FuturesOption
                         ? MapOption(registration.DomainContractId, detail)
-                        : null);
+                        : null));
             }
-        }
+            return groupResults;
+        }).ToArray();
+
+        var resolvedGroups = await Task.WhenAll(groupTasks).ConfigureAwait(false);
+        foreach (var group in resolvedGroups)
+        foreach (var item in group)
+            resolved[item.Index] = item.Contract;
 
         return new DatabentoMarketDataCatalog(resolved, operationsByDataset, options);
     }
