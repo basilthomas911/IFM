@@ -8,10 +8,11 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 /// </summary>
 public sealed class FuturesBarDataTimer : IFuturesBarDataTimer
 {
+    public static readonly TimeSpan DefaultPeriod = TimeSpan.FromSeconds(15);
     readonly ConcurrentDictionary<FuturesBarDataStreamingId, Registration> _registrations = new();
     readonly TimeSpan _period;
 
-    public FuturesBarDataTimer() : this(TimeSpan.FromMinutes(1))
+    public FuturesBarDataTimer() : this(DefaultPeriod)
     {
     }
 

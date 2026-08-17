@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Presentation.UnitTests.TestDoubles;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
@@ -140,17 +141,19 @@ public class IFMAppViewModelTests
     [Fact]
     public void MarketDataSnapshots_AreObservableSortedAndBoundedPerSymbol()
     {
-        var viewModel = CreateSubject();
+        var marketCurrentTime = new DateTimeOffset(2026, 8, 11, 16, 0, 0, TimeSpan.Zero);
+        var viewModel = CreateSubject(new ManualTimeProvider(marketCurrentTime));
         var valueDate = new DateOnly(2026, 8, 11);
         var changed = new List<string?>();
         viewModel.PropertyChanged += (_, eventArgs) => changed.Add(eventArgs.PropertyName);
+        var firstBarDate = marketCurrentTime.UtcDateTime.AddSeconds(-(2_055 - 1) * 10);
         var bars = Enumerable.Range(0, 2_055)
             .Select(index => new FuturesBarDataReadModel(
                 "ESZ26",
                 "ES",
                 valueDate,
-                valueDate.ToDateTime(new TimeOnly(9, 30)).AddMinutes(index),
-                BarRateType.Minute,
+                firstBarDate.AddSeconds(index * 10),
+                BarRateType.FifteenSeconds,
                 5_000m + index,
                 5_100,
                 4_900))
@@ -179,6 +182,50 @@ public class IFMAppViewModelTests
     }
 
     [Fact]
+    public void MarketDataSnapshots_KeepOnlyNewestContinuousFifteenSecondSegment()
+    {
+        var marketCurrentTime = new DateTimeOffset(2026, 8, 11, 16, 0, 0, TimeSpan.Zero);
+        var viewModel = CreateSubject(new ManualTimeProvider(marketCurrentTime));
+        var valueDate = DateOnly.FromDateTime(marketCurrentTime.UtcDateTime);
+        FuturesBarDataReadModel Bar(DateTime barDate, BarRateType rateType, decimal value) => new(
+            "ESZ26",
+            "ES",
+            valueDate,
+            barDate,
+            rateType,
+            value,
+            0,
+            0);
+        FuturesBarDataReadModel[] bars =
+        [
+            Bar(marketCurrentTime.UtcDateTime.AddHours(-7), BarRateType.FifteenSeconds, 4_900m),
+            Bar(marketCurrentTime.UtcDateTime.AddHours(-5), BarRateType.FifteenSeconds, 5_000m),
+            Bar(marketCurrentTime.UtcDateTime.AddHours(-5).AddSeconds(15), BarRateType.FifteenSeconds, 5_001m),
+            Bar(marketCurrentTime.UtcDateTime.AddMinutes(-1), BarRateType.Minute, 5_100m),
+            Bar(marketCurrentTime.UtcDateTime.AddSeconds(-30), BarRateType.FifteenSeconds, 5_200m),
+            Bar(marketCurrentTime.UtcDateTime.AddSeconds(-15), BarRateType.FifteenSeconds, 5_201m),
+            Bar(marketCurrentTime.UtcDateTime, BarRateType.FifteenSeconds, 5_202m)
+        ];
+
+        viewModel.PublishFuturesBarSnapshot("ES", bars);
+
+        viewModel.FuturesBarSnapshots["ES"]
+            .Select(bar => bar.BarValue)
+            .Should().Equal(5_200m, 5_201m, 5_202m);
+    }
+
+    [Fact]
+    public void FuturesBarChartWindow_IsSixHoursBackFromMarketCurrentTime()
+    {
+        var marketCurrentTime = new DateTime(2026, 8, 11, 16, 0, 0, DateTimeKind.Utc);
+
+        var (startDate, endDate) = IFMAppViewModel.GetFuturesBarChartWindow(marketCurrentTime);
+
+        startDate.Should().Be(marketCurrentTime.AddHours(-6));
+        endDate.Should().Be(marketCurrentTime.AddSeconds(1));
+    }
+
+    [Fact]
     public void UiDispatchMetrics_RecordLastAndMaximumLatency()
     {
         var viewModel = CreateSubject();
@@ -193,7 +240,7 @@ public class IFMAppViewModelTests
         viewModel.UiDispatchMetrics.MaximumRenderDuration.Should().Be(TimeSpan.FromMilliseconds(6));
     }
 
-    static IFMAppViewModel CreateSubject()
+    static IFMAppViewModel CreateSubject(TimeProvider? timeProvider = null)
     {
         var commandResponseConsumer = Substitute.For<ICommandResponseUIEventConsumer>();
         var eventModel = new EventModel(commandResponseConsumer);
@@ -203,6 +250,7 @@ public class IFMAppViewModelTests
             appRoot,
             new Version(1, 2, 3),
             "Test",
-            Substitute.For<IIFMAppLiveViewAdapter>());
+            Substitute.For<IIFMAppLiveViewAdapter>(),
+            timeProvider);
     }
 }

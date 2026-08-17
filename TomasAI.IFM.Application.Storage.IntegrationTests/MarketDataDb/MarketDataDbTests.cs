@@ -377,6 +377,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         resultData.ContractId.Should().Be(e.ContractId);
         resultData.Symbol.Should().Be(e.Symbol);
         resultData.ValueDate.Should().Be(e.ValueDate);
+        resultData.BarRateType.Should().Be(BarRateType.FifteenSeconds);
     }
 
     [Fact]

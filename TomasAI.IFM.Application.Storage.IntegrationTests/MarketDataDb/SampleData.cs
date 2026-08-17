@@ -24,7 +24,7 @@ public class SampleData
         symbol: "TestSymbol",
         valueDate:  DateOnly.FromDateTime(DateTime.Now.Date),
         barDate: DateTime.Now,
-        barRateType: BarRateType.Minute,
+        barRateType: BarRateType.FifteenSeconds,
         barValue: 100.0m,
         upTrendTrigger: 1.0,
         downTrendTrigger: -1.0

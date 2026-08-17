@@ -103,7 +103,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             series1.IsVisibleInLegend = false;
             series1.Legend = "Legend1";
             series1.Name = "Series1";
-            series1.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
+            series1.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
             series1.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
             series1.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
             series2.ChartArea = "ChartArea1";
@@ -112,7 +112,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             series2.IsVisibleInLegend = false;
             series2.Legend = "Legend1";
             series2.Name = "Series2";
-            series2.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
+            series2.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
             series2.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
             series2.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
             series3.ChartArea = "ChartArea1";
@@ -121,7 +121,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             series3.IsVisibleInLegend = false;
             series3.Legend = "Legend1";
             series3.Name = "Series3";
-            series3.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
+            series3.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
             series3.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
             series3.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
             this.graphES.Series.Add(series1);
@@ -172,7 +172,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             series4.Color = System.Drawing.Color.Fuchsia;
             series4.Legend = "Legend1";
             series4.Name = "Series1";
-            series4.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Time;
+            series4.XValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.DateTime;
             series4.YAxisType = System.Windows.Forms.DataVisualization.Charting.AxisType.Secondary;
             series4.YValueType = System.Windows.Forms.DataVisualization.Charting.ChartValueType.Double;
             this.graphVIX.Series.Add(series4);

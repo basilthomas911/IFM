@@ -100,7 +100,7 @@ public static class G0DevelopmentDataFixture
         CancellationToken cancellationToken)
     {
         var endDate = DateTime.UtcNow.AddSeconds(1);
-        var startDate = endDate.AddDays(-1);
+        var startDate = endDate.AddHours(-6);
         var existing = await session.MarketDataFeed
             .GetFuturesBarDataAsync(
                 contract.ContractId,
@@ -112,7 +112,12 @@ public static class G0DevelopmentDataFixture
         if (!existing.Success)
             throw new InvalidOperationException($"G0 bar baseline query failed: {existing.ErrorMessage}");
         var bars = existing.Value ?? [];
-        var usableBars = bars.Where(bar => IsExpectedDevelopmentScale(contract.Symbol, bar.BarValue)).ToArray();
+        var usableBars = bars
+            .Where(bar => bar.BarRateType == BarRateType.FifteenSeconds
+                          && IsExpectedDevelopmentScale(contract.Symbol, bar.BarValue))
+            .OrderBy(bar => bar.BarDate)
+            .TakeLast(MinimumChartBars)
+            .ToArray();
         if (usableBars.Length >= MinimumChartBars)
             return false;
 
@@ -120,7 +125,7 @@ public static class G0DevelopmentDataFixture
         var reference = usableBars.OrderBy(static bar => bar.BarDate).LastOrDefault();
         for (var index = usableBars.Length; index < MinimumChartBars; index++)
         {
-            var barDate = endDate.AddMinutes(-(MinimumChartBars - index));
+            var barDate = endDate.AddSeconds(-15 * (MinimumChartBars - index));
             while (!timestamps.Add(barDate))
                 barDate = barDate.AddSeconds(-1);
             var baseValue = reference?.BarValue ?? (contract.Symbol == "VX" ? 20m : 5400m);
@@ -130,7 +135,7 @@ public static class G0DevelopmentDataFixture
                 contract.Symbol,
                 valueDate,
                 barDate,
-                BarRateType.Minute,
+                BarRateType.FifteenSeconds,
                 barValue: baseValue + increment * (index + 1),
                 upTrendTrigger: reference?.UpTrendTrigger ?? 0.65,
                 downTrendTrigger: reference?.DownTrendTrigger ?? 0.35);
@@ -151,7 +156,10 @@ public static class G0DevelopmentDataFixture
                         startDate,
                         DateTime.UtcNow.AddSeconds(1))
                     .WaitAsync(timeout, cancellationToken);
-                return result.Success && result.Value?.Length >= MinimumChartBars;
+                return result.Success
+                       && result.Value?.Count(bar =>
+                           bar.BarRateType == BarRateType.FifteenSeconds
+                           && IsExpectedDevelopmentScale(contract.Symbol, bar.BarValue)) >= MinimumChartBars;
             },
             timeout,
             $"G0 chart baseline did not reach {MinimumChartBars} durable bars.",

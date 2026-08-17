@@ -221,11 +221,13 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             Arg.Is<InsertFuturesBarDataCommand>(command =>
                 command.FuturesBarData.ContractId == es.ContractId
                 && command.FuturesBarData.Symbol == "ES"
+                && command.FuturesBarData.BarRateType == BarRateType.FifteenSeconds
                 && command.FuturesBarData.BarValue == 6_475.25m));
         await context.Received(1).RequestAsync<InsertFuturesBarDataCommand, FuturesBarDataId>(
             Arg.Is<InsertFuturesBarDataCommand>(command =>
                 command.FuturesBarData.ContractId == vx.ContractId
                 && command.FuturesBarData.Symbol == "VX"
+                && command.FuturesBarData.BarRateType == BarRateType.FifteenSeconds
                 && command.FuturesBarData.BarValue == 19.85m));
     }
 

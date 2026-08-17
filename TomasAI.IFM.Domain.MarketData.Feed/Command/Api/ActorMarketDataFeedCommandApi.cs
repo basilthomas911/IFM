@@ -390,6 +390,15 @@ public sealed class ActorMarketDataFeedCommandApi(IEventActorContext context)
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId
     {
+        if (command.CommandId == Guid.Empty)
+        {
+            EventInitHelper.SetProperty(
+                command,
+                nameof(ICommand.CommandId),
+                Guid.NewGuid());
+        }
+        command.CheckForEmptyCommandId();
+
         var result = await _context.RequestAsync<TCommand, TEntityId>(command);
         if (result?.Success != true)
             throw new InvalidOperationException(result?.ErrorMessage);

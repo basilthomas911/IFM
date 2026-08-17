@@ -7,6 +7,10 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData;
 public sealed class FuturesBarDataTimerTests
 {
     [Fact]
+    public void DefaultPeriod_IsFifteenSeconds()
+        => FuturesBarDataTimer.DefaultPeriod.Should().Be(TimeSpan.FromSeconds(15));
+
+    [Fact]
     public async Task Start_DuplicateEntity_IsIdempotent()
     {
         var timer = new FuturesBarDataTimer(TimeSpan.FromMilliseconds(5));

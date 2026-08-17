@@ -81,7 +81,7 @@ public static async ValueTask<bool> ExecuteAsync(
                                 symbol: o.Symbol,
                                 valueDate: e.ValueDate,
                                 barDate: DateTime.UtcNow,
-                                barRateType: BarRateType.Minute,
+                                barRateType: BarRateType.FifteenSeconds,
                                 barValue: trade.LastPrice,
                                 upTrendTrigger: 0,
                                 downTrendTrigger: 0

@@ -8,6 +8,9 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// </summary>
 public partial class MarketDataView : UserControl
 {
+    static readonly TimeZoneInfo MarketTimeZone =
+        TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+
     public MarketDataView()
     {
         InitializeComponent();
@@ -63,6 +66,20 @@ public partial class MarketDataView : UserControl
                 : Convert.ToDouble(futuresBarData.Max(e => e.BarValue));
             graph.ChartAreas[0].AxisY2.Minimum = displayedMinimum - minMaxOffset;
             graph.ChartAreas[0].AxisY2.Maximum = displayedMaximum + minMaxOffset;
+            var marketBarDates = futuresBarData
+                .Select(e => ConvertUtcToMarketTime(e.BarDate))
+                .ToArray();
+            var earliestBarDate = marketBarDates.Min();
+            var latestBarDate = marketBarDates.Max();
+            if (earliestBarDate == latestBarDate)
+            {
+                earliestBarDate = earliestBarDate.AddSeconds(-7.5);
+                latestBarDate = latestBarDate.AddSeconds(7.5);
+            }
+            graph.ChartAreas[0].AxisX.ScaleView.ZoomReset(0);
+            graph.ChartAreas[0].AxisX.Minimum = earliestBarDate.ToOADate();
+            graph.ChartAreas[0].AxisX.Maximum = latestBarDate.ToOADate();
+            graph.ChartAreas[0].AxisX.LabelStyle.Format = "h:mm:ss tt";
             graph.Series[0].Points.Clear();
             graph.Series[0].MarkerStyle = futuresBarData.Length == 1
                 ? MarkerStyle.Circle
@@ -73,13 +90,15 @@ public partial class MarketDataView : UserControl
                 graph.Series[1].Points.Clear();
                 graph.Series[2].Points.Clear();
             }
-            foreach (var e in futuresBarData!)
+            for (var index = 0; index < futuresBarData.Length; index++)
             {
-                graph.Series[0].Points.AddXY(e.BarDate, e.BarValue);
+                var e = futuresBarData[index];
+                var marketBarDate = marketBarDates[index];
+                graph.Series[0].Points.AddXY(marketBarDate, e.BarValue);
                 if (graph.Series.Count > 1)
                 {
-                    graph.Series[1].Points.AddXY(e.BarDate, upTrendTrigger);
-                    graph.Series[2].Points.AddXY(e.BarDate, downTrendTrigger);
+                    graph.Series[1].Points.AddXY(marketBarDate, upTrendTrigger);
+                    graph.Series[2].Points.AddXY(marketBarDate, downTrendTrigger);
                 }
             }
             graph.ChartAreas[0].RecalculateAxesScale();
@@ -87,5 +106,16 @@ public partial class MarketDataView : UserControl
             graph.ResumeLayout();
         }
         catch {  }
+    }
+
+    internal static DateTime ConvertUtcToMarketTime(DateTime barDateUtc)
+    {
+        var normalizedUtc = barDateUtc.Kind switch
+        {
+            DateTimeKind.Utc => barDateUtc,
+            DateTimeKind.Local => barDateUtc.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(barDateUtc, DateTimeKind.Utc)
+        };
+        return TimeZoneInfo.ConvertTimeFromUtc(normalizedUtc, MarketTimeZone);
     }
 }

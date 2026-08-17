@@ -80,6 +80,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     const int OrderedEventChannelCapacity = 512;
     const int OrderedEventBatchSize = 32;
     const int FuturesBarChartCapacity = 2_048;
+    internal static readonly TimeSpan FuturesBarChartHistory = TimeSpan.FromHours(6);
+    internal static readonly TimeSpan FuturesBarContinuityTolerance = TimeSpan.FromSeconds(45);
     static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
     readonly object _statusLogGate = new();
     readonly object _marketDataStreamGate = new();
@@ -413,7 +415,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             BaseContracts = futuresContracts?.ToArray() ?? [];
             await GetLastFuturesEodData();
             await GetLastFuturesTradeSignal();
-            await GetLastFuturesBarData();
             await ImportReferenceDataAtStartupAsync(cancellationToken);
 
             DateOnly? valueDate = null;
@@ -428,6 +429,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             }
 
             ValueDate = valueDate;
+            await GetLastFuturesBarData(valueDate.Value);
             await StartFuturesEodDataEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartFuturesTradeSignalEventConsumer(cancellationToken);
@@ -558,7 +560,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             });
         });
 
-        Task GetLastFuturesBarData()
+        Task GetLastFuturesBarData(DateOnly valueDate)
             => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model =>
             {
                 model.OnError((errorCode, errorMessage) =>
@@ -566,31 +568,18 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 await WriteStatusConsoleAsync("Loading Latest Futures Bar Data...");
                 foreach (var contract in _baseContracts ?? [])
                 {
-                    var endDate = DateTime.UtcNow.AddSeconds(1);
-                    var valueDate = DateOnly.FromDateTime(endDate);
+                    var (startDate, endDate) = GetFuturesBarChartWindow(
+                        _timeProvider.GetUtcNow().UtcDateTime);
                     FuturesBarDataReadModel[] bars = [];
                     await model.GetFuturesBarDataAsync(
                         contract.ContractId,
                         contract.Symbol,
                         valueDate,
-                        endDate.AddDays(-1),
+                        startDate,
                         endDate,
                         values => bars = values ?? []);
                     if (bars.Length > 0)
-                    {
                         PublishFuturesBarSnapshot(contract.Symbol, bars);
-                        continue;
-                    }
-
-                    await model.GetLastFuturesBarDataAsync(
-                        contract.ContractId,
-                        contract.Symbol,
-                        valueDate,
-                        futuresBarData =>
-                        {
-                            if (futuresBarData is not null)
-                                PublishFuturesBarSnapshot(futuresBarData.Symbol, [futuresBarData]);
-                        });
                 }
             });
 
@@ -911,12 +900,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         {
             queryModel.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Loading Futures Bar Data Error"));
+            var (startDate, endDate) = GetFuturesBarChartWindow(
+                _timeProvider.GetUtcNow().UtcDateTime);
             await queryModel.GetFuturesBarDataAsync(
                 e.FuturesBarData.ContractId,
                 e.FuturesBarData.Symbol,
                 e.FuturesBarData.ValueDate,
-                e.FuturesBarData.BarDate.AddHours(-6),
-                e.FuturesBarData.BarDate.AddSeconds(1),
+                startDate,
+                endDate,
                 futuresBarData => PublishFuturesBarSnapshot(e.FuturesBarData.Symbol, futuresBarData));
         });
         await WriteStatusConsoleAsync(
@@ -1319,16 +1310,52 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         if (string.IsNullOrWhiteSpace(symbol))
             return;
 
-        var bounded = futuresBarData
-            .OrderBy(bar => bar.BarDate)
-            .TakeLast(FuturesBarChartCapacity)
-            .ToArray();
+        var bounded = SelectContinuousFuturesBarWindow(
+            futuresBarData,
+            _timeProvider.GetUtcNow().UtcDateTime);
         lock (_marketDataStreamGate)
         {
             _futuresBarSnapshots[symbol] = bounded;
             FuturesBarSnapshots = new Dictionary<string, FuturesBarDataReadModel[]>(_futuresBarSnapshots);
             LatestFuturesBarSnapshot = new FuturesBarChartSnapshot(symbol, bounded);
         }
+    }
+
+    internal static (DateTime StartDate, DateTime EndDate) GetFuturesBarChartWindow(
+        DateTime marketCurrentTimeUtc)
+    {
+        var normalizedCurrentTime = marketCurrentTimeUtc.Kind == DateTimeKind.Utc
+            ? marketCurrentTimeUtc
+            : marketCurrentTimeUtc.ToUniversalTime();
+        var endDate = normalizedCurrentTime.AddSeconds(1);
+        return (normalizedCurrentTime.Subtract(FuturesBarChartHistory), endDate);
+    }
+
+    internal static FuturesBarDataReadModel[] SelectContinuousFuturesBarWindow(
+        IEnumerable<FuturesBarDataReadModel> futuresBarData,
+        DateTime marketCurrentTimeUtc)
+    {
+        ArgumentNullException.ThrowIfNull(futuresBarData);
+        var (startDate, endDate) = GetFuturesBarChartWindow(marketCurrentTimeUtc);
+        var ordered = futuresBarData
+            .Where(bar => bar.BarRateType == BarRateType.FifteenSeconds
+                          && bar.BarDate >= startDate
+                          && bar.BarDate <= endDate)
+            .OrderBy(bar => bar.BarDate)
+            .TakeLast(FuturesBarChartCapacity)
+            .ToArray();
+        if (ordered.Length < 2)
+            return ordered;
+
+        var segmentStart = ordered.Length - 1;
+        while (segmentStart > 0
+               && ordered[segmentStart].BarDate - ordered[segmentStart - 1].BarDate
+               <= FuturesBarContinuityTolerance)
+        {
+            segmentStart--;
+        }
+
+        return segmentStart == 0 ? ordered : ordered[segmentStart..];
     }
 
     void PublishMarketOutlookMetrics(LatestValueChannelMetrics metrics)
