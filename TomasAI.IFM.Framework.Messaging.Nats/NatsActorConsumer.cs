@@ -11,15 +11,13 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream.Serializers;
 namespace TomasAI.IFM.Framework.Messaging.NatsJetStream;
 
 /// <summary>
-/// Represents a general-purpose NATS consumer that subscribes to and processes all types of actor messages,
-/// including commands, events, queries, notifications, and denormalizer messages.
+/// Represents a Core NATS backend actor consumer for exactly one command, query, or realtime actor type.
 /// </summary>
 /// <remarks>
-/// This class manages the lifecycle of a NATS client that subscribes to messages for a given
-/// <see cref="ActorType"/>. Incoming messages are deserialized and dispatched to the appropriate actor's
-/// mailbox for processing. The consumer supports both publish-subscribe and request-reply messaging
-/// patterns, selected automatically based on the actor type. It can be started and stopped asynchronously,
-/// and its running state can be queried via the <see cref="IsRunning"/> property.
+/// This class permanently binds each instance to its first <see cref="ActorType"/> and subscribes to that
+/// type's subject namespace. Incoming messages are deserialized and dispatched to the appropriate backend
+/// actor mailbox. <see cref="ActorType.Notify"/> is reserved for application-facing NATS event listeners;
+/// durable events use the JetStream actor consumer.
 /// </remarks>
 /// <param name="options">The NATS consumer options containing connection configuration such as the server URL.</param>
 /// <param name="logger">The logger instance used to record diagnostic and lifecycle events.</param>
@@ -62,10 +60,10 @@ public class NatsActorConsumer(
         string consumerName,
         CancellationToken cancellationToken)
     {
-        actorType.EnsureDeliveryType(ActorDeliveryType.NatsCore, nameof(NatsActorConsumer));
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            _actorType = BindActorType(_actorType, actorType);
             await StartCoreAsync(supervisor, actorType, consumerName, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -84,8 +82,8 @@ public class NatsActorConsumer(
     /// <para>
     /// The <paramref name="actorType"/> determines the Core NATS messaging pattern used by the background loop:
     /// <list type="bullet">
-    ///   <item><description><see cref="ActorType.Notify"/> and <see cref="ActorType.Realtime"/> use a
-    ///   publish-subscribe loop for non-durable message delivery.</description></item>
+    ///   <item><description><see cref="ActorType.Realtime"/> uses a publish-subscribe loop for
+    ///   non-durable actor delivery.</description></item>
     ///   <item><description><see cref="ActorType.Query"/> and <see cref="ActorType.Command"/> use request-reply
     ///   loops to support response-based interactions.</description></item>
     /// </list>
@@ -112,7 +110,6 @@ public class NatsActorConsumer(
             ActorExtensions.DataSerializer ??= new NatsMessagePackDataSerializer();
             ActorExtensions.MsgSerializer ??= new NatsByteArrayMessageSerializer();
             _supervisor = IsArgumentNull.Set(supervisor);
-            _actorType = actorType;
             ValidateEnforcedTrafficClass(actorType);
             _subscriptionSubject = string.Concat(_actorType.ToStringFast(), ".>");
             if (_nc is not null)
@@ -166,8 +163,8 @@ public class NatsActorConsumer(
     /// </summary>
     /// <remarks>
     /// Cancels the active message loop, disposes the NATS client, and sets <see cref="IsRunning"/> to
-    /// <see langword="false"/>. No further actor messages of any type will be consumed after this method
-    /// completes. If the consumer has not been started, the call is a no-op and a debug message is logged.
+    /// <see langword="false"/>. No further messages for the bound actor type will be consumed after this
+    /// method completes. If the consumer has not been started, the call is a no-op and a debug message is logged.
     /// </remarks>
     /// <returns>A <see cref="ValueTask"/> that completes once the consumer has been stopped and disposed.</returns>
     public async ValueTask StopAsync()
@@ -184,6 +181,33 @@ public class NatsActorConsumer(
         {
             _lifecycleGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Permanently binds one backend actor consumer instance to one supported actor type.
+    /// Notify subjects are consumed by application-facing NATS event listeners and never by
+    /// the backend actor dispatcher.
+    /// </summary>
+    internal static ActorType BindActorType(ActorType boundActorType, ActorType requestedActorType)
+    {
+        if (requestedActorType == ActorType.Notify)
+        {
+            throw new InvalidOperationException(
+                "ActorType.Notify is reserved for UI, console, and external NATS event listeners; "
+                + "NatsActorConsumer cannot subscribe to Notify.>.");
+        }
+
+        requestedActorType.EnsureDeliveryType(
+            ActorDeliveryType.NatsCore,
+            nameof(NatsActorConsumer));
+        if (boundActorType != ActorType.Unknown && boundActorType != requestedActorType)
+        {
+            throw new InvalidOperationException(
+                $"This NatsActorConsumer is already bound to actor type '{boundActorType}' "
+                + $"and cannot be reused for '{requestedActorType}'.");
+        }
+
+        return requestedActorType;
     }
 
     int GetDispatcherCapacity()
@@ -294,7 +318,6 @@ public class NatsActorConsumer(
         {
             switch (_actorType)
             {
-                case ActorType.Notify:
                 case ActorType.Realtime:
                     await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     break;
@@ -390,8 +413,8 @@ public class NatsActorConsumer(
 
     /// <summary>
     /// Resolves Core publish-subscribe destinations. Realtime events include their
-    /// required primary actor and all registered realtime routes; notifications
-    /// retain their single explicitly addressed destination.
+    /// required primary actor and all registered realtime routes. Legacy command
+    /// diagnostics retain their single explicitly addressed destination.
     /// </summary>
     internal static IReadOnlyList<ActorSubject> BuildPubSubDestinations(
         IActorSupervisor supervisor,

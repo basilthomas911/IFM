@@ -146,30 +146,30 @@ public class MarketDataFeedCommandModel(
     /// </summary>
     /// <param name="siteId"></param>
     /// <param name="listenerAction"></param>
-    public async Task StartFuturesEodDataEventConsumerAsync(Guid siteId, Action<FuturesEodDataInsertedCompleteEvent> listenerAction)
-        => await ExecuteValueTaskAsync( () => _futuresEodDataEventConsumer.StartAsync(listenerAction) );
+    public async Task StartFuturesEodDataEventConsumerAsync(Guid siteId, Action<FuturesEodDataUpdatedNotifyEvent> listenerAction)
+        => await ExecuteValueTaskAsync( () => _futuresEodDataEventConsumer.StartAsync(siteId, listenerAction) );
 
     /// <summary>
     /// stop listening for futures eod data updates
     /// </summary>
     /// <param name="siteId"></param>
     public async Task StopFuturesEodDataEventConsumerAsync(Guid siteId)
-        => await ExecuteValueTaskAsync( () => _futuresEodDataEventConsumer.StopAsync() );
+        => await ExecuteValueTaskAsync( () => _futuresEodDataEventConsumer.StopAsync(siteId) );
 
     /// <summary>
     /// start listening for futures trade signal updates
     /// </summary>
     /// <param name="siteId"></param>
     /// <param name="listenerAction"></param>
-    public async Task StartFuturesTradeSignalEventConsumerAsync(Guid siteId, Action<FuturesTradeSignalUpdatedCompleteEvent> listenerAction)
-        => await ExecuteValueTaskAsync( () => _futuresTradeSignalEventConsumer.StartAsync( listenerAction) );
+    public async Task StartFuturesTradeSignalEventConsumerAsync(Guid siteId, Action<FuturesTradeSignalUpdatedNotifyEvent> listenerAction)
+        => await ExecuteValueTaskAsync( () => _futuresTradeSignalEventConsumer.StartAsync(siteId, listenerAction) );
 
     /// <summary>
     /// stop listening for futures trade signal updates
     /// </summary>
     /// <param name="siteId"></param>
     public async Task StopFuturesTradeSignalEventConsumerAsync(Guid siteId)
-        => await ExecuteValueTaskAsync( () => _futuresTradeSignalEventConsumer.StopAsync() );
+        => await ExecuteValueTaskAsync( () => _futuresTradeSignalEventConsumer.StopAsync(siteId) );
 
     /// <summary>
     /// start listening for futures bar data inserted complete

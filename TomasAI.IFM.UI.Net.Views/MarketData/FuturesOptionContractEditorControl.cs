@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
@@ -100,7 +101,7 @@ public partial class FuturesOptionContractEditorControl
         {
             case EditMode.View:
                 txtDescription.Enabled = true;
-                dtmContractMonth.Value = DateTime.Now;
+                dtmContractMonth.Value = EasternTime.GetNow(TimeProvider.System);
                 dtmContractMonth.Enabled = true;
                 txtStrikePrice.Text = string.Empty;
                 txtStrikePrice.Enabled = true;

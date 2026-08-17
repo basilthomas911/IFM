@@ -12,6 +12,7 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
     private static readonly IReadOnlyList<ContractDetail> Details =
     [
         Future("ESZ5", 101),
+        VixFuture("VXZ6", 107),
         Option("EW1K6 C5000", 102, ContractKind.CallOption, 5000),
         Option("ESZ5 P5400", 103, ContractKind.PutOption, 5400),
         Option("ESZ5 P5300", 104, ContractKind.PutOption, 5300),
@@ -47,6 +48,24 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         Currency = "USD",
         SettlementCurrency = "USD",
         Exchange = "CME",
+        SecurityType = "FUT",
+        Cfi = string.Empty,
+        UnitOfMeasure = "USD"
+    };
+
+    private static ContractDetail VixFuture(string rawSymbol, uint instrumentId) => new()
+    {
+        Dataset = "GLBX.MDP3",
+        RawSymbol = rawSymbol,
+        Ticker = "VX",
+        Underlying = rawSymbol,
+        Instrument = new InstrumentKey(1, instrumentId),
+        ContractKind = ContractKind.Future,
+        MaturityDate = new DateOnly(2026, 12, 16),
+        ContractMultiplier = 1000,
+        Currency = "USD",
+        SettlementCurrency = "USD",
+        Exchange = "CFE",
         SecurityType = "FUT",
         Cfi = string.Empty,
         UnitOfMeasure = "USD"
@@ -149,11 +168,13 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         public IMultiplexedTickerBatchReader GetMultiplexedReader() => _reader;
 
         public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
-            _subscriptions.Select(subscription =>
+            _subscriptions.Select((subscription, index) =>
             {
                 var detail = details[subscription.Symbol];
                 return new TickerInstrumentRegistration(
-                    subscription.Symbol, detail.RawSymbol, detail.Instrument);
+                    subscription.Symbol,
+                    detail.RawSymbol,
+                    new InstrumentKey(1, checked((uint)index + 1)));
             }).ToArray();
 
         public FeedHealthSnapshot GetHealth() => HealthyFeed();

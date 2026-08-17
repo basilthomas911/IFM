@@ -52,7 +52,7 @@ public partial class CreateFundForm : Form, IFormControl
             balance: Convert.ToDecimal(txtInitialBalance.Text),
             isProduction: false,
             createdBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
-            createdOn: DateTime.Now
+            createdOn: DateTime.UtcNow
         );
         if (!newFund.IsValid)
         {

@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using System.ComponentModel;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
@@ -130,14 +131,15 @@ public partial class TradeOrderEditorForm
         _lastTradeIndex = -1;
         _lastTradeOrderIndex = -1;
         
-        dtpTradeDate.Value = _viewModel!.ValueDate.HasValue ? _viewModel.ValueDate.Value.ToDateTime(TimeOnly.MinValue) : new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day);
+        var easternToday = EasternTime.GetNow(TimeProvider.System);
+        dtpTradeDate.Value = _viewModel!.ValueDate.HasValue ? _viewModel.ValueDate.Value.ToDateTime(TimeOnly.MinValue) : easternToday.Date;
         btnLoadOrder.Enabled = false;
         btnCreateOrder.Enabled = false;
         btnDeleteOrder.Enabled = false;
         btnCompleteOrder.Enabled = false;
         var dtpList = new List<DateTimePicker> { dtpFrom, dtpTo };
         dtpList.ForEach(o => o.Enabled = false);
-        dtpFrom.Value = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        dtpFrom.Value = new DateTime(easternToday.Year, easternToday.Month, 1);
         dtpTo.Value = new DateTime(dtpFrom.Value.Year, dtpFrom.Value.Month, DateTime.DaysInMonth(dtpFrom.Value.Year, dtpFrom.Value.Month), 23, 59, 59);
         dtpList.ForEach(o => o.Enabled = true);
         LoadOrderActionTypes();
@@ -222,7 +224,7 @@ public partial class TradeOrderEditorForm
             {
                 lstTradeOrders.Items.Add(new ListViewItem([
                     $"{fundOrder.OrderId}",
-                    $"{fundOrder.OrderDate:yyyy-MMM-dd}",
+                    $"{EasternTime.FromUtc(fundOrder.OrderDate):yyyy-MMM-dd}",
                     $"{fundOrder.OrderStatus}",
                     fundOrder.Reference ?? string.Empty
                 ]));
@@ -298,7 +300,6 @@ public partial class TradeOrderEditorForm
             {
                case TradeType.ShortIronCondor:
                case TradeType.LongIronCondor:
-                    // var valueDate = _viewModel.ValueDate.HasValue ? _viewModel.ValueDate.Value : DateOnly.FromDateTime(DateTime.Now.Date);
                     var orderActionType = GetOrderActionType(fundOrderTrade.TradeState);
                     var valueDate = orderActionType == OrderActionType.Open
                         ? fundOrder!.TradeDate
@@ -441,7 +442,9 @@ public partial class TradeOrderEditorForm
     async void btnCreateOrder_Click(object sender, EventArgs e)
     {
         var fundId = _viewModel.GetFundId(ddlFund.SelectedIndex);
-        var valueDate = _viewModel.ValueDate.HasValue ? _viewModel.ValueDate.Value : DateOnly.FromDateTime(DateTime.Now.Date);
+        var valueDate = _viewModel.ValueDate.HasValue
+            ? _viewModel.ValueDate.Value
+            : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
         var vm = new FundOrderEditorViewModel(_appRoot, valueDate, _viewModel.BaseContracts, fundId);
         var dlg = new CreateFundOrderForm();
         dlg.SetViewModel(vm);

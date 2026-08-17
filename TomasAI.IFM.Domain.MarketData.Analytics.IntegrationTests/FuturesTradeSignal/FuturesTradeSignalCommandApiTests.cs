@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -7,15 +8,12 @@ using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Application.Api.Nats.Client;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesTradeSignal;
 
@@ -29,19 +27,39 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
     public async Task UpdateFuturesTradeSignal_Ok()
     {
         // arrange...
-        var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
-        FuturesTradeSignalUpdatedCompleteEvent futuresTradeSignalUpdatedCompleteEvent = default!;
-        var eventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        await eventListener.StartAsync(
-            "TestEventListener",
+        var notificationListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
+        var notifications = new ConcurrentDictionary<Guid, FuturesTradeSignalUpdatedNotifyEvent>();
+        await notificationListener.StartAsync(
+            "TestFuturesTradeSignalNotificationListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, FuturesTradeSignalEventActor.Actor)] = [FuturesTradeSignalUpdatedCompleteEvent.Verb]
+                [new ActorMailboxId(
+                    ActorType.Notify,
+                    FuturesTradeSignalUpdatedNotifyEvent.Actor)] =
+                [
+                    FuturesTradeSignalUpdatedNotifyEvent.Verb
+                ]
             },
-            EventHandlerAsync);
+            NotificationHandlerAsync);
 
-        var entityId = new FuturesTradeSignalEntityId(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.FifteenSeconds);
+        var contractId = $"ESIT{Guid.NewGuid():N}";
+        var valueDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var futuresEodData = SampleData.FuturesEodData with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate
+        };
+        var rsiSignal = CreateRsiSignal() with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate
+        };
+        var tdiSignal = CreateTdiSignal() with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate
+        };
+        var entityId = new FuturesTradeSignalEntityId(contractId, valueDate, TimeFrameType.FifteenSeconds);
         var subject = new ActorSubject(ActorType.Command, UpdateFuturesTradeSignalCommand.Actor, UpdateFuturesTradeSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -50,48 +68,51 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
         // act...
         var analyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
         var response = await analyticsApi.UpdateFuturesTradeSignalAsync(
-            SampleData.FuturesEodData,
-            CreateRsiSignal(),
-            CreateTdiSignal(),
-            CreateItiSignalData(),
+            futuresEodData,
+            rsiSignal,
+            tdiSignal,
+            CreateItiSignalData(contractId, valueDate),
             20m);
 
-        await eventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-
-        // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
-        futuresTradeSignalUpdatedCompleteEvent.Should().NotBeNull();
-        futuresTradeSignalUpdatedCompleteEvent.FuturesTradeSignal.Should().NotBeNull();
-        futuresTradeSignalUpdatedCompleteEvent.FuturesTradeSignal!.ContractId.Should().Be(SampleData.ContractId);
-        futuresTradeSignalUpdatedCompleteEvent.FuturesTradeSignal.ValueDate.Should().Be(SampleData.ValueDate);
+        var expectedCommandId = response.Value;
+        await WaitForAsync(() => notifications.ContainsKey(expectedCommandId));
+        var futuresTradeSignalNotification = notifications[expectedCommandId];
 
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesTradeSignalAsync(SampleData.ContractId, SampleData.ValueDate);
+        // assert...
+        futuresTradeSignalNotification.Should().NotBeNull();
+        futuresTradeSignalNotification.Subject.ActorType.Should().Be(ActorType.Notify);
+        futuresTradeSignalNotification.CommandId.Should().Be(response.Value);
+        futuresTradeSignalNotification.EntityId.Should().Be(entityId);
+        futuresTradeSignalNotification.FuturesTradeSignal.Should().NotBeNull();
+        futuresTradeSignalNotification.FuturesTradeSignal!.ContractId.Should().Be(contractId);
+        futuresTradeSignalNotification.FuturesTradeSignal.ValueDate.Should().Be(valueDate);
+
+        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesTradeSignalAsync(contractId, valueDate);
         lastSignal.Should().NotBeNull();
-        lastSignal!.ContractId.Should().Be(SampleData.ContractId);
-        lastSignal.ValueDate.Should().Be(SampleData.ValueDate);
+        lastSignal!.ContractId.Should().Be(contractId);
+        lastSignal.ValueDate.Should().Be(valueDate);
+        futuresTradeSignalNotification.FuturesTradeSignal.Should().BeEquivalentTo(lastSignal);
 
-        await eventListener.StopAsync();
+        await notificationListener.StopAsync();
 
-        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        ValueTask NotificationHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
         {
-            IEvent receivedEvent = eventVerb switch
+            if (eventVerb == FuturesTradeSignalUpdatedNotifyEvent.Verb)
             {
-                _ when eventVerb == FuturesTradeSignalUpdatedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTradeSignalUpdatedCompleteEvent>()!),
-                _ => default!
-            };
-            await ValueTask.CompletedTask;
-
-            IEvent SetEvent(IEvent @event)
-            {
-                if (@event is FuturesTradeSignalUpdatedCompleteEvent updatedComplete)
-                {
-                    futuresTradeSignalUpdatedCompleteEvent = updatedComplete;
-                    eventReceived.TrySetResult();
-                }
-                return @event;
+                var notification = eventMsg.AsEvent<FuturesTradeSignalUpdatedNotifyEvent>()!;
+                notifications[notification.CommandId] = notification;
             }
+            return ValueTask.CompletedTask;
+        }
+
+        static async Task WaitForAsync(Func<bool> predicate)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            while (!predicate())
+                await Task.Delay(TimeSpan.FromMilliseconds(25), timeout.Token);
         }
     }
 
@@ -124,10 +145,12 @@ public class FuturesTradeSignalCommandApiTests(WebApplicationFactory<Program> fa
             FuturesTrendDirectionType.UpTrending,
             FuturesTrendDirectionStrengthType.Medium);
 
-    static FuturesItiSignalDataReadModel CreateItiSignalData()
+    static FuturesItiSignalDataReadModel CreateItiSignalData(string contractId, DateOnly valueDate)
     {
         var signal = SampleData.StartOfDayEvent.FuturesItiSignal! with
         {
+            ContractId = contractId,
+            ValueDate = valueDate,
             SequenceId = 1,
             TradingDays = 1
         };

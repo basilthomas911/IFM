@@ -12,9 +12,10 @@ public static class GetVixFuturesEodData
        this GetVixFuturesEodDataQuery q, IDbContextFactory dbFactory)
     {
         var db = dbFactory.MarketDataDb;
-        var result = string.IsNullOrEmpty(q.ContractId)
-            ? await db.GetVixFuturesEodDataByValueDateAsync(q.ValueDate)
-            : [await db.GetVixFuturesEodDataAsync(q.ContractId, q.ValueDate)];
-        return [.. result];
+        if (string.IsNullOrEmpty(q.ContractId))
+            return [.. await db.GetVixFuturesEodDataByValueDateAsync(q.ValueDate)];
+
+        var result = await db.GetVixFuturesEodDataAsync(q.ContractId, q.ValueDate);
+        return result is null ? [] : [result];
     }
 }

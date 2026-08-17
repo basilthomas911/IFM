@@ -28,14 +28,100 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
+    public async Task InsertFuturesEodData_PublishesTypedUpdatedNotifyEvent()
+    {
+        var notificationReceived = new TaskCompletionSource<FuturesEodDataUpdatedNotifyEvent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var notificationListener = new NatsActorEventListener(
+            new NatsEventListenerOptions(),
+            _logger);
+
+        await notificationListener.StartAsync(
+            "FuturesEodDataUpdatedNotifyEventIntegrationTest",
+            new()
+            {
+                [new ActorMailboxId(
+                    ActorType.Notify,
+                    FuturesEodDataUpdatedNotifyEvent.Actor)] =
+                [
+                    FuturesEodDataUpdatedNotifyEvent.Verb
+                ]
+            },
+            NotificationHandlerAsync);
+
+        try
+        {
+            var valueDate = SampleData.ValueDate;
+            var contractId = SampleData.FuturesContractId;
+            var entityId = new FuturesEodDataId(contractId, valueDate);
+            await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
+
+            _httpClientFactory.CreateClient();
+            var commandServiceApi = new CommandServiceApiClient(
+                _httpClientFactory,
+                _jsonSerializer,
+                new CommandServiceApiOptions("http://localhost"));
+            var marketDataFeedApi = new MarketDataFeedCommandApi(commandServiceApi);
+
+            var response = await marketDataFeedApi.InsertFuturesEodDataAsync(
+                valueDate,
+                SampleData.UnderlyingFuturesTickData,
+                SampleData.FuturesContract,
+                SampleData.FuturesEodDataRange[0],
+                SampleData.FuturesEodDataRange,
+                new NormalCurveTableReadModel([new NormalCurveDataReadModel(0, 50.0)]),
+                20,
+                []);
+
+            response.Success.Should().BeTrue(response.ErrorMessage);
+            response.Value.Should().NotBe(Guid.Empty);
+
+            var notification = await notificationReceived.Task.WaitAsync(
+                TimeSpan.FromSeconds(10));
+
+            notification.IsValid.Should().BeTrue();
+            notification.Subject.Should().Be(new ActorSubject(
+                ActorType.Notify,
+                FuturesEodDataUpdatedNotifyEvent.Actor,
+                FuturesEodDataUpdatedNotifyEvent.Verb,
+                entityId.Format()));
+            notification.EntityId.Should().Be(entityId);
+            notification.CommandId.Should().Be(response.Value);
+            notification.EventSource.Should().Be(nameof(FuturesEodDataInsertedCompleteEvent));
+            notification.FuturesEodData.ContractId.Should().Be(contractId);
+            notification.FuturesEodData.ValueDate.Should().Be(valueDate);
+            notification.FuturesEodData.ClosePrice.Should().Be(
+                SampleData.UnderlyingFuturesTickData.Price);
+        }
+        finally
+        {
+            await notificationListener.StopAsync();
+        }
+
+        ValueTask NotificationHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        {
+            if (eventVerb == FuturesEodDataUpdatedNotifyEvent.Verb)
+            {
+                var notification = eventMsg.AsEvent<FuturesEodDataUpdatedNotifyEvent>();
+                if (notification is not null)
+                    notificationReceived.TrySetResult(notification);
+            }
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    [Fact]
     public async Task InsertFuturesEodData_Ok()
     {
         // arrange...
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
+        var notificationListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
         FuturesEodDataInsertedEvent futuresEodDataInsertedEvent = default!;
         FuturesEodDataInsertedCompleteEvent futuresEodDataInsertedCompleteEvent = default!;
         FuturesEodDataInsertedFailEvent futuresEodDataInsertedFailEvent = default!;
+        FuturesEodDataUpdatedNotifyEvent futuresEodDataNotification = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notificationReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -50,6 +136,18 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
             },
             EventHandlerAsync
         );
+        await notificationListener.StartAsync(
+            "TestFuturesEodNotificationListener",
+            new()
+            {
+                [new ActorMailboxId(
+                    ActorType.Notify,
+                    FuturesEodDataUpdatedNotifyEvent.Actor)] =
+                [
+                    FuturesEodDataUpdatedNotifyEvent.Verb
+                ]
+            },
+            NotificationHandlerAsync);
 
         var valueDate = SampleData.ValueDate;
         var contractId = SampleData.FuturesContractId;
@@ -77,11 +175,17 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         response.Value.Should().NotBe(Guid.Empty);
 
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await notificationReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         // assert...
         futuresEodDataInsertedEvent.Should().NotBeNull();
         futuresEodDataInsertedCompleteEvent.Should().NotBeNull();
         futuresEodDataInsertedFailEvent.Should().BeNull();
+        futuresEodDataNotification.Should().NotBeNull();
+        futuresEodDataNotification.Subject.ActorType.Should().Be(ActorType.Notify);
+        futuresEodDataNotification.CommandId.Should().Be(response.Value);
+        futuresEodDataNotification.FuturesEodData.Should().BeEquivalentTo(
+            futuresEodDataInsertedCompleteEvent.FuturesEodData);
 
         var insertedEodData = await dbFixture.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate);
         insertedEodData.Should().NotBeNull();
@@ -95,6 +199,17 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         insertedEodData.Volume.Should().Be(eodDataToday.Volume);
 
         await eventListener.StopAsync();
+        await notificationListener.StopAsync();
+
+        ValueTask NotificationHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        {
+            if (eventVerb == FuturesEodDataUpdatedNotifyEvent.Verb)
+            {
+                futuresEodDataNotification = eventMsg.AsEvent<FuturesEodDataUpdatedNotifyEvent>()!;
+                notificationReceived.TrySetResult();
+            }
+            return ValueTask.CompletedTask;
+        }
 
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
         {

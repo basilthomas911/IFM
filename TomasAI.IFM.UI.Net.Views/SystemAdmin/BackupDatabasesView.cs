@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
@@ -121,10 +122,10 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
         var latestRestoreTested = _viewModel.State.LatestRestoreTested;
         lbStatusMessages.Items.Add(latestVerified is null
             ? "Latest verified point: none"
-            : $"Latest verified point: {latestVerified.RestorePointId} ({latestVerified.VerifiedUtc:u})");
+            : $"Latest verified point: {latestVerified.RestorePointId} ({EasternTime.FromUtc(latestVerified.VerifiedUtc):g})");
         lbStatusMessages.Items.Add(latestRestoreTested is null
             ? "Latest restore-tested point: none"
-            : $"Latest restore-tested point: {latestRestoreTested.RestorePointId} ({latestRestoreTested.RestoreTestedUtc:u})");
+            : $"Latest restore-tested point: {latestRestoreTested.RestorePointId} ({EasternTime.FromUtc(latestRestoreTested.RestoreTestedUtc):g})");
         foreach (var operation in _viewModel.State.RecentOperations.Where(item => item.ProtectionSet == protectionSet))
         {
             lbStatusMessages.Items.Add(

@@ -1,5 +1,6 @@
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
@@ -8,9 +9,6 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// </summary>
 public partial class MarketDataView : UserControl
 {
-    static readonly TimeZoneInfo MarketTimeZone =
-        TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-
     public MarketDataView()
     {
         InitializeComponent();
@@ -67,7 +65,7 @@ public partial class MarketDataView : UserControl
             graph.ChartAreas[0].AxisY2.Minimum = displayedMinimum - minMaxOffset;
             graph.ChartAreas[0].AxisY2.Maximum = displayedMaximum + minMaxOffset;
             var marketBarDates = futuresBarData
-                .Select(e => ConvertUtcToMarketTime(e.BarDate))
+                .Select(e => EasternTime.FromUtc(e.BarDate))
                 .ToArray();
             var earliestBarDate = marketBarDates.Min();
             var latestBarDate = marketBarDates.Max();
@@ -108,14 +106,4 @@ public partial class MarketDataView : UserControl
         catch {  }
     }
 
-    internal static DateTime ConvertUtcToMarketTime(DateTime barDateUtc)
-    {
-        var normalizedUtc = barDateUtc.Kind switch
-        {
-            DateTimeKind.Utc => barDateUtc,
-            DateTimeKind.Local => barDateUtc.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(barDateUtc, DateTimeKind.Utc)
-        };
-        return TimeZoneInfo.ConvertTimeFromUtc(normalizedUtc, MarketTimeZone);
-    }
 }

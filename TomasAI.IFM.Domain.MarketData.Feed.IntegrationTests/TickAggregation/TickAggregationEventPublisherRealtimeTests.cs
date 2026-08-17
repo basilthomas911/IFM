@@ -1,6 +1,7 @@
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -16,15 +17,10 @@ public sealed class TickAggregationEventPublisherRealtimeTests
     public async Task Market_price_update_uses_primary_actor_core_producer_without_owning_its_lifecycle()
     {
         var supervisor = Substitute.For<IActorSupervisor>();
-        var durableProducer = Substitute.For<IJSActorProducer>();
         var realtimeProducer = Substitute.For<IActorProducer>();
-        var syntheticId = new ActorMailboxId(
-            ActorType.Event,
-            TickAggregationEventPublisher.SyntheticProducerName);
         var primaryId = new ActorMailboxId(
             ActorType.Realtime,
-            FuturesMarketPriceUpdatedRealtimeEvent.Actor);
-        supervisor.GetJSEventProducer(syntheticId).Returns(durableProducer);
+            FuturesTickTradeDataChangedEvent.Actor);
         supervisor.GetProducer(primaryId).Returns(realtimeProducer);
 
         await using var publisher = new TickAggregationEventPublisher(supervisor);
@@ -39,8 +35,7 @@ public sealed class TickAggregationEventPublisherRealtimeTests
         await realtimeProducer.DidNotReceive().StartAsync(Arg.Any<ActorMailboxId>());
 
         await publisher.StopAsync();
-        await durableProducer.Received(1).StartAsync(syntheticId);
-        await durableProducer.Received(1).StopAsync();
+        await realtimeProducer.DidNotReceive().StartAsync(Arg.Any<ActorMailboxId>());
         await realtimeProducer.DidNotReceive().StopAsync();
     }
 

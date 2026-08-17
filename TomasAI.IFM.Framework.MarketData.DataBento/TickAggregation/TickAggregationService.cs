@@ -636,7 +636,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         var entity = new TickDataEntityId(state.Mapping.ContractId, state.ValueDate, state.Mapping.AssetTypeId);
         var evt = new FuturesTickQuoteDataChangedEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTickQuoteDataChangedEvent.Actor, FuturesTickQuoteDataChangedEvent.Verb, entity.Format()),
+            Subject = new ActorSubject(ActorType.Realtime, FuturesTickQuoteDataChangedEvent.Actor, FuturesTickQuoteDataChangedEvent.Verb, entity.Format()),
             Id = pending.EventId, CommandId = pending.CommandId, EntityId = entity,
             AggregateId = entity.Format(), EventSource = nameof(TickAggregationService), ReceivedOn = pending.TimestampUtc,
             TickDataId = pending.TickDataId, AssetTypeId = state.Mapping.AssetTypeId, Dataset = state.Mapping.Dataset,
@@ -709,7 +709,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         var entity = new TickDataEntityId(state.Mapping.ContractId, state.ValueDate, state.Mapping.AssetTypeId);
         return new PendingTradePublication(new FuturesTickTradeDataChangedEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTickTradeDataChangedEvent.Actor,
+            Subject = new ActorSubject(ActorType.Realtime, FuturesTickTradeDataChangedEvent.Actor,
                 FuturesTickTradeDataChangedEvent.Verb, entity.Format()),
             Id = Guid.NewGuid(), CommandId = Guid.NewGuid(), EntityId = entity,
             AggregateId = entity.Format(), EventSource = nameof(TickAggregationService), ReceivedOn = timestampUtc,

@@ -37,7 +37,9 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
         => ExecuteCommandAsync(() => _commandApi.RemoveEconomicCalendarAsync(economicCalendarId, overwrite));
 
     public Task<Guid> ImportEconomicCalendarsAsync(DateTime importDate, string[]? countryCodes = null)
-        => ExecuteCommandAsync(() => _commandApi.ImportEconomicCalendarsAsync(importDate, countryCodes));
+        => ExecuteCommandAsync(() => _commandApi.ImportEconomicCalendarsAsync(
+            EasternTime.ToUtc(importDate),
+            countryCodes));
 
     /// <summary>
     /// add futures contract
@@ -150,6 +152,6 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// <param name="importDate"></param>
     /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
     public Task<Guid> ImportYieldCurveRatesAsync(DateTime importDate)
-        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(importDate));
+        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(EasternTime.ToUtc(importDate)));
 
 }

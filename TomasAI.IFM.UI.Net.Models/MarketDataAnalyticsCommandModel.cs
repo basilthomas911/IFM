@@ -167,15 +167,15 @@ namespace TomasAI.IFM.UI.Net.Models
         /// </summary>
         /// <param name="siteId"></param>
         /// <param name="listenerAction"></param>
-        public async Task StartFuturesTradeSignalEventConsumerAsync(Guid siteId, Action<FuturesTradeSignalUpdatedCompleteEvent> listenerAction)
-            => await _futuresTradeSignalEventConsumer.StartAsync( listenerAction);
+        public async Task StartFuturesTradeSignalEventConsumerAsync(Guid siteId, Action<FuturesTradeSignalUpdatedNotifyEvent> listenerAction)
+            => await _futuresTradeSignalEventConsumer.StartAsync(siteId, listenerAction);
 
         /// <summary>
         /// stop listening for futures trade signal updates
         /// </summary>
         /// <param name="siteId"></param>
         public async Task StopFuturesTradeSignalEventConsumerAsync(Guid siteId)
-            => await _futuresTradeSignalEventConsumer.StopAsync();
+            => await _futuresTradeSignalEventConsumer.StopAsync(siteId);
 
         /// <summary>
         /// start listening for generated futures rsi signals

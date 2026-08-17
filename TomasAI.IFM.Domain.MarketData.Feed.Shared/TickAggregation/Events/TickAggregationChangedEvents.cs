@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 [MessagePackObject]
 public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
 {
-    public const string Actor = "TickAggregationEvent";
+    public const string Actor = "TickAggregationRealtime";
     public const string Verb = "FuturesTickTradeDataChanged";
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
@@ -33,7 +33,7 @@ public sealed record FuturesTickTradeDataChangedEvent : IEvent<TickDataEntityId>
 [MessagePackObject]
 public sealed record FuturesTickQuoteDataChangedEvent : IEvent<TickDataEntityId>
 {
-    public const string Actor = "TickAggregationEvent";
+    public const string Actor = "TickAggregationRealtime";
     public const string Verb = "FuturesTickQuoteDataChanged";
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }

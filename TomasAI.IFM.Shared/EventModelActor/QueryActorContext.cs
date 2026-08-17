@@ -19,7 +19,7 @@ public class QueryActorContext(IActorSupervisor supervisor, ActorMailboxId actor
 {
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
-    readonly ActorEventPublisher _eventPublisher = new(supervisor);
+    readonly ActorEventPublisher _eventPublisher = new(supervisor, actorId);
     readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo>
         _messageInfo = [];
 

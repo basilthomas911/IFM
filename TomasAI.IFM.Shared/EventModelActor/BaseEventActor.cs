@@ -111,6 +111,12 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
                     break;
                 case ActorDeliveryType.NatsJetStream:
                     await _supervisor.GetJSProducer(_actorId).StopAsync().ConfigureAwait(false);
+                    // Event actors publish application-facing Notify events through their
+                    // registered Core producer. It is started lazily and must be stopped with
+                    // the actor even though the actor itself consumes through JetStream.
+                    var coreProducer = _supervisor.GetProducer(_actorId);
+                    if (coreProducer?.IsRunning == true)
+                        await coreProducer.StopAsync().ConfigureAwait(false);
                     break;
                 default:
                     throw new InvalidOperationException(

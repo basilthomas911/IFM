@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
@@ -65,7 +66,7 @@ public partial class YieldCurveRateEditForm
         if (_yieldCurveRate == null|| _yieldCurveRate.ValueDate == DateOnly.MinValue)
         {
             this.Text = "Add Yield Curve Rate";
-            dtmValueDate.Value = DateTime.Now;
+            dtmValueDate.Value = EasternTime.GetNow(TimeProvider.System);
         }
         else
         {

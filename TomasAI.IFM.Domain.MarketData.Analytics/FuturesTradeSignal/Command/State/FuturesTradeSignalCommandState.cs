@@ -52,8 +52,13 @@ public class FuturesTradeSignalCommandState
         => default(bool) switch
         {
             _ when _futuresTradeSignal is null => true,
+            _ when _futuresTradeSignal.ContractId != e.ContractId => true,
             _ when _futuresTradeSignal.ValueDate != e.ValueDate => true,
+            _ when _futuresTradeSignal.TimePeriod != e.TimePeriod => true,
+            _ when _futuresTradeSignal.Mean != e.Mean => true,
+            _ when _futuresTradeSignal.StdDev != e.StdDev => true,
             _ when _futuresTradeSignal.FuturesPrice != e.FuturesPrice => true,
+            _ when _futuresTradeSignal.PriceChangePercent != e.PriceChangePercent => true,
             _ when _futuresTradeSignal.FundRiskPercent != e.FundRiskPercent => true,
             _ when _futuresTradeSignal.RSI != e.RSI => true,
             _ when _futuresTradeSignal.RSISlope != e.RSISlope => true,
@@ -63,6 +68,18 @@ public class FuturesTradeSignalCommandState
             _ when _futuresTradeSignal.TDI != e.TDI => true,
             _ when _futuresTradeSignal.TDIStrength != e.TDIStrength => true,
             _ when _futuresTradeSignal.MDI != e.MDI => true,
+            _ when _futuresTradeSignal.MDITrend != e.MDITrend => true,
+            _ when _futuresTradeSignal.MDIUpTrendLimit != e.MDIUpTrendLimit => true,
+            _ when _futuresTradeSignal.MDIDownTrendLimit != e.MDIDownTrendLimit => true,
+            _ when _futuresTradeSignal.UpTrendingTrigger != e.UpTrendingTrigger => true,
+            _ when _futuresTradeSignal.DownTrendingTrigger != e.DownTrendingTrigger => true,
+            _ when _futuresTradeSignal.EntryTrigger != e.EntryTrigger => true,
+            _ when _futuresTradeSignal.ExitTrigger != e.ExitTrigger => true,
+            _ when _futuresTradeSignal.TrendDelta != e.TrendDelta => true,
+            _ when _futuresTradeSignal.TrendExtreme != e.TrendExtreme => true,
+            _ when _futuresTradeSignal.TrendReversal != e.TrendReversal => true,
+            _ when _futuresTradeSignal.FiftyDMA != e.FiftyDMA => true,
+            _ when _futuresTradeSignal.TwoHundredDMA != e.TwoHundredDMA => true,
             _ when _futuresTradeSignal.TradeExecuteState != e.TradeExecuteState => true,
             _ => false
         };

@@ -46,7 +46,15 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
     /// <param name="endDate"></param>
     /// <param name="onCompleted"></param>
     public async Task GetOptionTradeSpreadBarDataAsync(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, DateTime startDate, DateTime endDate, Action<OptionTradeSpreadBarsDataModel[]> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, tradeType, valueDate, startDate, endDate), onCompleted);
+        => await ExecuteAsync(
+            () => _queryApi.GetOptionTradeSpreadBarDataAsync(
+                orderId,
+                tradeId,
+                tradeType,
+                valueDate,
+                EasternTime.ToUtc(startDate),
+                EasternTime.ToUtc(endDate)),
+            onCompleted);
 
     public Task GetOptionTradeSpreadBarDataAsync(
         int orderId,
@@ -57,7 +65,13 @@ public class TradeQueryModel(ITradeQueryApi queryApi) : BaseModel<TradeQueryMode
         DateTime endDate,
         Func<OptionTradeSpreadBarsDataModel[], Task> onCompleted)
         => ExecuteAsync(
-            () => _queryApi.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, tradeType, valueDate, startDate, endDate),
+            () => _queryApi.GetOptionTradeSpreadBarDataAsync(
+                orderId,
+                tradeId,
+                tradeType,
+                valueDate,
+                EasternTime.ToUtc(startDate),
+                EasternTime.ToUtc(endDate)),
             onCompleted);
 
     /// <summary>

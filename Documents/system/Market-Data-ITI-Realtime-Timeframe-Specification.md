@@ -24,7 +24,7 @@ The entity key is `{ContractId, TimePeriod, TimeFrameStartValueDate}`. The signa
 
 ## Publication rules
 
-All accepted ticks update actor-owned hot observation state. The actor crosses into the durable command/event/storage path only when one of these conditions is true:
+All accepted ticks update actor-owned hot observation state. The actor creates a one-attempt realtime source/storage/complete-or-fail projection only when one of these conditions is true:
 
 1. the timeframe has no current state and must emit its group-zero start signal;
 2. futures price crosses the current uptrend or downtrend direction trigger; or
@@ -37,11 +37,13 @@ BandPercentage = 0.10
 BandSize       = abs(CalculatedItiThreshold) * BandPercentage
 ```
 
-The band is a percentage of the ITI threshold/lambda calculation, never a percentage of the futures price. Direction checks run first and remain trigger-driven. An inside-band tick creates no durable command, event, completion, or Scylla row.
+The band is a percentage of the ITI threshold/lambda calculation, never a percentage of the futures price. Direction checks run first and remain trigger-driven. An inside-band tick creates no source event, completion, or Scylla row.
 
-## Durability and restart
+## Storage and restart
 
-The command actor repeats the same pure transition evaluation before applying an event. This preserves the actor as durable authority even if another caller bypasses the realtime pre-filter. A non-publishable command succeeds without applying an event.
+`FuturesItiSignalRealtimeActor` is the live transition authority. For each publishable evaluation it gives `FuturesItiSignalGeneratedEvent` to `FuturesItiSignalRealtimeProjector`. The projector publishes the realtime source, writes the existing canonical/query/current-timeframe projections once, and publishes the typed realtime complete or fail result. It has no event-source log, JetStream process/replay queue, outbox, checkpoint, retry, or recovery worker.
+
+The hot anchor advances only after `ProcessRealtimeEventAsync` reports a successful storage and completion publication. A failed attempt is observable through its fail event and log entry, but the next market tick is the only retry opportunity.
 
 Published signals are written to the existing canonical and bounded query projections and to `futures_iti_timeframe_state`. The authoritative state table stores one current row by contract, period, and deterministic calendar bucket, including:
 
@@ -50,18 +52,20 @@ Published signals are written to the existing canonical and bounded query projec
 - group, trend, mode, triggers, threshold, and lambda; and
 - band anchor, percentage, and absolute size.
 
-On actor restart, the realtime state hydrates this projection once per active timeframe and performs no storage read per tick. Existing canonical history is a bounded migration fallback when the versioned state row does not yet exist.
+On actor restart, the realtime state hydrates this storage projection once per active timeframe and performs no storage read per tick. Existing canonical history is a bounded migration fallback when the versioned state row does not yet exist. The rows are durable reference/read-model data; the realtime import event itself is not replay durable.
 
 ## Event compatibility
 
-`FuturesItiSignalGeneratedEvent` and its completed event keep their established MessagePack keys. `DeriveLongerPeriods` at key 12 is deprecated and new generated events always set it to `false`. Generated-complete handlers do not create Weekly or Monthly commands. The source VX price remains on the event for audit and downstream compatibility.
+`FuturesItiSignalGeneratedEvent` and its completed event keep their established MessagePack keys. `DeriveLongerPeriods` at key 12 is deprecated and new generated events always set it to `false`. Generated-complete handlers do not create Weekly or Monthly signals. The source VX price remains on the event for audit and downstream compatibility.
+
+Phase 1 temporarily retains the legacy Futures Trade Signal needed by Market Outlook. An ITI realtime completion queries its existing inputs, computes `FuturesTradeSignalUpdatedEvent`, and sends it through the same realtime projector. Its successful completion publishes `FuturesTradeSignalUpdatedNotifyEvent` to the UI. This compatibility branch will be replaced during UI optimization; it does not restore a durable command/Event path.
 
 ## Required verification
 
 Tests must cover:
 
 - all three streams starting from one trade;
-- identical and inside-band prices producing no second durable transition;
+- identical and inside-band prices producing no second projected transition;
 - exact/full-band extreme, reversal, and trending transitions;
 - immediate direction changes and group increments;
 - week/month reset to group zero;

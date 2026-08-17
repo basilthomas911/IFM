@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
@@ -27,11 +26,6 @@ public class FuturesOptionTickDataEventActor(
         marketDataApi, statusConsoleWriter, logger);
     readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedEventApi, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesTickTradeDataInsertedEvent).Name] = async (evt, context, eventApi, eventParams) =>
-        {
-            var e = (evt as FuturesTickTradeDataInsertedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, eventParams, logger);
-        },
         [typeof(FuturesOptionTickDataStreamingStartedEvent).Name] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStartedEvent)!;
@@ -47,28 +41,24 @@ public class FuturesOptionTickDataEventActor(
     protected override ValueTask OnStartup(IEventActorContext context)
     {
         _ = GetEventApi(context);
-        context.AddEventRouter(
-            new ActorTypeId(
-                ActorType.Event,
-                FuturesTickTradeDataInsertedEvent.Actor,
-                FuturesTickTradeDataInsertedEvent.Verb),
-            Id);
         return ValueTask.CompletedTask;
     }
 
     protected override async ValueTask OnShutdown(IEventActorContext context)
     {
-        context.RemoveEventRouter(
-            new ActorTypeId(
-                ActorType.Event,
-                FuturesTickTradeDataInsertedEvent.Actor,
-                FuturesTickTradeDataInsertedEvent.Verb),
-            Id);
         foreach (var registration in _eventParameters.Streams.Drain())
         {
-            await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
-                registration.Key.ContractId,
-                registration.Key.Owner).ConfigureAwait(false);
+            try
+            {
+                await _eventParameters.MarketDataApi.StopStreamingFuturesOptionTickDataAsync(
+                    registration.Key.ContractId,
+                    registration.Key.Owner).ConfigureAwait(false);
+            }
+            catch (TomasAI.IFM.Application.MarketData.Contracts.MarketDataApiNotRunningException)
+            {
+                // The host may stop the transient market-data epoch before actor teardown.
+                // Draining the actor-owned registration is already complete in that case.
+            }
         }
     }
 
@@ -102,8 +92,6 @@ public class FuturesOptionTickDataEventActor(
     /// </summary>
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
-        [FuturesTickTradeDataInsertedEvent.Verb] =
-            msg => msg.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
         [FuturesOptionTickDataStreamingStartedEvent.Verb] = msg => msg.AsEvent<FuturesOptionTickDataStreamingStartedEvent>()!,
         [FuturesOptionTickDataStreamingStoppedEvent.Verb] = msg => msg.AsEvent<FuturesOptionTickDataStreamingStoppedEvent>()!
     };

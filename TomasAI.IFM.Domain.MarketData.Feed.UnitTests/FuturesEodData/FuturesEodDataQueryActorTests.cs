@@ -170,6 +170,28 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     [Fact]
+    public async Task ReceiveAsync_VixQueryWithMissingContract_ReturnsEmptyCollection()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var db = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(db);
+        db.GetVixFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
+            .Returns((VixFuturesEodDataReadModel?)null);
+        var actor = CreateActor(dbFactory);
+        var context = Substitute.For<IQueryActorContext>();
+        var query = CreateVixQuery("VX-MISSING");
+
+        await actor.InvokeReceiveAsync(context, query);
+
+        await db.Received(1).GetVixFuturesEodDataAsync("VX-MISSING", SampleData.ValueDate);
+        await context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetVixFuturesEodDataQuery.Verb,
+            Arg.Is<ServiceResult<VixFuturesEodDataReadModel[]>>(result =>
+                result.Success && result.Value != null && result.Value.Length == 0));
+    }
+
+    [Fact]
     public async Task ReceiveAsync_CurrentQueryWithNoRow_RepliesWithSuccessfulNullValue()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();

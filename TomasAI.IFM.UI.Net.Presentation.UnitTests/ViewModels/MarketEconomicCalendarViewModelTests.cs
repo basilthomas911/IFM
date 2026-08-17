@@ -17,6 +17,7 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 public class MarketEconomicCalendarViewModelTests
 {
     static readonly DateTime Today = new(2026, 8, 11);
+    static readonly DateTime TodayUtc = new(2026, 8, 11, 4, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public async Task LoadAndRefresh_PublishCountryCalendarAndSelectionState()
@@ -48,7 +49,7 @@ public class MarketEconomicCalendarViewModelTests
 
         subject.ViewModel.SelectedCountryCode.Should().Be("CA");
         await subject.Api.Received(1).GetEconomicCalendarsAsync(
-            Today,
+            TodayUtc,
             EconomicCalendarViewType.NextWeek,
             "CA");
         subject.ViewModel.SelectEconomicCalendar(0).Should().BeFalse();

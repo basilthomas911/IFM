@@ -6,9 +6,11 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Projector;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -22,13 +24,14 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
 /// <summary>
-/// Exercises the complete ITI boundary from routed realtime actors through durable
-/// command actors, event projectors, and Scylla storage. The adjacent realtime-actor
-/// integration test owns the Core NATS transport boundary.
+/// Exercises the complete ITI boundary from routed realtime actors through the
+/// no-replay realtime projector and Scylla storage. The adjacent realtime-actor
+/// integration test owns the Core NATS routing boundary.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(ItiPipelineIntegrationCollection.Name)]
@@ -55,7 +58,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
         factory.Services.GetRequiredService<IActorProducer>();
 
     [Fact]
-    public async Task RoutedTrades_ProjectDailyWeeklyAndMonthlySignalsDurably()
+    public async Task RoutedTrades_ProjectDailyWeeklyAndMonthlySignalsWithoutReplay()
     {
         await ResetAsync();
         var marketDataApi = CreateReadyMarketDataApi();
@@ -68,7 +71,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
         try
         {
             await realtime.PublishAsync(CreateEvent(101, FirstTimestamp));
-            realtime.DurableHandoffs.Should().Be(3);
+            realtime.RealtimeProjections.Should().Be(3);
             await probe.WaitForCompletionCountAsync(3);
 
             await AssertStoredSignalsAsync(expectedCount: 1, FirstTimestamp);
@@ -82,7 +85,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
 
             await AssertStoredSignalsAsync(expectedCount: 1, FirstTimestamp);
             AssertGeneratedEvents(probe, expectedCount: 1);
-            realtime.DurableHandoffs.Should().Be(3);
+            realtime.RealtimeProjections.Should().Be(3);
 
             var bandTimestamp = FirstTimestamp.AddSeconds(2);
             const double bandCrossingPrice = EsPrice + 10;
@@ -90,7 +93,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 103,
                 bandTimestamp,
                 price: bandCrossingPrice));
-            realtime.DurableHandoffs.Should().Be(6);
+            realtime.RealtimeProjections.Should().Be(6);
             await probe.WaitForCompletionCountAsync(6);
 
             foreach (var period in ExpectedPeriods)
@@ -113,7 +116,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 current.BandPercentage.Should().Be(0.10);
                 current.BandSize.Should().BeGreaterThan(0);
             }
-            realtime.DurableHandoffs.Should().Be(6);
+            realtime.RealtimeProjections.Should().Be(6);
         }
         finally
         {
@@ -127,7 +130,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
     [InlineData("inactive-vx")]
     [InlineData("missing-vx-price")]
     [InlineData("stopping-api")]
-    public async Task IneligibleCoreNatsTrade_DoesNotCreateDurableItiSignals(
+    public async Task IneligibleCoreNatsTrade_DoesNotCreateRealtimeItiSignals(
         string condition)
     {
         await ResetAsync();
@@ -169,7 +172,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
             await realtime.PublishAsync(CreateEvent(201, FirstTimestamp, eventContractId));
             await Task.Delay(TimeSpan.FromSeconds(1));
 
-            realtime.DurableHandoffs.Should().Be(0);
+            realtime.RealtimeProjections.Should().Be(0);
             foreach (var period in ExpectedPeriods)
             {
                 var signals = await dbFixture.MarketDataDb.GetFuturesItiSignalsAsync(
@@ -187,7 +190,11 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
     public async Task IndependentPeriodCommandIds_AreDurablyIdempotent()
     {
         await ResetAsync();
-        await using var probe = await ItiEventProbe.StartAsync(EsContractId, ValueDate);
+        await using var probe = await ItiEventProbe.StartAsync(
+            EsContractId,
+            ValueDate,
+            ActorType.Event,
+            FuturesItiSignalGeneratedEvent.Actor);
         var commandIds = new Dictionary<TimeFrameType, Guid>
         {
             [TimeFrameType.Weekly] = Guid.NewGuid(),
@@ -422,55 +429,36 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
             _handoffCounter = handoffCounter;
         }
 
-        public int DurableHandoffs => Volatile.Read(ref _handoffCounter.Count);
+        public int RealtimeProjections => Volatile.Read(ref _handoffCounter.Count);
 
         public static async Task<RealtimeHarness> StartAsync(
-            IActorProducer durableProducer,
+            IActorProducer realtimeProducer,
             IMarketDataApi marketDataApi,
             IDbContextFactory dbFactory)
         {
             var mailbox = Substitute.For<IActorMailbox>();
-            var actorProducer = Substitute.For<IActorProducer>();
-            actorProducer.StartAsync(Arg.Any<ActorMailboxId>(), Arg.Any<CancellationToken>())
-                .Returns(ValueTask.CompletedTask);
-            actorProducer.StopAsync().Returns(ValueTask.CompletedTask);
+            var actorProducer = new ForwardingEventProducer(realtimeProducer);
             var supervisor = Substitute.For<IActorSupervisor>();
             supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
             supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(actorProducer);
 
             var handoffCounter = new HandoffCounter();
-            var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
-            commandApi.GenerateFuturesItiSignalAsync(
-                    Arg.Any<string>(),
-                    Arg.Any<DateOnly>(),
-                    Arg.Any<TimeFrameType>(),
-                    Arg.Any<DateTime>(),
-                    Arg.Any<double>(),
-                    Arg.Any<double>(),
-                    Arg.Any<Guid?>(),
-                    Arg.Any<DateOnly?>())
-                .Returns(call => SendDurableCommandAsync(
-                    durableProducer,
-                    handoffCounter,
-                    call.ArgAt<string>(0),
-                    call.ArgAt<DateOnly>(1),
-                    call.ArgAt<TimeFrameType>(2),
-                    call.ArgAt<DateTime>(3),
-                    call.ArgAt<double>(4),
-                    call.ArgAt<double>(5),
-                    call.ArgAt<Guid?>(6),
-                    call.ArgAt<DateOnly?>(7)));
-            var commandApiFactory = Substitute.For<IActorMarketDataAnalyticsCommandApiFactory>();
-            commandApiFactory.Create(Arg.Any<IEventActorContext>()).Returns(commandApi);
+            var innerProjector = new FuturesItiSignalRealtimeProjector(
+                dbFactory,
+                Substitute.For<ILogger<FuturesItiSignalRealtimeProjector>>());
+            var projector = new CountingRealtimeProjector(
+                innerProjector,
+                handoffCounter);
 
             var primaryActor = new FuturesMarketPriceRealtimeActor(
                 supervisor,
                 Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
             var itiActor = new FuturesItiSignalRealtimeActor(
                 supervisor,
-                commandApiFactory,
+                projector,
                 marketDataApi,
                 dbFactory,
+                Substitute.For<IStatusConsoleWriter>(),
                 Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
             await primaryActor.StartAsync(supervisor);
             await itiActor.StartAsync(supervisor);
@@ -497,43 +485,82 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
             await _primaryActor.StopAsync();
         }
 
-        static ValueTask<ServiceResult<GuidResult>> SendDurableCommandAsync(
-            IActorProducer durableProducer,
-            HandoffCounter handoffCounter,
-            string contractId,
-            DateOnly valueDate,
-            TimeFrameType timePeriod,
-            DateTime timestamp,
-            double futuresPrice,
-            double vixFuturesPrice,
-            Guid? commandId,
-            DateOnly? timeFrameStartValueDate)
+        sealed class CountingRealtimeProjector(
+            IRealtimeProjector<FuturesItiSignalRealtimeActor> inner,
+            HandoffCounter counter)
+            : IRealtimeProjector<FuturesItiSignalRealtimeActor>
         {
-            Interlocked.Increment(ref handoffCounter.Count);
-            var frameStart = timeFrameStartValueDate ?? valueDate;
-            var entityId = new FuturesItiSignalEntityId(contractId, frameStart, timePeriod);
-            var command = new GenerateFuturesItiSignalCommand(
-                contractId,
-                valueDate,
-                timePeriod,
-                timestamp,
-                futuresPrice,
-                vixFuturesPrice,
-                frameStart)
+            public string ActorName => inner.ActorName;
+            public string ProjectorName => inner.ProjectorName;
+            public IReadOnlyCollection<Type> ProjectedEventTypes => inner.ProjectedEventTypes;
+            public IReadOnlyCollection<RealtimeProjectionDescriptor> ProjectionDescriptors =>
+                inner.ProjectionDescriptors;
+            public IEventActorContext Context => inner.Context;
+            public ILogger Logger => inner.Logger;
+
+            public ValueTask StartAsync(
+                IEventActorContext context,
+                CancellationToken cancellationToken = default) =>
+                inner.StartAsync(context, cancellationToken);
+
+            public ValueTask StopAsync(CancellationToken cancellationToken = default) =>
+                inner.StopAsync(cancellationToken);
+
+            public ValueTask<bool> ProcessRealtimeEventAsync(
+                IEvent domainEvent,
+                CancellationToken cancellationToken = default)
             {
-                CommandId = commandId ?? Guid.NewGuid(),
-                Subject = new ActorSubject(
-                    ActorType.Command,
-                    GenerateFuturesItiSignalCommand.Actor,
-                    GenerateFuturesItiSignalCommand.Verb,
-                    entityId.Format()),
-                EntityId = entityId,
-                ErrorCode = GenerateFuturesItiSignalCommand.ErrorId
-            };
-            return durableProducer.RequestAsync<
-                GenerateFuturesItiSignalCommand,
-                FuturesItiSignalEntityId,
-                GuidResult>(command.Subject, command, entityId);
+                if (domainEvent is FuturesItiSignalGeneratedEvent)
+                    Interlocked.Increment(ref counter.Count);
+                return inner.ProcessRealtimeEventAsync(domainEvent, cancellationToken);
+            }
+        }
+
+        sealed class ForwardingEventProducer(IActorProducer inner) : IActorProducer
+        {
+            public bool IsRunning => true;
+
+            public ValueTask SendAsync<TCommand, TEntityId>(
+                ActorSubject subject,
+                TCommand command,
+                TEntityId entityId)
+                where TCommand : class, ICommand<TEntityId>
+                where TEntityId : IActorEntityId =>
+                inner.SendAsync(subject, command, entityId);
+
+            public ValueTask SendAsync<TEvent, TEntityId>(
+                ActorSubject subject,
+                TEvent @event)
+                where TEvent : class, IEvent<TEntityId>
+                where TEntityId : IActorEntityId =>
+                inner.SendAsync<TEvent, TEntityId>(subject, @event);
+
+            public ValueTask<ServiceResult<TResult>> RequestAsync<TResult, TQuery>(
+                ActorSubject subject,
+                TQuery query)
+                where TQuery : class, IQuery<TResult>
+                where TResult : class =>
+                inner.RequestAsync<TResult, TQuery>(subject, query);
+
+            public ValueTask<ServiceResult<TResult>> RequestAsync<
+                TCommand,
+                TEntityId,
+                TResult>(
+                ActorSubject subject,
+                TCommand command,
+                TEntityId entityId)
+                where TCommand : class, ICommand<TEntityId>
+                where TEntityId : IActorEntityId
+                where TResult : class =>
+                inner.RequestAsync<TCommand, TEntityId, TResult>(
+                    subject,
+                    command,
+                    entityId);
+
+            public ValueTask StartAsync(ActorMailboxId mailboxId) =>
+                ValueTask.CompletedTask;
+
+            public ValueTask StopAsync() => ValueTask.CompletedTask;
         }
 
         sealed class HandoffCounter
@@ -569,7 +596,9 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
 
         public static async Task<ItiEventProbe> StartAsync(
             string contractId,
-            DateOnly valueDate)
+            DateOnly valueDate,
+            ActorType actorType = ActorType.Realtime,
+            string actorName = FuturesItiSignalRealtimeActor.ActorName)
         {
             var listener = new NatsActorEventListener(
                 new NatsEventListenerOptions(),
@@ -579,7 +608,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 $"iti-realtime-pipeline-{Guid.NewGuid():N}",
                 new Dictionary<ActorMailboxId, List<string>>
                 {
-                    [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)] =
+                    [new ActorMailboxId(actorType, actorName)] =
                     [
                         FuturesItiSignalGeneratedEvent.Verb,
                         FuturesItiSignalGeneratedCompleteEvent.Verb,

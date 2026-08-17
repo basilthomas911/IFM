@@ -8,7 +8,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Extensions;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 
@@ -41,6 +40,12 @@ public static async ValueTask<bool> ExecuteAsync(
                 e.Contract.ContractId,
                 owner).ConfigureAwait(false);
             p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
+            if (e.Contract.Id.IsVixContract)
+            {
+                p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(
+                    e.ValueDate,
+                    e.Contract.ContractId);
+            }
             await eventApi.FuturesTickDataStreamingStartedCompleteAsync(e);
             await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesTickDataEvent, $"Futures {e.Contract.ContractId} streaming started");
             p.Logger.LogInformationEvent(ServiceId, "{Source}: futures {e.Contract.ContractId} streaming started", source, e.Contract.ContractId);

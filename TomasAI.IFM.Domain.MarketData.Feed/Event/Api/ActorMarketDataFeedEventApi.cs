@@ -105,7 +105,7 @@ public sealed class ActorMarketDataFeedEventApi(IEventActorContext context)
         OptionTradeTickPriceDataUpdatedEvent updatedEvent = new(e.TickData)
         {
             Subject = new ActorSubject(
-                ActorType.Event,
+                ActorType.Notify,
                 OptionTradeTickPriceDataUpdatedEvent.Actor,
                 OptionTradeTickPriceDataUpdatedEvent.Verb,
                 entityId.Format()),
@@ -119,7 +119,7 @@ public sealed class ActorMarketDataFeedEventApi(IEventActorContext context)
     }
 
     /// <summary>
-    /// Publishes the option-domain price update translated from a durable TickAggregation trade event.
+    /// Publishes the option-domain price update translated from a realtime TickAggregation trade event.
     /// </summary>
     public async ValueTask SendOptionTradeTickPriceDataUpdatedEventAsync(
         FuturesTickTradeDataInsertedEvent e,
@@ -133,7 +133,7 @@ public sealed class ActorMarketDataFeedEventApi(IEventActorContext context)
         OptionTradeTickPriceDataUpdatedEvent updatedEvent = new(tickData)
         {
             Subject = new ActorSubject(
-                ActorType.Event,
+                ActorType.Notify,
                 OptionTradeTickPriceDataUpdatedEvent.Actor,
                 OptionTradeTickPriceDataUpdatedEvent.Verb,
                 entityId.Format()),
@@ -296,6 +296,32 @@ public sealed class ActorMarketDataFeedEventApi(IEventActorContext context)
             UpdatedBy = e.UserName
         };
         await _context.SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(updatedEvent);
+    }
+
+    /// <summary>
+    /// Publishes a best-effort external notification after the futures EOD projection has completed.
+    /// </summary>
+    public async ValueTask SendFuturesEodDataUpdatedNotifyEventAsync(
+        FuturesEodDataInsertedCompleteEvent e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        var notifyEvent = new FuturesEodDataUpdatedNotifyEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Notify,
+                FuturesEodDataUpdatedNotifyEvent.Actor,
+                FuturesEodDataUpdatedNotifyEvent.Verb,
+                e.EntityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = e.EntityId,
+            CommandId = e.CommandId,
+            AggregateId = e.AggregateId ?? string.Empty,
+            EventSource = nameof(FuturesEodDataInsertedCompleteEvent),
+            ReceivedOn = DateTime.UtcNow,
+            FuturesEodData = e.FuturesEodData
+        };
+        await _context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
+            notifyEvent).ConfigureAwait(false);
     }
 
     async ValueTask SendCompleteAsync<TEvent, TCompleteEvent, TEntityId>(TEvent e)

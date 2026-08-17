@@ -100,7 +100,7 @@ public partial class LookupTypeEditorView
                     shortCode: txtShortCode.Text,
                     orderId: _viewModel.LookupTypeShortCodes?.Count ?? 0,
                     description: txtDescription.Text,
-                    createdOn: DateTime.Now,
+                    createdOn: DateTime.UtcNow,
                     createdBy: String.Empty
                 );
                 _viewModel.AddLookupType(lookupType, () => this.Post(() =>
@@ -150,7 +150,7 @@ public partial class LookupTypeEditorView
                         shortCode: txtShortCode.Text,
                         orderId: Convert.ToInt32(txtOrderId.Text),
                         description: txtDescription.Text,
-                        createdOn: DateTime.Now,
+                        createdOn: DateTime.UtcNow,
                         createdBy: String.Empty
                     );
                     _viewModel.ChangeLookupType(lookupTypeId, lookupType, true, () => this.Post(() =>

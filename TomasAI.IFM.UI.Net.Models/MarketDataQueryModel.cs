@@ -25,7 +25,10 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
         string countryCode,
         Action<EconomicCalendarReadModel[]> onCompleted)
         => ExecuteAsync(
-            () => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode),
+            () => _queryApi.GetEconomicCalendarsAsync(
+                EasternTime.ToUtc(todaysDate),
+                calendarViewType,
+                countryCode),
             onCompleted);
 
     public Task LoadEconomicCalendarAsync(
@@ -34,7 +37,10 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
         string countryCode,
         Func<EconomicCalendarReadModel[], Task> onCompleted)
         => ExecuteAsync(
-            () => _queryApi.GetEconomicCalendarsAsync(todaysDate, calendarViewType, countryCode),
+            () => _queryApi.GetEconomicCalendarsAsync(
+                EasternTime.ToUtc(todaysDate),
+                calendarViewType,
+                countryCode),
             onCompleted);
 
     public Task LoadEconomicCalendarsAsync(
@@ -43,7 +49,9 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
         Action<EconomicCalendarReadModel[]> onCompleted)
         => ExecuteAsync(
             () => _queryApi.GetEconomicCalendarsAsync(
-                eventDate.ToDateTime(TimeOnly.MinValue), EconomicCalendarViewType.Today, countryCode),
+                EasternTime.ToUtc(eventDate.ToDateTime(TimeOnly.MinValue)),
+                EconomicCalendarViewType.Today,
+                countryCode),
             onCompleted);
 
     public Task LoadEconomicCalendarCountryCodesAsync(
@@ -55,7 +63,9 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
         EconomicCalendarViewType calendarViewType,
         Action<string> onCompleted)
         => ExecuteAsync(
-            () => _queryApi.GetEconomicCalendarDateAsync(todaysDate, calendarViewType),
+            () => _queryApi.GetEconomicCalendarDateAsync(
+                EasternTime.ToUtc(todaysDate),
+                calendarViewType),
             onCompleted);
 
 

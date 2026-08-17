@@ -22,7 +22,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 internal static class FuturesEodDataModel 
 {
     public static FuturesEodDataV2ReadModel CreateFuturesEodData(
-        this InsertFuturesEodDataCommand e,
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
         FuturesContractV2ReadModel contract,

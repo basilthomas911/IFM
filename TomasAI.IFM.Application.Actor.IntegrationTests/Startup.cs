@@ -506,6 +506,10 @@ public static class Startup
         siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(
+            typeof(TomasAI.IFM.Application.EventProjector.Realtime.Contracts.IRealtimeProjector<>),
+            domainAssemblies,
+            Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorState<>), assemblies, Lifestyle.Transient);
         logger.LogInformationEvent("ApiServer", "open generic handlers registered");
     }

@@ -45,7 +45,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         _fundId = fundId;
         _valueDate = valueDate;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _orderDate = _timeProvider.GetLocalNow().DateTime;
+        _orderDate = EasternTime.GetNow(_timeProvider);
         _tradeDate = valueDate;
         _maturityDate = DateOnly.FromDateTime(_orderDate);
         BaseContractIds = baseContracts.Select(contract => contract.ContractId).ToArray();
@@ -145,20 +145,20 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         get
         {
             var user = $"{Environment.UserDomainName}\\{Environment.UserName}";
-            var now = _timeProvider.GetLocalNow().DateTime;
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             return new FundOrderReadModel(
                 fundId: _fundId,
                 orderId: OrderId,
-                orderDate: OrderDate,
+                orderDate: EasternTime.ToUtc(OrderDate),
                 orderStatus: OrderStatus,
                 baseContractId: SelectedBaseContractId,
                 tradeDate: TradeDate,
                 maturityDate: MaturityDate,
                 reference: Reference,
                 createdBy: user,
-                createdOn: now,
+                createdOn: nowUtc,
                 updatedBy: user,
-                updatedOn: now);
+                updatedOn: nowUtc);
         }
     }
 

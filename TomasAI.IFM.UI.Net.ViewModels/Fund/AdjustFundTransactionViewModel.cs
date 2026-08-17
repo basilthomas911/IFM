@@ -111,7 +111,7 @@ public sealed class AdjustFundTransactionReadModel : BaseEditorViewModel, IAsync
     public FundTransactionReadModel GetAdjustmentTransaction(decimal amount, string comment)
         => new(
             _fundTransaction.TransactionId,
-            DateTime.Now,
+            DateTime.UtcNow,
             GetAdjustmentTransactionType(),
             _fundTransaction.FundId,
             _fundTransaction.OrderId,

@@ -10,7 +10,12 @@ public sealed class WinFormsViewNavigator(Func<Type, object> resolveView) : IVie
     readonly Func<Type, object> _resolveView = resolveView ?? throw new ArgumentNullException(nameof(resolveView));
 
     public TView CreateView<TView>() where TView : class
-        => (TView)_resolveView(typeof(TView));
+    {
+        var view = (TView)_resolveView(typeof(TView));
+        if (view is Control control)
+            control.ApplyEasternTimeDisplayPolicy();
+        return view;
+    }
 
     public NavigationResult ShowModal<TView>(Action<TView>? initialize = null) where TView : class
     {

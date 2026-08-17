@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
@@ -665,7 +666,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         {
             lstTradePlanAction.BeginUpdate();
             var tradePlanActionItem = new ListViewItem(new string[] {
-                $"{e.ActionDate:T}",
+                $"{EasternTime.FromUtc(e.ActionDate):T}",
                 $"{e.ActionType}",
                 $"{e.ActionSubType}",
                 $"{e.ActionState}",
@@ -731,7 +732,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         foreach (var e in tradePlans)
         {
             var tradePlanActionItem = new ListViewItem([
-                $"{e.ActionDate:T}",
+                $"{EasternTime.FromUtc(e.ActionDate):T}",
                 $"{e.ActionType}",
                 $"{e.ActionSubType}",
                 $"{e.ActionState}",

@@ -8,7 +8,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 [MessagePackObject]
 public sealed record FuturesTickTradeDataInsertedEvent : IEvent<TickDataEntityId>
 {
-    public const string Actor = "TickAggregationEvent";
+    public const string Actor = "TickAggregationRealtime";
     public const string Verb = "FuturesTickTradeDataInserted";
     public const int ErrorId = 5703;
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -53,7 +53,7 @@ public sealed record FuturesTickTradeDataInsertedEvent : IEvent<TickDataEntityId
 [MessagePackObject]
 public sealed record FuturesTickQuoteDataInsertedEvent : IEvent<TickDataEntityId>
 {
-    public const string Actor = "TickAggregationEvent";
+    public const string Actor = "TickAggregationRealtime";
     public const string Verb = "FuturesTickQuoteDataInserted";
     public const int ErrorId = 5704;
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -126,7 +126,7 @@ public record FuturesTickQuoteDataInsertedFailEvent : TickAggregationFailEvent
 [Union(1, typeof(FuturesTickQuoteDataInsertedCompleteEvent))]
 public abstract record TickAggregationCompleteEvent : ICompleteEvent<TickDataEntityId>
 {
-    public const string Actor = "TickAggregationEvent";
+    public const string Actor = "TickAggregationRealtime";
     public const string Verb = "Complete";
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public TickDataEntityId EntityId { get; init; }
@@ -150,7 +150,7 @@ public abstract record TickAggregationCompleteEvent : ICompleteEvent<TickDataEnt
 [Union(1, typeof(FuturesTickQuoteDataInsertedFailEvent))]
 public abstract record TickAggregationFailEvent : IErrorEvent<TickDataEntityId>
 {
-    public const string Actor = "TickAggregationEvent";
+    public const string Actor = "TickAggregationRealtime";
     public const string Verb = "Fail";
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public TickDataEntityId EntityId { get; init; }
@@ -192,7 +192,7 @@ internal static class TickAggregationEventFactory
             : new FuturesTickQuoteDataInsertedCompleteEvent();
         return result with
         {
-            Subject = new ActorSubject(ActorType.Event, TickAggregationCompleteEvent.Actor, verb, source.EntityId.Format()),
+            Subject = new ActorSubject(ActorType.Realtime, TickAggregationCompleteEvent.Actor, verb, source.EntityId.Format()),
             EntityId = source.EntityId, Id = source.Id, EventId = source.EventId,
             CommandId = source.CommandId, AggregateId = source.AggregateId,
             EventSource = source.EventSource, ReceivedOn = source.ReceivedOn,
@@ -214,7 +214,7 @@ internal static class TickAggregationEventFactory
             : new FuturesTickQuoteDataInsertedFailEvent();
         return result with
         {
-            Subject = new ActorSubject(ActorType.Event, TickAggregationFailEvent.Actor, verb, source.EntityId.Format()),
+            Subject = new ActorSubject(ActorType.Realtime, TickAggregationFailEvent.Actor, verb, source.EntityId.Format()),
             EntityId = source.EntityId, Id = source.Id, ErrorDate = DateTime.UtcNow,
             EventId = source.EventId, CommandId = source.CommandId, EventSource = source.EventSource,
             ErrorMessage = ex.Message, ErrorCode = errorCode, ErrorType = ErrorType.EventService,

@@ -11,7 +11,6 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.EventProjec
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.EventProjector;
-using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -36,11 +35,10 @@ public sealed class EventProjectorDescriptorTests
             new FuturesTickDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTickDataEventProjector>>()),
             new FuturesOptionTickDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>()),
             new FuturesClosingPriceEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesClosingPriceEventProjector>>()),
-            new FuturesEodDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesEodDataEventProjector>>()),
-            new TickAggregationEventProjector(queue, eventSource, blackboard, Substitute.For<ILogger<TickAggregationEventProjector>>())
+            new FuturesEodDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesEodDataEventProjector>>())
         ];
 
-        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(24);
+        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(22);
         foreach (var projector in projectors)
         {
             projector.ProjectionDescriptors.Select(descriptor => descriptor.SourceEventType)

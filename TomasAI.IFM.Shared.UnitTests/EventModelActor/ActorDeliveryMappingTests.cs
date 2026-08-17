@@ -73,6 +73,52 @@ public sealed class ActorDeliveryMappingTests
     }
 
     [Fact]
+    public async Task Notify_uses_the_publishing_actor_core_producer_without_a_notify_actor()
+    {
+        var fixture = new PublisherFixture();
+        var @event = CreateEvent(ActorType.Notify);
+
+        await fixture.Publisher.SendAsync<TestEvent, ActorEntityId>(@event);
+
+        fixture.Supervisor.Verify(
+            supervisor => supervisor.GetProducer(fixture.PublisherId),
+            Times.Once);
+        fixture.Supervisor.Verify(
+            supervisor => supervisor.GetProducer(@event.Subject.ActorId),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Notify_and_realtime_cache_their_distinct_core_producers()
+    {
+        var fixture = new PublisherFixture();
+        var notify = CreateEvent(ActorType.Notify);
+        var realtime = CreateEvent(ActorType.Realtime);
+        var notifyProducer = new Mock<IActorProducer>(MockBehavior.Strict);
+        var realtimeProducer = new Mock<IActorProducer>(MockBehavior.Strict);
+        notifyProducer.Setup(producer => producer.SendAsync<TestEvent, ActorEntityId>(
+                notify.Subject,
+                notify,
+                It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+        realtimeProducer.Setup(producer => producer.SendAsync<TestEvent, ActorEntityId>(
+                realtime.Subject,
+                realtime,
+                It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+        fixture.Supervisor.Setup(supervisor => supervisor.GetProducer(fixture.PublisherId))
+            .Returns(notifyProducer.Object);
+        fixture.Supervisor.Setup(supervisor => supervisor.GetProducer(realtime.Subject.ActorId))
+            .Returns(realtimeProducer.Object);
+
+        await fixture.Publisher.SendAsync<TestEvent, ActorEntityId>(notify);
+        await fixture.Publisher.SendAsync<TestEvent, ActorEntityId>(realtime);
+
+        notifyProducer.VerifyAll();
+        realtimeProducer.VerifyAll();
+    }
+
+    [Fact]
     public async Task Unknown_event_is_rejected_before_resolving_a_producer()
     {
         var fixture = new PublisherFixture();
@@ -101,6 +147,7 @@ public sealed class ActorDeliveryMappingTests
         internal Mock<IActorProducer> Core { get; } = new(MockBehavior.Strict);
         internal Mock<IJSActorProducer> JetStream { get; } = new(MockBehavior.Strict);
         internal ActorEventPublisher Publisher { get; }
+        internal ActorMailboxId PublisherId { get; } = new(ActorType.Event, "PublishingActor");
 
         internal PublisherFixture()
         {
@@ -118,7 +165,7 @@ public sealed class ActorDeliveryMappingTests
                 .Returns(Core.Object);
             Supervisor.Setup(supervisor => supervisor.GetJSProducer(It.IsAny<ActorMailboxId>()))
                 .Returns(JetStream.Object);
-            Publisher = new ActorEventPublisher(Supervisor.Object);
+            Publisher = new ActorEventPublisher(Supervisor.Object, PublisherId);
         }
     }
 

@@ -182,6 +182,21 @@ public class IFMAppViewModelTests
     }
 
     [Fact]
+    public void MarketOutlookUpdate_AcceptsOnlyTheActiveEsContract()
+    {
+        var valueDate = new DateOnly(2026, 8, 11);
+        var es = new FuturesEodDataV2ReadModel(
+            "ESZ26", valueDate, "ES", 5_000m, 5_100m, 4_900m, 5_050m, 1_000);
+        var staleEs = es with { ContractId = "ESU26" };
+        var nq = es with { ContractId = "NQZ26", Symbol = "NQ" };
+
+        IFMAppViewModel.IsMarketOutlookUpdate("ESZ26", es).Should().BeTrue();
+        IFMAppViewModel.IsMarketOutlookUpdate("ESZ26", staleEs).Should().BeFalse();
+        IFMAppViewModel.IsMarketOutlookUpdate("ESZ26", nq).Should().BeFalse();
+        IFMAppViewModel.IsMarketOutlookUpdate(null, es).Should().BeFalse();
+    }
+
+    [Fact]
     public void MarketDataSnapshots_KeepOnlyNewestContinuousFifteenSecondSegment()
     {
         var marketCurrentTime = new DateTimeOffset(2026, 8, 11, 16, 0, 0, TimeSpan.Zero);

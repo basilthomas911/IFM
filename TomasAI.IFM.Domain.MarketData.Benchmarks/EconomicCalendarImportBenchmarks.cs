@@ -44,9 +44,15 @@ public class EconomicCalendarImportBenchmarks
     }
 
     [Benchmark]
-    public async Task<int> AfterBatchEventAndWrite()
+    public async Task<int> AfterTransactionalRequestAndBatchWrite()
     {
-        _ = new EconomicCalendarsImportedEvent { EconomicCalendars = _values };
+        _ = new EconomicCalendarsImportedEvent
+        {
+            ImportedDate = _values[0].EventDate,
+            CountryCodes = ["US"],
+            RequestedOn = DateTime.UtcNow,
+            RequestedBy = "benchmark"
+        };
         await SimulatedWriteAsync().ConfigureAwait(false);
         return _values.Length;
     }

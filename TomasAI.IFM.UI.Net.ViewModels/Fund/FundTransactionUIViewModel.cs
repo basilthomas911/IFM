@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Fund;
 
@@ -8,7 +9,7 @@ public record FundTransactionUIViewModel
     public FundTransactionUIViewModel(FundTransactionReadModel e)
     {
         TransactionId = $"{e.TransactionId}";
-        TransactionDate = $"{e.TransactionDate:g}";
+        TransactionDate = $"{EasternTime.FromUtc(e.TransactionDate):g}";
         TransactionType = $"{e.TransactionType}";
         FundId = $"{e.FundId}";
         OrderId = $"{e.OrderId}";

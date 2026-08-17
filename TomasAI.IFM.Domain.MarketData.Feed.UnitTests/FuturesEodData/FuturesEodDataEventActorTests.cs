@@ -50,6 +50,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public static IEnumerable<object[]> SupportedEvents()
     {
         yield return [CreateFuturesEodDataInsertedEvent()];
+        yield return [CreateFuturesEodDataInsertedCompleteEvent()];
         yield return [CreateVixFuturesEodDataInsertedCompleteEvent()];
     }
 
@@ -160,6 +161,42 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
                 value.CommandId == @event.CommandId &&
                 value.EntityId == @event.EntityId &&
                 value.FuturesEodData == @event.FuturesEodData));
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_InsertedCompleteEvent_PublishesExternalNotifySnapshot()
+    {
+        var harness = CreateHarness();
+        var context = Substitute.For<IEventActorContext>();
+        var @event = CreateFuturesEodDataInsertedCompleteEvent();
+
+        await harness.Actor.InvokeReceiveAsync(context, @event);
+
+        await context.Received(1).SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
+            Arg.Is<FuturesEodDataUpdatedNotifyEvent>(notification =>
+                notification.Subject.Is(
+                    ActorType.Notify,
+                    FuturesEodDataUpdatedNotifyEvent.Actor,
+                    FuturesEodDataUpdatedNotifyEvent.Verb)
+                && notification.CommandId == @event.CommandId
+                && notification.EntityId == @event.EntityId
+                && notification.FuturesEodData == @event.FuturesEodData
+                && notification.IsValid));
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_InsertedCompleteNotifyFailure_DoesNotFailDurableCompletion()
+    {
+        var harness = CreateHarness();
+        var context = Substitute.For<IEventActorContext>();
+        var @event = CreateFuturesEodDataInsertedCompleteEvent();
+        context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
+                Arg.Any<FuturesEodDataUpdatedNotifyEvent>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("Core NATS unavailable"));
+
+        Func<Task> act = () => harness.Actor.InvokeReceiveAsync(context, @event).AsTask();
+
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]
@@ -432,12 +469,18 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         };
     }
 
+    static FuturesEodDataInsertedCompleteEvent CreateFuturesEodDataInsertedCompleteEvent(
+        Guid? commandId = null)
+        => (FuturesEodDataInsertedCompleteEvent)CreateFuturesEodDataInsertedEvent(commandId)
+            .ToCompleteEvent<FuturesEodDataInsertedCompleteEvent, FuturesEodDataId>();
+
     static NatsMsg<byte[]> CreateMessage(IEvent @event)
         => new() { Subject = @event.Subject.ToString(), Data = Serialize(@event) };
 
     static byte[] Serialize(IEvent @event) => @event switch
     {
         FuturesEodDataInsertedEvent value => ActorExtensions.DataSerializer!.Serialize(value),
+        FuturesEodDataInsertedCompleteEvent value => ActorExtensions.DataSerializer!.Serialize(value),
         VixFuturesEodDataInsertedCompleteEvent value => ActorExtensions.DataSerializer!.Serialize(value),
         _ => throw new ArgumentOutOfRangeException(nameof(@event))
     };

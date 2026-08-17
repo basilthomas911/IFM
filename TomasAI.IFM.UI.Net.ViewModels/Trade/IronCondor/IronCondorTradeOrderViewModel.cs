@@ -1284,9 +1284,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             underlyingAssetType: AssetType.Futures,
             isPrimaryTrade: true,
             isHedgeTrade: false,
-            createdOn: DateTime.Now,
+            createdOn: DateTime.UtcNow,
             createdBy: string.Empty,
-            updatedOn: DateTime.Now,
+            updatedOn: DateTime.UtcNow,
             updatedBy: string.Empty
         );
         return ironCondorTrade
@@ -1441,7 +1441,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     {
         var orderId = _ironCondorTrade.OrderId;
         var tradeId = _ironCondorTrade.TradeId;
-        var fillDate = DateTime.Now;
+        var fillDate = DateTime.UtcNow;
         var tradeFills = new List<TradeFillReadModel>
         {
             new TradeFillReadModel(orderId, tradeId, fillDate, fillQuantity, fillDate, Environment.UserName)

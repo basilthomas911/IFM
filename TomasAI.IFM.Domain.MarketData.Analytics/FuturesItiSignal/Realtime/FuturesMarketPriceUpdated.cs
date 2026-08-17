@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -12,7 +14,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime;
 
 /// <summary>
-/// Converts eligible current-contract ES market-price updates into durable ITI commands.
+    /// Converts eligible current-contract ES market-price updates into realtime ITI projections.
 /// </summary>
 public static class FuturesMarketPriceUpdated
 {
@@ -26,8 +28,8 @@ public static class FuturesMarketPriceUpdated
     /// and a fresh VX last-trade price is available.
     /// </summary>
     /// <param name="event">The routed normalized futures market-price event.</param>
-    /// <param name="context">The realtime actor context used for the durable handoff.</param>
-    /// <param name="commandApi">The actor-bound durable analytics command API.</param>
+    /// <param name="context">The owning realtime actor context.</param>
+    /// <param name="projector">The one-attempt realtime source/storage/complete-or-fail projector.</param>
     /// <param name="marketDataApi">The provider-neutral current-contract and hot-price API.</param>
     /// <param name="streamOwnership">The actor-owned ES/VX stream lifecycle.</param>
     /// <param name="logger">The typed ITI realtime actor logger.</param>
@@ -38,7 +40,7 @@ public static class FuturesMarketPriceUpdated
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
         IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi,
+        IRealtimeProjector<FuturesItiSignalRealtimeActor> projector,
         IMarketDataApi marketDataApi,
         FuturesItiSignalStreamOwnership streamOwnership,
         FuturesItiSignalRealtimeState realtimeState,
@@ -46,7 +48,7 @@ public static class FuturesMarketPriceUpdated
     {
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(commandApi);
+        ArgumentNullException.ThrowIfNull(projector);
         ArgumentNullException.ThrowIfNull(marketDataApi);
         ArgumentNullException.ThrowIfNull(streamOwnership);
         ArgumentNullException.ThrowIfNull(realtimeState);
@@ -110,22 +112,11 @@ public static class FuturesMarketPriceUpdated
                 Convert.ToDouble(vxPrice)).ConfigureAwait(false);
             foreach (var evaluation in evaluations)
             {
-                var command = evaluation.Command;
-                var result = await commandApi.GenerateFuturesItiSignalAsync(
-                    command.ContractId,
-                    command.ValueDate,
-                    command.TimePeriod,
-                    command.Timestamp,
-                    command.FuturesPrice,
-                    command.VixFuturesPrice,
-                    timeFrameStartValueDate: command.TimeFrameStartValueDate)
+                var generated = CreateGeneratedEvent(@event, evaluation);
+                var success = await projector.ProcessRealtimeEventAsync(generated)
                     .ConfigureAwait(false);
-                if (!result.Success)
-                {
-                    throw new InvalidOperationException(
-                        result.ErrorMessage ?? "The durable ITI command failed.");
-                }
-                realtimeState.Confirm(evaluation);
+                if (success)
+                    realtimeState.Confirm(evaluation);
             }
             return true;
         }
@@ -134,10 +125,37 @@ public static class FuturesMarketPriceUpdated
             logger.LogErrorEvent(
                 ServiceId,
                 exception,
-                "{EventName} for {ContractId}: realtime ITI command handoff failed",
+                "{EventName} for {ContractId}: realtime ITI projection failed",
                 nameof(FuturesMarketPriceUpdatedRealtimeEvent),
                 @event.EntityId.ContractId);
             throw;
         }
+    }
+
+    static FuturesItiSignalGeneratedEvent CreateGeneratedEvent(
+        FuturesMarketPriceUpdatedRealtimeEvent source,
+        FuturesItiSignalEvaluation evaluation)
+    {
+        var command = evaluation.Command;
+        var entityId = evaluation.Signal.EntityId;
+        return new FuturesItiSignalGeneratedEvent
+        {
+            Subject = new(
+                ActorType.Realtime,
+                FuturesItiSignalRealtimeActor.ActorName,
+                FuturesItiSignalGeneratedEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = source.CommandId,
+            AggregateId = source.AggregateId,
+            EventSource = nameof(FuturesMarketPriceUpdatedRealtimeEvent),
+            ReceivedOn = DateTime.UtcNow,
+            FuturesItiSignal = evaluation.Signal,
+            VixFuturesPrice = command.VixFuturesPrice,
+            DeriveLongerPeriods = false,
+            CreatedOn = DateTime.UtcNow,
+            CreatedBy = source.UserName
+        };
     }
 }

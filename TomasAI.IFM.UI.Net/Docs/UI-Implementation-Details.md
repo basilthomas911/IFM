@@ -42,6 +42,7 @@ The client is split into four assemblies. `TomasAI.IFM.UI.Net` is the Windows ex
 | Command and query NATS adapters | [`TomasAI.IFM.Application.Api.Nats.Client`](../../TomasAI.IFM.Application.Api.Nats.Client) |
 | Concrete UI event consumers | [`TomasAI.IFM.UI.EventConsumer`](../../TomasAI.IFM.UI.EventConsumer) |
 | NATS event-listener implementation | [`TomasAI.IFM.Framework.Messaging.Nats`](../../TomasAI.IFM.Framework.Messaging.Nats) |
+| UTC/Eastern UI boundary | [`EasternTime.cs`](../../TomasAI.IFM.UI.Net.Models/EasternTime.cs), [`EasternTimeDisplayPolicy.cs`](../../TomasAI.IFM.UI.Net.Views/Presentation/EasternTimeDisplayPolicy.cs) |
 
 ## Runtime architecture
 
@@ -76,6 +77,26 @@ flowchart LR
 ```
 
 The views do not address NATS subjects directly. UI models call typed application APIs, and those adapters use the shared `IActorProducer` to publish commands or perform request/reply queries against actors hosted by `Application.Api.Server`. UI event consumers remain the live push path into the desktop process. The server's HTTP endpoints operate independently for non-UI consumers.
+
+## UTC and Eastern-time boundary
+
+Backend commands, queries, events, and read models use UTC for every `DateTime` or `DateTimeOffset` that represents an instant. The UI presents those instants in Toronto/New York Eastern time and interprets user-entered clock values as Eastern time before sending them to the backend. This rule is transport-neutral and therefore applies equally to the active NATS clients and any REST client implementation.
+
+`EasternTime` in `TomasAI.IFM.UI.Net.Models` is the only timezone implementation in the UI project family. It uses the Windows `Eastern Standard Time` zone with an `America/Toronto` fallback, so standard-time and daylight-time offsets come from platform timezone rules rather than fixed offsets.
+
+The boundary rules are:
+
+- UI models call `EasternTime.ToUtc` for every command or query `DateTime` parameter before invoking a typed backend API.
+- UI-created domain/read-model timestamps use UTC before they are placed in commands.
+- Views call `EasternTime.FromUtc` only when presenting backend instants. Domain/read-model state remains UTC inside models and view models.
+- `WinFormsViewNavigator` applies `EasternTimeDisplayPolicy` to every resolved view. The policy converts all `DateTime` and `DateTimeOffset` values formatted by current or dynamically added `DataGridView` controls.
+- Explicit list, chart, text, and date-picker presentation performs the same conversion because those controls do not use `DataGridView.CellFormatting`.
+- A backend `DateTime` with `Unspecified` kind is treated as UTC because MessagePack and other transports can omit `DateTime.Kind`. Backend ticks are never interpreted through the workstation timezone.
+- A non-UTC UI `DateTime` is interpreted as an Eastern wall-clock value regardless of the workstation timezone. An already-UTC input is preserved, preventing a second conversion of infrastructure-generated UTC query windows.
+- A nonexistent Eastern wall-clock value during the spring daylight-saving transition is rejected instead of being silently shifted.
+- `DateOnly` and `TimeOnly` are not converted because they do not identify an instant.
+
+Architecture tests reject `DateTime.Now`, `DateTime.Today`, `TimeProvider.GetLocalNow`, `DateTime.ToLocalTime`, and additional `TimeZoneInfo` implementations in the UI projects. New screens must use `EasternTime.GetNow` for an Eastern UI clock and UTC time for backend-bound timestamps.
 
 ## Project structure
 
@@ -300,6 +321,36 @@ The authoritative cross-screen convention is [UI Terminal-Operation Tracking and
 `EconomicCalendarEditorView` surfaces terminal success or typed failure and implements `IAsyncFormControl`. `ReferenceForm` awaits that close lifecycle when changing editors or closing. The calendar event consumer uses a transient registration because the maintenance editor and the always-on market-calendar dashboard may be active concurrently and must not share listener state.
 
 `IFMAppViewModel` uses the same correlation primitive for two independent automatic startup attempts. Both listeners are active before command submission. Complete is recorded silently in observable startup status; typed failure, listener/command failure, and a 30-second outcome-not-observed timeout are aggregated into the shell error and status console. The shell does not retry, always cleans up the startup-only listeners, and continues startup so the maintenance screens remain available for a later manual import.
+
+### Market Outlook live updates
+
+The main-shell Market Outlook is authoritative for the currently traded ES contract. Startup queries
+the last EOD projection for that exact contract. Live updates do not consume the durable
+`FuturesEodDataInsertedCompleteEvent` directly: the backend complete handler emits the distinct Core
+NATS `FuturesEodDataUpdatedNotifyEvent` after storage succeeds, and the UI accepts it only when both
+`Symbol == "ES"` and `ContractId` match the startup ES contract. The notification carries the EOD
+OHLC, volume, percent-change, band, direction, volatility, and MDI fields rendered by
+`FuturesEodDataUIViewModel`.
+
+`FuturesEodDataUIEventConsumer` owns one Notify subscription and fans it out to callbacks registered
+by `siteId`. This prevents an Iron Condor or other secondary EOD screen from replacing or stopping the
+main-shell heartbeat listener. The startup query remains required because Notify delivery is
+best-effort and has no replay.
+
+The lower fields in `MarketOutlookView` use the separate durable Futures Trade Signal path. A
+completed ITI generation loads EOD, daily RSI-14, 15-second TDI, timeframe-specific ITI state, the
+currently traded VX contract, and VX EOD close before sending the trade-signal update command. The
+command computes `FuturesTradeSignalV2ReadModel`; its projection supplies RSI, trend and strength,
+MDI limits, ITI entry/exit/extreme/reversal values, and 50/200 DMA.
+
+The UI no longer consumes `FuturesTradeSignalUpdatedCompleteEvent` for live display. After the
+projector stores the canonical signal, the complete handler emits the distinct Core NATS
+`FuturesTradeSignalUpdatedNotifyEvent`. The Notify model uses the stored event sequence and the same
+whole-second UTC timestamp precision as Scylla. `FuturesTradeSignalUIEventConsumer` owns one Notify
+subscription and fans out callbacks by `siteId`, so secondary screens cannot replace or stop the
+main-shell listener. Startup still queries durable state because Notify is best effort and has no
+replay. Both the startup snapshot and live notification are accepted only for the exact active ES
+contract selected during startup.
 
 ## Feature map
 

@@ -20,7 +20,7 @@ public class DenormalizerActorContext(IActorSupervisor supervisor, ActorMailboxI
     readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     IActorProducer? _producer;
-    readonly ActorEventPublisher _eventPublisher = new(supervisor);
+    readonly ActorEventPublisher _eventPublisher = new(supervisor, actorId);
     readonly ConcurrentDictionary<ActorThreadId, ActorMessageInfo> _messageInfo = [];
 
     /// <summary>

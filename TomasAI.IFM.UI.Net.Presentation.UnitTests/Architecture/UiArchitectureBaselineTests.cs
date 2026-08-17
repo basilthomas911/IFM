@@ -139,6 +139,62 @@ public class UiArchitectureBaselineTests
     }
 
     [Fact]
+    public void UiDateTimePolicy_UsesEasternTimeAndDoesNotDependOnWorkstationLocalTime()
+    {
+        var sourceFiles = SolutionSource.GetSourceFiles(UiProjects);
+        var workstationLocalUsages = SolutionSource.FindFilesWithMatches(
+            sourceFiles,
+            @"DateTime\.Now\b|DateTime\.Today\b|GetLocalNow\s*\(|\.ToLocalTime\s*\(");
+        workstationLocalUsages.Should().BeEmpty(
+            "UI clock values must come from EasternTime and backend instants must remain UTC");
+
+        var timeZoneImplementations = SolutionSource.FindFilesWithMatches(
+            sourceFiles,
+            @"\bTimeZoneInfo\b");
+        timeZoneImplementations.Should().BeEquivalentTo(
+        [
+            "TomasAI.IFM.UI.Net.Models/EasternTime.cs"
+        ], "the Toronto/New York conversion rules must have one authoritative implementation");
+
+        var navigator = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net.Views",
+            "Presentation",
+            "WinFormsViewNavigator.cs"));
+        navigator.Should().Contain("ApplyEasternTimeDisplayPolicy");
+    }
+
+    [Fact]
+    public void MarketOutlook_UsesAnEsFilteredNotifyBoundary()
+    {
+        var consumer = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.EventConsumer",
+            "FuturesEodDataUIEventConsumer.cs"));
+        consumer.Should().Contain("ActorType.Notify");
+        consumer.Should().Contain("FuturesEodDataUpdatedNotifyEvent");
+        consumer.Should().NotContain("ActorType.Event");
+        consumer.Should().Contain("ConcurrentDictionary<Guid");
+
+        var tradeSignalConsumer = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.EventConsumer",
+            "FuturesTradeSignalUIEventConsumer.cs"));
+        tradeSignalConsumer.Should().Contain("ActorType.Notify");
+        tradeSignalConsumer.Should().Contain("FuturesTradeSignalUpdatedNotifyEvent");
+        tradeSignalConsumer.Should().NotContain("ActorType.Event");
+        tradeSignalConsumer.Should().Contain("ConcurrentDictionary<Guid");
+
+        var viewModel = File.ReadAllText(Path.Combine(
+            SolutionSource.RootPath,
+            "TomasAI.IFM.UI.Net.ViewModels",
+            "App",
+            "IFMAppViewModel.cs"));
+        viewModel.Should().Contain("const string MarketOutlookSymbol = \"ES\"");
+        viewModel.Should().Contain("IsMarketOutlookUpdate");
+    }
+
+    [Fact]
     public void FrameworkAdapters_AreIsolatedToWinFormsViews()
     {
         var files = SolutionSource.FindFilesWithMatches(

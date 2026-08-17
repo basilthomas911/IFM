@@ -154,9 +154,9 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
             primaryTrade: true,
             baseContractSymbol: lookupType.ShortCode,
             createdBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
-            createdOn: DateTime.Now,
+            createdOn: DateTime.UtcNow,
             updatedBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
-            updatedOn: DateTime.Now
+            updatedOn: DateTime.UtcNow
         );
     }
 

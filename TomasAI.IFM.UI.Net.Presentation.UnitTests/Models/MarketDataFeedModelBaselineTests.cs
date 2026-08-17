@@ -70,6 +70,38 @@ public class MarketDataFeedModelBaselineTests
         await _optionTickConsumer.Received(1).StopAsync();
     }
 
+    [Fact]
+    public async Task FuturesEodListener_UsesTheExternalNotifyContract()
+    {
+        var model = CreateModel();
+        var siteId = Guid.NewGuid();
+        Action<FuturesEodDataUpdatedNotifyEvent> listener = _ => { };
+        _eodConsumer.StartAsync(siteId, listener).Returns(ValueTask.CompletedTask);
+        _eodConsumer.StopAsync(siteId).Returns(ValueTask.CompletedTask);
+
+        await model.StartFuturesEodDataEventConsumerAsync(siteId, listener);
+        await model.StopFuturesEodDataEventConsumerAsync(siteId);
+
+        await _eodConsumer.Received(1).StartAsync(siteId, listener);
+        await _eodConsumer.Received(1).StopAsync(siteId);
+    }
+
+    [Fact]
+    public async Task FuturesTradeSignalListener_UsesTheExternalNotifyContractAndSiteId()
+    {
+        var model = CreateModel();
+        var siteId = Guid.NewGuid();
+        Action<FuturesTradeSignalUpdatedNotifyEvent> listener = _ => { };
+        _tradeSignalConsumer.StartAsync(siteId, listener).Returns(ValueTask.CompletedTask);
+        _tradeSignalConsumer.StopAsync(siteId).Returns(ValueTask.CompletedTask);
+
+        await model.StartFuturesTradeSignalEventConsumerAsync(siteId, listener);
+        await model.StopFuturesTradeSignalEventConsumerAsync(siteId);
+
+        await _tradeSignalConsumer.Received(1).StartAsync(siteId, listener);
+        await _tradeSignalConsumer.Received(1).StopAsync(siteId);
+    }
+
     MarketDataFeedCommandModel CreateModel()
         => new(
             _commandApi,

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
@@ -103,7 +104,7 @@ public partial class YieldCurveRateEditorControl
     {
         if (_viewModel.ImportOperation.IsRunning)
             return;
-        _viewModel.PrepareImport(DateTime.Today);
+        _viewModel.PrepareImport(EasternTime.GetNow(TimeProvider.System).Date);
         _ = ImportPreparedRatesAsync();
     }
 
@@ -217,7 +218,7 @@ public partial class YieldCurveRateEditorControl
             return;
         _viewModel.SelectTimePeriod(
             ddlTimePeriod.SelectedIndex,
-            DateOnly.FromDateTime(DateTime.Today));
+            DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
         _ = ReloadRatesAsync();
     }
 }

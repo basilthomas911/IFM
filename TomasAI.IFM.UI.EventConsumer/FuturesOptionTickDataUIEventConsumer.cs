@@ -23,7 +23,7 @@ public class FuturesOptionTickDataUIEventConsumer(INatsEventListenerOptions opti
     readonly ILogger _logger = logger;
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new (ActorType.Event, OptionTradeTickPriceDataUpdatedEvent.Actor)] = [OptionTradeTickPriceDataUpdatedEvent.Verb]
+        [new (ActorType.Notify, OptionTradeTickPriceDataUpdatedEvent.Actor)] = [OptionTradeTickPriceDataUpdatedEvent.Verb]
     };
 
     public async ValueTask StartAsync(Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> eventAction)

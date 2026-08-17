@@ -11,9 +11,6 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 public static class ActorRuntimeStartup
 {
     const string ServiceId = nameof(ActorRuntimeStartup);
-    static readonly ActorType[] ConsumerTypes =
-        [ActorType.Command, ActorType.Query, ActorType.Notify, ActorType.Realtime];
-    static readonly ActorType[] JetStreamConsumerTypes = [ActorType.Event];
 
     /// <summary>
     /// Registers actors, producers, and consumers, then starts the runtime.
@@ -56,20 +53,40 @@ public static class ActorRuntimeStartup
                 }
             }
 
-            foreach (var consumerType in ConsumerTypes)
+            var registeredActorTypes = actors
+                .Select(static actor => actor.Id.ActorType)
+                .Distinct()
+                .ToArray();
+            if (registeredActorTypes.Contains(ActorType.Notify))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var consumer = supervisor.Container.Resolve<IActorConsumer>();
-                if (consumer is not null)
-                    supervisor.AddConsumer(consumerType, consumer);
+                throw new InvalidOperationException(
+                    "Notify subjects are reserved for UI, console, and external NATS event listeners; "
+                    + "they cannot be registered as backend actors.");
             }
 
-            foreach (var consumerType in JetStreamConsumerTypes)
+            foreach (var actorType in registeredActorTypes)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var consumer = supervisor.Container.Resolve<IJSActorConsumer>();
-                if (consumer is not null)
-                    supervisor.AddConsumer(consumerType, consumer);
+                switch (actorType.GetDeliveryType())
+                {
+                    case ActorDeliveryType.NatsCore:
+                    {
+                        var consumer = supervisor.Container.Resolve<IActorConsumer>();
+                        if (consumer is not null)
+                            supervisor.AddConsumer(actorType, consumer);
+                        break;
+                    }
+                    case ActorDeliveryType.NatsJetStream:
+                    {
+                        var consumer = supervisor.Container.Resolve<IJSActorConsumer>();
+                        if (consumer is not null)
+                            supervisor.AddConsumer(actorType, consumer);
+                        break;
+                    }
+                    default:
+                        throw new InvalidOperationException(
+                            $"Actor type '{actorType}' does not have a supported backend delivery type.");
+                }
             }
 
             foreach (var actor in actors)

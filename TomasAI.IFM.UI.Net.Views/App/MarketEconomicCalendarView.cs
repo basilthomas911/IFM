@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
@@ -29,7 +30,7 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
         _viewModel.SelectCalendarPeriod(
             tabCalendarPeriod.SelectedTab?.Text ?? "Today",
-            DateTime.Now);
+            EasternTime.GetNow(TimeProvider.System));
 
         try
         {
@@ -115,7 +116,7 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
             lstEconomicCalendar.Items.Clear();
             lstEconomicCalendar.Items.AddRange(_viewModel.EconomicCalendars
                 .Select(calendar => new ListViewItem([
-                    $"{calendar.EventDate:t}",
+                    $"{EasternTime.FromUtc(calendar.EventDate):t}",
                     calendar.CountryCode,
                     calendar.EventName]))
                 .ToArray());
@@ -157,7 +158,7 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
 
         _viewModel.SelectCalendarPeriod(
             tabCalendarPeriod.SelectedTab?.Text ?? "Today",
-            DateTime.Now);
+            EasternTime.GetNow(TimeProvider.System));
         try
         {
             await _viewModel.RefreshOperation.ExecuteAsync();

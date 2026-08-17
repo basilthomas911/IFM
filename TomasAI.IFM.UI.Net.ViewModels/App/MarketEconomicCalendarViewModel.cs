@@ -26,7 +26,7 @@ public sealed class MarketEconomicCalendarViewModel
     string _calendarDate = string.Empty;
     EconomicCalendarReadModel? _selectedEconomicCalendar;
     PresentationError? _lastError;
-    DateTime _today = DateTime.Today;
+    DateTime _today = EasternTime.GetNow(TimeProvider.System).Date;
     EconomicCalendarViewType _calendarViewType = EconomicCalendarViewType.Today;
     long _errorSequence;
     int _acceptEvents;
@@ -115,7 +115,8 @@ public sealed class MarketEconomicCalendarViewModel
 
         var selected = EconomicCalendars[index];
         SelectedEconomicCalendar = selected;
-        CalendarDate = $"{selected.EventDate.DayOfWeek}, {selected.EventDate:MMMM} {selected.EventDate:dd}, {selected.EventDate:yyyy}";
+        var easternEventDate = EasternTime.FromUtc(selected.EventDate);
+        CalendarDate = $"{easternEventDate.DayOfWeek}, {easternEventDate:MMMM} {easternEventDate:dd}, {easternEventDate:yyyy}";
         return true;
     }
 

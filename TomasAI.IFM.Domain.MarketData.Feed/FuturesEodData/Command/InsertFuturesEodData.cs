@@ -18,7 +18,15 @@ public static class InsertFuturesEodData
     /// </summary>
     public static bool Execute(this InsertFuturesEodDataCommand e, FuturesEodDataCommandState state)
     {
-        var futuresEodData = e.CreateFuturesEodData(e.ValueDate, e.FuturesTickData, e.Contract, e.EodDataToday, e.EodDataRange, e.NormCurveData, e.WindowSize, e.VixEodData);
+        var futuresEodData = FuturesEodDataModel.CreateFuturesEodData(
+            e.ValueDate,
+            e.FuturesTickData,
+            e.Contract,
+            e.EodDataToday,
+            e.EodDataRange,
+            e.NormCurveData,
+            e.WindowSize,
+            e.VixEodData);
         return state.Update(e.CreateFuturesEodDataInsertedEvent(futuresEodData), e);
     }
 

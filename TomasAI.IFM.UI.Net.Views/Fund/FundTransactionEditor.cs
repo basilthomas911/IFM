@@ -4,6 +4,7 @@ using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.Fund;
 
@@ -26,7 +27,8 @@ public partial class FundTransactionEditor
         InitializeComponent();
         var dtpControls = new DateTimePicker[] { dtpFrom, dtpTo };
         _ = dtpControls.Select(e => e.Enabled = false).ToArray();
-        dtpFrom.Value = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var easternToday = EasternTime.GetNow(TimeProvider.System);
+        dtpFrom.Value = new DateTime(easternToday.Year, easternToday.Month, 1);
         dtpTo.Value = new DateTime(dtpFrom.Value.Year, dtpFrom.Value.Month, DateTime.DaysInMonth(dtpFrom.Value.Year, dtpFrom.Value.Month));
         _ = dtpControls.Select(e => e.Enabled = true).ToArray();
     }

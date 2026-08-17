@@ -80,6 +80,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     const int OrderedEventChannelCapacity = 512;
     const int OrderedEventBatchSize = 32;
     const int FuturesBarChartCapacity = 2_048;
+    const string MarketOutlookSymbol = "ES";
     internal static readonly TimeSpan FuturesBarChartHistory = TimeSpan.FromHours(6);
     internal static readonly TimeSpan FuturesBarContinuityTolerance = TimeSpan.FromSeconds(45);
     static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
@@ -540,9 +541,15 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Loading Latest Futures Eod Data Error"));
             await WriteStatusConsoleAsync("Loading Latest Futures Eod Data...");
-            foreach (var contract in _baseContracts ?? [])
-                await model.GetLastFuturesEodDataAsync(contract.ContractId, contract.LastTradeDate, futuresEodData => {
-                    if (futuresEodData is not null)
+            var contract = GetMarketOutlookContract();
+            if (contract is null)
+                return;
+            await model.GetLastFuturesEodDataAsync(
+                contract.ContractId,
+                contract.LastTradeDate,
+                futuresEodData =>
+                {
+                    if (IsMarketOutlookUpdate(contract.ContractId, futuresEodData))
                         PublishMarketOutlook(futuresEodData);
                 });
         });
@@ -553,11 +560,18 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Loading Latest Futures Trade Signal Error"));
             await WriteStatusConsoleAsync("Loading Latest Futures Trade Signal...");
-            await model.GetLastFuturesTradeSignalAsync(futuresTradeSignal =>
-            {
-                if (futuresTradeSignal is not null)
-                    PublishFuturesTradeSignal(futuresTradeSignal);
-            });
+            var contract = GetMarketOutlookContract();
+            if (contract is null)
+                return;
+            await model.GetFuturesTradeSignalAsync(
+                contract.ContractId,
+                contract.LastTradeDate,
+                futuresTradeSignal =>
+                {
+                    if (futuresTradeSignal is not null
+                        && IsMarketOutlookUpdate(contract.ContractId, futuresTradeSignal.ContractId))
+                        PublishFuturesTradeSignal(futuresTradeSignal);
+                });
         });
 
         Task GetLastFuturesBarData(DateOnly valueDate)
@@ -602,9 +616,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 PublishError(errorCode, errorMessage, "Starting Futures Eod Data Event Consumer Error"));
             await WriteStatusConsoleAsync("Starting Futures Eod Data Event Consumer...");
             await DelayStartupAsync(cancellationToken);
+            var marketOutlookContractId = GetMarketOutlookContract()?.ContractId;
             await model.StartFuturesEodDataEventConsumerAsync(
                 _siteId, e =>
                 {
+                    if (!IsMarketOutlookUpdate(marketOutlookContractId, e.FuturesEodData))
+                        return;
                     Interlocked.Exchange(ref _resetTicks, 0);
                     _marketOutlookChannel?.TryWrite(e.FuturesEodData);
                 });
@@ -665,12 +682,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 PublishError(errorCode, errorMessage, "Starting Futures Trade Signal Event Consumer Error"));
             await WriteStatusConsoleAsync("Loading Futures Trade Signal...");
             await DelayStartupAsync(cancellationToken);
-            var contractId = _baseContracts?.FirstOrDefault(e => e.Id.Symbol == "ES")?.ContractId;
+            var contractId = GetMarketOutlookContract()?.ContractId;
             if (contractId is not null)
                 await model.GetFuturesTradeSignalAsync(
                     contractId, _valueDate ?? DateOnly.MinValue, futuresTradeSignal =>
                     {
-                        if (futuresTradeSignal is not null)
+                        if (futuresTradeSignal is not null
+                            && IsMarketOutlookUpdate(contractId, futuresTradeSignal.ContractId))
                             channel.TryWrite(futuresTradeSignal);
                     });
         });
@@ -682,7 +700,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await model.StartFuturesTradeSignalEventConsumerAsync(
                 _siteId, e =>
                 {
-                    if (e is not null && e.FuturesTradeSignal is not null)
+                    var contractId = GetMarketOutlookContract()?.ContractId;
+                    if (e is not null
+                        && e.FuturesTradeSignal is not null
+                        && IsMarketOutlookUpdate(contractId, e.FuturesTradeSignal.ContractId))
                         channel.TryWrite(e.FuturesTradeSignal);
                 });
         });
@@ -922,7 +943,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         const string yieldCurveDataset = "Yield Curve";
         const string economicCalendarDataset = "Economic Calendar";
-        var importDate = _timeProvider.GetLocalNow().DateTime;
+        var importDate = EasternTime.GetNow(_timeProvider);
         var yieldCurveCorrelation = new TerminalEventCorrelation();
         var economicCalendarCorrelation = new TerminalEventCorrelation();
         var cleanupFailures = new List<string>();
@@ -1280,6 +1301,21 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     internal void PublishMarketOutlook(FuturesEodDataV2ReadModel futuresEodData)
         => MarketOutlook = new FuturesEodDataUIViewModel(futuresEodData);
+
+    FuturesContractV2ReadModel? GetMarketOutlookContract()
+        => _baseContracts.FirstOrDefault(contract =>
+            string.Equals(contract.Id.Symbol, MarketOutlookSymbol, StringComparison.Ordinal));
+
+    internal static bool IsMarketOutlookUpdate(
+        string? expectedContractId,
+        FuturesEodDataV2ReadModel? futuresEodData)
+        => futuresEodData is not null
+           && string.Equals(futuresEodData.Symbol, MarketOutlookSymbol, StringComparison.Ordinal)
+           && IsMarketOutlookUpdate(expectedContractId, futuresEodData.ContractId);
+
+    internal static bool IsMarketOutlookUpdate(string? expectedContractId, string? actualContractId)
+        => !string.IsNullOrWhiteSpace(expectedContractId)
+           && string.Equals(expectedContractId, actualContractId, StringComparison.Ordinal);
 
     internal void PublishFuturesTradeSignal(FuturesTradeSignalV2ReadModel signal)
         => FuturesTradeSignal = new FuturesTradeSignalUIViewModel(signal);

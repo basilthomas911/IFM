@@ -69,7 +69,7 @@ public record FuturesTradeSignalUpdatedEvent : IEvent<FuturesTradeSignalEntityId
 
         ICompleteEvent<FuturesTradeSignalEntityId> completed = new FuturesTradeSignalUpdatedCompleteEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTradeSignalUpdatedCompleteEvent.Actor, FuturesTradeSignalUpdatedCompleteEvent.Verb, this.Subject.EntityId),
+            Subject = new ActorSubject(this.Subject.ActorType, this.Subject.Name, FuturesTradeSignalUpdatedCompleteEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
             EventId = this.EventId,
@@ -77,7 +77,9 @@ public record FuturesTradeSignalUpdatedEvent : IEvent<FuturesTradeSignalEntityId
             AggregateId = this.AggregateId,
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
-            FuturesTradeSignal = this.FuturesTradeSignal,
+            FuturesTradeSignal = this.FuturesTradeSignal is null
+                ? null
+                : this.FuturesTradeSignal with { SequenceId = this.EventId },
             CreatedOn = this.CreatedOn,
             CreatedBy = this.CreatedBy
         };
@@ -94,7 +96,7 @@ public record FuturesTradeSignalUpdatedEvent : IEvent<FuturesTradeSignalEntityId
 
         IErrorEvent<FuturesTradeSignalEntityId> failed = new FuturesTradeSignalUpdatedFailEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesTradeSignalUpdatedFailEvent.Actor, FuturesTradeSignalUpdatedFailEvent.Verb, this.Subject.EntityId),
+            Subject = new ActorSubject(this.Subject.ActorType, this.Subject.Name, FuturesTradeSignalUpdatedFailEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
             ErrorDate = DateTime.UtcNow,

@@ -196,6 +196,14 @@ Conventions:
 - only realtime actors may consume `Realtime` messages as active workflow inputs;
 - realtime market-data feeds, realtime analytics, and comparable high-rate paths use this message type when durability is not required;
 - a realtime actor may transform, aggregate, or react to the message at low latency;
+- a realtime actor may update a cache or read-model store through
+  `Application.EventProjector/Realtime/BaseRealtimeProjector`, but that storage call creates no
+  replay, outbox, checkpoint, or durable workflow state;
+- a realtime projector publishes its typed source and complete/fail lifecycle events through Core
+  NATS with `ActorType.Realtime`; these lifecycle messages are observable realtime outcomes, not
+  replay checkpoints;
+- a realtime projection is attempted once; failure is published and logged, and processing
+  continues with the next observation without retry or replay;
 - an external non-actor may subscribe to realtime messages only as an observer;
 - an external realtime observer has the same non-participating status as a `Notify` observer;
 - no actor workflow may depend on an external realtime observer receiving the message; and
@@ -228,7 +236,24 @@ If downstream delivery must depend on successful primary processing or requires 
 
 For futures market prices, TickAggregation first atomically stores the normalized `FuturesMarketPriceSnapshot` in its stream-independent hot cache and then publishes `FuturesMarketPriceUpdatedRealtimeEvent` containing that same snapshot. Trade observations trigger the realtime publication; quote observations refresh only the cached quote side until a dedicated observer contract is designed. Realtime ITI actors use the event payload directly. Slower timer-derived signal workflows check `IsTickDataStreamActive` when live data is required and then sample `TryGetLastTickPrice` at their time boundary. Futures-option consumers use the equivalent `TryGetLastOptionTickPrice` hot-cache operation. Price reads never acquire ownership or extend stream lifetime.
 
-`FuturesItiSignalRealtimeActor` explicitly owns stable ES and VX stream registrations. Because actor mailboxes start before the hosted market-data epoch, it acquires them idempotently on its first eligible routed update and releases them at shutdown. Every accepted ES trade evaluates independent Daily, Weekly, and Monthly hot states. A durable command is sent only for a timeframe that starts, crosses its 10%-of-threshold publication band, or crosses a direction trigger. Generated-complete handlers never derive another ITI period. The retained `DeriveLongerPeriods` MessagePack field is compatibility-only and new generated events set it to `false`.
+`FuturesItiSignalRealtimeActor` explicitly owns stable ES and VX stream registrations. Because actor mailboxes start before the hosted market-data epoch, it acquires them idempotently on its first eligible routed update and releases them at shutdown. Every accepted ES trade evaluates independent Daily, Weekly, and Monthly hot states. A realtime ITI source/storage/complete-or-fail projection is attempted only for a timeframe that starts, crosses its 10%-of-threshold publication band, or crosses a direction trigger. Generated-complete handlers never derive another ITI period. The retained `DeriveLongerPeriods` MessagePack field is compatibility-only and new generated events set it to `false`.
+
+The Phase 1 live-feed spine is entirely Core NATS between its active actors:
+
+```text
+Databento normalized trade/quote
+  -> Realtime.TickAggregationRealtime changed
+  -> realtime tick source/storage/complete-or-fail
+  -> routed trade branches
+       -> rolling futures/VIX EOD realtime projection
+       -> futures-option hot-quote merge and UI Notify
+       -> FuturesMarketPrice hot snapshot
+            -> Daily/Weekly/Monthly ITI realtime projection
+            -> temporary Futures Trade Signal realtime projection
+            -> UI Notify
+```
+
+Durable Event actors remain responsible for explicit command lifecycles such as stream start/stop and manual imports; they do not subscribe to the live tick routes. Corresponding production implementations reside in `Realtime` folders, while retained `Event` folders describe only genuinely durable behavior.
 
 ## 7. Actor and non-actor interaction matrix
 
@@ -261,6 +286,28 @@ Use these handoffs:
 
 The new message may contain correlated identifiers, but it represents a distinct intent or fact and should have its own message identity.
 
+The futures EOD Market Outlook handoff is the reference implementation of the `Event`-to-`Notify`
+boundary. `FuturesEodDataInsertedCompleteEvent` remains the durable statement that the Scylla
+projection succeeded. Its EventActor handler emits a distinct
+`FuturesEodDataUpdatedNotifyEvent` on `Notify.FuturesEodDataNotification.Updated.<entity-id>` with
+a new message identity, preserved command correlation, and the successfully stored canonical EOD
+read model. Notification publication is best effort and cannot change the completed insert outcome.
+External UI listeners consume the Notify contract; backend actors never consume it.
+
+The Futures Trade Signal Market Outlook handoff uses the same boundary.
+`FuturesTradeSignalUpdatedCompleteEvent` is emitted only after the projector stores the signal in
+Scylla. Its complete handler publishes `FuturesTradeSignalUpdatedNotifyEvent` on
+`Notify.FuturesTradeSignalNotification.Updated.<entity-id>`. The Notify payload is the canonical
+stored `FuturesTradeSignalV2ReadModel`, preserves the durable event sequence and command
+correlation, and has a distinct message identity. A Notify publication failure is observational;
+it is logged without changing or retrying the completed durable update.
+
+Because a Notify mailbox is deliberately not registered as a backend actor, actor contexts publish
+Notify messages through the sending actor's registered Core NATS producer. The subject still names
+the external Notify contract. Producer ownership does not create a Notify actor or a backend Notify
+subscription, and an EventActor stops its lazily started Core producer during shutdown in addition to
+its normal JetStream producer.
+
 ## 9. UI and console conventions
 
 UI and console applications are not actor types. Their listener choice defines their role:
@@ -274,6 +321,11 @@ UI and console applications are not actor types. Their listener choice defines t
 | Ask an actor to perform work | Core NATS `Command` request/send |
 
 A UI may therefore run more than one consumer task, but each task remains specific to one actor type and its assigned transport.
+
+The WinForms futures EOD and Futures Trade Signal notification listeners are shared by multiple
+screens and maintain callbacks by UI `siteId`. Starting a secondary screen must not replace the
+main-shell Market Outlook callback, and stopping it must not stop the underlying Notify subscription
+while another site remains active.
 
 When a UI submits an asynchronous command and must tell the user whether it completed, command acceptance is not
 success. The UI must correlate the returned command identifier with the event family's complete/fail result by following

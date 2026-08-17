@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MessagePack;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -66,6 +67,49 @@ public class ActorMarketDataFeedEventApiTests
                     ActorType.Event,
                     MarketDataFeedResetStreamingEvent.Actor,
                     MarketDataFeedResetStreamingEvent.Verb)));
+    }
+
+    [Fact]
+    public async Task FuturesEodCompletionBuildsDistinctCoreNotifyEvent()
+    {
+        var context = Substitute.For<IEventActorContext>();
+        FuturesEodDataUpdatedNotifyEvent? published = null;
+        context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
+                Arg.Do<FuturesEodDataUpdatedNotifyEvent>(value => published = value))
+            .Returns(ValueTask.CompletedTask);
+        var source = new FuturesEodDataInsertedEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesEodDataInsertedEvent.Actor,
+                FuturesEodDataInsertedEvent.Verb,
+                SampleData.FuturesEodDataEntityId.Format()),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = SampleData.FuturesEodDataEntityId,
+            FuturesEodData = SampleData.EodDataToday
+        };
+        var completed = (FuturesEodDataInsertedCompleteEvent)source
+            .ToCompleteEvent<FuturesEodDataInsertedCompleteEvent, FuturesEodDataId>();
+        var api = new ActorMarketDataFeedEventApi(context);
+
+        await api.SendFuturesEodDataUpdatedNotifyEventAsync(completed);
+
+        await context.Received(1).SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
+            Arg.Is<FuturesEodDataUpdatedNotifyEvent>(sent =>
+                sent.Id != completed.Id
+                && sent.EntityId == completed.EntityId
+                && sent.CommandId == completed.CommandId
+                && sent.FuturesEodData == completed.FuturesEodData
+                && sent.Subject.Is(
+                    ActorType.Notify,
+                    FuturesEodDataUpdatedNotifyEvent.Actor,
+                    FuturesEodDataUpdatedNotifyEvent.Verb)));
+
+        var roundTrip = MessagePackSerializer.Deserialize<FuturesEodDataUpdatedNotifyEvent>(
+            MessagePackSerializer.Serialize(published));
+        roundTrip.Should().BeEquivalentTo(published);
+        roundTrip.IsValid.Should().BeTrue();
     }
 
     static MarketDataFeedResetEvent CreateResetEvent()

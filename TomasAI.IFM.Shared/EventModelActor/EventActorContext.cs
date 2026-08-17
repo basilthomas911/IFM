@@ -23,7 +23,7 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     readonly ConcurrentDictionary<ActorThreadId, ActorMessageInfo> _messageInfo = new();
 
     IActorProducer? _producer;
-    readonly ActorEventPublisher _eventPublisher = new(supervisor);
+    readonly ActorEventPublisher _eventPublisher = new(supervisor, actorId);
 
     /// <summary>
     /// Gets the mailbox identifier for the actor associated with this context.

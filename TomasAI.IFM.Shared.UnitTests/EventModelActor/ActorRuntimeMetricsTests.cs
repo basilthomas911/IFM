@@ -15,6 +15,13 @@ using Xunit;
 
 namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
 
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class ActorRuntimeMetricsCollection
+{
+    public const string Name = "Actor runtime metrics";
+}
+
+[Collection(ActorRuntimeMetricsCollection.Name)]
 public sealed class ActorRuntimeMetricsTests
 {
     [Fact]

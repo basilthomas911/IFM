@@ -76,7 +76,14 @@ public class MarketDataFeedQueryModel(IMarketDataFeedQueryApi marketDataFeedQuer
     /// <param name="endDate"></param>
     /// <param name="onCompleted"></param>
     public async Task GetFuturesBarDataAsync(string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate, Action<FuturesBarDataReadModel[]> onCompleted)
-        => await ExecuteAsync(() => _marketDataFeedQueryApi.GetFuturesBarDataAsync(contractId, symbol, valueDate, startDate, endDate), onCompleted);
+        => await ExecuteAsync(
+            () => _marketDataFeedQueryApi.GetFuturesBarDataAsync(
+                contractId,
+                symbol,
+                valueDate,
+                EasternTime.ToUtc(startDate),
+                EasternTime.ToUtc(endDate)),
+            onCompleted);
 
     /// <summary>
     /// return futures option spread data

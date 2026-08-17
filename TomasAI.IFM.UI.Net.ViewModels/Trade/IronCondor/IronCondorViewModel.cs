@@ -312,7 +312,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         => _appRoot.GetModel<TradeCommandModel>().ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Delete Option Trade Spread Bar Data Error"));
             var optionTradeId = new OptionTradeEntityId(_fundOrderTrade.OrderId, _fundOrderTrade.TradeId);
-            await model.DeleteOptionTradeSpreadBarDataAsync(optionTradeId, _fundOrderTrade.TradeType, _valueDate.HasValue? _valueDate.Value: DateOnly.FromDateTime(DateTime.Now.Date));
+            await model.DeleteOptionTradeSpreadBarDataAsync(optionTradeId, _fundOrderTrade.TradeType, _valueDate.HasValue? _valueDate.Value: DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
         });
 
     /// <summary>
@@ -412,7 +412,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         Task LoadOptionTradeSpreadBarDataByPositionValueDate()
         {
             var positionValueDate = (_optionTrade?.TradePositions?.LastOrDefault()?.ValueDate ??
-                (_valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(DateTime.Now.Date))).ToDateTime(TimeOnly.MinValue);
+                (_valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)))).ToDateTime(TimeOnly.MinValue);
             var startDate = positionValueDate.AddHours(10);
             return LoadOptionTradeSpreadBarData(
                        orderId,
@@ -426,7 +426,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     Task LoadIronCondorTradePlans()
            => _appRoot.GetModel<TradePlanQueryModel>().ExecuteAsync(async model => {
-               var valueDate = _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(DateTime.Now.Date);
+               var valueDate = _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
                model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Loading Iron Condor Trade Plans Error"));
                await model.GetTradePlansAsync(_fundOrder.OrderId, _fundOrderTrade.TradeId, valueDate, tradePlans => {
                    if (tradePlans is not null)
@@ -587,7 +587,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async marketDataFeedQueryModel =>
         {
             var valueDate = _optionTrade?.TradePositions?.LastOrDefault()?.ValueDate
-                ?? (_valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(DateTime.Now.Date));
+                ?? (_valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
             await marketDataFeedQueryModel.GetFuturesEodDataAsync(
                 _futuresContract.ContractId,
                 valueDate.AddMonths(-2),
@@ -781,7 +781,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         Task DeleteSpreadDistributionJobsInProgress()
             => _appRoot.GetModel<SpreadDistributionJobModel>().ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Delete Spread Distribution Jobs In Progress Error"));
-                var valueDate = _valueDate ?? DateOnly.FromDateTime(DateTime.Now);
+                var valueDate = _valueDate ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
                 await model.DeleteSpreadDistributionJobsInProgressAsync(new SpreadDistributionJobEntityId(OrderId, TradeId, valueDate));
             });
 
@@ -901,9 +901,9 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                         theta: optionTickData.Theta,
                         vega: optionTickData.Vega,
                         rho: optionTickData.Rho,
-                        createdOn: DateTime.Now,
+                        createdOn: DateTime.UtcNow,
                         createdBy: Environment.UserName,
-                        updatedOn: DateTime.Now,
+                        updatedOn: DateTime.UtcNow,
                         updatedBy: Environment.UserName
                     ).SetOptionLeg(optionLeg);
 
@@ -1098,8 +1098,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                     tradeId: spreadBar.TradeId,
                     tradeType: spreadBar.TradeType,
                     valueDate: spreadBar.ValueDate,
-                    startDate: DateTime.Now.AddHours(-6),
-                    endDate: DateTime.Now);
+                    startDate: EasternTime.GetNow(TimeProvider.System).AddHours(-6),
+                    endDate: EasternTime.GetNow(TimeProvider.System));
             }
         }
 
@@ -1154,7 +1154,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                             tradeStatus: TradeStatus.IntraDay,
                             valueDate: _valueDate!.Value,
                             daysToExpiry: _optionTrade.MaturityDate.DayNumber - _valueDate!.Value.DayNumber,
-                            jobSubmitted: DateTime.Now,
+                            jobSubmitted: DateTime.UtcNow,
                             jobStatus: SpreadDistributionJobStatus.InProgress,
                             jobCompleted: null,
                             jobFailed: null,
@@ -1301,12 +1301,12 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 orderId: _optionTrade.OrderId,
                 tradeId: _optionTrade.TradeId,
                 tradeType: _optionTrade.TradeType,
-                valueDate: _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(DateTime.Now),
+                valueDate: _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)),
                 lossLimit: _tradeLimits.MaxLossLimit,
                 winLimit: _tradeLimits.MaxProfitLimit,
                 forwardSpread: netForwardPrice,
                 netSpread: Math.Abs((e.PutCreditSpread?.NetSpread ?? 0m) + (e.CallCreditSpread?.NetSpread ?? 0m)),
-                createdOn: DateTime.Now,
+                createdOn: DateTime.UtcNow,
                 createdBy: string.Empty);
 
     /// <summary>
@@ -1333,7 +1333,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// </summary>
     async Task SpreadBarDataTickAsync()
     {
-        var valueDate = _valueDate ?? DateOnly.FromDateTime(DateTime.Now);
+        var valueDate = _valueDate ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
         OptionTradeSpreadsDataModel? spreadData = null;
         await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
             await model.GetOptionTradeSpreadDataAsync(
@@ -1350,7 +1350,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             tradeId: spreadData.TradeId,
             tradeType: spreadData.TradeType,
             valueDate: valueDate,
-            barDate: DateTime.Now,
+            barDate: DateTime.UtcNow,
             lossLimit: spreadData.LossLimit,
             winLimit: spreadData.WinLimit,
             forwardSpread: spreadData.ForwardSpread,

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
@@ -12,7 +13,7 @@ public class OptionTradeSpreadBarUIViewModel
         _optionTradeSpreadBarData = optionTradeSpreadBarData;
         _ironCondorMDILimit = ironCondorMDILimit;
     }
-    public DateTime BarDate => _optionTradeSpreadBarData.BarDate;
+    public DateTime BarDate => EasternTime.FromUtc(_optionTradeSpreadBarData.BarDate);
     public decimal LossLimit => _optionTradeSpreadBarData.LossLimit;
     public decimal WinLimit => _optionTradeSpreadBarData.WinLimit;
     public decimal ForwardSpread => _optionTradeSpreadBarData.ForwardSpread;

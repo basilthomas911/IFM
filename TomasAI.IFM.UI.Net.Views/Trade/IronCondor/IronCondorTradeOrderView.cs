@@ -204,9 +204,9 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
                 totalAmount: totalAmount,
                 tradePnl: intraDayPnl,
                 tradeFillType: tradeFillType,
-                createdOn: DateTime.Now,
+                createdOn: DateTime.UtcNow,
                 createdBy: $"{Environment.UserDomainName}\\{Environment.UserName}",
-                updatedOn: DateTime.Now,
+                updatedOn: DateTime.UtcNow,
                 updatedBy: $"{Environment.UserDomainName}\\{Environment.UserName}"
             );
         var confirmation = await tradeOrderConfirmation.ConfirmAsync(tradeOrder);

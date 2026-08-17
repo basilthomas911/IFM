@@ -89,7 +89,7 @@ public sealed class EconomicCalendarEditorViewModel
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.AddEconomicCalendarAsync(economicCalendar);
             _ = LoadEconomicCalendars(
-                DateOnly.FromDateTime(economicCalendar.EventDate),
+                DateOnly.FromDateTime(EasternTime.FromUtc(economicCalendar.EventDate)),
                 economicCalendar.CountryCode);
             _ = WriteStatusConsole(
                 LogSourceType.Reference,
@@ -108,7 +108,7 @@ public sealed class EconomicCalendarEditorViewModel
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.ChangeEconomicCalendarAsync(economicCalendarId, economicCalendar, overwrite);
             _ = LoadEconomicCalendars(
-                DateOnly.FromDateTime(economicCalendar.EventDate),
+                DateOnly.FromDateTime(EasternTime.FromUtc(economicCalendar.EventDate)),
                 economicCalendar.CountryCode);
             _ = WriteStatusConsole(
                 LogSourceType.Reference,
@@ -123,7 +123,7 @@ public sealed class EconomicCalendarEditorViewModel
             model.OnError((errorCode, errorMsg) => OnError(errorCode, errorMsg));
             await model.RemoveEconomicCalendarAsync(economicCalendarId, overwrite);
             _ = LoadEconomicCalendars(
-                DateOnly.FromDateTime(economicCalendarId.EventDate),
+                DateOnly.FromDateTime(EasternTime.FromUtc(economicCalendarId.EventDate)),
                 economicCalendarId.CountryCode);
             _ = WriteStatusConsole(
                 LogSourceType.Reference,

@@ -21,7 +21,7 @@ public class CommandActorContext (IActorSupervisor supervisor, ActorMailboxId ac
     readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
     readonly ConcurrentDictionary<(ActorThreadId ThreadId, string Verb), ActorMessageInfo> _messageInfo = [];
 
-    readonly ActorEventPublisher _eventPublisher = new(supervisor);
+    readonly ActorEventPublisher _eventPublisher = new(supervisor, actorId);
 
     /// <summary>
     /// Gets the mailbox identifier for the actor associated with this context.

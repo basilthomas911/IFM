@@ -199,7 +199,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// <summary>Safely gets a fund order from an explicitly filtered range.</summary>
     public FundOrderReadModel? GetFundOrder(int fundId, DateTime startDate, DateTime endDate, int index)
         => GetAt(Funds.FirstOrDefault(fund => fund.FundId == fundId)?.Orders
-            .Where(order => order.OrderDate >= startDate && order.OrderDate <= endDate)
+            .Where(order => order.OrderDate >= EasternTime.ToUtc(startDate)
+                            && order.OrderDate <= EasternTime.ToUtc(endDate))
             .ToArray() ?? [], index);
 
     /// <summary>Safely gets a selected-order trade by index.</summary>
@@ -254,8 +255,8 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// <summary>Updates the visible order date range.</summary>
     public void SetOrderDateRange(DateTime fromDate, DateTime toDate)
     {
-        _fromDate = fromDate;
-        _toDate = toDate;
+        _fromDate = EasternTime.ToUtc(fromDate);
+        _toDate = EasternTime.ToUtc(toDate);
         RebuildOrders();
     }
 

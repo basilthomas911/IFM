@@ -7,6 +7,7 @@ using System.Data;
 using System.Linq;
 using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference
@@ -127,13 +128,13 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                 case EditMode.Add:
                     var economicCalendar = new EconomicCalendarReadModel
                     (
-                        eventDate: dtmEventDate.Value,
+                        eventDate: EasternTime.ToUtc(dtmEventDate.Value),
                         countryCode: _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? String.Empty,
                         eventName: txtEventName.Text,
                         actual: txtActual.Text,
                         forecast: txtForecast.Text,
                         prior: txtPrior.Text,
-                        createdOn: DateTime.Now,
+                        createdOn: DateTime.UtcNow,
                         createdBy: String.Empty
                     );
                     _viewModel.AddEconomicCalendar(economicCalendar, () => this.Post(() =>
@@ -163,7 +164,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                 switch (_editMode)
                 {
                     case EditMode.View:
-                        dtmEventDate.Value = economicCalendarId.EventDate;
+                        dtmEventDate.Value = EasternTime.FromUtc(economicCalendarId.EventDate);
                         dtmEventDate.Enabled = false;
                         _editMode = EditMode.Change;
                         changeAction(false);
@@ -179,7 +180,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                            actual: txtActual.Text,
                            forecast: txtForecast.Text,
                            prior: txtPrior.Text,
-                           createdOn: DateTime.Now,
+                           createdOn: DateTime.UtcNow,
                            createdBy: String.Empty
                         );
                         _viewModel.ChangeEconomicCalendar(economicCalendarId, economicCalendar, true, () => this.Post(() =>
@@ -221,7 +222,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                     "Economic Calendar Import");
                 return;
             }
-            _viewModel.PrepareImport(DateTime.Now, countryCode);
+            _viewModel.PrepareImport(EasternTime.GetNow(TimeProvider.System), countryCode);
             _ = ImportPreparedCalendarsAsync();
         }
 
@@ -319,7 +320,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         void ShowSelectedEconomicCalendar(int selectedIndex)
         {
             var ec = _viewModel.GetEconomicCalendar(selectedIndex);
-            dtmEventDate.Value = ec?.EventDate ?? DateTime.Now;
+            dtmEventDate.Value = ec is null
+                ? EasternTime.GetNow(TimeProvider.System)
+                : EasternTime.FromUtc(ec.EventDate);
             if (ec is not null)
                 ddlCountryCodes.SelectedIndex = _viewModel.GetCountryCodeIndex(ec.CountryCode);
             txtEventName.Text = ec?.EventName ?? String.Empty;

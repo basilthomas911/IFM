@@ -20,14 +20,15 @@ public class YieldCurveRateStateBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var rates = BenchmarkData.CreateRates(Count);
-        _events =
-        [
-            new YieldCurveRatesImportedEvent
+        var start = new DateOnly(2000, 1, 1);
+        _events = Enumerable.Range(0, Count)
+            .Select(index => (IEvent)new YieldCurveRatesImportedEvent
             {
-                YieldCurveRates = rates
-            }
-        ];
+                ImportDate = start.AddDays(index).ToDateTime(TimeOnly.MinValue),
+                RequestedOn = DateTime.UtcNow,
+                RequestedBy = "benchmark"
+            })
+            .ToArray();
     }
 
     [Benchmark]

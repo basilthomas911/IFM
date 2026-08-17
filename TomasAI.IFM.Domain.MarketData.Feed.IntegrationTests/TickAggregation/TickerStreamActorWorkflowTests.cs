@@ -2,14 +2,18 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event;
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
@@ -23,10 +27,11 @@ using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using OptionTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.FuturesTickTradeDataInserted;
-using FuturesTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.FuturesTickTradeDataInserted;
+using OptionTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.FuturesTickTradeDataInserted;
+using FuturesTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.FuturesTickTradeDataInserted;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
@@ -38,7 +43,7 @@ public sealed class TickerStreamActorWorkflowTests
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
 
     [Fact]
-    public async Task Persisted_futures_trade_uses_active_stream_and_exact_decimal_trade()
+    public async Task Realtime_futures_trade_uses_active_stream_and_exact_decimal_trade()
     {
         const string contractId = "VX";
         var instrument = new InstrumentKey(7, 42);
@@ -66,48 +71,137 @@ public sealed class TickerStreamActorWorkflowTests
 
         var marketDataApi = CreateMarketDataApi(aggregation);
         var logger = Substitute.For<ILogger<global::TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor>>();
-        var parameters = new FuturesTickDataEventParameters(
-            marketDataApi,
-            new BlackboardService(
-                Substitute.For<IRedisCache>(),
-                new SystemTextJsonSerializer()),
-            Substitute.For<IStatusConsoleWriter>(),
-            logger);
+        marketDataApi.GetFuturesContractAsync(contractId).Returns(new FuturesContractV2ReadModel(
+            contractId, contractId, "VX", contractId, "FUT", "USD", "CME", "50",
+            new DateOnly(2026, 9, 18), true));
+        var blackboard = new BlackboardService(
+            Substitute.For<IRedisCache>(),
+            new SystemTextJsonSerializer());
         var owner = new TickerStreamOwner("IntegrationWorkflow", "futures", "underlying");
         aggregation.StartTickDataStream(owner, contractId).Should().BeTrue();
-        parameters.Streams.Track(
-            owner,
-            contractId,
-            new FuturesContractV2ReadModel(
-                contractId, contractId, "VX", contractId, "FUT", "USD", "CME", "50",
-                new DateOnly(2026, 9, 18), true));
         var changed = await publisher.Trade.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var inserted = ToInserted(changed);
-        var commandApi = Substitute.For<IActorMarketDataFeedCommandApi>();
+        var projector = CreateEodProjector();
 
         var handled = await FuturesTradeHandler.ExecuteAsync(
             inserted,
             Substitute.For<IEventActorContext>(),
-            commandApi,
-            parameters,
+            marketDataApi,
+            blackboard,
+            Substitute.For<IStatusConsoleWriter>(),
+            projector,
             logger);
 
         handled.Should().BeTrue();
-        var emitted = commandApi.ReceivedCalls()
-            .Single(call => call.GetMethodInfo().Name == nameof(IActorMarketDataFeedCommandApi.InsertVixFuturesEodDataAsync))
+        var emitted = projector.ReceivedCalls()
+            .Single(call => call.GetMethodInfo().Name == nameof(IRealtimeProjector<FuturesEodDataRealtimeActor>.ProcessRealtimeEventAsync))
             .GetArguments()[0]
-            .Should().BeOfType<FuturesTickDataV2ReadModel>().Which;
-        emitted.ContractId.Should().Be(contractId);
-        emitted.Price.Should().Be(20.15m);
-        emitted.Size.Should().Be(17);
-        emitted.TickId.Should().Be(2);
+            .Should().BeOfType<VixFuturesEodDataInsertedEvent>().Which;
+        emitted.VixFuturesTickData.ContractId.Should().Be(contractId);
+        emitted.VixFuturesTickData.Price.Should().Be(20.15m);
+        emitted.VixFuturesTickData.Size.Should().Be(17);
+        emitted.VixFuturesTickData.TickId.Should().Be(2);
 
         aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
         await aggregation.StopAsync();
     }
 
     [Fact]
-    public async Task Persisted_option_trade_combines_exact_trade_with_aggregation_quote()
+    public async Task Es_trade_defers_until_vix_eod_is_available_then_projects_realtime_eod()
+    {
+        const string esContractId = "ES20260918";
+        const string vixContractId = "VX20260916";
+        var esContract = new FuturesContractV2ReadModel(
+            esContractId, esContractId, "ES", "ESU6", "FUT", "USD", "CME", "50",
+            new DateOnly(2026, 9, 18), true);
+        var vixContract = new FuturesContractV2ReadModel(
+            vixContractId, vixContractId, "VX", "VXU6", "FUT", "USD", "CFE", "1000",
+            new DateOnly(2026, 9, 16), true);
+        var marketDataApi = Substitute.For<IMarketDataApi>();
+        marketDataApi.IsTickDataStreamActive(Arg.Any<string>()).Returns(true);
+        marketDataApi.GetFuturesContractAsync(esContractId).Returns(esContract);
+        marketDataApi.GetFuturesContractAsync(vixContractId).Returns(vixContract);
+        var redis = new MemoryRedisCache();
+        var blackboard = new BlackboardService(redis, new SystemTextJsonSerializer());
+        var logger = Substitute.For<ILogger<global::TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor>>();
+
+        var context = Substitute.For<IEventActorContext>();
+        var currentEod = new FuturesEodDataV2ReadModel(
+            esContractId, ValueDate, "ES", 5400m, 5450m, 5380m, 5425m, 1000,
+            0.1, 0.01, 54.25, 5500, 5425, 5350,
+            MarketDirectionType.NeutralUp, MarketVolatilityType.Normal,
+            PriceDirectionType.Rising, PriceVolatilityType.Falling);
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(currentEod));
+        context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(
+                Arg.Any<GetVixFuturesEodDataQuery>())
+            .Returns(new ServiceOk<VixFuturesEodDataReadModel[]>([]));
+        context.RequestAsync<FuturesEodDataV2ReadModel[], GetFuturesEodDataByDateRangeQuery>(
+                Arg.Any<GetFuturesEodDataByDateRangeQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel[]>([currentEod]));
+        var normalCurve = new NormalCurveTableReadModel(
+            Enumerable.Range(0, 101)
+                .Select(index => new NormalCurveDataReadModel(index, index + 1))
+                .ToArray());
+        context.RequestAsync<NormalCurveTableReadModel, GetNormalCurveTableQuery>(
+                Arg.Any<GetNormalCurveTableQuery>())
+            .Returns(new ServiceOk<NormalCurveTableReadModel>(normalCurve));
+        var projector = CreateEodProjector();
+        var status = Substitute.For<IStatusConsoleWriter>();
+
+        await FuturesTradeHandler.ExecuteAsync(
+            CreateInsertedTrade(esContractId, 5450.25m, 10),
+            context,
+            marketDataApi,
+            blackboard,
+            status,
+            projector,
+            logger);
+        projector.ReceivedCalls().Should().BeEmpty();
+
+        blackboard.MarketDataFeed.VixFuturesContractId.Set(ValueDate, vixContractId);
+        await FuturesTradeHandler.ExecuteAsync(
+            CreateInsertedTrade(esContractId, 5450.50m, 11),
+            context,
+            marketDataApi,
+            blackboard,
+            status,
+            projector,
+            logger);
+        projector.ReceivedCalls().Should().BeEmpty();
+
+        await FuturesTradeHandler.ExecuteAsync(
+            CreateInsertedTrade(vixContractId, 20.15m, 17),
+            context,
+            marketDataApi,
+            blackboard,
+            status,
+            projector,
+            logger);
+        projector.ReceivedCalls().Select(call => call.GetArguments()[0])
+            .Should().ContainSingle(argument => argument is VixFuturesEodDataInsertedEvent);
+
+        blackboard.MarketDataFeed.VixFuturesEodData.Set(
+            vixContractId,
+            ValueDate,
+            [new VixFuturesEodDataReadModel(
+                vixContractId, ValueDate, 20m, 20.5m, 19.5m, 20.15m, 17)]);
+        await FuturesTradeHandler.ExecuteAsync(
+            CreateInsertedTrade(esContractId, 5451m, 12),
+            context,
+            marketDataApi,
+            blackboard,
+            status,
+            projector,
+            logger);
+
+        projector.ReceivedCalls().Select(call => call.GetArguments()[0])
+            .Should().ContainSingle(argument => argument is FuturesEodDataInsertedEvent);
+    }
+
+    [Fact]
+    public async Task Realtime_option_trade_combines_exact_trade_with_aggregation_quote()
     {
         const string contractId = "ES20260918C6500";
         var instrument = new InstrumentKey(7, 99);
@@ -127,15 +221,9 @@ public sealed class TickerStreamActorWorkflowTests
 
         var marketDataApi = CreateMarketDataApi(aggregation);
         var logger = Substitute.For<ILogger<global::TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor.FuturesOptionTickDataEventActor>>();
-        var parameters = new FuturesOptionTickDataEventParameters(
-            marketDataApi,
-            Substitute.For<IStatusConsoleWriter>(),
-            logger);
         var owner = new TickerStreamOwner("IntegrationWorkflow", "option", "long-call");
         aggregation.StartTickDataStream(owner, contractId).Should().BeTrue();
-        parameters.Streams.Track(
-            owner,
-            contractId,
+        marketDataApi.GetFuturesOptionContractAsync(contractId).Returns(
             new FuturesOptionContractReadModel(
                 contractId, contractId, "ES", contractId, "FOP", "USD", "CME", "50",
                 new DateOnly(2026, 9, 18), 6500d, "Call"));
@@ -145,9 +233,9 @@ public sealed class TickerStreamActorWorkflowTests
 
         var handled = await OptionTradeHandler.ExecuteAsync(
             inserted,
-            Substitute.For<IEventActorContext>(),
             eventApi,
-            parameters,
+            marketDataApi,
+            Substitute.For<IStatusConsoleWriter>(),
             logger);
 
         handled.Should().BeTrue();
@@ -181,6 +269,16 @@ public sealed class TickerStreamActorWorkflowTests
         new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = ValueDate },
         lastPrices: lastPrices,
         streamRoutes: new NoOpStreamRoutes());
+
+    private static IRealtimeProjector<FuturesEodDataRealtimeActor> CreateEodProjector()
+    {
+        var projector = Substitute.For<IRealtimeProjector<FuturesEodDataRealtimeActor>>();
+        projector.ProcessRealtimeEventAsync(
+                Arg.Any<IEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(true));
+        return projector;
+    }
 
     private static IMarketDataApi CreateMarketDataApi(TickAggregationService aggregation)
     {
@@ -237,7 +335,7 @@ public sealed class TickerStreamActorWorkflowTests
         FuturesTickTradeDataChangedEvent source) => new()
     {
         Subject = new ActorSubject(
-            ActorType.Event,
+            ActorType.Realtime,
             FuturesTickTradeDataInsertedEvent.Actor,
             FuturesTickTradeDataInsertedEvent.Verb,
             source.EntityId.Format()),
@@ -257,6 +355,46 @@ public sealed class TickerStreamActorWorkflowTests
         InstrumentId = source.InstrumentId,
         TradeData = source.TradeData
     };
+
+    private static FuturesTickTradeDataInsertedEvent CreateInsertedTrade(
+        string contractId,
+        decimal price,
+        uint size)
+    {
+        var entity = new TickDataEntityId(contractId, ValueDate, AssetTypeId.Futures);
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000_000;
+        return new FuturesTickTradeDataInsertedEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesTickTradeDataInsertedEvent.Actor,
+                FuturesTickTradeDataInsertedEvent.Verb,
+                entity.Format()),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entity,
+            AggregateId = entity.Format(),
+            EventSource = nameof(TickerStreamActorWorkflowTests),
+            ReceivedOn = DateTime.UtcNow,
+            TickDataId = new TickDataId(contractId, ValueDate, 1, DateTime.UtcNow),
+            AssetTypeId = AssetTypeId.Futures,
+            Dataset = "GLBX.MDP3",
+            DefinitionDate = ValueDate,
+            PublisherId = 7,
+            InstrumentId = 42,
+            TradeData = new FuturesTickTradeData(
+                1,
+                timestamp,
+                timestamp,
+                0,
+                Scale(price),
+                price,
+                size,
+                1,
+                2,
+                0)
+        };
+    }
 
     private static MarketRecord64 Quote(
         InstrumentKey key,
@@ -415,5 +553,44 @@ public sealed class TickerStreamActorWorkflowTests
 
         public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
         public void Dispose() => _channel.Complete();
+    }
+
+    private sealed class MemoryRedisCache : IRedisCache
+    {
+        private readonly Dictionary<string, string> _values = [];
+
+        public void Set(string key, string value) => _values[key] = value;
+        public void Set(string key, string value, TimeSpan expiry) => Set(key, value);
+        public void Set(string key, string value, DateTimeOffset absoluteExpiry, TimeSpan ttl) => Set(key, value);
+        public string? Get(string key) => _values.TryGetValue(key, out var value) ? value : null;
+        public bool TryGet(string key, out string? value)
+        {
+            var found = _values.TryGetValue(key, out var stored);
+            value = stored;
+            return found;
+        }
+        public void Remove(string key) => _values.Remove(key);
+        public long RemoveByPrefix(string prefix)
+        {
+            var keys = _values.Keys.Where(key => key.StartsWith(prefix, StringComparison.Ordinal)).ToArray();
+            foreach (var key in keys)
+                _values.Remove(key);
+            return keys.Length;
+        }
+        public Task SetAsync(string key, string value)
+        {
+            Set(key, value);
+            return Task.CompletedTask;
+        }
+        public Task SetAsync(string key, string value, TimeSpan expiry) => SetAsync(key, value);
+        public Task SetAsync(string key, string value, DateTimeOffset absoluteExpiry, TimeSpan ttl) => SetAsync(key, value);
+        public Task<string?> GetAsync(string key) => Task.FromResult(Get(key));
+        public long Increment(string key)
+        {
+            var next = long.TryParse(Get(key), out var current) ? current + 1 : 1;
+            Set(key, next.ToString());
+            return next;
+        }
+        public void DeleteAllKeys() => _values.Clear();
     }
 }

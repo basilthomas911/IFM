@@ -93,7 +93,7 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
 
         ICompleteEvent<FuturesItiSignalEntityId> completed = new FuturesItiSignalGeneratedCompleteEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedCompleteEvent.Actor, FuturesItiSignalGeneratedCompleteEvent.Verb, this.Subject.EntityId),
+            Subject = new ActorSubject(this.Subject.ActorType, this.Subject.Name, FuturesItiSignalGeneratedCompleteEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
             EventId = this.EventId,
@@ -123,7 +123,7 @@ public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
 
         IErrorEvent<FuturesItiSignalEntityId> failed = new FuturesItiSignalGeneratedFailEvent
         {
-            Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedFailEvent.Actor, FuturesItiSignalGeneratedFailEvent.Verb, this.Subject.EntityId),
+            Subject = new ActorSubject(this.Subject.ActorType, this.Subject.Name, FuturesItiSignalGeneratedFailEvent.Verb, this.Subject.EntityId),
             EntityId = this.EntityId,
             Id = this.Id,
             ErrorDate = DateTime.UtcNow,

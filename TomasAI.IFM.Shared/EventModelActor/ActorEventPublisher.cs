@@ -6,10 +6,14 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// <summary>
 /// Publishes an actor event exactly once through the transport assigned to its actor type.
 /// </summary>
-internal sealed class ActorEventPublisher(IActorSupervisor supervisor)
+internal sealed class ActorEventPublisher(
+    IActorSupervisor supervisor,
+    ActorMailboxId publisherId)
 {
     readonly IActorSupervisor _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
+    readonly ActorMailboxId _publisherId = publisherId;
     IActorProducer? _coreProducer;
+    IActorProducer? _notifyProducer;
     IJSActorProducer? _jetStreamProducer;
 
     internal ValueTask SendAsync<TEvent, TEntityId>(
@@ -23,7 +27,9 @@ internal sealed class ActorEventPublisher(IActorSupervisor supervisor)
         return subject.ActorType.GetDeliveryType() switch
         {
             ActorDeliveryType.NatsCore =>
-                (_coreProducer ??= _supervisor.GetProducer(subject.ActorId))
+                (subject.ActorType == ActorType.Notify
+                    ? (_notifyProducer ??= _supervisor.GetProducer(_publisherId))
+                    : (_coreProducer ??= _supervisor.GetProducer(subject.ActorId)))
                     .SendAsync<TEvent, TEntityId>(subject, @event, cancellationToken),
             ActorDeliveryType.NatsJetStream =>
                 (_jetStreamProducer ??= _supervisor.GetJSProducer(subject.ActorId))

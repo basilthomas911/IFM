@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
@@ -92,7 +93,7 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
         {
             case EditMode.View:
                 txtDescription.Enabled = true;
-                dtmLastTradeDate.Value = DateTime.Now;
+                dtmLastTradeDate.Value = EasternTime.GetNow(TimeProvider.System);
                 dtmLastTradeDate.Enabled = true;
                 txtLocalSymbol.Enabled = false;
                 ddlSecurityType.SelectedIndex = GetSelectedIndex(_viewModel.SecurityTypes, $"{SecurityType.FUT}");

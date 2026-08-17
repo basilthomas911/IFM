@@ -50,12 +50,14 @@ internal class FuturesTradeSignalCompute
     FuturesTradeSignalV2ReadModel ComputeFuturesTradeSignalFromEodData()
     {
         var score = new FuturesTradeSignalModel(_updateCmd.FuturesEodData, _updateCmd.FuturesRsiSignal!, _updateCmd.FuturesTdiSignal!, _updateCmd.FuturesItiSignalData!);
+        var utcNow = DateTime.UtcNow;
+        var timestamp = new TimeOnly(utcNow.Hour, utcNow.Minute, utcNow.Second);
         return new FuturesTradeSignalV2ReadModel(
             _updateCmd.FuturesEodData.ContractId,
             _updateCmd.FuturesEodData.ValueDate,
             _updateCmd.TimePeriod,
             0,
-            TimeOnly.FromDateTime(DateTime.Now),
+            timestamp,
             _updateCmd.FuturesEodData.Mean,
             _updateCmd.FuturesEodData.DailyStdDev,
             Convert.ToDouble(_updateCmd.FuturesEodData.ClosePrice),

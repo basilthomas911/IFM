@@ -52,23 +52,50 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
     }
 
     [Fact]
-    public void Notify_RemainsDirectAndDoesNotConsultRealtimeRoutes()
+    public void LegacyCommand_RemainsDirectAndDoesNotConsultRealtimeRoutes()
     {
-        var notify = new ActorSubject(
-            ActorType.Notify,
-            "StatusConsole",
-            "Updated",
+        var command = new ActorSubject(
+            ActorType.Command,
+            "MarketDataFeedCommand",
+            "Start",
             "42");
         var supervisor = Substitute.For<IActorSupervisor>();
 
         var destinations = NatsActorConsumer.BuildPubSubDestinations(
             supervisor,
-            ActorType.Notify,
-            notify);
+            ActorType.Command,
+            command);
 
-        destinations.Should().ContainSingle().Which.Should().Be(notify);
+        destinations.Should().ContainSingle().Which.Should().Be(command);
         supervisor.DidNotReceive().ActorExists(Arg.Any<ActorMailboxId>());
         supervisor.DidNotReceive().GetRealtimeRoutes(Arg.Any<ActorTypeId>());
+    }
+
+    [Fact]
+    public void Consumer_BindsToOneBackendActorType()
+    {
+        var bound = NatsActorConsumer.BindActorType(
+            ActorType.Unknown,
+            ActorType.Command);
+
+        NatsActorConsumer.BindActorType(bound, ActorType.Command)
+            .Should().Be(ActorType.Command);
+        var bindOtherType = () => NatsActorConsumer.BindActorType(
+            bound,
+            ActorType.Query);
+        bindOtherType.Should().Throw<InvalidOperationException>()
+            .WithMessage("*already bound*Command*Query*");
+    }
+
+    [Fact]
+    public void Consumer_RejectsNotifyActorType()
+    {
+        var bindNotify = () => NatsActorConsumer.BindActorType(
+            ActorType.Unknown,
+            ActorType.Notify);
+
+        bindNotify.Should().Throw<InvalidOperationException>()
+            .WithMessage("*reserved for UI, console, and external NATS event listeners*");
     }
 
     [Fact]

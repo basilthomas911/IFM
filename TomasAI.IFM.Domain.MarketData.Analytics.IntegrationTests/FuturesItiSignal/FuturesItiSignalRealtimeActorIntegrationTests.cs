@@ -4,11 +4,12 @@ using Microsoft.Extensions.Logging;
 using NATS.Net;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -18,6 +19,7 @@ using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.FuturesItiSignal;
 
@@ -33,9 +35,9 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
 
     [Fact]
-    public async Task CoreNatsMarketPrice_RoutesToItiActor_AndHandsOffDurableCommand()
+    public async Task CoreNatsMarketPrice_RoutesToItiActor_AndProjectsAllThreePeriodsRealtime()
     {
-        var commandObserved = new TaskCompletionSource<bool>(
+        var projectionObserved = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var queues = Substitute.For<IActorThreadQueues>();
         var mailbox = Substitute.For<IActorMailbox>();
@@ -48,33 +50,31 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
         supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
 
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
-        commandApi.GenerateFuturesItiSignalAsync(
-                Arg.Any<string>(),
-                Arg.Any<DateOnly>(),
-                Arg.Any<TimeFrameType>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<double>(),
-                Arg.Any<double>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<DateOnly?>())
+        var projected = new List<FuturesItiSignalGeneratedEvent>();
+        var projector = Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>();
+        projector.ProcessRealtimeEventAsync(
+                Arg.Any<IEvent>(),
+                Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                commandObserved.TrySetResult(true);
-                return ValueTask.FromResult<ServiceResult<GuidResult>>(
-                    new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+                lock (projected)
+                {
+                    projected.Add((FuturesItiSignalGeneratedEvent)call.ArgAt<IEvent>(0));
+                    if (projected.Count == 3)
+                        projectionObserved.TrySetResult(true);
+                }
+                return ValueTask.FromResult(true);
             });
-        var commandApiFactory = Substitute.For<IActorMarketDataAnalyticsCommandApiFactory>();
-        commandApiFactory.Create(Arg.Any<IEventActorContext>()).Returns(commandApi);
         var marketDataApi = CreateReadyMarketDataApi();
         var primaryActor = new FuturesMarketPriceRealtimeActor(
             supervisor,
             Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
         var itiActor = new FuturesItiSignalRealtimeActor(
             supervisor,
-            commandApiFactory,
+            projector,
             marketDataApi,
             CreateDbFactory(),
+            Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
         supervisor.ActorExists(primaryActor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
@@ -122,16 +122,20 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
                 @event.Subject,
                 @event);
 
-            (await commandObserved.Task.WaitAsync(TestTimeout)).Should().BeTrue();
-            await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-                EsContractId,
-                ValueDate,
-                TimeFrameType.Daily,
-                @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
-                5450.25,
-                22.75,
-                null,
-                ValueDate);
+            (await projectionObserved.Task.WaitAsync(TestTimeout)).Should().BeTrue();
+            lock (projected)
+            {
+                projected.Select(item => item.EntityId.TimePeriod)
+                    .Should().BeEquivalentTo([
+                        TimeFrameType.Daily,
+                        TimeFrameType.Weekly,
+                        TimeFrameType.Monthly]);
+                projected.Should().OnlyContain(item =>
+                    item.Subject.ActorType == ActorType.Realtime
+                    && item.FuturesItiSignal != null
+                    && item.FuturesItiSignal.IntrinsicPrice == 5450.25
+                    && item.VixFuturesPrice == 22.75);
+            }
         }
         finally
         {

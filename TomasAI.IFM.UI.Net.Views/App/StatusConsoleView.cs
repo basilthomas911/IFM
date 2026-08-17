@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
+using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
@@ -137,11 +138,11 @@ public partial class StatusConsoleView : UserControl
     }
 
     static ListViewItem CreateStatusLogItem(StatusConsoleLogReadModel log)
-        => new([$"{log.StatusDate:T}", log.Message]);
+        => new([$"{EasternTime.FromUtc(log.StatusDate):T}", log.Message]);
 
     static ListViewItem CreateTradeStatusItem(FuturesItiSignalV2ReadModel signal)
         => new([
-            $"{signal.IntrinsicTime:T}",
+            $"{EasternTime.FromUtc(signal.IntrinsicTime):T}",
             $"{signal.ContractId} - {signal.IntrinsicTimeTrend} @ {signal.IntrinsicPrice:F2} := {signal.TargetDelta:F4}"]);
 
     static ListViewItem CreateForwardLossRatioItem(MDIForwardLossRatioUIViewModel ratio)

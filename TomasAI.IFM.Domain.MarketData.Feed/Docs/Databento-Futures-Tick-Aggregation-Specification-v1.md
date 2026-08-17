@@ -1,11 +1,17 @@
 # Databento futures tick aggregation and persistence specification
 
 **Version:** 1.8
-**Status:** Codex-ready staged implementation specification; durable cross-store sequence recovery remains an explicitly deferred system-wide work item
+**Status:** Historical V1 design; its CommandActor/EventActor live-tick pipeline was superseded by the approved Phase 1 realtime architecture on 2026-08-17
 **Date:** 2026-08-07  
 **Initial asset scope:** Futures  
 **Managed target:** .NET 10 (`net10.0`), x64  
 **Storage target:** Existing MarketData ScyllaDB keyspace
+
+> **Supersession notice:** Do not implement the TickAggregation CommandActor/EventActor topology in
+> this document. The active implementation is documented in
+> [Tick-Aggregation-Implementation-Details.md](Tick-Aggregation-Implementation-Details.md) and the
+> system Actor conventions. Historical message/schema detail below is retained only for design and
+> compatibility context.
 
 **Codex execution rule:** Codex must read this document completely, execute the
 repository audit in section 24, present a concrete implementation plan, and wait

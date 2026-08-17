@@ -30,6 +30,11 @@ public class FuturesEodDataEventActor(
             var e = (evt as FuturesEodDataInsertedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
+        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, _, eventApi, eventParams) =>
+        {
+            var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
+            return await e.ExecuteAsync(eventApi, eventParams);
+        },
         [typeof(VixFuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, _, eventParams) =>
         {
             var e = (evt as VixFuturesEodDataInsertedCompleteEvent)!;
@@ -74,6 +79,7 @@ public class FuturesEodDataEventActor(
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
         [FuturesEodDataInsertedEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedEvent>()!,
+        [FuturesEodDataInsertedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedCompleteEvent>()!,
         [VixFuturesEodDataInsertedCompleteEvent.Verb] = msg => msg.AsEvent<VixFuturesEodDataInsertedCompleteEvent>()!
     };
 

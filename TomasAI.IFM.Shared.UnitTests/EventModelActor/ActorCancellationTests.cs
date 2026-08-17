@@ -343,6 +343,85 @@ public sealed class ActorCancellationTests
     }
 
     [Fact]
+    public async Task RuntimeStartup_RegistersOneConsumerForEachRegisteredActorType()
+    {
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new Mock<IActorSupervisor>();
+        var registry = new Mock<IActorRegistry>();
+        var factory = new Mock<IActorFactory>();
+        var producer = new Mock<IActorProducer>();
+        var jsProducer = new Mock<IJSActorProducer>();
+        var consumer = new Mock<IActorConsumer>();
+        var jsConsumer = new Mock<IJSActorConsumer>();
+        var commandOne = CreateActor(ActorType.Command, "CommandOne");
+        var commandTwo = CreateActor(ActorType.Command, "CommandTwo");
+        var query = CreateActor(ActorType.Query, "Query");
+        var realtime = CreateActor(ActorType.Realtime, "Realtime");
+        var @event = CreateActor(ActorType.Event, "Event");
+        Type[] registrations =
+        [
+            typeof(FirstRegistrationMarker),
+            typeof(SecondRegistrationMarker),
+            typeof(QueryRegistrationMarker),
+            typeof(RealtimeRegistrationMarker),
+            typeof(EventRegistrationMarker)
+        ];
+
+        registry.SetupGet(instance => instance.ActorTypes).Returns(registrations);
+        factory.Setup(instance => instance.GetActor(typeof(FirstRegistrationMarker))).Returns(commandOne.Object);
+        factory.Setup(instance => instance.GetActor(typeof(SecondRegistrationMarker))).Returns(commandTwo.Object);
+        factory.Setup(instance => instance.GetActor(typeof(QueryRegistrationMarker))).Returns(query.Object);
+        factory.Setup(instance => instance.GetActor(typeof(RealtimeRegistrationMarker))).Returns(realtime.Object);
+        factory.Setup(instance => instance.GetActor(typeof(EventRegistrationMarker))).Returns(@event.Object);
+        container.Setup(instance => instance.Resolve<IActorRegistry>()).Returns(registry.Object);
+        container.Setup(instance => instance.Resolve<IActorFactory>()).Returns(factory.Object);
+        container.Setup(instance => instance.Resolve<IActorProducer>()).Returns(producer.Object);
+        container.Setup(instance => instance.Resolve<IJSActorProducer>()).Returns(jsProducer.Object);
+        container.Setup(instance => instance.Resolve<IActorConsumer>()).Returns(consumer.Object);
+        container.Setup(instance => instance.Resolve<IJSActorConsumer>()).Returns(jsConsumer.Object);
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.StartConsumersAsync(It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+
+        await ActorRuntimeStartup.StartAsync(supervisor.Object, NullLogger.Instance);
+
+        supervisor.Verify(instance => instance.AddConsumer(ActorType.Command, consumer.Object), Times.Once);
+        supervisor.Verify(instance => instance.AddConsumer(ActorType.Query, consumer.Object), Times.Once);
+        supervisor.Verify(instance => instance.AddConsumer(ActorType.Realtime, consumer.Object), Times.Once);
+        supervisor.Verify(instance => instance.AddConsumer(ActorType.Notify, It.IsAny<IActorConsumer>()), Times.Never);
+        supervisor.Verify(instance => instance.AddConsumer(ActorType.Event, jsConsumer.Object), Times.Once);
+    }
+
+    [Fact]
+    public async Task RuntimeStartup_RejectsNotifyActors()
+    {
+        var container = new Mock<IContainerInstance>();
+        var supervisor = new Mock<IActorSupervisor>();
+        var registry = new Mock<IActorRegistry>();
+        var factory = new Mock<IActorFactory>();
+        var notify = CreateActor(ActorType.Notify, "StatusConsoleEvent");
+        registry.SetupGet(instance => instance.ActorTypes).Returns([typeof(FirstRegistrationMarker)]);
+        factory.Setup(instance => instance.GetActor(typeof(FirstRegistrationMarker))).Returns(notify.Object);
+        container.Setup(instance => instance.Resolve<IActorRegistry>()).Returns(registry.Object);
+        container.Setup(instance => instance.Resolve<IActorFactory>()).Returns(factory.Object);
+        container.Setup(instance => instance.Resolve<IActorProducer>()).Returns(Mock.Of<IActorProducer>());
+        supervisor.SetupGet(instance => instance.Container).Returns(container.Object);
+        supervisor.Setup(instance => instance.ShutdownAsync(CancellationToken.None))
+            .Returns(ValueTask.CompletedTask);
+
+        Func<Task> start = () => ActorRuntimeStartup
+            .StartAsync(supervisor.Object, NullLogger.Instance)
+            .AsTask();
+
+        await start.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Notify subjects are reserved for UI, console, and external NATS event listeners*");
+        supervisor.Verify(instance => instance.AddConsumer(
+            ActorType.Notify,
+            It.IsAny<IActorConsumer>()), Times.Never);
+        supervisor.Verify(instance => instance.ShutdownAsync(CancellationToken.None), Times.Once);
+    }
+
+    [Fact]
     public async Task RuntimeStartup_ActorFailureLeavesRuntimeUnreadyAndRollsBackWithoutOpeningIntake()
     {
         var container = new Mock<IContainerInstance>();
@@ -382,6 +461,21 @@ public sealed class ActorCancellationTests
         double Value,
         string? Phase,
         string? Stage);
+
+    static Mock<IActor> CreateActor(ActorType actorType, string name)
+    {
+        var actor = new Mock<IActor>();
+        actor.SetupGet(instance => instance.Id).Returns(new ActorMailboxId(actorType, name));
+        actor.Setup(instance => instance.StartAsync(
+                It.IsAny<IActorSupervisor>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+        return actor;
+    }
+
+    sealed class QueryRegistrationMarker;
+    sealed class RealtimeRegistrationMarker;
+    sealed class EventRegistrationMarker;
 
     sealed class LifecycleMetricCollector : IDisposable
     {

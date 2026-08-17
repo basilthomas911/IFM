@@ -247,7 +247,7 @@ public sealed class YieldCurveRateEditorViewModel
         await InitializeAsync(cancellationToken);
         var timePeriods = await QueryTimePeriodsAsync(cancellationToken);
         var selectedTimePeriod = timePeriods.FirstOrDefault() ?? string.Empty;
-        var currentDate = DateOnly.FromDateTime(DateTime.Today);
+        var currentDate = DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
         var (start, end) = CalculateRange(selectedTimePeriod, currentDate);
         var rates = start == default
             ? []
@@ -366,7 +366,9 @@ public sealed class YieldCurveRateEditorViewModel
         var selected = timePeriods.Contains(SelectedTimePeriod, StringComparer.Ordinal)
             ? SelectedTimePeriod
             : timePeriods.FirstOrDefault() ?? string.Empty;
-        var (start, end) = CalculateRange(selected, DateOnly.FromDateTime(DateTime.Today));
+        var (start, end) = CalculateRange(
+            selected,
+            DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
         var rates = start == default
             ? []
             : await QueryRatesAsync(start, end, cancellationToken);

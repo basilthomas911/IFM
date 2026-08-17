@@ -1,8 +1,10 @@
 using FluentAssertions;
+using MessagePack;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -232,6 +234,54 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
 
         await act.Should().NotThrowAsync();
         @event.FuturesTradeSignal!.TimePeriod.Should().Be(timePeriod);
+        await scenario.Context.Received(1)
+            .SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
+                Arg.Is<FuturesTradeSignalUpdatedNotifyEvent>(notification =>
+                    notification.Subject.Is(
+                        ActorType.Notify,
+                        FuturesTradeSignalUpdatedNotifyEvent.Actor,
+                        FuturesTradeSignalUpdatedNotifyEvent.Verb)
+                    && notification.CommandId == @event.CommandId
+                    && notification.EntityId == @event.EntityId
+                    && notification.EventId == @event.EventId
+                    && notification.FuturesTradeSignal == @event.FuturesTradeSignal
+                    && notification.IsValid));
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_CompletionEvent_PublishesDistinctSerializableNotifyEvent()
+    {
+        var scenario = CreateScenario();
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
+        FuturesTradeSignalUpdatedNotifyEvent? published = null;
+        scenario.Context.SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
+                Arg.Do<FuturesTradeSignalUpdatedNotifyEvent>(value => published = value))
+            .Returns(ValueTask.CompletedTask);
+
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, @event);
+
+        published.Should().NotBeNull();
+        published!.Id.Should().NotBe(@event.Id);
+        published.EventSource.Should().Be(nameof(FuturesTradeSignalUpdatedCompleteEvent));
+        published.ReceivedOn.Kind.Should().Be(DateTimeKind.Utc);
+        var roundTrip = MessagePackSerializer.Deserialize<FuturesTradeSignalUpdatedNotifyEvent>(
+            MessagePackSerializer.Serialize(published));
+        roundTrip.Should().BeEquivalentTo(published);
+        roundTrip.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_CompletionNotifyFailure_DoesNotFailDurableCompletion()
+    {
+        var scenario = CreateScenario();
+        var @event = SampleData.CreateTradeSignalUpdatedCompleteEventFor(TimeFrameType.Daily);
+        scenario.Context.SendAsync<FuturesTradeSignalUpdatedNotifyEvent, FuturesTradeSignalEntityId>(
+                Arg.Any<FuturesTradeSignalUpdatedNotifyEvent>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("Core NATS unavailable"));
+
+        Func<Task> act = () => scenario.Actor.InvokeReceiveAsync(scenario.Context, @event).AsTask();
+
+        await act.Should().NotThrowAsync();
     }
 
     [Theory]

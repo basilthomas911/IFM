@@ -1,13 +1,14 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -16,6 +17,7 @@ using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesItiSignal;
 
@@ -27,15 +29,17 @@ public sealed class FuturesItiSignalRealtimeActorTests
 
     public sealed class TestableFuturesItiSignalRealtimeActor(
         IActorSupervisor supervisor,
-        IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
+        IRealtimeProjector<FuturesItiSignalRealtimeActor> projector,
         IMarketDataApi marketDataApi,
         IDbContextFactory dbFactory,
+        IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesItiSignalRealtimeActor> logger)
         : FuturesItiSignalRealtimeActor(
             supervisor,
-            commandApiFactory,
+            projector,
             marketDataApi,
             dbFactory,
+            statusConsoleWriter,
             logger)
     {
         public IEvent Parse(IEventActorContext context, IActorMessage message) =>
@@ -52,7 +56,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     public async Task Lifecycle_RegistersAndRemovesMarketPriceRealtimeRoute()
     {
         var context = Substitute.For<IEventActorContext>();
-        var actor = CreateActor(out _, out _);
+        var actor = CreateActor(out _);
         var route = new ActorTypeId(
             ActorType.Realtime,
             FuturesMarketPriceUpdatedRealtimeEvent.Actor,
@@ -79,7 +83,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             FuturesMarketPriceUpdatedRealtimeEvent.Verb,
             @event.EntityId.Format()));
         message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(@event);
-        var actor = CreateActor(out _, out _);
+        var actor = CreateActor(out _);
 
         var parsed = actor.Parse(Substitute.For<IEventActorContext>(), message);
 
@@ -90,69 +94,52 @@ public sealed class FuturesItiSignalRealtimeActorTests
     public async Task Handler_CurrentEsAndActiveFreshVx_StartsAllThreeTimeFrames()
     {
         var marketDataApi = CreateReadyMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
-        ConfigureSuccessfulCommands(commandApi);
+        var projector = CreateProjector();
         var @event = CreateEvent();
 
         var handled = await @event.ExecuteAsync(
             Substitute.For<IEventActorContext>(),
-            commandApi,
+            projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
             CreateRealtimeState(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
-        await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-            EsContractId,
-            ValueDate,
+        var generated = projector.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IRealtimeProjector<FuturesItiSignalRealtimeActor>.ProcessRealtimeEventAsync))
+            .Select(call => call.GetArguments()[0])
+            .Cast<FuturesItiSignalGeneratedEvent>()
+            .ToArray();
+        generated.Should().HaveCount(3);
+        generated.Select(item => item.FuturesItiSignal!.TimePeriod).Should().BeEquivalentTo([
             TimeFrameType.Daily,
-            @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
-            5450.25,
-            22.75,
-            null,
-            ValueDate);
-        await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-            EsContractId,
-            ValueDate,
             TimeFrameType.Weekly,
-            @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
-            5450.25,
-            22.75,
-            null,
-            ValueDate);
-        await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-            EsContractId,
-            ValueDate,
-            TimeFrameType.Monthly,
-            @event.Price.Trade!.Value.EventTimestamp.UtcDateTime,
-            5450.25,
-            22.75,
-            null,
-            ValueDate);
+            TimeFrameType.Monthly]);
+        generated.Should().OnlyContain(item =>
+            item.Subject.ActorType == ActorType.Realtime
+            && item.Subject.Name == FuturesItiSignalRealtimeActor.ActorName
+            && item.FuturesItiSignal!.IntrinsicTime == @event.Price.Trade!.Value.EventTimestamp.UtcDateTime
+            && item.FuturesItiSignal.IntrinsicPrice == 5450.25
+            && item.VixFuturesPrice == 22.75);
     }
 
     [Fact]
-    public async Task Receive_CurrentEs_UsesActorBoundCommandApi()
+    public async Task Receive_CurrentEs_UsesActorBoundRealtimeProjector()
     {
         var marketDataApi = CreateReadyMarketDataApi();
-        var actor = CreateActor(out var factory, out var commandApi, marketDataApi);
+        var actor = CreateActor(out var projector, marketDataApi);
         var context = Substitute.For<IEventActorContext>();
 
         await actor.Start(context);
         await actor.Receive(context, CreateEvent());
         await actor.Stop(context);
 
-        factory.Received(1).Create(context);
-        await commandApi.Received(1).GenerateFuturesItiSignalAsync(
-            EsContractId,
-            ValueDate,
-            TimeFrameType.Daily,
-            Arg.Any<DateTime>(),
-            5450.25,
-            22.75,
-            null,
-            ValueDate);
+        await projector.Received(1).StartAsync(context, Arg.Any<CancellationToken>());
+        await projector.Received(3).ProcessRealtimeEventAsync(
+            Arg.Any<FuturesItiSignalGeneratedEvent>(),
+            Arg.Any<CancellationToken>());
+        await projector.Received(1).StopAsync(Arg.Any<CancellationToken>());
         await marketDataApi.Received(1).StartStreamingFuturesTickDataAsync(
             EsContractId,
             new TickerStreamOwner("FuturesItiSignal", "CurrentContracts", "ES"));
@@ -171,7 +158,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     public async Task Receive_RepeatedEsUpdates_AcquiresEachStableStreamOwnerOnce()
     {
         var marketDataApi = CreateReadyMarketDataApi();
-        var actor = CreateActor(out _, out _, marketDataApi);
+        var actor = CreateActor(out _, marketDataApi);
         var context = Substitute.For<IEventActorContext>();
 
         await actor.Start(context);
@@ -259,20 +246,19 @@ public sealed class FuturesItiSignalRealtimeActorTests
     public async Task Handler_NonCurrentEsOrVxUpdate_DoesNotSendCommand()
     {
         var marketDataApi = CreateReadyMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var projector = CreateProjector();
         var @event = CreateEvent(contractId: VxContractId);
 
         var handled = await @event.ExecuteAsync(
             Substitute.For<IEventActorContext>(),
-            commandApi,
+            projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
             CreateRealtimeState(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
-        await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
-            default!, default, default, default, default, default);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(default!);
     }
 
     [Theory]
@@ -283,11 +269,11 @@ public sealed class FuturesItiSignalRealtimeActorTests
         bool vxActive)
     {
         var marketDataApi = CreateReadyMarketDataApi(esActive, vxActive);
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var projector = CreateProjector();
 
         var handled = await CreateEvent().ExecuteAsync(
             Substitute.For<IEventActorContext>(),
-            commandApi,
+            projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
             CreateRealtimeState(),
@@ -295,8 +281,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
 
         handled.Should().BeTrue();
         _ = marketDataApi.DidNotReceiveWithAnyArgs().GetFuturesPriceAsync(default!);
-        await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
-            default!, default, default, default, default, default);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(default!);
     }
 
     [Fact]
@@ -306,30 +291,29 @@ public sealed class FuturesItiSignalRealtimeActorTests
         marketDataApi.GetFuturesPriceAsync(VxContractId)
             .Returns(Task.FromException<decimal>(
                 new FuturesLastPriceUnavailableException(VxContractId)));
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var projector = CreateProjector();
 
         var handled = await CreateEvent().ExecuteAsync(
             Substitute.For<IEventActorContext>(),
-            commandApi,
+            projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
             CreateRealtimeState(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
 
         handled.Should().BeTrue();
-        await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
-            default!, default, default, default, default, default);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(default!);
     }
 
     [Fact]
     public async Task Handler_MissingCurrentEsContract_ThrowsConfigurationError()
     {
         var marketDataApi = Substitute.For<IMarketDataApi>();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var projector = CreateProjector();
 
         var action = () => CreateEvent().ExecuteAsync(
             Substitute.For<IEventActorContext>(),
-            commandApi,
+            projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
             CreateRealtimeState(),
@@ -337,15 +321,14 @@ public sealed class FuturesItiSignalRealtimeActorTests
 
         await action.Should().ThrowAsync<FuturesContractRolloverConfigurationException>()
             .WithMessage("*current ES futures contract*");
-        await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
-            default!, default, default, default, default, default);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(default!);
     }
 
     [Fact]
     public async Task Handler_MismatchedSnapshotIdentity_ThrowsMappingError()
     {
         var marketDataApi = CreateReadyMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var projector = CreateProjector();
         var @event = CreateEvent() with
         {
             Price = CreateEvent().Price with { ContractId = "OTHER" }
@@ -353,15 +336,14 @@ public sealed class FuturesItiSignalRealtimeActorTests
 
         var action = () => @event.ExecuteAsync(
             Substitute.For<IEventActorContext>(),
-            commandApi,
+            projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
             CreateRealtimeState(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()).AsTask();
 
         await action.Should().ThrowAsync<MarketDataContractMappingException>();
-        await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
-            default!, default, default, default, default, default);
+        await projector.DidNotReceiveWithAnyArgs().ProcessRealtimeEventAsync(default!);
     }
 
     [Fact]
@@ -376,37 +358,31 @@ public sealed class FuturesItiSignalRealtimeActorTests
     }
 
     static TestableFuturesItiSignalRealtimeActor CreateActor(
-        out IActorMarketDataAnalyticsCommandApiFactory factory,
-        out IActorMarketDataAnalyticsCommandApi commandApi,
+        out IRealtimeProjector<FuturesItiSignalRealtimeActor> projector,
         IMarketDataApi? marketDataApi = null)
     {
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.CreateMailbox(Arg.Any<ActorMailboxId>())
             .Returns(Substitute.For<IActorMailbox>());
-        commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
-        ConfigureSuccessfulCommands(commandApi);
-        factory = Substitute.For<IActorMarketDataAnalyticsCommandApiFactory>();
-        factory.Create(Arg.Any<IEventActorContext>()).Returns(commandApi);
+        projector = CreateProjector();
         return new TestableFuturesItiSignalRealtimeActor(
             supervisor,
-            factory,
+            projector,
             marketDataApi ?? Substitute.For<IMarketDataApi>(),
             CreateDbFactory(),
+            Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
     }
 
-    static void ConfigureSuccessfulCommands(IActorMarketDataAnalyticsCommandApi commandApi)
-        => commandApi.GenerateFuturesItiSignalAsync(
-                Arg.Any<string>(),
-                Arg.Any<DateOnly>(),
-                Arg.Any<TimeFrameType>(),
-                Arg.Any<DateTime>(),
-                Arg.Any<double>(),
-                Arg.Any<double>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<DateOnly?>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()))));
+    static IRealtimeProjector<FuturesItiSignalRealtimeActor> CreateProjector()
+    {
+        var projector = Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>();
+        projector.ProcessRealtimeEventAsync(
+                Arg.Any<IEvent>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(true));
+        return projector;
+    }
 
     static FuturesItiSignalRealtimeState CreateRealtimeState()
         => new(CreateDbFactory());

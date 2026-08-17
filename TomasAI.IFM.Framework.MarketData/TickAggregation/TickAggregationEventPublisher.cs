@@ -10,11 +10,9 @@ namespace TomasAI.IFM.Framework.MarketData.TickAggregation;
 
 public sealed class TickAggregationEventPublisher : ITickAggregationEventPublisher
 {
-    public const string SyntheticProducerName = "TickAggregationSourceEventActor";
     private readonly IActorSupervisor _supervisor;
-    private readonly IJSActorProducer _durableProducer;
-    private readonly int _capacity;
     private IActorProducer? _realtimeProducer;
+    private readonly int _capacity;
     private Channel<Publication>? _channel;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private Task? _worker;
@@ -25,8 +23,6 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         ArgumentNullException.ThrowIfNull(supervisor);
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
         _supervisor = supervisor;
-        _durableProducer = supervisor.GetJSEventProducer(
-            new ActorMailboxId(ActorType.Event, SyntheticProducerName));
         _capacity = capacity;
     }
 
@@ -38,8 +34,11 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         try
         {
             if (IsRunning) return;
-            await _durableProducer.StartAsync(
-                new ActorMailboxId(ActorType.Event, SyntheticProducerName)).ConfigureAwait(false);
+            // The primary realtime actor owns this Core NATS producer's lifecycle.
+            // Resolve it only after actor-runtime registration has completed.
+            _realtimeProducer = _supervisor.GetProducer(new ActorMailboxId(
+                ActorType.Realtime,
+                FuturesTickTradeDataChangedEvent.Actor));
             _channel = CreateChannel();
             Volatile.Write(ref _running, 1);
             _worker = Task.Run(ProcessAsync);
@@ -57,9 +56,9 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     {
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        var producer = _realtimeProducer ??=
-            _supervisor.GetProducer(@event.Subject.ActorId);
-        return producer.SendAsync<
+        return (_realtimeProducer ?? throw new InvalidOperationException(
+                "The tick aggregation publisher is not running."))
+            .SendAsync<
             FuturesMarketPriceUpdatedRealtimeEvent,
             TickDataEntityId>(@event.Subject, @event);
     }
@@ -95,16 +94,7 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             _worker = null;
             _channel = null;
             Volatile.Write(ref _running, 0);
-            try
-            {
-                await _durableProducer.StopAsync().ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                failure = failure is null
-                    ? exception
-                    : new AggregateException(failure, exception);
-            }
+            _realtimeProducer = null;
             if (failure is not null) throw failure;
         }
         finally { _lifecycle.Release(); }
@@ -122,10 +112,10 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
                     switch (publication.Event)
                     {
                         case FuturesTickTradeDataChangedEvent trade:
-                            await _durableProducer.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(trade.Subject, trade).ConfigureAwait(false);
+                            await _realtimeProducer!.SendAsync<FuturesTickTradeDataChangedEvent, TickDataEntityId>(trade.Subject, trade).ConfigureAwait(false);
                             break;
                         case FuturesTickQuoteDataChangedEvent quote:
-                            await _durableProducer.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote).ConfigureAwait(false);
+                            await _realtimeProducer!.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote).ConfigureAwait(false);
                             break;
                     }
                 }
