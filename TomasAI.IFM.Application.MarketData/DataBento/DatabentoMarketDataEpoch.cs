@@ -404,7 +404,14 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             Ticker = detail.Ticker,
             LocalSymbol = detail.RawSymbol,
             SecurityType = detail.SecurityType,
-            Currency = detail.Currency,
+            Currency = resolved.Futures?.Currency
+                ?? resolved.Option?.Currency
+                ?? DatabentoContractMetadata.ResolveCurrency(
+                    detail,
+                    resolved.Registration.DomainContractId,
+                    DatabentoContractMetadata.FindCurrencyFallback(
+                        _options,
+                        detail.Ticker)),
             Exchange = detail.Exchange,
             ContractMultiplier = detail.ContractMultiplier ?? 1,
             MaturityDate = detail.MaturityDate ?? ValueDate,

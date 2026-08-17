@@ -207,7 +207,8 @@ public sealed class G1NavigationAndQueryAuditTests
                     return Observation(
                         $"StatusRows={status.RowCount}; latest='{status.FirstRow}'; "
                         + $"marketOutlook={string.Join(",", shell.MarketOutlook.Select(pair => $"{pair.Key}:{pair.Value}"))}; "
-                        + $"ES automationPoints={esChart!.DataPointCount}; VX/VIX automationPoints={vxChart!.DataPointCount}.",
+                        + $"ES automationPoints={esChart!.DataPointCount},linePixelSpan={esChart.LinePixelSpan}; "
+                        + $"VX/VIX automationPoints={vxChart!.DataPointCount},linePixelSpan={vxChart.LinePixelSpan}.",
                         artifacts);
                 });
 
@@ -513,7 +514,8 @@ public sealed class G1NavigationAndQueryAuditTests
         if (!es.IsValid || !es.CurrentlyTraded || !vx.IsValid || !vx.CurrentlyTraded)
             throw new G0DependencyException("Current ES/VX contracts are not valid and currently traded.");
 
-        vx = await EnsureVxCurrencyAsync(queries, vx, timeout, cancellationToken);
+        if (string.IsNullOrWhiteSpace(es.Currency) || string.IsNullOrWhiteSpace(vx.Currency))
+            throw new G0DependencyException("Current ES/VX contracts must have durable currencies before G1 starts.");
 
         await G0DevelopmentDataFixture.EnsureAsync(queries, es, timeout, cancellationToken);
         await G0DevelopmentDataFixture.EnsureBarAsync(queries, vx, timeout, cancellationToken);
@@ -581,46 +583,6 @@ public sealed class G1NavigationAndQueryAuditTests
             throw new G0DependencyException(
                 $"Typed {queryName} query failed: code={result.ErrorCode}; message={result.ErrorMessage}");
         return result.Value;
-    }
-
-    static async Task<FuturesContractV2ReadModel> EnsureVxCurrencyAsync(
-        G0QuerySession queries,
-        FuturesContractV2ReadModel contract,
-        TimeSpan timeout,
-        CancellationToken cancellationToken)
-    {
-        if (!string.IsNullOrWhiteSpace(contract.Currency))
-            return contract;
-
-        var corrected = contract with { Currency = "USD" };
-        var result = await queries.MarketDataCommands
-            .ChangeFuturesContractAsync(contract.Id, corrected, overwrite: true)
-            .WaitAsync(timeout, cancellationToken);
-        if (!result.Success)
-            throw new G0DependencyException(
-                $"Current VX contract '{contract.ContractId}' has no currency and its public correction failed: "
-                + result.ErrorMessage);
-
-        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(timeout);
-        while (!timeoutSource.IsCancellationRequested)
-        {
-            var refreshed = await queries.MarketData
-                .GetCurrentlyTradedFuturesContractAsync("VX")
-                .WaitAsync(timeout, cancellationToken);
-            if (refreshed.Success && refreshed.Value?.Currency == "USD")
-                return refreshed.Value;
-            try
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(200), timeoutSource.Token);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-        }
-        throw new G0DependencyException(
-            $"Current VX contract '{contract.ContractId}' currency correction did not become query-visible.");
     }
 
     static async Task<string> NormalizeMarketDataFeedAsync(

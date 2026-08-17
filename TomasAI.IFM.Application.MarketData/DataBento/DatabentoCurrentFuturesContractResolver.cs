@@ -48,7 +48,10 @@ public sealed class DatabentoCurrentFuturesContractResolver(
             normalizedSymbol,
             detail.RawSymbol,
             "FUT",
-            detail.Currency,
+            DatabentoContractMetadata.ResolveCurrency(
+                detail,
+                contractId,
+                DatabentoContractMetadata.FindCurrencyFallback(options, normalizedSymbol)),
             detail.Exchange,
             (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
             maturity,

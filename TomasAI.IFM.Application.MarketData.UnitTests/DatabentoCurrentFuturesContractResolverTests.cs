@@ -40,6 +40,67 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
     }
 
     [Fact]
+    public async Task UsesSettlementCurrencyWhenDefinitionCurrencyIsMissing()
+    {
+        var factory = new FakeFeedFactory([
+            Detail(
+                "VX/Q6",
+                "VX",
+                new DateOnly(2026, 8, 19),
+                "XCBF",
+                currency: string.Empty,
+                settlementCurrency: "usd")]);
+        var resolver = new DatabentoCurrentFuturesContractResolver(factory, Options());
+
+        var result = await resolver.ResolveAsync("VX", new DateOnly(2026, 8, 17));
+
+        result.Contract.Currency.Should().Be("USD");
+    }
+
+    [Fact]
+    public async Task RejectsDefinitionWhenBothCurrenciesAreMissing()
+    {
+        var factory = new FakeFeedFactory([
+            Detail(
+                "ABCQ6",
+                "ABC",
+                new DateOnly(2026, 8, 19),
+                "XCBF",
+                currency: string.Empty,
+                settlementCurrency: " ")]);
+        var resolver = new DatabentoCurrentFuturesContractResolver(
+            factory,
+            Options() with
+            {
+                FuturesContractCurrencyFallbacks =
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            });
+
+        var act = () => resolver.ResolveAsync("ABC", new DateOnly(2026, 8, 17));
+
+        await act.Should().ThrowAsync<MarketDataContractMappingException>()
+            .WithMessage("*both the contract currency and settlement currency are missing*");
+    }
+
+    [Fact]
+    public async Task UsesConfiguredCurrencyWhenVxDefinitionCurrenciesAreMissing()
+    {
+        var factory = new FakeFeedFactory([
+            Detail(
+                "VX/Q6",
+                "VX",
+                new DateOnly(2026, 8, 19),
+                "XCBF",
+                currency: string.Empty,
+                settlementCurrency: string.Empty)]);
+        var resolver = new DatabentoCurrentFuturesContractResolver(factory, Options());
+
+        var result = await resolver.ResolveAsync("VX", new DateOnly(2026, 8, 17));
+
+        result.Contract.Currency.Should().Be("USD");
+    }
+
+    [Fact]
     public async Task ThrowsTypedFailureWhenNoEligibleContractExists()
     {
         var factory = new FakeFeedFactory([
@@ -62,7 +123,9 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
         string rawSymbol,
         string ticker,
         DateOnly maturity,
-        string exchange = "CME") => new()
+        string exchange = "CME",
+        string currency = "USD",
+        string settlementCurrency = "USD") => new()
     {
         Dataset = "test",
         RawSymbol = rawSymbol,
@@ -72,8 +135,8 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
         ContractKind = ContractKind.Future,
         MaturityDate = maturity,
         ContractMultiplier = 50,
-        Currency = "USD",
-        SettlementCurrency = "USD",
+        Currency = currency,
+        SettlementCurrency = settlementCurrency,
         Exchange = exchange,
         SecurityType = "FUT",
         Cfi = string.Empty,

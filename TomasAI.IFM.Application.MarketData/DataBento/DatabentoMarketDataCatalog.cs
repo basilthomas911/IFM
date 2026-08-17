@@ -104,10 +104,16 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                     group.Dataset,
                     detail,
                     registration.AssetTypeId == AssetTypeId.Futures
-                        ? MapFutures(registration.DomainContractId, detail)
+                        ? MapFutures(
+                            registration.DomainContractId,
+                            detail,
+                            DatabentoContractMetadata.FindCurrencyFallback(options, detail.Ticker))
                         : null,
                     registration.AssetTypeId == AssetTypeId.FuturesOption
-                        ? MapOption(registration.DomainContractId, detail)
+                        ? MapOption(
+                            registration.DomainContractId,
+                            detail,
+                            DatabentoContractMetadata.FindCurrencyFallback(options, detail.Ticker))
                         : null));
             }
             return groupResults;
@@ -166,7 +172,10 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             {
                 var detail = details[index] ?? throw new MarketDataContractMappingException(
                     names[index], "chain definition metadata could not be hydrated");
-                mapped[index] = MapOption(names[index], detail);
+                mapped[index] = MapOption(
+                    names[index],
+                    detail,
+                    underlying.Futures.Currency);
             }
             return mapped;
         }).ConfigureAwait(false);
@@ -183,7 +192,8 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 
     private static FuturesContractV2ReadModel MapFutures(
         string domainContractId,
-        ContractDetail detail)
+        ContractDetail detail,
+        string? currencyFallback)
     {
         var maturity = detail.MaturityDate ?? ToDate(detail.ExpirationTimestampNanoseconds)
             ?? throw new MarketDataContractMappingException(
@@ -194,7 +204,10 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             detail.Ticker,
             detail.RawSymbol,
             "FUT",
-            detail.Currency,
+            DatabentoContractMetadata.ResolveCurrency(
+                detail,
+                domainContractId,
+                currencyFallback),
             detail.Exchange,
             (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
             maturity,
@@ -203,7 +216,8 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 
     private static FuturesOptionContractReadModel MapOption(
         string domainContractId,
-        ContractDetail detail)
+        ContractDetail detail,
+        string? currencyFallback)
     {
         var maturity = detail.MaturityDate ?? ToDate(detail.ExpirationTimestampNanoseconds)
             ?? throw new MarketDataContractMappingException(
@@ -217,7 +231,10 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             detail.Ticker,
             detail.RawSymbol,
             "FOP",
-            detail.Currency,
+            DatabentoContractMetadata.ResolveCurrency(
+                detail,
+                domainContractId,
+                currencyFallback),
             detail.Exchange,
             (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
             maturity,

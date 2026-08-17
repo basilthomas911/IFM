@@ -27,7 +27,7 @@ public sealed class G0Configuration
     public required TimeSpan StartupTimeout { get; init; }
     public required TimeSpan ShutdownTimeout { get; init; }
     public required TimeSpan AuditTimeout { get; init; }
-    public int ExpectedActorTypeCount { get; init; } = 83;
+    public int ExpectedActorTypeCount { get; init; } = 84;
 
     public bool UsesProductionFmp => string.Equals(FmpAdapter, ProductionAdapter, StringComparison.OrdinalIgnoreCase);
 
@@ -36,6 +36,9 @@ public sealed class G0Configuration
 
     public static bool G1LiveRunEnabled
         => string.Equals(Environment.GetEnvironmentVariable("IFM_RUN_UI_G1"), "1", StringComparison.Ordinal);
+
+    public static bool G2StartupLiveRunEnabled
+        => string.Equals(Environment.GetEnvironmentVariable("IFM_RUN_UI_G2_STARTUP"), "1", StringComparison.Ordinal);
 
     public static G0Configuration Load()
     {
@@ -68,11 +71,11 @@ public sealed class G0Configuration
             FmpCredentialPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FMP_API_KEY")),
             DeterministicAdapterApproved = string.Equals(
                 Environment.GetEnvironmentVariable("IFM_G0_APPROVED_ADAPTER"), "1", StringComparison.Ordinal),
-            ReadinessTimeout = ReadTimeout("IFM_G0_READINESS_TIMEOUT_SECONDS", 60),
+            ReadinessTimeout = ReadTimeout("IFM_G0_READINESS_TIMEOUT_SECONDS", 90),
             StartupTimeout = ReadTimeout("IFM_G0_STARTUP_TIMEOUT_SECONDS", 120),
             ShutdownTimeout = ReadTimeout("IFM_G0_SHUTDOWN_TIMEOUT_SECONDS", 15),
             AuditTimeout = ReadTimeout("IFM_G0_AUDIT_TIMEOUT_SECONDS", 1800),
-            ExpectedActorTypeCount = ReadInt("IFM_G0_ACTOR_TYPE_COUNT", 83)
+            ExpectedActorTypeCount = ReadInt("IFM_G0_ACTOR_TYPE_COUNT", 84)
         };
     }
 

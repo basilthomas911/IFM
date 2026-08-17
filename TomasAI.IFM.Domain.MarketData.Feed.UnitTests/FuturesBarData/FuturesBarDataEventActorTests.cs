@@ -8,8 +8,12 @@ using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.FuturesBarData;
 
@@ -22,6 +26,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public class TestableFuturesBarDataEventActor(
         IActorSupervisor supervisor,
         IFuturesBarDataTimer futuresBarTimer,
+        ApplicationMarketDataApi marketDataApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesBarDataEventActor> logger)
         : FuturesBarDataEventActor(
@@ -29,6 +34,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             new global::TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory(),
             new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
             futuresBarTimer,
+            marketDataApi,
             statusConsoleWriter,
             logger)
     {
@@ -179,6 +185,48 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             .SendAsync<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(
                 Arg.Is<FuturesBarDataStreamingStartedCompleteEvent>(value =>
                     value.CommandId == @event.CommandId && value.EntityId == @event.EntityId));
+    }
+
+    [Fact]
+    public async Task StreamingTimer_UsesContractSpecificHotCachePrices_ForEsAndVxBars()
+    {
+        var es = SampleData.EsContract with { ContractId = "ES20260918", Symbol = "ES" };
+        var vx = SampleData.EsContract with { ContractId = "VX20260819", Symbol = "VX" };
+        var @event = CreateStreamingStartedEvent() with { Contracts = [es, vx] };
+        Func<ValueTask>? timerAction = null;
+        var timer = Substitute.For<IFuturesBarDataTimer>();
+        timer.Start(@event.EntityId, Arg.Any<Func<ValueTask>>())
+            .Returns(callInfo =>
+            {
+                timerAction = callInfo.ArgAt<Func<ValueTask>>(1);
+                return true;
+            });
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
+        ConfigurePrice(marketDataApi, es.ContractId, 6_475.25m, 101);
+        ConfigurePrice(marketDataApi, vx.ContractId, 19.85m, 202);
+        var actor = CreateActor(timer: timer, marketDataApi: marketDataApi);
+        var context = Substitute.For<IEventActorContext>();
+        context.SendAsync<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(
+                Arg.Any<FuturesBarDataStreamingStartedCompleteEvent>())
+            .Returns(ValueTask.CompletedTask);
+        context.RequestAsync<InsertFuturesBarDataCommand, FuturesBarDataId>(
+                Arg.Any<InsertFuturesBarDataCommand>())
+            .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+
+        await actor.InvokeReceiveAsync(context, @event);
+        timerAction.Should().NotBeNull();
+        await timerAction!();
+
+        await context.Received(1).RequestAsync<InsertFuturesBarDataCommand, FuturesBarDataId>(
+            Arg.Is<InsertFuturesBarDataCommand>(command =>
+                command.FuturesBarData.ContractId == es.ContractId
+                && command.FuturesBarData.Symbol == "ES"
+                && command.FuturesBarData.BarValue == 6_475.25m));
+        await context.Received(1).RequestAsync<InsertFuturesBarDataCommand, FuturesBarDataId>(
+            Arg.Is<InsertFuturesBarDataCommand>(command =>
+                command.FuturesBarData.ContractId == vx.ContractId
+                && command.FuturesBarData.Symbol == "VX"
+                && command.FuturesBarData.BarValue == 19.85m));
     }
 
     [Fact]
@@ -354,11 +402,13 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     TestableFuturesBarDataEventActor CreateActor(
         IActorSupervisor? supervisor = null,
         IFuturesBarDataTimer? timer = null,
+        ApplicationMarketDataApi? marketDataApi = null,
         IStatusConsoleWriter? statusConsoleWriter = null,
         ILogger<FuturesBarDataEventActor>? logger = null)
         => _fixture.CreateActor(
             supervisor ?? Substitute.For<IActorSupervisor>(),
             timer ?? Substitute.For<IFuturesBarDataTimer>(),
+            marketDataApi ?? Substitute.For<ApplicationMarketDataApi>(),
             statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>(),
             logger ?? Substitute.For<ILogger<FuturesBarDataEventActor>>());
 
@@ -472,4 +522,30 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             FuturesBarDataDeletedEvent value => ActorExtensions.DataSerializer!.Serialize(value),
             _ => throw new ArgumentOutOfRangeException(nameof(@event))
         };
+
+    static void ConfigurePrice(
+        ApplicationMarketDataApi marketDataApi,
+        string contractId,
+        decimal price,
+        uint instrumentId)
+    {
+        var timestamp = new DateTimeOffset(
+            SampleData.ValueDate.ToDateTime(new TimeOnly(14, 30), DateTimeKind.Utc));
+        var snapshot = new FuturesMarketPriceSnapshot(
+            contractId,
+            instrumentId,
+            1,
+            AssetTypeId.Futures,
+            SampleData.ValueDate,
+            null,
+            new FuturesMarketTradeSnapshot(price, 1, instrumentId, timestamp, timestamp));
+        marketDataApi.TryGetLastTickPrice(
+                contractId,
+                out Arg.Any<FuturesMarketPriceSnapshot>())
+            .Returns(callInfo =>
+            {
+                callInfo[1] = snapshot;
+                return true;
+            });
+    }
 }

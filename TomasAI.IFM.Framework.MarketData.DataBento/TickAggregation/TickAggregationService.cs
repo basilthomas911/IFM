@@ -402,7 +402,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
     private async ValueTask ProcessRecordAsync(TickerState state, MarketRecord64 record)
     {
-        TrackSourceSequence(state, record.Header.Sequence);
+        TrackSourceSequence(
+            state,
+            record.Header.PublisherId,
+            record.Header.Sequence);
         var observedUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var valueDate = _valueDates.GetValueDate(observedUtc);
         if (state.ValueDate != default && state.ValueDate != valueDate)
@@ -569,8 +572,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         state.Mapping.AssetTypeId,
         state.Mapping.Dataset,
         state.Mapping.DefinitionDate,
-        state.Mapping.PublisherId,
-        state.Mapping.InstrumentId,
+        quote.Header.PublisherId,
+        quote.Header.InstrumentId,
         new FuturesTickQuoteData(
             quote.Header.Sequence,
             quote.Header.EventTimestampNanoseconds,
@@ -594,8 +597,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         state.Mapping.AssetTypeId,
         state.Mapping.Dataset,
         state.Mapping.DefinitionDate,
-        state.Mapping.PublisherId,
-        state.Mapping.InstrumentId,
+        trade.Header.PublisherId,
+        trade.Header.InstrumentId,
         new FuturesTickTradeData(
             trade.Header.Sequence,
             trade.Header.EventTimestampNanoseconds,
@@ -713,8 +716,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             TickDataId = new TickDataId(state.Mapping.ContractId, state.ValueDate, sequence,
                 DateTime.SpecifyKind(timestampUtc, DateTimeKind.Utc)),
             AssetTypeId = state.Mapping.AssetTypeId, Dataset = state.Mapping.Dataset,
-            DefinitionDate = state.Mapping.DefinitionDate, PublisherId = state.Mapping.PublisherId,
-            InstrumentId = state.Mapping.InstrumentId,
+            DefinitionDate = state.Mapping.DefinitionDate, PublisherId = trade.Header.PublisherId,
+            InstrumentId = trade.Header.InstrumentId,
             TradeData = new FuturesTickTradeData(
                 trade.Header.Sequence, trade.Header.EventTimestampNanoseconds,
                 trade.Header.ReceiveTimestampNanoseconds, trade.Header.Flags,
@@ -733,27 +736,31 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
     private static decimal? ScaleNullable(long value) => value == UndefinedPrice ? null : value / PriceScale;
 
-    private void TrackSourceSequence(TickerState state, uint sequence)
+    private void TrackSourceSequence(
+        TickerState state,
+        ushort publisherId,
+        uint sequence)
     {
-        if (!state.HasSourceSequence)
+        if (!state.HighestSourceSequenceByPublisher.TryGetValue(
+                publisherId,
+                out var highestSequence))
         {
-            state.HasSourceSequence = true;
-            state.HighestSourceSequence = sequence;
+            state.HighestSourceSequenceByPublisher.Add(publisherId, sequence);
             return;
         }
-        if (sequence == state.HighestSourceSequence)
+        if (sequence == highestSequence)
         {
             Interlocked.Increment(ref _duplicateSourceSequences);
             return;
         }
-        if (sequence < state.HighestSourceSequence)
+        if (sequence < highestSequence)
         {
             Interlocked.Increment(ref _outOfOrderSourceSequences);
             return;
         }
-        if (sequence > state.HighestSourceSequence + 1L)
-            Interlocked.Add(ref _sourceSequenceGaps, sequence - state.HighestSourceSequence - 1L);
-        state.HighestSourceSequence = sequence;
+        if (sequence > highestSequence + 1L)
+            Interlocked.Add(ref _sourceSequenceGaps, sequence - highestSequence - 1L);
+        state.HighestSourceSequenceByPublisher[publisherId] = sequence;
     }
 
     public TickAggregationMetricsSnapshot GetMetrics() => new(
@@ -814,8 +821,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         public ushort QuoteCount;
         public PendingQuotePublication? PendingQuote;
         public PendingTradePublication? PendingTrade;
-        public bool HasSourceSequence;
-        public uint HighestSourceSequence;
+        public Dictionary<ushort, uint> HighestSourceSequenceByPublisher { get; } = [];
     }
 
     /// <summary>

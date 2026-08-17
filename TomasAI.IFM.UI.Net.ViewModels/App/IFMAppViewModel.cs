@@ -81,7 +81,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     const int OrderedEventBatchSize = 32;
     const int FuturesBarChartCapacity = 2_048;
     static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
-    static readonly TimeSpan LegacyTradePlacementCommandTimeout = TimeSpan.FromSeconds(5);
     readonly object _statusLogGate = new();
     readonly object _marketDataStreamGate = new();
     readonly object _realtimeStreamGate = new();
@@ -110,7 +109,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     string _statusLine = string.Empty;
     bool _isMenuEnabled;
     bool _isCloseRequested;
-    bool _tradePlacementSignalStarted;
     PresentationError? _lastError;
     StartupReferenceDataImportStatus? _yieldCurveStartupImport;
     StartupReferenceDataImportStatus? _economicCalendarStartupImport;
@@ -381,7 +379,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await StopFuturesEodDataEventConsumer();
         await StopFuturesBarDataEventConsumer();
         await StopFuturesTradeSignalEventConsumer();
-        await StopTradePlacementEventConsumer(cancellationToken);
+        await StopTradePlacementEventConsumer();
         await StopFuturesIntradaySignalServices();
         await DisableMarketDataFeedResetListener();
         await DisableTradeLiveFeed();
@@ -567,11 +565,33 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     PublishError(errorCode, errorMessage, "Loading Latest Futures Bar Data Error"));
                 await WriteStatusConsoleAsync("Loading Latest Futures Bar Data...");
                 foreach (var contract in _baseContracts ?? [])
-                    await model.GetLastFuturesBarDataAsync(contract.ContractId, contract.Symbol, DateOnly.FromDateTime(DateTime.UtcNow), futuresBarData =>
+                {
+                    var endDate = DateTime.UtcNow.AddSeconds(1);
+                    var valueDate = DateOnly.FromDateTime(endDate);
+                    FuturesBarDataReadModel[] bars = [];
+                    await model.GetFuturesBarDataAsync(
+                        contract.ContractId,
+                        contract.Symbol,
+                        valueDate,
+                        endDate.AddDays(-1),
+                        endDate,
+                        values => bars = values ?? []);
+                    if (bars.Length > 0)
                     {
-                        if (futuresBarData is not null)
-                            PublishFuturesBarSnapshot(futuresBarData.Symbol, [futuresBarData]);
-                    });
+                        PublishFuturesBarSnapshot(contract.Symbol, bars);
+                        continue;
+                    }
+
+                    await model.GetLastFuturesBarDataAsync(
+                        contract.ContractId,
+                        contract.Symbol,
+                        valueDate,
+                        futuresBarData =>
+                        {
+                            if (futuresBarData is not null)
+                                PublishFuturesBarSnapshot(futuresBarData.Symbol, [futuresBarData]);
+                        });
+                }
             });
 
     /// <summary>
@@ -732,23 +752,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await WriteStatusConsoleAsync("Starting Trade Placement Event Consumer...");
             await DelayStartupAsync(cancellationToken);
             await model.StartTradePlacementListenerAsync(e => channel.WriteAsync(e));
-            await _appRoot.GetModel<TradePlacementCommandModel>().ExecuteAsync(async tradePlacementModel => {
-                var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
-                if (esContract is not null && _valueDate.HasValue)
-                {
-                    using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    timeoutSource.CancelAfter(LegacyTradePlacementCommandTimeout);
-                    var commandId = await tradePlacementModel.StartTradePlacementAsync(
-                        esContract.ContractId,
-                        _valueDate.Value,
-                        timeoutSource.Token);
-                    _tradePlacementSignalStarted = commandId != Guid.Empty;
-                    await WriteStatusConsoleAsync(_tradePlacementSignalStarted
-                        ? "Trade Placement Signal Service started."
-                        : "Trade Placement Signal Service unavailable; continuing startup.");
-                }
-            });
-
         });
 
         ValueTask ProcessTradePlacementBatchAsync(
@@ -764,7 +767,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// <summary>
     /// stop trade placement consumer
     /// </summary>
-    async Task StopTradePlacementEventConsumer(CancellationToken cancellationToken)
+    async Task StopTradePlacementEventConsumer()
     {
         var channel = Interlocked.Exchange(ref _tradePlacementChannel, null);
         try
@@ -774,22 +777,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     PublishError(errorCode, errorMessage, "Stopping Trade Placement Event Consumer Error"));
                 await WriteStatusConsoleAsync("Stopping Trade Placement Event Consumer...");
                 await model.StopTradePlacementListenerAsync();
-                await _appRoot.GetModel<TradePlacementCommandModel>().ExecuteAsync(async tradePlacementModel => {
-                    var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
-                    if (_tradePlacementSignalStarted && esContract is not null && _valueDate.HasValue)
-                    {
-                        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        timeoutSource.CancelAfter(LegacyTradePlacementCommandTimeout);
-                        var commandId = await tradePlacementModel.StopTradePlacementAsync(
-                            esContract.ContractId,
-                            _valueDate.Value,
-                            timeoutSource.Token);
-                        _tradePlacementSignalStarted = false;
-                        await WriteStatusConsoleAsync(commandId != Guid.Empty
-                            ? "Trade Placement Signal Service stopped."
-                            : "Trade Placement Signal Service stop was not confirmed; continuing shutdown.");
-                    }
-                });
             });
         }
         finally

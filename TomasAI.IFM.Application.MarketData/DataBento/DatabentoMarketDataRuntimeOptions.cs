@@ -17,6 +17,12 @@ public sealed record DatabentoMarketDataRuntimeOptions
     public required IReadOnlyList<DatabentoContractRegistration> Contracts { get; init; }
     public IReadOnlyDictionary<string, string> FuturesContractDatasets { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, string> FuturesContractCurrencyFallbacks { get; init; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ES"] = "USD",
+            ["VX"] = "USD"
+        };
     public int QueryConcurrency { get; init; } = 2;
     public int QueryQueueCapacity { get; init; } = 128;
     public int LastPriceCapacity { get; init; } = 4096;

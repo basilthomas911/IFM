@@ -125,22 +125,25 @@ public class MarketDataFeedTestFixture : IDisposable
     public TestableFuturesBarDataEventActor CreateFuturesBarDataEventActor(
         IActorSupervisor? supervisor = null,
         IFuturesBarDataTimer? futuresBarTimer = null,
+        ApplicationMarketDataApi? marketDataApi = null,
         IStatusConsoleWriter? statusConsoleWriter = null,
         ILogger<FuturesBarDataEventActor>? logger = null)
     {
         var su = supervisor ?? Substitute.For<IActorSupervisor>();
         var fbt = futuresBarTimer ?? Substitute.For<IFuturesBarDataTimer>();
+        var mda = marketDataApi ?? Substitute.For<ApplicationMarketDataApi>();
         var scw = statusConsoleWriter ?? Substitute.For<IStatusConsoleWriter>();
         var lg = logger ?? Substitute.For<ILogger<FuturesBarDataEventActor>>();
-        return new TestableFuturesBarDataEventActor(su, fbt, scw, lg);
+        return new TestableFuturesBarDataEventActor(su, fbt, mda, scw, lg);
     }
 
     public TestableFuturesBarDataEventActor CreateActor(
         IActorSupervisor supervisor,
         IFuturesBarDataTimer futuresBarTimer,
+        ApplicationMarketDataApi marketDataApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesBarDataEventActor> logger)
-        => new(supervisor, futuresBarTimer, statusConsoleWriter, logger);
+        => new(supervisor, futuresBarTimer, marketDataApi, statusConsoleWriter, logger);
 
     public TestableFuturesClosingPriceCommandActor CreateFuturesClosingPriceCommandActor(
         IEventSourceActorDbContext? dbEventSource = null,

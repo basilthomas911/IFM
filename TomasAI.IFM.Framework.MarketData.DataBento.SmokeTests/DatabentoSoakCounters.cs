@@ -6,6 +6,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.SmokeTests;
 internal sealed class DatabentoSoakCounters
 {
     private readonly Dictionary<InstrumentKey, long> _ticksByInstrument = [];
+    private readonly Dictionary<uint, InstrumentKey> _canonicalByInstrumentId = [];
     private readonly ConcurrentQueue<string> _exceptionMessages = [];
     private readonly DatabentoTickCsvCapture? _csvCapture;
     private long _batches;
@@ -22,12 +23,22 @@ internal sealed class DatabentoSoakCounters
 
     internal DatabentoSoakCounters(
         IEnumerable<InstrumentKey> expectedInstruments,
-        DatabentoTickCsvCapture? csvCapture = null)
+        DatabentoTickCsvCapture? csvCapture = null,
+        bool allowPublisherAliases = false)
     {
         _csvCapture = csvCapture;
         foreach (var instrument in expectedInstruments.ToHashSet())
         {
             _ticksByInstrument.Add(instrument, 0);
+            if (allowPublisherAliases
+                && !_canonicalByInstrumentId.TryAdd(
+                    instrument.InstrumentId,
+                    instrument))
+            {
+                throw new ArgumentException(
+                    $"Instrument ID {instrument.InstrumentId} is not unique.",
+                    nameof(expectedInstruments));
+            }
         }
     }
 
@@ -99,6 +110,12 @@ internal sealed class DatabentoSoakCounters
                         if (_ticksByInstrument.TryGetValue(instrument, out var count))
                         {
                             _ticksByInstrument[instrument] = count + 1;
+                        }
+                        else if (_canonicalByInstrumentId.TryGetValue(
+                                     instrument.InstrumentId,
+                                     out var canonical))
+                        {
+                            _ticksByInstrument[canonical]++;
                         }
                         else
                         {

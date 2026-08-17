@@ -12,6 +12,7 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 public static class G0DevelopmentDataFixture
 {
     const int WindowSize = 20;
+    const int MinimumChartBars = 2;
 
     public static async Task<G0DevelopmentSeedResult> EnsureAsync(
         G0QuerySession session,
@@ -98,39 +99,73 @@ public static class G0DevelopmentDataFixture
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
+        var endDate = DateTime.UtcNow.AddSeconds(1);
+        var startDate = endDate.AddDays(-1);
         var existing = await session.MarketDataFeed
-            .GetLastFuturesBarDataAsync(contract.ContractId, contract.Symbol, valueDate)
+            .GetFuturesBarDataAsync(
+                contract.ContractId,
+                contract.Symbol,
+                valueDate,
+                startDate,
+                endDate)
             .WaitAsync(timeout, cancellationToken);
-        if (existing.Success && existing.Value is not null)
+        if (!existing.Success)
+            throw new InvalidOperationException($"G0 bar baseline query failed: {existing.ErrorMessage}");
+        var bars = existing.Value ?? [];
+        var usableBars = bars.Where(bar => IsExpectedDevelopmentScale(contract.Symbol, bar.BarValue)).ToArray();
+        if (usableBars.Length >= MinimumChartBars)
             return false;
 
-        var bar = new FuturesBarDataReadModel(
-            contract.ContractId,
-            contract.Symbol,
-            valueDate,
-            DateTime.UtcNow,
-            BarRateType.Minute,
-            barValue: contract.Symbol == "VX" ? 20m : 5400m,
-            upTrendTrigger: 0.65,
-            downTrendTrigger: 0.35);
-        var response = await session.MarketDataFeedCommands.InsertFuturesBarDataAsync(bar)
-            .WaitAsync(timeout, cancellationToken);
-        if (!response.Success)
-            throw new InvalidOperationException($"G0 bar seed command failed: {response.ErrorMessage}");
+        var timestamps = bars.Select(static bar => bar.BarDate).ToHashSet();
+        var reference = usableBars.OrderBy(static bar => bar.BarDate).LastOrDefault();
+        for (var index = usableBars.Length; index < MinimumChartBars; index++)
+        {
+            var barDate = endDate.AddMinutes(-(MinimumChartBars - index));
+            while (!timestamps.Add(barDate))
+                barDate = barDate.AddSeconds(-1);
+            var baseValue = reference?.BarValue ?? (contract.Symbol == "VX" ? 20m : 5400m);
+            var increment = contract.Symbol == "VX" ? 0.05m : 2m;
+            var bar = new FuturesBarDataReadModel(
+                contract.ContractId,
+                contract.Symbol,
+                valueDate,
+                barDate,
+                BarRateType.Minute,
+                barValue: baseValue + increment * (index + 1),
+                upTrendTrigger: reference?.UpTrendTrigger ?? 0.65,
+                downTrendTrigger: reference?.DownTrendTrigger ?? 0.35);
+            var response = await session.MarketDataFeedCommands.InsertFuturesBarDataAsync(bar)
+                .WaitAsync(timeout, cancellationToken);
+            if (!response.Success)
+                throw new InvalidOperationException($"G0 bar seed command failed: {response.ErrorMessage}");
+        }
 
         await WaitUntilAsync(
             async () =>
             {
                 var result = await session.MarketDataFeed
-                    .GetLastFuturesBarDataAsync(contract.ContractId, contract.Symbol, valueDate)
+                    .GetFuturesBarDataAsync(
+                        contract.ContractId,
+                        contract.Symbol,
+                        valueDate,
+                        startDate,
+                        DateTime.UtcNow.AddSeconds(1))
                     .WaitAsync(timeout, cancellationToken);
-                return result.Success && result.Value is not null;
+                return result.Success && result.Value?.Length >= MinimumChartBars;
             },
             timeout,
-            "G0 bar seed was accepted but did not become durable.",
+            $"G0 chart baseline did not reach {MinimumChartBars} durable bars.",
             cancellationToken);
         return true;
     }
+
+    static bool IsExpectedDevelopmentScale(string symbol, decimal value)
+        => symbol switch
+        {
+            "ES" => value is >= 1_000m and <= 10_000m,
+            "VX" => value is >= 5m and <= 200m,
+            _ => value > 0m
+        };
 
     static FuturesEodDataV2ReadModel CreateEod(
         FuturesContractV2ReadModel contract,

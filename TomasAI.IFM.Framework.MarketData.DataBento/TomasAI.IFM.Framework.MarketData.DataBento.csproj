@@ -7,6 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <DatabentoNativeImplementation Condition="'$(DatabentoNativeImplementation)' == ''">Cpp</DatabentoNativeImplementation>
+    <DatabentoEnableLive Condition="'$(DatabentoEnableLive)' == '' and Exists('..\native\DatabentoFeed.Native\out\live-build\$(Configuration)\databento_feed_native.dll')">true</DatabentoEnableLive>
     <DatabentoNativeBuildKind Condition="'$(DatabentoEnableLive)' == 'true'">live-build</DatabentoNativeBuildKind>
     <DatabentoNativeBuildKind Condition="'$(DatabentoNativeBuildKind)' == ''">build</DatabentoNativeBuildKind>
   </PropertyGroup>

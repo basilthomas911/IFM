@@ -64,6 +64,10 @@ public partial class MarketDataView : UserControl
             graph.ChartAreas[0].AxisY2.Minimum = displayedMinimum - minMaxOffset;
             graph.ChartAreas[0].AxisY2.Maximum = displayedMaximum + minMaxOffset;
             graph.Series[0].Points.Clear();
+            graph.Series[0].MarkerStyle = futuresBarData.Length == 1
+                ? MarkerStyle.Circle
+                : MarkerStyle.None;
+            graph.Series[0].MarkerSize = 6;
             if (graph.Series.Count > 1)
             {
                 graph.Series[1].Points.Clear();

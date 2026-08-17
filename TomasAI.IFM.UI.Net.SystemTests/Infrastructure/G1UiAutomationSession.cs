@@ -124,6 +124,7 @@ public sealed class G1UiAutomationSession : IDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
+        BringToForeground(MainWindow);
         SelectTab(MainWindow, tabName);
         return await WaitUntilAsync(
             () =>
@@ -133,13 +134,51 @@ public sealed class G1UiAutomationSession : IDisposable
                     return null;
                 var points = graph.FindAllDescendants()
                     .Count(element => element.Name.StartsWith("Data Point", StringComparison.OrdinalIgnoreCase));
-                return points > 0
-                    ? new G1ChartState(tabName, graph.Name, points)
+                var linePixelSpan = MeasureSeriesLinePixelSpan(graph, tabName);
+                return points > 0 && linePixelSpan >= 20
+                    ? new G1ChartState(tabName, graph.Name, points, linePixelSpan)
                     : null;
             },
             timeout,
-            $"The {tabName} chart did not expose a rendered data point.",
+            $"The {tabName} chart did not expose a visible rendered line.",
             cancellationToken);
+    }
+
+    static int MeasureSeriesLinePixelSpan(AutomationElement graph, string tabName)
+    {
+        BringToForeground(graph);
+        var rectangle = graph.BoundingRectangle;
+        if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            return 0;
+        using Bitmap bitmap = new(
+            (int)Math.Ceiling((double)rectangle.Width),
+            (int)Math.Ceiling((double)rectangle.Height));
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.CopyFromScreen(
+                (int)Math.Floor((double)rectangle.Left),
+                (int)Math.Floor((double)rectangle.Top),
+                0,
+                0,
+                bitmap.Size,
+                CopyPixelOperation.SourceCopy);
+        }
+
+        var minimumX = bitmap.Width;
+        var maximumX = -1;
+        for (var y = 0; y < bitmap.Height; y++)
+        for (var x = 0; x < bitmap.Width; x++)
+        {
+            var color = bitmap.GetPixel(x, y);
+            var isSeriesPixel = string.Equals(tabName, "ES", StringComparison.Ordinal)
+                ? color.R >= 180 && color.G >= 180 && color.B <= 140
+                : color.R >= 160 && color.G <= 170 && color.B >= 160;
+            if (!isSeriesPixel)
+                continue;
+            minimumX = Math.Min(minimumX, x);
+            maximumX = Math.Max(maximumX, x);
+        }
+        return maximumX < minimumX ? 0 : maximumX - minimumX + 1;
     }
 
     public async Task<G1EconomicCalendarState> ReadEconomicCalendarViewsAsync(
@@ -347,26 +386,43 @@ public sealed class G1UiAutomationSession : IDisposable
         var rectangle = element.BoundingRectangle;
         if (rectangle.Width <= 0 || rectangle.Height <= 0)
             throw new InvalidOperationException("The selected window has no capturable bounds.");
+        BringToForeground(element);
+        rectangle = element.BoundingRectangle;
         using Bitmap bitmap = new(
             (int)Math.Ceiling((double)rectangle.Width),
             (int)Math.Ceiling((double)rectangle.Height));
         using var graphics = Graphics.FromImage(bitmap);
-        var handle = new IntPtr(element.Properties.NativeWindowHandle.Value);
-        var deviceContext = graphics.GetHdc();
-        bool printed;
-        try { printed = handle != IntPtr.Zero && PrintWindow(handle, deviceContext, 2); }
-        finally { graphics.ReleaseHdc(deviceContext); }
-        if (!printed)
-        {
-            graphics.CopyFromScreen(
-                (int)Math.Floor((double)rectangle.Left),
-                (int)Math.Floor((double)rectangle.Top),
-                0,
-                0,
-                bitmap.Size,
-                CopyPixelOperation.SourceCopy);
-        }
+        graphics.CopyFromScreen(
+            (int)Math.Floor((double)rectangle.Left),
+            (int)Math.Floor((double)rectangle.Top),
+            0,
+            0,
+            bitmap.Size,
+            CopyPixelOperation.SourceCopy);
         bitmap.Save(path, ImageFormat.Png);
+    }
+
+    static void BringToForeground(AutomationElement element)
+    {
+        AutomationElement? host = element;
+        IntPtr windowHandle = IntPtr.Zero;
+        while (host is not null)
+        {
+            try
+            {
+                var candidate = new IntPtr(host.Properties.NativeWindowHandle.Value);
+                if (candidate != IntPtr.Zero)
+                    windowHandle = candidate;
+            }
+            catch { /* Virtual children do not necessarily expose a native handle. */ }
+            host = host.Parent;
+        }
+        if (windowHandle == IntPtr.Zero)
+            return;
+
+        ShowWindow(windowHandle, SwRestore);
+        SetForegroundWindow(windowHandle);
+        Thread.Sleep(100);
     }
 
     public void DumpAutomationTree(AutomationElement element, string path)
@@ -824,6 +880,14 @@ public sealed class G1UiAutomationSession : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool PrintWindow(IntPtr windowHandle, IntPtr destinationDeviceContext, uint flags);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool SetForegroundWindow(IntPtr windowHandle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool ShowWindow(IntPtr windowHandle, int command);
+
     delegate bool EnumWindowCallback(IntPtr windowHandle, IntPtr parameter);
 
     [DllImport("user32.dll")]
@@ -845,6 +909,7 @@ public sealed class G1UiAutomationSession : IDisposable
     const uint CbSetCurrentSelection = 0x014E;
     const int CbnSelectionChanged = 1;
     const int MkLeftButton = 0x0001;
+    const int SwRestore = 9;
 
     [StructLayout(LayoutKind.Sequential)]
     struct NativePoint
@@ -881,7 +946,11 @@ public sealed record G1StatusConsoleState(
     string FirstRow,
     IReadOnlyList<string> Rows);
 
-public sealed record G1ChartState(string Tab, string AccessibleName, int DataPointCount);
+public sealed record G1ChartState(
+    string Tab,
+    string AccessibleName,
+    int DataPointCount,
+    int LinePixelSpan);
 
 public sealed record G1EconomicCalendarState(
     string CalendarDate,

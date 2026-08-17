@@ -505,6 +505,50 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(1, metrics.SourceSequenceGaps);
     }
 
+    [Fact]
+    public async Task Alternate_publisher_trade_uses_registered_contract_and_preserves_source_identity()
+    {
+        var valueDate = new DateOnly(2026, 8, 17);
+        var primary = new InstrumentKey(105, 181_038);
+        var offBook = new InstrumentKey(106, primary.InstrumentId);
+        using var feed = new FakeFeed(
+            primary,
+            Quote(primary, 100, 22_000_000_000, 22_100_000_000),
+            Trade(offBook, 1, 22_050_000_000));
+        var publisher = new CapturingPublisher();
+        var livePublisher = new CapturingLivePublisher();
+        var liveRouter = new TickLiveRouter(livePublisher);
+        Assert.True(liveRouter.Activate("ESU6"));
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(primary),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "XCBF.PITCH",
+                DefinitionDate = valueDate
+            },
+            liveRouter: liveRouter);
+
+        await service.StartAsync();
+        await service.StopAsync();
+
+        var durableTrade = Assert.Single(publisher.Trades);
+        Assert.Equal(offBook.PublisherId, durableTrade.PublisherId);
+        Assert.Equal(offBook.InstrumentId, durableTrade.InstrumentId);
+        var liveTrade = Assert.Single(livePublisher.Trades);
+        Assert.Equal(offBook.PublisherId, liveTrade.PublisherId);
+        Assert.Equal(offBook.InstrumentId, liveTrade.InstrumentId);
+        var metrics = service.GetMetrics();
+        Assert.Equal(1, metrics.SourceQuoteRecords);
+        Assert.Equal(1, metrics.SourceTradeRecords);
+        Assert.Equal(0, metrics.DuplicateSourceSequences);
+        Assert.Equal(0, metrics.OutOfOrderSourceSequences);
+        Assert.Equal(0, metrics.SourceSequenceGaps);
+    }
+
     private static MarketRecord64 Quote(InstrumentKey key, uint sequence, long bid, long ask) => new(
         new QuoteRecord64(
             new MarketRecordHeader32(key.InstrumentId, key.PublisherId, MarketRecordKind.Quote, 0, sequence, sequence, sequence),
@@ -590,6 +634,7 @@ public sealed class TickAggregationServiceTests
         public List<string> Order { get; } = [];
         public List<long> Sequences { get; } = [];
         public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
+        public List<FuturesTickTradeDataChangedEvent> Trades { get; } = [];
         public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrice { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ushort QuoteCount { get; private set; }
@@ -604,7 +649,10 @@ public sealed class TickAggregationServiceTests
         }
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)
         {
-            Order.Add("trade"); Sequences.Add(e.TickDataId.SequenceId); return ValueTask.CompletedTask;
+            Order.Add("trade");
+            Sequences.Add(e.TickDataId.SequenceId);
+            Trades.Add(e);
+            return ValueTask.CompletedTask;
         }
         public ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent e, ITickQuoteBufferLease lease)
         {

@@ -8,11 +8,13 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Domain.MarketData.Feed.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.MarketDataFeed;
@@ -56,6 +58,41 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
 
         public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
+    }
+
+    [Fact]
+    public async Task StartedComplete_ActivatesEveryFuturesTickStream_AndTheBarStream()
+    {
+        var actor = _fixture.CreateMarketDataFeedEventActor();
+        var context = Substitute.For<IEventActorContext>();
+        context.RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
+                Arg.Any<StartFuturesTickDataStreamingCommand>())
+            .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+        context.RequestAsync<StartFuturesBarDataStreamingCommand, FuturesBarDataStreamingId>(
+                Arg.Any<StartFuturesBarDataStreamingCommand>())
+            .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
+        var @event = CreateStartedCompleteEvent();
+
+        await actor.InvokeReceiveAsync(context, @event);
+
+        await context.Received(SampleData.FuturesContracts.Length)
+            .RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
+                Arg.Any<StartFuturesTickDataStreamingCommand>());
+        foreach (var contract in SampleData.FuturesContracts)
+        {
+            await context.Received(1)
+                .RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
+                    Arg.Is<StartFuturesTickDataStreamingCommand>(command =>
+                        command.Contract.ContractId == contract.ContractId
+                        && command.EntityId.ContractId == contract.ContractId
+                        && command.EntityId.ValueDate == @event.ValueDate));
+        }
+        await context.Received(1)
+            .RequestAsync<StartFuturesBarDataStreamingCommand, FuturesBarDataStreamingId>(
+                Arg.Is<StartFuturesBarDataStreamingCommand>(command =>
+                    command.ValueDate == @event.ValueDate
+                    && command.Contracts.Select(value => value.ContractId)
+                        .SequenceEqual(SampleData.FuturesContracts.Select(value => value.ContractId))));
     }
 
     static MarketDataFeedStartedEvent CreateStartedEvent(Guid? commandId = null)

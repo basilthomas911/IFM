@@ -84,7 +84,7 @@ Every step has one of these statuses:
 | G0-002 | Probe the configured NATS endpoint | Broker accepts a connection on the configured endpoint, normally port 4222 |
 | G0-003 | Probe required PostgreSQL, ScyllaDB, and Redis services | Each configured service reports reachable/ready, or the exact missing dependency is recorded |
 | G0-004 | Start `TomasAI.IFM.Application.Api.Server` in Development | Process remains alive and logs are captured |
-| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 83 registered actor types, independent of dynamically started entity instances |
+| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 84 registered actor types, including the framework command-exception terminal actor and independent of dynamically started entity instances |
 | G0-006 | Launch the configured desktop executable | Initial target is `TomasAI.IFM.UI.Net`; PID and start time are recorded |
 | G0-007 | Await desktop NATS readiness | A direct desktop-PID socket is recorded when the host exposes it; when a local container proxy owns the loopback socket, an active endpoint connection plus typed UI-initiated import traffic proves readiness without a fixed startup delay |
 | G0-008 | Find the responsive main window | `IFMAppView` appears, has the expected title, and responds to UI Automation |
@@ -186,7 +186,7 @@ G1 is a 15-step, non-short-circuiting process audit. It owns the API and desktop
 |---|---|---|
 | G1-001 | Validate configuration and exclusive process ownership | Development paths are valid and no competing IFM API, desktop, or G1 harness process exists |
 | G1-002 | Probe NATS, PostgreSQL, ScyllaDB, and Redis | All dependencies are reachable and typed event evidence starts |
-| G1-003 | Start the actor backend | Readiness is Healthy with 83 registered actor types |
+| G1-003 | Start the actor backend | Readiness is Healthy with 84 registered actor types |
 | G1-004 | Establish typed read-only baseline | Selector catalogs, ES/VX contracts, bars, lookup names, valid named funds, and calendar rows are queryable; any prior durable feed is stopped through its public command/event flow |
 | G1-005 | Launch the desktop and await initialized shell | Final startup status is visible and all five navigation actions are enabled |
 | G1-006 | Audit shell read-only state | Status history, market outlook/EOD values, ES chart, and VX-backed VIX chart visibly render |
@@ -227,21 +227,64 @@ The accepted Development baseline is run `20260817-030000-3f87f23d187b4e8a8b0153
 
 ## G2 — reversible command catalog
 
-The following workflows are understood well enough to specify, but they require isolated seed/cleanup fixtures before automation:
+G2 is a 38-step, non-short-circuiting process audit of the supported UI command paths. It owns the API and desktop processes, creates or selects only approved isolated test state, drives every operation through the real WinForms control, and verifies each command through its domain actor, correlated terminal event, durable query result, and visible UI state. It must not write a database table directly to establish an operation result or to hide a failed cleanup.
 
-- Start and stop the current market-data feed and observe correlated status/events.
-- Create, change, and remove futures contract definitions.
-- Create, change, and remove futures option definitions.
-- Create, change, and remove yield-curve records; exercise the provider import with the configured FMP credential or approved deterministic adapter.
-- Create, change, and remove economic-calendar records; exercise the provider import with the configured FMP credential or approved deterministic adapter.
-- Create, change, and remove lookup types/values where domain rules permit.
-- Create a test fund and reversible transactions, orders, and trades under a unique run prefix.
-- Run supported EOD actions only against an isolated deterministic dataset.
-- Run database backup only against an approved non-production test database and verify completion without changing the default operator environment.
+### G2 step register
 
-Existing Iron Condor screens, plans, positions, calculations, and stored order information are tested for restored behavior in G1 through G4. New broker-integrated order placement, broker interaction, simulated fills, automated execution, and paper-trade qualification remain G5 and depend on system roadmap Milestones B through E. They are not general CRUD smoke tests and are not required to accept Milestone A.
+| Step | Action | Required result |
+|---|---|---|
+| G2-001 | Validate configuration and exclusive process ownership | Development paths are valid; no competing IFM API, desktop, or G2 harness process exists; the target environment is explicitly non-production |
+| G2-002 | Probe NATS, PostgreSQL, ScyllaDB, and Redis | All configured dependencies are reachable before any mutation is permitted |
+| G2-003 | Validate the mutation safety policy | Approved database identities, backup destination, FMP credential or deterministic adapter, unique run prefix, fixture ownership, and cleanup strategy are recorded without secrets |
+| G2-004 | Start the actor backend | Readiness is Healthy and the expected actor catalog is registered |
+| G2-005 | Establish the reversible baseline | Typed queries capture every pre-existing row that a provider import or compensating operation may affect; no operator-owned row is selected for destructive maintenance |
+| G2-006 | Launch the desktop and await initialized shell | The real WinForms shell completes G0-equivalent initialization and enables the supported navigation actions |
+| G2-007 | Establish command evidence listeners | Required listeners are active before UI submission and can record command type, command ID, subject, exact-ID terminal complete/fail event, and listener teardown |
+| G2-008 | Start the current market-data feed from the UI | One start command is accepted, its correlated completion/status is observed, and the UI shows the active state |
+| G2-009 | Stop the current market-data feed from the UI | One stop command for the started feed completes, the UI shows the inactive state, and no feed process or producer remains owned by the run |
+| G2-010 | Add an isolated futures contract definition | A run-prefixed contract is created through the domain command, becomes durably queryable, and appears in the UI |
+| G2-011 | Change the isolated futures contract definition | The same logical fixture is changed through the domain command and the durable/UI projections show the new values exactly once |
+| G2-012 | Add an isolated futures option definition | A run-prefixed option linked to the isolated futures contract is created, queryable, and visible |
+| G2-013 | Change the isolated futures option definition | The option change completes with exact-ID correlation and both durable and visible state refresh |
+| G2-014 | Remove the isolated futures option definition | The option is removed before its parent contract and is absent from typed queries and the refreshed UI |
+| G2-015 | Remove the isolated futures contract definition | The parent contract is removed and no run-owned dependent definition remains |
+| G2-016 | Add an isolated yield-curve record manually | The editor uses the yield-curve domain add command; the row is durable and visible without invoking FMP |
+| G2-017 | Change the isolated yield-curve record manually | The editor uses the domain change command and the correlated durable/UI state reflects the change |
+| G2-018 | Remove the isolated yield-curve record manually | The editor uses the domain remove command and the row is absent from durable and visible state |
+| G2-019 | Import one treasury-curve date from the UI | The parameter-only import command reaches the domain actor; its main-event handler acquires through `IReferenceDataApi`, makes one 0..N bulk storage call, and emits the exact correlated complete or fail terminal event; complete requires the durable/UI result to match the accepted provider result, including zero rows |
+| G2-020 | Add an isolated economic-calendar record manually | The editor uses the MarketData domain add command; the row is durable and visible without invoking FMP |
+| G2-021 | Change the isolated economic-calendar record manually | The editor uses the domain change command and the durable/UI projections reflect the new values exactly once |
+| G2-022 | Remove the isolated economic-calendar record manually | The editor uses the domain remove command and the row is absent from the bounded date/country query and refreshed UI |
+| G2-023 | Import one economic-calendar date from the UI | The parameter-only import command reaches the domain actor; its main-event handler acquires through `IReferenceDataApi`, makes one 0..N bulk storage call, and emits the exact correlated complete or fail terminal event; complete requires bounded durable/UI results to match the accepted provider result, including zero rows |
+| G2-024 | Add an isolated lookup type/value | The run-prefixed lookup fixture is created only where domain rules permit and becomes queryable and selectable |
+| G2-025 | Change the isolated lookup type/value | The change completes through the domain command and all affected selectors refresh without duplication |
+| G2-026 | Remove the isolated lookup type/value | The fixture is removed in dependency-safe order and disappears from typed queries and selectors |
+| G2-027 | Resolve the designated G2 fund fixture | A valid named non-production fund is selected; if it does not exist, it may be created once through the public UI/domain command only when the environment declares it as a retained reusable fixture or provides an approved full reset path |
+| G2-028 | Create a reversible fund transaction | A run-referenced transaction completes through the domain command and changes the queried/displayed balance by the expected amount |
+| G2-029 | Compensate the fund transaction | A supported compensating transaction restores the baseline balance; append-only history remains auditable and both entries retain the run reference |
+| G2-030 | Add an isolated order to the G2 fund | The order command completes and the run-prefixed order is durable and visible under the selected fund |
+| G2-031 | Add an isolated trade to the order | The trade command completes and the run-prefixed trade is durable and visible under the selected order |
+| G2-032 | Change the isolated trade state | The supported state transition completes once and the durable/UI state agrees with the correlated event |
+| G2-033 | Remove the isolated trade from the order | The child trade is removed through its domain command and is absent from the refreshed order state |
+| G2-034 | Remove the isolated order from the fund | The parent order is removed after its trade and no run-owned order/trade state remains |
+| G2-035 | Run the supported EOD workflow | EOD runs only for the declared disposable dataset or reusable G2 fixture, every terminal fund-processing result is correlated, and all expected durable/UI outcomes are recorded |
+| G2-036 | Run an approved database backup | Only allowlisted non-production databases and the run-specific destination are submitted; each requested backup reports correlated completion/failure and any run-owned artifact is recorded for cleanup |
+| G2-037 | Restore imported baselines and clean run-owned state | Cleanup uses public domain commands or the declared environment reset path; imported treasury/calendar dates equal their captured baselines, compensated append-only records reconcile, and no unexplained run-prefixed mutable row or backup artifact remains |
+| G2-038 | Close normally and verify bounded cleanup | All editors and the shell close normally; command listeners, desktop/API processes, feed resources, and run-owned connections stop; the evidence set contains a terminal result and cleanup disposition for every attempted operation |
 
-Command tests record the command name, correlation ID, terminal command response/event, visible UI state change, and cleanup result. Clicking a button without observing the command outcome is insufficient.
+### G2 command and reversibility contract
+
+- A command step starts its terminal listener before the UI action, retains the returned command ID, accepts only the matching complete/fail event, and stops the listener after the bounded outcome. A retry is a new UI submission with a new command ID.
+- A successful step requires agreement among the terminal event, a typed durable query, and refreshed user-visible state. Clicking a control or receiving command acceptance alone is insufficient.
+- An expected validation rejection may prove that invalid input is blocked, but it does not replace the required successful command path. Unexpected fail or unobserved outcomes fail the relevant step while the audit continues to cleanup.
+- Direct CQL/SQL mutation is prohibited for operation verification and normal cleanup. A declared disposable-environment reset may be used only for append-only or otherwise non-removable fixtures, must be outside operator data, and must be recorded as part of the run's cleanup policy.
+- Manual yield-curve and economic-calendar add/change/remove steps are domain maintenance commands. Provider imports are separate transactional operations and must follow the parameter-only command/event flow defined by `Actor-Implementation-Conventions`: domain actor to `IReferenceDataApi`, canonical 0..N records, one bulk storage API call, then a correlated complete or fail event. Neither the UI nor storage may call FMP directly.
+- Live FMP execution requires `FMP_API_KEY` in the API Server environment. An approved deterministic adapter may replace the live provider for repeatability. Provider values are accepted as external input; G2 verifies authentication, mapping, persistence, correlation, and rendering rather than independently certifying the financial values.
+- Provider-import dates must be isolated or captured and restored exactly. A zero-row response is a successful import when the matching complete event and empty bulk persistence path are observed.
+- The designated G2 fund is reusable because the current UI exposes creation but no general fund-removal lifecycle. Per-run transactions use compensating entries; per-run orders and trades are removed child-first. If the environment cannot retain a named fixture or reset it safely, G2-027 is `BlockedDependency` and G2 cannot pass.
+- EOD is permitted only against an explicitly disposable dataset or a reusable fixture whose postconditions and reset policy are declared before the run. Database backup is permitted only for allowlisted non-production databases and must not alter the operator's default environment.
+
+Existing Iron Condor screens, plans, positions, calculations, and stored order information are tested for restored behavior in G1 through G4. New broker-integrated order placement, broker interaction, simulated fills, automated execution, and paper-trade qualification remain G5 and depend on system roadmap Milestones B through E. They are not G2 maintenance commands and are not required to accept Milestone A.
 
 ## G3 — NATS event and streaming catalog
 

@@ -3,6 +3,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -55,28 +56,39 @@ public static async ValueTask<bool> ExecuteAsync(
             {
                 foreach (var o in e.Contracts!)
                 {
-                    var futuresTickData = await context.GetLastFuturesTickDataAsync(o.ContractId, e.ValueDate);
-                    if (futuresTickData is not null)
+                    if (!p.MarketDataApi.TryGetLastTickPrice(o.ContractId, out var snapshot)
+                        || snapshot.Trade is not { } trade)
+                        continue;
+
+                    if (snapshot.AssetTypeId != AssetTypeId.Futures
+                        || !StringComparer.Ordinal.Equals(snapshot.ContractId, o.ContractId)
+                        || snapshot.ValueDate != e.ValueDate)
                     {
-                        switch (o.Symbol)
-                        {
-                            case "ES":
-                            case "VX":
-                                var futuresTradeSignal = await context.GetLastFuturesTradeSignalAsync(o.Symbol, e.ValueDate);
-                                await commandApi.InsertFuturesBarDataAsync(new FuturesBarDataReadModel(
-                                    contractId: o.ContractId,
-                                    symbol: o.Symbol,
-                                    valueDate: e.ValueDate,
-                                    barDate: DateTime.Now,
-                                    barRateType: BarRateType.Minute,
-                                    barValue: Convert.ToDecimal(futuresTickData?.Price),
-                                    upTrendTrigger: futuresTradeSignal?.UpTrendingTrigger ?? 0,
-                                    downTrendTrigger: futuresTradeSignal?.DownTrendingTrigger ?? 0
-                                ));
-                                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Inserted Futures Bar Data {o.ContractId}");
-                                p.Logger.LogInformationEvent(ServiceId, "{Source}", $"inserted futures bar data {o.ContractId}");
-                                break;
-                        }
+                        p.Logger.LogInformationEvent(
+                            ServiceId,
+                            "{Source}: ignored mismatched hot-cache snapshot for {ContractId}",
+                            source,
+                            o.ContractId);
+                        continue;
+                    }
+
+                    switch (o.Symbol)
+                    {
+                        case "ES":
+                        case "VX":
+                            await commandApi.InsertFuturesBarDataAsync(new FuturesBarDataReadModel(
+                                contractId: o.ContractId,
+                                symbol: o.Symbol,
+                                valueDate: e.ValueDate,
+                                barDate: DateTime.UtcNow,
+                                barRateType: BarRateType.Minute,
+                                barValue: trade.LastPrice,
+                                upTrendTrigger: 0,
+                                downTrendTrigger: 0
+                            ));
+                            await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Inserted Futures Bar Data {o.ContractId}");
+                            p.Logger.LogInformationEvent(ServiceId, "{Source}", $"inserted futures bar data {o.ContractId}");
+                            break;
                     }
                 }
             }

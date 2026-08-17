@@ -3,6 +3,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event;
@@ -23,21 +25,39 @@ public static class MarketDataFeedStartedComplete
     /// <param name="p"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this MarketDataFeedStartedCompleteEvent e, IEventActorContext context, MarketDataFeedEventParameters p)
+        this MarketDataFeedStartedCompleteEvent e,
+        IEventActorContext context,
+        IActorMarketDataFeedCommandApi commandApi,
+        MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedStartedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            foreach (var o in e.FuturesContracts!)
+            foreach (var futuresContract in e.FuturesContracts!)
             {
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Starting to stream Futures {o.ContractId}...");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: starting to stream Futures {ContractId}...", source, o.ContractId);
-                await Task.Delay(TimeSpan.FromSeconds(2));
-                //await state.StartFuturesTickDataStreamingAsync(o, new FuturesDataId(o.ContractId, e.ValueDate));
-                await p.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.MarketDataFeedEvent, $"Streaming Futures {o.ContractId} started");
-                p.Logger.LogInformationEvent(ServiceId, "{Source}: streaming Futures {ContractId} started", source, o.ContractId);
+                await p.StatusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.MarketDataFeedEvent,
+                    $"Starting to stream Futures {futuresContract.ContractId}...");
+                p.Logger.LogInformationEvent(
+                    ServiceId,
+                    "{Source}: starting to stream Futures {ContractId}...",
+                    source,
+                    futuresContract.ContractId);
+                var entityId = new FuturesDataId(futuresContract.ContractId, e.ValueDate);
+                await commandApi.StartFuturesTickDataStreamingAsync(e, futuresContract, entityId);
+                await p.StatusConsoleWriter.WriteConsoleAsync(
+                    LogSourceType.MarketDataFeedEvent,
+                    $"Streaming Futures {futuresContract.ContractId} started");
+                p.Logger.LogInformationEvent(
+                    ServiceId,
+                    "{Source}: streaming Futures {ContractId} started",
+                    source,
+                    futuresContract.ContractId);
             }
-            //await state.StartFuturesBarDataStreamingAsync(new FuturesBarDataStreamingId(e.ValueDate));
+
+            await commandApi.StartFuturesBarDataStreamingAsync(
+                e,
+                new FuturesBarDataStreamingId(e.ValueDate));
             return true;
         }
         catch (Exception ex)

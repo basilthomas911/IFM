@@ -459,6 +459,16 @@ public static class Startup
                 .Get<DatabentoContractRegistration[]>() ?? [];
             var feedOptions = DatabentoFeedOptions.ForProfile(
                 deploymentProfile, dataset);
+            var dataSourceName = config.GetValue<string>(
+                "AppSettings:Databento:DataSource");
+            if (Enum.TryParse<FeedDataSourceMode>(
+                    dataSourceName, true, out var configuredDataSource))
+            {
+                feedOptions = feedOptions with
+                {
+                    DataSource = configuredDataSource
+                };
+            }
             var configuredSynthetic = config
                 .GetSection("AppSettings:Databento:Synthetic")
                 .Get<SyntheticFeedOptions>();

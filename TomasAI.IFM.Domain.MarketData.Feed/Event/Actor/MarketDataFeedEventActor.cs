@@ -42,10 +42,10 @@ public class MarketDataFeedEventActor(
             var e = (evt as MarketDataFeedStartedEvent)!;
             return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedStartedCompleteEvent).Name] = async (evt, ctx, _, _, eventParams) =>
+        [typeof(MarketDataFeedStartedCompleteEvent).Name] = async (evt, ctx, commandApi, _, eventParams) =>
         {
             var e = (evt as MarketDataFeedStartedCompleteEvent)!;
-            return await e.ExecuteAsync(ctx, eventParams);
+            return await e.ExecuteAsync(ctx, commandApi, eventParams);
         },
         [typeof(MarketDataFeedStoppedEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
         {

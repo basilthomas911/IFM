@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
 	<ServerGarbageCollection>true</ServerGarbageCollection>
 	<GenerateDocumentationFile>true</GenerateDocumentationFile>
-	<NoWarn>$(NoWarn);CS1591</NoWarn>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
 	<ItemGroup>

@@ -36,6 +36,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private IReadOnlyList<TickerInstrumentRegistration> _registrations =
         Array.Empty<TickerInstrumentRegistration>();
     private Dictionary<InstrumentKey, ChannelState> _channels = new();
+    private Dictionary<uint, ChannelState> _channelsByInstrumentId = new();
     private ChannelState[] _channelStates = [];
     private bool _started;
     private bool _stopCompleted;
@@ -656,6 +657,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
 
         var registrations = new TickerInstrumentRegistration[mappingCount];
         var channels = new Dictionary<InstrumentKey, ChannelState>(checked((int)mappingCount));
+        var channelsByInstrumentId = new Dictionary<uint, ChannelState>(checked((int)mappingCount));
         var channelSlots = _options.ManagedChannelRecordCapacity
                            / _options.ManagedBatchRecordCapacity;
         ChannelState? sharedState = null;
@@ -695,6 +697,18 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             {
                 throw new InvalidOperationException($"Duplicate native instrument mapping {key}.");
             }
+            if (channelsByInstrumentId.TryGetValue(key.InstrumentId, out var existingState))
+            {
+                if (!ReferenceEquals(existingState, state))
+                {
+                    throw new InvalidOperationException(
+                        $"Native instrument {key.InstrumentId} maps to multiple ticker channels.");
+                }
+            }
+            else
+            {
+                channelsByInstrumentId.Add(key.InstrumentId, state);
+            }
             if (!_singleChannel)
             {
                 states[index] = state;
@@ -705,6 +719,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 key);
         }
         _channels = channels;
+        _channelsByInstrumentId = channelsByInstrumentId;
         _channelStates = states;
         Array.Sort(registrations, static (left, right) =>
         {
@@ -858,7 +873,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private void RouteRecord(in MarketRecord64 record)
     {
         var key = new InstrumentKey(record.Header.PublisherId, record.Header.InstrumentId);
-        if (!_channels.TryGetValue(key, out var state))
+        if (!_channels.TryGetValue(key, out var state)
+            && !_channelsByInstrumentId.TryGetValue(key.InstrumentId, out state))
         {
             throw new InvalidDataException($"Native record referenced unknown instrument {key}.");
         }

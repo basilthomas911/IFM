@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 
@@ -25,6 +26,7 @@ public class FuturesBarDataEventActor(
     IActorMarketDataFeedCommandApiFactory commandApiFactory,
     IActorMarketDataFeedEventApiFactory eventApiFactory,
     IFuturesBarDataTimer futuresBarTimer,
+    ApplicationMarketDataApi marketDataApi,
     IStatusConsoleWriter statusConsoleWriter,
     ILogger<FuturesBarDataEventActor> logger)
     : BaseEventActor<FuturesBarDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
@@ -33,7 +35,7 @@ public class FuturesBarDataEventActor(
     IActorMarketDataFeedCommandApi? _commandApi;
     IActorMarketDataFeedEventApi? _eventApi;
     readonly FuturesBarDataEventParameters _eventParameters = new(
-        futuresBarTimer, statusConsoleWriter, logger);
+        futuresBarTimer, marketDataApi, statusConsoleWriter, logger);
     readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorMarketDataFeedEventApi, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesBarDataStreamingStartedEvent).Name] = async (evt, context, commandApi, eventApi, eventParams) =>
