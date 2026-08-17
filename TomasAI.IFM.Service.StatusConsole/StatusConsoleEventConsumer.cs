@@ -13,7 +13,8 @@ namespace TomasAI.IFM.Service.StatusConsole;
 /// </summary>
 /// <remarks>
 /// Extends <see cref="NatsActorEventListener"/> and implements <see cref="IStatusConsoleEventConsumer"/>.
-/// The consumer listens on the <c>StatusConsoleEvent</c> actor mailbox for the <c>Logged</c> verb.
+/// The consumer listens on the non-durable <c>Notify.StatusConsoleEvent</c> actor mailbox for the
+/// <c>Logged</c> verb.
 /// Only events that pass <see cref="StatusConsoleLoggedEvent.IsValid"/> are forwarded to the action.
 /// </remarks>
 /// <param name="options">NATS event listener configuration options (connection, retry, subject prefix, etc.).</param>
@@ -28,7 +29,7 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
     /// to the provided <paramref name="eventAction"/> callback.
     /// </summary>
     /// <remarks>
-    /// Subscribes to the <c>StatusConsoleEvent / Logged</c> actor mailbox. Each received message is
+    /// Subscribes to the <c>Notify / StatusConsoleEvent / Logged</c> actor mailbox. Each received message is
     /// deserialised into a <see cref="StatusConsoleLoggedEvent"/> and passed to <paramref name="eventAction"/>
     /// only when <see cref="StatusConsoleLoggedEvent.IsValid"/> is <see langword="true"/>.
     /// </remarks>
@@ -40,7 +41,7 @@ public class StatusConsoleEventConsumer(INatsEventListenerOptions options, ILogg
             "StatusConsoleEventListener",
             new()
             {
-                [new ActorMailboxId(ActorType.Event, StatusConsoleLoggedEvent.Actor)] = [StatusConsoleLoggedEvent.Verb]
+                [new ActorMailboxId(ActorType.Notify, StatusConsoleLoggedEvent.Actor)] = [StatusConsoleLoggedEvent.Verb]
             },
             EventHandlerAsync
         );

@@ -30,6 +30,21 @@ public class FundTransactionEditorViewModelTests
     }
 
     [Fact]
+    public async Task LoadFundsOperation_ExcludesUnnamedLegacyFunds()
+    {
+        var named = CreateFund();
+        var unnamed = named with { FundId = 8, Name = " " };
+        var (viewModel, api) = CreateSubject();
+        api.GetFundsAsync().Returns(Task.FromResult<ServiceResult<FundReadModel[]>>(
+            new ServiceOk<FundReadModel[]>([named, unnamed])));
+
+        await viewModel.LoadFundsOperation.ExecuteAsync();
+
+        viewModel.Funds.Should().Equal(named);
+        viewModel.GetFundId(0).Should().Be(named.FundId);
+    }
+
+    [Fact]
     public async Task LoadFundDetailsOperation_PublishesOneConsistentSnapshot()
     {
         var transaction = CreateTransaction();

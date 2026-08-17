@@ -93,6 +93,10 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
                 .Select(value => value.index)
                 .DefaultIfEmpty(-1)
                 .First();
+            ddlCountryCodes.AccessibleName = string.IsNullOrWhiteSpace(_viewModel.SelectedCountryCode)
+                ? "Economic calendar country"
+                : $"Economic calendar country: {_viewModel.SelectedCountryCode}";
+            ddlCountryCodes.AccessibleDescription = string.Join(", ", _viewModel.CountryCodes);
         }
         finally
         {
@@ -131,6 +135,7 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
 
         var selected = _viewModel.SelectedEconomicCalendar;
         txtCalendarDate.Text = _viewModel.CalendarDate;
+        txtCalendarDate.AccessibleDescription = txtCalendarDate.Text;
         txtActual.Text = selected?.Actual ?? string.Empty;
         txtForecast.Text = selected?.Forecast ?? string.Empty;
         txtPrior.Text = selected?.Prior ?? string.Empty;

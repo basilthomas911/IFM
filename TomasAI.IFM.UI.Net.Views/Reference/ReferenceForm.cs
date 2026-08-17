@@ -72,6 +72,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
      async void ddlReferenceDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
+        UpdateSelectorAccessibility();
         await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
         var mktDataDefType = _viewModel?.GetReferenceDataDefinitionType(ddlReferenceDataSelector.SelectedIndex);
@@ -167,10 +168,18 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
         foreach (var definitionType in _viewModel.ReferenceDataDefinitionTypes)
             ddlReferenceDataSelector.Items.Add(definitionType.Description);
+        ddlReferenceDataSelector.AccessibleDescription = string.Join(", ",
+            _viewModel.ReferenceDataDefinitionTypes.Select(definition => definition.Description));
 
         if (ddlReferenceDataSelector.Items.Count > 0)
             ddlReferenceDataSelector.SelectedIndex = 0;
+        UpdateSelectorAccessibility();
     }
+
+    void UpdateSelectorAccessibility()
+        => ddlReferenceDataSelector.AccessibleName =
+            $"Reference data selector; selected={ddlReferenceDataSelector.SelectedItem}; "
+            + $"catalog: {ddlReferenceDataSelector.AccessibleDescription}";
 
     public void Open()
     {

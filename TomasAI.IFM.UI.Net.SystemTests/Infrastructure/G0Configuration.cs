@@ -34,6 +34,9 @@ public sealed class G0Configuration
     public static bool LiveRunEnabled
         => string.Equals(Environment.GetEnvironmentVariable("IFM_RUN_UI_G0"), "1", StringComparison.Ordinal);
 
+    public static bool G1LiveRunEnabled
+        => string.Equals(Environment.GetEnvironmentVariable("IFM_RUN_UI_G1"), "1", StringComparison.Ordinal);
+
     public static G0Configuration Load()
     {
         var repositoryRoot = FindRepositoryRoot();

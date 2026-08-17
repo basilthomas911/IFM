@@ -19,7 +19,7 @@ This specification defines the legacy WinForms system-test harness and the UI jo
 
 These are process-level UI system tests, not substitutes for Model, ViewModel, actor, or service unit and integration tests. They launch the real desktop executable, observe it through Windows UI Automation, and exercise the same NATS command, query, and event paths used by an operator.
 
-The first implementation work package is G0. The remaining catalog is documented now so its data, diagnostic, and automation requirements are visible before implementation.
+G0 and G1 are implemented and have accepted Development baselines. G2 is the next restoration work package; the later catalog remains documented so its data, diagnostic, and automation requirements are visible before implementation.
 
 G0 through G4 validate Milestone A, the legacy operational restoration defined in [`IFM Operational Restoration and Trading Capability Roadmap`](../../Documents/system/IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). They restore and prove the previously existing system behavior; they do not constitute paper-trading readiness. Complete paper trading is a later system capability program requiring Milestones B through F.
 
@@ -178,6 +178,28 @@ The API Server HTTP readiness URL may be present in harness configuration. It mu
 
 ## G1 — navigation and read-only query catalog
 
+G1 is a 15-step, non-short-circuiting process audit. It owns the API and desktop processes, establishes its typed NATS query baseline before opening the UI, captures screenshots and UI Automation trees, and removes every owned process/listener during cleanup.
+
+### G1 step register
+
+| Step | Action | Required result |
+|---|---|---|
+| G1-001 | Validate configuration and exclusive process ownership | Development paths are valid and no competing IFM API, desktop, or G1 harness process exists |
+| G1-002 | Probe NATS, PostgreSQL, ScyllaDB, and Redis | All dependencies are reachable and typed event evidence starts |
+| G1-003 | Start the actor backend | Readiness is Healthy with 83 registered actor types |
+| G1-004 | Establish typed read-only baseline | Selector catalogs, ES/VX contracts, bars, lookup names, valid named funds, and calendar rows are queryable; any prior durable feed is stopped through its public command/event flow |
+| G1-005 | Launch the desktop and await initialized shell | Final startup status is visible and all five navigation actions are enabled |
+| G1-006 | Audit shell read-only state | Status history, market outlook/EOD values, ES chart, and VX-backed VIX chart visibly render |
+| G1-007 | Audit economic-calendar ranges | Today, Yesterday, Tomorrow, This Week, and Next Week render their date/filter/result state |
+| G1-008 | Audit Market Data catalog | Futures options, futures contracts, and yield-curve views render; visible contract rows match typed queries |
+| G1-009 | Audit Reference catalog | Lookup-type and economic-calendar definition views render; lookup rows match typed queries |
+| G1-010 | Audit Funds destination | Valid named funds, selected balance, transactions, and profit/loss render without a command |
+| G1-011 | Audit Trade destination | Valid named funds, existing orders/trades, and selection-aware action states render without order submission |
+| G1-012 | Audit supported System Administration destinations | The non-mutating Backup Databases view renders; legacy `JobScheduler` reference data remains deferred until the scheduled-task redesign |
+| G1-013 | Reopen a destination | Market Data reopens once with the same catalog and no stale or duplicate modal |
+| G1-014 | Request normal application close | No secondary window remains and the main window accepts a normal close |
+| G1-015 | Verify bounded cleanup | Desktop exits normally, listeners stop, no error-coded status remains, and the harness-owned API is removed |
+
 ### Shell and navigation
 
 - Verify startup actions are disabled until initialization permits them and then enabled consistently.
@@ -200,6 +222,8 @@ Current WinForms identities include `IFMAppView`, `tradeButton`, `marketDataButt
 - System administration: configured database names and available non-mutating status/details.
 
 Each query test validates both actor success/correlation evidence and user-visible rendered state. A successful backend response with a stale or empty UI is a test failure.
+
+The accepted Development baseline is run `20260817-030000-3f87f23d187b4e8a8b015356b70ef75e`: all 15 required checks passed in 3 minutes 6 seconds and cleanup succeeded. It rendered 2,430 ES option contracts, 7 futures contracts, 25 lookup names, 12 valid named funds, all five calendar ranges, both sidebar graphs, and the complete supported selector catalog. The reviewed result is retained in [`TestResults/G1-Development-2026-08-17.md`](TestResults/G1-Development-2026-08-17.md).
 
 ## G2 — reversible command catalog
 
@@ -303,16 +327,20 @@ dotnet restore TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csp
 dotnet build TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-restore -p:DatabentoEnableLive=true
 ```
 
-G0 is implemented as an opt-in process test. Execute it in an unlocked interactive Windows session with the approved Development services and deterministic data:
+G0 and G1 are implemented as opt-in process tests. Execute them one at a time in an unlocked interactive Windows session with the approved Development services and deterministic data:
 
 ```powershell
 $env:FMP_API_KEY = '<credential>'
 $env:IFM_RUN_UI_G0 = '1'
 dotnet test TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-build --filter Category=G0Process
+
+$env:IFM_RUN_UI_G0 = $null
+$env:IFM_RUN_UI_G1 = '1'
+dotnet test TomasAI.IFM.UI.Net.SystemTests/TomasAI.IFM.UI.Net.SystemTests.csproj --no-build --filter Category=G1Process
 ```
 
 Normal test runs do not launch the API Server or desktop. The non-process infrastructure coverage is selected with `--filter Category=G0Infrastructure`. Defaults and the complete `IFM_G0_*` override schema are documented in `TomasAI.IFM.UI.Net.SystemTests/Startup/README.md` and enforced by `G0Configuration`.
 
 ## Acceptance
 
-G0 is the first restoration gate. It passes only when every required G0 step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, or `NotRun`. The FMP implementation is present; the run must supply valid provider credentials or the approved deterministic adapter, usable Development infrastructure, a current ES contract, and deterministic current-market data. It must also observe successful terminal completion for both startup imports and all 24 intraday analytics actor starts. Existing NATS transport and lower-level integration verification are prerequisites, not substitutes for this desktop process evidence. Milestone A acceptance requires G0 through G4 and operator confirmation; G5 is outside the restoration milestone.
+G0 and G1 are accepted. A gate passes only when every required step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, `SkippedDependency`, or `NotRun`. The FMP implementation is present; the run must supply valid provider credentials or the approved deterministic adapter, usable Development infrastructure, current ES/VX contracts, and deterministic current-market data. Existing NATS transport and lower-level integration verification are prerequisites, not substitutes for desktop process evidence. G2 through G4 and operator confirmation remain required for Milestone A; G5 is outside the restoration milestone.

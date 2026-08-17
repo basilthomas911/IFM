@@ -21,9 +21,24 @@ public static class G0DevelopmentDataFixture
     {
         var valueDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var eodSeeded = await EnsureEodAsync(session, contract, valueDate, timeout, cancellationToken);
-        var barSeeded = await EnsureBarAsync(session, contract, valueDate, timeout, cancellationToken);
+        var barSeeded = await EnsureBarCoreAsync(session, contract, valueDate, timeout, cancellationToken);
         return new G0DevelopmentSeedResult(valueDate, eodSeeded, barSeeded);
     }
+
+    /// <summary>
+    /// Ensures a current bar exists for a secondary displayed contract without changing its EOD state.
+    /// </summary>
+    public static Task<bool> EnsureBarAsync(
+        G0QuerySession session,
+        FuturesContractV2ReadModel contract,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => EnsureBarCoreAsync(
+            session,
+            contract,
+            DateOnly.FromDateTime(DateTime.UtcNow),
+            timeout,
+            cancellationToken);
 
     static async Task<bool> EnsureEodAsync(
         G0QuerySession session,
@@ -76,7 +91,7 @@ public static class G0DevelopmentDataFixture
         return true;
     }
 
-    static async Task<bool> EnsureBarAsync(
+    static async Task<bool> EnsureBarCoreAsync(
         G0QuerySession session,
         FuturesContractV2ReadModel contract,
         DateOnly valueDate,
@@ -95,7 +110,7 @@ public static class G0DevelopmentDataFixture
             valueDate,
             DateTime.UtcNow,
             BarRateType.Minute,
-            barValue: 5400m,
+            barValue: contract.Symbol == "VX" ? 20m : 5400m,
             upTrendTrigger: 0.65,
             downTrendTrigger: 0.35);
         var response = await session.MarketDataFeedCommands.InsertFuturesBarDataAsync(bar)

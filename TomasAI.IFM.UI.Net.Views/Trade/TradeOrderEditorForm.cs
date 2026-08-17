@@ -200,7 +200,10 @@ public partial class TradeOrderEditorForm
             ddlFund.Items.Clear();
             foreach (var fund in _viewModel.Funds)
                 ddlFund.Items.Add(fund.Name);
+            ddlFund.AccessibleDescription = string.Join(", ", _viewModel.Funds.Select(fund => fund.Name));
             ddlFund.SelectedIndex = _viewModel.FundSelectedIndex;
+            ddlFund.AccessibleName = $"Trade fund selector; selected={ddlFund.SelectedItem}; "
+                + $"catalog: {ddlFund.AccessibleDescription}";
         }
         finally
         {

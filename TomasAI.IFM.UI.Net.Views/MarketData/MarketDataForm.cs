@@ -64,6 +64,7 @@ public partial class MarketDataForm
 
     private async void ddlMarketDataSelector_SelectedIndexChanged(object sender, EventArgs e)
     {
+        UpdateSelectorAccessibility();
         ResetButtons(true);
         await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
@@ -164,9 +165,17 @@ public partial class MarketDataForm
             return;
         foreach (var definition in _viewModel.DefinitionTypes)
             ddlMarketDataSelector.Items.Add(definition.Description);
+        ddlMarketDataSelector.AccessibleDescription = string.Join(", ",
+            _viewModel.DefinitionTypes.Select(definition => definition.Description));
         if (ddlMarketDataSelector.Items.Count > 0)
             ddlMarketDataSelector.SelectedIndex = 0;
+        UpdateSelectorAccessibility();
     }
+
+    void UpdateSelectorAccessibility()
+        => ddlMarketDataSelector.AccessibleName =
+            $"Market data selector; selected={ddlMarketDataSelector.SelectedItem}; "
+            + $"catalog: {ddlMarketDataSelector.AccessibleDescription}";
 
     void LoadOperation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {

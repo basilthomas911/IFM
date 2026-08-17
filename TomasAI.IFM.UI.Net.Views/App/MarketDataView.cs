@@ -39,6 +39,8 @@ public partial class MarketDataView : UserControl
                 default:
                     return;
             }
+            graph.AccessibleName = $"{symbol} futures bar chart";
+            graph.AccessibleDescription = $"{futuresBarData.Length} futures bar data point(s)";
             var upTrendTrigger = Convert.ToDecimal(futuresBarData?.LastOrDefault()?.UpTrendTrigger ?? 0);
             var downTrendTrigger = Convert.ToDecimal(futuresBarData?.LastOrDefault()?.DownTrendTrigger ?? 0);
             var maximum = upTrendTrigger > 0
@@ -53,8 +55,14 @@ public partial class MarketDataView : UserControl
             graph.ChartAreas[0].AxisY2.Interval = 0.0;
             graph.ChartAreas[0].AxisY2.IntervalType = DateTimeIntervalType.Number;
             graph.ChartAreas[0].AxisY2.IsStartedFromZero = false;
-            graph.ChartAreas[0].AxisY2.Minimum = Convert.ToInt32( (symbol == "ES" ? minimum : Convert.ToDouble(futuresBarData?.Min(e => e.BarValue) ?? 0))  - minMaxOffset );
-            graph.ChartAreas[0].AxisY2.Maximum = Convert.ToInt32( (symbol == "ES" ? maximum : Convert.ToDouble(futuresBarData?.Max(e => e.BarValue) ?? 0)) + minMaxOffset );
+            var displayedMinimum = symbol == "ES"
+                ? minimum
+                : Convert.ToDouble(futuresBarData.Min(e => e.BarValue));
+            var displayedMaximum = symbol == "ES"
+                ? maximum
+                : Convert.ToDouble(futuresBarData.Max(e => e.BarValue));
+            graph.ChartAreas[0].AxisY2.Minimum = displayedMinimum - minMaxOffset;
+            graph.ChartAreas[0].AxisY2.Maximum = displayedMaximum + minMaxOffset;
             graph.Series[0].Points.Clear();
             if (graph.Series.Count > 1)
             {

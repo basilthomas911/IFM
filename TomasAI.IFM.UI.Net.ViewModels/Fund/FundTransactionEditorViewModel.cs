@@ -89,7 +89,7 @@ public sealed class FundTransactionEditorViewModel : ObservableObject
             {
                 FundReadModel[] funds = [];
                 await model.GetFundsAsync(loaded => funds = loaded ?? []);
-                Funds = funds;
+                Funds = funds.Where(fund => !string.IsNullOrWhiteSpace(fund.Name)).ToArray();
             },
             cancellationToken);
 

@@ -47,7 +47,7 @@ public sealed class G0EvidenceWriter
         await File.WriteAllTextAsync(Path.Combine(RunDirectory, "result.json"), json, cancellationToken).ConfigureAwait(false);
 
         StringBuilder summary = new();
-        summary.AppendLine("# IFM UI G0 process audit");
+        summary.AppendLine($"# IFM UI {result.Gate} process audit");
         summary.AppendLine();
         summary.AppendLine($"- Run: `{result.RunId}`");
         summary.AppendLine($"- Environment: `{result.Environment}`");

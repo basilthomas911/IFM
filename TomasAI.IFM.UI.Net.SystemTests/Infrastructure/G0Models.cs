@@ -31,6 +31,8 @@ public sealed record G0StepResult(
 
 public sealed class G0RunResult
 {
+    public string Gate { get; init; } = "G0";
+    public int ExpectedStepCount { get; init; } = 25;
     public required string RunId { get; init; }
     public required string Environment { get; init; }
     public required DateTimeOffset StartedUtc { get; init; }
@@ -44,7 +46,7 @@ public sealed class G0RunResult
     public List<G0StepResult> Steps { get; } = [];
 
     public bool Passed => CleanupSucceeded
-        && Steps.Count == 25
+        && Steps.Count == ExpectedStepCount
         && Steps.All(step => step.Status == G0StepStatus.Passed);
 }
 

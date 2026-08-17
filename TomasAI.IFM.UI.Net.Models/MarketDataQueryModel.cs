@@ -15,6 +15,7 @@ namespace TomasAI.IFM.UI.Net.Models;
 public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQueryApi queryFeedApi)
     : BaseModel<MarketDataQueryModel>
 {
+    static readonly string[] DashboardSymbols = ["ES", "VX"];
     readonly IMarketDataQueryApi _queryApi = IsArgumentNull.Set(queryApi);
     readonly IMarketDataFeedQueryApi _queryFeedApi = IsArgumentNull.Set(queryFeedApi);
 
@@ -88,11 +89,28 @@ public class MarketDataQueryModel(IMarketDataQueryApi queryApi, IMarketDataFeedQ
     /// load currently traded futures contract
     /// </summary>
     /// <param name="onCompleted"></param>
-    public async Task GetCurrentlyTradedFuturesContractsAsync(Action< ICollection<FuturesContractV2ReadModel>> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetCurrentlyTradedFuturesContractsAsync("ES"), onCompleted);
+    public async Task GetCurrentlyTradedFuturesContractsAsync(Action<ICollection<FuturesContractV2ReadModel>> onCompleted)
+    {
+        ArgumentNullException.ThrowIfNull(onCompleted);
+        List<FuturesContractV2ReadModel> contracts = [];
+        foreach (var symbol in DashboardSymbols)
+        {
+            await ExecuteAsync(
+                () => _queryApi.GetCurrentlyTradedFuturesContractsAsync(symbol),
+                values => contracts.AddRange(values));
+        }
+        onCompleted(contracts
+            .DistinctBy(contract => contract.ContractId)
+            .ToArray());
+    }
 
-    public Task GetCurrentlyTradedFuturesContractsAsync(Func<ICollection<FuturesContractV2ReadModel>, Task> onCompleted)
-        => ExecuteAsync(() => _queryApi.GetCurrentlyTradedFuturesContractsAsync("ES"), onCompleted);
+    public async Task GetCurrentlyTradedFuturesContractsAsync(Func<ICollection<FuturesContractV2ReadModel>, Task> onCompleted)
+    {
+        ArgumentNullException.ThrowIfNull(onCompleted);
+        ICollection<FuturesContractV2ReadModel> contracts = [];
+        await GetCurrentlyTradedFuturesContractsAsync(values => contracts = values);
+        await onCompleted(contracts);
+    }
 
     /// <summary>
     /// load single futures option contract

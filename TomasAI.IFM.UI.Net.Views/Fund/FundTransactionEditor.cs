@@ -191,8 +191,11 @@ public partial class FundTransactionEditor
             return;
         foreach (var fund in _viewModel.Funds)
             ddlFund.Items.Add(fund.Name);
+        ddlFund.AccessibleDescription = string.Join(", ", _viewModel.Funds.Select(fund => fund.Name));
         if (ddlFund.Items.Count > 0)
             ddlFund.SelectedIndex = 0;
+        ddlFund.AccessibleName = $"Fund selector; selected={ddlFund.SelectedItem}; "
+            + $"catalog: {ddlFund.AccessibleDescription}";
     }
 
     void BindFundDetails()

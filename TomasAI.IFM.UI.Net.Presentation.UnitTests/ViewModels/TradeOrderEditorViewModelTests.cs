@@ -44,6 +44,20 @@ public class TradeOrderEditorViewModelTests
     }
 
     [Fact]
+    public async Task LoadOperation_ExcludesUnnamedLegacyFunds()
+    {
+        var subject = CreateSubject();
+        subject.QueryApi.GetFundsAsync().Returns(new ServiceOk<FundReadModel[]>(
+            [Fund(), Fund() with { FundId = 18, Name = string.Empty }]));
+
+        await subject.ViewModel.LoadOperation.ExecuteAsync();
+
+        subject.ViewModel.Funds.Should().ContainSingle(fund => fund.Name == "Paper");
+        subject.ViewModel.SelectedFund!.FundId.Should().Be(17);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task AddOrder_AwaitsOnlyItsCorrelatedTerminalEventAndRefreshesState()
     {
         var commandId = Guid.NewGuid();

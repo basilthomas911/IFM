@@ -88,6 +88,10 @@ Existing legacy screens or records that mention orders or trades are validated o
 - The operator confirms that the system has returned to the last-known usable operational baseline with the current improvements.
 - CommunityToolkit.Mvvm, R3, `IAsyncEnumerable` event listeners, WPF migration, and other presentation refactoring remain deferred until this acceptance unless a separate defect requires a narrowly scoped change.
 
+### 4.5 Current acceptance status
+
+As of 2026-08-17, UI gates G0 and G1 have accepted Development results. G1 proves the initialized shell and status history, current market-outlook state, ES and VX sidebar charts, all five economic-calendar ranges, supported Market Data and Reference catalogs, named-fund and existing trade views, supported System Administration behavior, modal reopen, normal close, and complete process/listener cleanup. G2 through G4 and operator acceptance remain open, so Milestone A is not yet complete. Legacy scheduled-task UI remains deferred until that workflow is redesigned; it is not advertised as a supported G1 System Administration destination.
+
 ## 5. Milestone B - trade-broker and account foundation
 
 ### 5.1 Objective

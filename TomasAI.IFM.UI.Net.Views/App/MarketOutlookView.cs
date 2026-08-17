@@ -21,6 +21,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
                 InitializeComponent();
                 txtRSI.Text = "No";
                 txtRSI.BackColor = Color.Red;
+                ConfigureAccessibility();
                 //txt50DMA.BackColor = Color.Black;
                 //txt200DMA.BackColor = Color.Black;
             }
@@ -56,6 +57,33 @@ namespace TomasAI.IFM.UI.Net.Views.App
             txtMDI.Text = e.MDI;
             txtMDI.ForeColor = e.MDIForeColor.ToColor();
             txtMDI.BackColor = e.MDIBackColor.ToColor();
+            UpdateMarketOutlookAccessibility();
+        }
+
+        void ConfigureAccessibility()
+        {
+            txtMarketTrendRT.AccessibleName = "Market direction";
+            txtMarketVolatilityRT.AccessibleName = "Market volatility";
+            txtMarketDirectionRT.AccessibleName = "Price direction";
+            txtVixVolRT.AccessibleName = "Price volatility";
+            txtOpenRT.AccessibleName = "Open price";
+            txtHighRT.AccessibleName = "High price";
+            txtLowRT.AccessibleName = "Low price";
+            txtCloseRT.AccessibleName = "Close price";
+            txtVolumeRT.AccessibleName = "Volume";
+            txtPercentChangeRT.AccessibleName = "Daily percent change";
+        }
+
+        void UpdateMarketOutlookAccessibility()
+        {
+            foreach (var control in new[]
+                     {
+                         txtMarketTrendRT, txtMarketVolatilityRT, txtMarketDirectionRT, txtVixVolRT,
+                         txtOpenRT, txtHighRT, txtLowRT, txtCloseRT, txtVolumeRT, txtPercentChangeRT
+                     })
+            {
+                control.AccessibleDescription = control.Text;
+            }
         }
 
         public void RefreshView(FuturesTradeSignalUIViewModel e)

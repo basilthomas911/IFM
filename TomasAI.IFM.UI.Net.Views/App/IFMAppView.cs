@@ -110,7 +110,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                 RenderMenuState();
                 break;
             case nameof(IFMAppViewModel.StatusLine):
-                lblStatus.Text = _viewModel.StatusLine;
+                RenderStatusLine();
                 break;
             case nameof(IFMAppViewModel.StatusLogs):
                 statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
@@ -148,7 +148,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     private void RenderShellState()
     {
         RenderMenuState();
-        lblStatus.Text = _viewModel.StatusLine;
+        RenderStatusLine();
         statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
         if (_viewModel.StatusConsole is { } statusConsole)
             statusConsoleView1.LoadViewModel(statusConsole);
@@ -170,6 +170,18 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         fundButton.Enabled = _viewModel.IsMenuEnabled;
         referenceButton.Enabled = _viewModel.IsMenuEnabled;
         systemAdminButton.Enabled = _viewModel.IsMenuEnabled;
+    }
+
+    private void RenderStatusLine()
+    {
+        var status = string.IsNullOrWhiteSpace(_viewModel.StatusLine)
+            ? "Ready"
+            : _viewModel.StatusLine;
+        lblStatus.Text = status;
+        // ToolStripStatusLabel does not consistently expose its WinForms Name as a UIA id.
+        // Keeping the accessible name synchronized gives operators and system tests the
+        // same current one-line status text.
+        lblStatus.AccessibleName = status;
     }
 
     private void RenderLatestError()

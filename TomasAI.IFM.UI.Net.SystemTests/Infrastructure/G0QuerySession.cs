@@ -17,19 +17,28 @@ public sealed class G0QuerySession : IAsyncDisposable
             NullLogger.Instance,
             _connectionManager);
         MarketData = new MarketDataQueryApi(_producer);
+        MarketDataCommands = new MarketDataCommandApi(_producer);
         MarketDataFeed = new MarketDataFeedQueryApi(_producer);
         MarketDataFeedCommands = new MarketDataFeedCommandApi(_producer);
         MarketDataAnalytics = new MarketDataAnalyticsQueryApi(_producer);
+        Reference = new ReferenceQueryApi(_producer);
+        Fund = new FundQueryApi(_producer);
     }
 
     public MarketDataQueryApi MarketData { get; }
+    public MarketDataCommandApi MarketDataCommands { get; }
     public MarketDataFeedQueryApi MarketDataFeed { get; }
     public MarketDataFeedCommandApi MarketDataFeedCommands { get; }
     public MarketDataAnalyticsQueryApi MarketDataAnalytics { get; }
+    public ReferenceQueryApi Reference { get; }
+    public FundQueryApi Fund { get; }
 
-    public ValueTask StartAsync(string runId, CancellationToken cancellationToken)
+    public ValueTask StartAsync(
+        string runId,
+        CancellationToken cancellationToken,
+        string gate = "G0")
         => _producer.StartAsync(
-            new ActorMailboxId(ActorType.Query, $"IFM.UI.G0.{runId}"),
+            new ActorMailboxId(ActorType.Query, $"IFM.UI.{gate}.{runId}"),
             cancellationToken);
 
     public async ValueTask DisposeAsync()

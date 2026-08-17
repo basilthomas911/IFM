@@ -401,7 +401,10 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             var selectedFundId = SelectedFund?.FundId;
             var selectedOrderId = SelectedFundOrder?.OrderId;
             var selectedTradeId = SelectedFundOrderTrade?.TradeId;
-            var fundSnapshots = funds.Select(CloneFund).ToArray();
+            var fundSnapshots = funds
+                .Where(fund => !string.IsNullOrWhiteSpace(fund.Name))
+                .Select(CloneFund)
+                .ToArray();
             var orderSnapshots = orders.Select(CloneOrder).ToArray();
             foreach (var fund in fundSnapshots)
             {
