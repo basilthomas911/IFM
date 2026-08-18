@@ -49,6 +49,23 @@ public static class FuturesTradingValueDate
             : calendarDate.AddDays(-2);
     }
 
+    /// <summary>
+    /// Returns the UTC start of the regular futures trading session represented
+    /// by a value date. The session begins at 18:00 US Eastern on the preceding
+    /// calendar date, with daylight-saving conversion supplied by the market timezone.
+    /// </summary>
+    public static DateTimeOffset GetSessionStartUtc(DateOnly valueDate)
+    {
+        if (valueDate == default)
+            throw new ArgumentOutOfRangeException(nameof(valueDate));
+
+        var localStart = valueDate.AddDays(-1).ToDateTime(
+            new TimeOnly(18, 0),
+            DateTimeKind.Unspecified);
+        var utcStart = TimeZoneInfo.ConvertTimeToUtc(localStart, MarketTimeZone);
+        return new DateTimeOffset(utcStart, TimeSpan.Zero);
+    }
+
     static TimeZoneInfo ResolveEasternTimeZone()
     {
         foreach (var id in new[] { "America/New_York", "Eastern Standard Time" })

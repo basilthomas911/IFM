@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts;
 
@@ -57,6 +58,15 @@ public interface IMarketDataApi
     bool TryGetLastOptionTickPrice(
         string contractId,
         out OptionTickerPriceSnapshot snapshot);
+
+    /// <summary>Reads the latest complete session open/high/low snapshot.</summary>
+    bool TryGetFuturesSessionStatistics(
+        string contractId,
+        out FuturesSessionStatisticsSnapshot snapshot)
+    {
+        snapshot = default;
+        return false;
+    }
 
     /// <summary>
     /// Returns whether at least one workflow currently owns the contract's transient tick stream.

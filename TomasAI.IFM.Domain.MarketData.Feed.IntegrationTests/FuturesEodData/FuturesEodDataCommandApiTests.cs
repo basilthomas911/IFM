@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -13,7 +12,6 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -158,9 +156,6 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         var normCurveData = new NormalCurveTableReadModel([new NormalCurveDataReadModel(0, 50.0)]);
         var windowSize = 20;
         var vixEodData = Array.Empty<VixFuturesEodDataReadModel>();
-        var futuresDataId = new FuturesDataId(contractId, valueDate);
-
-        var yesterDaysClosingPrice = (await dbFixture.MarketDataDb.GetYesterdaysFuturesClosingPriceAsync(futuresDataId))?.ClosingPrice;
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
 
         // act...
@@ -192,7 +187,7 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         insertedEodData!.ContractId.Should().Be(contractId);
         insertedEodData.ValueDate.Should().Be(valueDate);
         insertedEodData.Symbol.Should().Be(eodDataToday.Symbol);
-        insertedEodData.OpenPrice.Should().Be(yesterDaysClosingPrice);
+        insertedEodData.OpenPrice.Should().Be(eodDataToday.OpenPrice);
         insertedEodData.HighPrice.Should().Be(eodDataToday.HighPrice);
         insertedEodData.LowPrice.Should().Be(eodDataToday.LowPrice);
         insertedEodData.ClosePrice.Should().Be(futuresTickData.Price);

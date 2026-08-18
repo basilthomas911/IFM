@@ -33,6 +33,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using OptionTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.FuturesTickTradeDataInserted;
 using FuturesTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.FuturesTickTradeDataInserted;
 using VxQuoteHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.VxQuoteMarketPriceUpdated;
+using SessionStatisticsHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.FuturesSessionStatisticsUpdated;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
@@ -42,6 +43,164 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 public sealed class TickerStreamActorWorkflowTests
 {
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
+
+    [Fact]
+    public async Task Databento_statistics_replay_flows_through_hot_cache_and_realtime_eod_projection()
+    {
+        const string contractId = "ES20260918";
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FiniteFeed(
+            instrument,
+            Statistic(instrument, 1, 1, 5400m, replay: true),
+            Statistic(instrument, 2, 4, 5350m, replay: true),
+            Statistic(instrument, 3, 5, 5500m, replay: true),
+            StatisticsReplayComplete(instrument));
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        var publisher = new CapturingPublisher();
+        await using var aggregation = CreateAggregation(
+            feed,
+            lastPrices,
+            publisher,
+            instrument,
+            CreateDetails(contractId, instrument, AssetTypeId.Futures));
+
+        await aggregation.StartAsync();
+
+        var observed = await publisher.SessionStatistics.Task.WaitAsync(
+            TimeSpan.FromSeconds(2));
+        observed.Statistics.Should().Be(new FuturesSessionStatisticsSnapshot(
+            contractId,
+            ValueDate,
+            5400m,
+            5500m,
+            5350m,
+            3,
+            3));
+        aggregation.TryGetFuturesSessionStatistics(contractId, out var cached)
+            .Should().BeTrue();
+        cached.Should().Be(observed.Statistics);
+
+        var current = new FuturesEodDataV2ReadModel(
+            contractId, ValueDate, "ES", 5390m, 5460m, 5370m, 5425m, 1000,
+            0.1, 0.01, 54.25, 5500, 5425, 5350,
+            MarketDirectionType.NeutralUp, MarketVolatilityType.Normal,
+            PriceDirectionType.Falling, PriceVolatilityType.Falling);
+        var context = Substitute.For<IEventActorContext>();
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(current));
+        var projector = CreateEodProjector();
+
+        var handled = await SessionStatisticsHandler.ExecuteAsync(
+            observed,
+            context,
+            projector,
+            Substitute.For<ILogger<FuturesEodDataRealtimeActor>>());
+
+        handled.Should().BeTrue();
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Is<FuturesEodSessionStatisticsUpdatedEvent>(projected =>
+                projected.Subject.ActorType == ActorType.Realtime
+                && projected.CommandId == observed.CommandId
+                && projected.FuturesEodData.OpenPrice == 5400m
+                && projected.FuturesEodData.HighPrice == 5500m
+                && projected.FuturesEodData.LowPrice == 5350m
+                && projected.FuturesEodData.ClosePrice == 5425m
+                && projected.FuturesEodData.DailyPercentChange == 0.0046d
+                && projected.FuturesEodData.PriceDirection == PriceDirectionType.Rising),
+            Arg.Any<CancellationToken>());
+
+        await aggregation.StopAsync();
+    }
+
+    [Fact]
+    public async Task First_es_trade_initializes_new_session_eod_from_databento_statistics_hot_cache()
+    {
+        const string contractId = "ES20260918";
+        const string vxContractId = "VX20260916";
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FiniteFeed(
+            instrument,
+            Statistic(instrument, 1, 1, 5400m, replay: true),
+            Statistic(instrument, 2, 4, 5350m, replay: true),
+            Statistic(instrument, 3, 5, 5500m, replay: true),
+            StatisticsReplayComplete(instrument),
+            Trade(instrument, 4, 5425m, 10));
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        var publisher = new CapturingPublisher();
+        await using var aggregation = CreateAggregation(
+            feed,
+            lastPrices,
+            publisher,
+            instrument,
+            CreateDetails(contractId, instrument, AssetTypeId.Futures));
+        var marketDataApi = CreateMarketDataApi(aggregation);
+        marketDataApi.GetFuturesContractAsync(contractId).Returns(
+            new FuturesContractV2ReadModel(
+                contractId, contractId, "ES", "ESU6", "FUT", "USD", "CME", "50",
+                new DateOnly(2026, 9, 18), true));
+        var owner = new TickerStreamOwner("IntegrationWorkflow", "eod", "session-statistics");
+
+        await aggregation.StartAsync();
+        aggregation.StartTickDataStream(owner, contractId).Should().BeTrue();
+        _ = await publisher.SessionStatistics.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var trade = ToInserted(await publisher.Trade.Task.WaitAsync(TimeSpan.FromSeconds(2)));
+
+        var previous = new FuturesEodDataV2ReadModel(
+            contractId, ValueDate.AddDays(-1), "ES", 5380m, 5440m, 5360m, 5395m, 1000,
+            0.1, 0.01, 53.95, 5480, 5395, 5310,
+            MarketDirectionType.NeutralUp, MarketVolatilityType.Normal,
+            PriceDirectionType.Rising, PriceVolatilityType.Falling);
+        var context = Substitute.For<IEventActorContext>();
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(null!));
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
+                Arg.Any<GetLastFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(previous));
+        context.RequestAsync<FuturesEodDataV2ReadModel[], GetFuturesEodDataByDateRangeQuery>(
+                Arg.Any<GetFuturesEodDataByDateRangeQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel[]>([previous]));
+        context.RequestAsync<NormalCurveTableReadModel, GetNormalCurveTableQuery>(
+                Arg.Any<GetNormalCurveTableQuery>())
+            .Returns(new ServiceOk<NormalCurveTableReadModel>(
+                new NormalCurveTableReadModel([
+                    new NormalCurveDataReadModel(0, 50d)])));
+        var blackboard = new BlackboardService(
+            new MemoryRedisCache(),
+            new SystemTextJsonSerializer());
+        blackboard.MarketDataFeed.VixFuturesContractId.Set(ValueDate, vxContractId);
+        blackboard.MarketDataFeed.VixFuturesEodData.Set(
+            vxContractId,
+            ValueDate,
+            [new VixFuturesEodDataReadModel(
+                vxContractId, ValueDate, 20m, 21m, 19m, 20.25m, 100)]);
+        var projector = CreateEodProjector();
+
+        var handled = await FuturesTradeHandler.ExecuteAsync(
+            trade,
+            context,
+            marketDataApi,
+            blackboard,
+            Substitute.For<IStatusConsoleWriter>(),
+            projector,
+            Substitute.For<ILogger<FuturesEodDataRealtimeActor>>());
+
+        handled.Should().BeTrue();
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Is<FuturesEodDataInsertedEvent>(inserted =>
+                inserted.FuturesEodData.ValueDate == ValueDate
+                && inserted.FuturesEodData.OpenPrice == 5400m
+                && inserted.FuturesEodData.HighPrice == 5500m
+                && inserted.FuturesEodData.LowPrice == 5350m
+                && inserted.FuturesEodData.ClosePrice == 5425m
+                && inserted.FuturesEodData.DailyPercentChange == 0.0046d
+                && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Rising),
+            Arg.Any<CancellationToken>());
+
+        aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
+        await aggregation.StopAsync();
+    }
 
     [Fact]
     public async Task Realtime_futures_trade_uses_active_stream_and_exact_decimal_trade()
@@ -370,6 +529,17 @@ public sealed class TickerStreamActorWorkflowTests
                 call[1] = snapshot;
                 return found;
             });
+        api.TryGetFuturesSessionStatistics(
+                Arg.Any<string>(),
+                out Arg.Any<FuturesSessionStatisticsSnapshot>())
+            .Returns(call =>
+            {
+                var found = aggregation.TryGetFuturesSessionStatistics(
+                    call.ArgAt<string>(0),
+                    out var snapshot);
+                call[1] = snapshot;
+                return found;
+            });
         return api;
     }
 
@@ -488,6 +658,46 @@ public sealed class TickerStreamActorWorkflowTests
         2,
         0));
 
+    private static MarketRecord64 Statistic(
+        InstrumentKey key,
+        uint sequence,
+        ushort statisticType,
+        decimal price,
+        bool replay) => new(new StatisticsRecord64(
+        new MarketRecordHeader32(
+            key.InstrumentId,
+            key.PublisherId,
+            MarketRecordKind.Statistics,
+            replay ? (byte)2 : (byte)0,
+            sequence,
+            sequence,
+            sequence),
+        Scale(price),
+        0,
+        0,
+        statisticType,
+        0,
+        1,
+        0));
+
+    private static MarketRecord64 StatisticsReplayComplete(InstrumentKey key) => new(
+        new StatisticsRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.StatisticsReplayComplete,
+                0,
+                0,
+                0,
+                0),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0));
+
     private static MarketRecordHeader32 Header(
         InstrumentKey key,
         MarketRecordKind kind,
@@ -548,6 +758,8 @@ public sealed class TickerStreamActorWorkflowTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> TradeMarketPrice { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatistics { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync()
@@ -567,6 +779,12 @@ public sealed class TickerStreamActorWorkflowTests
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event)
         {
             Trade.TrySetResult(@event);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event)
+        {
+            SessionStatistics.TrySetResult(@event);
             return ValueTask.CompletedTask;
         }
 

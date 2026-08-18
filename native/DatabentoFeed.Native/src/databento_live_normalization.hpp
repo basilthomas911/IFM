@@ -39,7 +39,8 @@ inline void fill_header(dbf_record_header32& destination,
 }
 
 inline bool normalize(const databento::Record& source,
-                      dbf_market_record64& destination) noexcept {
+                      dbf_market_record64& destination,
+                      bool statistics_replay = false) noexcept {
     destination = {};
     if (const auto* message = source.GetIf<databento::Mbp1Msg>()) {
         fill_header(destination.header, message->hd, DBF_RECORD_QUOTE,
@@ -91,6 +92,25 @@ inline bool normalize(const databento::Record& source,
         destination.mbo.side = static_cast<std::uint8_t>(message->side);
         destination.mbo.dbn_flags = message->flags.Raw();
         destination.mbo.channel_id = message->channel_id;
+        return true;
+    }
+    if (const auto* message = source.GetIf<databento::StatMsg>()) {
+        fill_header(destination.header, message->hd, DBF_RECORD_STATISTICS,
+                    nanos(message->ts_recv), message->sequence,
+                    static_cast<std::uint16_t>(databento::Schema::Statistics));
+        if (statistics_replay) {
+            destination.header.flags |= DBF_RECORD_FLAG_REPLAY;
+        }
+        destination.statistics.price = price_or_zero(
+            message->price, destination.header.flags);
+        destination.statistics.ts_ref_ns = nanos(message->ts_ref);
+        destination.statistics.ts_in_delta_ns = message->ts_in_delta.count();
+        destination.statistics.stat_type =
+            static_cast<std::uint16_t>(message->stat_type);
+        destination.statistics.channel_id = message->channel_id;
+        destination.statistics.update_action =
+            static_cast<std::uint8_t>(message->update_action);
+        destination.statistics.stat_flags = message->stat_flags;
         return true;
     }
     return false;

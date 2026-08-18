@@ -1215,6 +1215,20 @@ internal static class MarketDataDbCql
         VALUES (:valueDate, :contractId);
     """;
 
+    public const string UpdateFuturesEodSessionStatistics = """
+        UPDATE futures_eod_data
+        SET
+            openPrice = :openPrice,
+            highPrice = :highPrice,
+            lowPrice = :lowPrice,
+            dailyPercentChange = :dailyPercentChange,
+            priceDirection = :priceDirection
+        WHERE
+            contractId = :contractId
+            AND valueDate = :valueDate
+            AND symbol = :symbol;
+    """;
+
     public const string InsertMarketDataProjectionMonth = """
         INSERT INTO market_data_projection_month (projectionName, yearMonth)
         VALUES (:projectionName, :yearMonth);

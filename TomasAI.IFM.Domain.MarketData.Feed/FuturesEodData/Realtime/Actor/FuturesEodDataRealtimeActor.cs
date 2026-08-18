@@ -48,12 +48,21 @@ public class FuturesEodDataRealtimeActor(
         FuturesMarketPriceUpdatedRealtimeEvent.Actor,
         FuturesMarketPriceUpdatedRealtimeEvent.Verb);
 
+    static readonly ActorTypeId SessionStatisticsRoute = new(
+        ActorType.Realtime,
+        FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+        FuturesSessionStatisticsUpdatedRealtimeEvent.Verb);
+
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> ParseMap = new()
     {
         [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
         [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
+        [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
+            message => message.AsEvent<FuturesSessionStatisticsUpdatedRealtimeEvent>()!,
+        [FuturesEodSessionStatisticsUpdatedEvent.Verb] =
+            message => message.AsEvent<FuturesEodSessionStatisticsUpdatedEvent>()!,
         [FuturesEodDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesEodDataInsertedEvent>()!,
         [FuturesEodDataInsertedCompleteEvent.Verb] =
@@ -80,12 +89,14 @@ public class FuturesEodDataRealtimeActor(
         await projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(TickTradeRoute, Id);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
+        context.AddRealtimeRouter(SessionStatisticsRoute, Id);
     }
 
     protected override async ValueTask OnShutdown(IEventActorContext context)
     {
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
+        context.RemoveRealtimeRouter(SessionStatisticsRoute, Id);
         await projector.StopAsync().ConfigureAwait(false);
     }
 
@@ -133,6 +144,10 @@ public class FuturesEodDataRealtimeActor(
                         logger)
                     .ConfigureAwait(false);
                 break;
+            case FuturesSessionStatisticsUpdatedRealtimeEvent statisticsUpdated:
+                _ = await statisticsUpdated.ExecuteAsync(context, projector, logger)
+                    .ConfigureAwait(false);
+                break;
             case FuturesEodDataInsertedEvent inserted:
                 blackboardService.MarketDataFeed.FuturesEodData.Set(
                     inserted.FuturesEodData.ContractId,
@@ -154,6 +169,7 @@ public class FuturesEodDataRealtimeActor(
                 LogProjectionFailure(failed);
                 break;
             case VixFuturesEodDataInsertedEvent:
+            case FuturesEodSessionStatisticsUpdatedEvent:
                 break;
             default:
                 throw new InvalidOperationException(

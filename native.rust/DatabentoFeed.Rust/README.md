@@ -53,7 +53,9 @@ the C++ implementation. Live smoke tests remain opt-in.
 
 ## Performance design
 
-- Fixed 64-byte records are normalized directly into an SPSC ring.
+- Fixed 64-byte quote, trade, MBO, and statistics records are normalized directly
+  into an SPSC ring. Statistics can replay from a configured session-start
+  timestamp and emit an explicit replay-complete control record before live updates.
 - Producer and consumer cursors occupy separate cache lines and use acquire/release
   publication.
 - The record path has no per-record heap allocation or mutex.

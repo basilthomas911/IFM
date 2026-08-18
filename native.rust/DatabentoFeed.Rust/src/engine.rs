@@ -26,7 +26,7 @@ pub struct Mapping {
 struct SyntheticMapping {
     instrument_id: u32,
     publisher_id: u16,
-    record_kinds: [u8; 3],
+    record_kinds: [u8; 4],
     record_kind_count: usize,
     next_record_kind: usize,
     record_kind_step: usize,
@@ -34,12 +34,13 @@ struct SyntheticMapping {
 
 impl From<&Mapping> for SyntheticMapping {
     fn from(mapping: &Mapping) -> Self {
-        let mut record_kinds = [RECORD_QUOTE; 3];
+        let mut record_kinds = [RECORD_QUOTE; 4];
         let mut record_kind_count = 0usize;
         for (flag, kind) in [
             (MARKET_DATA_QUOTE, RECORD_QUOTE),
             (MARKET_DATA_TRADE, RECORD_TRADE),
             (MARKET_DATA_MBO, RECORD_MBO),
+            (MARKET_DATA_STATISTICS, RECORD_STATISTICS),
         ] {
             if mapping.data_kinds & flag != 0 {
                 record_kinds[record_kind_count] = kind;
@@ -924,7 +925,7 @@ fn make_synthetic_record(
                 ts_out_ns: timestamp,
             },
         },
-        _ => MarketRecord64 {
+        RECORD_MBO => MarketRecord64 {
             mbo: MboRecord64 {
                 header,
                 order_id: sequence + 1,
@@ -938,5 +939,33 @@ fn make_synthetic_record(
                 reserved32: 0,
             },
         },
+        _ => {
+            // Statistics is normally the third record in a quote/trade/statistics
+            // synthetic cycle. Divide by the cycle width so open/high/low rotate
+            // instead of always selecting the same statistic type.
+            let statistic_index = (sequence / 3) % 3;
+            MarketRecord64 {
+                statistics: StatisticsRecord64 {
+                    header,
+                    price: match statistic_index {
+                        1 => price - 1_000_000_000,
+                        2 => price + 1_000_000_000,
+                        _ => price,
+                    },
+                    ts_ref_ns: timestamp,
+                    ts_in_delta_ns: 0,
+                    stat_type: match statistic_index {
+                        1 => 4,
+                        2 => 5,
+                        _ => 1,
+                    },
+                    channel_id: 0,
+                    update_action: 1,
+                    stat_flags: 0,
+                    reserved16: 0,
+                    reserved32: 0,
+                },
+            }
+        }
     }
 }

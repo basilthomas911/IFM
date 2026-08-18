@@ -8,9 +8,14 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -87,7 +92,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     }
 
     [Fact]
-    public async Task Realtime_actor_registers_tick_route_and_projector_lifecycle()
+    public async Task Realtime_actor_registers_all_live_eod_routes_and_projector_lifecycle()
     {
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out _);
@@ -96,13 +101,25 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             ActorType.Realtime,
             FuturesTickTradeDataInsertedEvent.Actor,
             FuturesTickTradeDataInsertedEvent.Verb);
+        var marketPriceRoute = new ActorTypeId(
+            ActorType.Realtime,
+            FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+            FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+        var statisticsRoute = new ActorTypeId(
+            ActorType.Realtime,
+            FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+            FuturesSessionStatisticsUpdatedRealtimeEvent.Verb);
 
         await actor.Start(context);
         await actor.Stop(context);
 
         actor.Id.Should().Be(new ActorMailboxId(ActorType.Realtime, FuturesEodDataRealtimeActor.ActorName));
         context.Received(1).AddRealtimeRouter(route, actor.Id);
+        context.Received(1).AddRealtimeRouter(marketPriceRoute, actor.Id);
+        context.Received(1).AddRealtimeRouter(statisticsRoute, actor.Id);
         context.Received(1).RemoveRealtimeRouter(route, actor.Id);
+        context.Received(1).RemoveRealtimeRouter(marketPriceRoute, actor.Id);
+        context.Received(1).RemoveRealtimeRouter(statisticsRoute, actor.Id);
         await projector.Received(1).StartAsync(context, Arg.Any<CancellationToken>());
         await projector.Received(1).StopAsync(Arg.Any<CancellationToken>());
     }
@@ -155,6 +172,64 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
                 inserted.Subject.ActorType == ActorType.Realtime
                 && inserted.VixFuturesTickData.Price == 20.15m
                 && inserted.VixFuturesTickData.Size == 17),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Realtime_actor_parses_session_statistics_and_projects_recalculated_eod()
+    {
+        const string contractId = "ES20260918";
+        var entityId = new FuturesEodDataId(contractId, ValueDate);
+        var source = new FuturesSessionStatisticsUpdatedRealtimeEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = "unit-test",
+            ReceivedOn = DateTime.UtcNow,
+            Statistics = new FuturesSessionStatisticsSnapshot(
+                contractId, ValueDate, 5400m, 5500m, 5350m, 10, 20)
+        };
+        NatsMsg<byte[]> message = new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesEodDataRealtimeActor.ActorName,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Verb,
+                entityId.Format()).ToString(),
+            Data = ActorExtensions.DataSerializer!.Serialize(source)
+        };
+        var projector = CreateProjector();
+        var actor = CreateRealtimeActor(projector, out _);
+        var context = Substitute.For<IEventActorContext>();
+        var current = new FuturesEodDataV2ReadModel(
+            contractId, ValueDate, "ES", 5390m, 5460m, 5370m, 5425m, 1000,
+            0.1, 0.01, 54.25, 5500, 5425, 5350,
+            MarketDirectionType.NeutralUp, MarketVolatilityType.Normal,
+            PriceDirectionType.Falling, PriceVolatilityType.Falling);
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(current));
+
+        var parsed = actor.Parse(context, new NatsActorMessage(message))
+            .Should().BeOfType<FuturesSessionStatisticsUpdatedRealtimeEvent>().Which;
+        await actor.Receive(context, parsed);
+
+        parsed.Statistics.Should().Be(source.Statistics);
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Is<FuturesEodSessionStatisticsUpdatedEvent>(projected =>
+                projected.CommandId == source.CommandId
+                && projected.FuturesEodData.OpenPrice == 5400m
+                && projected.FuturesEodData.HighPrice == 5500m
+                && projected.FuturesEodData.LowPrice == 5350m
+                && projected.FuturesEodData.DailyPercentChange == 0.0046d
+                && projected.FuturesEodData.PriceDirection == PriceDirectionType.Rising),
             Arg.Any<CancellationToken>());
     }
 

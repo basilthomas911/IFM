@@ -6,6 +6,12 @@ This directory contains the native C++20 ABI, synthetic producer, fixed-slot SPS
 confirmations and production-host performance/endurance evidence remain required
 for final runtime acceptance; see `Phase6_Implementation.md`.
 
+Ticker feeds also support Databento `statistics` records in the fixed 64-byte
+ABI. A nonzero `statistics_replay_start_ns` replays only that schema, marks the
+replayed `StatMsg` records, and emits a per-instrument replay-complete control
+record before continuing with live statistics. The managed EOD flow uses opening
+price and trading-session high/low; quote and trade subscriptions remain live-only.
+
 ## Offline synthetic build
 
 `IFM_DATABENTO_ENABLE_LIVE` defaults to `OFF`, so configuration does not fetch or link the Databento SDK:

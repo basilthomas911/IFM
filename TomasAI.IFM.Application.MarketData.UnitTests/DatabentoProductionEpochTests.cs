@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -136,6 +137,18 @@ public sealed class DatabentoProductionEpochTests
         Assert.Equal(["GLBX.MDP3", "XCBF.PITCH"],
             provider.Feeds.Keys.Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(["XCBF.PITCH", "GLBX.MDP3"], provider.FeedStartOrder);
+        Assert.Equal(
+            MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics,
+            provider.Feeds["GLBX.MDP3"].Subscriptions.Single().DataKinds);
+        Assert.Equal(
+            MarketDataKinds.Quote | MarketDataKinds.Trade,
+            provider.Feeds["XCBF.PITCH"].Subscriptions.Single().DataKinds);
+        var expectedReplayStart = checked((ulong)(
+            FuturesTradingValueDate.GetSessionStartUtc(valueDate).UtcTicks
+            - DateTimeOffset.UnixEpoch.UtcTicks) * 100UL);
+        Assert.All(provider.FeedOptions.Values, options => Assert.Equal(
+            expectedReplayStart,
+            options.StatisticsReplayStartTimestampNanoseconds));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("ES20260918"));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("VX20260916"));
 
@@ -184,6 +197,8 @@ public sealed class DatabentoProductionEpochTests
         internal CountdownEvent? StopBarrier { get; init; }
         internal Dictionary<string, FakeTickerFeed> Feeds { get; } =
             new(StringComparer.Ordinal);
+        internal Dictionary<string, DatabentoFeedOptions> FeedOptions { get; } =
+            new(StringComparer.Ordinal);
         internal List<string> FeedStartOrder { get; } = [];
         internal FakeTickerFeed Feed => Feeds.Values.Single();
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options)
@@ -193,6 +208,7 @@ public sealed class DatabentoProductionEpochTests
                 options.DataSource,
                 StopBarrier);
             Feeds.Add(options.Dataset, feed);
+            FeedOptions.Add(options.Dataset, options);
             FeedStartOrder.Add(options.Dataset);
             return feed;
         }
@@ -263,6 +279,7 @@ public sealed class DatabentoProductionEpochTests
         internal int StopCount { get; private set; }
         internal TimeSpan? StopTimeout { get; private set; }
         internal bool Disposed { get; private set; }
+        internal IReadOnlyList<TickerSubscription> Subscriptions => _subscriptions;
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) =>
             _subscriptions = subscriptions.ToArray();

@@ -1,5 +1,4 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging;
@@ -9,7 +8,6 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
@@ -71,19 +69,6 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         var eodDataRange = SampleData.FuturesEodDataRange
             .Where(e => e.ValueDate < valueDate && e.ValueDate >= valueDate.AddMonths(-2))
             .ToList();
-        var futuresDataId = new FuturesDataId(contractId, valueDate);
-        var lastFuturesEodData = await dbFixture.MarketDataDb.GetLastFuturesEodDataAsync(contractId, valueDate);
-        await dbFixture.MarketDataDb.DeleteFuturesClosingPriceAsync(lastFuturesEodData?.ContractId!, lastFuturesEodData?.ValueDate ?? default);
-        await dbFixture.MarketDataDb.InsertFuturesClosingPriceAsync(new FuturesClosingPriceReadModel
-        {
-            ContractId = lastFuturesEodData?.ContractId!,
-            ValueDate = lastFuturesEodData?.ValueDate ?? default,
-            ClosingPrice = lastFuturesEodData?.ClosePrice ?? default,
-            CreatedOn = DateTime.UtcNow,
-            CreatedBy = "IntegrationTest"
-        });
-        var yesterDaysClosingPrice = lastFuturesEodData?.ClosePrice ?? default;
-
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
         foreach (var eodData in eodDataRange)
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(eodData.ContractId, eodData.ValueDate);
@@ -106,7 +91,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         response.Value.FuturesEodDataToday.ContractId.Should().Be(eodDataToday.ContractId);
         response.Value.FuturesEodDataToday.ValueDate.Should().Be(eodDataToday.ValueDate);
         response.Value.FuturesEodDataToday.Symbol.Should().Be(eodDataToday.Symbol);
-        response.Value.FuturesEodDataToday.OpenPrice.Should().Be(yesterDaysClosingPrice);
+        response.Value.FuturesEodDataToday.OpenPrice.Should().Be(eodDataToday.OpenPrice);
         response.Value.FuturesEodDataToday.HighPrice.Should().Be(eodDataToday.HighPrice);
         response.Value.FuturesEodDataToday.LowPrice.Should().Be(eodDataToday.LowPrice);
         response.Value.FuturesEodDataToday.ClosePrice.Should().Be(eodDataToday.ClosePrice);
@@ -138,9 +123,6 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         var eodData = SampleData.FuturesEodData;
         var valueDate = eodData.ValueDate;
 
-        var futuresDataId = new FuturesDataId(contractId, valueDate);
-        var yesterdaysClosingPrice = (await dbFixture.MarketDataDb.GetYesterdaysFuturesClosingPriceAsync(futuresDataId))?.ClosingPrice;
-
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
         await dbFixture.MarketDataDb.InsertFuturesEodDataAsync(eodData);
 
@@ -157,7 +139,7 @@ public class FuturesEodDataQueryApiTests(WebApplicationFactory<Program> factory,
         response.Value!.ContractId.Should().Be(eodData.ContractId);
         response.Value.ValueDate.Should().Be(eodData.ValueDate);
         response.Value.Symbol.Should().Be(eodData.Symbol);
-        response.Value.OpenPrice.Should().Be(yesterdaysClosingPrice);
+        response.Value.OpenPrice.Should().Be(eodData.OpenPrice);
         response.Value.HighPrice.Should().Be(eodData.HighPrice);
         response.Value.LowPrice.Should().Be(eodData.LowPrice);
         response.Value.ClosePrice.Should().Be(eodData.ClosePrice);

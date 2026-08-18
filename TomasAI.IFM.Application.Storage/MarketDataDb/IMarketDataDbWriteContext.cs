@@ -87,6 +87,7 @@ public interface IMarketDataDbWriteContext
     Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel e);
 
     Task InsertFuturesEodDataAsync(FuturesEodDataV2ReadModel e);
+    Task UpdateFuturesEodSessionStatisticsAsync(FuturesEodDataV2ReadModel e);
     Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData);
     Task<long> InsertFuturesEodDataAsync(IEnumerable<FuturesEodDataV2ReadModel> futuresEodData);
     Task InsertVixFuturesEodDataAsync(FuturesTickDataV2ReadModel e);

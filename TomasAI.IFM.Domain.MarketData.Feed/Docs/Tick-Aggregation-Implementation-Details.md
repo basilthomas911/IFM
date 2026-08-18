@@ -1,6 +1,7 @@
 # Databento tick aggregation implementation details
 
-**Status:** Phase 1 realtime cutover complete on 2026-08-17.
+**Status:** Phase 1 realtime cutover complete; Databento session-statistics EOD
+integration completed on 2026-08-18.
 
 This document describes the active implementation. The original durable design remains in
 [Databento-Futures-Tick-Aggregation-Specification-v1.md](Databento-Futures-Tick-Aggregation-Specification-v1.md)
@@ -20,6 +21,7 @@ Databento native ring
        -> per-ticker capacity-64 pooled quote buffer
        -> quote-before-trade sequence ordering
        -> normalized decimal hot cache
+       -> ES session open/high/low statistics replay plus live hot cache
        -> accepted VX quote publishes a realtime quote-price snapshot immediately
   -> bounded single-reader TickAggregationEventPublisher
   -> Core NATS Realtime.TickAggregationRealtime changed event
@@ -57,6 +59,47 @@ The inserted trade source and the lightweight market-price source are routed to 
 stream start/stop command lifecycles. They do not subscribe to realtime ticks. Production live-feed
 code resides under `Realtime` folders; `Event` folders retain only durable behavior.
 
+## Databento session statistics and rolling futures EOD
+
+The ES ticker feed subscribes to Databento `statistics` in addition to live
+quotes and trades. At epoch startup, only the statistics subscription is replayed
+from the trading session start (`ValueDate - 1` at 18:00 America/New_York,
+converted to UTC with DST rules). VX remains quote/trade only because it has a
+separate rolling EOD path.
+
+The native C++ and alternate Rust adapters normalize `StatMsg` into the fixed
+64-byte ABI. The managed aggregator retains only these provider statistics:
+
+- opening price (`StatType = 1`);
+- trading-session low (`StatType = 4`); and
+- trading-session high (`StatType = 5`).
+
+Replay records are accumulated without publishing partial state. The native
+replay-complete marker causes one complete provider-neutral
+`FuturesSessionStatisticsSnapshot` to be published and retained in the hot
+cache. Later live high/low/open changes publish another transient realtime
+observation. Invalid, deleted, undefined, stale, incomplete, or internally
+inconsistent values are ignored.
+
+`FuturesEodDataRealtimeActor` is the sole domain owner of this flow. If the
+session row does not exist yet, the snapshot remains in `IMarketDataApi` hot
+state and the next ES trade creates the row with official open/high/low values.
+If the row exists, a `FuturesEodSessionStatisticsUpdatedEvent` is projected once
+through `FuturesEodDataRealtimeProjector`. It updates the canonical
+`futures_eod_data` row and its monthly projection without appending an
+intraday-history observation. The normal realtime source/complete/fail family
+is still published; no replay, retry, or durable queue is introduced.
+
+Only `DailyPercentChange` and `PriceDirection` are recomputed because they
+depend on session open. Session high and low are output/storage fields. Mean,
+standard deviation, Bollinger bands, market direction, and market-direction
+indicator depend on closing-price history and are intentionally unchanged by a
+statistics-only correction.
+
+The previous storage-layer override that treated yesterday's close as today's
+open and its `FuturesOpenPrice` Blackboard cache have been removed. Storage now
+persists the domain model exactly as supplied.
+
 ## Ordering, ownership, and storage
 
 Every accepted trade emits one trade observation. Quotes are isolated by ticker and flush before
@@ -81,6 +124,11 @@ pooled buffer.
 - Focused workflow integration tests cover exact-decimal futures trades, VX dependency gating,
   quote-only VX midpoint projection, option hot-quote combination, Core producer ownership, and hosted Core-NATS-to-Scylla VX EOD
   source/complete flow.
+- Session-statistics tests cover native ABI/layout and live SDK normalization in
+  C++ and Rust, replay coalescing and live updates, application epoch
+  subscription/replay configuration, realtime actor routing and metric
+  recalculation, raw-record-to-domain integration, canonical/monthly Scylla
+  mutation, and the absence of an intraday append.
 - Host teardown treats an already-stopped market-data epoch as an idempotent stream release while
   preserving all other shutdown failures.
 

@@ -162,7 +162,8 @@ public static class DatabentoSyntheticQualificationProbe
             new TickerSubscription(
                 "QUALIFICATION",
                 DatabentoInputSymbology.RawSymbol,
-                MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.MboOrderUpdate)
+                MarketDataKinds.Quote | MarketDataKinds.Trade
+                    | MarketDataKinds.MboOrderUpdate | MarketDataKinds.Statistics)
         ], timeout);
 
         var stopped = false;

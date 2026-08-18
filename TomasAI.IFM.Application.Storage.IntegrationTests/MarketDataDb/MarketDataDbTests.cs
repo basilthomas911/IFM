@@ -420,7 +420,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.ContractId.Should().Be(futuresEodData.ContractId);
         retrievedData.ValueDate.Should().Be(futuresEodData.ValueDate);
         retrievedData.Symbol.Should().Be(futuresEodData.Symbol);
-        retrievedData.OpenPrice.Should().Be(yesterdayClosingPrice.ClosingPrice);
+        retrievedData.OpenPrice.Should().Be(futuresEodData.OpenPrice);
         retrievedData.HighPrice.Should().Be(futuresEodData.HighPrice);
         retrievedData.LowPrice.Should().Be(futuresEodData.LowPrice);
         retrievedData.ClosePrice.Should().Be(futuresEodData.ClosePrice);
@@ -456,10 +456,59 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.ContractId.Should().Be(futuresEodData.ContractId);
         retrievedData.ValueDate.Should().Be(futuresEodData.ValueDate);
         retrievedData.Symbol.Should().Be(futuresEodData.Symbol);
-        retrievedData.OpenPrice.Should().Be(yesterdayClosingPrice.ClosingPrice);
+        retrievedData.OpenPrice.Should().Be(futuresEodData.OpenPrice);
         retrievedData.HighPrice.Should().Be(futuresEodData.HighPrice);
         retrievedData.LowPrice.Should().Be(futuresEodData.LowPrice);
         retrievedData.ClosePrice.Should().Be(53.2m);
+    }
+
+    [Fact]
+    public async Task UpdateFuturesEodSessionStatisticsAsync_UpdatesCanonicalAndMonthlyProjectionWithoutIntradayAppend()
+    {
+        var original = SampleData.FuturesEodData;
+        await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(
+            original.ContractId,
+            original.ValueDate);
+        await TestFixture.DevDatabase.InsertFuturesEodDataAsync(original);
+        var beforeIntraday = await TestFixture.DevDatabase.GetFuturesIntraDayDataAsync(
+            original.ContractId,
+            original.ValueDate);
+        var updated = original with
+        {
+            OpenPrice = 101m,
+            HighPrice = 106m,
+            LowPrice = 94m,
+            DailyPercentChange = 0.0099,
+            PriceDirection = PriceDirectionType.Rising
+        };
+
+        await TestFixture.DevDatabase.UpdateFuturesEodSessionStatisticsAsync(updated);
+
+        var canonical = await TestFixture.DevDatabase.GetFuturesEodDataAsync(
+            original.ContractId,
+            original.ValueDate);
+        canonical.Should().NotBeNull();
+        canonical!.OpenPrice.Should().Be(101m);
+        canonical.HighPrice.Should().Be(106m);
+        canonical.LowPrice.Should().Be(94m);
+        canonical.DailyPercentChange.Should().Be(0.0099);
+        canonical.PriceDirection.Should().Be(PriceDirectionType.Rising);
+        canonical.ClosePrice.Should().Be(original.ClosePrice);
+        canonical.DailyStdDev.Should().Be(original.DailyStdDev);
+
+        var projected = await TestFixture.DevDatabase.GetFuturesEodDataByDateRangeAsync(
+            original.ContractId,
+            original.ValueDate,
+            original.ValueDate);
+        var projectedRow = projected.Single(row =>
+            row.ContractId == original.ContractId
+            && row.ValueDate == original.ValueDate);
+        projectedRow.Should().BeEquivalentTo(canonical);
+
+        var afterIntraday = await TestFixture.DevDatabase.GetFuturesIntraDayDataAsync(
+            original.ContractId,
+            original.ValueDate);
+        afterIntraday.Should().HaveCount(beforeIntraday.Count);
     }
 
     [Fact]
@@ -1679,16 +1728,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var contractId = $"!current-eod-{suffix}";
         var symbol = $"current-eod-{suffix}";
         var valueDate = new DateOnly(9999, 12, 30);
-        var todayClosingPrice = SampleData.FuturesClosingPrice with
-        {
-            ContractId = contractId,
-            ValueDate = valueDate
-        };
-        var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice with
-        {
-            ContractId = contractId,
-            ValueDate = valueDate.AddDays(-1)
-        };
         var expectedEodData = SampleData.FuturesEodData with
         {
             ContractId = contractId,
@@ -1701,12 +1740,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             Symbol = symbol,
             ValueDate = valueDate.AddDays(-1)
         };
-
-        // Insert the sample data for today and yesterday into the database
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{todayClosingPrice.ContractId}' and valueDate = '{todayClosingPrice.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' and valueDate = '{yesterdayClosingPrice.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(todayClosingPrice);
-        await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
 
         try
         {
@@ -1721,7 +1754,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             result.ContractId.Should().Be(expectedEodData.ContractId);
             result.ValueDate.Should().Be(expectedEodData.ValueDate);
             result.Symbol.Should().Be(expectedEodData.Symbol);
-            result.OpenPrice.Should().Be(yesterdayClosingPrice.ClosingPrice);
+            result.OpenPrice.Should().Be(expectedEodData.OpenPrice);
             result.HighPrice.Should().Be(expectedEodData.HighPrice);
             result.LowPrice.Should().Be(expectedEodData.LowPrice);
             result.ClosePrice.Should().Be(expectedEodData.ClosePrice);
@@ -1731,8 +1764,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         {
             await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(contractId, valueDate);
             await TestFixture.DevDatabase.DeleteFuturesEodDataAsync(contractId, valueDate.AddDays(-1));
-            await TestFixture.DevDatabase.DeleteFuturesClosingPriceAsync(contractId, valueDate);
-            await TestFixture.DevDatabase.DeleteFuturesClosingPriceAsync(contractId, valueDate.AddDays(-1));
         }
     }
 
@@ -1745,15 +1776,6 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         // Arrange
         var startDate = SampleData.YesterdaysFuturesEodData.ValueDate;
         var endDate = SampleData.FuturesEodData.ValueDate;
-        var todayClosingPrice = SampleData.FuturesClosingPrice;
-        var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice;
-
-        // Insert the sample data for today and yesterday into the database
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{todayClosingPrice.ContractId}' and valueDate = '{todayClosingPrice.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' and valueDate = '{yesterdayClosingPrice.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(todayClosingPrice);
-        await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
-
         var futuresDataId = SampleData.FuturesEodData.DataId;
         await TestFixture.DevDatabase.Use($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.FuturesEodData);

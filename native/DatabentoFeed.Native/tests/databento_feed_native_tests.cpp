@@ -87,7 +87,8 @@ dbf_feed_t* create_subscribed_feed(std::uint32_t record_count,
         subscriptions[index].input_symbology = 1;
         subscriptions[index].data_kinds = DBF_MARKET_DATA_QUOTE
                                           | DBF_MARKET_DATA_TRADE
-                                          | DBF_MARKET_DATA_MBO;
+                                          | DBF_MARKET_DATA_MBO
+                                          | DBF_MARKET_DATA_STATISTICS;
     }
     require(dbf_feed_subscribe_tickers(
         feed,
@@ -147,6 +148,7 @@ void test_layouts() {
     static_assert(sizeof(dbf_quote_record64) == 64);
     static_assert(sizeof(dbf_trade_record64) == 64);
     static_assert(sizeof(dbf_mbo_record64) == 64);
+    static_assert(sizeof(dbf_statistics_record64) == 64);
     static_assert(sizeof(dbf_market_record64) == 64);
     static_assert(sizeof(dbf_utf8_slice_v1) == 8);
     static_assert(sizeof(dbf_contract_query_v1) == 64);
@@ -341,6 +343,7 @@ void test_lifecycle_and_order() {
     require(dbf_feed_set_consumer_ready(feed, 2'000));
     std::uint64_t consumed = 0;
     std::uint32_t last_sequence = 0;
+    std::array<bool, 3> observed_statistics{};
     bool terminal = false;
     while (!terminal || consumed < expected_records) {
         dbf_wait_result_v1 wait{};
@@ -358,6 +361,14 @@ void test_lifecycle_and_order() {
                     assert(sequence == last_sequence + 1);
                     last_sequence = sequence;
                     assert(buffer[index].header.instrument_id == ((sequence - 1) % 2) + 1);
+                    if (buffer[index].header.record_kind == DBF_RECORD_STATISTICS) {
+                        switch (buffer[index].statistics.stat_type) {
+                        case 1: observed_statistics[0] = true; break;
+                        case 4: observed_statistics[1] = true; break;
+                        case 5: observed_statistics[2] = true; break;
+                        default: assert(false && "unexpected synthetic statistic type");
+                        }
+                    }
                 }
                 consumed += batch.records_read;
                 if (batch.more_available == 0) {
@@ -368,6 +379,7 @@ void test_lifecycle_and_order() {
         terminal = (wait.flags & DBF_WAIT_TERMINAL) != 0;
     }
     assert(consumed == expected_records);
+    assert((observed_statistics == std::array<bool, 3>{true, true, true}));
 
     dbf_stats_v1 stats{};
     stats.struct_size = sizeof(stats);
@@ -499,6 +511,27 @@ void test_live_dbn_normalization() {
     assert(normalized.mbo.price == 0);
     assert(normalized.mbo.order_id == 999);
     assert(normalized.mbo.channel_id == 2);
+
+    databento::StatMsg statistics{};
+    statistics.hd = make_dbn_header(databento::RType::Statistics, sizeof(statistics));
+    statistics.ts_recv = databento::UnixNanos{std::chrono::nanoseconds{123457200}};
+    statistics.ts_ref = databento::UnixNanos{std::chrono::nanoseconds{123450000}};
+    statistics.price = 104'000'000'000LL;
+    statistics.sequence = 10;
+    statistics.ts_in_delta = databento::TimeDeltaNanos{21};
+    statistics.stat_type = databento::StatType::TradingSessionHighPrice;
+    statistics.channel_id = 3;
+    statistics.update_action = databento::StatUpdateAction::New;
+    statistics.stat_flags = 7;
+    databento::Record statistics_source{&statistics.hd};
+    assert(dbf_live::normalize(statistics_source, normalized, true));
+    assert(normalized.header.record_kind == DBF_RECORD_STATISTICS);
+    assert((normalized.header.flags & DBF_RECORD_FLAG_REPLAY) != 0);
+    assert(normalized.statistics.price == 104'000'000'000LL);
+    assert(normalized.statistics.ts_ref_ns == 123450000);
+    assert(normalized.statistics.stat_type == 5);
+    assert(normalized.statistics.update_action == 1);
+    assert(normalized.statistics.stat_flags == 7);
 }
 
 #endif

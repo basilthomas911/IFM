@@ -65,6 +65,7 @@ public sealed class TickAggregationRealtimeArchitectureTests
         projector.ProjectionDescriptors.Select(descriptor => descriptor.SourceEventType)
             .Should().BeEquivalentTo([
                 typeof(FuturesEodDataInsertedEvent),
+                typeof(FuturesEodSessionStatisticsUpdatedEvent),
                 typeof(VixFuturesEodDataInsertedEvent)]);
 
         var parameterTypes = typeof(FuturesEodDataRealtimeProjector)

@@ -830,6 +830,28 @@ internal readonly record struct UpdateFuturesEodData(string contractId, DateOnly
 {
     public object Bind() => new object?[] { openPrice, highPrice, lowPrice, closePrice, volume, dailyPercentChange, dailyStdDev, dailyStdDevAmount, upperBand, mean, lowerBand, marketDirection, marketVolatility, priceDirection, priceVolatility, marketDirectionIndicator, windowSize, contractId, valueDate, symbol };
 }
+internal readonly record struct UpdateFuturesEodSessionStatistics(
+    string contractId,
+    DateOnly valueDate,
+    string symbol,
+    decimal openPrice,
+    decimal highPrice,
+    decimal lowPrice,
+    double dailyPercentChange,
+    string priceDirection) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        openPrice,
+        highPrice,
+        lowPrice,
+        dailyPercentChange,
+        priceDirection,
+        contractId,
+        valueDate,
+        symbol
+    };
+}
 internal readonly record struct UpdateVixFuturesEodData(string contractId, DateOnly valueDate, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume) : IBindValue
 {
     public object Bind() => new object?[] { openPrice, highPrice, lowPrice, closePrice, volume, contractId, valueDate };

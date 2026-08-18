@@ -2,9 +2,9 @@
 
 **Status:** Phase A implemented and runtime-validated; FMP-dependent Phase B deferred
 
-**Version:** 1.7
+**Version:** 1.8
 
-**Date:** 2026-08-14
+**Date:** 2026-08-18
 
 **Contract:** `TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi`
 
@@ -68,6 +68,10 @@ public interface IMarketDataApi
     bool TryGetLastOptionTickPrice(
         string contractId,
         out OptionTickerPriceSnapshot snapshot);
+
+    bool TryGetFuturesSessionStatistics(
+        string contractId,
+        out FuturesSessionStatisticsSnapshot snapshot);
 
     bool IsTickDataStreamActive(string contractId);
 
@@ -181,6 +185,20 @@ contains the most recent quote-derived Greeks state available when the trade
 was processed. Before enrichment is available, or after epoch stop, the method
 returns `false` and a default output snapshot.
 
+### 2.2 Futures session-statistics snapshot
+
+`TryGetFuturesSessionStatistics` is a provider-neutral, synchronous hot-cache
+read. A successful result contains a coherent session open, high, and low for
+one `ContractId + ValueDate`; it performs no provider, actor, storage,
+Blackboard, or Redis access. Databento is the current implementation, but no
+Databento schema or identifier crosses this interface.
+
+The epoch requests an ES statistics replay from the official trading-session
+start and continues with live statistics. Replay observations are coalesced
+before the first snapshot becomes visible. The rolling EOD realtime actor uses
+this method while processing trades so the first EOD row is never initialized
+from yesterday's close.
+
 ## 3. Design summary
 
 1. One `DatabentoMarketDataApi` instance owns one trading-date lifecycle epoch.
@@ -220,30 +238,34 @@ returns `false` and a default output snapshot.
     streaming methods activate or deactivate application delivery without
     rebuilding the provider feed.
     Each option-chain session is likewise immutable after it is started.
-13. Start/stop streaming methods return `true` only when they change activation
+13. ES futures subscriptions include Databento session statistics. The epoch
+    derives the replay start from `ValueDate` at the prior 18:00 New York
+    session boundary and exposes complete open/high/low state through
+    `TryGetFuturesSessionStatistics`. VX remains quote/trade only.
+14. Start/stop streaming methods return `true` only when they change activation
     state and `false` when the requested state already exists.
-14. Failures throw typed exceptions. `false` and `null` are not generic error
+15. Failures throw typed exceptions. `false` and `null` are not generic error
     results.
-15. Option-chain state, Greeks snapshots, spread results, and UI messages are
+16. Option-chain state, Greeks snapshots, spread results, and UI messages are
     never persisted. Any admitted raw futures or futures-option tick persistence
     is an explicit responsibility of `ITickAggregationService` only.
-16. DataBento maintains an epoch-local latest quote/trade slot for every
+17. DataBento maintains an epoch-local latest quote/trade slot for every
     configured futures and futures-option contract. Option slots can also hold
     an atomic tick-with-Greeks view. The application API exposes non-consuming
     `IFuturesLastPriceReader` and `IFuturesOptionLastPriceReader` handles over
     those hot values.
-17. US Treasury curves and economic-calendar data are exposed through
+18. US Treasury curves and economic-calendar data are exposed through
     provider-neutral contracts in `Framework.MarketData.Contracts`. Their FMP
     implementations live in `Framework.MarketData.FinancialModelingPrep`.
     The application consumes the treasury abstraction, selects one session
     rate, and passes it into DataBento; DataBento does not implement or call FMP
     APIs. No Blackboard L1/L2 price cache is required by this implementation.
-18. Every option-chain session is a hard dependent of its underlying futures
+19. Every option-chain session is a hard dependent of its underlying futures
     ticker in the same epoch's `TickAggregationService`. Chain start never
     starts the underlying implicitly and fails before provider allocation when
     the service or ticker is not running. Loss of that dependency stops/faults
     the chain.
-19. There is no `Framework.MarketData.MarketDataApi` namespace or folder.
+20. There is no `Framework.MarketData.MarketDataApi` namespace or folder.
     Framework vendor projects implement only the provider-neutral service
     contracts required by the application-owned API implementation.
 
@@ -262,9 +284,9 @@ returns `false` and a default output snapshot.
   reader through ordered actor publication.
 - `ITickContractMappingStore` holds definition-date-scoped provider-to-domain
   mappings required before futures aggregation starts.
-- `ITickAggregationEventPublisher` owns the bounded futures JetStream bridge.
-- the MarketData Feed actors, event source, and Scylla projections consume the
-  existing futures aggregation events.
+- `ITickAggregationEventPublisher` owns the bounded Core-NATS realtime bridge.
+- the MarketData Feed realtime actors and projectors consume aggregation and
+  session-statistics observations and apply one-attempt Scylla mutations.
 
 ### 4.2 Required additions
 

@@ -37,9 +37,12 @@ pub const DATA_SOURCE_DATABENTO_LIVE: u32 = 2;
 pub const RECORD_QUOTE: u8 = 1;
 pub const RECORD_TRADE: u8 = 2;
 pub const RECORD_MBO: u8 = 3;
+pub const RECORD_STATISTICS: u8 = 4;
+pub const RECORD_STATISTICS_REPLAY_COMPLETE: u8 = 5;
 pub const MARKET_DATA_QUOTE: u32 = 1;
 pub const MARKET_DATA_TRADE: u32 = 2;
 pub const MARKET_DATA_MBO: u32 = 4;
+pub const MARKET_DATA_STATISTICS: u32 = 8;
 pub const STATE_CREATED: u32 = 1;
 pub const STATE_SUBSCRIBED: u32 = 2;
 pub const STATE_STARTING: u32 = 3;
@@ -125,12 +128,28 @@ pub struct MboRecord64 {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct StatisticsRecord64 {
+    pub header: RecordHeader32,
+    pub price: i64,
+    pub ts_ref_ns: i64,
+    pub ts_in_delta_ns: i32,
+    pub stat_type: u16,
+    pub channel_id: u16,
+    pub update_action: u8,
+    pub stat_flags: u8,
+    pub reserved16: u16,
+    pub reserved32: u32,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy)]
 pub union MarketRecord64 {
     pub header: RecordHeader32,
     pub quote: QuoteRecord64,
     pub trade: TradeRecord64,
     pub mbo: MboRecord64,
+    pub statistics: StatisticsRecord64,
 }
 
 impl Default for MarketRecord64 {
@@ -173,7 +192,8 @@ pub struct FeedConfigV1 {
     pub drain_alternate_processor_group: u16,
     pub drain_alternate_logical_processor: u16,
     pub reserved32: u32,
-    pub reserved: [u64; 3],
+    pub statistics_replay_start_ns: u64,
+    pub reserved: [u64; 2],
 }
 
 #[repr(C)]
@@ -389,6 +409,7 @@ const _: () = {
     assert!(size_of::<QuoteRecord64>() == 64);
     assert!(size_of::<TradeRecord64>() == 64);
     assert!(size_of::<MboRecord64>() == 64);
+    assert!(size_of::<StatisticsRecord64>() == 64);
     assert!(size_of::<MarketRecord64>() == 64);
     assert!(size_of::<FeedConfigV1>() == 128);
     assert!(size_of::<TickerSubscriptionV1>() == 32);

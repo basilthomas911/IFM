@@ -42,8 +42,8 @@ namespace TomasAI.IFM.Shared.Caching
         TradePlanForwardLossRatio,
         EventStreamId,
         EventNameId,
-        FuturesOpenPrice,
-        VixFuturesOpenPrice,
+        // Numeric value 37 was the retired FuturesOpenPrice cache.
+        VixFuturesOpenPrice = 38,
         StreamingRequestId,
         RiskFreeRate,
         FuturesRsiSignal,
@@ -90,7 +90,6 @@ namespace TomasAI.IFM.Shared.Caching
             DataCacheName.TradePlanForwardLossRatio => nameof(DataCacheName.TradePlanForwardLossRatio),
             DataCacheName.EventStreamId => nameof(DataCacheName.EventStreamId),
             DataCacheName.EventNameId => nameof(DataCacheName.EventNameId),
-            DataCacheName.FuturesOpenPrice => nameof(DataCacheName.FuturesOpenPrice),
             DataCacheName.VixFuturesOpenPrice => nameof(DataCacheName.VixFuturesOpenPrice),
             DataCacheName.StreamingRequestId => nameof(DataCacheName.StreamingRequestId),
             DataCacheName.RiskFreeRate => nameof(DataCacheName.RiskFreeRate),

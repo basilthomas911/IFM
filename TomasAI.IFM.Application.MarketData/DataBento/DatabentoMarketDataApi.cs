@@ -1,5 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
@@ -57,6 +58,21 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             return false;
         }
         return active.TryGetLastOptionTickPrice(contractId, out snapshot);
+    }
+
+    /// <summary>Reads the active epoch's complete session open/high/low snapshot.</summary>
+    public bool TryGetFuturesSessionStatistics(
+        string contractId,
+        out FuturesSessionStatisticsSnapshot snapshot)
+    {
+        ValidateContractId(contractId, nameof(contractId));
+        var active = Volatile.Read(ref _epoch);
+        if (active is null)
+        {
+            snapshot = default;
+            return false;
+        }
+        return active.TryGetFuturesSessionStatistics(contractId, out snapshot);
     }
 
     /// <summary>Returns whether at least one workflow owns the contract's live tick route.</summary>

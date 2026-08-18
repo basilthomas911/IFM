@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
 namespace TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
@@ -23,6 +24,15 @@ public interface ITickAggregationService : IAsyncDisposable
     /// without consulting stream ownership.
     /// </summary>
     bool TryGetLastOptionTickPrice(string contractId, out OptionTickerPriceSnapshot snapshot);
+
+    /// <summary>Reads the latest complete provider-neutral session open/high/low snapshot.</summary>
+    bool TryGetFuturesSessionStatistics(
+        string contractId,
+        out FuturesSessionStatisticsSnapshot snapshot)
+    {
+        snapshot = default;
+        return false;
+    }
 
     /// <summary>Returns whether at least one workflow currently owns the contract's transient stream.</summary>
     bool IsTickDataStreamActive(string contractId);

@@ -2,6 +2,8 @@ using System.Threading.Channels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -61,6 +63,17 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
             .SendAsync<
             FuturesMarketPriceUpdatedRealtimeEvent,
             TickDataEntityId>(@event.Subject, @event);
+    }
+
+    public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event)
+    {
+        EnsureRunning();
+        ArgumentNullException.ThrowIfNull(@event);
+        return (_realtimeProducer ?? throw new InvalidOperationException(
+                "The tick aggregation publisher is not running."))
+            .SendAsync<
+                FuturesSessionStatisticsUpdatedRealtimeEvent,
+                FuturesEodDataId>(@event.Subject, @event);
     }
 
     public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event, ITickQuoteBufferLease lease)

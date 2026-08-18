@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
@@ -38,6 +39,9 @@ internal sealed class ReferenceCountedTickAggregationEventPublisher(
     }
 
     public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event) =>
+        _inner.PublishAsync(@event);
+
+    public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event) =>
         _inner.PublishAsync(@event);
 
     public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent @event) =>

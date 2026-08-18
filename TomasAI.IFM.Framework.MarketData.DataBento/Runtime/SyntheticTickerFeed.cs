@@ -103,7 +103,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 if (subscription.DataKinds == MarketDataKinds.None
                     || (subscription.DataKinds & ~(MarketDataKinds.Quote
                                                    | MarketDataKinds.Trade
-                                                   | MarketDataKinds.MboOrderUpdate)) != 0)
+                                                   | MarketDataKinds.MboOrderUpdate
+                                                   | MarketDataKinds.Statistics)) != 0)
                 {
                     throw new ArgumentException("A subscription contains invalid market-data kinds.");
                 }
@@ -144,7 +145,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             if (dataKinds == MarketDataKinds.None
                 || (dataKinds & ~(MarketDataKinds.Quote
                                   | MarketDataKinds.Trade
-                                  | MarketDataKinds.MboOrderUpdate)) != 0)
+                                  | MarketDataKinds.MboOrderUpdate
+                                  | MarketDataKinds.Statistics)) != 0)
             {
                 throw new ArgumentException("Option market-data kinds are invalid.", nameof(dataKinds));
             }
@@ -499,6 +501,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
             SyntheticStartSequence = _options.Synthetic.StartSequence,
             ForcedMigrationIntervalRecords = checked((uint)
                 _options.ProcessorResidency.ForcedMigrationIntervalRecords),
+            StatisticsReplayStartTimestampNanoseconds =
+                _options.StatisticsReplayStartTimestampNanoseconds,
             ProducerAlternateProcessorGroup =
                 _placementLease.NativeProducerAlternate?.ProcessorGroup ?? 0,
             ProducerAlternateLogicalProcessor =

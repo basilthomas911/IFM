@@ -655,7 +655,7 @@ void update_high_water(dbf_feed* feed, std::uint64_t used) noexcept {
 }
 
 std::uint32_t select_record_kind(std::uint32_t kinds, std::uint64_t sequence) noexcept {
-    std::uint32_t enabled[3]{};
+    std::uint32_t enabled[4]{};
     std::uint32_t count = 0;
     if ((kinds & DBF_MARKET_DATA_QUOTE) != 0) {
         enabled[count++] = DBF_RECORD_QUOTE;
@@ -665,6 +665,9 @@ std::uint32_t select_record_kind(std::uint32_t kinds, std::uint64_t sequence) no
     }
     if ((kinds & DBF_MARKET_DATA_MBO) != 0) {
         enabled[count++] = DBF_RECORD_MBO;
+    }
+    if ((kinds & DBF_MARKET_DATA_STATISTICS) != 0) {
+        enabled[count++] = DBF_RECORD_STATISTICS;
     }
     return count == 0
                ? static_cast<std::uint32_t>(DBF_RECORD_QUOTE)
@@ -699,12 +702,26 @@ dbf_market_record64 make_synthetic_record(const mapping_entry& mapping,
         record.trade.action = 'T';
         record.trade.side = (sequence & 1u) == 0 ? 'B' : 'A';
         record.trade.ts_out_ns = timestamp;
-    } else {
+    } else if (kind == DBF_RECORD_MBO) {
         record.mbo.order_id = sequence + 1;
         record.mbo.price = price;
         record.mbo.size = 1 + static_cast<std::uint32_t>(sequence % 25);
         record.mbo.action = 'A';
         record.mbo.side = (sequence & 1u) == 0 ? 'B' : 'A';
+    } else {
+        // Statistics is normally the third record in a quote/trade/statistics
+        // synthetic cycle. Divide by the cycle width so open/high/low rotate
+        // instead of always selecting the same statistic type.
+        const auto statistic_index = (sequence / 3u) % 3u;
+        record.statistics.price = statistic_index == 1u
+                                      ? price - 1'000'000'000LL
+                                      : statistic_index == 2u
+                                            ? price + 1'000'000'000LL
+                                            : price;
+        record.statistics.ts_ref_ns = timestamp;
+        record.statistics.stat_type = statistic_index == 1u ? 4u
+                                                : statistic_index == 2u ? 5u : 1u;
+        record.statistics.update_action = 1u;
     }
     return record;
 }
@@ -948,7 +965,8 @@ void subscribe_group(databento::LiveBlocking& client,
                      std::uint32_t input_symbology,
                      std::uint32_t data_kind,
                      databento::Schema schema,
-                     std::uint32_t& subscription_count) {
+                     std::uint32_t& subscription_count,
+                     std::uint64_t replay_start_ns = 0) {
     std::vector<std::string> symbols;
     symbols.reserve(mappings.size());
     for (const auto& mapping : mappings) {
@@ -958,9 +976,36 @@ void subscribe_group(databento::LiveBlocking& client,
         }
     }
     if (!symbols.empty()) {
-        client.Subscribe(symbols, schema, to_stype(input_symbology));
+        if (replay_start_ns == 0) {
+            client.Subscribe(symbols, schema, to_stype(input_symbology));
+        } else {
+            client.Subscribe(
+                symbols,
+                schema,
+                to_stype(input_symbology),
+                databento::UnixNanos{databento::UnixNanos::duration{replay_start_ns}});
+        }
         ++subscription_count;
     }
+}
+
+bool publish_statistics_replay_complete(dbf_feed* feed) noexcept {
+    for (const auto& mapping : feed->mappings) {
+        if ((mapping.data_kinds & DBF_MARKET_DATA_STATISTICS) == 0
+            || mapping.instrument_id == 0 || mapping.publisher_id == 0) {
+            continue;
+        }
+        dbf_market_record64 record{};
+        record.header.instrument_id = mapping.instrument_id;
+        record.header.publisher_id = mapping.publisher_id;
+        record.header.record_kind = DBF_RECORD_STATISTICS_REPLAY_COMPLETE;
+        record.header.source_schema =
+            static_cast<std::uint16_t>(databento::Schema::Statistics);
+        if (!publish_record(feed, record)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool resolve_mapping(dbf_feed* feed,
@@ -1031,7 +1076,8 @@ bool all_mappings_resolved(const dbf_feed* feed) noexcept {
 
 bool process_live_record(dbf_feed* feed,
                          const databento::Record& source,
-                         bool initial_mapping) {
+                         bool initial_mapping,
+                         bool& statistics_replay_pending) {
     feed->last_message_monotonic_ns.store(
         monotonic_nanoseconds(), std::memory_order_relaxed);
     if (const auto* error = source.GetIf<databento::ErrorMsg>()) {
@@ -1044,6 +1090,14 @@ bool process_live_record(dbf_feed* feed,
             break;
         case databento::SystemCode::SubscriptionAck:
             feed->subscription_acknowledgements.fetch_add(1, std::memory_order_relaxed);
+            break;
+        case databento::SystemCode::ReplayCompleted:
+            if (statistics_replay_pending) {
+                statistics_replay_pending = false;
+                if (!publish_statistics_replay_complete(feed)) {
+                    return false;
+                }
+            }
             break;
         case databento::SystemCode::SlowReaderWarning:
             feed->slow_reader_warnings.fetch_add(1, std::memory_order_relaxed);
@@ -1061,7 +1115,7 @@ bool process_live_record(dbf_feed* feed,
         return false;
     }
     dbf_market_record64 normalized{};
-    return !dbf_live::normalize(source, normalized)
+    return !dbf_live::normalize(source, normalized, statistics_replay_pending)
            || publish_record(feed, normalized);
 }
 
@@ -1087,6 +1141,13 @@ void live_producer_main(dbf_feed* feed) noexcept {
                           .BuildBlocking();
 
         std::uint32_t expected_acknowledgements{};
+        auto statistics_replay_pending =
+            feed->config.statistics_replay_start_ns != 0
+            && std::any_of(feed->mappings.begin(), feed->mappings.end(),
+                           [](const mapping_entry& mapping) {
+                               return (mapping.data_kinds
+                                       & DBF_MARKET_DATA_STATISTICS) != 0;
+                           });
         for (const auto input_symbology : {1u, 2u}) {
             subscribe_group(client, feed->mappings, input_symbology,
                             DBF_MARKET_DATA_QUOTE, databento::Schema::Mbp1,
@@ -1097,6 +1158,11 @@ void live_producer_main(dbf_feed* feed) noexcept {
             subscribe_group(client, feed->mappings, input_symbology,
                             DBF_MARKET_DATA_MBO, databento::Schema::Mbo,
                             expected_acknowledgements);
+            subscribe_group(client, feed->mappings, input_symbology,
+                            DBF_MARKET_DATA_STATISTICS,
+                            databento::Schema::Statistics,
+                            expected_acknowledgements,
+                            feed->config.statistics_replay_start_ns);
         }
         const auto metadata = client.Start();
         if (!metadata.not_found.empty() || !metadata.partial.empty()) {
@@ -1121,7 +1187,8 @@ void live_producer_main(dbf_feed* feed) noexcept {
             }
             const auto* record = client.NextRecord(std::chrono::milliseconds{
                 std::min<std::uint32_t>(remaining, 250u)});
-            if (record != nullptr && !process_live_record(feed, *record, true)) {
+            if (record != nullptr && !process_live_record(
+                    feed, *record, true, statistics_replay_pending)) {
                 client.Stop();
                 finish_producer(feed);
                 return;
@@ -1146,7 +1213,8 @@ void live_producer_main(dbf_feed* feed) noexcept {
         while (!feed->stop_requested.load(std::memory_order_acquire)
                && feed->state.load(std::memory_order_acquire) != DBF_STATE_FAULTED) {
             const auto* record = client.NextRecord(std::chrono::milliseconds{250});
-            if (record != nullptr && !process_live_record(feed, *record, false)) {
+            if (record != nullptr && !process_live_record(
+                    feed, *record, false, statistics_replay_pending)) {
                 break;
             }
         }
@@ -1582,13 +1650,13 @@ dbf_status DBF_CALL dbf_feed_subscribe_tickers(
                 || item.symbol_length == 0 || item.symbol_length > 0xffffu
                 || utf8_blob == nullptr
                 || (item.input_symbology != 1u && item.input_symbology != 2u)
-                || (item.data_kinds & 7u) == 0 || (item.data_kinds & ~7u) != 0) {
+                || (item.data_kinds & 15u) == 0 || (item.data_kinds & ~15u) != 0) {
                 return DBF_INVALID_ARGUMENT;
             }
             mapping_entry mapping{};
             mapping.subscription_index = index;
             mapping.input_symbology = item.input_symbology;
-            mapping.data_kinds = item.data_kinds & 7u;
+            mapping.data_kinds = item.data_kinds & 15u;
             mapping.requested_symbol.assign(
                 reinterpret_cast<const char*>(utf8_blob + item.symbol_offset),
                 item.symbol_length);

@@ -3500,9 +3500,7 @@ public partial class MarketDataDbContext(
         if (existingData is null)
         {
             // insert new data if it doesn't exist...
-            var newFuturesDataId = FuturesDataId.Create(e.ContractId, e.ValueDate);
-            var openPrice = await GetFuturesOpenPriceAsync(newFuturesDataId);
-            openPrice = openPrice == 0 ? e.OpenPrice : openPrice;
+            var openPrice = e.OpenPrice;
             await ExecuteMaintainedProjectionMutationAsync(
                 FuturesEodProjection,
                 new[] { GetFuturesEodScopeKey(e.ValueDate) },
@@ -3565,8 +3563,7 @@ public partial class MarketDataDbContext(
         else
         {
             // Update existing data if it exists
-            var openPrice = await _blackboardService.MarketDataFeed.FuturesOpenPrice.GetAsync(existingData, GetFuturesOpenPriceAsync);
-            openPrice = openPrice == 0 ? e.OpenPrice : openPrice;
+            var openPrice = e.OpenPrice;
             await ExecuteMaintainedProjectionMutationAsync(
                 FuturesEodProjection,
                 new[] { GetFuturesEodScopeKey(e.ValueDate) },
@@ -3625,16 +3622,55 @@ public partial class MarketDataDbContext(
                 await UpsertFuturesEodProjectionAsync(e, openPrice);
             });
         }
+    }
 
+    /// <summary>
+    /// Updates provider-supplied session prices and the two metrics that depend on
+    /// the session open. The immutable intraday observation table is intentionally
+    /// not appended for a statistics-only correction.
+    /// </summary>
+    public async Task UpdateFuturesEodSessionStatisticsAsync(
+        FuturesEodDataV2ReadModel e)
+    {
+        var db = _dbFactory.MarketDataDb;
+        var existingData = await db.Use(MarketDataDbCql.GetFuturesDataId)
+            .SetParameters(new GetFuturesDataId(
+                contractId: e.ContractId,
+                valueDate: e.ValueDate))
+            .ExecuteSingleAsync(MapToFuturesDataId!);
+        if (existingData is null)
+            throw new InvalidOperationException(
+                $"Futures EOD row '{e.ContractId}:{e.ValueDate:yyyy-MM-dd}' does not exist.");
 
-        async Task<decimal> GetFuturesOpenPriceAsync(FuturesDataId e)
-        {
-            var futuresClosingPrice = await db.Use(MarketDataDbCql.GetYesterdaysFuturesClosingPrice)
-               .SetParameters(new GetYesterdaysFuturesClosingPrice(contractId: e.ContractId, valueDate: e.ValueDate))
-               .ExecuteSingleAsync(MapToFuturesClosingPrice!);
-            return futuresClosingPrice is not null ? futuresClosingPrice.ClosingPrice : 0m;
-        }
-
+        await ExecuteMaintainedProjectionMutationAsync(
+            FuturesEodProjection,
+            new[] { GetFuturesEodScopeKey(e.ValueDate) },
+            async () =>
+            {
+                List<object> commands =
+                [
+                    db.Use(MarketDataDbCql.UpdateFuturesEodSessionStatistics)
+                        .SetParameters(new UpdateFuturesEodSessionStatistics(
+                            contractId: e.ContractId,
+                            valueDate: e.ValueDate,
+                            symbol: e.Symbol,
+                            openPrice: e.OpenPrice,
+                            highPrice: e.HighPrice,
+                            lowPrice: e.LowPrice,
+                            dailyPercentChange: e.DailyPercentChange,
+                            priceDirection: e.PriceDirection.ToStringFast()))
+                        .QueueCommand(),
+                    db.Use(MarketDataDbCql.InsertFuturesEodDataByMonth)
+                        .SetParameters(CreateFuturesEodDataByMonthParameters(e, e.OpenPrice))
+                        .QueueCommand(),
+                    db.Use(MarketDataDbCql.InsertMarketDataProjectionMonth)
+                        .SetParameters(new InsertMarketDataProjectionMonth(
+                            FuturesEodProjection,
+                            ToYearMonth(e.ValueDate)))
+                        .QueueCommand()
+                ];
+                await db.ExecuteQueuedCommandsAsync(commands);
+            });
     }
 
     public async Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData)

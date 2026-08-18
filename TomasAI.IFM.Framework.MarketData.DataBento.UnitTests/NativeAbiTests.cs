@@ -12,6 +12,7 @@ public sealed class NativeAbiTests
         Assert.Equal(64, Marshal.SizeOf<QuoteRecord64>());
         Assert.Equal(64, Marshal.SizeOf<TradeRecord64>());
         Assert.Equal(64, Marshal.SizeOf<MboRecord64>());
+        Assert.Equal(64, Marshal.SizeOf<StatisticsRecord64>());
         Assert.Equal(64, Marshal.SizeOf<MarketRecord64>());
         Assert.Equal(128, Marshal.SizeOf<NativeFeedConfig>());
         Assert.Equal(32, Marshal.SizeOf<NativeTickerSubscription>());

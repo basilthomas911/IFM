@@ -41,7 +41,9 @@ public enum MarketRecordKind : byte
 {
     Quote = 1,
     Trade = 2,
-    Mbo = 3
+    Mbo = 3,
+    Statistics = 4,
+    StatisticsReplayComplete = 5
 }
 
 [Flags]
@@ -50,7 +52,8 @@ public enum MarketDataKinds : byte
     None = 0,
     Quote = 1,
     Trade = 2,
-    MboOrderUpdate = 4
+    MboOrderUpdate = 4,
+    Statistics = 8
 }
 
 public enum FeedState : uint
@@ -184,6 +187,43 @@ public readonly struct MboRecord64
     private readonly uint _reserved;
 }
 
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
+public readonly struct StatisticsRecord64
+{
+    public readonly MarketRecordHeader32 Header;
+    public readonly long Price;
+    public readonly long ReferenceTimestampNanoseconds;
+    public readonly int TimestampInDeltaNanoseconds;
+    public readonly ushort StatisticType;
+    public readonly ushort ChannelId;
+    public readonly byte UpdateAction;
+    public readonly byte StatisticFlags;
+    private readonly ushort _reserved16;
+    private readonly uint _reserved32;
+
+    public StatisticsRecord64(
+        MarketRecordHeader32 header,
+        long price,
+        long referenceTimestampNanoseconds,
+        int timestampInDeltaNanoseconds,
+        ushort statisticType,
+        ushort channelId,
+        byte updateAction,
+        byte statisticFlags)
+    {
+        Header = header;
+        Price = price;
+        ReferenceTimestampNanoseconds = referenceTimestampNanoseconds;
+        TimestampInDeltaNanoseconds = timestampInDeltaNanoseconds;
+        StatisticType = statisticType;
+        ChannelId = channelId;
+        UpdateAction = updateAction;
+        StatisticFlags = statisticFlags;
+        _reserved16 = 0;
+        _reserved32 = 0;
+    }
+}
+
 [StructLayout(LayoutKind.Explicit, Pack = 8, Size = 64)]
 public readonly struct MarketRecord64
 {
@@ -191,6 +231,7 @@ public readonly struct MarketRecord64
     [FieldOffset(0)] public readonly QuoteRecord64 Quote;
     [FieldOffset(0)] public readonly TradeRecord64 Trade;
     [FieldOffset(0)] public readonly MboRecord64 Mbo;
+    [FieldOffset(0)] public readonly StatisticsRecord64 Statistics;
 
     public MarketRecord64(QuoteRecord64 quote)
     {
@@ -202,6 +243,12 @@ public readonly struct MarketRecord64
     {
         this = default;
         Trade = trade;
+    }
+
+    public MarketRecord64(StatisticsRecord64 statistics)
+    {
+        this = default;
+        Statistics = statistics;
     }
 }
 
@@ -237,7 +284,8 @@ internal unsafe struct NativeFeedConfig
     public ushort DrainAlternateProcessorGroup;
     public ushort DrainAlternateLogicalProcessor;
     public uint Reserved32;
-    public fixed ulong Reserved[3];
+    public ulong StatisticsReplayStartTimestampNanoseconds;
+    public fixed ulong Reserved[2];
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 32)]

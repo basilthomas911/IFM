@@ -68,6 +68,7 @@ internal static class FuturesTickTradeDataInserted
             var insertedEvent = await CreateFuturesInsertedEventAsync(
                     source,
                     context,
+                    marketDataApi,
                     blackboardService,
                     contract,
                     tickData)
@@ -95,6 +96,7 @@ internal static class FuturesTickTradeDataInserted
     static async ValueTask<FuturesEodDataInsertedEvent?> CreateFuturesInsertedEventAsync(
         FuturesTickTradeDataInsertedEvent source,
         IEventActorContext context,
+        IMarketDataApi marketDataApi,
         IBlackboardService blackboardService,
         FuturesContractV2ReadModel contract,
         FuturesTickDataV2ReadModel tickData)
@@ -103,10 +105,32 @@ internal static class FuturesTickTradeDataInserted
         var eodDataToday = await context.GetFuturesEodDataAsync(
             contract.ContractId,
             valueDate).ConfigureAwait(false);
+        var hasCurrentSessionRow = eodDataToday is not null;
         eodDataToday ??= await context.GetLastFuturesEodDataAsync(
             contract.ContractId,
             valueDate).ConfigureAwait(false);
-        if (eodDataToday is null || eodDataToday.ClosePrice == tickData.Price)
+        if (eodDataToday is null)
+            return null;
+
+        var hasStatistics = marketDataApi.TryGetFuturesSessionStatistics(
+                contract.ContractId,
+                out var statistics)
+            && statistics.IsComplete
+            && statistics.ValueDate == valueDate
+            && tickData.Price >= statistics.LowPrice
+            && tickData.Price <= statistics.HighPrice;
+        if (!hasCurrentSessionRow && !hasStatistics)
+            return null;
+        if (hasStatistics)
+        {
+            eodDataToday = eodDataToday with
+            {
+                OpenPrice = statistics.OpenPrice,
+                HighPrice = statistics.HighPrice,
+                LowPrice = statistics.LowPrice
+            };
+        }
+        if (hasCurrentSessionRow && eodDataToday.ClosePrice == tickData.Price)
             return null;
 
         var vixContractId = blackboardService.MarketDataFeed.VixFuturesContractId.Get(valueDate);

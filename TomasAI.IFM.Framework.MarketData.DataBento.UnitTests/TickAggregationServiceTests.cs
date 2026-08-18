@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
@@ -87,6 +88,53 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(5.1m, snapshot.Quote.Value.AskPrice);
         Assert.Equal(10u, snapshot.Quote.Value.BidSize);
         Assert.Equal(11u, snapshot.Quote.Value.AskSize);
+        await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task Statistics_replay_is_coalesced_then_live_high_updates_snapshot_and_event()
+    {
+        var valueDate = new DateOnly(2026, 8, 18);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new RunningFeed(instrument);
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument, CreateDetails(valueDate, instrument)),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        feed.Publish(Statistic(instrument, 10, 1, 5_000m, replay: true));
+        feed.Publish(Statistic(instrument, 11, 4, 4_990m, replay: true));
+        feed.Publish(Statistic(instrument, 12, 5, 5_010m, replay: true));
+
+        Assert.True(SpinWait.SpinUntil(
+            () => service.TryGetFuturesSessionStatistics("ESU6", out _),
+            TimeSpan.FromSeconds(2)));
+        Assert.Empty(publisher.SessionStatistics);
+
+        feed.Publish(StatisticsReplayComplete(instrument));
+        var replayed = await publisher.SessionStatisticsFirst.Task.WaitAsync(
+            TimeSpan.FromSeconds(2));
+        Assert.Equal(5_000m, replayed.Statistics.OpenPrice);
+        Assert.Equal(5_010m, replayed.Statistics.HighPrice);
+        Assert.Equal(4_990m, replayed.Statistics.LowPrice);
+
+        feed.Publish(Statistic(instrument, 13, 5, 5_020m, replay: false));
+        Assert.True(SpinWait.SpinUntil(
+            () => publisher.SessionStatistics.Count == 2,
+            TimeSpan.FromSeconds(2)));
+        Assert.True(service.TryGetFuturesSessionStatistics("ESU6", out var current));
+        Assert.Equal(5_020m, current.HighPrice);
+        Assert.Equal(2, publisher.SessionStatistics.Count);
+
         await service.StopAsync();
     }
 
@@ -603,6 +651,47 @@ public sealed class TickAggregationServiceTests
             new MarketRecordHeader32(key.InstrumentId, key.PublisherId, MarketRecordKind.Trade, 0, sequence, sequence, sequence),
             price, 12, 1, 2, 0));
 
+    private static MarketRecord64 Statistic(
+        InstrumentKey key,
+        uint sequence,
+        ushort statisticType,
+        decimal price,
+        bool replay) => new(
+        new StatisticsRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.Statistics,
+                replay ? (byte)2 : (byte)0,
+                sequence,
+                sequence,
+                sequence),
+            decimal.ToInt64(price * 1_000_000_000m),
+            0,
+            0,
+            statisticType,
+            0,
+            1,
+            0));
+
+    private static MarketRecord64 StatisticsReplayComplete(InstrumentKey key) => new(
+        new StatisticsRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.StatisticsReplayComplete,
+                0,
+                0,
+                0,
+                0),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0));
+
     private sealed class MappingProvider(
         InstrumentKey instrument,
         TickerContractDetails? details = null,
@@ -680,6 +769,9 @@ public sealed class TickAggregationServiceTests
         public List<long> Sequences { get; } = [];
         public List<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrices { get; } = [];
         public List<FuturesTickTradeDataChangedEvent> Trades { get; } = [];
+        public List<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatistics { get; } = [];
+        public TaskCompletionSource<FuturesSessionStatisticsUpdatedRealtimeEvent> SessionStatisticsFirst { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrice { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ushort QuoteCount { get; private set; }
@@ -690,6 +782,12 @@ public sealed class TickAggregationServiceTests
         {
             MarketPrices.Add(e);
             MarketPrice.TrySetResult(e);
+            return ValueTask.CompletedTask;
+        }
+        public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent e)
+        {
+            SessionStatistics.Add(e);
+            SessionStatisticsFirst.TrySetResult(e);
             return ValueTask.CompletedTask;
         }
         public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)

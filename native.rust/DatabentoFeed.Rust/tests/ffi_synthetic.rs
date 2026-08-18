@@ -42,7 +42,10 @@ unsafe fn create_subscribed(
             symbol_offset: 0,
             symbol_length: 4,
             input_symbology: 1,
-            data_kinds: MARKET_DATA_QUOTE | MARKET_DATA_TRADE | MARKET_DATA_MBO,
+            data_kinds: MARKET_DATA_QUOTE
+                | MARKET_DATA_TRADE
+                | MARKET_DATA_MBO
+                | MARKET_DATA_STATISTICS,
             reserved: 0,
         },
         TickerSubscriptionV1 {
@@ -75,6 +78,7 @@ unsafe fn create_subscribed(
 fn layouts_and_version_match_the_c_header() {
     assert_eq!(dbf_get_abi_version(), 1);
     assert_eq!(size_of::<RecordHeader32>(), 32);
+    assert_eq!(size_of::<StatisticsRecord64>(), 64);
     assert_eq!(size_of::<MarketRecord64>(), 64);
     assert_eq!(size_of::<FeedConfigV1>(), 128);
     assert_eq!(size_of::<StatsV1>(), 128);
@@ -118,6 +122,7 @@ fn synthetic_feed_preserves_lifecycle_mappings_and_order() {
 
         assert_eq!(dbf_feed_set_consumer_ready(feed.cast(), 2_000), OK);
         let mut expected = 1u64;
+        let mut observed_statistics = [false; 3];
         loop {
             let mut wait = WaitResultV1 {
                 struct_size: size_of::<WaitResultV1>() as u32,
@@ -137,7 +142,17 @@ fn synthetic_feed_preserves_lifecycle_mappings_and_order() {
                         OK
                     );
                     for index in 0..batch.records_read as usize {
-                        assert_eq!((*buffer.add(index)).header.sequence as u64, expected);
+                        let record = *buffer.add(index);
+                        assert_eq!(record.header.sequence as u64, expected);
+                        if record.header.record_kind == RECORD_STATISTICS {
+                            let statistic = record.statistics;
+                            match statistic.stat_type {
+                                1 => observed_statistics[0] = true,
+                                4 => observed_statistics[1] = true,
+                                5 => observed_statistics[2] = true,
+                                value => panic!("unexpected synthetic statistic type {value}"),
+                            }
+                        }
                         expected += 1;
                     }
                     if batch.more_available == 0 {
@@ -150,6 +165,7 @@ fn synthetic_feed_preserves_lifecycle_mappings_and_order() {
             }
         }
         assert_eq!(expected, 257);
+        assert_eq!(observed_statistics, [true, true, true]);
         let mut stats = StatsV1 {
             struct_size: size_of::<StatsV1>() as u32,
             abi_version: ABI_VERSION,

@@ -211,8 +211,8 @@ mod exports {
                     || item.symbol_length == 0
                     || item.symbol_length > u16::MAX.into()
                     || !(item.input_symbology == 1 || item.input_symbology == 2)
-                    || item.data_kinds & 7 == 0
-                    || item.data_kinds & !7 != 0
+                    || item.data_kinds & 15 == 0
+                    || item.data_kinds & !15 != 0
                 {
                     return INVALID_ARGUMENT;
                 }
@@ -223,7 +223,7 @@ mod exports {
                     subscription_index: index as u32,
                     instrument_id: index as u32 + 1,
                     publisher_id: 1,
-                    data_kinds: item.data_kinds & 7,
+                    data_kinds: item.data_kinds & 15,
                     input_symbology: item.input_symbology,
                     requested_symbol: symbol.clone(),
                     raw_symbol: symbol,

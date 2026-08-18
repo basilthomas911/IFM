@@ -42,7 +42,6 @@ public interface IMarketDataFeedBlackboard
     FuturesEodDataRangeCacheModel FuturesEodDataRange { get; }
     NormalCurveTableCacheModel NormalCurveTable { get; }
     VixFuturesContractIdCacheModel VixFuturesContractId { get; }
-    FuturesOpenPriceCacheModel FuturesOpenPrice { get; }
     VixFuturesOpenPriceCacheModel VixFuturesOpenPrice { get; }
     StreamingRequestIdCacheModel StreamingRequestId { get; }
 }
@@ -132,7 +131,6 @@ internal sealed class MarketDataFeedBlackboard : IMarketDataFeedBlackboard
         FuturesEodDataRange = new(redisCache, jsonSerializer);
         NormalCurveTable = new(redisCache, jsonSerializer);
         VixFuturesContractId = new(redisCache, jsonSerializer);
-        FuturesOpenPrice = new(redisCache, jsonSerializer);
         VixFuturesOpenPrice = new(redisCache, jsonSerializer);
         StreamingRequestId = new(redisCache, jsonSerializer);
     }
@@ -145,7 +143,6 @@ internal sealed class MarketDataFeedBlackboard : IMarketDataFeedBlackboard
     public FuturesEodDataRangeCacheModel FuturesEodDataRange { get; }
     public NormalCurveTableCacheModel NormalCurveTable { get; }
     public VixFuturesContractIdCacheModel VixFuturesContractId { get; }
-    public FuturesOpenPriceCacheModel FuturesOpenPrice { get; }
     public VixFuturesOpenPriceCacheModel VixFuturesOpenPrice { get; }
     public StreamingRequestIdCacheModel StreamingRequestId { get; }
 }

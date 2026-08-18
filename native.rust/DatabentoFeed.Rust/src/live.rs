@@ -4,8 +4,8 @@ use databento::{
     HistoricalClient, LiveClient,
     dbn::{
         BboMsg, ErrorCode, ErrorMsg, InstrumentDefMsg, MboMsg, Mbp1Msg, Record, RecordHeader,
-        RecordRef, SType, Schema, SymbolMappingMsg, SystemCode, SystemMsg, TradeMsg, UNDEF_PRICE,
-        UNDEF_TIMESTAMP,
+        RecordRef, SType, Schema, StatMsg, SymbolMappingMsg, SystemCode, SystemMsg, TradeMsg,
+        UNDEF_PRICE, UNDEF_TIMESTAMP,
     },
     historical::timeseries::GetRangeParams,
     live::{SlowReaderBehavior, Subscription, TimeoutConf},
@@ -13,6 +13,7 @@ use databento::{
 
 use crate::abi::*;
 use crate::engine::{Feed, Mapping};
+use time::OffsetDateTime;
 
 #[derive(Debug)]
 struct LiveFailure {
@@ -85,6 +86,10 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
 
     let mappings = feed.mappings_snapshot();
     let mut expected_acknowledgements = 0u32;
+    let mut statistics_replay_pending = feed.config.statistics_replay_start_ns != 0
+        && mappings
+            .iter()
+            .any(|mapping| mapping.data_kinds & MARKET_DATA_STATISTICS != 0);
     for input_symbology in [1u32, 2u32] {
         subscribe_group(
             &mut client,
@@ -92,6 +97,7 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             input_symbology,
             MARKET_DATA_QUOTE,
             Schema::Mbp1,
+            0,
         )
         .await?;
         expected_acknowledgements +=
@@ -102,6 +108,7 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             input_symbology,
             MARKET_DATA_TRADE,
             Schema::Trades,
+            0,
         )
         .await?;
         expected_acknowledgements +=
@@ -112,10 +119,22 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             input_symbology,
             MARKET_DATA_MBO,
             Schema::Mbo,
+            0,
         )
         .await?;
         expected_acknowledgements +=
             u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_MBO));
+        subscribe_group(
+            &mut client,
+            &mappings,
+            input_symbology,
+            MARKET_DATA_STATISTICS,
+            Schema::Statistics,
+            feed.config.statistics_replay_start_ns,
+        )
+        .await?;
+        expected_acknowledgements +=
+            u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_STATISTICS));
     }
     let metadata = client.start().await.map_err(LiveFailure::from)?;
     if !metadata.not_found.is_empty() || !metadata.partial.is_empty() {
@@ -139,7 +158,13 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             ));
         }
         if let Some(record) = next_with_poll(&mut client, remaining.min(250)).await? {
-            process_record(feed, record, true, &mut acknowledgements)?;
+            process_record(
+                feed,
+                record,
+                true,
+                &mut acknowledgements,
+                &mut statistics_replay_pending,
+            )?;
         }
     }
 
@@ -149,7 +174,13 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
         && feed.state.load(std::sync::atomic::Ordering::Acquire) != STATE_FAULTED
     {
         if let Some(record) = next_with_poll(&mut client, 250).await? {
-            process_record(feed, record, false, &mut acknowledgements)?;
+            process_record(
+                feed,
+                record,
+                false,
+                &mut acknowledgements,
+                &mut statistics_replay_pending,
+            )?;
         }
     }
     let _ = client.close().await;
@@ -168,6 +199,7 @@ async fn subscribe_group(
     input_symbology: u32,
     data_kind: u32,
     schema: Schema,
+    replay_start_ns: u64,
 ) -> Result<(), LiveFailure> {
     let symbols: Vec<String> = mappings
         .iter()
@@ -180,14 +212,24 @@ async fn subscribe_group(
         })
         .collect::<Result<_, _>>()?;
     if !symbols.is_empty() {
+        let subscription = if replay_start_ns == 0 {
+            Subscription::builder()
+                .symbols(symbols)
+                .schema(schema)
+                .stype_in(to_stype(input_symbology))
+                .build()
+        } else {
+            let start = OffsetDateTime::from_unix_timestamp_nanos(i128::from(replay_start_ns))
+                .map_err(|error| failure(INVALID_ARGUMENT, error.to_string()))?;
+            Subscription::builder()
+                .symbols(symbols)
+                .schema(schema)
+                .stype_in(to_stype(input_symbology))
+                .start(start)
+                .build()
+        };
         client
-            .subscribe(
-                Subscription::builder()
-                    .symbols(symbols)
-                    .schema(schema)
-                    .stype_in(to_stype(input_symbology))
-                    .build(),
-            )
+            .subscribe(subscription)
             .await
             .map_err(LiveFailure::from)?;
     }
@@ -215,6 +257,7 @@ fn process_record(
     source: RecordRef<'_>,
     initial_mapping: bool,
     acknowledgements: &mut u32,
+    statistics_replay_pending: &mut bool,
 ) -> Result<(), LiveFailure> {
     if let Some(error) = source.get::<ErrorMsg>() {
         return Err(failure(
@@ -225,6 +268,10 @@ fn process_record(
     if let Some(system) = source.get::<SystemMsg>() {
         match system.code().unwrap_or(SystemCode::Unset) {
             SystemCode::SubscriptionAck => *acknowledgements = acknowledgements.saturating_add(1),
+            SystemCode::ReplayCompleted if *statistics_replay_pending => {
+                *statistics_replay_pending = false;
+                publish_statistics_replay_complete(feed)?;
+            }
             SystemCode::SlowReaderWarning => {
                 return Err(failure(
                     DATABENTO_ERROR,
@@ -253,13 +300,35 @@ fn process_record(
         feed.resolve_mapping_publisher(header.instrument_id, header.publisher_id)
             .map_err(|(status, message)| failure(status, String::from_utf8_lossy(message)))?;
     }
-    if let Some(record) = normalize(source)
+    if let Some(record) = normalize(source, *statistics_replay_pending)
         && !feed.publish_live(record)
     {
         return Err(failure(
             feed.terminal_status(),
             "Native ring publication failed",
         ));
+    }
+    Ok(())
+}
+
+fn publish_statistics_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
+    for mapping in feed.mappings_snapshot().into_iter().filter(|mapping| {
+        mapping.data_kinds & MARKET_DATA_STATISTICS != 0
+            && mapping.instrument_id != 0
+            && mapping.publisher_id != 0
+    }) {
+        let record = MarketRecord64 {
+            header: RecordHeader32 {
+                instrument_id: mapping.instrument_id,
+                publisher_id: mapping.publisher_id,
+                record_kind: RECORD_STATISTICS_REPLAY_COMPLETE,
+                source_schema: Schema::Statistics as u16,
+                ..RecordHeader32::default()
+            },
+        };
+        if !feed.publish_live(record) {
+            return Err(failure(feed.terminal_status(), "Native ring publication failed"));
+        }
     }
     Ok(())
 }
@@ -313,7 +382,10 @@ fn price_or_zero(value: i64, flags: &mut u8) -> i64 {
     }
 }
 
-pub(crate) fn normalize(source: RecordRef<'_>) -> Option<MarketRecord64> {
+pub(crate) fn normalize(
+    source: RecordRef<'_>,
+    statistics_replay: bool,
+) -> Option<MarketRecord64> {
     if let Some(message) = source.get::<Mbp1Msg>() {
         let mut header = fill_header(
             &message.hd,
@@ -387,6 +459,32 @@ pub(crate) fn normalize(source: RecordRef<'_>) -> Option<MarketRecord64> {
                 side: message.side as u8,
                 dbn_flags: message.flags.raw(),
                 channel_id: message.channel_id,
+                reserved32: 0,
+            },
+        });
+    }
+    if let Some(message) = source.get::<StatMsg>() {
+        let mut header = fill_header(
+            &message.hd,
+            RECORD_STATISTICS,
+            message.ts_recv,
+            message.sequence,
+            Schema::Statistics,
+        );
+        if statistics_replay {
+            header.flags |= 2;
+        }
+        return Some(MarketRecord64 {
+            statistics: StatisticsRecord64 {
+                price: price_or_zero(message.price, &mut header.flags),
+                header,
+                ts_ref_ns: message.ts_ref as i64,
+                ts_in_delta_ns: message.ts_in_delta,
+                stat_type: message.stat_type,
+                channel_id: message.channel_id,
+                update_action: message.update_action,
+                stat_flags: message.stat_flags,
+                reserved16: 0,
                 reserved32: 0,
             },
         });
@@ -824,7 +922,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normalizes_quote_trade_and_mbo_like_the_cpp_reference() {
+    fn normalizes_quote_trade_mbo_and_statistics_like_the_cpp_reference() {
         let mut quote = Mbp1Msg::default();
         quote.hd.instrument_id = 42;
         quote.hd.publisher_id = 7;
@@ -838,7 +936,7 @@ mod tests {
         quote.levels[0].ask_sz = 5;
         quote.levels[0].bid_ct = 2;
         quote.levels[0].ask_ct = 3;
-        let normalized = normalize(RecordRef::from(&quote)).expect("quote");
+        let normalized = normalize(RecordRef::from(&quote), false).expect("quote");
         let normalized = unsafe { normalized.quote };
         assert_eq!(normalized.header.record_kind, RECORD_QUOTE);
         assert_eq!(normalized.header.flags, 1);
@@ -855,7 +953,7 @@ mod tests {
         trade.depth = 1;
         trade.ts_in_delta = -12;
         trade.sequence = 4;
-        let normalized = normalize(RecordRef::from(&trade)).expect("trade");
+        let normalized = normalize(RecordRef::from(&trade), false).expect("trade");
         let normalized = unsafe { normalized.trade };
         assert_eq!(normalized.header.record_kind, RECORD_TRADE);
         assert_eq!(normalized.price, trade.price);
@@ -871,12 +969,35 @@ mod tests {
         mbo.side = b'A' as _;
         mbo.channel_id = 2;
         mbo.sequence = 5;
-        let normalized = normalize(RecordRef::from(&mbo)).expect("mbo");
+        let normalized = normalize(RecordRef::from(&mbo), false).expect("mbo");
         let normalized = unsafe { normalized.mbo };
         assert_eq!(normalized.header.record_kind, RECORD_MBO);
         assert_eq!(normalized.header.flags & 4, 4);
         assert_eq!(normalized.price, 0);
         assert_eq!(normalized.order_id, 99);
+
+        let mut statistics = StatMsg::default();
+        statistics.hd.instrument_id = 45;
+        statistics.hd.publisher_id = 7;
+        statistics.hd.ts_event = 120;
+        statistics.ts_recv = 130;
+        statistics.ts_ref = 125;
+        statistics.price = 104_000_000_000;
+        statistics.sequence = 10;
+        statistics.ts_in_delta = 21;
+        statistics.stat_type = 5;
+        statistics.channel_id = 3;
+        statistics.update_action = 1;
+        statistics.stat_flags = 7;
+        let normalized = normalize(RecordRef::from(&statistics), true).expect("statistics");
+        let normalized = unsafe { normalized.statistics };
+        assert_eq!(normalized.header.record_kind, RECORD_STATISTICS);
+        assert_eq!(normalized.header.flags & 2, 2);
+        assert_eq!(normalized.price, statistics.price);
+        assert_eq!(normalized.ts_ref_ns, 125);
+        assert_eq!(normalized.stat_type, 5);
+        assert_eq!(normalized.update_action, 1);
+        assert_eq!(normalized.stat_flags, 7);
     }
 
     #[test]

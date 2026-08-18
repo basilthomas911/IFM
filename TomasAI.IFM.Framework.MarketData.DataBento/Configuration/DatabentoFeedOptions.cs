@@ -152,6 +152,11 @@ public sealed record DatabentoFeedOptions
     public FeedProcessorResidencyOptions ProcessorResidency { get; init; } = new();
     public FeedTransportHealthOptions TransportHealth { get; init; } = new();
     public SyntheticFeedOptions Synthetic { get; init; } = new();
+    /// <summary>
+    /// Inclusive UTC start used only by the Databento statistics subscription.
+    /// Quote, trade, and MBO subscriptions remain live-only.
+    /// </summary>
+    public ulong StatisticsReplayStartTimestampNanoseconds { get; init; }
 
     public static DatabentoFeedOptions ForProfile(
         FeedDeploymentProfile profile,

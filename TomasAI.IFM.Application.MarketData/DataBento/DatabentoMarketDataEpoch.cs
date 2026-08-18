@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
@@ -122,6 +123,20 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         return aggregation.TryGetLastOptionTickPrice(contractId, out snapshot);
     }
 
+    public bool TryGetFuturesSessionStatistics(
+        string contractId,
+        out FuturesSessionStatisticsSnapshot snapshot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        if (!Volatile.Read(ref _aggregationByContractId)
+            .TryGetValue(contractId, out var aggregation))
+        {
+            snapshot = default;
+            return false;
+        }
+        return aggregation.TryGetFuturesSessionStatistics(contractId, out snapshot);
+    }
+
     public bool IsTickDataStreamActive(string contractId) =>
         Volatile.Read(ref _aggregationByContractId)
             .GetValueOrDefault(contractId)?.IsTickDataStreamActive(contractId) == true;
@@ -197,14 +212,20 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     var dataset = group.Dataset;
                     var contracts = group.Contracts;
                     var feed = _feeds.CreateTickerFeed(
-                        _options.FeedOptions with { Dataset = dataset });
+                        _options.FeedOptions with
+                        {
+                            Dataset = dataset,
+                            StatisticsReplayStartTimestampNanoseconds =
+                                ToUnixNanoseconds(
+                                    FuturesTradingValueDate.GetSessionStartUtc(ValueDate))
+                        });
                     TickAggregationService? aggregation = null;
                     try
                     {
                         var subscriptions = contracts.Select(resolved => new TickerSubscription(
                             resolved.Detail.RawSymbol,
                             DatabentoInputSymbology.RawSymbol,
-                            MarketDataKinds.Quote | MarketDataKinds.Trade))
+                            GetTickerDataKinds(resolved)))
                             .ToArray();
                         feed.Subscribe(subscriptions, _options.ProviderQueryTimeout);
                         aggregation = new TickAggregationService(
@@ -455,4 +476,17 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                 ? resolved
                 : valueDate;
     }
+
+    private static MarketDataKinds GetTickerDataKinds(
+        DatabentoMarketDataCatalog.ResolvedContract resolved)
+    {
+        var kinds = MarketDataKinds.Quote | MarketDataKinds.Trade;
+        if (resolved.Registration.AssetTypeId == AssetTypeId.Futures
+            && !StringComparer.OrdinalIgnoreCase.Equals(resolved.Detail.Ticker, "VX"))
+            kinds |= MarketDataKinds.Statistics;
+        return kinds;
+    }
+
+    private static ulong ToUnixNanoseconds(DateTimeOffset value) => checked(
+        (ulong)(value.UtcTicks - DateTimeOffset.UnixEpoch.UtcTicks) * 100UL);
 }

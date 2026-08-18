@@ -1,6 +1,9 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -152,6 +155,18 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             ToTickerPriceSnapshot(price),
             TryReadOptionGreeks(price));
         return true;
+    }
+
+    /// <summary>Reads the latest complete session statistics without consulting stream ownership.</summary>
+    public bool TryGetFuturesSessionStatistics(
+        string contractId,
+        out FuturesSessionStatisticsSnapshot snapshot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        snapshot = default;
+        var states = Volatile.Read(ref _statesByContractId);
+        return states.TryGetValue(contractId, out var state)
+            && state.SessionStatistics.TryRead(out snapshot);
     }
 
     /// <summary>Returns whether at least one workflow owns the contract's transient stream.</summary>
@@ -402,6 +417,14 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
     private async ValueTask ProcessRecordAsync(TickerState state, MarketRecord64 record)
     {
+        if (record.Header.RecordKind == MarketRecordKind.StatisticsReplayComplete)
+        {
+            if (state.SessionStatistics.TryRead(out var replayedStatistics))
+                await PublishSessionStatisticsAsync(state, replayedStatistics)
+                    .ConfigureAwait(false);
+            return;
+        }
+
         TrackSourceSequence(
             state,
             record.Header.PublisherId,
@@ -415,6 +438,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             state.ValueDate = valueDate;
             state.Sequence = 0;
             state.MarketPrice.Reset();
+            state.SessionStatistics.Reset();
         }
 
         switch (record.Header.RecordKind)
@@ -465,6 +489,52 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 await FlushAsync(state, QuoteEmissionReason.TradeObserved, observedUtc).ConfigureAwait(false);
                 await PublishPendingTradeAsync(state).ConfigureAwait(false);
                 break;
+            case MarketRecordKind.Statistics:
+                if (state.Mapping.AssetTypeId == AssetTypeId.Futures
+                    && state.SessionStatistics.TryUpdate(
+                        state.Mapping.ContractId,
+                        state.ValueDate,
+                        record.Statistics,
+                        out var statistics)
+                    && (record.Header.Flags & 2) == 0)
+                {
+                    await PublishSessionStatisticsAsync(state, statistics)
+                        .ConfigureAwait(false);
+                }
+                break;
+        }
+    }
+
+    private async ValueTask PublishSessionStatisticsAsync(
+        TickerState state,
+        FuturesSessionStatisticsSnapshot statistics)
+    {
+        var entityId = new FuturesEodDataId(
+            state.Mapping.ContractId,
+            state.ValueDate);
+        var @event = new FuturesSessionStatisticsUpdatedRealtimeEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = nameof(TickAggregationService),
+            ReceivedOn = _timeProvider.GetUtcNow().UtcDateTime,
+            Statistics = statistics
+        };
+
+        try
+        {
+            await _publisher.PublishAsync(@event).ConfigureAwait(false);
+        }
+        catch
+        {
+            Interlocked.Increment(ref _publicationFailures);
         }
     }
 
@@ -835,6 +905,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     {
         public TickContractMapping Mapping { get; } = mapping;
         public MarketPriceCache MarketPrice { get; } = new(mapping);
+        public SessionStatisticsCache SessionStatistics { get; } = new();
         public object StreamSync { get; } = new();
         public HashSet<TickerStreamOwner> StreamOwners { get; } = [];
         public DateOnly ValueDate;
@@ -844,6 +915,103 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         public PendingQuotePublication? PendingQuote;
         public PendingTradePublication? PendingTrade;
         public Dictionary<ushort, uint> HighestSourceSequenceByPublisher { get; } = [];
+    }
+
+    private sealed class SessionStatisticsCache
+    {
+        private const byte NewStatistic = 1;
+        private const byte UndefinedPriceFlag = 4;
+        private const ushort OpeningPrice = 1;
+        private const ushort SessionLowPrice = 4;
+        private const ushort SessionHighPrice = 5;
+
+        private decimal? _open;
+        private decimal? _high;
+        private decimal? _low;
+        private uint _openSequence;
+        private uint _highSequence;
+        private uint _lowSequence;
+        private FuturesSessionStatisticsSnapshot _snapshot;
+        private bool _hasSnapshot;
+        private readonly object _sync = new();
+
+        public bool TryUpdate(
+            string contractId,
+            DateOnly valueDate,
+            StatisticsRecord64 record,
+            out FuturesSessionStatisticsSnapshot snapshot)
+        {
+            lock (_sync)
+            {
+                snapshot = default;
+                if (record.UpdateAction != NewStatistic
+                    || (record.Header.Flags & UndefinedPriceFlag) != 0
+                    || record.Price <= 0)
+                    return false;
+
+                var value = record.Price / PriceScale;
+                var changed = record.StatisticType switch
+                {
+                    OpeningPrice => TrySet(ref _open, ref _openSequence, value, record.Header.Sequence),
+                    SessionLowPrice => TrySet(ref _low, ref _lowSequence, value, record.Header.Sequence),
+                    SessionHighPrice => TrySet(ref _high, ref _highSequence, value, record.Header.Sequence),
+                    _ => false
+                };
+                if (!changed || _open is null || _high is null || _low is null)
+                    return false;
+
+                var candidate = new FuturesSessionStatisticsSnapshot(
+                    contractId,
+                    valueDate,
+                    _open.Value,
+                    _high.Value,
+                    _low.Value,
+                    Math.Max(_openSequence, Math.Max(_highSequence, _lowSequence)),
+                    record.Header.EventTimestampNanoseconds);
+                if (!candidate.IsComplete)
+                    return false;
+
+                _snapshot = candidate;
+                _hasSnapshot = true;
+                snapshot = candidate;
+                return true;
+            }
+        }
+
+        public bool TryRead(out FuturesSessionStatisticsSnapshot snapshot)
+        {
+            lock (_sync)
+            {
+                snapshot = _snapshot;
+                return _hasSnapshot;
+            }
+        }
+
+        public void Reset()
+        {
+            lock (_sync)
+            {
+                _open = _high = _low = null;
+                _openSequence = _highSequence = _lowSequence = 0;
+                _snapshot = default;
+                _hasSnapshot = false;
+            }
+        }
+
+        private static bool TrySet(
+            ref decimal? target,
+            ref uint targetSequence,
+            decimal value,
+            uint sequence)
+        {
+            if (targetSequence != 0 && sequence <= targetSequence)
+                return false;
+            targetSequence = sequence;
+            if (target == value)
+                return false;
+            target = value;
+            return true;
+        }
     }
 
     /// <summary>

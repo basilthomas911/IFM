@@ -55,4 +55,13 @@ public sealed class GetValueDateTests
         string expected)
         => FuturesTradingValueDate.GetOperational(DateTimeOffset.Parse(instant))
             .Should().Be(DateOnly.Parse(expected));
+
+    [Theory]
+    [InlineData("2026-08-18", "2026-08-17T22:00:00+00:00")]
+    [InlineData("2026-11-03", "2026-11-02T23:00:00+00:00")]
+    public void SessionStartUtc_UsesPreviousDayAtSixPmEastern(
+        string valueDate,
+        string expectedUtc)
+        => FuturesTradingValueDate.GetSessionStartUtc(DateOnly.Parse(valueDate))
+            .Should().Be(DateTimeOffset.Parse(expectedUtc));
 }
