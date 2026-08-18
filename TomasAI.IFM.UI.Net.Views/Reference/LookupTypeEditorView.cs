@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
@@ -6,9 +5,9 @@ using TomasAI.IFM.UI.Net.ViewModels.Reference;
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
 public partial class LookupTypeEditorView
-    : UserControl, IControlCommand, IFormControl
+    : UserControl, IControlCommand, IAsyncFormControl
 {
-    LookupTypeEditorViewModel _viewModel;
+    readonly LookupTypeEditorViewModel _viewModel;
     EditMode _editMode;
     bool _canChangeRemove;
 
@@ -71,12 +70,10 @@ public partial class LookupTypeEditorView
         _viewModel.OnWaitCursor = () => this.Post(() => Cursor = Cursors.WaitCursor);
         _viewModel.OnDefaultCursor = () => this.Post(() => Cursor = Cursors.Default);
 
-        _viewModel.LoadLookupTypes();
+        _ = LoadEditorAsync();
     }
 
-    public void Unload()
-    {
-    }
+    public void Unload() => _ = ((IAsyncFormControl)this).CloseAsync();
 
     public void Add(Action<bool> addAction)
     {
@@ -98,18 +95,18 @@ public partial class LookupTypeEditorView
                 (
                     lookupTypeName: txtLookupTypeName.Text,
                     shortCode: txtShortCode.Text,
-                    orderId: _viewModel.LookupTypeShortCodes?.Count ?? 0,
+                    orderId: _viewModel.GetNextOrderId(txtLookupTypeName.Text),
                     description: txtDescription.Text,
                     createdOn: DateTime.UtcNow,
                     createdBy: String.Empty
                 );
-                _viewModel.AddLookupType(lookupType, () => this.Post(() =>
+                ObserveMutation(_viewModel.AddLookupType(lookupType, () => this.Post(() =>
                 {
                     _editMode = EditMode.View;
                     lstLookupTypeNames.Enabled = true;
                     lstLookupTypeShortCodes.Enabled = true;
                     addAction(true);
-                }));
+                })), "Lookup Type Add Failed");
                 break;
         }
     }
@@ -153,13 +150,13 @@ public partial class LookupTypeEditorView
                         createdOn: DateTime.UtcNow,
                         createdBy: String.Empty
                     );
-                    _viewModel.ChangeLookupType(lookupTypeId, lookupType, true, () => this.Post(() =>
+                    ObserveMutation(_viewModel.ChangeLookupType(lookupTypeId, lookupType, true, () => this.Post(() =>
                     {
                         _editMode = EditMode.View;
                         lstLookupTypeNames.Enabled = true;
                         lstLookupTypeShortCodes.Enabled = true;
                         changeAction(true);
-                    }));
+                    })), "Lookup Type Change Failed");
                     break;
             }
         }
@@ -177,7 +174,7 @@ public partial class LookupTypeEditorView
         var lookupTypeId = _viewModel.GetLookupType(lookupTypeName, orderId)?.Id;
         if (lookupTypeId != null)
             if (MessageBox.Show($"Are you sure you want to remove Lookup Type {lookupTypeId} ?", "Remove Lookup Type", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                _viewModel.RemoveLookupType(lookupTypeId, true);
+                ObserveMutation(_viewModel.RemoveLookupType(lookupTypeId, true), "Lookup Type Remove Failed");
     }
 
     public bool Close(Action<bool> closeAction)
@@ -233,6 +230,37 @@ public partial class LookupTypeEditorView
         _viewModel.LoadLookupType(lookupTypeName, lookupTypeShortCode);
     }
 
+    async Task LoadEditorAsync()
+    {
+        try
+        {
+            await _viewModel.LoadLookupTypes();
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, "Lookup Type Editor Error");
+        }
+    }
+
+    void ObserveMutation(Task operation, string caption)
+        => _ = ObserveMutationAsync(operation, caption);
+
+    async Task ObserveMutationAsync(Task operation, string caption)
+    {
+        try
+        {
+            await operation;
+        }
+        catch (OperationCanceledException)
+        {
+            // Closing the editor cancels local observation without manufacturing a domain failure.
+        }
+        catch (Exception exception)
+        {
+            this.ShowErrorMessage(exception.Message, caption);
+        }
+    }
+
     public void Open()
     {
         throw new NotImplementedException();
@@ -243,10 +271,10 @@ public partial class LookupTypeEditorView
         throw new NotImplementedException();
     }
 
-    public void Close()
-    {
-        throw new NotImplementedException();
-    }
+    public void Close() => _ = ((IAsyncFormControl)this).CloseAsync();
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+        => await _viewModel.StopAsync(CancellationToken.None);
 
     private void txtDescription_TextChanged(object sender, EventArgs e)
     {

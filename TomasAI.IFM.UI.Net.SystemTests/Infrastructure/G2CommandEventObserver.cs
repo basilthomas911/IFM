@@ -91,10 +91,13 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<EconomicCalendarsImportedCompleteEvent>("EconomicCalendar", EconomicCalendarsImportedCompleteEvent.Actor, EconomicCalendarsImportedCompleteEvent.Verb, true),
         Route<EconomicCalendarsImportedFailEvent>("EconomicCalendar", EconomicCalendarsImportedFailEvent.Actor, EconomicCalendarsImportedFailEvent.Verb, false),
 
+        Route<LookupTypeAddedEvent>("LookupType", LookupTypeAddedEvent.Actor, LookupTypeAddedEvent.Verb, null),
         Route<LookupTypeAddedCompleteEvent>("LookupType", LookupTypeAddedCompleteEvent.Actor, LookupTypeAddedCompleteEvent.Verb, true),
         Route<LookupTypeAddedFailEvent>("LookupType", LookupTypeAddedFailEvent.Actor, LookupTypeAddedFailEvent.Verb, false),
+        Route<LookupTypeChangedEvent>("LookupType", LookupTypeChangedEvent.Actor, LookupTypeChangedEvent.Verb, null),
         Route<LookupTypeChangedCompleteEvent>("LookupType", LookupTypeChangedCompleteEvent.Actor, LookupTypeChangedCompleteEvent.Verb, true),
         Route<LookupTypeChangedFailEvent>("LookupType", LookupTypeChangedFailEvent.Actor, LookupTypeChangedFailEvent.Verb, false),
+        Route<LookupTypeRemovedEvent>("LookupType", LookupTypeRemovedEvent.Actor, LookupTypeRemovedEvent.Verb, null),
         Route<LookupTypeRemovedCompleteEvent>("LookupType", LookupTypeRemovedCompleteEvent.Actor, LookupTypeRemovedCompleteEvent.Verb, true),
         Route<LookupTypeRemovedFailEvent>("LookupType", LookupTypeRemovedFailEvent.Actor, LookupTypeRemovedFailEvent.Verb, false),
 

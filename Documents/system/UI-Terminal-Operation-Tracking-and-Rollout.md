@@ -1,7 +1,7 @@
 # UI Terminal-Operation Tracking and Rollout
 
 Status: Approved UI reference pattern
-Version: 1.3
+Version: 1.4
 Date: 2026-08-18
 Scope: UI-originated commands whose accepted work finishes asynchronously through correlated complete/fail events
 
@@ -99,6 +99,12 @@ transient so the editor and always-on calendar dashboard have independent listen
 acceptance for G2-020 through G2-023 proves exact-ID source/terminal events, durable/UI agreement, and public-command
 baseline restoration for all four operations.
 
+`LookupTypeEditorViewModel` is the third conforming implementation. It starts its lookup terminal consumer before
+loading the editor catalog, applies the shared bounded early-event correlation to add/change/remove, refreshes the full
+typed lookup projection only after exact-ID completion, exposes typed failure without a false refresh, and owns awaited
+listener shutdown through `LookupTypeEditorView`. G2-024 through G2-026 prove the real editor, source/terminal events,
+durable partition query, visible name/short-code selectors, and public-command cleanup agree for every transition.
+
 New UI implementations should compose the shared correlation primitive with operation-specific lifecycle, command,
 terminal-event, durable-refresh, and presentation behavior. They must preserve bounded race handling, typed errors,
 cancellation semantics, and exact command matching.
@@ -157,11 +163,12 @@ proving that the REST- and NATS-backed clients reach the same actor contract and
 | --- | --- | --- |
 | Yield-curve editor | Reference implementation | Correlates complete/fail by command ID, handles an early event, and refreshes durable state after complete. |
 | Economic-calendar editor | Accepted implementation | Correlates manual and imported complete/fail by command ID, handles early and duplicate delivery, refreshes the bounded durable date/country projection after complete, and owns awaited listener shutdown; G2-020 through G2-023 passed in the real Development UI. |
+| Lookup editor | Accepted implementation | Correlates add/change/remove complete/fail by command ID, handles early and unrelated delivery, refreshes the full durable lookup catalog only after complete, and owns awaited listener shutdown; G2-024 through G2-026 passed in the real Development UI. |
 | Market economic-calendar view | Partial supporting behavior | Owns calendar listeners, refreshes on events, and exposes import failure, but it is not the submitting command's correlation owner. |
 | Application-startup automatic imports | Implemented | Attempts both imports once before the live-feed trading-hours gate, observes exact-ID complete/fail events for up to 30 seconds, reports only failed/unobserved outcomes, performs no retry, and continues startup. |
 | Legacy scheduled tasks | Explicitly excluded | Unreviewed and not approved as terminal-operation tracking implementations. |
 
-The yield-curve and economic-calendar maintenance editors plus the application shell establish the reusable interactive
+The yield-curve, economic-calendar, and lookup maintenance editors plus the application shell establish the reusable interactive
 and automatic-startup forms of the pattern. The broader market-calendar view may continue to refresh observational
 state. Any additional automatic workflow must make its timeout, failure-presentation, retry, and startup-continuation
 policy explicit rather than inheriting the startup specialization implicitly.
@@ -194,6 +201,7 @@ completed scheduled-task rollout.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 1.4 | 2026-08-18 | Migrated lookup add/change/remove to the shared listener-first exact-ID pattern and accepted G2-024 through G2-026 with durable partition/UI selector agreement and public Reference-command cleanup. |
 | 1.3 | 2026-08-18 | Extended the economic-calendar editor pattern to manual add/change/remove terminal events and accepted G2-020 through G2-023 with exact-ID correlation, bounded durable/UI refresh, production FMP import, and public-command baseline restoration. |
 | 1.2 | 2026-08-16 | Extracted shared terminal-event correlation and migrated automatic startup yield/calendar imports to independent listener-first, exact-ID, 30-second bounded observation with failure-only reporting, no retry, cleanup, and degraded startup continuation. |
 | 1.1 | 2026-08-16 | Migrated the economic-calendar editor to exact command-ID complete/fail correlation, durable refresh after complete, bounded early-event handling, typed failure, and awaited listener shutdown; recorded independent listener instances and identified automatic startup imports as a separate UI review. |

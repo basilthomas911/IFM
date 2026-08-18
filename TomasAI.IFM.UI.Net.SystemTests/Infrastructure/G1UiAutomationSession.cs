@@ -9,6 +9,7 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.UIA3;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
@@ -183,8 +184,7 @@ public sealed class G1UiAutomationSession : IDisposable
             {
                 var editor = FindDescendant(window, editorAutomationId, null);
                 var add = FindDescendant(window, "btnAdd", null);
-                var country = FindDescendant(window, "ddlCountryCodes", null);
-                return editor is not null && add is { IsEnabled: true } && country is { IsEnabled: true }
+                return editor is not null && add is { IsEnabled: true }
                     ? editor
                     : null;
             },
@@ -548,6 +548,67 @@ public sealed class G1UiAutomationSession : IDisposable
         await SelectComboValueAsync(window, "ddlCountryCodes", countryCode, timeout, cancellationToken);
         return await WaitForEconomicCalendarStateAsync(
             window, date, expected, present, timeout, cancellationToken);
+    }
+
+    public async Task<G2LookupTypeEditorUiState> AddLookupTypeAsync(
+        Window window,
+        G2LookupTypeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectReferenceEditorAsync(
+            window, fixture.DefinitionDescription, "LookupTypeEditorView", timeout, cancellationToken);
+        PostButtonClick(window, "btnAdd");
+        await WaitUntilAsync(
+            () => FindDescendant(window, "lstLookupTypeNames", null) is { IsEnabled: false } ? "editing" : null,
+            timeout,
+            "The lookup-type editor did not enter add mode.",
+            cancellationToken);
+        SetText(window, "txtLookupTypeName", fixture.AddedLookupType.LookupTypeName);
+        SetText(window, "txtShortCode", fixture.AddedLookupType.ShortCode);
+        SetText(window, "txtDescription", fixture.AddedLookupType.Description);
+        PostButtonClick(window, "btnAdd");
+        return await WaitForLookupTypeStateAsync(
+            window, fixture.AddedLookupType, present: true, timeout, cancellationToken);
+    }
+
+    public async Task<G2LookupTypeEditorUiState> ChangeLookupTypeAsync(
+        Window window,
+        G2LookupTypeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        SelectLookupType(
+            window,
+            fixture.AddedLookupType.LookupTypeName,
+            fixture.AddedLookupType.ShortCode);
+        PostButtonClick(window, "btnChange");
+        await WaitUntilAsync(
+            () => FindDescendant(window, "lstLookupTypeNames", null) is { IsEnabled: false } ? "editing" : null,
+            timeout,
+            "The lookup-type editor did not enter change mode.",
+            cancellationToken);
+        SetText(window, "txtShortCode", fixture.ChangedLookupType.ShortCode);
+        SetText(window, "txtDescription", fixture.ChangedLookupType.Description);
+        PostButtonClick(window, "btnChange");
+        return await WaitForLookupTypeStateAsync(
+            window, fixture.ChangedLookupType, present: true, timeout, cancellationToken);
+    }
+
+    public async Task<G2LookupTypeEditorUiState> RemoveLookupTypeAsync(
+        Window window,
+        G2LookupTypeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        SelectLookupType(
+            window,
+            fixture.ChangedLookupType.LookupTypeName,
+            fixture.ChangedLookupType.ShortCode);
+        PostButtonClick(window, "btnRemove");
+        await ConfirmAsync("Remove Lookup Type", timeout, cancellationToken);
+        return await WaitForLookupTypeStateAsync(
+            window, fixture.ChangedLookupType, present: false, timeout, cancellationToken);
     }
 
     public string ReadStatusText()
@@ -1048,6 +1109,71 @@ public sealed class G1UiAutomationSession : IDisposable
             ReadText(root, "txtActual"),
             ReadText(root, "txtForecast"),
             ReadText(root, "txtPrior"));
+    }
+
+    static void SelectLookupType(
+        AutomationElement root,
+        string lookupTypeName,
+        string shortCode)
+    {
+        SelectListItem(root, "lstLookupTypeNames", lookupTypeName);
+        SelectListItem(root, "lstLookupTypeShortCodes", shortCode);
+    }
+
+    async Task<G2LookupTypeEditorUiState> WaitForLookupTypeStateAsync(
+        AutomationElement root,
+        LookupTypeReadModel expected,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var names = RequireDescendant(root, "lstLookupTypeNames").AsListBox();
+                if (!names.IsEnabled)
+                    return null;
+                var nameItems = names.Items.Select(item => item.Text).ToArray();
+                var containsName = nameItems.Contains(expected.LookupTypeName, StringComparer.Ordinal);
+                if (containsName != present)
+                    return null;
+                if (!present)
+                    return ReadLookupTypeState(root);
+
+                names.Select(expected.LookupTypeName);
+                var shortCodes = RequireDescendant(root, "lstLookupTypeShortCodes").AsListBox();
+                if (!shortCodes.IsEnabled)
+                    return null;
+                var shortCodeItems = shortCodes.Items.Select(item => item.Text).ToArray();
+                if (!shortCodeItems.Contains(expected.ShortCode, StringComparer.Ordinal))
+                    return null;
+                shortCodes.Select(expected.ShortCode);
+                var state = ReadLookupTypeState(root);
+                return string.Equals(state.LookupTypeName, expected.LookupTypeName, StringComparison.Ordinal)
+                       && string.Equals(state.ShortCode, expected.ShortCode, StringComparison.Ordinal)
+                       && string.Equals(
+                           state.OrderId,
+                           expected.OrderId.ToString(CultureInfo.InvariantCulture),
+                           StringComparison.Ordinal)
+                       && string.Equals(state.Description, expected.Description, StringComparison.Ordinal)
+                    ? state
+                    : null;
+            },
+            timeout,
+            $"The lookup-type editor did not render '{expected.LookupTypeName}/{expected.ShortCode}' as "
+            + $"{(present ? "present" : "absent")}.",
+            cancellationToken);
+
+    static G2LookupTypeEditorUiState ReadLookupTypeState(AutomationElement root)
+    {
+        var names = RequireDescendant(root, "lstLookupTypeNames").AsListBox();
+        var shortCodes = RequireDescendant(root, "lstLookupTypeShortCodes").AsListBox();
+        return new G2LookupTypeEditorUiState(
+            names.Items.Select(item => item.Text).ToArray(),
+            shortCodes.Items.Select(item => item.Text).ToArray(),
+            ReadText(root, "txtLookupTypeName"),
+            ReadText(root, "txtShortCode"),
+            ReadText(root, "txtOrderId"),
+            ReadText(root, "txtDescription"));
     }
 
     static string ReadSelectedComboValue(FlaUI.Core.AutomationElements.ComboBox combo)
@@ -2064,6 +2190,14 @@ public sealed record G2EconomicCalendarEditorUiState(
     string Actual,
     string Forecast,
     string Prior);
+
+public sealed record G2LookupTypeEditorUiState(
+    IReadOnlyList<string> LookupTypeNames,
+    IReadOnlyList<string> ShortCodes,
+    string LookupTypeName,
+    string ShortCode,
+    string OrderId,
+    string Description);
 
 public sealed record G1StatusConsoleState(
     int RowCount,

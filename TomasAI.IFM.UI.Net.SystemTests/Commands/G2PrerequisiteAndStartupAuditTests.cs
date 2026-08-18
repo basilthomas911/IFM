@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -17,10 +19,10 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Commands;
 [Trait("Category", "G2StartupProcess")]
 public sealed class G2PrerequisiteAndStartupAuditTests
 {
-    const int ExpectedStepCount = 23;
+    const int ExpectedStepCount = 26;
 
     [Fact]
-    public async Task Development_command_audit_satisfies_G2_001_through_G2_023()
+    public async Task Development_command_audit_satisfies_G2_001_through_G2_026()
     {
         if (!G0Configuration.G2StartupLiveRunEnabled)
             return;
@@ -37,10 +39,14 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             Environment.GetEnvironmentVariable("IFM_G2_ECONOMIC_CALENDAR_SLICE"),
             "1",
             StringComparison.Ordinal);
-        if (new[] { securitiesSlice, yieldCurveSlice, economicCalendarSlice }.Count(enabled => enabled) > 1)
+        var lookupSlice = string.Equals(
+            Environment.GetEnvironmentVariable("IFM_G2_LOOKUP_SLICE"),
+            "1",
+            StringComparison.Ordinal);
+        if (new[] { securitiesSlice, yieldCurveSlice, economicCalendarSlice, lookupSlice }.Count(enabled => enabled) > 1)
             throw new InvalidOperationException(
                 "IFM_G2_SECURITIES_SLICE, IFM_G2_YIELD_CURVE_SLICE, and "
-                + "IFM_G2_ECONOMIC_CALENDAR_SLICE are mutually exclusive.");
+                + "IFM_G2_ECONOMIC_CALENDAR_SLICE, and IFM_G2_LOOKUP_SLICE are mutually exclusive.");
         var configuration = G2Configuration.Load();
         var process = configuration.Process;
         var redactor = new SecretRedactor([Environment.GetEnvironmentVariable("FMP_API_KEY")]);
@@ -53,9 +59,11 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     ? "G2-001-007+016-019"
                     : economicCalendarSlice
                         ? "G2-001-007+020-023"
-                        : "G2-001-023",
-            ExpectedStepCount = securitiesSlice || yieldCurveSlice || economicCalendarSlice
-                ? securitiesSlice ? 13 : 11
+                        : lookupSlice
+                            ? "G2-001-007+024-026"
+                            : "G2-001-026",
+            ExpectedStepCount = securitiesSlice || yieldCurveSlice || economicCalendarSlice || lookupSlice
+                ? securitiesSlice ? 13 : lookupSlice ? 10 : 11
                 : ExpectedStepCount,
             RunId = process.RunId,
             Environment = process.EnvironmentName,
@@ -85,6 +93,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         G2SecuritiesFixture? securitiesFixture = null;
         G2YieldCurveFixture? yieldCurveFixture = null;
         G2EconomicCalendarFixture? economicCalendarFixture = null;
+        G2LookupTypeFixture? lookupTypeFixture = null;
         Window? marketDataWindow = null;
         Window? referenceWindow = null;
         var cleanupFailures = new List<string>();
@@ -211,36 +220,42 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         || baseline.RunOwnedLookupTypes.Length > 0)
                         throw new G0DependencyException(
                             $"Unique run prefix '{configuration.RunPrefix}' already owns mutable Development state.");
-                    if (!yieldCurveSlice && !economicCalendarSlice
+                    if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice
                         && (baseline.SecuritiesFixtureContract is not null
                             || baseline.SecuritiesFixtureOption is not null))
                         throw new G0DependencyException(
                             $"Exact G2 securities fixture already exists: futures={configuration.SecuritiesFuturesContractId}; "
                             + $"option={configuration.SecuritiesOptionContractId}.");
-                    if (!securitiesSlice && !economicCalendarSlice
+                    if (!securitiesSlice && !economicCalendarSlice && !lookupSlice
                         && baseline.YieldCurveManualDateRows.Length > 0)
                         throw new G0DependencyException(
                             $"Exact G2 manual yield-curve fixture already exists for {configuration.YieldCurveManualDate:yyyy-MM-dd}.");
-                    if (!securitiesSlice && !yieldCurveSlice
+                    if (!securitiesSlice && !yieldCurveSlice && !lookupSlice
                         && baseline.EconomicCalendarManualDateRows.Length > 0)
                         throw new G0DependencyException(
                             $"Exact G2 manual economic-calendar fixture date already contains "
                             + $"{baseline.EconomicCalendarManualDateRows.Length} row(s) for "
                             + $"{configuration.EconomicCalendarManualDate:yyyy-MM-dd}/{configuration.ImportCountryCodes[0]}.");
-                    if (!yieldCurveSlice && !economicCalendarSlice)
+                    if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice)
                         securitiesFixture = await G2SecuritiesFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
-                    if (!securitiesSlice && !economicCalendarSlice)
+                    if (!securitiesSlice && !economicCalendarSlice && !lookupSlice)
                         yieldCurveFixture = await G2YieldCurveFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
-                    if (!securitiesSlice && !yieldCurveSlice)
+                    if (!securitiesSlice && !yieldCurveSlice && !lookupSlice)
                         economicCalendarFixture = await G2EconomicCalendarFixture.CreateAsync(
+                            queries,
+                            configuration,
+                            process.ReadinessTimeout,
+                            token);
+                    if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice)
+                        lookupTypeFixture = await G2LookupTypeFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
@@ -261,6 +276,10 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         Path.Combine("processes", "g2-economic-calendar-fixture.json"),
                         JsonSerializer.Serialize(economicCalendarFixture, new JsonSerializerOptions { WriteIndented = true }),
                         token);
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "g2-lookup-type-fixture.json"),
+                        JsonSerializer.Serialize(lookupTypeFixture, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
                     return Observation(
                         $"valueDate={baseline.ValueDate:yyyy-MM-dd}; importDate={baseline.ImportDate:yyyy-MM-dd}; "
                         + $"securitiesFixture={(securitiesFixture is null ? "not-in-slice" : $"{securitiesFixture.FuturesContractId}/{securitiesFixture.OptionContractId}")}; "
@@ -270,9 +289,11 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         + $"manualCalendarDate={configuration.EconomicCalendarManualDate:yyyy-MM-dd}; "
                         + $"manualCalendarRows={baseline.EconomicCalendarManualDateRows.Length}; "
                         + $"calendarRows={baseline.EconomicCalendarImportDateRows.Sum(pair => pair.Value.Length)}; "
+                        + $"lookupFixture={(lookupTypeFixture is null ? "not-in-slice" : lookupTypeFixture.AddedLookupType.LookupTypeName)}; "
+                        + $"runOwnedLookupRows={baseline.RunOwnedLookupTypes.Length}; "
                         + $"designatedFund={(baseline.DesignatedFund is null ? "absent" : $"{baseline.DesignatedFund.FundId}:{baseline.DesignatedFund.Name}")}; "
                         + $"fundTransactions={baseline.DesignatedFundTransactions.Length}; fundOrders={baseline.DesignatedFundOrders.Length}; fundTrades={baseline.DesignatedFundTrades.Length}.",
-                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json", "processes/g2-yield-curve-fixture.json", "processes/g2-economic-calendar-fixture.json"]);
+                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json", "processes/g2-yield-curve-fixture.json", "processes/g2-economic-calendar-fixture.json", "processes/g2-lookup-type-fixture.json"]);
                 });
 
             await Step("G2-006", "Launch the desktop and await initialized shell",
@@ -328,7 +349,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-command-listener-catalog.json", "network/g2-command-events.json"]);
                 });
 
-            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice)
                 await Step("G2-008", "Start the current market-data feed from the UI",
                 "One UI start command is correlated from source event to successful terminal event and the shell shows the feed as active.",
                 async token =>
@@ -364,7 +385,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice)
                 await Step("G2-009", "Stop the current market-data feed from the UI",
                 "One UI stop command is correlated from source event to successful terminal event and the shell shows the feed as inactive.",
                 async token =>
@@ -387,7 +408,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            if (!yieldCurveSlice && !economicCalendarSlice)
+            if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice)
             {
             await Step("G2-010", "Add a futures contract from the UI",
                 "The UI adds the exact run-owned futures fixture, its source and successful terminal events correlate by command ID, and the typed query returns the durable row.",
@@ -615,7 +636,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 });
             }
 
-            if (!securitiesSlice && !economicCalendarSlice)
+            if (!securitiesSlice && !economicCalendarSlice && !lookupSlice)
             {
             await Step("G2-016", "Add an isolated yield-curve record manually",
                 "The real editor submits the manual yield-curve add command without FMP, source and successful terminal events correlate by command ID, and durable/UI state contains the exact row.",
@@ -799,7 +820,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 });
             }
 
-            if (!securitiesSlice && !yieldCurveSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !lookupSlice)
             {
             await Step("G2-020", "Add an isolated economic-calendar record manually",
                 "The real editor submits the manual MarketData add command without FMP, source and successful terminal events correlate by command ID, and bounded durable/UI state contains the exact row.",
@@ -1001,6 +1022,129 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-economic-calendar-command-events.json", "queries/G2-023.json", .. artifacts]);
                 });
             }
+
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice)
+            {
+            await Step("G2-024", "Add an isolated lookup value from the UI",
+                "The real lookup editor submits one run-owned value, exact source/success events correlate by command ID, and the typed durable query plus refreshed UI show every business field.",
+                async token =>
+                {
+                    RequirePassed(
+                        recorder,
+                        lookupSlice ? "G2-007" : "G2-023",
+                        lookupSlice
+                            ? "The safety/startup prerequisites must complete before lookup maintenance."
+                            : "Economic-calendar maintenance must complete before lookup maintenance.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = lookupTypeFixture ?? throw new InvalidOperationException("G2 lookup fixture is unavailable.");
+
+                    ui.InvokeToolbarAction("Reference");
+                    referenceWindow = await ui.WaitForWindowAsync(
+                        "Reference Data Manager", process.ReadinessTimeout, token);
+                    var transition = await ExecuteLookupTypeMutationAsync(
+                        observer,
+                        nameof(LookupTypeAddedEvent),
+                        operationToken => ui.AddLookupTypeAsync(
+                            referenceWindow, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForLookupTypesAsync(
+                        querySession,
+                        fixture.AddedLookupType,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteLookupTypeEvidenceAsync(
+                        evidence, observer, "G2-024", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-024-lookup-added");
+                    return Observation(
+                        $"id={fixture.AddedLookupType.Id}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; durableRows={durable.Length}; "
+                        + $"uiShortCodes={transition.UiState.ShortCodes.Count}.",
+                        ["network/g2-lookup-type-command-events.json", "queries/G2-024.json", .. artifacts]);
+                });
+
+            await Step("G2-025", "Change the isolated lookup value from the UI",
+                "The editor changes the run-owned short code and description without changing partition/order identity, exact-ID completion succeeds, and durable/refreshed UI state contains only the changed value.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-024", "The isolated lookup value must exist before change.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = lookupTypeFixture ?? throw new InvalidOperationException("G2 lookup fixture is unavailable.");
+                    var window = referenceWindow ?? throw new InvalidOperationException("Reference Data Manager is unavailable.");
+
+                    var transition = await ExecuteLookupTypeMutationAsync(
+                        observer,
+                        nameof(LookupTypeChangedEvent),
+                        operationToken => ui.ChangeLookupTypeAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForLookupTypesAsync(
+                        querySession,
+                        fixture.ChangedLookupType,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    if (durable.Any(row => string.Equals(
+                            row.ShortCode,
+                            fixture.AddedLookupType.ShortCode,
+                            StringComparison.Ordinal)))
+                        throw new InvalidOperationException("The original lookup short code remained after change.");
+                    await WriteLookupTypeEvidenceAsync(
+                        evidence, observer, "G2-025", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-025-lookup-changed");
+                    return Observation(
+                        $"id={fixture.ChangedLookupType.Id}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; shortCode={durable.Single().ShortCode}; "
+                        + $"description='{transition.UiState.Description}'.",
+                        ["network/g2-lookup-type-command-events.json", "queries/G2-025.json", .. artifacts]);
+                });
+
+            await Step("G2-026", "Remove the isolated lookup value from the UI",
+                "The real editor confirms the run-owned removal, exact-ID completion succeeds, and the typed partition query plus refreshed lookup-name list prove the isolated partition is absent.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-025", "The changed lookup value must exist before removal.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = lookupTypeFixture ?? throw new InvalidOperationException("G2 lookup fixture is unavailable.");
+                    var window = referenceWindow ?? throw new InvalidOperationException("Reference Data Manager is unavailable.");
+
+                    var transition = await ExecuteLookupTypeMutationAsync(
+                        observer,
+                        nameof(LookupTypeRemovedEvent),
+                        operationToken => ui.RemoveLookupTypeAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForLookupTypesAsync(
+                        querySession,
+                        fixture.ChangedLookupType,
+                        present: false,
+                        process.ReadinessTimeout,
+                        token);
+                    if (transition.UiState.LookupTypeNames.Contains(
+                            fixture.ChangedLookupType.LookupTypeName,
+                            StringComparer.Ordinal))
+                        throw new InvalidOperationException("The removed lookup partition remains visible in the editor.");
+                    await WriteLookupTypeEvidenceAsync(
+                        evidence, observer, "G2-026", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-026-lookup-removed");
+                    await ui.CloseWindowAsync(window, process.ReadinessTimeout, token);
+                    referenceWindow = null;
+                    return Observation(
+                        $"id={fixture.ChangedLookupType.Id}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; durableRows={durable.Length}; "
+                        + "isolated lookup partition is absent from durable and visible state.",
+                        ["network/g2-lookup-type-command-events.json", "queries/G2-026.json", .. artifacts]);
+                });
+            }
         }
         finally
         {
@@ -1008,6 +1152,26 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             {
                 try { automation.CloseAllSecondaryWindows(); }
                 catch (Exception exception) { cleanupFailures.Add("Secondary-window cleanup failed: " + exception.Message); }
+            }
+
+            if (queries is not null
+                && commandObserver is not null
+                && lookupTypeFixture is not null
+                && baseline is not null
+                && api is not null
+                && !api.Process.HasExited)
+            {
+                var cleanup = await CleanupLookupTypeFixtureAsync(
+                    queries,
+                    commandObserver,
+                    lookupTypeFixture,
+                    baseline,
+                    process.ReadinessTimeout);
+                await evidence.WriteTextAsync(
+                    Path.Combine("processes", "g2-lookup-type-cleanup.json"),
+                    JsonSerializer.Serialize(cleanup, new JsonSerializerOptions { WriteIndented = true }));
+                if (!cleanup.Succeeded)
+                    cleanupFailures.Add("Lookup-type cleanup/baseline restoration failed: " + cleanup.Error);
             }
 
             if (queries is not null
@@ -1153,9 +1317,11 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ? "G2-001-007 plus G2-010-015 harness cleanup; this is not G2-037 or G2-038 acceptance"
                         : yieldCurveSlice
                             ? "G2-001-007 plus G2-016-019 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance"
-                            : economicCalendarSlice
-                                ? "G2-001-007 plus G2-020-023 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance"
-                                : "G2-001-023 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance",
+                        : economicCalendarSlice
+                            ? "G2-001-007 plus G2-020-023 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance"
+                            : lookupSlice
+                                ? "G2-001-007 plus G2-024-026 harness cleanup; this is not G2-037 or G2-038 acceptance"
+                                : "G2-001-026 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance",
                     Succeeded = run.CleanupSucceeded,
                     Failures = cleanupFailures
                 }, new JsonSerializerOptions { WriteIndented = true }));
@@ -1402,6 +1568,54 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             uiState);
     }
 
+    static async Task<G2LookupTypeTransitionEvidence> ExecuteLookupTypeMutationAsync(
+        G2CommandEventObserver observer,
+        string sourceEventName,
+        Func<CancellationToken, Task<G2LookupTypeEditorUiState>> invokeUi,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var operationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var invokedUtc = DateTimeOffset.UtcNow;
+        var uiTask = invokeUi(operationSource.Token);
+        var sourceTask = observer.WaitForAsync(
+            rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                    && row.Family == "LookupType"
+                                    && row.EventName == sourceEventName
+                                    && row.Success is null),
+            timeout,
+            operationSource.Token);
+        if (await Task.WhenAny(sourceTask, uiTask).ConfigureAwait(false) == uiTask)
+            await uiTask.ConfigureAwait(false);
+        var sourceEvents = await sourceTask.ConfigureAwait(false);
+        var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                              && row.Family == "LookupType"
+                                              && row.EventName == sourceEventName
+                                              && row.Success is null);
+        var terminalEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.CommandId == source.CommandId && row.Success.HasValue),
+            timeout,
+            cancellationToken);
+        var terminal = terminalEvents.Last(row => row.CommandId == source.CommandId && row.Success.HasValue);
+        if (terminal.Success != true)
+        {
+            operationSource.Cancel();
+            try { await uiTask.ConfigureAwait(false); }
+            catch { /* Preserve the correlated backend failure below. */ }
+            throw new InvalidOperationException(
+                $"{sourceEventName} command {source.CommandId} failed: {terminal.ErrorMessage}");
+        }
+
+        var uiState = await uiTask.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        return new G2LookupTypeTransitionEvidence(
+            source.CommandId,
+            source.EventName,
+            terminal.EventName,
+            source.ObservedUtc,
+            terminal.ObservedUtc,
+            uiState);
+    }
+
     static async Task<FuturesContractV2ReadModel?> WaitForFuturesContractAsync(
         G0QuerySession queries,
         string contractId,
@@ -1591,6 +1805,42 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                    && string.Equals(pair.First.CreatedBy, pair.Second.CreatedBy, StringComparison.Ordinal));
     }
 
+    static async Task<LookupTypeReadModel[]> WaitForLookupTypesAsync(
+        G0QuerySession queries,
+        LookupTypeReadModel expected,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var rows = RequireQueryValue(
+                    await queries.Reference.GetLookupTypesAsync(expected.LookupTypeName)
+                        .WaitAsync(timeoutSource.Token),
+                    $"lookup types for {expected.LookupTypeName}")
+                .OrderBy(row => row.OrderId)
+                .ToArray();
+            if ((!present && rows.Length == 0)
+                || (present
+                    && rows.Length == 1
+                    && LookupTypeEquivalent(rows[0], expected)))
+                return rows;
+            try { await Task.Delay(TimeSpan.FromMilliseconds(150), timeoutSource.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { break; }
+        }
+        throw new TimeoutException(
+            $"Typed lookup query for '{expected.LookupTypeName}' did not show its isolated value as "
+            + $"{(present ? "present with every expected business field" : "absent")}.");
+    }
+
+    static bool LookupTypeEquivalent(LookupTypeReadModel left, LookupTypeReadModel right)
+        => string.Equals(left.LookupTypeName, right.LookupTypeName, StringComparison.Ordinal)
+           && string.Equals(left.ShortCode, right.ShortCode, StringComparison.Ordinal)
+           && left.OrderId == right.OrderId
+           && string.Equals(left.Description, right.Description, StringComparison.Ordinal);
+
     static string EconomicCalendarIdentity(EconomicCalendarReadModel row)
         => $"{NormalizeTimestamp(row.EventDate):O}|{row.CountryCode}|{row.EventName}";
 
@@ -1665,6 +1915,27 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             Path.Combine("network", "g2-economic-calendar-command-events.json"),
             JsonSerializer.Serialize(
                 observer.Events.Where(row => row.Family == "EconomicCalendar"),
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+        await evidence.WriteTextAsync(
+            Path.Combine("queries", stepId + ".json"),
+            JsonSerializer.Serialize(new { Transition = transition, DurableState = durableState },
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+    }
+
+    static async Task WriteLookupTypeEvidenceAsync(
+        G0EvidenceWriter evidence,
+        G2CommandEventObserver observer,
+        string stepId,
+        G2LookupTypeTransitionEvidence transition,
+        object? durableState,
+        CancellationToken cancellationToken)
+    {
+        await evidence.WriteTextAsync(
+            Path.Combine("network", "g2-lookup-type-command-events.json"),
+            JsonSerializer.Serialize(
+                observer.Events.Where(row => row.Family == "LookupType"),
                 new JsonSerializerOptions { WriteIndented = true }),
             cancellationToken);
         await evidence.WriteTextAsync(
@@ -1888,6 +2159,61 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         }
     }
 
+    static async Task<G2LookupTypeCleanupEvidence> CleanupLookupTypeFixtureAsync(
+        G0QuerySession queries,
+        G2CommandEventObserver observer,
+        G2LookupTypeFixture fixture,
+        G2BaselineSnapshot baseline,
+        TimeSpan timeout)
+    {
+        List<string> actions = [];
+        try
+        {
+            var name = fixture.AddedLookupType.LookupTypeName;
+            var baselineRows = baseline.RunOwnedLookupTypes
+                .Where(row => string.Equals(row.LookupTypeName, name, StringComparison.Ordinal))
+                .OrderBy(row => row.OrderId)
+                .ToArray();
+            var currentRows = RequireQueryValue(
+                    await queries.Reference.GetLookupTypesAsync(name).WaitAsync(timeout),
+                    $"lookup types for {name} during cleanup")
+                .OrderByDescending(row => row.OrderId)
+                .ToArray();
+
+            foreach (var row in currentRows)
+            {
+                var result = await queries.ReferenceCommands.RemoveLookupTypeAsync(row.Id, true);
+                var commandId = RequireCommandId(result, "cleanup lookup-type removal");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                actions.Add($"Removed lookup value {row.Id} with command {commandId}.");
+            }
+
+            foreach (var row in baselineRows)
+            {
+                var result = await queries.ReferenceCommands.AddLookupTypeAsync(row);
+                var commandId = RequireCommandId(result, "lookup-type baseline add");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                actions.Add($"Restored lookup value {row.Id} with command {commandId}.");
+            }
+
+            var restoredRows = RequireQueryValue(
+                    await queries.Reference.GetLookupTypesAsync(name).WaitAsync(timeout),
+                    $"restored lookup types for {name}")
+                .OrderBy(row => row.OrderId)
+                .ToArray();
+            if (restoredRows.Length != baselineRows.Length
+                || restoredRows.Zip(baselineRows).Any(pair => !LookupTypeEquivalent(pair.First, pair.Second)))
+                throw new InvalidOperationException("Lookup-type cleanup did not restore the isolated baseline partition.");
+            if (actions.Count == 0)
+                actions.Add("No lookup-type compensation was required; the isolated partition already matched baseline.");
+            return new G2LookupTypeCleanupEvidence(true, actions, string.Empty);
+        }
+        catch (Exception exception)
+        {
+            return new G2LookupTypeCleanupEvidence(false, actions, exception.Message);
+        }
+    }
+
     static async Task<EconomicCalendarReadModel[]> QueryEconomicCalendarsAsync(
         G0QuerySession queries,
         DateOnly eventDate,
@@ -2012,6 +2338,14 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         EconomicCalendarReadModel[]? ImportedEconomicCalendars,
         G2EconomicCalendarEditorUiState UiState);
 
+    sealed record G2LookupTypeTransitionEvidence(
+        Guid CommandId,
+        string SourceEventName,
+        string TerminalEventName,
+        DateTimeOffset SourceObservedUtc,
+        DateTimeOffset TerminalObservedUtc,
+        G2LookupTypeEditorUiState UiState);
+
     sealed record G2SecuritiesCleanupEvidence(
         bool Succeeded,
         IReadOnlyList<string> Actions,
@@ -2023,6 +2357,11 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         string Error);
 
     sealed record G2EconomicCalendarCleanupEvidence(
+        bool Succeeded,
+        IReadOnlyList<string> Actions,
+        string Error);
+
+    sealed record G2LookupTypeCleanupEvidence(
         bool Succeeded,
         IReadOnlyList<string> Actions,
         string Error);

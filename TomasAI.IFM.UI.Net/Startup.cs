@@ -213,6 +213,7 @@ namespace TomasAI.IFM.UI.Net
             _container!.RegisterSingleton<ICommandResponseUIEventConsumer, CommandResponseUIEventConsumer>();
             // Calendar dashboard and editor own independent listener lifecycles and may be open concurrently.
             _container!.Register<IEconomicCalendarUIEventConsumer, EconomicCalendarUIEventConsumer>(Lifestyle.Transient);
+            _container!.Register<ILookupTypeUIEventConsumer, LookupTypeUIEventConsumer>(Lifestyle.Transient);
             _container!.RegisterSingleton<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>();
             _container!.RegisterSingleton<IApplicationUIEventConsumer, ApplicationUIEventConsumer>();
             _container!.RegisterSingleton<IOptionTradeSpreadBarDataUIEventConsumer, OptionTradeSpreadBarDataUIEventConsumer>();

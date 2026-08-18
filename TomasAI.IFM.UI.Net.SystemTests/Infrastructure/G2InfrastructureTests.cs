@@ -83,6 +83,8 @@ public sealed class G2InfrastructureTests
             .Should().Be(4, "yield-curve must expose add/change/remove/import source-event routes");
         registrations.Count(item => item.Family == "EconomicCalendar" && item.Success is null)
             .Should().Be(4, "economic-calendar must expose add/change/remove/import source-event routes");
+        registrations.Count(item => item.Family == "LookupType" && item.Success is null)
+            .Should().Be(3, "lookup maintenance must expose add/change/remove source-event routes");
         registrations.Should().OnlyContain(item =>
             !string.IsNullOrWhiteSpace(item.Actor)
             && !string.IsNullOrWhiteSpace(item.Verb)
