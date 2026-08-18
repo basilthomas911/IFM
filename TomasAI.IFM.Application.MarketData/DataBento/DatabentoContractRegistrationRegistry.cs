@@ -127,6 +127,14 @@ public sealed class DatabentoContractRegistrationRegistry(
 
 internal static class DatabentoDatasetSelection
 {
+    // XCBF must establish its live session before GLBX. The Databento gateway can
+    // leave an XCBF subscription waiting for symbol mappings/acknowledgements when
+    // it is opened after an already-running GLBX session in the same process.
+    internal static int StartupPriority(string dataset) =>
+        string.Equals(dataset, "XCBF.PITCH", StringComparison.Ordinal)
+            ? 0
+            : 1;
+
     internal static string Resolve(
         DatabentoMarketDataRuntimeOptions options,
         string symbol)

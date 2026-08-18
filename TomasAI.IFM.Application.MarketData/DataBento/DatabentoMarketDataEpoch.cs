@@ -160,6 +160,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             var contractsByDataset = _catalog.ResolvedContracts
                 .GroupBy(static resolved => resolved.Dataset, StringComparer.Ordinal)
                 .Select(static group => (Dataset: group.Key, Contracts: group.ToArray()))
+                .OrderBy(static group => DatabentoDatasetSelection.StartupPriority(group.Dataset))
+                .ThenBy(static group => group.Dataset, StringComparer.Ordinal)
                 .ToArray();
             foreach (var group in contractsByDataset)
             {

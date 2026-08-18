@@ -3,7 +3,7 @@
 **Document type:** System-wide capability roadmap and milestone contract  
 **Status:** Active planning baseline; milestone descriptions do not authorize implementation  
 **Created:** 2026-08-13  
-**Last updated:** 2026-08-13  
+**Last updated:** 2026-08-18
 **Owner:** IFM engineering
 
 ## 1. Purpose
@@ -90,7 +90,7 @@ Existing legacy screens or records that mention orders or trades are validated o
 
 ### 4.5 Current acceptance status
 
-As of 2026-08-17, UI gates G0 and G1 have accepted Development results. G1 proves the initialized shell and status history, current market-outlook state, ES and VX sidebar charts, all five economic-calendar ranges, supported Market Data and Reference catalogs, named-fund and existing trade views, supported System Administration behavior, modal reopen, normal close, and complete process/listener cleanup. G2 through G4 and operator acceptance remain open, so Milestone A is not yet complete. Legacy scheduled-task UI remains deferred until that workflow is redesigned; it is not advertised as a supported G1 System Administration destination.
+As of 2026-08-18, UI gates G0 and G1 have accepted Development results, and the first G2 execution slice (G2-001 through G2-007) is also accepted. G1 proves the initialized shell and status history, current market-outlook state, ES and VX sidebar charts, all five economic-calendar ranges, supported Market Data and Reference catalogs, named-fund and existing trade views, supported System Administration behavior, modal reopen, normal close, and complete process/listener cleanup. The accepted G2 slice proves the non-production mutation policy, dependency probes, a healthy 90-actor backend, reversible typed baseline capture, real WinForms initialization, and complete/fail listener coverage before any command mutation. G2-008 through G2-038, G3, G4, and operator acceptance remain open, so Milestone A is not yet complete. Legacy scheduled-task UI remains deferred until that workflow is redesigned; it is not advertised as a supported G1 System Administration destination.
 
 ## 5. Milestone B - trade-broker and account foundation
 

@@ -15,6 +15,86 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
     public Task CurrentVxFutureReceivesLiveQuotesAndTrades() =>
         VerifyCurrentFutureAsync("VX", "XCBF.PITCH");
 
+    [Fact]
+    public async Task CurrentEsAndVxFuturesCanRemainLiveTogether()
+    {
+        if (!LiveTestGate.IsEnabled())
+            return;
+
+        LiveTestGate.AssertCredential();
+        (string RootSymbol, string Dataset)[] requested =
+        [
+            ("VX", "XCBF.PITCH"),
+            ("ES", "GLBX.MDP3")
+        ];
+        List<(string RootSymbol, string Dataset, IDatabentoTickerFeed Feed,
+            Task Drain)> started = [];
+
+        try
+        {
+            foreach (var (rootSymbol, dataset) in requested)
+            {
+                var queryOptions = DatabentoFeedOptions.ForProfile(
+                    FeedDeploymentProfile.Development,
+                    dataset);
+                var queries = new DatabentoFeedFactory()
+                    .CreateMarketDataQueries(queryOptions);
+                var now = LiveTestGate.UtcNowNanoseconds();
+                var currentFuture = queries
+                    .GetContractDetails($"{rootSymbol}.FUT", TimeSpan.FromSeconds(90))
+                    .Where(detail => detail.ContractKind == ContractKind.Future)
+                    .Where(detail => detail.ExpirationTimestampNanoseconds > now)
+                    .OrderBy(detail => detail.ExpirationTimestampNanoseconds)
+                    .First();
+                var liveOptions = LiveOptions(queryOptions, dataset);
+                var feed = new DatabentoFeedFactory().CreateTickerFeed(liveOptions);
+                feed.Subscribe(
+                [
+                    new TickerSubscription(
+                        currentFuture.RawSymbol,
+                        DatabentoInputSymbology.RawSymbol,
+                        MarketDataKinds.Quote | MarketDataKinds.Trade)
+                ], TimeSpan.FromSeconds(10));
+                feed.Start(TimeSpan.FromSeconds(45));
+                var registration = Assert.Single(feed.GetInstruments());
+                var drain = LiveTestGate.DrainUntilCompletedAsync(
+                    feed.GetReader(registration.Instrument));
+                started.Add((rootSymbol, dataset, feed, drain));
+                output.WriteLine(
+                    "LIVE coexistence start: root={0}, dataset={1}, rawSymbol={2}, state={3}.",
+                    rootSymbol,
+                    dataset,
+                    registration.RawSymbol,
+                    feed.GetHealth().State);
+            }
+
+            Assert.All(started, item =>
+                Assert.Equal(FeedState.Running, item.Feed.GetHealth().State));
+        }
+        finally
+        {
+            List<Exception> failures = [];
+            foreach (var item in started.AsEnumerable().Reverse())
+            {
+                try
+                {
+                    item.Feed.Stop(TimeSpan.FromSeconds(30));
+                    await item.Drain.WaitAsync(TimeSpan.FromSeconds(30));
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                }
+                finally
+                {
+                    item.Feed.Dispose();
+                }
+            }
+            if (failures.Count > 0)
+                throw new AggregateException("Live coexistence cleanup failed.", failures);
+        }
+    }
+
     private async Task VerifyCurrentFutureAsync(string rootSymbol, string dataset)
     {
         if (!LiveTestGate.IsEnabled())
@@ -34,26 +114,7 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
             .Where(detail => detail.ExpirationTimestampNanoseconds > now)
             .OrderBy(detail => detail.ExpirationTimestampNanoseconds)
             .First();
-        var liveOptions = queryOptions with
-        {
-            DataSource = FeedDataSourceMode.DatabentoLive,
-            CpuAffinity = new FeedCpuAffinityOptions
-            {
-                Mode = CpuAffinityMode.Unpinned,
-                RequirePerformanceCore = false
-            },
-            ThreadPriority = new FeedThreadPriorityOptions(),
-            Memory = new FeedMemoryOptions { LockRingMemory = false },
-            GarbageCollection = new FeedGcOptions
-            {
-                EnableSustainedLowLatency = false
-            },
-            Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
-            CoreIsolation = new FeedCoreIsolationOptions
-            {
-                Mode = FeedCoreIsolationMode.PinnedOnly
-            }
-        };
+        var liveOptions = LiveOptions(queryOptions, dataset);
 
         var feed = new DatabentoFeedFactory().CreateTickerFeed(liveOptions);
         feed.Subscribe(
@@ -136,4 +197,28 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
             feed.Dispose();
         }
     }
+
+    private static DatabentoFeedOptions LiveOptions(
+        DatabentoFeedOptions queryOptions,
+        string dataset) => queryOptions with
+    {
+        Dataset = dataset,
+        DataSource = FeedDataSourceMode.DatabentoLive,
+        CpuAffinity = new FeedCpuAffinityOptions
+        {
+            Mode = CpuAffinityMode.Unpinned,
+            RequirePerformanceCore = false
+        },
+        ThreadPriority = new FeedThreadPriorityOptions(),
+        Memory = new FeedMemoryOptions { LockRingMemory = false },
+        GarbageCollection = new FeedGcOptions
+        {
+            EnableSustainedLowLatency = false
+        },
+        Numa = new FeedNumaOptions { Mode = NumaLocalityMode.Disabled },
+        CoreIsolation = new FeedCoreIsolationOptions
+        {
+            Mode = FeedCoreIsolationMode.PinnedOnly
+        }
+    };
 }

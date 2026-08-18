@@ -19,7 +19,7 @@ This specification defines the legacy WinForms system-test harness and the UI jo
 
 These are process-level UI system tests, not substitutes for Model, ViewModel, actor, or service unit and integration tests. They launch the real desktop executable, observe it through Windows UI Automation, and exercise the same NATS command, query, and event paths used by an operator.
 
-G0 and G1 are implemented and have accepted Development baselines. G2 is the next restoration work package; the later catalog remains documented so its data, diagnostic, and automation requirements are visible before implementation.
+G0 and G1 are implemented and have accepted Development baselines. G2 is in progress: its prerequisite/startup slice, G2-001 through G2-007, has an accepted Development result, and G2-008 is the next executable step. The remaining catalog stays documented so its data, diagnostic, and automation requirements are visible before implementation.
 
 G0 through G4 validate Milestone A, the legacy operational restoration defined in [`IFM Operational Restoration and Trading Capability Roadmap`](../../Documents/system/IFM-Operational-Restoration-and-Trading-Capability-Roadmap.md). They restore and prove the previously existing system behavior; they do not constitute paper-trading readiness. Complete paper trading is a later system capability program requiring Milestones B through F.
 
@@ -84,7 +84,7 @@ Every step has one of these statuses:
 | G0-002 | Probe the configured NATS endpoint | Broker accepts a connection on the configured endpoint, normally port 4222 |
 | G0-003 | Probe required PostgreSQL, ScyllaDB, and Redis services | Each configured service reports reachable/ready, or the exact missing dependency is recorded |
 | G0-004 | Start `TomasAI.IFM.Application.Api.Server` in Development | Process remains alive and logs are captured |
-| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 84 registered actor types, including the framework command-exception terminal actor and independent of dynamically started entity instances |
+| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 90 registered actor types, including the framework command-exception terminal actor and independent of dynamically started entity instances |
 | G0-006 | Launch the configured desktop executable | Initial target is `TomasAI.IFM.UI.Net`; PID and start time are recorded |
 | G0-007 | Await desktop NATS readiness | A direct desktop-PID socket is recorded when the host exposes it; when a local container proxy owns the loopback socket, an active endpoint connection plus typed UI-initiated import traffic proves readiness without a fixed startup delay |
 | G0-008 | Find the responsive main window | `IFMAppView` appears, has the expected title, and responds to UI Automation |
@@ -108,12 +108,12 @@ Every step has one of these statuses:
 
 The initial shutdown reference measurement is 5.4 seconds. The implemented default automated threshold is 15 seconds and can be changed explicitly with `IFM_G0_SHUTDOWN_TIMEOUT_SECONDS` when an approved environment requires a different bound. The entire non-short-circuiting audit has an independent 30-minute default ceiling, configurable with `IFM_G0_AUDIT_TIMEOUT_SECONDS`; this preserves evidence collection and cleanup when several bounded steps fail in one run.
 
-The Development API host uses provider-backed DataBento contract discovery but
-a deterministic synthetic tick source paced at ten records per second per
-dataset. This exercises the complete durable tick path as a continuous feed
-without injecting the unpaced qualification burst into the G0 lifecycle window;
-normal stop still drains every accepted record and must emit its correlated
-successful terminal event.
+The Development API host uses provider-backed Databento contract discovery and
+the live tick source for the current ES and VX contracts. Each provider dataset
+owns an independent live session. The XCBF session is established before GLBX;
+an opt-in live coexistence regression test proves that VX and ES can remain
+running together in that order. Normal stop drains every accepted record and
+must emit its correlated successful terminal event.
 
 ### Current expected baseline
 
@@ -186,7 +186,7 @@ G1 is a 15-step, non-short-circuiting process audit. It owns the API and desktop
 |---|---|---|
 | G1-001 | Validate configuration and exclusive process ownership | Development paths are valid and no competing IFM API, desktop, or G1 harness process exists |
 | G1-002 | Probe NATS, PostgreSQL, ScyllaDB, and Redis | All dependencies are reachable and typed event evidence starts |
-| G1-003 | Start the actor backend | Readiness is Healthy with 84 registered actor types |
+| G1-003 | Start the actor backend | Readiness is Healthy with 90 registered actor types |
 | G1-004 | Establish typed read-only baseline | Selector catalogs, ES/VX contracts, bars, lookup names, valid named funds, and calendar rows are queryable; any prior durable feed is stopped through its public command/event flow |
 | G1-005 | Launch the desktop and await initialized shell | Final startup status is visible and all five navigation actions are enabled |
 | G1-006 | Audit shell read-only state | Status history, market outlook/EOD values, ES chart, and VX-backed VIX chart visibly render |
@@ -271,6 +271,8 @@ G2 is a 38-step, non-short-circuiting process audit of the supported UI command 
 | G2-036 | Run an approved database backup | Only allowlisted non-production databases and the run-specific destination are submitted; each requested backup reports correlated completion/failure and any run-owned artifact is recorded for cleanup |
 | G2-037 | Restore imported baselines and clean run-owned state | Cleanup uses public domain commands or the declared environment reset path; imported treasury/calendar dates equal their captured baselines, compensated append-only records reconcile, and no unexplained run-prefixed mutable row or backup artifact remains |
 | G2-038 | Close normally and verify bounded cleanup | All editors and the shell close normally; command listeners, desktop/API processes, feed resources, and run-owned connections stop; the evidence set contains a terminal result and cleanup disposition for every attempted operation |
+
+G2-001 through G2-007 have an accepted Development result. Run `20260818-014331-206df1f5ea13410a91969421ebd39e4a` passed all seven steps in 69 seconds with clean partial-slice teardown: 90 actor types were ready, the typed reversible baseline was captured, the real WinForms shell initialized, and 58 complete/fail routes across 11 command families were armed. This establishes the safe execution boundary for the remaining command workflows; it does not claim G2-008 through G2-038. The reviewed result is retained in [`TestResults/G2-001-007-Development-2026-08-18.md`](TestResults/G2-001-007-Development-2026-08-18.md).
 
 ### G2 command and reversibility contract
 

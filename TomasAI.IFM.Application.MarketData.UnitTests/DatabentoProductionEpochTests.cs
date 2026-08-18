@@ -135,6 +135,7 @@ public sealed class DatabentoProductionEpochTests
         Assert.NotNull(await api.GetFuturesContractAsync("VX20260916"));
         Assert.Equal(["GLBX.MDP3", "XCBF.PITCH"],
             provider.Feeds.Keys.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(["XCBF.PITCH", "GLBX.MDP3"], provider.FeedStartOrder);
         Assert.True(await api.StartStreamingFuturesTickDataAsync("ES20260918"));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("VX20260916"));
 
@@ -183,6 +184,7 @@ public sealed class DatabentoProductionEpochTests
         internal CountdownEvent? StopBarrier { get; init; }
         internal Dictionary<string, FakeTickerFeed> Feeds { get; } =
             new(StringComparer.Ordinal);
+        internal List<string> FeedStartOrder { get; } = [];
         internal FakeTickerFeed Feed => Feeds.Values.Single();
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options)
         {
@@ -191,6 +193,7 @@ public sealed class DatabentoProductionEpochTests
                 options.DataSource,
                 StopBarrier);
             Feeds.Add(options.Dataset, feed);
+            FeedStartOrder.Add(options.Dataset);
             return feed;
         }
         public IDatabentoMarketDataQueries CreateMarketDataQueries(
