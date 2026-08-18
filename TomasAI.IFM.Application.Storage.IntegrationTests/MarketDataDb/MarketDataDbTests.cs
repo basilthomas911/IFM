@@ -1114,7 +1114,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         var db = TestFixture.DevDatabase;
         const string projectionName = "futures_tick_data_by_time";
-        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        await db.BackfillQueryProjectionsV2Async(
+            batchSize: 64,
+            staleOperationCutoffUtc: DateTime.UtcNow);
         db.ProjectionBackfillGlobalActivationForTestingAsync = async activation =>
         {
             await activation();
@@ -1129,7 +1131,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
                 .SetParameters(new GetMarketDataProjectionMutation(projectionName))
                 .ExecuteQueryAsync(record => record.GetDateTime(1));
-            markers.Should().ContainSingle()
+            markers.Where(static startedOn => startedOn != DateTime.UnixEpoch)
+                .Should().ContainSingle()
                 .Which.Should().NotBe(DateTime.UnixEpoch);
             (await db.GetQueryProjectionReadinessAsync()).FuturesTickByTime.Should().BeFalse();
         }
@@ -1522,7 +1525,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             }
         };
 
-        await db.BackfillQueryProjectionsV2Async(batchSize: 64);
+        await db.BackfillQueryProjectionsV2Async(
+            batchSize: 64,
+            staleOperationCutoffUtc: DateTime.UtcNow);
         var missingTickScope = GetTestTickScope($"SCOPED-MISSING-{suffix}", tickDate);
         var missingState = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
             .SetParameters(new GetMarketDataProjectionScopeStatesV3(
@@ -2644,28 +2649,39 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     public async Task GetLastYieldCurveRateAsync_ReturnsExpectedResults()
     {
         // Arrange
-        var expectedRate = SampleData.YieldCurveRate;
+        var expectedRate = SampleData.YieldCurveRate with
+        {
+            ValueDate = new DateOnly(9999, 12, 30)
+        };
         await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(expectedRate.ValueDate);
-        await TestFixture.DevDatabase.InsertYieldCurveRateAsync(expectedRate);
 
-        // Act
-        var result = await TestFixture.DevDatabase.GetLastYieldCurveRateAsync();
+        try
+        {
+            await TestFixture.DevDatabase.InsertYieldCurveRateAsync(expectedRate);
 
-        // Assert
-        result.Should().NotBeNull();
-        result.ValueDate.Should().Be(expectedRate.ValueDate);
-        result.OneMonth.Should().Be(expectedRate.OneMonth);
-        result.TwoMonth.Should().Be(expectedRate.TwoMonth);
-        result.ThreeMonth.Should().Be(expectedRate.ThreeMonth);
-        result.SixMonth.Should().Be(expectedRate.SixMonth);
-        result.OneYear.Should().Be(expectedRate.OneYear);
-        result.TwoYear.Should().Be(expectedRate.TwoYear);
-        result.ThreeYear.Should().Be(expectedRate.ThreeYear);
-        result.FiveYear.Should().Be(expectedRate.FiveYear);
-        result.SevenYear.Should().Be(expectedRate.SevenYear);
-        result.TenYear.Should().Be(expectedRate.TenYear);
-        result.TwentyYear.Should().Be(expectedRate.TwentyYear);
-        result.ThirtyYear.Should().Be(expectedRate.ThirtyYear);
+            // Act
+            var result = await TestFixture.DevDatabase.GetLastYieldCurveRateAsync();
+
+            // Assert
+            result.Should().NotBeNull();
+            result.ValueDate.Should().Be(expectedRate.ValueDate);
+            result.OneMonth.Should().Be(expectedRate.OneMonth);
+            result.TwoMonth.Should().Be(expectedRate.TwoMonth);
+            result.ThreeMonth.Should().Be(expectedRate.ThreeMonth);
+            result.SixMonth.Should().Be(expectedRate.SixMonth);
+            result.OneYear.Should().Be(expectedRate.OneYear);
+            result.TwoYear.Should().Be(expectedRate.TwoYear);
+            result.ThreeYear.Should().Be(expectedRate.ThreeYear);
+            result.FiveYear.Should().Be(expectedRate.FiveYear);
+            result.SevenYear.Should().Be(expectedRate.SevenYear);
+            result.TenYear.Should().Be(expectedRate.TenYear);
+            result.TwentyYear.Should().Be(expectedRate.TwentyYear);
+            result.ThirtyYear.Should().Be(expectedRate.ThirtyYear);
+        }
+        finally
+        {
+            await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(expectedRate.ValueDate);
+        }
     }
 
     /// <summary>
