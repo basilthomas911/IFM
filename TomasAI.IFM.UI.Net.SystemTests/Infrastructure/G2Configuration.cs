@@ -12,6 +12,7 @@ public sealed class G2Configuration
     public required G0Configuration Process { get; init; }
     public required string RunPrefix { get; init; }
     public required DateOnly ImportDate { get; init; }
+    public required DateOnly YieldCurveManualDate { get; init; }
     public required string[] ImportCountryCodes { get; init; }
     public required string FundFixtureName { get; init; }
     public required string SecuritiesSymbol { get; init; }
@@ -39,7 +40,10 @@ public sealed class G2Configuration
         {
             Process = process,
             RunPrefix = Read("IFM_G2_RUN_PREFIX", $"G2-{prefixToken.ToUpperInvariant()}"),
-            ImportDate = ReadDate("IFM_G2_IMPORT_DATE", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30))),
+            ImportDate = ReadDate(
+                "IFM_G2_IMPORT_DATE",
+                PreviousWeekday(DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)))),
+            YieldCurveManualDate = ReadDate("IFM_G2_YIELD_CURVE_MANUAL_DATE", fixtureDate.AddDays(1)),
             ImportCountryCodes = ReadList("IFM_G2_COUNTRY_CODES", ["US"]),
             FundFixtureName = Read("IFM_G2_FUND_NAME", DefaultFundFixtureName),
             SecuritiesSymbol = Read("IFM_G2_SECURITIES_SYMBOL", "ES").ToUpperInvariant(),
@@ -63,6 +67,10 @@ public sealed class G2Configuration
             errors.Add("G2 run prefix must contain 1-32 ASCII letters, digits, or hyphens.");
         if (ImportDate >= DateOnly.FromDateTime(DateTime.UtcNow))
             errors.Add("G2 import date must precede the current UTC date so desktop startup imports cannot alter its baseline.");
+        if (YieldCurveManualDate <= DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)))
+            errors.Add("G2 manual yield-curve fixture date must be more than one year in the future.");
+        if (YieldCurveManualDate == SecuritiesMaturityDate)
+            errors.Add("G2 manual yield-curve and securities fixtures must use different dates.");
         if (ImportCountryCodes.Length == 0
             || ImportCountryCodes.Any(code => code.Length is < 2 or > 3 || code.Any(character => !char.IsAsciiLetter(character))))
             errors.Add("G2 import country codes must contain one or more two- or three-letter ASCII codes.");
@@ -96,6 +104,7 @@ public sealed class G2Configuration
             Process.EnvironmentName,
             RunPrefix,
             ImportDate,
+            YieldCurveManualDate,
             ImportCountryCodes,
             FundFixtureName,
             SecuritiesSymbol,
@@ -165,6 +174,13 @@ public sealed class G2Configuration
             out var value)
             ? value
             : defaultValue;
+
+    static DateOnly PreviousWeekday(DateOnly value)
+    {
+        while (value.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            value = value.AddDays(-1);
+        return value;
+    }
 
     static string[] ReadList(string variable, string[] defaultValue)
     {

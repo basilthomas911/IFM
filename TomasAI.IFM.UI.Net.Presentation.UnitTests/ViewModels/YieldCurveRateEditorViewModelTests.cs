@@ -62,11 +62,14 @@ public class YieldCurveRateEditorViewModelTests
     {
         var commandId = Guid.NewGuid();
         var existing = CreateRate(new DateOnly(2026, 8, 10));
-        var added = CreateRate(new DateOnly(2026, 8, 11));
+        var added = CreateRate(new DateOnly(2043, 3, 29));
         var subject = CreateSubject([existing]);
+        subject.QueryApi.GetYieldCurveRateYearsAsync().Returns(
+            new ServiceOk<YieldCurveRateYearsReadModel>(new YieldCurveRateYearsReadModel([2025, 2026])),
+            new ServiceOk<YieldCurveRateYearsReadModel>(new YieldCurveRateYearsReadModel([2025, 2026, 2043])));
         subject.QueryApi.GetYieldCurveRatesAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>()).Returns(
             new ServiceOk<YieldCurveRateReadModel[]>([existing]),
-            new ServiceOk<YieldCurveRateReadModel[]>([existing, added]));
+            new ServiceOk<YieldCurveRateReadModel[]>([added]));
         subject.CommandApi.AddYieldCurveRateAsync(added, false).Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadOperation.ExecuteAsync();
         subject.ViewModel.PrepareAdd(added);
@@ -87,7 +90,10 @@ public class YieldCurveRateEditorViewModelTests
         await operation;
 
         subject.ViewModel.CommandId.Should().BeEmpty();
-        subject.ViewModel.YieldCurveRates.Should().Equal(existing, added);
+        subject.ViewModel.SelectedTimePeriod.Should().Be("2043");
+        subject.ViewModel.RangeStart.Should().Be(new DateOnly(2043, 1, 1));
+        subject.ViewModel.RangeEnd.Should().Be(new DateOnly(2043, 12, 31));
+        subject.ViewModel.YieldCurveRates.Should().Equal(added);
         subject.ViewModel.LastStatusMessage.Should().Contain("Added");
         subject.ViewModel.AddOperation.CanExecute.Should().BeFalse();
         await subject.ViewModel.StopAsync(CancellationToken.None);

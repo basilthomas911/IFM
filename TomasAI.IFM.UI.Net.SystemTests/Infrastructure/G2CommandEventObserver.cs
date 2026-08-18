@@ -5,6 +5,7 @@ using NATS.Client.Core;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -20,7 +21,9 @@ public sealed record G2ObservedCommandEvent(
     string Subject,
     Guid CommandId,
     bool? Success,
-    string ErrorMessage);
+    string ErrorMessage,
+    DateOnly? ImportDate,
+    YieldCurveRateReadModel[]? ImportedYieldCurveRates);
 
 public sealed record G2CommandListenerRegistration(
     string Family,
@@ -60,12 +63,16 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<FuturesOptionContractRemovedCompleteEvent>("FuturesOptionContract", FuturesOptionContractRemovedCompleteEvent.Actor, FuturesOptionContractRemovedCompleteEvent.Verb, true),
         Route<FuturesOptionContractRemovedFailEvent>("FuturesOptionContract", FuturesOptionContractRemovedFailEvent.Actor, FuturesOptionContractRemovedFailEvent.Verb, false),
 
+        Route<YieldCurveRateAddedEvent>("YieldCurve", YieldCurveRateAddedEvent.Actor, YieldCurveRateAddedEvent.Verb, null),
         Route<YieldCurveRateAddedCompleteEvent>("YieldCurve", YieldCurveRateAddedCompleteEvent.Actor, YieldCurveRateAddedCompleteEvent.Verb, true),
         Route<YieldCurveRateAddedFailEvent>("YieldCurve", YieldCurveRateAddedFailEvent.Actor, YieldCurveRateAddedFailEvent.Verb, false),
+        Route<YieldCurveRateChangedEvent>("YieldCurve", YieldCurveRateChangedEvent.Actor, YieldCurveRateChangedEvent.Verb, null),
         Route<YieldCurveRateChangedCompleteEvent>("YieldCurve", YieldCurveRateChangedCompleteEvent.Actor, YieldCurveRateChangedCompleteEvent.Verb, true),
         Route<YieldCurveRateChangedFailEvent>("YieldCurve", YieldCurveRateChangedFailEvent.Actor, YieldCurveRateChangedFailEvent.Verb, false),
+        Route<YieldCurveRateRemovedEvent>("YieldCurve", YieldCurveRateRemovedEvent.Actor, YieldCurveRateRemovedEvent.Verb, null),
         Route<YieldCurveRateRemovedCompleteEvent>("YieldCurve", YieldCurveRateRemovedCompleteEvent.Actor, YieldCurveRateRemovedCompleteEvent.Verb, true),
         Route<YieldCurveRateRemovedFailEvent>("YieldCurve", YieldCurveRateRemovedFailEvent.Actor, YieldCurveRateRemovedFailEvent.Verb, false),
+        Route<YieldCurveRatesImportedEvent>("YieldCurve", YieldCurveRatesImportedEvent.Actor, YieldCurveRatesImportedEvent.Verb, null),
         Route<YieldCurveRatesImportedCompleteEvent>("YieldCurve", YieldCurveRatesImportedCompleteEvent.Actor, YieldCurveRatesImportedCompleteEvent.Verb, true),
         Route<YieldCurveRatesImportedFailEvent>("YieldCurve", YieldCurveRatesImportedFailEvent.Actor, YieldCurveRatesImportedFailEvent.Verb, false),
 
@@ -200,6 +207,16 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             throw new InvalidOperationException($"No G2 command-evidence route exists for {subject.Name}.{verb}.");
         var domainEvent = route.Deserialize(message)
             ?? throw new InvalidOperationException($"Could not deserialize {route.EventType.Name}.");
+        var importDate = domainEvent switch
+        {
+            YieldCurveRatesImportedEvent value => DateOnly.FromDateTime(value.ImportDate),
+            YieldCurveRatesImportedCompleteEvent value => DateOnly.FromDateTime(value.ImportDate),
+            YieldCurveRatesImportedFailEvent value => DateOnly.FromDateTime(value.ImportDate),
+            _ => null as DateOnly?
+        };
+        var importedRates = domainEvent is YieldCurveRatesImportedCompleteEvent completed
+            ? completed.YieldCurveRates
+            : null;
         _events.Enqueue(new G2ObservedCommandEvent(
             DateTimeOffset.UtcNow,
             route.Family,
@@ -207,7 +224,9 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             domainEvent.Subject.ToString(),
             domainEvent.CommandId,
             route.Success,
-            domainEvent is IErrorEvent error ? error.ErrorMessage : string.Empty));
+            domainEvent is IErrorEvent error ? error.ErrorMessage : string.Empty,
+            importDate,
+            importedRates));
         return ValueTask.CompletedTask;
     }
 

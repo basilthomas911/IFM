@@ -28,6 +28,7 @@ public partial class YieldCurveRateEditorControl
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _marketDataViewModel = marketDataViewModel ?? throw new ArgumentNullException(nameof(marketDataViewModel));
+        dtmImportDate.Value = EasternTime.GetNow(TimeProvider.System).Date;
     }
 
     /// <summary>Gets whether the current snapshot supports change and remove actions.</summary>
@@ -104,7 +105,7 @@ public partial class YieldCurveRateEditorControl
     {
         if (_viewModel.ImportOperation.IsRunning)
             return;
-        _viewModel.PrepareImport(EasternTime.GetNow(TimeProvider.System).Date);
+        _viewModel.PrepareImport(dtmImportDate.Value.Date);
         _ = ImportPreparedRatesAsync();
     }
 
@@ -176,6 +177,7 @@ public partial class YieldCurveRateEditorControl
         Cursor = isBusy ? Cursors.WaitCursor : Cursors.Default;
         _marketDataViewModel.SetEditorBusy(isBusy);
         ddlTimePeriod.Enabled = !isBusy;
+        dtmImportDate.Enabled = !isBusy;
         gridYieldCurveRates.Enabled = !isBusy;
     }
 

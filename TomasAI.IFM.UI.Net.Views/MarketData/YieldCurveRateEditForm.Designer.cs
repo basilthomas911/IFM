@@ -44,7 +44,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             lblOneMonth = new Label();
             pnlValueDate = new Panel();
             lblValueDate = new Label();
-            dtmValueDate = new DateTimePicker();
+            dtmValueDate = new AccessibleDateTimePicker();
             pnlThreeMonth = new Panel();
             lblThreeMonth = new Label();
             pnlSixMonth = new Panel();
@@ -649,7 +649,7 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
         private System.Windows.Forms.TableLayoutPanel pnlEdit;
         private System.Windows.Forms.Panel pnlValueDate;
         private System.Windows.Forms.Label lblValueDate;
-        private System.Windows.Forms.DateTimePicker dtmValueDate;
+        private AccessibleDateTimePicker dtmValueDate;
         private System.Windows.Forms.MaskedTextBox txtOneMonth;
         private System.Windows.Forms.Panel pnlOneMonth;
         private System.Windows.Forms.Label lblOneMonth;

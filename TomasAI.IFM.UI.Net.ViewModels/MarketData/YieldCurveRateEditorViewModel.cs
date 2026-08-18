@@ -293,6 +293,7 @@ public sealed class YieldCurveRateEditorViewModel
             model => model.AddYieldCurveRateAsync(rate, false),
             $"Yield Curve Rate {rate.ValueDate:yyyy-MM-dd} Added",
             () => _pendingAdd = null,
+            rate.ValueDate,
             cancellationToken);
     }
 
@@ -303,6 +304,7 @@ public sealed class YieldCurveRateEditorViewModel
             model => model.ChangeYieldCurveRateAsync(rate, true),
             $"Yield Curve Rate {rate.ValueDate:yyyy-MM-dd} Changed",
             () => _pendingChange = null,
+            rate.ValueDate,
             cancellationToken);
     }
 
@@ -313,6 +315,7 @@ public sealed class YieldCurveRateEditorViewModel
             model => model.RemoveYieldCurveRateAsync(rate.ValueDate, true),
             $"Yield Curve Rate {rate.ValueDate:yyyy-MM-dd} Removed",
             () => _pendingRemove = null,
+            rate.ValueDate,
             cancellationToken);
     }
 
@@ -324,6 +327,7 @@ public sealed class YieldCurveRateEditorViewModel
             model => model.ImportYieldCurveRatesAsync(importDate),
             $"Yield Curve Rates Imported for {importDate:yyyy-MM-dd}",
             () => _pendingImportDate = null,
+            DateOnly.FromDateTime(importDate),
             cancellationToken);
     }
 
@@ -331,6 +335,7 @@ public sealed class YieldCurveRateEditorViewModel
         Func<MarketDataCommandModel, Task<Guid>> submit,
         string statusMessage,
         Action clearPending,
+        DateOnly preferredDate,
         CancellationToken cancellationToken)
     {
         _terminalCorrelation.BeginAttempt();
@@ -349,7 +354,7 @@ public sealed class YieldCurveRateEditorViewModel
             if (terminalEvent is IErrorEvent error)
                 throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
 
-            await RefreshSnapshotAsync(cancellationToken);
+            await RefreshSnapshotAsync(preferredDate.Year.ToString(), cancellationToken);
             LastStatusMessage = statusMessage;
             clearPending();
         }
@@ -360,12 +365,14 @@ public sealed class YieldCurveRateEditorViewModel
         }
     }
 
-    async Task RefreshSnapshotAsync(CancellationToken cancellationToken)
+    async Task RefreshSnapshotAsync(string preferredTimePeriod, CancellationToken cancellationToken)
     {
         var timePeriods = await QueryTimePeriodsAsync(cancellationToken);
-        var selected = timePeriods.Contains(SelectedTimePeriod, StringComparer.Ordinal)
-            ? SelectedTimePeriod
-            : timePeriods.FirstOrDefault() ?? string.Empty;
+        var selected = timePeriods.Contains(preferredTimePeriod, StringComparer.Ordinal)
+            ? preferredTimePeriod
+            : timePeriods.Contains(SelectedTimePeriod, StringComparer.Ordinal)
+                ? SelectedTimePeriod
+                : timePeriods.FirstOrDefault() ?? string.Empty;
         var (start, end) = CalculateRange(
             selected,
             DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));

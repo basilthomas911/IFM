@@ -16,6 +16,7 @@ public sealed record G2BaselineSnapshot(
     FuturesOptionContractReadModel[] RunOwnedFuturesOptions,
     FuturesContractV2ReadModel? SecuritiesFixtureContract,
     FuturesOptionContractReadModel? SecuritiesFixtureOption,
+    YieldCurveRateReadModel[] YieldCurveManualDateRows,
     YieldCurveRateReadModel[] YieldCurveImportDateRows,
     IReadOnlyDictionary<string, EconomicCalendarReadModel[]> EconomicCalendarImportDateRows,
     LookupTypeReadModel[] RunOwnedLookupTypes,
@@ -50,6 +51,12 @@ public static class G2BaselineCapture
             await queries.MarketData.GetYieldCurveRatesAsync(configuration.ImportDate, configuration.ImportDate)
                 .WaitAsync(timeout, cancellationToken),
             "yield-curve import-date baseline");
+        var manualYieldCurve = RequireValue(
+            await queries.MarketData.GetYieldCurveRatesAsync(
+                    configuration.YieldCurveManualDate,
+                    configuration.YieldCurveManualDate)
+                .WaitAsync(timeout, cancellationToken),
+            "manual yield-curve fixture baseline");
 
         Dictionary<string, EconomicCalendarReadModel[]> calendars = new(StringComparer.Ordinal);
         var calendarDate = DateTime.SpecifyKind(
@@ -128,6 +135,7 @@ public static class G2BaselineCapture
                 option.ContractId,
                 configuration.SecuritiesOptionContractId,
                 StringComparison.Ordinal)),
+            manualYieldCurve,
             yieldCurve,
             calendars,
             lookupTypes.Where(lookup =>

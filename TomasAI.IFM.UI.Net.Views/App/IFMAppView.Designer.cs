@@ -242,7 +242,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             //
             marketDataFeedButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
             marketDataFeedButton.Enabled = false;
-            marketDataFeedButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            marketDataFeedButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
             marketDataFeedButton.Name = "marketDataFeedButton";
             marketDataFeedButton.Size = new Size(126, 24);
             marketDataFeedButton.Text = "Start Market Feed";
@@ -271,7 +271,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // toolStrip1
             // 
             toolStrip1.ImageScalingSize = new Size(24, 24);
-            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, marketDataFeedButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, btnCloseOrder });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, btnCloseOrder });
             toolStrip1.Location = new Point(0, 0);
             toolStrip1.Name = "toolStrip1";
             toolStrip1.Size = new Size(2637, 27);

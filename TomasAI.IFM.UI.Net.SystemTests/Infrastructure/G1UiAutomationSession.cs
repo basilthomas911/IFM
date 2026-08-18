@@ -1,11 +1,14 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.UIA3;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
@@ -348,6 +351,89 @@ public sealed class G1UiAutomationSession : IDisposable
             cancellationToken);
     }
 
+    public async Task<G2YieldCurveEditorUiState> AddYieldCurveRateAsync(
+        Window window,
+        G2YieldCurveFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.DefinitionDescription, "YieldCurveRateEditorControl", timeout, cancellationToken);
+        PostButtonClick(window, "btnAdd");
+        var dialog = await WaitForWindowAsync("Add Yield Curve Rate", timeout, cancellationToken);
+        await WaitForEnabledAsync(dialog, "dtmValueDate", timeout, cancellationToken);
+        await SetDateAsync(dialog, "dtmValueDate", fixture.ManualDate, timeout, cancellationToken);
+        SetYieldCurveRateFields(dialog, fixture.AddedRate);
+        await WaitForEnabledAsync(dialog, "btnSave", timeout, cancellationToken);
+        InvokeButtonEnabled(dialog, "btnSave");
+        return await WaitForYieldCurveStateAsync(
+            window, fixture.ManualDate, fixture.AddedRate, present: true, timeout, cancellationToken);
+    }
+
+    public async Task<G2YieldCurveEditorUiState> ChangeYieldCurveRateAsync(
+        Window window,
+        G2YieldCurveFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        SelectYieldCurveRow(window, fixture.ManualDate);
+        PostButtonClick(window, "btnChange");
+        var dialog = await WaitForWindowAsync("Change Yield Curve Rate", timeout, cancellationToken);
+        await WaitForEnabledAsync(dialog, "txtOneMonth", timeout, cancellationToken);
+        SetYieldCurveRateFields(dialog, fixture.ChangedRate);
+        InvokeButtonEnabled(dialog, "btnSave");
+        return await WaitForYieldCurveStateAsync(
+            window, fixture.ManualDate, fixture.ChangedRate, present: true, timeout, cancellationToken);
+    }
+
+    public async Task<G2YieldCurveEditorUiState> RemoveYieldCurveRateAsync(
+        Window window,
+        G2YieldCurveFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        SelectYieldCurveRow(window, fixture.ManualDate);
+        PostButtonClick(window, "btnRemove");
+        await ConfirmAsync("Remove Yield Curve Rate", timeout, cancellationToken);
+        return await WaitForYieldCurveStateAsync(
+            window, fixture.ManualDate, expectedRate: null, present: false, timeout, cancellationToken);
+    }
+
+    public async Task<G2YieldCurveEditorUiState> ImportYieldCurveRatesAsync(
+        Window window,
+        G2YieldCurveFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.DefinitionDescription, "YieldCurveRateEditorControl", timeout, cancellationToken);
+        await SetDateAsync(window, "dtmImportDate", fixture.ImportDate, timeout, cancellationToken);
+        PostButtonClick(window, "btnImport");
+        await WaitUntilAsync(
+            () => FindDescendant(window, "dtmImportDate", null) is { IsEnabled: false } ? "busy" : null,
+            timeout,
+            "The yield-curve import operation did not enter its busy state.",
+            cancellationToken);
+        await WaitForEnabledAsync(window, "dtmImportDate", timeout, cancellationToken);
+        var period = fixture.ImportDate.Year.ToString(CultureInfo.InvariantCulture);
+        if (ReadComboItems(window, "ddlTimePeriod").Contains(period, StringComparer.Ordinal))
+            await SelectYieldCurvePeriodAsync(window, period, timeout, cancellationToken);
+        return ReadYieldCurveState(window, fixture.ImportDate);
+    }
+
+    public async Task<G2YieldCurveEditorUiState> ReloadYieldCurveRateAsync(
+        Window window,
+        G2YieldCurveFixture fixture,
+        DateOnly valueDate,
+        YieldCurveRateReadModel? expectedRate,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        return await WaitForYieldCurveStateAsync(
+            window, valueDate, expectedRate, present, timeout, cancellationToken);
+    }
+
     public string ReadStatusText()
     {
         var statusBar = FindDescendant(MainWindow, "statusBar", "statusStrip1")
@@ -433,12 +519,35 @@ public sealed class G1UiAutomationSession : IDisposable
         PostControlClick(control);
     }
 
+    static void InvokeButtonEnabled(AutomationElement root, string automationId)
+    {
+        var button = RequireDescendant(root, automationId).AsButton();
+        if (!button.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' command is disabled.");
+        button.Invoke();
+    }
+
+    static void PostButtonClick(AutomationElement root, string automationId)
+    {
+        var button = RequireDescendant(root, automationId).AsButton();
+        if (!button.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' command is disabled.");
+        var handle = new IntPtr(button.Properties.NativeWindowHandle.Value);
+        if (handle == IntPtr.Zero || !PostMessage(handle, BmClick, IntPtr.Zero, IntPtr.Zero))
+            throw new InvalidOperationException(
+                $"The '{automationId}' WinForms button could not receive BM_CLICK "
+                + $"(Win32 error {Marshal.GetLastWin32Error()}).");
+    }
+
     static void SetText(AutomationElement root, string automationId, string value)
     {
         var textBox = RequireDescendant(root, automationId).AsTextBox();
         if (!textBox.IsEnabled)
             throw new InvalidOperationException($"The '{automationId}' text input is disabled.");
-        textBox.Enter(value);
+        if (textBox.Patterns.Value.IsSupported)
+            textBox.Patterns.Value.Pattern.SetValue(value);
+        else
+            textBox.Enter(value);
         if (!string.Equals(textBox.Text, value, StringComparison.Ordinal))
             throw new InvalidOperationException($"The '{automationId}' text input did not retain the entered value.");
     }
@@ -448,7 +557,182 @@ public sealed class G1UiAutomationSession : IDisposable
         var picker = RequireDescendant(root, automationId).AsDateTimePicker();
         if (!picker.IsEnabled)
             throw new InvalidOperationException($"The '{automationId}' date input is disabled.");
-        picker.SelectedDate = value.ToDateTime(TimeOnly.MinValue);
+        var pickerHandle = FindVisibleDateTimePickerHandle(root, picker);
+        if (pickerHandle == IntPtr.Zero)
+            throw new InvalidOperationException($"The '{automationId}' date input does not expose a native handle.");
+        var selectedDate = ReadAccessibleDate(picker, automationId);
+        if (selectedDate == value)
+            return;
+
+        if (picker.Patterns.LegacyIAccessible.IsSupported)
+        {
+            picker.Patterns.LegacyIAccessible.Pattern.SetValue(
+                value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            Thread.Sleep(50);
+            if (ReadAccessibleDate(picker, automationId) == value)
+                return;
+        }
+
+        if (picker.Patterns.Value.IsSupported)
+        {
+            picker.Patterns.Value.Pattern.SetValue(
+                value.ToString("yyyy-MMM-dd", CultureInfo.CurrentCulture));
+            Thread.Sleep(50);
+            if (ReadAccessibleDate(picker, automationId) == value)
+                return;
+        }
+
+        if (picker.Patterns.ExpandCollapse.IsSupported)
+            picker.Patterns.ExpandCollapse.Pattern.Expand();
+        else
+            OpenDateTimePickerDropDown(pickerHandle);
+        var calendarHandle = WaitForVisibleMonthCalendar(root, pickerHandle, TimeSpan.FromSeconds(3));
+        if (calendarHandle == IntPtr.Zero)
+            throw new InvalidOperationException($"The '{automationId}' calendar popup did not open.");
+
+        var monthDelta = (value.Year - selectedDate.Year) * 12 + value.Month - selectedDate.Month;
+        var monthKey = monthDelta >= 0 ? VkPageDown : VkPageUp;
+        for (var index = 0; index < Math.Abs(monthDelta); index++)
+            SendKey(calendarHandle, monthKey);
+
+        var intermediateDay = Math.Min(selectedDate.Day, DateTime.DaysInMonth(value.Year, value.Month));
+        var dayDelta = value.Day - intermediateDay;
+        var dayKey = dayDelta >= 0 ? VkRight : VkLeft;
+        for (var index = 0; index < Math.Abs(dayDelta); index++)
+            SendKey(calendarHandle, dayKey);
+        SendKey(calendarHandle, VkEnter);
+    }
+
+    static DateOnly ReadAccessibleDate(
+        FlaUI.Core.AutomationElements.DateTimePicker picker,
+        string automationId)
+    {
+        var name = picker.Name;
+        var separator = name.IndexOf(',', StringComparison.Ordinal);
+        var dateText = separator >= 0 ? name[(separator + 1)..].Trim() : name;
+        if (DateTime.TryParse(dateText, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out var date)
+            || DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out date))
+            return DateOnly.FromDateTime(date);
+        throw new InvalidOperationException(
+            $"The '{automationId}' date input did not expose a parseable accessible value; name='{name}'.");
+    }
+
+    static void OpenDateTimePickerDropDown(IntPtr pickerHandle)
+    {
+        if (!GetClientRect(pickerHandle, out var rectangle))
+            throw new InvalidOperationException(
+                $"The native DateTimePicker client area could not be read (Win32 error {Marshal.GetLastWin32Error()}).");
+        var x = Math.Max(0, rectangle.Right - 8);
+        var y = Math.Max(0, (rectangle.Bottom - rectangle.Top) / 2);
+        var parameter = new IntPtr((y << 16) | (x & 0xFFFF));
+        SendMessage(pickerHandle, WmLeftButtonDown, new IntPtr(MkLeftButton), parameter);
+        SendMessage(pickerHandle, WmLeftButtonUp, IntPtr.Zero, parameter);
+    }
+
+    static IntPtr FindVisibleDateTimePickerHandle(
+        AutomationElement root,
+        FlaUI.Core.AutomationElements.DateTimePicker picker)
+    {
+        var directHandle = new IntPtr(picker.Properties.NativeWindowHandle.Value);
+        if (IsDateTimePickerWindow(directHandle))
+            return directHandle;
+
+        var hostHandle = new IntPtr(root.Properties.NativeWindowHandle.Value);
+        if (hostHandle == IntPtr.Zero)
+            return IntPtr.Zero;
+
+        IntPtr result = IntPtr.Zero;
+        EnumChildWindows(hostHandle, (handle, _) =>
+        {
+            if (IsWindowVisible(handle) && IsDateTimePickerWindow(handle))
+            {
+                result = handle;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+
+    static IntPtr WaitForVisibleMonthCalendar(
+        AutomationElement root,
+        IntPtr pickerHandle,
+        TimeSpan timeout)
+    {
+        GetWindowThreadProcessId(pickerHandle, out var pickerProcessId);
+        var stopwatch = Stopwatch.StartNew();
+        do
+        {
+            var hostHandle = new IntPtr(root.Properties.NativeWindowHandle.Value);
+            var result = FindVisibleWindowByClass(hostHandle, pickerProcessId, "SysMonthCal32");
+            if (result != IntPtr.Zero)
+                return result;
+            Thread.Sleep(25);
+        } while (stopwatch.Elapsed < timeout);
+        return IntPtr.Zero;
+    }
+
+    static IntPtr FindVisibleWindowByClass(IntPtr hostHandle, uint processId, string classNameSegment)
+    {
+        IntPtr result = IntPtr.Zero;
+        if (hostHandle != IntPtr.Zero)
+        {
+            EnumChildWindows(hostHandle, (handle, _) =>
+            {
+                if (IsWindowVisible(handle) && WindowClassContains(handle, classNameSegment))
+                {
+                    result = handle;
+                    return false;
+                }
+                return true;
+            }, IntPtr.Zero);
+        }
+        if (result != IntPtr.Zero)
+            return result;
+
+        EnumWindows((handle, _) =>
+        {
+            GetWindowThreadProcessId(handle, out var candidateProcessId);
+            if (candidateProcessId == processId
+                && IsWindowVisible(handle)
+                && WindowClassContains(handle, classNameSegment))
+            {
+                result = handle;
+                return false;
+            }
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+
+    static void SendKey(IntPtr handle, int virtualKey)
+    {
+        SendMessage(handle, WmKeyDown, new IntPtr(virtualKey), IntPtr.Zero);
+        SendMessage(handle, WmKeyUp, new IntPtr(virtualKey), IntPtr.Zero);
+    }
+
+    static bool IsDateTimePickerWindow(IntPtr handle)
+        => WindowClassContains(handle, "SysDateTimePick32");
+
+    static bool WindowClassContains(IntPtr handle, string classNameSegment)
+    {
+        if (handle == IntPtr.Zero)
+            return false;
+        StringBuilder className = new(256);
+        return GetClassName(handle, className, className.Capacity) > 0
+               && className.ToString().Contains(classNameSegment, StringComparison.Ordinal);
+    }
+
+    static Task SetDateAsync(
+        AutomationElement root,
+        string automationId,
+        DateOnly value,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        SetDate(root, automationId, value);
+        return Task.CompletedTask;
     }
 
     static void SetCombo(AutomationElement root, string automationId, int index)
@@ -466,6 +750,128 @@ public sealed class G1UiAutomationSession : IDisposable
             throw new InvalidOperationException($"The '{automationId}' list is disabled.");
         list.Select(value);
     }
+
+    async Task SelectYieldCurvePeriodAsync(
+        AutomationElement root,
+        string period,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var selector = RequireDescendant(root, "ddlTimePeriod").AsComboBox();
+        var periods = await WaitUntilAsync(
+            () =>
+            {
+                var items = ReadComboItems(selector);
+                return items.Contains(period, StringComparer.Ordinal) ? items : null;
+            },
+            timeout,
+            $"The yield-curve editor did not expose time period '{period}'.",
+            cancellationToken);
+        var index = periods
+            .Select((item, index) => (item, index))
+            .Single(pair => string.Equals(pair.item, period, StringComparison.Ordinal))
+            .index;
+        selector.Expand();
+        var item = selector.Items[index];
+        item.Select();
+        selector.Collapse();
+        await WaitUntilAsync(
+            () => string.Equals(selector.SelectedItem?.Text, period, StringComparison.Ordinal)
+                ? period
+                : null,
+            timeout,
+            $"The yield-curve editor did not select time period '{period}'.",
+            cancellationToken);
+        await WaitForEnabledAsync(root, "gridYieldCurveRates", timeout, cancellationToken);
+    }
+
+    static void SetYieldCurveRateFields(AutomationElement dialog, YieldCurveRateReadModel rate)
+    {
+        SetText(dialog, "txtOneMonth", FormatRate(rate.OneMonth));
+        SetText(dialog, "txtTwoMonth", FormatRate(rate.TwoMonth));
+        SetText(dialog, "txtThreeMonth", FormatRate(rate.ThreeMonth));
+        SetText(dialog, "txtSixMonth", FormatRate(rate.SixMonth));
+        SetText(dialog, "txtOneYear", FormatRate(rate.OneYear));
+        SetText(dialog, "txtTwoYear", FormatRate(rate.TwoYear));
+        SetText(dialog, "txtThreeYear", FormatRate(rate.ThreeYear));
+        SetText(dialog, "txtFiveYear", FormatRate(rate.FiveYear));
+        SetText(dialog, "txtSevenYear", FormatRate(rate.SevenYear));
+        SetText(dialog, "txtTenYear", FormatRate(rate.TenYear));
+        SetText(dialog, "txtTwentyYear", FormatRate(rate.TwentyYear));
+        SetText(dialog, "txtThirtyYear", FormatRate(rate.ThirtyYear));
+    }
+
+    static string FormatRate(double value)
+        => value.ToString("0.00", CultureInfo.InvariantCulture);
+
+    static void SelectYieldCurveRow(AutomationElement root, DateOnly valueDate)
+    {
+        var grid = RequireDescendant(root, "gridYieldCurveRates").AsDataGridView();
+        var rows = grid.Rows;
+        var row = rows.SingleOrDefault(item => YieldCurveRowHasDate(item, valueDate))
+            ?? (rows.Length == 1 ? rows[0] : null)
+            ?? throw new InvalidOperationException($"The yield-curve grid does not contain '{valueDate:yyyy-MM-dd}'.");
+        var cell = row.Cells[0];
+        if (cell.Patterns.SelectionItem.IsSupported)
+            cell.Patterns.SelectionItem.Pattern.Select();
+        else
+            cell.Click();
+    }
+
+    async Task<G2YieldCurveEditorUiState> WaitForYieldCurveStateAsync(
+        AutomationElement root,
+        DateOnly valueDate,
+        YieldCurveRateReadModel? expectedRate,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var state = ReadYieldCurveState(root, valueDate);
+                var gridElement = RequireDescendant(root, "gridYieldCurveRates");
+                if (!gridElement.IsEnabled)
+                    return null;
+                var grid = gridElement.AsDataGridView();
+                var matchingRow = grid.Rows.SingleOrDefault(row => YieldCurveRowHasDate(row, valueDate));
+                if (present && matchingRow is null && grid.Rows.Length == 0)
+                    return null;
+                return state;
+            },
+            timeout,
+            $"The yield-curve editor did not render '{valueDate:yyyy-MM-dd}' as {(present ? "present with expected rates" : "absent")}.",
+            cancellationToken);
+
+    static G2YieldCurveEditorUiState ReadYieldCurveState(AutomationElement root, DateOnly valueDate)
+    {
+        var period = RequireDescendant(root, "ddlTimePeriod").AsComboBox().SelectedItem?.Text ?? string.Empty;
+        var importDate = ReadAccessibleDate(
+            RequireDescendant(root, "dtmImportDate").AsDateTimePicker(),
+            "dtmImportDate");
+        var rows = ReadDataGridRows(RequireDescendant(root, "gridYieldCurveRates"));
+        return new G2YieldCurveEditorUiState(
+            period,
+            importDate,
+            valueDate,
+            rows);
+    }
+
+    static bool YieldCurveRowHasDate(
+        FlaUI.Core.AutomationElements.DataGridViewRow row,
+        DateOnly valueDate)
+    {
+        var value = row.Cells.FirstOrDefault()?.Value;
+        return DateOnly.TryParse(value, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out var actual)
+                   && actual == valueDate
+               || DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out actual)
+                   && actual == valueDate;
+    }
+
+    static IReadOnlyList<string> ReadDataGridRows(AutomationElement element)
+        => element.AsDataGridView().Rows.Select(ReadDataGridRow).ToArray();
+
+    static string ReadDataGridRow(FlaUI.Core.AutomationElements.DataGridViewRow row)
+        => string.Join(" | ", row.Cells.Select(cell => cell.Value ?? string.Empty));
 
     public G1ShellState ReadShellState()
     {
@@ -1278,6 +1684,20 @@ public sealed class G1UiAutomationSession : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     static extern int GetWindowTextLength(IntPtr windowHandle);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool EnumChildWindows(
+        IntPtr parentWindowHandle,
+        EnumWindowsCallback callback,
+        IntPtr parameter);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetClassName(IntPtr windowHandle, StringBuilder className, int maxCount);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool IsWindowVisible(IntPtr windowHandle);
+
     const uint WmLeftButtonDown = 0x0201;
     const uint WmLeftButtonUp = 0x0202;
     const uint WmCommand = 0x0111;
@@ -1285,6 +1705,14 @@ public sealed class G1UiAutomationSession : IDisposable
     const int CbnSelectionChanged = 1;
     const int MkLeftButton = 0x0001;
     const int SwRestore = 9;
+    const uint BmClick = 0x00F5;
+    const uint WmKeyDown = 0x0100;
+    const uint WmKeyUp = 0x0101;
+    const int VkEnter = 0x0D;
+    const int VkPageUp = 0x21;
+    const int VkPageDown = 0x22;
+    const int VkLeft = 0x25;
+    const int VkRight = 0x27;
 
     [StructLayout(LayoutKind.Sequential)]
     struct NativePoint
@@ -1293,9 +1721,24 @@ public sealed class G1UiAutomationSession : IDisposable
         public int Y;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct NativeRectangle
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    delegate bool EnumWindowsCallback(IntPtr windowHandle, IntPtr parameter);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool ScreenToClient(IntPtr windowHandle, ref NativePoint point);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool GetClientRect(IntPtr windowHandle, out NativeRectangle rectangle);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -1326,6 +1769,12 @@ public sealed record G2SecuritiesEditorUiState(
     IReadOnlyList<string> ContractIds,
     string SelectedContractId,
     string Description);
+
+public sealed record G2YieldCurveEditorUiState(
+    string SelectedPeriod,
+    DateOnly? ImportDate,
+    DateOnly TargetDate,
+    IReadOnlyList<string> Rows);
 
 public sealed record G1StatusConsoleState(
     int RowCount,

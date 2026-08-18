@@ -1,8 +1,8 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Implemented
-Version: 0.12
-Date: 2026-08-16
+Version: 0.13
+Date: 2026-08-18
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
 ## 1. Purpose
@@ -760,6 +760,19 @@ Fixtures are sanitized and contain no live key.
 Live FMP tests are opt-in, secret-gated, date-bounded, rate-limited, and excluded from the default suite. They verify
 endpoint access and contract drift without writing production tables.
 
+### 16.6 UI process acceptance
+
+The G2-016 through G2-019 Development process slice proves the manual and provider-backed treasury paths through the
+real WinForms editor. The editor exposes an explicit import-date picker; it sends that selected date through the typed
+NATS client as a parameter-only domain command and never calls FMP or storage directly. The process test observes the
+source and terminal events by exact command ID, compares the terminal event's canonical 0..N provider rows with typed
+durable queries and refreshed visible state, and restores the captured baseline through public domain commands.
+
+Accepted run `20260818-170357-a09e681e82d84bab8fb514a427f358ef` used the production FMP adapter and returned one
+treasury row for `2026-07-17`. It also proved manual add/change/remove without invoking FMP and completed cleanup. This
+is UI process acceptance of the existing architecture, including its valid zero-row semantics; it does not move provider
+acquisition into the UI or storage layers.
+
 ## 17. Implementation stages after design approval
 
 ### Stage 1: security and contracts
@@ -907,6 +920,7 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.13 | 2026-08-18 | Accepted G2-016 through G2-019 through the real Development UI: explicit operator-selected treasury import date, exact-ID source/terminal correlation, production FMP canonical result matched to durable and visible state, manual yield-curve maintenance, and public-command baseline restoration. |
 | 0.12 | 2026-08-16 | Added the shared terminal-correlation primitive and migrated automatic desktop yield/calendar startup imports to listener-first exact-ID tracking, 30-second bounded observation, failure-only reporting, no retry, cleanup, and continued startup outside the live-feed trading-hours gate. |
 | 0.11 | 2026-08-16 | Implemented economic-calendar editor terminal tracking with exact command-ID complete/fail correlation, early-event buffering, durable projection refresh after complete, typed failure, independent listener lifecycle, and focused UI tests. |
 | 0.10 | 2026-08-16 | Scoped terminal-operation rollout to UI, named the yield-curve editor as the reference pattern and economic-calendar editor as the next migration, corrected import-handler storage ownership wording, and explicitly deferred legacy scheduled-task review. |

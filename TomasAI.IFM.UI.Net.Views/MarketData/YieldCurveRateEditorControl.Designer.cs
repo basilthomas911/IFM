@@ -46,6 +46,8 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             DataGridViewCellStyle dataGridViewCellStyle13 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle14 = new DataGridViewCellStyle();
             pnlTimePeriod = new Panel();
+            dtmImportDate = new AccessibleDateTimePicker();
+            lblImportDate = new Label();
             ddlTimePeriod = new ComboBox();
             lblTimePeriod = new Label();
             yieldCurveRatesBindingSource = new BindingSource(components);
@@ -71,6 +73,8 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             // pnlTimePeriod
             // 
             pnlTimePeriod.BackColor = Color.FromArgb(64, 64, 64);
+            pnlTimePeriod.Controls.Add(dtmImportDate);
+            pnlTimePeriod.Controls.Add(lblImportDate);
             pnlTimePeriod.Controls.Add(ddlTimePeriod);
             pnlTimePeriod.Controls.Add(lblTimePeriod);
             pnlTimePeriod.Dock = DockStyle.Top;
@@ -79,6 +83,30 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             pnlTimePeriod.Name = "pnlTimePeriod";
             pnlTimePeriod.Size = new Size(1100, 32);
             pnlTimePeriod.TabIndex = 0;
+            //
+            // dtmImportDate
+            //
+            dtmImportDate.CustomFormat = "yyyy-MM-dd";
+            dtmImportDate.Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            dtmImportDate.Format = DateTimePickerFormat.Custom;
+            dtmImportDate.Location = new Point(526, 2);
+            dtmImportDate.Margin = new Padding(2);
+            dtmImportDate.Name = "dtmImportDate";
+            dtmImportDate.Size = new Size(120, 23);
+            dtmImportDate.TabIndex = 3;
+            //
+            // lblImportDate
+            //
+            lblImportDate.AutoSize = true;
+            lblImportDate.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblImportDate.ForeColor = Color.White;
+            lblImportDate.Location = new Point(421, 6);
+            lblImportDate.Margin = new Padding(2, 0, 2, 0);
+            lblImportDate.Name = "lblImportDate";
+            lblImportDate.Size = new Size(86, 17);
+            lblImportDate.TabIndex = 2;
+            lblImportDate.Text = "Import Date:";
+            lblImportDate.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // ddlTimePeriod
             // 
@@ -311,6 +339,8 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
         private System.Windows.Forms.Panel pnlTimePeriod;
         private System.Windows.Forms.ComboBox ddlTimePeriod;
         private System.Windows.Forms.Label lblTimePeriod;
+        private AccessibleDateTimePicker dtmImportDate;
+        private System.Windows.Forms.Label lblImportDate;
         private System.Windows.Forms.BindingSource yieldCurveRatesBindingSource;
         private System.Windows.Forms.DataGridView gridYieldCurveRates;
         private System.Windows.Forms.DataGridViewTextBoxColumn valueDateDataGridViewTextBoxColumn;
