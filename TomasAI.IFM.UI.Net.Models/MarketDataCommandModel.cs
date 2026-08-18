@@ -47,7 +47,7 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// <param name="futuresContract"></param>
     /// <param name="overwrite"></param>
     /// <param name="setCommandId"></param>
-    public async Task AddFuturesContractAsync(FuturesContractV2ReadModel futuresContract, bool overwrite)
+    public async Task<Guid> AddFuturesContractAsync(FuturesContractV2ReadModel futuresContract, bool overwrite)
         => await ExecuteCommandAsync(() => _commandApi.AddFuturesContractAsync(futuresContract, overwrite));
 
     /// <summary>
@@ -64,7 +64,7 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// <param name="setCommandId">A callback action that receives the unique identifier of the command executed to perform the update.  This
     /// action is invoked after the command is successfully initiated.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task ChangeFuturesContractAsync(FuturesContractId originalContractId, FuturesContractV2ReadModel changedFuturesContract, bool overwrite)
+    public async Task<Guid> ChangeFuturesContractAsync(FuturesContractId originalContractId, FuturesContractV2ReadModel changedFuturesContract, bool overwrite)
         => await ExecuteCommandAsync(() => _commandApi.ChangeFuturesContractAsync(originalContractId, changedFuturesContract, overwrite));
 
     /// <summary>
@@ -76,7 +76,7 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// <param name="setCommandId">A callback action that receives the unique identifier of the command executed to remove the contract. This can
     /// be used to track or log the operation.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task RemoveFuturesContractAsync(FuturesContractId contractId, bool overwrite)
+    public async Task<Guid> RemoveFuturesContractAsync(FuturesContractId contractId, bool overwrite)
         => await ExecuteCommandAsync(() => _commandApi.RemoveFuturesContractAsync(contractId, overwrite));
 
     /// <summary>

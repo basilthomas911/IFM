@@ -121,6 +121,233 @@ public sealed class G1UiAutomationSession : IDisposable
         PostControlClick(button);
     }
 
+    public async Task SelectMarketDataEditorAsync(
+        Window window,
+        string selectorItem,
+        string editorAutomationId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var selector = RequireDescendant(window, "ddlMarketDataSelector").AsComboBox();
+        var items = await WaitUntilAsync(
+            () =>
+            {
+                var catalog = ReadComboItems(selector);
+                return catalog.Contains(selectorItem, StringComparer.Ordinal) ? catalog : null;
+            },
+            timeout,
+            $"The Market Data selector did not expose '{selectorItem}'.",
+            cancellationToken);
+        SelectComboIndex(selector, items
+            .Select((item, index) => (item, index))
+            .Single(pair => string.Equals(pair.item, selectorItem, StringComparison.Ordinal))
+            .index);
+        await WaitUntilAsync(
+            () =>
+            {
+                var editor = FindDescendant(window, editorAutomationId, null);
+                var add = FindDescendant(window, "btnAdd", null);
+                return editor is not null && add is { IsEnabled: true } ? editor : null;
+            },
+            timeout,
+            $"The '{editorAutomationId}' editor did not finish loading.",
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> AddFuturesContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.FuturesDefinitionDescription, "FuturesContractEditorControl", timeout, cancellationToken);
+        ClickEnabled(window, "btnAdd");
+        await WaitForEnabledAsync(window, "dtmLastTradeDate", timeout, cancellationToken);
+        SetDate(window, "dtmLastTradeDate", fixture.MaturityDate);
+        SetCombo(window, "ddlSymbol", fixture.SymbolIndex);
+        SetCombo(window, "ddlSecurityType", fixture.FuturesSecurityTypeIndex);
+        SetCombo(window, "ddlCurrency", fixture.CurrencyIndex);
+        SetCombo(window, "ddlExchange", fixture.ExchangeIndex);
+        SetCombo(window, "ddlMultiplier", fixture.MultiplierIndex);
+        SetCombo(window, "ddlCurrentlyTraded", 1);
+        ClickEnabled(window, "btnAdd");
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesContractEditorControl",
+            "lstFuturesContractIds",
+            fixture.FuturesContractId,
+            null,
+            present: true,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> ChangeFuturesContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.FuturesDefinitionDescription, "FuturesContractEditorControl", timeout, cancellationToken);
+        SelectListItem(window, "lstFuturesContractIds", fixture.FuturesContractId);
+        ClickEnabled(window, "btnChange");
+        await WaitForEnabledAsync(window, "txtDescription", timeout, cancellationToken);
+        SetText(window, "txtDescription", fixture.FuturesChangedDescription);
+        ClickEnabled(window, "btnChange");
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesContractEditorControl",
+            "lstFuturesContractIds",
+            fixture.FuturesContractId,
+            null,
+            present: true,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> RemoveFuturesContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.FuturesDefinitionDescription, "FuturesContractEditorControl", timeout, cancellationToken);
+        SelectListItem(window, "lstFuturesContractIds", fixture.FuturesContractId);
+        ClickEnabled(window, "btnRemove");
+        await ConfirmAsync("Remove Futures Contract", timeout, cancellationToken);
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesContractEditorControl",
+            "lstFuturesContractIds",
+            fixture.FuturesContractId,
+            null,
+            present: false,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> AddFuturesOptionContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.OptionDefinitionDescription, "FuturesOptionContractEditorControl", timeout, cancellationToken);
+        ClickEnabled(window, "btnAdd");
+        await WaitForEnabledAsync(window, "dtmContractMonth", timeout, cancellationToken);
+        SetDate(window, "dtmContractMonth", fixture.MaturityDate);
+        SetCombo(window, "ddlSymbol", fixture.SymbolIndex);
+        SetCombo(window, "ddlOptionType", fixture.CallOptionTypeIndex);
+        SetCombo(window, "ddlSecurityType", fixture.OptionSecurityTypeIndex);
+        SetCombo(window, "ddlCurrency", fixture.CurrencyIndex);
+        SetCombo(window, "ddlExchange", fixture.ExchangeIndex);
+        SetCombo(window, "ddlMultiplier", fixture.MultiplierIndex);
+        SetText(window, "txtStrikePrice", fixture.StrikePrice.ToString());
+        SetText(window, "txtDescription", fixture.OptionAddedDescription);
+        ClickEnabled(window, "btnAdd");
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesOptionContractEditorControl",
+            "lstFuturesOptionContractIds",
+            fixture.OptionContractId,
+            null,
+            present: true,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> ChangeFuturesOptionContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.OptionDefinitionDescription, "FuturesOptionContractEditorControl", timeout, cancellationToken);
+        SelectListItem(window, "lstFuturesOptionContractIds", fixture.OptionContractId);
+        ClickEnabled(window, "btnChange");
+        await WaitForEnabledAsync(window, "txtDescription", timeout, cancellationToken);
+        SetText(window, "txtDescription", fixture.OptionChangedDescription);
+        ClickEnabled(window, "btnChange");
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesOptionContractEditorControl",
+            "lstFuturesOptionContractIds",
+            fixture.OptionContractId,
+            null,
+            present: true,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> ReloadFuturesContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.OptionDefinitionDescription, "FuturesOptionContractEditorControl", timeout, cancellationToken);
+        await SelectMarketDataEditorAsync(
+            window, fixture.FuturesDefinitionDescription, "FuturesContractEditorControl", timeout, cancellationToken);
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesContractEditorControl",
+            "lstFuturesContractIds",
+            fixture.FuturesContractId,
+            fixture.FuturesChangedDescription,
+            present: true,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> ReloadFuturesOptionContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.FuturesDefinitionDescription, "FuturesContractEditorControl", timeout, cancellationToken);
+        await SelectMarketDataEditorAsync(
+            window, fixture.OptionDefinitionDescription, "FuturesOptionContractEditorControl", timeout, cancellationToken);
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesOptionContractEditorControl",
+            "lstFuturesOptionContractIds",
+            fixture.OptionContractId,
+            fixture.OptionChangedDescription,
+            present: true,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2SecuritiesEditorUiState> RemoveFuturesOptionContractAsync(
+        Window window,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectMarketDataEditorAsync(
+            window, fixture.OptionDefinitionDescription, "FuturesOptionContractEditorControl", timeout, cancellationToken);
+        SelectListItem(window, "lstFuturesOptionContractIds", fixture.OptionContractId);
+        ClickEnabled(window, "btnRemove");
+        await ConfirmAsync("Remove Futures Option Contract", timeout, cancellationToken);
+        return await WaitForSecuritiesStateAsync(
+            window,
+            "FuturesOptionContractEditorControl",
+            "lstFuturesOptionContractIds",
+            fixture.OptionContractId,
+            null,
+            present: false,
+            timeout,
+            cancellationToken);
+    }
+
     public string ReadStatusText()
     {
         var statusBar = FindDescendant(MainWindow, "statusBar", "statusStrip1")
@@ -128,6 +355,116 @@ public sealed class G1UiAutomationSession : IDisposable
         var statusText = statusBar.FindAllDescendants()
             .FirstOrDefault(element => element.ControlType == ControlType.Text);
         return statusText?.Name ?? statusBar.Name ?? string.Empty;
+    }
+
+    async Task<G2SecuritiesEditorUiState> WaitForSecuritiesStateAsync(
+        Window window,
+        string editorAutomationId,
+        string listAutomationId,
+        string contractId,
+        string? expectedDescription,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var editor = FindDescendant(window, editorAutomationId, null);
+                var listElement = FindDescendant(window, listAutomationId, null);
+                if (editor is null || listElement is null)
+                    return null;
+                var list = listElement.AsListBox();
+                var ids = list.Items.Select(item => item.Text).ToArray();
+                var contains = ids.Contains(contractId, StringComparer.Ordinal);
+                if (contains != present)
+                    return null;
+                if (present)
+                {
+                    list.Select(contractId);
+                    var renderedDescription = ReadText(window, "txtDescription");
+                    if (expectedDescription is not null
+                        && !string.Equals(renderedDescription, expectedDescription, StringComparison.Ordinal))
+                        return null;
+                }
+                return new G2SecuritiesEditorUiState(
+                    editorAutomationId,
+                    ids,
+                    list.SelectedItem?.Text ?? string.Empty,
+                    FindDescendant(window, "txtDescription", null) is null
+                        ? string.Empty
+                        : ReadText(window, "txtDescription"));
+            },
+            timeout,
+            $"The {editorAutomationId} did not render contract '{contractId}' as {(present ? "present" : "absent")}",
+            cancellationToken);
+
+    async Task WaitForEnabledAsync(
+        AutomationElement root,
+        string automationId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () => FindDescendant(root, automationId, null) is { IsEnabled: true } element ? element : null,
+            timeout,
+            $"The '{automationId}' control did not become enabled.",
+            cancellationToken);
+
+    async Task ConfirmAsync(string title, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var dialog = await WaitForWindowAsync(title, timeout, cancellationToken);
+        var yes = FindDescendant(dialog, null, "Yes")
+            ?? throw new InvalidOperationException($"The '{title}' confirmation did not expose a Yes action.");
+        PostControlClick(yes);
+        await WaitUntilAsync(
+            () => TopLevelWindows().All(window =>
+                    !string.Equals(window.Title, title, StringComparison.OrdinalIgnoreCase))
+                ? "closed"
+                : null,
+            timeout,
+            $"The '{title}' confirmation did not close.",
+            cancellationToken);
+    }
+
+    static void ClickEnabled(AutomationElement root, string automationId)
+    {
+        var control = RequireDescendant(root, automationId);
+        if (!control.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' command is disabled.");
+        PostControlClick(control);
+    }
+
+    static void SetText(AutomationElement root, string automationId, string value)
+    {
+        var textBox = RequireDescendant(root, automationId).AsTextBox();
+        if (!textBox.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' text input is disabled.");
+        textBox.Enter(value);
+        if (!string.Equals(textBox.Text, value, StringComparison.Ordinal))
+            throw new InvalidOperationException($"The '{automationId}' text input did not retain the entered value.");
+    }
+
+    static void SetDate(AutomationElement root, string automationId, DateOnly value)
+    {
+        var picker = RequireDescendant(root, automationId).AsDateTimePicker();
+        if (!picker.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' date input is disabled.");
+        picker.SelectedDate = value.ToDateTime(TimeOnly.MinValue);
+    }
+
+    static void SetCombo(AutomationElement root, string automationId, int index)
+    {
+        var combo = RequireDescendant(root, automationId).AsComboBox();
+        if (!combo.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' selector is disabled.");
+        SelectComboIndex(combo, index);
+    }
+
+    static void SelectListItem(AutomationElement root, string automationId, string value)
+    {
+        var list = RequireDescendant(root, automationId).AsListBox();
+        if (!list.IsEnabled)
+            throw new InvalidOperationException($"The '{automationId}' list is disabled.");
+        list.Select(value);
     }
 
     public G1ShellState ReadShellState()
@@ -734,9 +1071,9 @@ public sealed class G1UiAutomationSession : IDisposable
         var parentHandle = GetParent(comboHandle);
         var controlId = GetDlgCtrlID(comboHandle);
         var notification = new IntPtr((CbnSelectionChanged << 16) | (controlId & 0xFFFF));
-        if (parentHandle == IntPtr.Zero
-            || !PostMessage(parentHandle, WmCommand, notification, comboHandle))
-            throw new InvalidOperationException($"Combo-box item {index} selection could not be notified.");
+        if (parentHandle == IntPtr.Zero)
+            throw new InvalidOperationException($"Combo-box item {index} selection has no owning window.");
+        SendMessage(parentHandle, WmCommand, notification, comboHandle);
     }
 
     static int CountDataItems(AutomationElement root)
@@ -983,6 +1320,12 @@ public sealed record G2MarketDataFeedUiState(
     bool IsActive,
     string Action,
     bool IsEnabled);
+
+public sealed record G2SecuritiesEditorUiState(
+    string EditorAutomationId,
+    IReadOnlyList<string> ContractIds,
+    string SelectedContractId,
+    string Description);
 
 public sealed record G1StatusConsoleState(
     int RowCount,

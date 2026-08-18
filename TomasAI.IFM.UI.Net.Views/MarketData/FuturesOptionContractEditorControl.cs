@@ -100,6 +100,7 @@ public partial class FuturesOptionContractEditorControl
         switch (_editMode)
         {
             case EditMode.View:
+                txtDescription.ReadOnly = false;
                 txtDescription.Enabled = true;
                 dtmContractMonth.Value = EasternTime.GetNow(TimeProvider.System);
                 dtmContractMonth.Enabled = true;
@@ -197,6 +198,7 @@ public partial class FuturesOptionContractEditorControl
         switch (_editMode)
         {
             case EditMode.View:
+                txtDescription.ReadOnly = false;
                 txtDescription.Enabled = true;
                 dtmContractMonth.Enabled = true;
                 txtStrikePrice.Enabled = true;

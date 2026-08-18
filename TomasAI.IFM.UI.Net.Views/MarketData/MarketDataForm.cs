@@ -21,7 +21,9 @@ public partial class MarketDataForm
         _controlMap = new Dictionary<string, Func<IAppRoot, Control>>
         {
             { "FuturesOptionContract", ar => new FuturesOptionContractEditorControl( new FuturesOptionContractEditorViewModel(ar), _viewModel!)},
-            { "FuturesContract", ar => new FuturesContractEditorControl( new FuturesContractEditorViewModel(ar) , () => ddlMarketDataSelector_SelectedIndexChanged(this,  EventArgs.Empty) )},
+            { "FuturesContract", ar => new FuturesContractEditorControl(
+                new FuturesContractEditorViewModel(ar),
+                EnableAvailableButtons)},
             { "YieldCurveRates", ar => new YieldCurveRateEditorControl( new YieldCurveRateEditorViewModel(ar), _viewModel!)}
         };
         InitializeComponent();
@@ -66,6 +68,7 @@ public partial class MarketDataForm
     {
         UpdateSelectorAccessibility();
         ResetButtons(true);
+        DisableAllButtons();
         await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
         var mktDataDefType = _viewModel?.GetDefinitionType(ddlMarketDataSelector.SelectedIndex);
@@ -75,12 +78,7 @@ public partial class MarketDataForm
             control.Visible = false;
             pnlMarketData.Controls.Add(control);
             _ctrlCommand = (control as IControlCommand)!;
-            _ctrlCommand.Load(_appRoot, enabled => this.Post(() => {
-                btnChange.Enabled = _ctrlCommand.CanChangeRemove;
-                btnRemove.Enabled = _ctrlCommand.CanChangeRemove;
-                btnImport.Enabled = _ctrlCommand.CanImport;
-                SetButtonEnabledState();
-            }));
+            _ctrlCommand.Load(_appRoot, enabled => this.Post(EnableAvailableButtons));
             control.Visible = true;
         }
     }
@@ -191,8 +189,20 @@ public partial class MarketDataForm
         {
             if (_viewModel.IsEditorBusy)
                 DisableAllButtons();
+            else
+                EnableAvailableButtons();
             ddlMarketDataSelector.Enabled = !_viewModel.IsEditorBusy;
         });
+    }
+
+    void EnableAvailableButtons()
+    {
+        btnAdd.Enabled = true;
+        btnClose.Enabled = true;
+        btnChange.Enabled = _ctrlCommand?.CanChangeRemove ?? false;
+        btnRemove.Enabled = _ctrlCommand?.CanChangeRemove ?? false;
+        btnImport.Enabled = _ctrlCommand?.CanImport ?? false;
+        SetButtonEnabledState();
     }
 
     void UnsubscribeFromViewModel()

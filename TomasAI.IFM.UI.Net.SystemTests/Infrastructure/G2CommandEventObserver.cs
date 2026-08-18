@@ -40,17 +40,23 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<MarketDataFeedStoppedCompleteEvent>("MarketDataFeed", MarketDataFeedStoppedCompleteEvent.Actor, MarketDataFeedStoppedCompleteEvent.Verb, true),
         Route<MarketDataFeedStoppedFailEvent>("MarketDataFeed", MarketDataFeedStoppedFailEvent.Actor, MarketDataFeedStoppedFailEvent.Verb, false),
 
+        Route<FuturesContractAddedEvent>("FuturesContract", FuturesContractAddedEvent.Actor, FuturesContractAddedEvent.Verb, null),
         Route<FuturesContractAddedCompleteEvent>("FuturesContract", FuturesContractAddedCompleteEvent.Actor, FuturesContractAddedCompleteEvent.Verb, true),
         Route<FuturesContractAddedFailEvent>("FuturesContract", FuturesContractAddedFailEvent.Actor, FuturesContractAddedFailEvent.Verb, false),
+        Route<FuturesContractChangedEvent>("FuturesContract", FuturesContractChangedEvent.Actor, FuturesContractChangedEvent.Verb, null),
         Route<FuturesContractChangedCompleteEvent>("FuturesContract", FuturesContractChangedCompleteEvent.Actor, FuturesContractChangedCompleteEvent.Verb, true),
         Route<FuturesContractChangedFailEvent>("FuturesContract", FuturesContractChangedFailEvent.Actor, FuturesContractChangedFailEvent.Verb, false),
+        Route<FuturesContractRemovedEvent>("FuturesContract", FuturesContractRemovedEvent.Actor, FuturesContractRemovedEvent.Verb, null),
         Route<FuturesContractRemovedCompleteEvent>("FuturesContract", FuturesContractRemovedCompleteEvent.Actor, FuturesContractRemovedCompleteEvent.Verb, true),
         Route<FuturesContractRemovedFailEvent>("FuturesContract", FuturesContractRemovedFailEvent.Actor, FuturesContractRemovedFailEvent.Verb, false),
 
+        Route<FuturesOptionContractAddedEvent>("FuturesOptionContract", FuturesOptionContractAddedEvent.Actor, FuturesOptionContractAddedEvent.Verb, null),
         Route<FuturesOptionContractAddedCompleteEvent>("FuturesOptionContract", FuturesOptionContractAddedCompleteEvent.Actor, FuturesOptionContractAddedCompleteEvent.Verb, true),
         Route<FuturesOptionContractAddedFailEvent>("FuturesOptionContract", FuturesOptionContractAddedFailEvent.Actor, FuturesOptionContractAddedFailEvent.Verb, false),
+        Route<FuturesOptionContractChangedEvent>("FuturesOptionContract", FuturesOptionContractChangedEvent.Actor, FuturesOptionContractChangedEvent.Verb, null),
         Route<FuturesOptionContractChangedCompleteEvent>("FuturesOptionContract", FuturesOptionContractChangedCompleteEvent.Actor, FuturesOptionContractChangedCompleteEvent.Verb, true),
         Route<FuturesOptionContractChangedFailEvent>("FuturesOptionContract", FuturesOptionContractChangedFailEvent.Actor, FuturesOptionContractChangedFailEvent.Verb, false),
+        Route<FuturesOptionContractRemovedEvent>("FuturesOptionContract", FuturesOptionContractRemovedEvent.Actor, FuturesOptionContractRemovedEvent.Verb, null),
         Route<FuturesOptionContractRemovedCompleteEvent>("FuturesOptionContract", FuturesOptionContractRemovedCompleteEvent.Actor, FuturesOptionContractRemovedCompleteEvent.Verb, true),
         Route<FuturesOptionContractRemovedFailEvent>("FuturesOptionContract", FuturesOptionContractRemovedFailEvent.Actor, FuturesOptionContractRemovedFailEvent.Verb, false),
 

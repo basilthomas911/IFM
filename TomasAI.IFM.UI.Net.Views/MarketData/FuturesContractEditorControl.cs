@@ -13,7 +13,8 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData;
 /// <remarks>This control provides functionality to load, add, change, and remove futures contracts. It also
 /// supports loading reference data such as currencies, exchanges, and symbols required for futures contract management.
 /// The control is designed to be used within a larger application that manages financial instruments.</remarks>
-public partial class FuturesContractEditorControl : UserControl, IControlCommand, IFormControl
+public partial class FuturesContractEditorControl
+    : UserControl, IControlCommand, IAsyncFormControl
 {
     FuturesContractEditorViewModel _viewModel;
     EditMode _editMode;
@@ -175,7 +176,7 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
         switch (_editMode)
         {
             case EditMode.View:
-                txtDescription.Enabled = false;
+                txtDescription.Enabled = true;
                 dtmLastTradeDate.Enabled = false;
                 ddlSecurityType.Enabled = true;
                 ddlCurrency.Enabled = true;
@@ -242,8 +243,11 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
 
     public void Close()
     {
-        throw new NotImplementedException();
+        _ = ((IAsyncFormControl)this).CloseAsync();
     }
+
+    async ValueTask IAsyncFormControl.CloseAsync()
+        => await _viewModel.StopAsync(CancellationToken.None);
 
 
     async Task LoadEditorAsync()
@@ -395,7 +399,7 @@ public partial class FuturesContractEditorControl : UserControl, IControlCommand
         ddlSymbol.SelectedIndex = GetSelectedIndex(_viewModel.Symbols, fc.Symbol);
         ddlSymbol.Enabled = false;
         SetLocalSymbol(DateOnly.FromDateTime(dtmLastTradeDate.Value));
-        SetDescription();
+        txtDescription.Text = fc.Description ?? string.Empty;
         SetContractId();
     }
 

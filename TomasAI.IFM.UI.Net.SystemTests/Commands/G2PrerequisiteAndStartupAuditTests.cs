@@ -1,10 +1,15 @@
 using System.Diagnostics;
 using System.Text.Json;
+using FlaUI.Core.AutomationElements;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Commands;
@@ -12,22 +17,26 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Commands;
 [Trait("Category", "G2StartupProcess")]
 public sealed class G2PrerequisiteAndStartupAuditTests
 {
-    const int ExpectedStepCount = 9;
+    const int ExpectedStepCount = 15;
 
     [Fact]
-    public async Task Development_command_audit_satisfies_G2_001_through_G2_009()
+    public async Task Development_command_audit_satisfies_G2_001_through_G2_015()
     {
         if (!G0Configuration.G2StartupLiveRunEnabled)
             return;
 
+        var securitiesSlice = string.Equals(
+            Environment.GetEnvironmentVariable("IFM_G2_SECURITIES_SLICE"),
+            "1",
+            StringComparison.Ordinal);
         var configuration = G2Configuration.Load();
         var process = configuration.Process;
         var redactor = new SecretRedactor([Environment.GetEnvironmentVariable("FMP_API_KEY")]);
         var evidence = new G0EvidenceWriter(process, redactor);
         var run = new G0RunResult
         {
-            Gate = "G2-001-009",
-            ExpectedStepCount = ExpectedStepCount,
+            Gate = securitiesSlice ? "G2-001-007+010-015" : "G2-001-015",
+            ExpectedStepCount = securitiesSlice ? 13 : ExpectedStepCount,
             RunId = process.RunId,
             Environment = process.EnvironmentName,
             StartedUtc = DateTimeOffset.UtcNow,
@@ -53,6 +62,8 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         G0QuerySession? queries = null;
         G1UiAutomationSession? automation = null;
         G2BaselineSnapshot? baseline = null;
+        G2SecuritiesFixture? securitiesFixture = null;
+        Window? marketDataWindow = null;
         var cleanupFailures = new List<string>();
 
         try
@@ -170,17 +181,32 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         || baseline.RunOwnedLookupTypes.Length > 0)
                         throw new G0DependencyException(
                             $"Unique run prefix '{configuration.RunPrefix}' already owns mutable Development state.");
+                    if (baseline.SecuritiesFixtureContract is not null
+                        || baseline.SecuritiesFixtureOption is not null)
+                        throw new G0DependencyException(
+                            $"Exact G2 securities fixture already exists: futures={configuration.SecuritiesFuturesContractId}; "
+                            + $"option={configuration.SecuritiesOptionContractId}.");
+                    securitiesFixture = await G2SecuritiesFixture.CreateAsync(
+                        queries,
+                        configuration,
+                        process.ReadinessTimeout,
+                        token);
                     await evidence.WriteTextAsync(
                         Path.Combine("processes", "g2-baseline.json"),
                         JsonSerializer.Serialize(baseline, new JsonSerializerOptions { WriteIndented = true }),
                         token);
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "g2-securities-fixture.json"),
+                        JsonSerializer.Serialize(securitiesFixture, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
                     return Observation(
                         $"valueDate={baseline.ValueDate:yyyy-MM-dd}; importDate={baseline.ImportDate:yyyy-MM-dd}; "
+                        + $"securitiesFixture={securitiesFixture.FuturesContractId}/{securitiesFixture.OptionContractId}; "
                         + $"yieldRows={baseline.YieldCurveImportDateRows.Length}; "
                         + $"calendarRows={baseline.EconomicCalendarImportDateRows.Sum(pair => pair.Value.Length)}; "
                         + $"designatedFund={(baseline.DesignatedFund is null ? "absent" : $"{baseline.DesignatedFund.FundId}:{baseline.DesignatedFund.Name}")}; "
                         + $"fundTransactions={baseline.DesignatedFundTransactions.Length}; fundOrders={baseline.DesignatedFundOrders.Length}; fundTrades={baseline.DesignatedFundTrades.Length}.",
-                        ["processes/g2-baseline.json"]);
+                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json"]);
                 });
 
             await Step("G2-006", "Launch the desktop and await initialized shell",
@@ -236,7 +262,8 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-command-listener-catalog.json", "network/g2-command-events.json"]);
                 });
 
-            await Step("G2-008", "Start the current market-data feed from the UI",
+            if (!securitiesSlice)
+                await Step("G2-008", "Start the current market-data feed from the UI",
                 "One UI start command is correlated from source event to successful terminal event and the shell shows the feed as active.",
                 async token =>
                 {
@@ -271,7 +298,8 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            await Step("G2-009", "Stop the current market-data feed from the UI",
+            if (!securitiesSlice)
+                await Step("G2-009", "Stop the current market-data feed from the UI",
                 "One UI stop command is correlated from source event to successful terminal event and the shell shows the feed as inactive.",
                 async token =>
                 {
@@ -292,14 +320,262 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         + $"uiAction={stopped.UiState.Action}; backend stop completed before inactive-state acceptance.",
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
+
+            await Step("G2-010", "Add a futures contract from the UI",
+                "The UI adds the exact run-owned futures fixture, its source and successful terminal events correlate by command ID, and the typed query returns the durable row.",
+                async token =>
+                {
+                    RequirePassed(
+                        recorder,
+                        securitiesSlice ? "G2-007" : "G2-009",
+                        securitiesSlice
+                            ? "The safety/startup prerequisites must complete before securities maintenance."
+                            : "The isolated feed lifecycle must complete before securities maintenance.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = securitiesFixture ?? throw new InvalidOperationException("G2 securities fixture is unavailable.");
+
+                    ui.InvokeToolbarAction("MarketData");
+                    marketDataWindow = await ui.WaitForWindowAsync(
+                        "Market Data Manager", process.ReadinessTimeout, token);
+                    var transition = await ExecuteSecuritiesMutationAsync(
+                        observer,
+                        "FuturesContract",
+                        nameof(FuturesContractAddedEvent),
+                        operationToken => ui.AddFuturesContractAsync(
+                            marketDataWindow, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFuturesContractAsync(
+                        querySession,
+                        fixture.FuturesContractId,
+                        expectedDescription: null,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteSecuritiesEvidenceAsync(evidence, observer, "G2-010", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-010-futures-added");
+                    return Observation(
+                        $"contract={fixture.FuturesContractId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; description='{durable?.Description}'.",
+                        ["network/g2-securities-command-events.json", "queries/G2-010.json", .. artifacts]);
+                });
+
+            await Step("G2-011", "Change the futures contract from the UI",
+                "The UI changes the run-owned futures description without changing its identity, correlates a successful terminal event, and the typed query returns the changed durable row.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-010", "The run-owned futures fixture must exist before change.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = securitiesFixture ?? throw new InvalidOperationException("G2 securities fixture is unavailable.");
+                    var window = marketDataWindow ?? throw new InvalidOperationException("Market Data Manager is unavailable.");
+
+                    var transition = await ExecuteSecuritiesMutationAsync(
+                        observer,
+                        "FuturesContract",
+                        nameof(FuturesContractChangedEvent),
+                        operationToken => ui.ChangeFuturesContractAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFuturesContractAsync(
+                        querySession,
+                        fixture.FuturesContractId,
+                        fixture.FuturesChangedDescription,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    var refreshedUi = await ui.ReloadFuturesContractAsync(
+                        window,
+                        fixture,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteSecuritiesEvidenceAsync(evidence, observer, "G2-011", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-011-futures-changed");
+                    return Observation(
+                        $"contract={fixture.FuturesContractId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; description='{durable?.Description}'; "
+                        + $"uiDescription='{refreshedUi.Description}'.",
+                        ["network/g2-securities-command-events.json", "queries/G2-011.json", .. artifacts]);
+                });
+
+            await Step("G2-012", "Add a futures option contract from the UI",
+                "The UI adds the exact run-owned call-option fixture, correlates source and successful terminal events, and the typed symbol query returns the durable row.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-011", "The underlying futures fixture must be durably changed before adding its option.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = securitiesFixture ?? throw new InvalidOperationException("G2 securities fixture is unavailable.");
+                    var window = marketDataWindow ?? throw new InvalidOperationException("Market Data Manager is unavailable.");
+
+                    var transition = await ExecuteSecuritiesMutationAsync(
+                        observer,
+                        "FuturesOptionContract",
+                        nameof(FuturesOptionContractAddedEvent),
+                        operationToken => ui.AddFuturesOptionContractAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFuturesOptionContractAsync(
+                        querySession,
+                        fixture,
+                        expectedDescription: null,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteSecuritiesEvidenceAsync(evidence, observer, "G2-012", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-012-option-added");
+                    return Observation(
+                        $"contract={fixture.OptionContractId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; description='{durable?.Description}'.",
+                        ["network/g2-securities-command-events.json", "queries/G2-012.json", .. artifacts]);
+                });
+
+            await Step("G2-013", "Change the futures option contract from the UI",
+                "The UI changes the run-owned option description without changing its identity, correlates a successful terminal event, and the typed query returns the changed durable row.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-012", "The run-owned option fixture must exist before change.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = securitiesFixture ?? throw new InvalidOperationException("G2 securities fixture is unavailable.");
+                    var window = marketDataWindow ?? throw new InvalidOperationException("Market Data Manager is unavailable.");
+
+                    var transition = await ExecuteSecuritiesMutationAsync(
+                        observer,
+                        "FuturesOptionContract",
+                        nameof(FuturesOptionContractChangedEvent),
+                        operationToken => ui.ChangeFuturesOptionContractAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFuturesOptionContractAsync(
+                        querySession,
+                        fixture,
+                        fixture.OptionChangedDescription,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    var refreshedUi = await ui.ReloadFuturesOptionContractAsync(
+                        window,
+                        fixture,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteSecuritiesEvidenceAsync(evidence, observer, "G2-013", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-013-option-changed");
+                    return Observation(
+                        $"contract={fixture.OptionContractId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; description='{durable?.Description}'; "
+                        + $"uiDescription='{refreshedUi.Description}'.",
+                        ["network/g2-securities-command-events.json", "queries/G2-013.json", .. artifacts]);
+                });
+
+            await Step("G2-014", "Remove the futures option contract from the UI",
+                "The UI confirms removal of the exact run-owned option, correlates a successful terminal event, and the typed symbol query proves the durable row is absent.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-013", "The changed option fixture must exist before removal.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = securitiesFixture ?? throw new InvalidOperationException("G2 securities fixture is unavailable.");
+                    var window = marketDataWindow ?? throw new InvalidOperationException("Market Data Manager is unavailable.");
+
+                    var transition = await ExecuteSecuritiesMutationAsync(
+                        observer,
+                        "FuturesOptionContract",
+                        nameof(FuturesOptionContractRemovedEvent),
+                        operationToken => ui.RemoveFuturesOptionContractAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFuturesOptionContractAsync(
+                        querySession,
+                        fixture,
+                        expectedDescription: null,
+                        present: false,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteSecuritiesEvidenceAsync(evidence, observer, "G2-014", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-014-option-removed");
+                    return Observation(
+                        $"contract={fixture.OptionContractId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; durablePresent={durable is not null}.",
+                        ["network/g2-securities-command-events.json", "queries/G2-014.json", .. artifacts]);
+                });
+
+            await Step("G2-015", "Remove the futures contract from the UI",
+                "The UI confirms removal of the exact run-owned futures contract after its option is absent, correlates a successful terminal event, and the typed query proves the durable row is absent.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-014", "The child option fixture must be absent before removing its futures contract.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = securitiesFixture ?? throw new InvalidOperationException("G2 securities fixture is unavailable.");
+                    var window = marketDataWindow ?? throw new InvalidOperationException("Market Data Manager is unavailable.");
+
+                    var transition = await ExecuteSecuritiesMutationAsync(
+                        observer,
+                        "FuturesContract",
+                        nameof(FuturesContractRemovedEvent),
+                        operationToken => ui.RemoveFuturesContractAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFuturesContractAsync(
+                        querySession,
+                        fixture.FuturesContractId,
+                        expectedDescription: null,
+                        present: false,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteSecuritiesEvidenceAsync(evidence, observer, "G2-015", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-015-futures-removed");
+                    await ui.CloseWindowAsync(window, process.ReadinessTimeout, token);
+                    marketDataWindow = null;
+                    return Observation(
+                        $"contract={fixture.FuturesContractId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; durablePresent={durable is not null}.",
+                        ["network/g2-securities-command-events.json", "queries/G2-015.json", .. artifacts]);
+                });
         }
         finally
         {
+            if (automation is not null)
+            {
+                try { automation.CloseAllSecondaryWindows(); }
+                catch (Exception exception) { cleanupFailures.Add("Secondary-window cleanup failed: " + exception.Message); }
+            }
+
+            if (queries is not null
+                && commandObserver is not null
+                && securitiesFixture is not null
+                && api is not null
+                && !api.Process.HasExited)
+            {
+                var cleanup = await CleanupSecuritiesFixtureAsync(
+                    queries,
+                    commandObserver,
+                    securitiesFixture,
+                    process.ReadinessTimeout);
+                await evidence.WriteTextAsync(
+                    Path.Combine("processes", "g2-securities-cleanup.json"),
+                    JsonSerializer.Serialize(cleanup, new JsonSerializerOptions { WriteIndented = true }));
+                if (!cleanup.Succeeded)
+                    cleanupFailures.Add("Run-owned securities cleanup failed: " + cleanup.Error);
+            }
+
             if (automation is not null && desktop is not null && !desktop.Process.HasExited)
             {
                 try
                 {
-                    automation.CloseAllSecondaryWindows();
                     automation.RequestMainWindowClose();
                     if (!await desktop.WaitForExitAsync(process.ShutdownTimeout, CancellationToken.None))
                         cleanupFailures.Add($"Desktop did not exit normally within {process.ShutdownTimeout}.");
@@ -377,7 +653,9 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 Path.Combine("processes", "partial-slice-cleanup.json"),
                 JsonSerializer.Serialize(new
                 {
-                    Scope = "G2-001-009 harness cleanup; this is not G2-037 or G2-038 acceptance",
+                    Scope = securitiesSlice
+                        ? "G2-001-007 plus G2-010-015 harness cleanup; this is not G2-037 or G2-038 acceptance"
+                        : "G2-001-015 harness cleanup; this is not G2-037 or G2-038 acceptance",
                     Succeeded = run.CleanupSucceeded,
                     Failures = cleanupFailures
                 }, new JsonSerializerOptions { WriteIndented = true }));
@@ -385,7 +663,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         }
 
         run.Passed.Should().BeTrue(
-            $"G2-001 through G2-009 evidence was written to {evidence.RunDirectory}; "
+            $"{run.Gate} evidence was written to {evidence.RunDirectory}; "
             + string.Join("; ", run.Steps
                 .Where(step => step.Status != G0StepStatus.Passed)
                 .Select(step => $"{step.Id}={step.Status}: {step.Actual}"))
@@ -473,6 +751,230 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             uiState);
     }
 
+    static async Task<G2SecuritiesTransitionEvidence> ExecuteSecuritiesMutationAsync(
+        G2CommandEventObserver observer,
+        string family,
+        string sourceEventName,
+        Func<CancellationToken, Task<G2SecuritiesEditorUiState>> invokeUi,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var operationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var invokedUtc = DateTimeOffset.UtcNow;
+        var uiTask = invokeUi(operationSource.Token);
+        var sourceTask = observer.WaitForAsync(
+            rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                    && row.Family == family
+                                    && row.EventName == sourceEventName
+                                    && row.Success is null),
+            timeout,
+            operationSource.Token);
+        if (await Task.WhenAny(sourceTask, uiTask).ConfigureAwait(false) == uiTask)
+            await uiTask.ConfigureAwait(false);
+        var sourceEvents = await sourceTask.ConfigureAwait(false);
+        var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                              && row.Family == family
+                                              && row.EventName == sourceEventName
+                                              && row.Success is null);
+        var terminalEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.CommandId == source.CommandId && row.Success.HasValue),
+            timeout,
+            cancellationToken);
+        var terminal = terminalEvents.Last(row => row.CommandId == source.CommandId && row.Success.HasValue);
+        if (terminal.Success != true)
+        {
+            operationSource.Cancel();
+            try { await uiTask.ConfigureAwait(false); }
+            catch { /* Preserve the correlated backend failure below. */ }
+            throw new InvalidOperationException(
+                $"{sourceEventName} command {source.CommandId} failed: {terminal.ErrorMessage}");
+        }
+
+        var uiState = await uiTask.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        return new G2SecuritiesTransitionEvidence(
+            source.CommandId,
+            family,
+            source.EventName,
+            terminal.EventName,
+            source.ObservedUtc,
+            terminal.ObservedUtc,
+            uiState);
+    }
+
+    static async Task<FuturesContractV2ReadModel?> WaitForFuturesContractAsync(
+        G0QuerySession queries,
+        string contractId,
+        string? expectedDescription,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var contracts = RequireQueryValue(
+                await queries.MarketData.GetFuturesContractsAsync().WaitAsync(timeoutSource.Token),
+                "futures contracts");
+            var contract = contracts.SingleOrDefault(row => string.Equals(
+                row.ContractId,
+                contractId,
+                StringComparison.Ordinal));
+            if ((!present && contract is null)
+                || (present
+                    && contract is not null
+                    && (expectedDescription is null
+                        || string.Equals(contract.Description, expectedDescription, StringComparison.Ordinal))))
+                return contract;
+            try { await Task.Delay(TimeSpan.FromMilliseconds(150), timeoutSource.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { break; }
+        }
+        throw new TimeoutException(
+            $"Typed futures query did not show '{contractId}' as {(present ? "present with the expected state" : "absent")}.");
+    }
+
+    static async Task<FuturesOptionContractReadModel?> WaitForFuturesOptionContractAsync(
+        G0QuerySession queries,
+        G2SecuritiesFixture fixture,
+        string? expectedDescription,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var contracts = RequireQueryValue(
+                await queries.MarketData.GetFuturesOptionContractsAsync(fixture.Symbol)
+                    .WaitAsync(timeoutSource.Token),
+                $"{fixture.Symbol} futures option contracts");
+            var contract = contracts.SingleOrDefault(row => string.Equals(
+                row.ContractId,
+                fixture.OptionContractId,
+                StringComparison.Ordinal));
+            if ((!present && contract is null)
+                || (present
+                    && contract is not null
+                    && (expectedDescription is null
+                        || string.Equals(contract.Description, expectedDescription, StringComparison.Ordinal))))
+                return contract;
+            try { await Task.Delay(TimeSpan.FromMilliseconds(150), timeoutSource.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { break; }
+        }
+        throw new TimeoutException(
+            $"Typed option query did not show '{fixture.OptionContractId}' as {(present ? "present with the expected state" : "absent")}.");
+    }
+
+    static T RequireQueryValue<T>(ServiceResult<T> result, string queryName)
+        where T : class
+    {
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException(
+                $"Typed {queryName} query failed: code={result.ErrorCode}; message={result.ErrorMessage}");
+        return result.Value;
+    }
+
+    static async Task WriteSecuritiesEvidenceAsync(
+        G0EvidenceWriter evidence,
+        G2CommandEventObserver observer,
+        string stepId,
+        G2SecuritiesTransitionEvidence transition,
+        object? durableState,
+        CancellationToken cancellationToken)
+    {
+        await evidence.WriteTextAsync(
+            Path.Combine("network", "g2-securities-command-events.json"),
+            JsonSerializer.Serialize(
+                observer.Events.Where(row => row.Family is "FuturesContract" or "FuturesOptionContract"),
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+        await evidence.WriteTextAsync(
+            Path.Combine("queries", stepId + ".json"),
+            JsonSerializer.Serialize(new { Transition = transition, DurableState = durableState },
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+    }
+
+    static async Task<G2SecuritiesCleanupEvidence> CleanupSecuritiesFixtureAsync(
+        G0QuerySession queries,
+        G2CommandEventObserver observer,
+        G2SecuritiesFixture fixture,
+        TimeSpan timeout)
+    {
+        List<string> actions = [];
+        try
+        {
+            var options = RequireQueryValue(
+                await queries.MarketData.GetFuturesOptionContractsAsync(fixture.Symbol)
+                    .WaitAsync(timeout),
+                $"{fixture.Symbol} futures option contracts during cleanup");
+            var option = options.SingleOrDefault(row => string.Equals(
+                row.ContractId,
+                fixture.OptionContractId,
+                StringComparison.Ordinal));
+            if (option is not null)
+            {
+                var result = await queries.MarketDataCommands.RemoveFuturesOptionContractAsync(
+                    fixture.OptionContractId,
+                    true);
+                var commandId = RequireCommandId(result, "cleanup option removal");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                await WaitForFuturesOptionContractAsync(
+                    queries, fixture, null, present: false, timeout, CancellationToken.None);
+                actions.Add($"Removed option {fixture.OptionContractId} with command {commandId}.");
+            }
+
+            var futuresContracts = RequireQueryValue(
+                await queries.MarketData.GetFuturesContractsAsync().WaitAsync(timeout),
+                "futures contracts during cleanup");
+            var futures = futuresContracts.SingleOrDefault(row => string.Equals(
+                row.ContractId,
+                fixture.FuturesContractId,
+                StringComparison.Ordinal));
+            if (futures is not null)
+            {
+                var result = await queries.MarketDataCommands.RemoveFuturesContractAsync(
+                    new FuturesContractId(fixture.FuturesContractId, fixture.Symbol, fixture.MaturityDate),
+                    true);
+                var commandId = RequireCommandId(result, "cleanup futures removal");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                await WaitForFuturesContractAsync(
+                    queries, fixture.FuturesContractId, null, present: false, timeout, CancellationToken.None);
+                actions.Add($"Removed futures contract {fixture.FuturesContractId} with command {commandId}.");
+            }
+
+            return new G2SecuritiesCleanupEvidence(true, actions, string.Empty);
+        }
+        catch (Exception exception)
+        {
+            return new G2SecuritiesCleanupEvidence(false, actions, exception.Message);
+        }
+    }
+
+    static Guid RequireCommandId(ServiceResult<Guid> result, string operation)
+    {
+        if (!result.Success || result.Value == Guid.Empty)
+            throw new InvalidOperationException(
+                $"{operation} was not accepted: code={result.ErrorCode}; message={result.ErrorMessage}");
+        return result.Value;
+    }
+
+    static async Task AwaitSuccessfulTerminalAsync(
+        G2CommandEventObserver observer,
+        Guid commandId,
+        TimeSpan timeout)
+    {
+        var events = await observer.WaitForAsync(
+            rows => rows.Any(row => row.CommandId == commandId && row.Success.HasValue),
+            timeout,
+            CancellationToken.None);
+        var terminal = events.Last(row => row.CommandId == commandId && row.Success.HasValue);
+        if (terminal.Success != true)
+            throw new InvalidOperationException(
+                $"Cleanup command {commandId} failed: {terminal.ErrorMessage}");
+    }
+
     static async Task WriteFeedEvidenceAsync(
         G0EvidenceWriter evidence,
         G2CommandEventObserver observer,
@@ -527,4 +1029,18 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         DateTimeOffset SourceObservedUtc,
         DateTimeOffset TerminalObservedUtc,
         G2MarketDataFeedUiState UiState);
+
+    sealed record G2SecuritiesTransitionEvidence(
+        Guid CommandId,
+        string Family,
+        string SourceEventName,
+        string TerminalEventName,
+        DateTimeOffset SourceObservedUtc,
+        DateTimeOffset TerminalObservedUtc,
+        G2SecuritiesEditorUiState UiState);
+
+    sealed record G2SecuritiesCleanupEvidence(
+        bool Succeeded,
+        IReadOnlyList<string> Actions,
+        string Error);
 }

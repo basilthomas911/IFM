@@ -73,7 +73,7 @@ public sealed class G0Configuration
                 Environment.GetEnvironmentVariable("IFM_G0_APPROVED_ADAPTER"), "1", StringComparison.Ordinal),
             ReadinessTimeout = ReadTimeout("IFM_G0_READINESS_TIMEOUT_SECONDS", 90),
             StartupTimeout = ReadTimeout("IFM_G0_STARTUP_TIMEOUT_SECONDS", 120),
-            ShutdownTimeout = ReadTimeout("IFM_G0_SHUTDOWN_TIMEOUT_SECONDS", 15),
+            ShutdownTimeout = ReadTimeout("IFM_G0_SHUTDOWN_TIMEOUT_SECONDS", 45),
             AuditTimeout = ReadTimeout("IFM_G0_AUDIT_TIMEOUT_SECONDS", 1800),
             ExpectedActorTypeCount = ReadInt("IFM_G0_ACTOR_TYPE_COUNT", 90)
         };

@@ -1,9 +1,13 @@
+using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
+using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -11,8 +15,10 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 /// <summary>
 /// Exposes the complete observable state and guarded operations used by the futures-contract editor.
 /// </summary>
-public sealed class FuturesContractEditorViewModel : BaseEditorViewModel
+public sealed class FuturesContractEditorViewModel
+    : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
+    static readonly TimeSpan TerminalTimeout = TimeSpan.FromSeconds(30);
     static readonly IReadOnlyDictionary<int, string> ContractMonthMap =
         new Dictionary<int, string>
         {
@@ -30,9 +36,13 @@ public sealed class FuturesContractEditorViewModel : BaseEditorViewModel
             [12] = "Z"
         };
 
+    readonly AsyncLifecycleCoordinator _lifecycle;
+    readonly MarketDataEventModel _eventModel;
     readonly MarketDataCommandModel _commandModel;
     readonly MarketDataQueryModel _queryModel;
     readonly ReferenceQueryModel _referenceQueryModel;
+    readonly ICollection<IEvent> _consumeEvents;
+    readonly TerminalEventCorrelation _terminalCorrelation = new();
     IReadOnlyList<LookupTypeReadModel> _symbols = [];
     IReadOnlyList<LookupTypeReadModel> _securityTypes = [];
     IReadOnlyList<LookupTypeReadModel> _currencies = [];
@@ -49,14 +59,26 @@ public sealed class FuturesContractEditorViewModel : BaseEditorViewModel
     /// </summary>
     public FuturesContractEditorViewModel(IAppRoot appRoot) : base(appRoot)
     {
+        _eventModel = AppRoot.GetModel<MarketDataEventModel>();
         _commandModel = AppRoot.GetModel<MarketDataCommandModel>();
         _queryModel = AppRoot.GetModel<MarketDataQueryModel>();
         _referenceQueryModel = AppRoot.GetModel<ReferenceQueryModel>();
+
+        _consumeEvents =
+        [
+            new FuturesContractAddedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesContractAddedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesContractChangedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesContractChangedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesContractRemovedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
+            new FuturesContractRemovedFailEvent().SetEventSource($"{EventTopic.MarketDataEvents}")
+        ];
 
         LoadOperation = new AsyncOperation(LoadCoreAsync);
         AddOperation = new AsyncOperation(AddCoreAsync, () => _pendingAdd is not null);
         ChangeOperation = new AsyncOperation(ChangeCoreAsync, () => _pendingChange is not null);
         RemoveOperation = new AsyncOperation(RemoveCoreAsync, () => _pendingRemove is not null);
+        _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
     /// <summary>Gets the available currencies.</summary>
@@ -122,6 +144,9 @@ public sealed class FuturesContractEditorViewModel : BaseEditorViewModel
 
     /// <summary>Gets the guarded operation that removes the prepared contract.</summary>
     public IAsyncOperation RemoveOperation { get; }
+
+    /// <summary>Gets the accepted command identifier while a mutation is awaiting its terminal event.</summary>
+    public Guid CommandId => _terminalCorrelation.CommandId;
 
     /// <summary>Gets whether every lookup dependency required by the editor is available.</summary>
     public bool AllLookupTypesLoaded =>
@@ -190,6 +215,7 @@ public sealed class FuturesContractEditorViewModel : BaseEditorViewModel
 
     async Task LoadCoreAsync(CancellationToken cancellationToken)
     {
+        await InitializeAsync(cancellationToken);
         var securityTypes = await LoadLookupAsync(
             (model, completed) => model.LoadSecurityTypesAsync(completed), cancellationToken);
         var currencies = await LoadLookupAsync(
@@ -234,44 +260,125 @@ public sealed class FuturesContractEditorViewModel : BaseEditorViewModel
     async Task AddCoreAsync(CancellationToken cancellationToken)
     {
         var contract = _pendingAdd ?? throw new InvalidOperationException("No futures contract is prepared for add.");
-        await _commandModel.ExecuteObservableAsync(
-            model => model.AddFuturesContractAsync(contract, true), cancellationToken);
-        await CompleteMutationAsync(
-            $"Futures Contract {contract.ContractId} Added", cancellationToken);
-        _pendingAdd = null;
-        AddOperation.NotifyCanExecuteChanged();
+        await ExecuteMutationAsync(
+            model => model.AddFuturesContractAsync(contract, true),
+            $"Futures Contract {contract.ContractId} Added",
+            () =>
+            {
+                _pendingAdd = null;
+                AddOperation.NotifyCanExecuteChanged();
+            },
+            cancellationToken);
     }
 
     async Task ChangeCoreAsync(CancellationToken cancellationToken)
     {
         var change = _pendingChange ?? throw new InvalidOperationException("No futures contract is prepared for change.");
-        await _commandModel.ExecuteObservableAsync(
+        await ExecuteMutationAsync(
             model => model.ChangeFuturesContractAsync(
                 change.OriginalContractId, change.Contract, true),
+            $"Futures Contract {change.OriginalContractId} Changed",
+            () =>
+            {
+                _pendingChange = null;
+                ChangeOperation.NotifyCanExecuteChanged();
+            },
             cancellationToken);
-        await CompleteMutationAsync(
-            $"Futures Contract {change.OriginalContractId} Changed", cancellationToken);
-        _pendingChange = null;
-        ChangeOperation.NotifyCanExecuteChanged();
     }
 
     async Task RemoveCoreAsync(CancellationToken cancellationToken)
     {
         var contractId = _pendingRemove ?? throw new InvalidOperationException("No futures contract is prepared for removal.");
-        await _commandModel.ExecuteObservableAsync(
-            model => model.RemoveFuturesContractAsync(contractId, true), cancellationToken);
-        await CompleteMutationAsync(
-            $"Futures Contract {contractId} Removed", cancellationToken);
-        _pendingRemove = null;
-        RemoveOperation.NotifyCanExecuteChanged();
+        await ExecuteMutationAsync(
+            model => model.RemoveFuturesContractAsync(contractId, true),
+            $"Futures Contract {contractId} Removed",
+            () =>
+            {
+                _pendingRemove = null;
+                RemoveOperation.NotifyCanExecuteChanged();
+            },
+            cancellationToken);
     }
 
-    async Task CompleteMutationAsync(string statusMessage, CancellationToken cancellationToken)
+    async Task ExecuteMutationAsync(
+        Func<MarketDataCommandModel, Task<Guid>> submit,
+        string statusMessage,
+        Action clearPending,
+        CancellationToken cancellationToken)
     {
-        await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
-        FuturesContracts = await QueryFuturesContractsAsync(cancellationToken);
-        LastStatusMessage = statusMessage;
+        _terminalCorrelation.BeginAttempt();
+        OnPropertyChanged(nameof(CommandId));
+        try
+        {
+            Guid commandId = Guid.Empty;
+            await _commandModel.ExecuteObservableAsync(
+                async model => commandId = await submit(model),
+                cancellationToken);
+            if (commandId == Guid.Empty)
+                throw new InvalidOperationException(
+                    "The futures-contract command returned an empty correlation identifier.");
+
+            var terminal = await _terminalCorrelation.AwaitAsync(
+                commandId,
+                TerminalTimeout,
+                TimeProvider.System,
+                cancellationToken);
+            OnPropertyChanged(nameof(CommandId));
+            if (terminal is IErrorEvent error)
+                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+
+            FuturesContracts = await QueryFuturesContractsAsync(cancellationToken);
+            LastStatusMessage = statusMessage;
+            clearPending();
+        }
+        finally
+        {
+            _terminalCorrelation.EndAttempt();
+            OnPropertyChanged(nameof(CommandId));
+        }
     }
+
+    /// <inheritdoc />
+    public Task InitializeAsync(CancellationToken cancellationToken)
+        => _lifecycle.InitializeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        LoadOperation.Cancel();
+        AddOperation.Cancel();
+        ChangeOperation.Cancel();
+        RemoveOperation.Cancel();
+        while (LoadOperation.IsRunning
+               || AddOperation.IsRunning
+               || ChangeOperation.IsRunning
+               || RemoveOperation.IsRunning)
+            await Task.Delay(TimeSpan.FromMilliseconds(10));
+        await _lifecycle.StopAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync(CancellationToken.None);
+        await _lifecycle.DisposeAsync();
+    }
+
+    Task StartListenerCoreAsync(CancellationToken cancellationToken)
+        => _eventModel.ExecuteObservableAsync(
+            model => model.StartMarketDataListenerAsync(
+                _consumeEvents,
+                @event =>
+                {
+                    _terminalCorrelation.TryPublish(@event);
+                    return ValueTask.CompletedTask;
+                }).AsTask(),
+            cancellationToken);
+
+    Task StopListenerCoreAsync(CancellationToken cancellationToken)
+        => _eventModel.ExecuteObservableAsync(
+            model => model.StopMarketDataListenerAsync().AsTask(),
+            cancellationToken);
 
     sealed record PendingChange(
         FuturesContractId OriginalContractId,

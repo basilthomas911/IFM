@@ -14,6 +14,8 @@ public sealed record G2BaselineSnapshot(
     string[] ImportCountryCodes,
     FuturesContractV2ReadModel[] RunOwnedFuturesContracts,
     FuturesOptionContractReadModel[] RunOwnedFuturesOptions,
+    FuturesContractV2ReadModel? SecuritiesFixtureContract,
+    FuturesOptionContractReadModel? SecuritiesFixtureOption,
     YieldCurveRateReadModel[] YieldCurveImportDateRows,
     IReadOnlyDictionary<string, EconomicCalendarReadModel[]> EconomicCalendarImportDateRows,
     LookupTypeReadModel[] RunOwnedLookupTypes,
@@ -41,8 +43,9 @@ public static class G2BaselineCapture
             await queries.MarketData.GetFuturesContractsAsync().WaitAsync(timeout, cancellationToken),
             "futures contracts");
         var options = RequireValue(
-            await queries.MarketData.GetFuturesOptionContractsAsync("ES").WaitAsync(timeout, cancellationToken),
-            "ES futures option contracts");
+            await queries.MarketData.GetFuturesOptionContractsAsync(configuration.SecuritiesSymbol)
+                .WaitAsync(timeout, cancellationToken),
+            $"{configuration.SecuritiesSymbol} futures option contracts");
         var yieldCurve = RequireValue(
             await queries.MarketData.GetYieldCurveRatesAsync(configuration.ImportDate, configuration.ImportDate)
                 .WaitAsync(timeout, cancellationToken),
@@ -109,8 +112,22 @@ public static class G2BaselineCapture
             valueDate,
             configuration.ImportDate,
             configuration.ImportCountryCodes,
-            contracts.Where(contract => IsRunOwned(contract.ContractId, configuration.RunPrefix)).ToArray(),
-            options.Where(option => IsRunOwned(option.ContractId, configuration.RunPrefix)).ToArray(),
+            contracts.Where(contract =>
+                    IsRunOwned(contract.ContractId, configuration.RunPrefix)
+                    || IsRunOwned(contract.Description, configuration.RunPrefix))
+                .ToArray(),
+            options.Where(option =>
+                    IsRunOwned(option.ContractId, configuration.RunPrefix)
+                    || IsRunOwned(option.Description, configuration.RunPrefix))
+                .ToArray(),
+            contracts.SingleOrDefault(contract => string.Equals(
+                contract.ContractId,
+                configuration.SecuritiesFuturesContractId,
+                StringComparison.Ordinal)),
+            options.SingleOrDefault(option => string.Equals(
+                option.ContractId,
+                configuration.SecuritiesOptionContractId,
+                StringComparison.Ordinal)),
             yieldCurve,
             calendars,
             lookupTypes.Where(lookup =>

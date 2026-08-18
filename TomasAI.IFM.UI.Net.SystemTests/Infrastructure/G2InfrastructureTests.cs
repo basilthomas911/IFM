@@ -74,6 +74,11 @@ public sealed class G2InfrastructureTests
             item.Family == "MarketDataFeed"
             && item.EventType == "MarketDataFeedStoppedEvent"
             && item.Success == null);
+        foreach (var family in new[] { "FuturesContract", "FuturesOptionContract" })
+        {
+            registrations.Count(item => item.Family == family && item.Success is null)
+                .Should().Be(3, $"{family} must expose add/change/remove source-event routes");
+        }
         registrations.Should().OnlyContain(item =>
             !string.IsNullOrWhiteSpace(item.Actor)
             && !string.IsNullOrWhiteSpace(item.Verb)
@@ -115,6 +120,9 @@ public sealed class G2InfrastructureTests
             ImportDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
             ImportCountryCodes = ["US"],
             FundFixtureName = "IFM G2 Automation Fund",
+            SecuritiesSymbol = "ES",
+            SecuritiesMaturityDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(2)),
+            SecuritiesOptionStrike = 4500,
             BackupDestinationRoot = backupRoot ?? Path.Combine(resultsRoot, "backups", "unit-test"),
             ServerConfigurationPath = serverConfiguration,
             DatabaseIdentities = databases
