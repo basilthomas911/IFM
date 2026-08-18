@@ -4,6 +4,8 @@
 
 `TomasAI.IFM.Domain.Trade` combines the event-sourced option-trade actor pipeline with trade query/command APIs, order and plan logic, position workflows, and intrinsic-time strategy orchestration.
 
+The target separation of durable trade structure, strategy-specific realtime positions, mutable position persistence, immutable monitor history, and the legacy Trade Blotter boundary is defined in `Trade-Structure-Strategy-Position-Monitor-Design.md`. That design is authoritative for new trade-position and monitor work; this document continues to describe the currently implemented actor inventory.
+
 ## Root-to-leaf directory inventory
 
 Paths are relative to `TomasAI.IFM.Domain.Trade/`. Every leaf includes all intermediate folders.
