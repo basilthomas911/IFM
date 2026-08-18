@@ -140,7 +140,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             this.tabPage2.Padding = new System.Windows.Forms.Padding(3);
             this.tabPage2.Size = new System.Drawing.Size(352, 274);
             this.tabPage2.TabIndex = 1;
-            this.tabPage2.Text = "VIX";
+            this.tabPage2.Text = "VX";
             this.tabPage2.UseVisualStyleBackColor = true;
             // 
             // graphVIX

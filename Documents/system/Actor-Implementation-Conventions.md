@@ -357,7 +357,7 @@ A default complete or fail handler must not:
 - publish another copy of the same lifecycle event; or
 - create a complete/fail processing loop.
 
-Specialized lifecycle behavior is allowed, such as the existing VIX completion workflow, but it must remain in the same main-event extension class and be explicitly tested.
+Specialized lifecycle behavior is allowed, such as the existing VX completion workflow, but it must remain in the same main-event extension class and be explicitly tested.
 
 ### 7.5 Transactional external-data imports
 
@@ -433,10 +433,10 @@ Manual/API-initiated EOD commands retain the established durable Event path:
 | Extension class | Event contracts handled |
 | --- | --- |
 | `FuturesEodDataInserted` | Futures EOD inserted, complete, and fail |
-| `VixFuturesEodDataInserted` | VIX futures EOD inserted, complete, and fail |
+| `VixFuturesEodDataInserted` | VX futures EOD inserted, complete, and fail; the type name is retained for wire compatibility |
 
 The live feed path is separate. `FuturesEodDataRealtimeActor` routes realtime TickAggregation trade
-insertions, computes the rolling futures or VIX EOD model, and passes it to
+insertions, computes the rolling futures or VX EOD model, and passes it to
 `FuturesEodDataRealtimeProjector`. The projector uses the same EOD source/complete/fail payload
 schemas with `ActorType.Realtime`, writes storage once, and never replays. Its query helpers live in
 `FuturesEodData/Realtime/Extensions`; they do not remain under the durable `FuturesTickData/Event`

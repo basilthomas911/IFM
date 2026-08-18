@@ -92,7 +92,7 @@ Query APIs are registered as singletons because their dependencies are applicati
 - Source: `TomasAI.IFM.Domain.MarketData.Feed/Query/Api/ActorMarketDataFeedQueryApi.cs`
 - Dependencies: `IDbContextFactory`, application-level `IMarketDataApi`, and `IBlackboardService`
 - Execution: direct Market Data storage access, serialized broker snapshots, and in-process Blackboard sequence allocation
-- Operations: futures and option ticks, EOD and bar data, moving averages, VIX EOD data, iron-condor feed data, EOD parameters, broker option contracts/spreads, normal-curve data, risk-position classification, and streaming/quote IDs
+- Operations: futures and option ticks, EOD and bar data, moving averages, VX EOD data, iron-condor feed data, EOD parameters, broker option contracts/spreads, normal-curve data, risk-position classification, and streaming/quote IDs
 - Notes: broker snapshot calls are serialized by a `SemaphoreSlim`. The semaphore is always released in `finally`. Sequence IDs are allocated synchronously but returned through the asynchronous service contract.
 
 #### `ActorMarketDataFeedCommandApi`
@@ -102,7 +102,7 @@ Query APIs are registered as singletons because their dependencies are applicati
 - Source: `TomasAI.IFM.Domain.MarketData.Feed/Command/Api/ActorMarketDataFeedCommandApi.cs`
 - Dependencies: actor-owned `IEventActorContext`
 - Execution: NATS command request/reply
-- Operations: live-feed on/off, start/stop bar and tick streams, insert bar/tick/option/EOD/VIX data, delete streaming request IDs, and insert option quotes
+- Operations: live-feed on/off, start/stop bar and tick streams, insert bar/tick/option/EOD/VX data, delete streaming request IDs, and insert option quotes
 - Notes: callers receive the command actor's typed `GuidResult`; command and entity correlation are created before dispatch.
 
 #### `ActorMarketDataFeedEventApi`

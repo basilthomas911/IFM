@@ -378,26 +378,33 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets the most recent fresh futures trade price from the active aggregation
-    /// epoch's in-memory last-price reader.
+    /// Gets the most recent usable futures price from the active aggregation
+    /// epoch's in-memory last-price reader. A fresh trade is preferred; a fresh,
+    /// valid two-sided quote midpoint is the fallback.
     /// </summary>
     /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
-    /// <returns>The latest accepted trade price.</returns>
+    /// <returns>The latest accepted trade price or quote midpoint fallback.</returns>
     /// <exception cref="FuturesLastPriceUnavailableException">
-    /// Thrown when no correctly mapped, current trade is available within the
-    /// configured freshness window.
+    /// Thrown when no correctly mapped, current trade or quote midpoint is
+    /// available within the configured freshness window.
     /// </exception>
     public Task<decimal> GetFuturesPriceAsync(string futuresContractId)
     {
         var reader = GetFuturesLastPriceReader(futuresContractId);
-        if (!reader.TryGetLastTrade(out var trade)
-            || trade.ContractId != futuresContractId
-            || trade.ValueDate != reader.ValueDate
-            || !IsFresh(trade.EventTimestamp))
-        {
-            throw new FuturesLastPriceUnavailableException(futuresContractId);
-        }
-        return Task.FromResult(trade.Price);
+        if (reader.TryGetLastTrade(out var trade)
+            && trade.ContractId == futuresContractId
+            && trade.ValueDate == reader.ValueDate
+            && IsFresh(trade.EventTimestamp))
+            return Task.FromResult(trade.Price);
+
+        if (reader.TryGetLastQuote(out var quote)
+            && quote.ContractId == futuresContractId
+            && quote.ValueDate == reader.ValueDate
+            && IsFresh(quote.EventTimestamp)
+            && quote.TryGetMidpoint(out var midpoint))
+            return Task.FromResult(midpoint);
+
+        throw new FuturesLastPriceUnavailableException(futuresContractId);
     }
 
     /// <summary>

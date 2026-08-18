@@ -57,6 +57,7 @@ public static class FuturesMarketPriceUpdated
         try
         {
             if (@event.Price.AssetTypeId != AssetTypeId.Futures
+                || @event.UpdateSource == FuturesMarketPriceUpdateSource.Quote
                 || @event.Price.Trade is not { } esTrade)
                 return true;
 

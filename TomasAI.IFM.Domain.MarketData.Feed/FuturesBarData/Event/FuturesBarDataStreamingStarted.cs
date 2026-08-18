@@ -57,7 +57,10 @@ public static async ValueTask<bool> ExecuteAsync(
                 foreach (var o in e.Contracts!)
                 {
                     if (!p.MarketDataApi.TryGetLastTickPrice(o.ContractId, out var snapshot)
-                        || snapshot.Trade is not { } trade)
+                        || !FuturesBarMarketPrice.TryResolve(
+                            o.Symbol,
+                            snapshot,
+                            out var barPrice))
                         continue;
 
                     if (snapshot.AssetTypeId != AssetTypeId.Futures
@@ -82,7 +85,7 @@ public static async ValueTask<bool> ExecuteAsync(
                                 valueDate: e.ValueDate,
                                 barDate: DateTime.UtcNow,
                                 barRateType: BarRateType.FifteenSeconds,
-                                barValue: trade.LastPrice,
+                                barValue: barPrice,
                                 upTrendTrigger: 0,
                                 downTrendTrigger: 0
                             ));

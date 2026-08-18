@@ -6,6 +6,16 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 
 /// <summary>
+/// Identifies which normalized observation advanced a realtime futures-price snapshot.
+/// </summary>
+public enum FuturesMarketPriceUpdateSource : byte
+{
+    Unknown = 0,
+    Quote = 1,
+    Trade = 2
+}
+
+/// <summary>
 /// Describes the latest normalized futures trade state carried by a realtime market-price update.
 /// </summary>
 [MessagePackObject]
@@ -66,6 +76,7 @@ public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEnt
     [Key(7)] public DateTime ReceivedOn { get; init; }
     [Key(8)] public ushort SchemaVersion { get; init; } = 1;
     [Key(9)] public FuturesMarketPriceSnapshot Price { get; init; }
+    [Key(10)] public FuturesMarketPriceUpdateSource UpdateSource { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesMarketPriceUpdatedRealtimeEvent);

@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -42,10 +43,17 @@ public class FuturesEodDataRealtimeActor(
         FuturesTickTradeDataInsertedEvent.Actor,
         FuturesTickTradeDataInsertedEvent.Verb);
 
+    static readonly ActorTypeId MarketPriceRoute = new(
+        ActorType.Realtime,
+        FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+        FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> ParseMap = new()
     {
         [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
+        [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
+            message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
         [FuturesEodDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesEodDataInsertedEvent>()!,
         [FuturesEodDataInsertedCompleteEvent.Verb] =
@@ -71,11 +79,13 @@ public class FuturesEodDataRealtimeActor(
         _eventApi = eventApiFactory.Create(context);
         await projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(TickTradeRoute, Id);
+        context.AddRealtimeRouter(MarketPriceRoute, Id);
     }
 
     protected override async ValueTask OnShutdown(IEventActorContext context)
     {
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
+        context.RemoveRealtimeRouter(MarketPriceRoute, Id);
         await projector.StopAsync().ConfigureAwait(false);
     }
 
@@ -112,6 +122,14 @@ public class FuturesEodDataRealtimeActor(
                         blackboardService,
                         statusConsoleWriter,
                         projector,
+                        logger)
+                    .ConfigureAwait(false);
+                break;
+            case FuturesMarketPriceUpdatedRealtimeEvent priceUpdated:
+                _ = await priceUpdated.ExecuteVxQuoteAsync(
+                        marketDataApi,
+                        projector,
+                        statusConsoleWriter,
                         logger)
                     .ConfigureAwait(false);
                 break;

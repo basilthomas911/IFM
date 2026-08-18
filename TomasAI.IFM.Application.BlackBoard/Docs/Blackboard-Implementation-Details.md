@@ -324,7 +324,7 @@ The market-data-feed actors are the largest Blackboard consumers. Constructor-in
 
 - Retain streaming request parameters and bidirectional request/contract correlation.
 - Hold the latest futures and futures-option ticks.
-- Cache one-year EOD ranges, VIX data, curve tables, contract IDs, and open prices.
+- Cache one-year EOD ranges, VX data, curve tables, contract IDs, and open prices. Existing `VixFutures*` cache type names are compatibility identifiers for VX contracts.
 - Accumulate option quote maps and quote data during streaming.
 - Cache risk-free rates for option calculations.
 

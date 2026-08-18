@@ -40,7 +40,7 @@ public static async ValueTask<bool> ExecuteAsync(
                 e.Contract.ContractId,
                 owner).ConfigureAwait(false);
             p.Streams.Track(owner, e.Contract.ContractId, e.Contract);
-            if (e.Contract.Id.IsVixContract)
+            if (e.Contract.Id.IsVxContract)
             {
                 p.BlackboardService.MarketDataFeed.VixFuturesContractId.Set(
                     e.ValueDate,

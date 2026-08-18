@@ -421,7 +421,16 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             case MarketRecordKind.Quote:
                 Interlocked.Increment(ref _sourceQuoteRecords);
-                UpdateLastQuote(state, record.Quote);
+                if (UpdateLastQuote(state, record.Quote, out var quoteMarketPrice)
+                    && IsVxFutures(state.Mapping))
+                {
+                    await PublishMarketPriceAsync(
+                            state,
+                            quoteMarketPrice,
+                            FuturesMarketPriceUpdateSource.Quote,
+                            observedUtc)
+                        .ConfigureAwait(false);
+                }
                 if (_liveRouter is not null
                     && _liveRouter.IsActive(state.Mapping.ContractId))
                     await _liveRouter.RouteAsync(CreateLiveQuote(state, record.Quote))
@@ -434,7 +443,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 Interlocked.Increment(ref _sourceTradeRecords);
                 if (UpdateLastTrade(state, record.Trade, out var marketPrice))
                 {
-                    await PublishMarketPriceAsync(state, marketPrice, observedUtc)
+                    await PublishMarketPriceAsync(
+                            state,
+                            marketPrice,
+                            FuturesMarketPriceUpdateSource.Trade,
+                            observedUtc)
                         .ConfigureAwait(false);
                 }
                 if (_liveRouter is not null
@@ -469,7 +482,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             quote.AskPrice, ScaleNullable(quote.AskPrice), quote.AskSize, quote.AskCount);
     }
 
-    private void UpdateLastQuote(TickerState state, QuoteRecord64 quote)
+    private bool UpdateLastQuote(
+        TickerState state,
+        QuoteRecord64 quote,
+        out FuturesMarketPriceSnapshot snapshot)
     {
         var quoteSnapshot = new LastQuoteTickSnapshot(
             state.Mapping.ContractId,
@@ -485,7 +501,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
 
         _lastPrices?.TryUpdateQuote(quoteSnapshot);
-        state.MarketPrice.TryUpdateQuote(
+        return state.MarketPrice.TryUpdateQuote(
             state.ValueDate,
             new FuturesMarketQuoteSnapshot(
                 quoteSnapshot.BidPrice,
@@ -497,7 +513,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 quoteSnapshot.SourceSequence,
                 quoteSnapshot.EventTimestamp,
                 quoteSnapshot.ReceiveTimestamp),
-            out _);
+            out snapshot);
     }
 
     private bool UpdateLastTrade(
@@ -529,6 +545,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private async ValueTask PublishMarketPriceAsync(
         TickerState state,
         FuturesMarketPriceSnapshot snapshot,
+        FuturesMarketPriceUpdateSource updateSource,
         DateTime observedUtc)
     {
         var entity = new TickDataEntityId(
@@ -548,7 +565,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             AggregateId = entity.Format(),
             EventSource = nameof(TickAggregationService),
             ReceivedOn = DateTime.SpecifyKind(observedUtc, DateTimeKind.Utc),
-            Price = snapshot
+            Price = snapshot,
+            UpdateSource = updateSource
         };
 
         try
@@ -562,6 +580,10 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             Interlocked.Increment(ref _publicationFailures);
         }
     }
+
+    private static bool IsVxFutures(TickContractMapping mapping) =>
+        mapping.AssetTypeId == AssetTypeId.Futures
+        && StringComparer.Ordinal.Equals(mapping.ContractDetails?.Ticker, "VX");
 
     private static LiveTickQuoteServiceEvent CreateLiveQuote(
         TickerState state,

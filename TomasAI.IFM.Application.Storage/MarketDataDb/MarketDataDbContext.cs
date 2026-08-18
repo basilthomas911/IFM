@@ -3708,43 +3708,21 @@ public partial class MarketDataDbContext(
         }
         else
         {
-            var entityId = existingData.EntityId;
-            var openPrice = await _blackboardService.MarketDataFeed.VixFuturesOpenPrice.GetAsync(entityId, GetVixFuturesOpenPriceAsync);
-            var vixFuturesTickHLVData = await GetVixFuturesTickHLVDataAsync(entityId);
             // The contract index is unchanged for an update to an existing canonical
-            // partition, so avoid an index and projection-state write on every VIX tick.
+            // partition, so avoid an index and projection-state write on every VX observation.
+            // Derive the rolling row only from its current stored state and the incoming
+            // trade-or-quote observation; tick storage is an independent realtime projection.
             await db.Use(MarketDataDbCql.UpdateVixFuturesEodData)
                .SetParameters(new UpdateVixFuturesEodData(
-                   contractId: e.ContractId,
-                   valueDate: e.ValueDate,
-                   openPrice,
-                   highPrice: vixFuturesTickHLVData!.HighPrice,
-                   lowPrice: vixFuturesTickHLVData.LowPrice,
-                   closePrice: e.Price,
-                   volume: vixFuturesTickHLVData.Volume + e.Size
-               ))
+                    contractId: e.ContractId,
+                    valueDate: e.ValueDate,
+                    openPrice: existingData.OpenPrice,
+                    highPrice: Math.Max(existingData.HighPrice, e.Price),
+                    lowPrice: Math.Min(existingData.LowPrice, e.Price),
+                    closePrice: e.Price,
+                    volume: checked(existingData.Volume + e.Size)
+                ))
                .ExecuteCommandAsync();
-        }
-
-        async Task<decimal> GetVixFuturesOpenPriceAsync(VixFuturesEodDataEntityId e)
-        {
-            var futuresOpenPrice = 0.0m;
-            var tickId = await db.Use(MarketDataDbCql.GetMinFuturesTickDataTickId)
-               .SetParameters(new GetMinFuturesTickDataTickId(
-                   contractId: e.ContractId,
-                   valueDate: e.ValueDate
-               ))
-               .ExecuteScalarAsync(MapToMinTickId!);
-
-            futuresOpenPrice = await db.Use(MarketDataDbCql.GetFuturesTickDataPriceByTickId)
-               .SetParameters(new GetFuturesTickDataPriceByTickId(
-                   contractId: e.ContractId,
-                   valueDate: e.ValueDate,
-                   tickId
-               ))
-               .ExecuteScalarAsync(MapToPrice);
-
-            return futuresOpenPrice;
         }
     }
 

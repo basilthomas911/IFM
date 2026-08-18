@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared;
 [MessagePackObject]
 public record FuturesContractId : IActorEntityId
 {
-    [IgnoreMember] const string VixSymbol = "VX";
+    [IgnoreMember] const string VxSymbol = "VX";
 
     [Key(0)]
     public string ContractId { get; init; }
@@ -27,7 +27,7 @@ public record FuturesContractId : IActorEntityId
     public DateOnly MaturityDate { get; init; }
 
     [IgnoreMember]
-    public bool IsVixContract => !string.IsNullOrEmpty(Symbol) && Symbol == VixSymbol;
+    public bool IsVxContract => !string.IsNullOrEmpty(Symbol) && Symbol == VxSymbol;
 
     public string Format()
         => string.Create(null, stackalloc char[64], $"{ContractId}.{Symbol}.{MaturityDate:yyyyMMdd}");

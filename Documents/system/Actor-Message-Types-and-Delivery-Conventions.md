@@ -245,7 +245,7 @@ Databento normalized trade/quote
   -> Realtime.TickAggregationRealtime changed
   -> realtime tick source/storage/complete-or-fail
   -> routed trade branches
-       -> rolling futures/VIX EOD realtime projection
+       -> rolling futures/VX EOD realtime projection
        -> futures-option hot-quote merge and UI Notify
        -> FuturesMarketPrice hot snapshot
             -> Daily/Weekly/Monthly ITI realtime projection

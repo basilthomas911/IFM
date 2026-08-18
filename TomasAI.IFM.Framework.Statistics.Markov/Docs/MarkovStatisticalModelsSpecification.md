@@ -90,7 +90,7 @@ This specification assumes the established architecture:
   - `PositionMonitorActor`;
   - `ExitDecisionActor`;
   - `OrderExecutionActor`;
-- `FusionRegimeActor` combining trend, volatility, Bollinger Band, ATR, and VIX evidence;
+- `FusionRegimeActor` combining trend, volatility, Bollinger Band, ATR, and VX evidence;
 - `PositionMonitorActor` using Green/Yellow/Red health and forward-loss evidence;
 - one approved multi-leg IBKR combination limit order in V1;
 - no V1 hedging or model-directed compensating trade;
@@ -337,7 +337,7 @@ A Hidden Markov Model assumes that the meaningful state is latent—not observed
 For trading:
 
 - hidden state: the market's underlying regime;
-- observations: RSI, RSI slope, ADX, EMA relationships, Bollinger Band position, ATR ratio, VIX level, VIX term structure, returns, and volatility.
+- observations: RSI, RSI slope, ADX, EMA relationships, Bollinger Band position, ATR ratio, VX level, VX term structure, returns, and volatility.
 
 An HMM contains:
 
@@ -829,7 +829,7 @@ TimeInRegime = New | Established | Extended
 
 However, the first implementation should consider separate/factorized chains if the Cartesian product produces sparse states.
 
-VIX `Extreme` remains a deterministic no-trade condition. A transition probability cannot override it.
+VX `Extreme` remains a deterministic no-trade condition. A transition probability cannot override it.
 
 ### 11.4 Forecasts
 
@@ -861,7 +861,7 @@ The feature shall have:
 - a deterministic missing-model fallback;
 - complete decision logging.
 
-It shall not override VIX, maximum risk, account readiness, or other hard gates.
+It shall not override VX, maximum risk, account readiness, or other hard gates.
 
 ---
 
@@ -876,8 +876,8 @@ Create a `HiddenRegimeAdvisor` that consumes the same normalized signal snapshot
 - ADX level/direction;
 - Bollinger Band normalized position/width;
 - ATR ratio and change;
-- VIX level/regime;
-- VIX term-structure measures;
+- VX level/regime;
+- VX term-structure measures;
 - return and realized-volatility features appropriate to the horizon;
 - data completeness/freshness.
 
@@ -1479,7 +1479,7 @@ Models cannot override:
 
 - `PortfolioRiskActor` approval;
 - account readiness and freshness;
-- VIX Extreme no-trade gate;
+- VX Extreme no-trade gate;
 - maximum position/strategy risk;
 - quantity and capital limits;
 - approved contract identity;
@@ -2097,7 +2097,7 @@ Each increment must compile, pass its relevant tests, preserve earlier determini
 - [ ] Same artifact/input produces the same output.
 - [ ] Live decisions contain no random sampling.
 - [ ] Simulation seeds/draws are replayable.
-- [ ] Hard risk/account/VIX/price/forward-loss rules dominate.
+- [ ] Hard risk/account/VX/price/forward-loss rules dominate.
 - [ ] Model timeout, stale state, OOD, drift, or incompatibility falls back safely.
 - [ ] Model activation/disable/rollback is audited and tested.
 
@@ -2155,7 +2155,7 @@ Do not use these models to:
 - replace account balances, positions, fills, or broker reconciliation;
 - invent missing IBKR callbacks;
 - predict every tick directly in V1;
-- bypass VIX Extreme or portfolio-risk gates;
+- bypass VX Extreme or portfolio-risk gates;
 - choose unapproved option legs, quantity, or capital allocation;
 - widen an approved reservation price;
 - convert probability into certainty;

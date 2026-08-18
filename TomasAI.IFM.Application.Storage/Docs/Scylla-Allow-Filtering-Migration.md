@@ -14,7 +14,7 @@ deployment, repair, and rollback. `ScyllaCqlPolicyTests` now rejects every appli
 | Fund | Order-ID lookup, LWT-backed logical transaction identities, transaction timeline, status/day balance, and amount-oriented reads, with per-fund/month cutover state. |
 | Securities | Futures and futures-option contract reads partitioned by symbol, with global and per-symbol state. |
 | Reference | Economic calendars partitioned by country/month, scheduled jobs keyed by exact name, and scope-specific readiness. |
-| MarketData | Tick-time and EOD month projections, a VIX contract index, and futures ITI day/month/trend-mode projections, with scoped V3 state and backfill/cutover state. |
+| MarketData | Tick-time and EOD month projections, a VX contract index, and futures ITI day/month/trend-mode projections, with scoped V3 state and backfill/cutover state. |
 
 ### Futures ITI query shapes
 
@@ -68,7 +68,7 @@ instead of attempting a manual partial repair.
   unreadable before mutating canonical and projection rows. Reference calendar scopes are length-prefixed country/month
   keys; scheduled-job scopes use length-prefixed exact names. Disjoint normal writes therefore retain independent
   readiness. Their global journal coordinates whole-projection backfill without forcing unrelated normal reads onto
-  fallback. MarketData instead uses V3 tick `(contractId,valueDate)`, EOD `yearMonth`, and VIX bucket scopes.
+  fallback. MarketData instead uses V3 tick `(contractId,valueDate)`, EOD `yearMonth`, and VX bucket scopes.
   ITI uses contract/day, contract/month, and contract/trend/mode/month data scopes. Thirty-two stable FNV-sharded guard
   scopes fence MarketData discovery: backfill claims every guard before inventory,
   ordinary writes protect their data scope and guard, and reads validate both. A tick performs four nominal requests:
@@ -81,7 +81,7 @@ instead of attempting a manual partial repair.
   operation active and marks it failed for automatic repair; no tick touches a projection-wide hot row. A failure after
   registration was acknowledged but before any data request is safe to mark failed. In contrast, a registration-batch
   timeout or data-batch timeout remains an unclassified journal row and possible active guard because batchlog replay may
-  apply it later; it can be reclaimed only with an explicit stale-operation cutoff after writers are drained. EOD/VIX
+  apply it later; it can be reclaimed only with an explicit stale-operation cutoff after writers are drained. EOD/VX
   writes and backfill follow the same rule once a mutation or target-rebuild request may have been submitted. Backfill
   also retains original journals for any unacknowledged global or scoped `Begin`; acknowledged pre-target failures are
   marked failed without racing a speculative `End`. The current-EOD `<= target` lookup stamps all 32 EOD guards in

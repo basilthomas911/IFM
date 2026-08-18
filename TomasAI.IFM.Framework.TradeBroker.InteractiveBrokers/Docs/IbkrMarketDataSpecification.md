@@ -11,7 +11,7 @@
 **Shared connection module:** `Framework.TradeBroker.InteractiveBrokers.Connection`  
 **Primary provider:** `Framework.MarketData.Databento`  
 **Secondary provider:** `Framework.TradeBroker.InteractiveBrokers.MarketData`  
-**Primary product scope:** ES futures, ES futures options, VIX observations, and held-position marks  
+**Primary product scope:** ES futures, ES futures options, VX futures observations, and held-position marks
 **Companion specifications:** `IbkrBrokerConnectionSpecification.md`, `IbkrBrokerAccountSpecification.md`, `IbkrOrderExecutionAdapterSpecification.md`, `IbkrContractReferenceSpecification.md`, `OrderExecutionWorkflowSpecification.md`, `ScriptedBrokerTestHarnessSpecification.md`, and the Databento market-data specification  
 **Last updated:** 2026-08-02
 
@@ -1263,7 +1263,7 @@ Default recovery priority:
 
 1. held-position and risk-monitoring instruments;
 2. active order/execution verification instruments;
-3. ES/VIX core operational instruments;
+3. ES/VX core operational instruments;
 4. candidate option contracts;
 5. broader option-chain members;
 6. display-only subscriptions;

@@ -109,7 +109,7 @@ TomasAI.IFM.Application.Storage/                    Project root
 | `LogDb/` | Active | Inserts telemetry logs and queries them by date range. |
 | `LogDb/Schema/` | Active source leaf | Defines the telemetry-log table. |
 | `MarketDataDb/` | Active | Broad futures tick/bar/EOD/option, volatility, analytics signal/model, yield curve, holiday, normal-curve, quote, ID, and live-feed persistence. |
-| `MarketDataDb/Schema/` | Active source leaf | Defines canonical market-data tables, query-shaped tick/EOD/VIX projections, cutover state, and the RSI signal-type index in creation order. |
+| `MarketDataDb/Schema/` | Active source leaf | Defines canonical market-data tables, query-shaped tick/EOD/VX projections, cutover state, and the RSI signal-type index in creation order. |
 | `OptionPricerDb/` | Active | Option-pricer devices, spread distributions, distribution jobs, status transitions, and domain-specific exception/parameter definitions. |
 | `OptionPricerDb/Schema/` | Active source leaf | Defines device, distribution-job, and spread-distribution tables. |
 | `PredictiveModelDb/` | Active shell | Exposes a provider-backed repository and empty read/write marker contracts; current runtime methods are not implemented here. |
@@ -258,7 +258,7 @@ Each value has the case-insensitive schema `{"userid":"...","password":"..."}`. 
 | `EventSourceActorDbContext` | Actor-oriented stream save/load/map-reduce, command log status, event projector state/result persistence, incomplete-projection recovery queries, and event identity caching. |
 | `FundDbContext` | Full fund/order/trade/transaction CRUD and bulk operations plus balances, P&L, drawdown reporting, state/status changes, and database backup. |
 | `LogDbContext` | Telemetry batch insert and date-range reads. |
-| `MarketDataDbContext` | The largest context: market ticks/bars/EOD, option ticks/quotes, analytics indicators/signals/models, VIX, yield curves, holidays, normal curves, IDs, and trade live feed. |
+| `MarketDataDbContext` | The largest context: market ticks/bars/EOD, option ticks/quotes, analytics indicators/signals/models, VX, yield curves, holidays, normal curves, IDs, and trade live feed. |
 | `OptionPricerDbContext` | Device registration and spread-distribution job/data lifecycle. |
 | `PredictiveModelDbContext` | Provider-backed context with read/write marker interfaces but no declared runtime methods; its schema remains managed. |
 | `ReferenceDbContext` | Lookup/seed values, scheduled jobs, economic calendars, country codes, and MDI forward-loss ratios. |
@@ -318,7 +318,7 @@ The Market Data catalog uses that narrow additive convention for the authoritati
 | Event Source | 3 sequences and 5 tables: stream IDs, event names, event log, command log, and projector state. |
 | Fund | 14 canonical/projection tables, including permanent order-ID ownership, exact-key transaction identity reservations, monthly transaction queries, readiness markers, and distributed write ownership. |
 | Log | 1 telemetry-log table. |
-| Market Data | Canonical live-feed, futures/option, analytics, curve, holiday, and quote objects plus tick/EOD/VIX query projections and cutover state. |
+| Market Data | Canonical live-feed, futures/option, analytics, curve, holiday, and quote objects plus tick/EOD/VX query projections and cutover state. |
 | Option Pricer | 3 tables for devices, jobs, and distributions. |
 | Predictive Model | 5 tables for ITI trend data/models and request IDs. |
 | Reference | 13 canonical/projection tables, including country/month and exact-name queries, scoped projection readiness, scheduled-job ID/name mutation ownership, and the LWT seed allocator. |

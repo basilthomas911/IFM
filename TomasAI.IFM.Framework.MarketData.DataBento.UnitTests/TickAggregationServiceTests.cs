@@ -134,9 +134,53 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(0, routes.Activations);
         Assert.Equal(0, routes.Deactivations);
         Assert.False(service.TryGetLastTickPrice("NQU6", out _));
+        Assert.Equal(FuturesMarketPriceUpdateSource.Trade, realtimeEvent.UpdateSource);
 
         await service.StopAsync();
         Assert.True(service.TryGetLastTickPrice("ESU6", out _));
+    }
+
+    [Fact]
+    public async Task Vx_quote_publishes_realtime_market_price_without_waiting_for_quote_batch_flush()
+    {
+        var valueDate = new DateOnly(2026, 8, 18);
+        var instrument = new InstrumentKey(105, 181_038);
+        using var feed = new RunningFeed(instrument);
+        var publisher = new CapturingPublisher();
+        var details = CreateDetails(valueDate, instrument) with
+        {
+            ContractId = "VX20260819",
+            ProviderContractId = "VX.FUT",
+            Ticker = "VX",
+            LocalSymbol = "VXQ6",
+            Exchange = "CFE",
+            ContractMultiplier = 1000m,
+            MaturityDate = new DateOnly(2026, 8, 19)
+        };
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument, details, details.ContractId),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "XCBF.PITCH",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        feed.Publish(Quote(instrument, 7, 21_100_000_000, 21_300_000_000));
+
+        var realtime = await publisher.MarketPrice.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(FuturesMarketPriceUpdateSource.Quote, realtime.UpdateSource);
+        Assert.Equal(details.ContractId, realtime.Price.ContractId);
+        Assert.Null(realtime.Price.Trade);
+        Assert.Equal(21.1m, realtime.Price.Quote!.Value.BidPrice);
+        Assert.Equal(21.3m, realtime.Price.Quote.Value.AskPrice);
+        Assert.Empty(publisher.Order);
+
+        await service.StopAsync();
     }
 
     [Fact]
@@ -561,7 +605,8 @@ public sealed class TickAggregationServiceTests
 
     private sealed class MappingProvider(
         InstrumentKey instrument,
-        TickerContractDetails? details = null) : ITickContractMappingProvider
+        TickerContractDetails? details = null,
+        string contractId = "ESU6") : ITickContractMappingProvider
     {
         public bool TryGetMapping(string dataset, DateOnly definitionDate, InstrumentKey key, out TickContractMapping mapping)
         {
@@ -570,7 +615,7 @@ public sealed class TickAggregationServiceTests
                 definitionDate,
                 key.PublisherId,
                 key.InstrumentId,
-                "ESU6",
+                contractId,
                 AssetTypeId.Futures,
                 details);
             return key == instrument;
@@ -770,6 +815,12 @@ public sealed class TickAggregationServiceTests
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
         public void Start(TimeSpan timeout) { }
+        public void Publish(MarketRecord64 record)
+        {
+            var batch = _channel.RentBatch(static () => false);
+            batch.Add(record);
+            Assert.True(_channel.Publish(batch, static () => false));
+        }
         public void Stop(TimeSpan timeout) => _channel.Complete();
         public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey key) => _channel;
         public IMultiplexedTickerBatchReader GetMultiplexedReader()

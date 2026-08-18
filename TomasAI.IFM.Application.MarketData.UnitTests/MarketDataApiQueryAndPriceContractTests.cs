@@ -181,7 +181,24 @@ public sealed class MarketDataApiQueryAndPriceContractTests
     }
 
     [Fact]
-    public async Task MissingOrStaleFuturesTradeThrowsTypedUnavailableException()
+    public async Task FuturesPriceUsesFreshQuoteMidpointWhenTradeIsUnavailableOrStale()
+    {
+        var context = new MarketDataApiTestContext();
+        await context.StartAsync();
+        var reader = context.Epoch.GetFuturesReader(MarketDataApiTestContext.FutureId);
+        reader.SetTrade(context.FreshFutureTrade() with
+        {
+            EventTimestamp = MarketDataApiTestContext.Now.AddSeconds(-3)
+        });
+        reader.SetQuote(context.FreshFutureQuote(21.10m, 21.30m));
+
+        var price = await context.Api.GetFuturesPriceAsync(MarketDataApiTestContext.FutureId);
+
+        price.Should().Be(21.20m);
+    }
+
+    [Fact]
+    public async Task MissingOrStaleFuturesTradeAndQuoteThrowsTypedUnavailableException()
     {
         var context = new MarketDataApiTestContext();
         await context.StartAsync();

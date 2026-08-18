@@ -9,6 +9,7 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -23,7 +24,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
 /// <summary>
-/// Proves the hosted normalized-trade to realtime VIX EOD projection boundary with real actors and transports.
+/// Proves the hosted normalized-trade and quote-midpoint to realtime VX EOD projection boundary with real actors and transports.
 /// Only the external market feed is deterministic.
 /// </summary>
 public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
@@ -41,13 +42,13 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
         Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
-    public async Task NormalizedVixTrade_RoutesThroughRealtimeTickAggregation_AndPersistsEod()
+    public async Task NormalizedVxTradeAndQuote_RouteThroughRealtimeActors_AndPersistEod()
     {
         var valueDate = DateOnly.FromDateTime(DateTime.UtcNow)
             .AddDays(-Random.Shared.Next(10_001, 20_000));
         var contract = new FuturesContractV2ReadModel(
             ContractId,
-            "VIX Futures Dec 2026",
+            "VX Futures Dec 2026",
             "VX",
             "VXZ6",
             "FUT",
@@ -109,7 +110,10 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var eodTerminal = new TaskCompletionSource<IEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        var quoteEodTerminal = new TaskCompletionSource<IEvent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         VixFuturesEodDataInsertedEvent? inserted = null;
+        VixFuturesEodDataInsertedEvent? quoteInserted = null;
         var listener = new NatsActorEventListener(
             new NatsEventListenerOptions(),
             _logger);
@@ -119,7 +123,7 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
         var marketDataApi = _factory.Services.GetRequiredService<DatabentoMarketDataApi>();
 
         await listener.StartAsync(
-            $"{nameof(NormalizedVixTrade_RoutesThroughRealtimeTickAggregation_AndPersistsEod)}-event-{Guid.NewGuid():N}",
+            $"{nameof(NormalizedVxTradeAndQuote_RouteThroughRealtimeActors_AndPersistEod)}-event-{Guid.NewGuid():N}",
             new()
             {
                 [new ActorMailboxId(
@@ -132,7 +136,7 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             },
             EventHandlerAsync);
         await realtimeListener.StartAsync(
-            $"{nameof(NormalizedVixTrade_RoutesThroughRealtimeTickAggregation_AndPersistsEod)}-realtime-{Guid.NewGuid():N}",
+            $"{nameof(NormalizedVxTradeAndQuote_RouteThroughRealtimeActors_AndPersistEod)}-realtime-{Guid.NewGuid():N}",
             new()
             {
                 [new ActorMailboxId(
@@ -211,6 +215,68 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
             stored.Should().NotBeNull();
             stored!.ClosePrice.Should().Be(tradePrice);
             stored.Volume.Should().Be((int)tradeSize);
+
+            var quoteTimestamp = DateTimeOffset.UtcNow.AddMilliseconds(1);
+            const decimal bidPrice = 18.80m;
+            const decimal askPrice = 19.00m;
+            var quotePrice = new FuturesMarketPriceUpdatedRealtimeEvent
+            {
+                Subject = new ActorSubject(
+                    ActorType.Realtime,
+                    FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                    FuturesMarketPriceUpdatedRealtimeEvent.Verb,
+                    entityId.Format()),
+                Id = Guid.NewGuid(),
+                EntityId = entityId,
+                CommandId = Guid.NewGuid(),
+                AggregateId = entityId.Format(),
+                EventSource = nameof(NormalizedVxTradeAndQuote_RouteThroughRealtimeActors_AndPersistEod),
+                ReceivedOn = quoteTimestamp.UtcDateTime,
+                UpdateSource = FuturesMarketPriceUpdateSource.Quote,
+                Price = new FuturesMarketPriceSnapshot(
+                    ContractId,
+                    2,
+                    1,
+                    AssetTypeId.Futures,
+                    valueDate,
+                    new FuturesMarketQuoteSnapshot(
+                        bidPrice,
+                        4,
+                        askPrice,
+                        5,
+                        1,
+                        1,
+                        92,
+                        quoteTimestamp,
+                        quoteTimestamp),
+                    new FuturesMarketTradeSnapshot(
+                        tradePrice,
+                        tradeSize,
+                        91,
+                        quoteTimestamp.AddSeconds(-1),
+                        quoteTimestamp.AddSeconds(-1)))
+            };
+            await publisher.PublishAsync(quotePrice);
+
+            var quoteTerminalResult = await quoteEodTerminal.Task.WaitAsync(
+                TimeSpan.FromSeconds(15));
+            if (quoteTerminalResult is VixFuturesEodDataInsertedFailEvent quoteFailed)
+            {
+                throw new InvalidOperationException(
+                    $"Deterministic VX quote EOD update failed with {quoteFailed.ErrorCode}: "
+                    + quoteFailed.ErrorMessage);
+            }
+            quoteTerminalResult.Should().BeOfType<VixFuturesEodDataInsertedCompleteEvent>();
+            quoteInserted.Should().NotBeNull();
+            quoteInserted!.VixFuturesTickData.Price.Should().Be(18.90m);
+            quoteInserted.VixFuturesTickData.Size.Should().Be(0);
+
+            var quoteStored = await dbFixture.MarketDataDb.GetVixFuturesEodDataAsync(
+                ContractId,
+                valueDate);
+            quoteStored.Should().NotBeNull();
+            quoteStored!.ClosePrice.Should().Be(18.90m);
+            quoteStored.Volume.Should().Be((int)tradeSize);
         }
         finally
         {
@@ -250,7 +316,12 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
                 {
                     var received = eventMsg.AsEvent<VixFuturesEodDataInsertedEvent>();
                     if (received?.EntityId == new FuturesEodDataId(ContractId, valueDate))
-                        inserted = received;
+                    {
+                        if (received.VixFuturesTickData.Size == 0)
+                            quoteInserted = received;
+                        else
+                            inserted = received;
+                    }
                     break;
                 }
                 case VixFuturesEodDataInsertedCompleteEvent.Verb:
@@ -258,7 +329,12 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
                     var completed = eventMsg
                         .AsEvent<VixFuturesEodDataInsertedCompleteEvent>();
                     if (completed?.EntityId == new FuturesEodDataId(ContractId, valueDate))
-                        eodTerminal.TrySetResult(completed);
+                    {
+                        if (completed.VixFuturesTickData.Size == 0)
+                            quoteEodTerminal.TrySetResult(completed);
+                        else
+                            eodTerminal.TrySetResult(completed);
+                    }
                     break;
                 }
                 case VixFuturesEodDataInsertedFailEvent.Verb:
@@ -266,7 +342,10 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
                     var failed = eventMsg
                         .AsEvent<VixFuturesEodDataInsertedFailEvent>();
                     if (failed?.EntityId == new FuturesEodDataId(ContractId, valueDate))
+                    {
                         eodTerminal.TrySetResult(failed);
+                        quoteEodTerminal.TrySetResult(failed);
+                    }
                     break;
                 }
                 case FuturesTickTradeDataInsertedEvent.Verb:

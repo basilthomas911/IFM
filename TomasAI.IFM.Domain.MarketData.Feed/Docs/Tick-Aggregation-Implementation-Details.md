@@ -20,6 +20,7 @@ Databento native ring
        -> per-ticker capacity-64 pooled quote buffer
        -> quote-before-trade sequence ordering
        -> normalized decimal hot cache
+       -> accepted VX quote publishes a realtime quote-price snapshot immediately
   -> bounded single-reader TickAggregationEventPublisher
   -> Core NATS Realtime.TickAggregationRealtime changed event
   -> TickAggregationRealtimeActor
@@ -40,10 +41,14 @@ avoids a synthetic backend actor and preserves a single lifecycle owner.
 
 ## Realtime downstream branches
 
-The inserted trade source is routed to independent bounded realtime mailboxes:
+The inserted trade source and the lightweight market-price source are routed to independent bounded realtime mailboxes:
 
-- `FuturesEodDataRealtimeActor` computes rolling futures/VIX EOD data and uses
+- `FuturesEodDataRealtimeActor` computes rolling futures/VX EOD data and uses
   `FuturesEodDataRealtimeProjector` for one-attempt storage plus source/complete/fail publication.
+  ES remains transaction-price driven. VX accepts either a trade or, when the quote is newer than
+  the last trade, the exact midpoint of a positive non-crossed quote. Quote-derived VX observations
+  have zero volume. The realtime VX quote path does not wait for the pooled quote batch to flush to
+  `tick_quote_data`.
 - `FuturesOptionTickDataRealtimeActor` filters futures-option trades, combines the exact trade with
   the latest lease-independent hot quote/Greeks snapshot, and publishes the established UI Notify
   contract.
@@ -70,11 +75,11 @@ pooled buffer.
 ## Phase 1 verification
 
 - MarketData Feed unit suite covers realtime actor routing, contract identity, projector
-  descriptors, futures/VIX EOD, option hot-quote combination, and absence of durable tick routes.
+  descriptors, futures/VX EOD, option hot-quote combination, and absence of durable tick routes.
 - Analytics unit suite covers realtime Daily/Weekly/Monthly ITI and the temporary Futures Trade
   Signal compatibility projection.
-- Focused workflow integration tests cover exact-decimal futures trades, VIX dependency gating,
-  option hot-quote combination, Core producer ownership, and hosted Core-NATS-to-Scylla VIX EOD
+- Focused workflow integration tests cover exact-decimal futures trades, VX dependency gating,
+  quote-only VX midpoint projection, option hot-quote combination, Core producer ownership, and hosted Core-NATS-to-Scylla VX EOD
   source/complete flow.
 - Host teardown treats an already-stopped market-data epoch as an idempotent stream release while
   preserving all other shutdown failures.

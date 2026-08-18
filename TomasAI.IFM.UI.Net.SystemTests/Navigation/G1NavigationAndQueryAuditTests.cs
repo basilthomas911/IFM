@@ -166,7 +166,7 @@ public sealed class G1NavigationAndQueryAuditTests
                 });
 
             await Step("G1-006", "Render shell status, EOD/signal values, status history, and both charts",
-                "The startup query branches produce visible market-outlook values, bounded status rows, an ES chart, and a VX-backed VIX chart.",
+                "The startup query branches produce visible market-outlook values, bounded status rows, an ES chart, and a VX chart.",
                 async token =>
                 {
                     RequireAutomation(automation);
@@ -195,11 +195,11 @@ public sealed class G1NavigationAndQueryAuditTests
                     try
                     {
                         vxChart = await automation.ReadChartAsync(
-                            "VIX", "graphVIX", configuration.ReadinessTimeout, token);
+                            "VX", "graphVIX", configuration.ReadinessTimeout, token);
                     }
                     catch (Exception exception)
                     {
-                        failures.Add("VX/VIX chart: " + exception.Message);
+                        failures.Add("VX chart: " + exception.Message);
                     }
                     var artifacts = CaptureAcceptedEvidence(automation, evidence, "G1-006-shell-readonly");
                     if (failures.Count > 0)
@@ -208,7 +208,7 @@ public sealed class G1NavigationAndQueryAuditTests
                         $"StatusRows={status.RowCount}; latest='{status.FirstRow}'; "
                         + $"marketOutlook={string.Join(",", shell.MarketOutlook.Select(pair => $"{pair.Key}:{pair.Value}"))}; "
                         + $"ES automationPoints={esChart!.DataPointCount},linePixelSpan={esChart.LinePixelSpan}; "
-                        + $"VX/VIX automationPoints={vxChart!.DataPointCount},linePixelSpan={vxChart.LinePixelSpan}.",
+                        + $"VX automationPoints={vxChart!.DataPointCount},linePixelSpan={vxChart.LinePixelSpan}.",
                         artifacts);
                 });
 

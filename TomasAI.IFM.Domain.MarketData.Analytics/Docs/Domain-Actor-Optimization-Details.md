@@ -15,7 +15,7 @@ Persisted event history remains intentionally unbounded. The shared storage foll
 5. **Indicator calculations allocated full transient arrays.** ATR, ADX, and MACD projected all prices and allocated one or more intermediate arrays. Single-pass calculations now preserve formula ordering while allocating only the result model.
 6. **TDI repeatedly sorted and rescanned its window.** Already ordered inputs now avoid a copy/sort; unsorted inputs retain the defensive sort. Five-minute counts and direction are calculated once per model.
 7. **Independent query reads ran serially.** ITI signal-data reads and up/down MDI reads now start together and await as a group. Deterministic tests prove every read starts before any result is released.
-8. **Independent event requests ran serially.** ITI completion handlers now overlap independent EOD, RSI, TDI, ITI, and VIX actor requests, then perform the dependent command only after all results are available.
+8. **Independent event requests ran serially.** ITI completion handlers now overlap independent EOD, RSI, TDI, ITI, and VX actor requests, then perform the dependent command only after all results are available.
 9. **Stateless validators were rebuilt per call.** Nine FluentValidation rule graphs are cached as immutable static instances. Representative validation benchmarks show substantially lower latency and allocation, with concurrent execution covered by a regression test.
 10. **Replay failures were silently converted to no-change.** Empty catch blocks were removed from all seven command states. Unsupported events still return `false`; malformed supported events now reach the actor error path instead of looking like a legitimate no-op.
 

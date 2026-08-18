@@ -63,6 +63,22 @@ internal sealed class MarketDataApiTestContext
         Now.AddMilliseconds(-10),
         Now.AddMilliseconds(-5));
 
+    internal LastQuoteTickSnapshot FreshFutureQuote(
+        decimal? bid = 6500m,
+        decimal? ask = 6500.5m,
+        DateTimeOffset? eventTimestamp = null) => new(
+        FutureId,
+        ValueDate,
+        bid,
+        bid.HasValue ? 4U : 0U,
+        bid.HasValue ? 1U : 0U,
+        ask,
+        ask.HasValue ? 5U : 0U,
+        ask.HasValue ? 1U : 0U,
+        102,
+        eventTimestamp ?? Now.AddMilliseconds(-10),
+        Now.AddMilliseconds(-5));
+
     internal LastQuoteTickSnapshot OptionQuote(
         decimal? bid,
         decimal? ask,

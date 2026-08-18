@@ -508,11 +508,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             TickId = futuresTickData.TickId + 2
         };
         await TestFixture.DevDatabase.Use($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(futuresTickData);
-        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(highTickData);
-        await TestFixture.DevDatabase.InsertFuturesTickDataAsync(lowTickData);
         await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData);
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(highTickData);
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(lowTickData);
         var totalVolume = futuresTickData.Size + highTickData.Size + lowTickData.Size + 341;
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
@@ -528,6 +526,18 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.LowPrice.Should().Be(lowTickData.Price);
         retrievedData.ClosePrice.Should().Be(77.50m);
         retrievedData.Volume.Should().Be(totalVolume);
+
+        // A quote midpoint advances the rolling VX price without manufacturing trade volume.
+        await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(
+            futuresTickData with { Price = 78.25m, Size = 0 });
+        var quoteUpdated = await TestFixture.DevDatabase.GetVixFuturesEodDataAsync(
+            futuresEodData.EntityId.ContractId,
+            futuresEodData.EntityId.ValueDate);
+        quoteUpdated.Should().NotBeNull();
+        quoteUpdated!.ClosePrice.Should().Be(78.25m);
+        quoteUpdated.HighPrice.Should().Be(Math.Max(highTickData.Price, 78.25m));
+        quoteUpdated.LowPrice.Should().Be(lowTickData.Price);
+        quoteUpdated.Volume.Should().Be(totalVolume);
     }
 
     [Fact]

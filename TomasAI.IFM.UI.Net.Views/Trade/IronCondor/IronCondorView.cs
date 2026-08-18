@@ -859,7 +859,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     }
 
     /// <summary>
-    /// Handles the click event for the VIX volatility real-time label. (Currently not implemented)
+    /// Handles the click event for the VX volatility real-time label. (Currently not implemented)
     /// </summary>
     /// <param name="sender">The event sender.</param>
     /// <param name="e">The event arguments.</param>

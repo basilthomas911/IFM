@@ -189,7 +189,7 @@ G1 is a 15-step, non-short-circuiting process audit. It owns the API and desktop
 | G1-003 | Start the actor backend | Readiness is Healthy with 90 registered actor types |
 | G1-004 | Establish typed read-only baseline | Selector catalogs, ES/VX contracts, bars, lookup names, valid named funds, and calendar rows are queryable; any prior durable feed is stopped through its public command/event flow |
 | G1-005 | Launch the desktop and await initialized shell | Final startup status is visible and all five navigation actions are enabled |
-| G1-006 | Audit shell read-only state | Status history, market outlook/EOD values, ES chart, and VX-backed VIX chart visibly render |
+| G1-006 | Audit shell read-only state | Status history, market outlook/EOD values, ES chart, and VX chart visibly render |
 | G1-007 | Audit economic-calendar ranges | Today, Yesterday, Tomorrow, This Week, and Next Week render their date/filter/result state |
 | G1-008 | Audit Market Data catalog | Futures options, futures contracts, and yield-curve views render; visible contract rows match typed queries |
 | G1-009 | Audit Reference catalog | Lookup-type and economic-calendar definition views render; lookup rows match typed queries |

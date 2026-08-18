@@ -32,6 +32,7 @@ using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using OptionTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.FuturesTickTradeDataInserted;
 using FuturesTradeHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.FuturesTickTradeDataInserted;
+using VxQuoteHandler = TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.VxQuoteMarketPriceUpdated;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.TickAggregation;
 
@@ -61,7 +62,7 @@ public sealed class TickerStreamActorWorkflowTests
             CreateDetails(contractId, instrument, AssetTypeId.Futures));
         await aggregation.StartAsync();
 
-        var marketPriceEvent = await publisher.MarketPrice.Task.WaitAsync(
+        var marketPriceEvent = await publisher.TradeMarketPrice.Task.WaitAsync(
             TimeSpan.FromSeconds(2));
         aggregation.TryGetLastTickPrice(contractId, out var marketPrice)
             .Should().BeTrue();
@@ -104,6 +105,72 @@ public sealed class TickerStreamActorWorkflowTests
 
         aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
         await aggregation.StopAsync();
+    }
+
+    [Fact]
+    public async Task Realtime_vx_quote_uses_exact_midpoint_with_zero_trade_volume()
+    {
+        const string contractId = "VX20260819";
+        var timestamp = new DateTimeOffset(2026, 8, 14, 14, 30, 0, TimeSpan.Zero);
+        var entityId = new TickDataEntityId(contractId, ValueDate, AssetTypeId.Futures);
+        var priceUpdated = new FuturesMarketPriceUpdatedRealtimeEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = nameof(Realtime_vx_quote_uses_exact_midpoint_with_zero_trade_volume),
+            ReceivedOn = timestamp.UtcDateTime,
+            UpdateSource = FuturesMarketPriceUpdateSource.Quote,
+            Price = new FuturesMarketPriceSnapshot(
+                contractId,
+                42,
+                7,
+                AssetTypeId.Futures,
+                ValueDate,
+                new FuturesMarketQuoteSnapshot(
+                    20.10m,
+                    10,
+                    20.20m,
+                    11,
+                    1,
+                    1,
+                    77,
+                    timestamp,
+                    timestamp.AddMilliseconds(2)),
+                null)
+        };
+        var marketDataApi = Substitute.For<IMarketDataApi>();
+        marketDataApi.IsTickDataStreamActive(contractId).Returns(true);
+        marketDataApi.GetFuturesContractAsync(contractId).Returns(
+            new FuturesContractV2ReadModel(
+                contractId, contractId, "VX", "VXQ6", "FUT", "USD", "CFE", "1000",
+                new DateOnly(2026, 8, 19), true));
+        var projector = CreateEodProjector();
+
+        var handled = await VxQuoteHandler.ExecuteVxQuoteAsync(
+            priceUpdated,
+            marketDataApi,
+            projector,
+            Substitute.For<IStatusConsoleWriter>(),
+            Substitute.For<ILogger<FuturesEodDataRealtimeActor>>());
+
+        handled.Should().BeTrue();
+        var emitted = projector.ReceivedCalls()
+            .Single(call => call.GetMethodInfo().Name
+                == nameof(IRealtimeProjector<FuturesEodDataRealtimeActor>.ProcessRealtimeEventAsync))
+            .GetArguments()[0]
+            .Should().BeOfType<VixFuturesEodDataInsertedEvent>().Which;
+        emitted.VixFuturesTickData.ContractId.Should().Be(contractId);
+        emitted.VixFuturesTickData.Price.Should().Be(20.15m);
+        emitted.VixFuturesTickData.Size.Should().Be(0);
+        emitted.VixFuturesTickData.TickId.Should().Be(77);
+        emitted.EventSource.Should().Be(nameof(FuturesMarketPriceUpdatedRealtimeEvent));
     }
 
     [Fact]
@@ -479,6 +546,8 @@ public sealed class TickerStreamActorWorkflowTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> MarketPrice { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<FuturesMarketPriceUpdatedRealtimeEvent> TradeMarketPrice { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync()
@@ -490,6 +559,8 @@ public sealed class TickerStreamActorWorkflowTests
         public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent @event)
         {
             MarketPrice.TrySetResult(@event);
+            if (@event.UpdateSource == FuturesMarketPriceUpdateSource.Trade)
+                TradeMarketPrice.TrySetResult(@event);
             return ValueTask.CompletedTask;
         }
 

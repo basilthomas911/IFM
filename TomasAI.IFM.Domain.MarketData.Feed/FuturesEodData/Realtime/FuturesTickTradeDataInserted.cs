@@ -58,10 +58,10 @@ internal static class FuturesTickTradeDataInserted
                 return true;
 
             var tickData = ToFuturesTickData(source);
-            if (contract.Id.IsVixContract)
+            if (contract.Id.IsVxContract)
             {
                 return await projector.ProcessRealtimeEventAsync(
-                        CreateVixInsertedEvent(source, tickData))
+                        VxFuturesEodDataEventFactory.Create(source, tickData))
                     .ConfigureAwait(false);
             }
 
@@ -166,30 +166,6 @@ internal static class FuturesTickTradeDataInserted
             EventSource = nameof(FuturesTickTradeDataInsertedEvent),
             ReceivedOn = DateTime.UtcNow,
             FuturesEodData = eodData,
-            CreatedOn = DateTime.UtcNow,
-            CreatedBy = source.UserName
-        };
-    }
-
-    static VixFuturesEodDataInsertedEvent CreateVixInsertedEvent(
-        FuturesTickTradeDataInsertedEvent source,
-        FuturesTickDataV2ReadModel tickData)
-    {
-        var entityId = new FuturesEodDataId(tickData.ContractId, tickData.ValueDate);
-        return new VixFuturesEodDataInsertedEvent
-        {
-            Subject = new ActorSubject(
-                ActorType.Realtime,
-                FuturesEodDataRealtimeActor.ActorName,
-                VixFuturesEodDataInsertedEvent.Verb,
-                entityId.Format()),
-            Id = Guid.NewGuid(),
-            EntityId = entityId,
-            CommandId = source.CommandId,
-            AggregateId = source.AggregateId,
-            EventSource = nameof(FuturesTickTradeDataInsertedEvent),
-            ReceivedOn = DateTime.UtcNow,
-            VixFuturesTickData = tickData,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
         };

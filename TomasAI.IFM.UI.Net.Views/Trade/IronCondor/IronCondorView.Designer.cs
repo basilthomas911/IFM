@@ -2751,7 +2751,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // colVixVolatilityFD
             // 
-            colVixVolatilityFD.Text = "Vix Vol";
+            colVixVolatilityFD.Text = "VX Vol";
             colVixVolatilityFD.Width = 130;
             // 
             // pnlPutSpreadProbRT
@@ -2773,7 +2773,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             lblVixVolatility.Name = "lblVixVolatility";
             lblVixVolatility.Size = new Size(59, 18);
             lblVixVolatility.TabIndex = 1;
-            lblVixVolatility.Text = "Vix Vol";
+            lblVixVolatility.Text = "VX Vol";
             // 
             // dataGridViewTextBoxColumn1
             // 

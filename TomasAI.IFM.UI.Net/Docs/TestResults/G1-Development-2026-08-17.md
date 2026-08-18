@@ -11,7 +11,7 @@
 | Cleanup | Succeeded |
 | Source revision | The commit containing this summary; evidence was produced from its pre-commit worktree |
 
-The accepted run started the real API and WinForms desktop, verified 83 registered actor types, and established its expected state through typed NATS queries. It proved initialized shell/status behavior, 19 visible status rows, populated market-outlook values, three ES chart points, one current VX/VIX chart point, and all five economic-calendar ranges.
+The accepted run started the real API and WinForms desktop, verified 83 registered actor types, and established its expected state through typed NATS queries. It proved initialized shell/status behavior, 19 visible status rows, populated market-outlook values, three ES chart points, one current VX chart point, and all five economic-calendar ranges.
 
 The modal catalog audit rendered all three Market Data views (2,430 ES options, 7 futures contracts, and the yield-curve view), both Reference views (25 lookup names and the economic-calendar editor), 12 valid named funds with balance/transaction/profit-and-loss state, existing Trade order/trade state without submitting a command, and the supported Backup Databases System Administration view. Legacy `JobScheduler` reference data was intentionally not advertised because scheduled-task redesign remains deferred.
 

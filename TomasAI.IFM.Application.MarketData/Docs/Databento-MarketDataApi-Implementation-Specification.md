@@ -781,14 +781,15 @@ Task<decimal> GetFuturesPriceAsync(string futuresContractId);
 
 Require a running epoch and resolve the ID as a configured futures contract.
 Obtain the same reader returned by `GetFuturesLastPriceReader` and call
-`TryGetLastTrade`. Return its exact decimal trade price only when the snapshot
+`TryGetLastTrade`. Return its exact decimal trade price when the snapshot
 belongs to the current contract/value date and is within
-`MaximumLastPriceAge`.
+`MaximumLastPriceAge`. When no qualifying trade exists, call `TryGetLastQuote`
+and return the exact midpoint of a fresh, positive, non-crossed, two-sided quote.
 
-Because the return type is non-nullable, the absence of a qualifying current
-trade produces `FuturesLastPriceUnavailableException`; it never returns zero
-and never falls back to a quote midpoint, provider query, replay, actor, or
-storage read. The
+Because the return type is non-nullable, the absence of both a qualifying trade
+and quote midpoint produces `FuturesLastPriceUnavailableException`; it never
+returns zero and never falls back to a provider query, replay, actor, or storage
+read. The
 method retains `Task<decimal>` for application-contract compatibility even
 though the completed implementation is an in-memory read.
 
@@ -837,7 +838,7 @@ bool IsTickDataStreamActive(string contractId);
 
 These are provider-neutral, stream-independent hot-cache reads for timer-derived and other sampling consumers. They delegate through the active epoch to TickAggregation and never register an owner, activate a transient route, or extend stream lifetime. The option operation returns the same normalized trade/quote view plus optional Greeks only when the enrichment sequence aligns with the selected observation.
 
-TickAggregation stores the same normalized combined snapshot used by `FuturesMarketPriceUpdatedRealtimeEvent`. Quote observations refresh the cached quote side; accepted trade observations refresh the trade side and publish the Core NATS realtime event containing that exact snapshot. Duplicate or older observations do not replace the cached side. A price method returns `false` for an unknown contract or before the first observation. It performs no provider query, database access, or replay.
+TickAggregation stores the same normalized combined snapshot used by `FuturesMarketPriceUpdatedRealtimeEvent`. Quote observations refresh the cached quote side; accepted trade observations refresh the trade side and publish the Core NATS realtime event containing that exact snapshot. An accepted VX quote also publishes the event immediately with `UpdateSource = Quote`; this is the sparse-trade fallback used by VX EOD and UI bars and does not wait for the pooled quote-storage batch. ES and futures-option quotes do not add this realtime publication load. Duplicate or older observations do not replace the cached side. A price method returns `false` for an unknown contract or before the first observation. It performs no provider query, database access, or replay.
 
 `IsTickDataStreamActive` checks the owner-keyed runtime registration pool. A client requiring live data checks it before using a cached snapshot, but this is not enforced by either price method. Therefore an inactive stream can still expose its last observation, while an active stream can temporarily have no snapshot before its first tick arrives.
 
@@ -2133,6 +2134,7 @@ Coding begins after these decisions are accepted.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.8 | 2026-08-18 | Made VX terminology authoritative for the VX futures contract; added immediate accepted-VX-quote market-price publication, trade-or-valid-quote midpoint futures-price resolution, and quote-driven VX EOD/UI behavior without waiting for quote-batch storage. |
 | 1.7 | 2026-08-17 | Made multi-dataset epoch startup/catalog hydration and feed shutdown concurrent, established a five-second feed-stop bound, and made the shared tick-event publisher reference-counted so its transport starts once and remains available until the final dataset aggregation drains. Recorded the accepted 25/25 Development G0 lifecycle result. |
 | 1.6 | 2026-08-10 | Removed the redundant application `IMarketDataSnapshotApi`; contract-definition queries, hot-price access, and live controls now use only `IMarketDataApi`. Clarified that one application API may own multiple protocol-specific DataBento query/feed transports inside the same epoch. |
 | 1.5 | 2026-08-10 | Recorded the Phase A production implementation: application-owned epoch/API orchestration, bounded bidirectional contract resolution, multi-asset aggregation, allocation-free DataBento hot readers, transient activation routing and publishers, non-persistent option-chain sessions/state/drain, separate DI boundaries, health, unit/live gates, and benchmark evidence. FMP rate selection, Black-76 production enrichment, and public option-chain start remain Phase B. |

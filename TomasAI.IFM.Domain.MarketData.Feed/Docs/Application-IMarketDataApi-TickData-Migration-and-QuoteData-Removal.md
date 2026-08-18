@@ -367,7 +367,7 @@ the aggregation storage/query model, while current-price reads use
 
 ### Existing side effects
 
-The existing `FuturesTickDataInserted` path triggers futures EOD/VIX behavior.
+The existing `FuturesTickDataInserted` path triggers futures EOD/VX behavior.
 Preserve transaction-dependent behavior with a listener on the durable
 aggregation inserted or insert-complete trade event filtered to
 `AssetTypeId.Futures`. Map the aggregation trade to the existing downstream
@@ -754,7 +754,7 @@ state, but it is not the authoritative provider tick cache.
 - Migrate `MarketDataFeedEventActor` lifecycle.
 - Migrate `FuturesTickData` start and stop behavior.
 - Remove its duplicate raw-tick insert.
-- Move transaction-dependent EOD/VIX behavior to the durable aggregation event.
+- Move transaction-dependent EOD/VX behavior to the aggregation event.
 
 ### Phase 4: Futures-option migration
 
@@ -960,7 +960,7 @@ Delete or edit the following categories after their replacement paths succeed.
 - The Iron Condor order UI receives bid/ask changes by option contract ID.
 - Adding and removing a leg activates/deactivates the expected route.
 - Disposing the UI leaves no live listener or route owned by that view.
-- Required EOD/VIX and option-trade side effects occur once.
+- Required EOD/VX and option-trade side effects occur once.
 - Duplicate or out-of-order source sequences are handled deterministically.
 
 ### 19.5 Runtime gates
