@@ -6,6 +6,35 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 public sealed class G2InfrastructureTests
 {
     [Fact]
+    public void Api_configuration_preserves_environment_override_precedence()
+    {
+        var repositoryRoot = G0Configuration.Load().RepositoryRoot;
+        var source = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "TomasAI.IFM.Application.Api.Server",
+            "Startup.cs"));
+        var environmentJson = source.IndexOf(
+            "AddJsonFile($\"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json\"",
+            StringComparison.Ordinal);
+        var environmentVariables = source.IndexOf(
+            ".AddEnvironmentVariables()",
+            StringComparison.Ordinal);
+
+        environmentJson.Should().BeGreaterThanOrEqualTo(0);
+        environmentVariables.Should().BeGreaterThan(
+            environmentJson,
+            "environment variables must override the checked-in environment JSON");
+    }
+
+    [Fact]
+    public void Combo_accessible_name_exposes_selected_bound_item_before_stale_provider_selection()
+    {
+        G1UiAutomationSession.ParseNamedComboSelection(
+                "Fund selector; selected=IFM G2 Automation Fund; catalog: Existing, IFM G2 Automation Fund")
+            .Should().Be("IFM G2 Automation Fund");
+    }
+
+    [Fact]
     public void Mutation_safety_policy_accepts_only_test_databases_and_contained_backup_output()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ifm-g2-{Guid.NewGuid():N}");
@@ -85,6 +114,10 @@ public sealed class G2InfrastructureTests
             .Should().Be(4, "economic-calendar must expose add/change/remove/import source-event routes");
         registrations.Count(item => item.Family == "LookupType" && item.Success is null)
             .Should().Be(3, "lookup maintenance must expose add/change/remove source-event routes");
+        registrations.Count(item => item.Family == "Fund" && item.Success is null)
+            .Should().Be(1, "fund creation must expose its source-event route");
+        registrations.Count(item => item.Family == "FundTransaction" && item.Success is null)
+            .Should().Be(1, "fund transactions must expose their source-event route");
         registrations.Should().OnlyContain(item =>
             !string.IsNullOrWhiteSpace(item.Actor)
             && !string.IsNullOrWhiteSpace(item.Verb)
@@ -128,6 +161,9 @@ public sealed class G2InfrastructureTests
             EconomicCalendarManualDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(2).AddDays(2)),
             ImportCountryCodes = ["US"],
             FundFixtureName = "IFM G2 Automation Fund",
+            RetainFundFixture = false,
+            FundFixtureInitialBalance = 100_000m,
+            FundTransactionAmount = 123.45m,
             SecuritiesSymbol = "ES",
             SecuritiesMaturityDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(2)),
             SecuritiesOptionStrike = 4500,

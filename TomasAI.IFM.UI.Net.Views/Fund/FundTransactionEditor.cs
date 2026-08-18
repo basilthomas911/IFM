@@ -2,7 +2,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using System.Data;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
-using TomasAI.IFM.UI.Net.ViewModels.Fund;
+using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Models;
 
@@ -57,7 +57,10 @@ public partial class FundTransactionEditor
         => await LoadFundsAsync();
 
     async void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
-        => await LoadSelectedFundDetailsAsync();
+    {
+        UpdateFundSelectorAccessibility();
+        await LoadSelectedFundDetailsAsync();
+    }
 
     async void dtpFrom_ValueChanged(object sender, EventArgs e)
     {
@@ -73,6 +76,12 @@ public partial class FundTransactionEditor
 
     async void btnAdjust_Click(object sender, EventArgs e)
         => await OnAdjustClickedAsync();
+
+    async void btnDeposit_Click(object sender, EventArgs e)
+        => await OnCashTransactionClickedAsync(FundTransactionType.CashDeposit);
+
+    async void btnWithdraw_Click(object sender, EventArgs e)
+        => await OnCashTransactionClickedAsync(FundTransactionType.CashWithdrawal);
 
     async Task LoadFundsAsync()
     {
@@ -140,6 +149,34 @@ public partial class FundTransactionEditor
         }
     }
 
+    async Task OnCashTransactionClickedAsync(FundTransactionType transactionType)
+    {
+        if (_viewModel is null)
+            return;
+        var index = ddlFund.SelectedIndex;
+        var fund = index >= 0 && index < _viewModel.Funds.Count
+            ? _viewModel.Funds[index]
+            : null;
+        if (fund is null)
+            return;
+
+        var valueDate = await _viewModel.GetValueDateAsync(CancellationToken.None);
+        using var dialog = new FundCashTransactionEditor(new FundCashTransactionViewModel(
+            _viewModel.AppRoot,
+            fund with { Balance = _viewModel.FundBalance },
+            valueDate,
+            transactionType));
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            var displayDate = valueDate.ToDateTime(TimeOnly.MinValue);
+            if (displayDate < dtpFrom.Value.Date)
+                dtpFrom.Value = displayDate;
+            if (displayDate > dtpTo.Value.Date)
+                dtpTo.Value = displayDate;
+            await LoadSelectedFundDetailsAsync();
+        }
+    }
+
     void FundTransactionEditor_FormClosed(object sender, FormClosedEventArgs e)
     {
         UnsubscribeFromOperations();
@@ -196,9 +233,12 @@ public partial class FundTransactionEditor
         ddlFund.AccessibleDescription = string.Join(", ", _viewModel.Funds.Select(fund => fund.Name));
         if (ddlFund.Items.Count > 0)
             ddlFund.SelectedIndex = 0;
-        ddlFund.AccessibleName = $"Fund selector; selected={ddlFund.SelectedItem}; "
-            + $"catalog: {ddlFund.AccessibleDescription}";
+        UpdateFundSelectorAccessibility();
     }
+
+    void UpdateFundSelectorAccessibility()
+        => ddlFund.AccessibleName = $"Fund selector; selected={ddlFund.SelectedItem}; "
+            + $"catalog: {ddlFund.AccessibleDescription}";
 
     void BindFundDetails()
     {
@@ -237,6 +277,8 @@ public partial class FundTransactionEditor
             dtpFrom.Enabled = !isBusy;
             dtpTo.Enabled = !isBusy;
             btnAdjust.Enabled = !isBusy && gridTransactions.RowCount > 0;
+            btnDeposit.Enabled = !isBusy && ddlFund.SelectedIndex >= 0;
+            btnWithdraw.Enabled = !isBusy && ddlFund.SelectedIndex >= 0;
         });
     }
 

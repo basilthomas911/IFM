@@ -16,6 +16,9 @@ public sealed class G2Configuration
     public required DateOnly EconomicCalendarManualDate { get; init; }
     public required string[] ImportCountryCodes { get; init; }
     public required string FundFixtureName { get; init; }
+    public required bool RetainFundFixture { get; init; }
+    public required decimal FundFixtureInitialBalance { get; init; }
+    public required decimal FundTransactionAmount { get; init; }
     public required string SecuritiesSymbol { get; init; }
     public required DateOnly SecuritiesMaturityDate { get; init; }
     public required int SecuritiesOptionStrike { get; init; }
@@ -50,6 +53,9 @@ public sealed class G2Configuration
                 fixtureDate.AddDays(2)),
             ImportCountryCodes = ReadList("IFM_G2_COUNTRY_CODES", ["US"]),
             FundFixtureName = Read("IFM_G2_FUND_NAME", DefaultFundFixtureName),
+            RetainFundFixture = ReadBoolean("IFM_G2_RETAIN_FUND_FIXTURE", false),
+            FundFixtureInitialBalance = ReadDecimal("IFM_G2_FUND_INITIAL_BALANCE", 100_000m),
+            FundTransactionAmount = ReadDecimal("IFM_G2_FUND_TRANSACTION_AMOUNT", 123.45m),
             SecuritiesSymbol = Read("IFM_G2_SECURITIES_SYMBOL", "ES").ToUpperInvariant(),
             SecuritiesMaturityDate = ReadDate("IFM_G2_SECURITIES_DATE", fixtureDate),
             SecuritiesOptionStrike = ReadInt(
@@ -85,6 +91,10 @@ public sealed class G2Configuration
             errors.Add("G2 import country codes must contain one or more two- or three-letter ASCII codes.");
         if (string.IsNullOrWhiteSpace(FundFixtureName))
             errors.Add("G2 designated fund fixture name is required.");
+        if (FundFixtureInitialBalance < 0m)
+            errors.Add("G2 designated fund initial balance must not be negative.");
+        if (FundTransactionAmount <= 0m)
+            errors.Add("G2 fund transaction amount must be positive.");
         if (SecuritiesSymbol.Length is < 1 or > 4
             || SecuritiesSymbol.Any(character => !char.IsAsciiLetterOrDigit(character)))
             errors.Add("G2 securities fixture symbol must contain 1-4 ASCII letters or digits.");
@@ -117,6 +127,9 @@ public sealed class G2Configuration
             EconomicCalendarManualDate,
             ImportCountryCodes,
             FundFixtureName,
+            RetainFundFixture,
+            FundFixtureInitialBalance,
+            FundTransactionAmount,
             SecuritiesSymbol,
             SecuritiesMaturityDate,
             SecuritiesOptionStrike,
@@ -211,6 +224,24 @@ public sealed class G2Configuration
             out var value)
             ? value
             : defaultValue;
+
+    static decimal ReadDecimal(string variable, decimal defaultValue)
+        => decimal.TryParse(
+            Environment.GetEnvironmentVariable(variable),
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var value)
+            ? value
+            : defaultValue;
+
+    static bool ReadBoolean(string variable, bool defaultValue)
+        => Environment.GetEnvironmentVariable(variable)?.Trim() switch
+        {
+            "1" => true,
+            "0" => false,
+            { } value when bool.TryParse(value, out var parsed) => parsed,
+            _ => defaultValue
+        };
 
     static string Read(string variable, string defaultValue)
         => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(variable))

@@ -136,6 +136,12 @@ public class FundCommandModel : BaseModel<FundCommandModel>
                 )));
 
     /// <summary>
+    /// Creates a fund transaction through the configured application client.
+    /// </summary>
+    public Task<Guid> CreateFundTransactionAsync(FundTransactionReadModel fundTransaction)
+        => ExecuteCommandAsync(() => _commandApi.CreateFundTransactionAsync(fundTransaction));
+
+    /// <summary>
     /// generate fund max profit
     /// </summary>
     /// <param name="fundOrder"></param>

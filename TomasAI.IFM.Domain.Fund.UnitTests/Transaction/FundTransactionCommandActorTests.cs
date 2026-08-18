@@ -525,6 +525,58 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         await act.Should().NotThrowAsync();
     }
 
+    [Theory]
+    [InlineData(FundTransactionType.CashDeposit)]
+    [InlineData(FundTransactionType.CashWithdrawal)]
+    [InlineData(FundTransactionType.CashDepositAdjustment)]
+    [InlineData(FundTransactionType.CashWithdrawalAdjustment)]
+    public async Task OnValidateAsync_CashTransaction_DoesNotRequireTradeIdentifiers(
+        FundTransactionType transactionType)
+    {
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
+        var actor = _fixture.CreateActor(dbEventSource, logger);
+        var transaction = SampleData.FundTransaction with
+        {
+            TransactionType = transactionType,
+            OrderId = 0,
+            TradeId = 0
+        };
+        var command = CreateCommand(transaction);
+        var context = Substitute.For<ICommandActorContext>();
+
+        Func<Task> act = async () =>
+            await actor.InvokeOnValidateAsync(context, command.Subject.ThreadId, command);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Theory]
+    [InlineData(FundTransactionType.OpeningTrade)]
+    [InlineData(FundTransactionType.TradeCommission)]
+    [InlineData(FundTransactionType.UnrealizedTradePnl)]
+    [InlineData(FundTransactionType.RealizedTradePnl)]
+    public async Task OnValidateAsync_TradeTransaction_RequiresTradeIdentifiers(
+        FundTransactionType transactionType)
+    {
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
+        var actor = _fixture.CreateActor(dbEventSource, logger);
+        var transaction = SampleData.FundTransaction with
+        {
+            TransactionType = transactionType,
+            OrderId = 0,
+            TradeId = 0
+        };
+        var command = CreateCommand(transaction);
+        var context = Substitute.For<ICommandActorContext>();
+
+        Func<Task> act = async () =>
+            await actor.InvokeOnValidateAsync(context, command.Subject.ThreadId, command);
+
+        await act.Should().ThrowAsync<TomasAI.IFM.Shared.Exceptions.CommandValidationException>();
+    }
+
     [Fact]
     public async Task OnValidateAsync_CreateFundTransactionCommand_ThrowsCommandValidationException_WhenFundIdIsInvalid()
     {

@@ -27,6 +27,16 @@ public enum FundTransactionType
 
 public static class FundTransactionTypeExtensions
 {
+    public static bool RequiresTradeIdentifiers(this FundTransactionType value) => value is
+        FundTransactionType.OpeningTrade or
+        FundTransactionType.TradeCommission or
+        FundTransactionType.UnrealizedTradePnl or
+        FundTransactionType.RealizedTradePnl or
+        FundTransactionType.OpeningTradeAdjustment or
+        FundTransactionType.TradeCommissionAdjustment or
+        FundTransactionType.UnrealizedTradePnlAdjustment or
+        FundTransactionType.RealizedTradePnlAdjustment;
+
     public static string ToStringFast(this FundTransactionType value) => value switch
     {
         FundTransactionType.Unknown => nameof(FundTransactionType.Unknown),

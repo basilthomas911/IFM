@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -25,7 +26,9 @@ public sealed record G2ObservedCommandEvent(
     DateOnly? ImportDate,
     YieldCurveRateReadModel[]? ImportedYieldCurveRates,
     string[]? ImportCountryCodes,
-    EconomicCalendarReadModel[]? ImportedEconomicCalendars);
+    EconomicCalendarReadModel[]? ImportedEconomicCalendars,
+    FundReadModel? Fund,
+    FundTransactionReadModel? FundTransaction);
 
 public sealed record G2CommandListenerRegistration(
     string Family,
@@ -101,8 +104,10 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<LookupTypeRemovedCompleteEvent>("LookupType", LookupTypeRemovedCompleteEvent.Actor, LookupTypeRemovedCompleteEvent.Verb, true),
         Route<LookupTypeRemovedFailEvent>("LookupType", LookupTypeRemovedFailEvent.Actor, LookupTypeRemovedFailEvent.Verb, false),
 
+        Route<FundCreatedEvent>("Fund", FundCreatedEvent.Actor, FundCreatedEvent.Verb, null),
         Route<FundCreatedCompleteEvent>("Fund", FundCreatedCompleteEvent.Actor, FundCreatedCompleteEvent.Verb, true),
         Route<FundCreatedFailEvent>("Fund", FundCreatedFailEvent.Actor, FundCreatedFailEvent.Verb, false),
+        Route<FundTransactionEvent>("FundTransaction", FundTransactionEvent.Actor, FundTransactionEvent.Verb, null),
         Route<FundTransactionCreatedCompleteEvent>("FundTransaction", FundTransactionCreatedCompleteEvent.Actor, FundTransactionCreatedCompleteEvent.Verb, true),
         Route<FundTransactionCreatedFailEvent>("FundTransaction", FundTransactionCreatedFailEvent.Actor, FundTransactionCreatedFailEvent.Verb, false),
 
@@ -239,6 +244,18 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         var importedCalendars = domainEvent is EconomicCalendarsImportedCompleteEvent calendarCompleted
             ? calendarCompleted.EconomicCalendars
             : null;
+        var fund = domainEvent switch
+        {
+            FundCreatedEvent value => value.NewFund,
+            FundCreatedCompleteEvent value => value.NewFund,
+            _ => null
+        };
+        var fundTransaction = domainEvent switch
+        {
+            FundTransactionEvent value => value.FundTransaction,
+            FundTransactionCreatedCompleteEvent value => value.FundTransaction,
+            _ => null
+        };
         _events.Enqueue(new G2ObservedCommandEvent(
             DateTimeOffset.UtcNow,
             route.Family,
@@ -250,7 +267,9 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             importDate,
             importedRates,
             importCountryCodes,
-            importedCalendars));
+            importedCalendars,
+            fund,
+            fundTransaction));
         return ValueTask.CompletedTask;
     }
 

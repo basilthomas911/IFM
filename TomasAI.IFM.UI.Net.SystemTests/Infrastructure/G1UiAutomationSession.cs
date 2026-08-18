@@ -8,6 +8,8 @@ using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.UIA3;
+using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
@@ -611,6 +613,134 @@ public sealed class G1UiAutomationSession : IDisposable
             window, fixture.ChangedLookupType, present: false, timeout, cancellationToken);
     }
 
+    public async Task<G2CreatedFundUiState> CreateFundAsync(
+        Window tradeWindow,
+        G2FundFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        PostButtonClick(tradeWindow, "btnCreateFund");
+        var dialog = await WaitForWindowAsync("Create Fund", timeout, cancellationToken);
+        var fundIdText = await WaitUntilAsync(
+            () => int.TryParse(ReadText(dialog, "txtFundId"), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out var value) && value > 0
+                ? value.ToString(CultureInfo.InvariantCulture)
+                : null,
+            timeout,
+            "The Create Fund dialog did not resolve a positive fund identifier.",
+            cancellationToken);
+        SetText(dialog, "txtFundName", fixture.FundName);
+        SetText(dialog, "txtDescription", fixture.FundDescription);
+        SetText(dialog, "txtInitialBalance", fixture.InitialBalance.ToString(CultureInfo.CurrentCulture));
+        PostButtonClick(dialog, "btnSave");
+        await WaitUntilAsync(
+            () => TopLevelWindows().All(window =>
+                    !string.Equals(window.Title, "Create Fund", StringComparison.OrdinalIgnoreCase))
+                ? "closed"
+                : null,
+            timeout,
+            "The Create Fund dialog did not close after submission.",
+            cancellationToken);
+        return new G2CreatedFundUiState(
+            int.Parse(fundIdText, CultureInfo.InvariantCulture),
+            fixture.FundName,
+            fixture.InitialBalance);
+    }
+
+    public async Task<G2FundTransactionUiState> SelectFundAsync(
+        Window fundWindow,
+        string fundName,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectComboValueAsync(fundWindow, "ddlFund", fundName, timeout, cancellationToken);
+        return await WaitUntilAsync(
+            () => ReadFundTransactionState(fundWindow, fundName),
+            timeout,
+            $"Fund '{fundName}' did not render its balance and transaction state.",
+            cancellationToken);
+    }
+
+    public async Task<G2FundTransactionUiState> CreateCashTransactionAsync(
+        Window fundWindow,
+        string fundName,
+        FundTransactionType transactionType,
+        decimal amount,
+        string description,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectFundAsync(fundWindow, fundName, timeout, cancellationToken);
+        var buttonId = transactionType switch
+        {
+            FundTransactionType.CashDeposit => "btnDeposit",
+            FundTransactionType.CashWithdrawal => "btnWithdraw",
+            _ => throw new ArgumentOutOfRangeException(nameof(transactionType), transactionType, null)
+        };
+        var title = transactionType == FundTransactionType.CashDeposit
+            ? "Create Cash Deposit"
+            : "Create Cash Withdrawal";
+        PostButtonClick(fundWindow, buttonId);
+        var dialog = await WaitForWindowAsync(title, timeout, cancellationToken);
+        await WaitForEnabledAsync(dialog, "txtAmount", timeout, cancellationToken);
+        SetText(dialog, "txtAmount", amount.ToString(CultureInfo.CurrentCulture));
+        SetText(dialog, "txtDescription", description);
+        await WaitForEnabledAsync(dialog, "btnSave", timeout, cancellationToken);
+        PostButtonClick(dialog, "btnSave");
+        await WaitUntilAsync(
+            () => TopLevelWindows().All(window =>
+                    !string.Equals(window.Title, title, StringComparison.OrdinalIgnoreCase))
+                ? "closed"
+                : null,
+            timeout,
+            $"The '{title}' dialog did not close after its terminal event.",
+            cancellationToken);
+        return await WaitUntilAsync(
+            () =>
+            {
+                var state = ReadFundTransactionState(fundWindow, fundName);
+                return state?.Rows.Any(row => row.Contains(description, StringComparison.Ordinal)) == true
+                    ? state
+                    : null;
+            },
+            timeout,
+            $"Fund '{fundName}' did not visibly render transaction '{description}'.",
+            cancellationToken);
+    }
+
+    public async Task<G2FundTransactionUiState> WaitForFundTransactionStateAsync(
+        Window fundWindow,
+        string fundName,
+        string[] requiredDescriptions,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var state = ReadFundTransactionState(fundWindow, fundName);
+                return state is not null && requiredDescriptions.All(description =>
+                    state.Rows.Any(row => row.Contains(description, StringComparison.Ordinal)))
+                    ? state
+                    : null;
+            },
+            timeout,
+            $"Fund '{fundName}' did not render the required transaction history.",
+            cancellationToken);
+
+    G2FundTransactionUiState? ReadFundTransactionState(Window fundWindow, string fundName)
+    {
+        var selector = RequireDescendant(fundWindow, "ddlFund").AsComboBox();
+        if (!string.Equals(ReadSelectedComboValue(selector), fundName, StringComparison.Ordinal))
+            return null;
+        var balance = ReadText(fundWindow, "txtFundBalance");
+        if (string.IsNullOrWhiteSpace(balance))
+            return null;
+        return new G2FundTransactionUiState(
+            fundName,
+            balance,
+            ReadDataGridRows(RequireDescendant(fundWindow, "gridTransactions")));
+    }
+
     public string ReadStatusText()
     {
         var statusBar = FindDescendant(MainWindow, "statusBar", "statusStrip1")
@@ -970,10 +1100,39 @@ public sealed class G1UiAutomationSession : IDisposable
             timeout,
             $"The '{automationId}' selector did not expose '{value}'.",
             cancellationToken);
-        SelectComboIndex(combo, items
+        var targetIndex = items
             .Select((item, index) => (item, index))
             .Single(pair => string.Equals(pair.item, value, StringComparison.Ordinal))
-            .index);
+            .index;
+
+        var selectedThroughAutomation = false;
+        try
+        {
+            combo.Expand();
+            var target = combo.Items.SingleOrDefault(item =>
+                string.Equals(item.Text, value, StringComparison.Ordinal));
+            if (target is not null)
+            {
+                target.Select();
+                selectedThroughAutomation = true;
+            }
+        }
+        finally
+        {
+            try { combo.Collapse(); }
+            catch { /* The provider may already have collapsed after selection. */ }
+        }
+
+        if (!selectedThroughAutomation)
+            SelectComboIndex(combo, targetIndex);
+
+        await WaitUntilAsync(
+            () => string.Equals(ReadSelectedComboValue(combo), value, StringComparison.Ordinal)
+                ? value
+                : null,
+            timeout,
+            $"The '{automationId}' selector did not select '{value}'.",
+            cancellationToken);
     }
 
     static void SelectListItem(AutomationElement root, string automationId, string value)
@@ -1178,13 +1337,33 @@ public sealed class G1UiAutomationSession : IDisposable
 
     static string ReadSelectedComboValue(FlaUI.Core.AutomationElements.ComboBox combo)
     {
+        var name = combo.Name ?? string.Empty;
+        var namedSelection = ParseNamedComboSelection(name);
+        if (!string.IsNullOrWhiteSpace(namedSelection))
+            return namedSelection;
+
         var selected = combo.SelectedItem?.Text;
         if (!string.IsNullOrWhiteSpace(selected))
             return selected;
 
-        var label = (combo.Name ?? string.Empty).Split(';', 2)[0];
+        var label = name.Split(';', 2)[0];
         var separator = label.LastIndexOf(':');
         return separator >= 0 ? label[(separator + 1)..].Trim() : string.Empty;
+    }
+
+    internal static string ParseNamedComboSelection(string name)
+    {
+        const string selectedMarker = "; selected=";
+        var selectedIndex = name.IndexOf(selectedMarker, StringComparison.OrdinalIgnoreCase);
+        if (selectedIndex >= 0)
+        {
+            var valueStart = selectedIndex + selectedMarker.Length;
+            var catalogIndex = name.IndexOf("; catalog:", valueStart, StringComparison.OrdinalIgnoreCase);
+            var namedSelection = (catalogIndex < 0 ? name[valueStart..] : name[valueStart..catalogIndex]).Trim();
+            if (!string.IsNullOrWhiteSpace(namedSelection))
+                return namedSelection;
+        }
+        return string.Empty;
     }
 
     static void SelectYieldCurveRow(AutomationElement root, DateOnly valueDate)
@@ -2230,6 +2409,16 @@ public sealed record G1FundWindowState(
     string Balance,
     int TransactionRows,
     string ProfitLoss);
+
+public sealed record G2CreatedFundUiState(
+    int FundId,
+    string FundName,
+    decimal InitialBalance);
+
+public sealed record G2FundTransactionUiState(
+    string FundName,
+    string Balance,
+    IReadOnlyList<string> Rows);
 
 public sealed record G1TradeWindowState(
     IReadOnlyList<string> Funds,

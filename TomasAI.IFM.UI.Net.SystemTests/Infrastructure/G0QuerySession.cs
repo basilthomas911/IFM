@@ -24,6 +24,7 @@ public sealed class G0QuerySession : IAsyncDisposable
         Reference = new ReferenceQueryApi(_producer);
         ReferenceCommands = new ReferenceCommandApi(_producer);
         Fund = new FundQueryApi(_producer);
+        FundCommands = new FundCommandApi(_producer);
     }
 
     public MarketDataQueryApi MarketData { get; }
@@ -34,6 +35,7 @@ public sealed class G0QuerySession : IAsyncDisposable
     public ReferenceQueryApi Reference { get; }
     public ReferenceCommandApi ReferenceCommands { get; }
     public FundQueryApi Fund { get; }
+    public FundCommandApi FundCommands { get; }
 
     public ValueTask StartAsync(
         string runId,

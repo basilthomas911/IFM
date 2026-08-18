@@ -83,6 +83,16 @@ public sealed class FundTransactionEditorViewModel : ObservableObject
     public FundTransactionReadModel? GetFundTransaction(int index)
         => index >= 0 && index < FundTransactions.Count ? FundTransactions[index] : null;
 
+    public async Task<DateOnly> GetValueDateAsync(CancellationToken cancellationToken)
+    {
+        DateOnly? valueDate = null;
+        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteObservableAsync(
+            model => model.GetValueDateAsync(value => valueDate = value),
+            cancellationToken);
+        return valueDate
+            ?? throw new InvalidOperationException("A trading value date is required for a cash transaction.");
+    }
+
     Task LoadFundsCoreAsync(CancellationToken cancellationToken)
         => _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(
             async model =>

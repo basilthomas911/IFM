@@ -35,6 +35,8 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             DataGridViewCellStyle dataGridViewCellStyle4 = new DataGridViewCellStyle();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FundTransactionEditor));
             pnlFundSelector = new Panel();
+            btnWithdraw = new Button();
+            btnDeposit = new Button();
             btnAdjust = new Button();
             lblFundBalance = new Label();
             txtFundBalance = new TextBox();
@@ -98,6 +100,8 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             // pnlFundSelector
             // 
             pnlFundSelector.BackColor = Color.FromArgb(64, 64, 64);
+            pnlFundSelector.Controls.Add(btnWithdraw);
+            pnlFundSelector.Controls.Add(btnDeposit);
             pnlFundSelector.Controls.Add(btnAdjust);
             pnlFundSelector.Controls.Add(lblFundBalance);
             pnlFundSelector.Controls.Add(txtFundBalance);
@@ -113,6 +117,32 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             pnlFundSelector.Name = "pnlFundSelector";
             pnlFundSelector.Size = new Size(2176, 37);
             pnlFundSelector.TabIndex = 1;
+            //
+            // btnWithdraw
+            //
+            btnWithdraw.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnWithdraw.ForeColor = Color.Black;
+            btnWithdraw.Location = new Point(1935, 2);
+            btnWithdraw.Margin = new Padding(2);
+            btnWithdraw.Name = "btnWithdraw";
+            btnWithdraw.Size = new Size(113, 28);
+            btnWithdraw.TabIndex = 18;
+            btnWithdraw.Text = "Withdraw...";
+            btnWithdraw.UseVisualStyleBackColor = true;
+            btnWithdraw.Click += btnWithdraw_Click;
+            //
+            // btnDeposit
+            //
+            btnDeposit.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnDeposit.ForeColor = Color.Black;
+            btnDeposit.Location = new Point(1812, 2);
+            btnDeposit.Margin = new Padding(2);
+            btnDeposit.Name = "btnDeposit";
+            btnDeposit.Size = new Size(113, 28);
+            btnDeposit.TabIndex = 17;
+            btnDeposit.Text = "Deposit...";
+            btnDeposit.UseVisualStyleBackColor = true;
+            btnDeposit.Click += btnDeposit_Click;
             // 
             // btnAdjust
             // 
@@ -132,7 +162,7 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             lblFundBalance.AutoSize = true;
             lblFundBalance.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             lblFundBalance.ForeColor = Color.White;
-            lblFundBalance.Location = new Point(1747, 6);
+            lblFundBalance.Location = new Point(1570, 6);
             lblFundBalance.Margin = new Padding(2, 0, 2, 0);
             lblFundBalance.Name = "lblFundBalance";
             lblFundBalance.Size = new Size(63, 17);
@@ -145,7 +175,7 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
             txtFundBalance.BorderStyle = BorderStyle.FixedSingle;
             txtFundBalance.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             txtFundBalance.ForeColor = Color.White;
-            txtFundBalance.Location = new Point(1814, 3);
+            txtFundBalance.Location = new Point(1637, 3);
             txtFundBalance.Margin = new Padding(2);
             txtFundBalance.Name = "txtFundBalance";
             txtFundBalance.ReadOnly = true;
@@ -773,6 +803,8 @@ namespace TomasAI.IFM.UI.Net.Views.Fund
         private System.Windows.Forms.Label lblWinLossRatio;
         private System.Windows.Forms.TextBox txtWinLossRatio;
         private BindingSource fundTransactionsBindingSource;
+        private Button btnDeposit;
+        private Button btnWithdraw;
         private Button btnAdjust;
     }
 }

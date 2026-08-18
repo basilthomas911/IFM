@@ -1,6 +1,7 @@
 using FluentValidation;
 using FluentValidation.Results;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Validation;
@@ -33,8 +34,14 @@ public class FundTransactionValidationRules : BaseValidationRules, IValidationRu
         public FundTransactionValidator()
         {
             RuleFor(x => x.FundId).GreaterThan(0).WithMessage("FundTransaction.FundId is zero or negative");
-            RuleFor(x => x.OrderId).GreaterThan(0).WithMessage("FundTransaction.OrderId is zero or negative");
-            RuleFor(x => x.TradeId).GreaterThan(0).WithMessage("FundTransaction.TradeId is zero or negative");
+            RuleFor(x => x.OrderId)
+                .GreaterThan(0)
+                .When(x => x.TransactionType.RequiresTradeIdentifiers())
+                .WithMessage("FundTransaction.OrderId is zero or negative");
+            RuleFor(x => x.TradeId)
+                .GreaterThan(0)
+                .When(x => x.TransactionType.RequiresTradeIdentifiers())
+                .WithMessage("FundTransaction.TradeId is zero or negative");
             RuleFor(x => x.TransactionDate).Must(d => d != DateTime.MinValue && d != DateTime.MaxValue).WithMessage("FundTransaction.TransactionDate is invalid");
             RuleFor(x => x.ValueDate).Must(d => d != DateOnly.MinValue && d != DateOnly.MaxValue).WithMessage("FundTransaction.ValueDate is invalid");
         }

@@ -29,6 +29,9 @@ public class FundUIEventConsumer(INatsEventListenerOptions options, ILogger logg
                = [EndOfDayFundTransactionProcessedCompleteEvent.Verb,
                    EndOfDayFundTransactionProcessedFailEvent.Verb,
                    OptionTradeEndOfDayProcessedFailEvent.Verb],
+        [new ActorMailboxId(ActorType.Event, FundTransactionCreatedCompleteEvent.Actor)]
+               = [FundTransactionCreatedCompleteEvent.Verb,
+                   FundTransactionCreatedFailEvent.Verb],
         [new ActorMailboxId(ActorType.Event, OpeningTradeFundTransactionAdjustmentCreatedEvent.Actor)]
                = [OpeningTradeFundTransactionAdjustmentCreatedEvent.CompleteName,
                    OpeningTradeFundTransactionAdjustmentCreatedEvent.FailName,
@@ -51,6 +54,10 @@ public class FundUIEventConsumer(INatsEventListenerOptions options, ILogger logg
             {
                 var valueTask = eventVerb switch
                 {
+                    _ when eventVerb == FundTransactionCreatedCompleteEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<FundTransactionCreatedCompleteEvent>()!, eventAction),
+                    _ when eventVerb == FundTransactionCreatedFailEvent.Verb
+                        => HandleEventAsync(eventMsg.AsEvent<FundTransactionCreatedFailEvent>()!, eventAction),
                     _ when eventVerb == EndOfDayFundTransactionProcessedCompleteEvent.Verb 
                         => HandleEventAsync(eventMsg.AsEvent<EndOfDayFundTransactionProcessedCompleteEvent>()!, eventAction),
                     _ when eventVerb == EndOfDayFundTransactionProcessedFailEvent.Verb 

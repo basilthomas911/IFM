@@ -362,8 +362,9 @@ They start and stop their respective NATS event consumers with the web host. Mar
 
 1. `appsettings.json` (required)
 2. `appsettings.{Environment}.json` (optional)
+3. environment variables
 
-Both are reloadable. These JSON providers are added after `CreateBuilder` has already installed its defaults, so deployments should verify provider precedence when attempting to override keys already present in JSON. Missing settings can still be supplied through an additional configuration provider.
+Both JSON files are reloadable. Environment variables are deliberately appended after them, so deployment and test-process values override checked-in JSON by using the standard double-underscore hierarchy, for example `AppSettings__Databento__DataSource=Synthetic`. This precedence is protected by the G2 infrastructure contract.
 
 Do not copy production secrets into this document or new checked-in configuration. The current environment files contain plaintext database credentials; those values should be rotated and supplied from a protected configuration source.
 

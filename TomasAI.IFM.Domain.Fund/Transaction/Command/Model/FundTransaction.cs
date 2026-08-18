@@ -131,8 +131,14 @@ public class FundTransactionValidator : AbstractValidator<FundTransaction>
 {
     public FundTransactionValidator()
     {
-        RuleFor(x => x.OrderId).GreaterThan(0).WithMessage("FundTransaction.OrderId is zero or negative");
+        RuleFor(x => x.OrderId)
+            .GreaterThan(0)
+            .When(x => x.TransactionType.RequiresTradeIdentifiers())
+            .WithMessage("FundTransaction.OrderId is zero or negative");
         RuleFor(x => x.FundId).GreaterThan(0).WithMessage("FundTransaction.FundId is zero or negative");
-        RuleFor(x => x.TradeId).GreaterThan(0).WithMessage("FundTransaction.TradeId is zero or negative");
+        RuleFor(x => x.TradeId)
+            .GreaterThan(0)
+            .When(x => x.TransactionType.RequiresTradeIdentifiers())
+            .WithMessage("FundTransaction.TradeId is zero or negative");
     }
 }

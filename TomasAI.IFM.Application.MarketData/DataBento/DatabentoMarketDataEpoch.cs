@@ -250,8 +250,15 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                     }
                     catch
                     {
-                        if (aggregation is null) feed.Dispose();
-                        else await aggregation.DisposeAsync().ConfigureAwait(false);
+                        try
+                        {
+                            if (aggregation is null) feed.Dispose();
+                            else await aggregation.DisposeAsync().ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            // Cleanup must not replace the provider/feed startup failure.
+                        }
                         throw;
                     }
                     aggregationsByDataset.Add(dataset, aggregation);
@@ -263,7 +270,10 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             catch
             {
                 foreach (var aggregation in aggregationsByDataset.Values)
-                    await aggregation.DisposeAsync().ConfigureAwait(false);
+                {
+                    try { await aggregation.DisposeAsync().ConfigureAwait(false); }
+                    catch { /* Preserve the provider/feed startup failure. */ }
+                }
                 throw;
             }
             Volatile.Write(ref _aggregationsByDataset,

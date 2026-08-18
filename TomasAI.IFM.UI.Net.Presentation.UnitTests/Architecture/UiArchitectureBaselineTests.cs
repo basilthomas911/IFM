@@ -87,6 +87,7 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.Net.Views/App/MarketEconomicCalendarView.cs",
             "TomasAI.IFM.UI.Net.Views/App/StatusConsoleView.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/AdjustFundTransactionEditor.cs",
+            "TomasAI.IFM.UI.Net.Views/Fund/FundCashTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/Fund/FundTransactionEditor.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/MarketDataForm.cs",
             "TomasAI.IFM.UI.Net.Views/MarketData/YieldCurveRateEditForm.cs",
@@ -299,8 +300,13 @@ public class UiArchitectureBaselineTests
             "TomasAI.IFM.UI.EventConsumer",
             "FundUIEventConsumer.cs");
         var source = File.ReadAllText(sourcePath);
+        source.Should().Contain(
+            "new ActorMailboxId(ActorType.Event, FundTransactionCreatedCompleteEvent.Actor)",
+            "generic fund-transaction terminal events publish from the FundTransactionEvent mailbox");
         var eventTypes = new[]
         {
+            "FundTransactionCreatedCompleteEvent",
+            "FundTransactionCreatedFailEvent",
             "OpeningTradeFundTransactionAdjustmentCreatedCompleteEvent",
             "OpeningTradeFundTransactionAdjustmentCreatedFailEvent",
             "RealizedTradePnlFundTransactionAdjustmentCreatedCompleteEvent",

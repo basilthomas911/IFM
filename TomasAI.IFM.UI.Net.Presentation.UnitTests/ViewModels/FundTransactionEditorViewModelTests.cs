@@ -3,6 +3,9 @@ using NSubstitute;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -82,6 +85,24 @@ public class FundTransactionEditorViewModelTests
 
         exception.Which.ErrorCode.Should().Be(802);
         viewModel.LoadFundsOperation.LastFailure.Should().BeSameAs(exception.Which);
+    }
+
+    [Fact]
+    public async Task GetValueDateAsync_UsesBackendTradingValueDate()
+    {
+        var expected = new DateOnly(2026, 8, 19);
+        var marketDataApi = Substitute.For<IMarketDataQueryApi>();
+        marketDataApi.GetValueDateAsync().Returns(Task.FromResult<ServiceResult<ScalarReadModel<DateOnly>>>(
+            new ServiceOk<ScalarReadModel<DateOnly>>(new ScalarReadModel<DateOnly>(expected))));
+        var appRoot = Substitute.For<IAppRoot>();
+        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(
+            marketDataApi,
+            Substitute.For<IMarketDataFeedQueryApi>()));
+        var viewModel = new FundTransactionEditorViewModel(appRoot);
+
+        var valueDate = await viewModel.GetValueDateAsync(CancellationToken.None);
+
+        valueDate.Should().Be(expected);
     }
 
     static (FundTransactionEditorViewModel ViewModel, IFundQueryApi Api) CreateSubject()
