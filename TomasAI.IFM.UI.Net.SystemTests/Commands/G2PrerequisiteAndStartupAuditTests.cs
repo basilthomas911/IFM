@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using FluentAssertions;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -11,10 +12,10 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Commands;
 [Trait("Category", "G2StartupProcess")]
 public sealed class G2PrerequisiteAndStartupAuditTests
 {
-    const int ExpectedStepCount = 7;
+    const int ExpectedStepCount = 9;
 
     [Fact]
-    public async Task Development_command_audit_satisfies_G2_001_through_G2_007()
+    public async Task Development_command_audit_satisfies_G2_001_through_G2_009()
     {
         if (!G0Configuration.G2StartupLiveRunEnabled)
             return;
@@ -25,7 +26,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         var evidence = new G0EvidenceWriter(process, redactor);
         var run = new G0RunResult
         {
-            Gate = "G2-001-007",
+            Gate = "G2-001-009",
             ExpectedStepCount = ExpectedStepCount,
             RunId = process.RunId,
             Environment = process.EnvironmentName,
@@ -230,8 +231,66 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     return Observation(
                         $"Command observer is Running with families={requiredFamilies.Length}, "
                         + $"mailboxes={registrations.Select(item => item.Actor).Distinct(StringComparer.Ordinal).Count()}, "
-                        + $"terminalRoutes={registrations.Count}.",
+                        + $"sourceRoutes={registrations.Count(item => item.Success is null)}, "
+                        + $"terminalRoutes={registrations.Count(item => item.Success.HasValue)}.",
                         ["network/g2-command-listener-catalog.json", "network/g2-command-events.json"]);
+                });
+
+            await Step("G2-008", "Start the current market-data feed from the UI",
+                "One UI start command is correlated from source event to successful terminal event and the shell shows the feed as active.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-007", "The exact-ID command observer is required before the UI feed action.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+
+                    var initial = await ui.WaitForMarketDataFeedStateAsync(
+                        isActive: true,
+                        process.ReadinessTimeout,
+                        token);
+                    var normalized = await ToggleMarketDataFeedAsync(
+                        ui,
+                        observer,
+                        sourceEventName: nameof(MarketDataFeedStoppedEvent),
+                        expectedActiveState: false,
+                        process.ReadinessTimeout,
+                        token);
+                    var started = await ToggleMarketDataFeedAsync(
+                        ui,
+                        observer,
+                        sourceEventName: nameof(MarketDataFeedStartedEvent),
+                        expectedActiveState: true,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteFeedEvidenceAsync(evidence, observer, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-008-feed-started");
+                    return Observation(
+                        $"Startup state={initial.Action}; normalizedStop={normalized.CommandId}; "
+                        + $"startCommand={started.CommandId}; terminal={started.TerminalEventName}; "
+                        + $"uiAction={started.UiState.Action}.",
+                        ["network/g2-market-data-feed-events.json", .. artifacts]);
+                });
+
+            await Step("G2-009", "Stop the current market-data feed from the UI",
+                "One UI stop command is correlated from source event to successful terminal event and the shell shows the feed as inactive.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-008", "The G2-owned market-data feed must be active before it is stopped.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var stopped = await ToggleMarketDataFeedAsync(
+                        ui,
+                        observer,
+                        sourceEventName: nameof(MarketDataFeedStoppedEvent),
+                        expectedActiveState: false,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteFeedEvidenceAsync(evidence, observer, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-009-feed-stopped");
+                    return Observation(
+                        $"stopCommand={stopped.CommandId}; terminal={stopped.TerminalEventName}; "
+                        + $"uiAction={stopped.UiState.Action}; backend stop completed before inactive-state acceptance.",
+                        ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
         }
         finally
@@ -318,7 +377,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 Path.Combine("processes", "partial-slice-cleanup.json"),
                 JsonSerializer.Serialize(new
                 {
-                    Scope = "G2-001-007 harness cleanup; this is not G2-037 or G2-038 acceptance",
+                    Scope = "G2-001-009 harness cleanup; this is not G2-037 or G2-038 acceptance",
                     Succeeded = run.CleanupSucceeded,
                     Failures = cleanupFailures
                 }, new JsonSerializerOptions { WriteIndented = true }));
@@ -326,7 +385,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         }
 
         run.Passed.Should().BeTrue(
-            $"G2-001 through G2-007 evidence was written to {evidence.RunDirectory}; "
+            $"G2-001 through G2-009 evidence was written to {evidence.RunDirectory}; "
             + string.Join("; ", run.Steps
                 .Where(step => step.Status != G0StepStatus.Passed)
                 .Select(step => $"{step.Id}={step.Status}: {step.Actual}"))
@@ -372,6 +431,59 @@ public sealed class G2PrerequisiteAndStartupAuditTests
     static G0StepObservation Observation(string actual, IReadOnlyList<string>? evidence = null)
         => new(string.Empty, actual, G0StepStatus.Passed, evidence);
 
+    static async Task<G2MarketDataFeedTransitionEvidence> ToggleMarketDataFeedAsync(
+        G1UiAutomationSession automation,
+        G2CommandEventObserver observer,
+        string sourceEventName,
+        bool expectedActiveState,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var invokedUtc = DateTimeOffset.UtcNow;
+        automation.InvokeMarketDataFeedAction();
+        var sourceEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                    && row.Family == "MarketDataFeed"
+                                    && row.EventName == sourceEventName
+                                    && row.Success is null),
+            timeout,
+            cancellationToken);
+        var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                              && row.Family == "MarketDataFeed"
+                                              && row.EventName == sourceEventName
+                                              && row.Success is null);
+        var terminalEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.CommandId == source.CommandId && row.Success.HasValue),
+            timeout,
+            cancellationToken);
+        var terminal = terminalEvents.Last(row => row.CommandId == source.CommandId && row.Success.HasValue);
+        if (terminal.Success != true)
+            throw new InvalidOperationException(
+                $"{sourceEventName} command {source.CommandId} failed: {terminal.ErrorMessage}");
+        var uiState = await automation.WaitForMarketDataFeedStateAsync(
+            expectedActiveState,
+            timeout,
+            cancellationToken);
+        return new G2MarketDataFeedTransitionEvidence(
+            source.CommandId,
+            source.EventName,
+            terminal.EventName,
+            source.ObservedUtc,
+            terminal.ObservedUtc,
+            uiState);
+    }
+
+    static async Task WriteFeedEvidenceAsync(
+        G0EvidenceWriter evidence,
+        G2CommandEventObserver observer,
+        CancellationToken cancellationToken)
+        => await evidence.WriteTextAsync(
+            Path.Combine("network", "g2-market-data-feed-events.json"),
+            JsonSerializer.Serialize(
+                observer.Events.Where(row => row.Family == "MarketDataFeed"),
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+
     static void RequirePassed(G0AuditRecorder recorder, string stepId, string reason)
     {
         var step = recorder.Result.Steps.SingleOrDefault(candidate => candidate.Id == stepId);
@@ -407,4 +519,12 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 process.Dispose();
         }
     }
+
+    sealed record G2MarketDataFeedTransitionEvidence(
+        Guid CommandId,
+        string SourceEventName,
+        string TerminalEventName,
+        DateTimeOffset SourceObservedUtc,
+        DateTimeOffset TerminalObservedUtc,
+        G2MarketDataFeedUiState UiState);
 }

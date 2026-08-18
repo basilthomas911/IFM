@@ -84,14 +84,18 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     internal static readonly TimeSpan FuturesBarChartHistory = TimeSpan.FromHours(6);
     internal static readonly TimeSpan FuturesBarContinuityTolerance = TimeSpan.FromSeconds(45);
     static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
+    static readonly TimeSpan DefaultMarketDataFeedTerminalTimeout = TimeSpan.FromSeconds(60);
     readonly object _statusLogGate = new();
     readonly object _marketDataStreamGate = new();
     readonly object _realtimeStreamGate = new();
     readonly object _tradePlacementGate = new();
+    readonly SemaphoreSlim _marketDataFeedOperationGate = new(1, 1);
     readonly IAppRoot _appRoot;
     readonly IIFMAppLiveViewAdapter _liveViewAdapter;
     readonly TimeProvider _timeProvider;
     readonly TimeSpan _startupReferenceDataImportTimeout;
+    readonly TimeSpan _marketDataFeedTerminalTimeout;
+    readonly TerminalEventCorrelation _marketDataFeedTerminalCorrelation = new();
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly Guid _siteId;
     readonly Version _appVersion;
@@ -111,6 +115,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     StatusConsoleLogReadModel? _latestStatusLog;
     string _statusLine = string.Empty;
     bool _isMenuEnabled;
+    bool _isMarketDataFeedActive;
+    bool _isMarketDataFeedOperationInProgress;
     bool _isCloseRequested;
     PresentationError? _lastError;
     StartupReferenceDataImportStatus? _yieldCurveStartupImport;
@@ -147,7 +153,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         string appEnvironment,
         IIFMAppLiveViewAdapter liveViewAdapter,
         TimeProvider? timeProvider = null,
-        TimeSpan? startupReferenceDataImportTimeout = null)
+        TimeSpan? startupReferenceDataImportTimeout = null,
+        TimeSpan? marketDataFeedTerminalTimeout = null)
     {
         _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
         _appVersion = appVersion ?? throw new ArgumentNullException(nameof(appVersion));
@@ -158,11 +165,19 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _timeProvider = timeProvider ?? TimeProvider.System;
         _startupReferenceDataImportTimeout = startupReferenceDataImportTimeout
             ?? DefaultStartupReferenceDataImportTimeout;
+        _marketDataFeedTerminalTimeout = marketDataFeedTerminalTimeout
+            ?? DefaultMarketDataFeedTerminalTimeout;
         if (_startupReferenceDataImportTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(startupReferenceDataImportTimeout),
                 "The startup reference-data import timeout must be positive and bounded.");
+        }
+        if (_marketDataFeedTerminalTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(marketDataFeedTerminalTimeout),
+                "The market-data feed terminal timeout must be positive and bounded.");
         }
         _siteId = Guid.NewGuid();
         _appRoot.GetModel<EventModel>().SetSiteId(_siteId);
@@ -175,7 +190,11 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     public DateOnly? ValueDate
     {
         get => _valueDate;
-        private set => SetProperty(ref _valueDate, value);
+        private set
+        {
+            if (SetProperty(ref _valueDate, value))
+                OnPropertyChanged(nameof(CanToggleMarketDataFeed));
+        }
     }
 
     /// <summary>Gets the currently traded base futures contracts.</summary>
@@ -210,8 +229,52 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     public bool IsMenuEnabled
     {
         get => _isMenuEnabled;
-        private set => SetProperty(ref _isMenuEnabled, value);
+        private set
+        {
+            if (SetProperty(ref _isMenuEnabled, value))
+                OnPropertyChanged(nameof(CanToggleMarketDataFeed));
+        }
     }
+
+    /// <summary>Gets whether the current market-data feed was accepted as active by the backend.</summary>
+    public bool IsMarketDataFeedActive
+    {
+        get => _isMarketDataFeedActive;
+        private set
+        {
+            if (!SetProperty(ref _isMarketDataFeedActive, value))
+                return;
+            OnPropertyChanged(nameof(MarketDataFeedActionText));
+            OnPropertyChanged(nameof(MarketDataFeedStateText));
+        }
+    }
+
+    /// <summary>Gets whether a shell-initiated market-data feed transition is in progress.</summary>
+    public bool IsMarketDataFeedOperationInProgress
+    {
+        get => _isMarketDataFeedOperationInProgress;
+        private set
+        {
+            if (!SetProperty(ref _isMarketDataFeedOperationInProgress, value))
+                return;
+            OnPropertyChanged(nameof(CanToggleMarketDataFeed));
+            OnPropertyChanged(nameof(MarketDataFeedStateText));
+        }
+    }
+
+    /// <summary>Gets whether the operator can start or stop the current market-data feed.</summary>
+    public bool CanToggleMarketDataFeed
+        => IsMenuEnabled && ValueDate.HasValue && !IsMarketDataFeedOperationInProgress;
+
+    /// <summary>Gets the operator action that will be performed by the shell feed control.</summary>
+    public string MarketDataFeedActionText
+        => IsMarketDataFeedActive ? "Stop Market Feed" : "Start Market Feed";
+
+    /// <summary>Gets the visible current market-data feed state.</summary>
+    public string MarketDataFeedStateText
+        => IsMarketDataFeedOperationInProgress
+            ? "Market Feed: Changing"
+            : IsMarketDataFeedActive ? "Market Feed: Active" : "Market Feed: Inactive";
 
     /// <summary>Gets whether a backend application event requested desktop shutdown.</summary>
     public bool IsCloseRequested
@@ -358,12 +421,39 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await _lifecycle.DisposeAsync();
         await DisposeOperationAsync(StartupOperation);
         await DisposeOperationAsync(ShutdownOperation);
+        _marketDataFeedOperationGate.Dispose();
+    }
+
+    /// <summary>
+    /// Starts or stops the current market-data feed through the same domain command path used at startup and
+    /// shutdown. Transitions are serialized so repeated UI clicks cannot submit overlapping commands.
+    /// </summary>
+    public async Task ToggleMarketDataFeedAsync(CancellationToken cancellationToken = default)
+    {
+        await _marketDataFeedOperationGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!ValueDate.HasValue)
+                throw new InvalidOperationException("The market-data feed is unavailable without a trading value date.");
+
+            IsMarketDataFeedOperationInProgress = true;
+            if (IsMarketDataFeedActive)
+                await DisableTradeLiveFeed(cancellationToken: cancellationToken);
+            else
+                await EnableTradeLiveFeed(cancellationToken);
+        }
+        finally
+        {
+            IsMarketDataFeedOperationInProgress = false;
+            _marketDataFeedOperationGate.Release();
+        }
     }
 
     async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
         await StartStatusConsoleListener();
         await StartApplicationEventsListener();
+        await StartMarketDataFeedStatusListener();
         await StartApplicationCoreAsync(cancellationToken);
     }
 
@@ -385,7 +475,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await StopTradePlacementEventConsumer();
         await StopFuturesIntradaySignalServices();
         await DisableMarketDataFeedResetListener();
-        await DisableTradeLiveFeed();
+        if (IsMarketDataFeedActive)
+            await DisableTradeLiveFeed(cancellationToken: cancellationToken);
+        await StopMarketDataFeedStatusListener();
         await _appRoot.GetModel<ApplicationEventModel>().StopApplicationEventConsumerAsync();
         await StopStatusConsoleListener();
         IsMenuEnabled = false;
@@ -1197,34 +1289,118 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// <summary>
     /// enable trade live feed
     /// </summary>
-    Task EnableTradeLiveFeed(CancellationToken cancellationToken = default)
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Enable Trade Live Feed Error"));
-            await WriteStatusConsoleAsync("Starting Trade Data Feeds...");
-            await DelayStartupAsync(cancellationToken);
-            if (_valueDate is not null)
-                await model.StartDataFeedAsync([.. _baseContracts], _valueDate.Value);
-        });
+    async Task<Guid> EnableTradeLiveFeed(CancellationToken cancellationToken = default)
+    {
+        var commandId = Guid.Empty;
+        _marketDataFeedTerminalCorrelation.BeginAttempt();
+        try
+        {
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+                model.OnError((errorCode, errorMessage) =>
+                    PublishError(errorCode, errorMessage, "Enable Trade Live Feed Error"));
+                await WriteStatusConsoleAsync("Starting Trade Data Feeds...");
+                await DelayStartupAsync(cancellationToken);
+                if (_valueDate is not null)
+                    commandId = await model.StartDataFeedAsync([.. _baseContracts], _valueDate.Value);
+            });
+            if (commandId != Guid.Empty
+                && await ObserveMarketDataFeedTerminalAsync<MarketDataFeedStartedCompleteEvent>(
+                    commandId,
+                    "Enable Trade Live Feed Error",
+                    cancellationToken))
+                IsMarketDataFeedActive = true;
+            return commandId;
+        }
+        finally
+        {
+            _marketDataFeedTerminalCorrelation.EndAttempt();
+        }
+    }
 
     /// <summary>
     /// disable trade live feed
     /// </summary>
     /// <param name="resetAction"></param>
-    Task DisableTradeLiveFeed(Action? resetAction = null)
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+    async Task<Guid> DisableTradeLiveFeed(
+        Action? resetAction = null,
+        CancellationToken cancellationToken = default)
+    {
+        var commandId = Guid.Empty;
+        _marketDataFeedTerminalCorrelation.BeginAttempt();
+        try
+        {
+            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+                model.OnError((errorCode, errorMessage) =>
+                    PublishError(errorCode, errorMessage, "Disable Trade Live Feed Error"));
+                await WriteStatusConsoleAsync("Stopping Trade Data Feeds...");
+                if (_valueDate is not null)
+                    commandId = await model.StopDataFeedAsync(_valueDate.Value, async () => {
+                        if (_baseContracts == null)
+                            return;
+                        foreach (var contract in _baseContracts)
+                            await model.StopStreamingFuturesTickDataAsync(contract.ContractId, _valueDate.Value);
+                        resetAction?.Invoke();
+                    });
+            });
+            if (commandId != Guid.Empty
+                && await ObserveMarketDataFeedTerminalAsync<MarketDataFeedStoppedCompleteEvent>(
+                    commandId,
+                    "Disable Trade Live Feed Error",
+                    cancellationToken))
+                IsMarketDataFeedActive = false;
+            return commandId;
+        }
+        finally
+        {
+            _marketDataFeedTerminalCorrelation.EndAttempt();
+        }
+    }
+
+    async Task<bool> ObserveMarketDataFeedTerminalAsync<TCompleteEvent>(
+        Guid commandId,
+        string errorCaption,
+        CancellationToken cancellationToken)
+        where TCompleteEvent : class, IEvent
+    {
+        try
+        {
+            var terminal = await _marketDataFeedTerminalCorrelation.AwaitAsync(
+                commandId,
+                _marketDataFeedTerminalTimeout,
+                _timeProvider,
+                cancellationToken);
+            if (terminal is TCompleteEvent)
+                return true;
+            if (terminal is IErrorEvent error)
+                PublishError(error.ErrorCode, error.ErrorMessage, errorCaption);
+            else
+                PublishError(0, $"Unexpected terminal event {terminal.EventName}.", errorCaption);
+        }
+        catch (TimeoutException)
+        {
+            PublishError(
+                0,
+                $"Market-data feed command {commandId} did not produce a terminal event within {_marketDataFeedTerminalTimeout}.",
+                errorCaption);
+        }
+        return false;
+    }
+
+    Task StartMarketDataFeedStatusListener()
+        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+        {
             model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Disable Trade Live Feed Error"));
-            await WriteStatusConsoleAsync("Stopping Trade Data Feeds...");
-            if (_valueDate is not null)
-                await model.StopDataFeedAsync(_valueDate.Value, async () => {
-                    if (_baseContracts == null)
-                        return;
-                    foreach (var contract in _baseContracts)
-                        await model.StopStreamingFuturesTickDataAsync(contract.ContractId, _valueDate.Value);
-                    resetAction?.Invoke();
-                });
+                PublishError(errorCode, errorMessage, "Market Data Feed Status Listener Error"));
+            await model.StartMarketDataFeedStatusListenerAsync(@event =>
+            {
+                _marketDataFeedTerminalCorrelation.TryPublish(@event);
+                return ValueTask.CompletedTask;
+            });
         });
+
+    Task StopMarketDataFeedStatusListener()
+        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(
+            model => model.StopMarketDataFeedStatusListenerAsync());
 
     /// <summary>
     /// enable market data feed reset listener

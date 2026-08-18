@@ -105,6 +105,19 @@ public interface ITickContractMappingProvider
         DateOnly definitionDate,
         InstrumentKey instrument,
         out TickContractMapping mapping);
+
+    /// <summary>
+    /// Resolves the instrument identity returned by a live feed registration.
+    /// Implementations may use the requested/raw symbol as a definition-scoped
+    /// fallback when provider metadata and the live session use different
+    /// instrument identifiers for the same contract.
+    /// </summary>
+    bool TryResolveFeedMapping(
+        string dataset,
+        DateOnly definitionDate,
+        TickerInstrumentRegistration registration,
+        out TickContractMapping mapping) =>
+        TryGetMapping(dataset, definitionDate, registration.Instrument, out mapping);
 }
 
 public interface ITickContractMappingStore : ITickContractMappingProvider

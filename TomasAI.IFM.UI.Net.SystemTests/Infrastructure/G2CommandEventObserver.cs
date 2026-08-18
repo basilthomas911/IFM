@@ -33,8 +33,10 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
 {
     static readonly G2EventRoute[] Routes =
     [
+        Route<MarketDataFeedStartedEvent>("MarketDataFeed", MarketDataFeedStartedEvent.Actor, MarketDataFeedStartedEvent.Verb, null),
         Route<MarketDataFeedStartedCompleteEvent>("MarketDataFeed", MarketDataFeedStartedCompleteEvent.Actor, MarketDataFeedStartedCompleteEvent.Verb, true),
         Route<MarketDataFeedStartedFailEvent>("MarketDataFeed", MarketDataFeedStartedFailEvent.Actor, MarketDataFeedStartedFailEvent.Verb, false),
+        Route<MarketDataFeedStoppedEvent>("MarketDataFeed", MarketDataFeedStoppedEvent.Actor, MarketDataFeedStoppedEvent.Verb, null),
         Route<MarketDataFeedStoppedCompleteEvent>("MarketDataFeed", MarketDataFeedStoppedCompleteEvent.Actor, MarketDataFeedStoppedCompleteEvent.Verb, true),
         Route<MarketDataFeedStoppedFailEvent>("MarketDataFeed", MarketDataFeedStoppedFailEvent.Actor, MarketDataFeedStoppedFailEvent.Verb, false),
 
@@ -141,6 +143,30 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         timeoutSource.CancelAfter(TimeSpan.FromSeconds(10));
         while (_listener.State != EventListenerState.Running)
             await Task.Delay(TimeSpan.FromMilliseconds(50), timeoutSource.Token).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<G2ObservedCommandEvent>> WaitForAsync(
+        Func<IReadOnlyList<G2ObservedCommandEvent>, bool> predicate,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var snapshot = Events;
+            if (predicate(snapshot))
+                return snapshot;
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100), timeoutSource.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+        throw new TimeoutException($"Expected G2 command evidence was not observed within {timeout}.");
     }
 
     public async Task WriteEvidenceAsync(G0EvidenceWriter evidence, CancellationToken cancellationToken)

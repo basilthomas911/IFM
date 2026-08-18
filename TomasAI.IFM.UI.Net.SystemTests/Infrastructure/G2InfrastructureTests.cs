@@ -66,6 +66,14 @@ public sealed class G2InfrastructureTests
             registrations.Should().Contain(item => item.Family == family && item.Success == true);
             registrations.Should().Contain(item => item.Family == family && item.Success == false);
         }
+        registrations.Should().Contain(item =>
+            item.Family == "MarketDataFeed"
+            && item.EventType == "MarketDataFeedStartedEvent"
+            && item.Success == null);
+        registrations.Should().Contain(item =>
+            item.Family == "MarketDataFeed"
+            && item.EventType == "MarketDataFeedStoppedEvent"
+            && item.Success == null);
         registrations.Should().OnlyContain(item =>
             !string.IsNullOrWhiteSpace(item.Actor)
             && !string.IsNullOrWhiteSpace(item.Verb)

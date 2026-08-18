@@ -109,6 +109,13 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.IsMenuEnabled):
                 RenderMenuState();
                 break;
+            case nameof(IFMAppViewModel.IsMarketDataFeedActive):
+            case nameof(IFMAppViewModel.IsMarketDataFeedOperationInProgress):
+            case nameof(IFMAppViewModel.CanToggleMarketDataFeed):
+            case nameof(IFMAppViewModel.MarketDataFeedActionText):
+            case nameof(IFMAppViewModel.MarketDataFeedStateText):
+                RenderMarketDataFeedState();
+                break;
             case nameof(IFMAppViewModel.StatusLine):
                 RenderStatusLine();
                 break;
@@ -170,6 +177,18 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         fundButton.Enabled = _viewModel.IsMenuEnabled;
         referenceButton.Enabled = _viewModel.IsMenuEnabled;
         systemAdminButton.Enabled = _viewModel.IsMenuEnabled;
+        RenderMarketDataFeedState();
+    }
+
+    private void RenderMarketDataFeedState()
+    {
+        marketDataFeedButton.Text = _viewModel.MarketDataFeedActionText;
+        marketDataFeedButton.AccessibleName = _viewModel.MarketDataFeedActionText;
+        marketDataFeedButton.ToolTipText = _viewModel.MarketDataFeedStateText;
+        marketDataFeedButton.Enabled = _viewModel.CanToggleMarketDataFeed;
+        marketDataFeedButton.ForeColor = _viewModel.IsMarketDataFeedActive
+            ? Color.DarkGreen
+            : Color.DarkRed;
     }
 
     private void RenderStatusLine()
@@ -280,6 +299,18 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     {
         _navigator.ShowModal<MarketDataForm>(view =>
             view.LoadViewModel(new MarketDataViewModel(_appRoot)));
+    }
+
+    private async void marketDataFeedButton_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            await _viewModel.ToggleMarketDataFeedAsync();
+        }
+        catch (Exception ex)
+        {
+            this.ShowErrorMessage(ex.Message, "Market Data Feed Error");
+        }
     }
 
     private void fundButton_Click(object sender, EventArgs e)

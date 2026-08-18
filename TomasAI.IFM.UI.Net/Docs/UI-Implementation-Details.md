@@ -151,16 +151,20 @@ Those callbacks use `Control.Post` or `ShowErrorMessage`, which dispatch work wi
    observe each exact command ID for up to 30 seconds.
 4. Report only failed or unobserved automatic imports, perform no retry, stop the startup-only listeners, and continue.
 5. Query the current value date; lack of a live-feed value date does not prevent the preceding reference-data imports.
-6. Start EOD, bar-data, trade-signal, and trade-placement event consumers.
+6. Start the market-data-feed terminal listener, then the EOD, bar-data, trade-signal, and trade-placement event consumers.
 7. Enable the market-data-feed reset listener.
-8. Start the live market-data feeds.
+8. Start the live market-data feeds and retain the command ID until the matching started-complete or started-fail event is observed.
 9. Start the inactivity-reset loop.
 10. Start the authoritative 24-actor intraday analytics profile for ES and load the ES status-console context.
-11. Enable the main menu buttons.
+11. Enable the main menu buttons, including the shell feed toggle.
 
 Application startup and shutdown events can cause the same orchestration methods to run through `ApplicationEventModel` and `ApplicationUIEventConsumer`.
 
-When the main form closes, `IFMAppViewModel.AppShutdown` unloads the status console, closes trade blotters, stops the principal market-data and trade event consumers, stops all 24 intraday signal actors and the trade-placement service, disables the feed-reset listener, stops live feeds, and cancels the inactivity-reset loop.
+The shell exposes one `Start Market Feed`/`Stop Market Feed` toggle. While an operation is pending it is disabled and reports `Changing`. A successful start is rendered as active only after the exact `MarketDataFeedStartedCompleteEvent`; a successful stop is rendered as inactive only after the exact `MarketDataFeedStoppedCompleteEvent`. Typed fail events and the bounded 60-second terminal timeout preserve the prior state and surface an error. Feed stop first awaits per-contract stream cleanup and then submits the domain stop command.
+
+When the main form closes, `IFMAppViewModel.AppShutdown` unloads the status console, closes trade blotters, stops the principal market-data and trade event consumers, stops all 24 intraday signal actors and the trade-placement service, disables the feed-reset listener, stops live feeds with terminal correlation, stops the feed terminal listener, and cancels the inactivity-reset loop.
+
+DataBento metadata lookup and a live subscription can occasionally return different provider instrument IDs for the same definition-scoped raw futures symbol. `DatabentoTickContractMappingStore` therefore resolves an unknown live instrument through the already validated dataset/date/raw-symbol mapping, binds that live identity to the same domain contract for the epoch, and uses exact instrument lookup for subsequent records. A conflicting symbol or live identity remains fatal; the fallback never guesses across datasets, dates, or symbols.
 
 ## Configuration
 

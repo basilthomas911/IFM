@@ -308,7 +308,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 feedStarted = true;
                 foreach (var registration in _feed.GetInstruments())
                 {
-                    if (!_mappings.TryGetMapping(_options.Dataset, _options.DefinitionDate, registration.Instrument, out var mapping))
+                    if (!_mappings.TryResolveFeedMapping(
+                            _options.Dataset,
+                            _options.DefinitionDate,
+                            registration,
+                            out var mapping))
                         throw new KeyNotFoundException($"No tick mapping exists for {registration.Instrument}.");
                     if (mapping.AssetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
                         throw new InvalidOperationException(

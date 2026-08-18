@@ -21,6 +21,7 @@ public class MarketDataFeedModelBaselineTests
     readonly IFuturesTradeSignalUIEventConsumer _tradeSignalConsumer = Substitute.For<IFuturesTradeSignalUIEventConsumer>();
     readonly IFuturesOptionTickDataUIEventConsumer _optionTickConsumer = Substitute.For<IFuturesOptionTickDataUIEventConsumer>();
     readonly IMarketDataFeedResetUIEventConsumer _resetConsumer = Substitute.For<IMarketDataFeedResetUIEventConsumer>();
+    readonly IMarketDataFeedStatusUIEventConsumer _statusConsumer = Substitute.For<IMarketDataFeedStatusUIEventConsumer>();
     readonly IFuturesBarDataUIEventConsumer _barConsumer = Substitute.For<IFuturesBarDataUIEventConsumer>();
 
     [Fact]
@@ -29,12 +30,14 @@ public class MarketDataFeedModelBaselineTests
         var model = CreateModel();
         ICollection<FuturesContractV2ReadModel> contracts = [];
         var valueDate = new DateOnly(2026, 8, 11);
+        var commandId = Guid.NewGuid();
         _commandApi.StartMarketDataFeedAsync(contracts, valueDate)
             .Returns(Task.FromResult<ServiceResult<Guid>>(
-                new ServiceOk<Guid>(Guid.NewGuid())));
+                new ServiceOk<Guid>(commandId)));
 
-        await model.StartDataFeedAsync(contracts, valueDate);
+        var result = await model.StartDataFeedAsync(contracts, valueDate);
 
+        result.Should().Be(commandId);
         await _commandApi.Received(1).StartMarketDataFeedAsync(contracts, valueDate);
     }
 
@@ -50,9 +53,34 @@ public class MarketDataFeedModelBaselineTests
             .Returns(Task.FromResult<ServiceResult<Guid>>(
                 new ServiceFailed<Guid>(7301, "Feed start failed.")));
 
-        await model.StartDataFeedAsync(contracts, valueDate);
+        var commandId = await model.StartDataFeedAsync(contracts, valueDate);
 
+        commandId.Should().Be(Guid.Empty);
         error.Should().Be((7301, "Feed start failed."));
+    }
+
+    [Fact]
+    public async Task StopDataFeed_AwaitsStreamingCleanupBeforeSubmittingStop()
+    {
+        var model = CreateModel();
+        var valueDate = new DateOnly(2026, 8, 11);
+        var commandId = Guid.NewGuid();
+        var cleanupCompleted = false;
+        _commandApi.StopMarketDataFeedAsync(valueDate)
+            .Returns(_ =>
+            {
+                cleanupCompleted.Should().BeTrue();
+                return Task.FromResult<ServiceResult<Guid>>(new ServiceOk<Guid>(commandId));
+            });
+
+        var result = await model.StopDataFeedAsync(valueDate, async () =>
+        {
+            await Task.Yield();
+            cleanupCompleted = true;
+        });
+
+        result.Should().Be(commandId);
+        await _commandApi.Received(1).StopMarketDataFeedAsync(valueDate);
     }
 
     [Fact]
@@ -68,6 +96,21 @@ public class MarketDataFeedModelBaselineTests
 
         await _optionTickConsumer.Received(1).StartAsync(listener);
         await _optionTickConsumer.Received(1).StopAsync();
+    }
+
+    [Fact]
+    public async Task MarketDataFeedStatusListener_StartAndStopOwnTheTerminalConsumerCalls()
+    {
+        var model = CreateModel();
+        Func<IEvent, ValueTask> listener = _ => ValueTask.CompletedTask;
+        _statusConsumer.StartAsync(listener).Returns(ValueTask.CompletedTask);
+        _statusConsumer.StopAsync().Returns(ValueTask.CompletedTask);
+
+        await model.StartMarketDataFeedStatusListenerAsync(listener);
+        await model.StopMarketDataFeedStatusListenerAsync();
+
+        await _statusConsumer.Received(1).StartAsync(listener);
+        await _statusConsumer.Received(1).StopAsync();
     }
 
     [Fact]
@@ -111,5 +154,6 @@ public class MarketDataFeedModelBaselineTests
             _tradeSignalConsumer,
             _optionTickConsumer,
             _resetConsumer,
+            _statusConsumer,
             _barConsumer);
 }

@@ -15,6 +15,51 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento.UnitTests;
 public sealed class TickAggregationServiceTests
 {
     [Fact]
+    public async Task Start_binds_live_feed_instrument_to_catalog_contract_by_raw_symbol()
+    {
+        var valueDate = new DateOnly(2026, 8, 18);
+        var catalogInstrument = new InstrumentKey(106, 180999);
+        var liveInstrument = new InstrumentKey(106, 181038);
+        var mappings = new DatabentoTickContractMappingStore();
+        mappings.SetTickMapping(
+            "XCBF.PITCH",
+            valueDate,
+            catalogInstrument.PublisherId,
+            catalogInstrument.InstrumentId,
+            "VXU6",
+            AssetTypeId.Futures,
+            CreateDetails(valueDate, catalogInstrument) with
+            {
+                ContractId = "VXU6",
+                Dataset = "XCBF.PITCH",
+                ProviderContractId = "VXU6",
+                LocalSymbol = "VXU6",
+                Ticker = "VX"
+            });
+        using var feed = new RunningFeed(liveInstrument, "VXU6");
+        await using var service = new TickAggregationService(
+            feed,
+            mappings,
+            new CapturingPublisher(),
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "XCBF.PITCH",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+
+        var status = service.GetContractStatus("VXU6");
+        Assert.True(status.ServiceRunning);
+        Assert.True(status.ContractConfigured);
+        Assert.True(mappings.TryGetMapping("XCBF.PITCH", valueDate, liveInstrument, out var mapping));
+        Assert.Equal("VXU6", mapping.ContractId);
+        await service.StopAsync();
+    }
+
+    [Fact]
     public async Task Stream_owners_are_idempotent_and_reference_count_routes()
     {
         var valueDate = new DateOnly(2026, 8, 10);
@@ -906,7 +951,7 @@ public sealed class TickAggregationServiceTests
         public void Dispose() => _channel.Complete();
     }
 
-    private sealed class RunningFeed(InstrumentKey instrument) : IDatabentoTickerFeed
+    private sealed class RunningFeed(InstrumentKey instrument, string rawSymbol = "ESU6") : IDatabentoTickerFeed
     {
         private readonly BoundedBatchChannel _channel = new(4, 64);
         private bool _leased;
@@ -928,7 +973,7 @@ public sealed class TickAggregationServiceTests
             return new MultiplexedTickerBatchReader([(instrument, _channel)], () => _leased = false);
         }
         public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
-            [new TickerInstrumentRegistration("ES", "ESU6", instrument)];
+            [new TickerInstrumentRegistration(rawSymbol, rawSymbol, instrument)];
         public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
         public void Dispose() => _channel.Complete();
     }

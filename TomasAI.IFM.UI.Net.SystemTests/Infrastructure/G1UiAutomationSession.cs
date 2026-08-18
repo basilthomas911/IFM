@@ -83,6 +83,44 @@ public sealed class G1UiAutomationSession : IDisposable
             pair => FindDescendant(MainWindow, null, pair.Value)?.IsEnabled ?? false,
             StringComparer.Ordinal);
 
+    public G2MarketDataFeedUiState ReadMarketDataFeedState()
+    {
+        var button = FindDescendant(MainWindow, "marketDataFeedButton", null)
+            ?? FindDescendant(MainWindow, null, "Start Market Feed")
+            ?? FindDescendant(MainWindow, null, "Stop Market Feed")
+            ?? throw new InvalidOperationException("The shell market-data feed control was not found.");
+        var action = button.Name;
+        var isActive = string.Equals(action, "Stop Market Feed", StringComparison.Ordinal);
+        if (!isActive && !string.Equals(action, "Start Market Feed", StringComparison.Ordinal))
+            throw new InvalidOperationException($"Unexpected market-data feed action '{action}'.");
+        return new G2MarketDataFeedUiState(isActive, action, button.IsEnabled);
+    }
+
+    public async Task<G2MarketDataFeedUiState> WaitForMarketDataFeedStateAsync(
+        bool isActive,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var state = ReadMarketDataFeedState();
+                return state.IsActive == isActive && state.IsEnabled ? state : null;
+            },
+            timeout,
+            $"The shell did not show the market-data feed as {(isActive ? "active" : "inactive")}.",
+            cancellationToken);
+
+    public void InvokeMarketDataFeedAction()
+    {
+        var button = FindDescendant(MainWindow, "marketDataFeedButton", null)
+            ?? FindDescendant(MainWindow, null, "Start Market Feed")
+            ?? FindDescendant(MainWindow, null, "Stop Market Feed")
+            ?? throw new InvalidOperationException("The shell market-data feed control was not found.");
+        if (!button.IsEnabled)
+            throw new InvalidOperationException($"The market-data feed action '{button.Name}' is disabled.");
+        PostControlClick(button);
+    }
+
     public string ReadStatusText()
     {
         var statusBar = FindDescendant(MainWindow, "statusBar", "statusStrip1")
@@ -940,6 +978,11 @@ public sealed record G1ShellState(
     string Status,
     IReadOnlyDictionary<string, bool> Toolbar,
     IReadOnlyDictionary<string, string> MarketOutlook);
+
+public sealed record G2MarketDataFeedUiState(
+    bool IsActive,
+    string Action,
+    bool IsEnabled);
 
 public sealed record G1StatusConsoleState(
     int RowCount,

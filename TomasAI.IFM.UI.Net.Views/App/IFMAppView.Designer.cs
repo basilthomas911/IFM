@@ -45,6 +45,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             marketOutlookView1 = new MarketOutlookView();
             tradeButton = new ToolStripButton();
             marketDataButton = new ToolStripButton();
+            marketDataFeedButton = new ToolStripButton();
             toolStripSeparator = new ToolStripSeparator();
             btnCloseOrder = new ToolStripButton();
             toolStrip1 = new ToolStrip();
@@ -236,6 +237,18 @@ namespace TomasAI.IFM.UI.Net.Views.App
             marketDataButton.Size = new Size(95, 24);
             marketDataButton.Text = "Market Data";
             marketDataButton.Click += marketDataButton_Click;
+            //
+            // marketDataFeedButton
+            //
+            marketDataFeedButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            marketDataFeedButton.Enabled = false;
+            marketDataFeedButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            marketDataFeedButton.Name = "marketDataFeedButton";
+            marketDataFeedButton.Size = new Size(126, 24);
+            marketDataFeedButton.Text = "Start Market Feed";
+            marketDataFeedButton.AccessibleName = "Start Market Feed";
+            marketDataFeedButton.ToolTipText = "Market Feed: Inactive";
+            marketDataFeedButton.Click += marketDataFeedButton_Click;
             // 
             // toolStripSeparator
             // 
@@ -258,7 +271,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // toolStrip1
             // 
             toolStrip1.ImageScalingSize = new Size(24, 24);
-            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, btnCloseOrder });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, marketDataFeedButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, btnCloseOrder });
             toolStrip1.Location = new Point(0, 0);
             toolStrip1.Name = "toolStrip1";
             toolStrip1.Size = new Size(2637, 27);
@@ -353,6 +366,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.Panel pnlAppView;
         private System.Windows.Forms.ToolStripButton tradeButton;
         private System.Windows.Forms.ToolStripButton marketDataButton;
+        private System.Windows.Forms.ToolStripButton marketDataFeedButton;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator;
         private System.Windows.Forms.ToolStripButton btnCloseOrder;
         private System.Windows.Forms.ToolStrip toolStrip1;

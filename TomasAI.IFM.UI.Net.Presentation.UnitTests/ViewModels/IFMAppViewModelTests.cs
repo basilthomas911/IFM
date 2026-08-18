@@ -59,6 +59,11 @@ public class IFMAppViewModelTests
         var viewModel = CreateSubject();
 
         viewModel.IsMenuEnabled.Should().BeFalse();
+        viewModel.IsMarketDataFeedActive.Should().BeFalse();
+        viewModel.IsMarketDataFeedOperationInProgress.Should().BeFalse();
+        viewModel.CanToggleMarketDataFeed.Should().BeFalse();
+        viewModel.MarketDataFeedActionText.Should().Be("Start Market Feed");
+        viewModel.MarketDataFeedStateText.Should().Be("Market Feed: Inactive");
         viewModel.IsCloseRequested.Should().BeFalse();
         viewModel.StartupOperation.Should().NotBeNull();
         viewModel.ShutdownOperation.Should().NotBeNull();

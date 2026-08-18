@@ -11,6 +11,7 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 
 namespace TomasAI.IFM.UI.Net.Models;
@@ -23,6 +24,7 @@ public class MarketDataFeedCommandModel(
     IFuturesTradeSignalUIEventConsumer futuresTradeSignalEventConsumer,
     IFuturesOptionTickDataUIEventConsumer futuresOptionTickDataEventConsumer,
     IMarketDataFeedResetUIEventConsumer marketDataFeedResetEventConsumer,
+    IMarketDataFeedStatusUIEventConsumer marketDataFeedStatusEventConsumer,
     IFuturesBarDataUIEventConsumer futuresBarDataEventConsumer) : BaseModel<MarketDataFeedCommandModel>
 {
     readonly IMarketDataFeedCommandApi _marketDataFeedCommandApi = marketDataFeedCommandApi;
@@ -32,6 +34,7 @@ public class MarketDataFeedCommandModel(
     readonly IFuturesTradeSignalUIEventConsumer _futuresTradeSignalEventConsumer = futuresTradeSignalEventConsumer;
     readonly IFuturesOptionTickDataUIEventConsumer _futuresOptionTickDataEventConsumer = futuresOptionTickDataEventConsumer;
     readonly IMarketDataFeedResetUIEventConsumer _marketDataFeedResetEventConsumer = marketDataFeedResetEventConsumer;
+    readonly IMarketDataFeedStatusUIEventConsumer _marketDataFeedStatusEventConsumer = marketDataFeedStatusEventConsumer;
     readonly IFuturesBarDataUIEventConsumer _futuresBarDataEventConsumer = futuresBarDataEventConsumer;
 
     /// <summary>
@@ -57,19 +60,20 @@ public class MarketDataFeedCommandModel(
     /// </summary>
     /// <param name="futuresContracts"></param>
     /// <param name="valueDate"></param>
-    public async Task StartDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
+    public async Task<Guid> StartDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
         => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StartMarketDataFeedAsync(futuresContracts, valueDate));
 
     /// <summary>
     /// stop market data feed streaming
     /// </summary>
     /// <param name="valueDate"></param>
-    /// <param name="stopStreamingAction"></param>
-    public async Task StopDataFeedAsync(DateOnly valueDate, Action stopStreamingAction)
+    /// <param name="stopStreamingOperation"></param>
+    public async Task<Guid> StopDataFeedAsync(DateOnly valueDate, Func<Task> stopStreamingOperation)
     {
-        stopStreamingAction();
+        ArgumentNullException.ThrowIfNull(stopStreamingOperation);
+        await stopStreamingOperation();
         await Task.Delay(TimeSpan.FromSeconds(2));
-        await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StopMarketDataFeedAsync(valueDate) );
+        return await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StopMarketDataFeedAsync(valueDate) );
     }
 
     /// <summary>
@@ -200,6 +204,14 @@ public class MarketDataFeedCommandModel(
     /// </summary>
     public async Task StopMarketDataFeedResetListenerAsync()
         => await ExecuteValueTaskAsync( _marketDataFeedResetEventConsumer.StopAsync );
+
+    /// <summary>Starts the terminal event listener used to correlate shell feed operations.</summary>
+    public async Task StartMarketDataFeedStatusListenerAsync(Func<IEvent, ValueTask> listenerAction)
+        => await ExecuteValueTaskAsync(() => _marketDataFeedStatusEventConsumer.StartAsync(listenerAction));
+
+    /// <summary>Stops the shell market-data feed terminal event listener.</summary>
+    public async Task StopMarketDataFeedStatusListenerAsync()
+        => await ExecuteValueTaskAsync(_marketDataFeedStatusEventConsumer.StopAsync);
 
     /// <summary>
     /// start listening for futures option tick data updates
