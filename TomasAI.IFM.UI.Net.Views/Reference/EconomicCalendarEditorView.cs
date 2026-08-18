@@ -23,6 +23,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         int _lastCalendarEventIndex;
 #pragma warning restore CS0649
         bool _canChangeRemove;
+        bool _isBindingCountry;
 
         /// <summary>
         /// economic calendar editor constructor
@@ -32,6 +33,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         {
             InitializeComponent();
             _viewModel = viewModel;
+            UpdateCountryCodeAccessibility();
         }
 
         public bool CanChangeRemove => _canChangeRemove;
@@ -77,13 +79,20 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
 
             _viewModel.OnCountryCodesLoaded = () => this.Post(() =>
             {
+                _isBindingCountry = true;
                 ddlCountryCodes.Items.Clear();
                 if (_viewModel.CountryCodes?.Count == 0)
+                {
+                    _isBindingCountry = false;
                     return;
+                }
                 foreach (var e in _viewModel.CountryCodes!)
                     ddlCountryCodes.Items.Add(e.CountryCode);
                 var selectedIndex = ddlCountryCodes.Items.IndexOf("US");
                 ddlCountryCodes.SelectedIndex = selectedIndex == -1 ? 0 : selectedIndex;
+                _isBindingCountry = false;
+                ddlCountryCodes.Enabled = true;
+                UpdateCountryCodeAccessibility();
                 var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
                 _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
             });
@@ -113,13 +122,13 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             {
                 case EditMode.View:
                     dtmEventDate.Enabled = false;
+                    _editMode = EditMode.Add;
                     ddlCountryCodes.Enabled = true;
                     ddlCountryCodes.SelectedIndex = 0;
                     txtEventName.Text = String.Empty;
                     txtActual.Text = String.Empty;
                     txtForecast.Text = String.Empty;
                     txtPrior.Text = String.Empty;
-                    _editMode = EditMode.Add;
                     addAction(false);
                     lstCalendarEvents.Enabled = false;
                     txtEventName.ReadOnly = false;
@@ -137,15 +146,15 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                         createdOn: DateTime.UtcNow,
                         createdBy: String.Empty
                     );
-                    _viewModel.AddEconomicCalendar(economicCalendar, () => this.Post(() =>
+                    ObserveMutation(_viewModel.AddEconomicCalendar(economicCalendar, () => this.Post(() =>
                     {
                         _editMode = EditMode.View;
                         lstCalendarEvents.Enabled = true;
                         txtEventName.ReadOnly = true;
-                        ddlCountryCodes.Enabled = false;
+                        ddlCountryCodes.Enabled = true;
                         SetReadOnlyControls(true);
                         addAction(true);
-                    }));
+                    })), "Economic Calendar Add Failed");
                     break;
             }
         }
@@ -166,6 +175,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                     case EditMode.View:
                         dtmEventDate.Value = EasternTime.FromUtc(economicCalendarId.EventDate);
                         dtmEventDate.Enabled = false;
+                        ddlCountryCodes.Enabled = false;
                         _editMode = EditMode.Change;
                         changeAction(false);
                         lstCalendarEvents.Enabled = false;
@@ -183,14 +193,15 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                            createdOn: DateTime.UtcNow,
                            createdBy: String.Empty
                         );
-                        _viewModel.ChangeEconomicCalendar(economicCalendarId, economicCalendar, true, () => this.Post(() =>
+                        ObserveMutation(_viewModel.ChangeEconomicCalendar(economicCalendarId, economicCalendar, true, () => this.Post(() =>
                         {
                             _editMode = EditMode.View;
                             dtmEventDate.Enabled = true;
+                            ddlCountryCodes.Enabled = true;
                             lstCalendarEvents.Enabled = true;
                             SetReadOnlyControls(true);
                             changeAction(true);
-                        }));
+                        })), "Economic Calendar Change Failed");
                         break;
                 }
             }
@@ -207,7 +218,9 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             var economicCalendarId = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex)?.Id;
             if (economicCalendarId != null)
                 if (MessageBox.Show($"Are you sure you want to remove Economic Calendar {economicCalendarId} ?", "Remove Economic Calendar", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                    _viewModel.RemoveEconomicCalendar(economicCalendarId, true);
+                    ObserveMutation(
+                        _viewModel.RemoveEconomicCalendar(economicCalendarId, true),
+                        "Economic Calendar Remove Failed");
         }
 
         public void Import()
@@ -222,8 +235,27 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                     "Economic Calendar Import");
                 return;
             }
-            _viewModel.PrepareImport(EasternTime.GetNow(TimeProvider.System), countryCode);
+            _viewModel.PrepareImport(dtmEventDate.Value.Date, countryCode);
             _ = ImportPreparedCalendarsAsync();
+        }
+
+        void ObserveMutation(Task operation, string caption)
+            => _ = ObserveMutationAsync(operation, caption);
+
+        async Task ObserveMutationAsync(Task operation, string caption)
+        {
+            try
+            {
+                await operation;
+            }
+            catch (OperationCanceledException)
+            {
+                // Closing the editor cancels local observation without manufacturing a domain failure.
+            }
+            catch (Exception exception)
+            {
+                this.ShowErrorMessage(exception.Message, caption);
+            }
         }
 
         async Task LoadEditorAsync()
@@ -294,7 +326,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                     closeAction?.Invoke(lstCalendarEvents.Items.Count > 0);
                     lstCalendarEvents.Enabled = true;
                     txtEventName.ReadOnly = true;
-                    ddlCountryCodes.Enabled = false;
+                    ddlCountryCodes.Enabled = true;
                     SetReadOnlyControls(true);
                     return false;
             }
@@ -320,11 +352,14 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         void ShowSelectedEconomicCalendar(int selectedIndex)
         {
             var ec = _viewModel.GetEconomicCalendar(selectedIndex);
-            dtmEventDate.Value = ec is null
-                ? EasternTime.GetNow(TimeProvider.System)
-                : EasternTime.FromUtc(ec.EventDate);
             if (ec is not null)
+                dtmEventDate.Value = EasternTime.FromUtc(ec.EventDate);
+            if (ec is not null)
+            {
+                _isBindingCountry = true;
                 ddlCountryCodes.SelectedIndex = _viewModel.GetCountryCodeIndex(ec.CountryCode);
+                _isBindingCountry = false;
+            }
             txtEventName.Text = ec?.EventName ?? String.Empty;
             txtEventName.ReadOnly = true;
             txtActual.Text = ec?.Actual ?? String.Empty;
@@ -353,7 +388,22 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
 
         void ddlCountryCodes_SelectedIndexChanged(object sender, EventArgs e)
         {
+            UpdateCountryCodeAccessibility();
+            if (_isBindingCountry || _editMode != EditMode.View || ddlCountryCodes.SelectedIndex < 0)
+                return;
+            var countryCode = _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(countryCode))
+                _ = LoadCalendarsAsync(DateOnly.FromDateTime(dtmEventDate.Value), countryCode);
+        }
 
+        void UpdateCountryCodeAccessibility()
+        {
+            var selectedCountry = ddlCountryCodes.SelectedItem?.ToString();
+            var label = string.IsNullOrWhiteSpace(selectedCountry)
+                ? "Economic calendar country"
+                : $"Economic calendar country: {selectedCountry}";
+            ddlCountryCodes.AccessibleDescription = string.Join(", ", ddlCountryCodes.Items.Cast<object>());
+            ddlCountryCodes.AccessibleName = $"{label}; catalog: {ddlCountryCodes.AccessibleDescription}";
         }
 
         public void Open()

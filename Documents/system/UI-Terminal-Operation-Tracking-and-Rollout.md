@@ -1,8 +1,8 @@
 # UI Terminal-Operation Tracking and Rollout
 
 Status: Approved UI reference pattern
-Version: 1.2
-Date: 2026-08-16
+Version: 1.3
+Date: 2026-08-18
 Scope: UI-originated commands whose accepted work finishes asynchronously through correlated complete/fail events
 
 ## 1. Purpose
@@ -93,9 +93,11 @@ combines that primitive with the required pieces:
 - successful completion refreshes the durable query snapshot before displaying success.
 
 `EconomicCalendarEditorViewModel` is the second conforming implementation. It uses the same correlation semantics for
-economic-calendar imports, refreshes the durable date/country projection only after complete, exposes typed failure,
-and owns listener shutdown through its View and parent form. Its event-consumer registration is transient so the editor
-and always-on calendar dashboard have independent listener lifecycles.
+manual add/change/remove and provider imports, refreshes the bounded durable date/country projection only after complete,
+exposes typed failure, and owns listener shutdown through its View and parent form. Its event-consumer registration is
+transient so the editor and always-on calendar dashboard have independent listener lifecycles. The real Development UI
+acceptance for G2-020 through G2-023 proves exact-ID source/terminal events, durable/UI agreement, and public-command
+baseline restoration for all four operations.
 
 New UI implementations should compose the shared correlation primitive with operation-specific lifecycle, command,
 terminal-event, durable-refresh, and presentation behavior. They must preserve bounded race handling, typed errors,
@@ -154,7 +156,7 @@ proving that the REST- and NATS-backed clients reach the same actor contract and
 | UI area | Status | Notes |
 | --- | --- | --- |
 | Yield-curve editor | Reference implementation | Correlates complete/fail by command ID, handles an early event, and refreshes durable state after complete. |
-| Economic-calendar editor | Implemented | Correlates imported complete/fail by command ID, handles early and duplicate delivery, refreshes the durable date/country projection after complete, and owns awaited listener shutdown. |
+| Economic-calendar editor | Accepted implementation | Correlates manual and imported complete/fail by command ID, handles early and duplicate delivery, refreshes the bounded durable date/country projection after complete, and owns awaited listener shutdown; G2-020 through G2-023 passed in the real Development UI. |
 | Market economic-calendar view | Partial supporting behavior | Owns calendar listeners, refreshes on events, and exposes import failure, but it is not the submitting command's correlation owner. |
 | Application-startup automatic imports | Implemented | Attempts both imports once before the live-feed trading-hours gate, observes exact-ID complete/fail events for up to 30 seconds, reports only failed/unobserved outcomes, performs no retry, and continues startup. |
 | Legacy scheduled tasks | Explicitly excluded | Unreviewed and not approved as terminal-operation tracking implementations. |
@@ -192,6 +194,7 @@ completed scheduled-task rollout.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 1.3 | 2026-08-18 | Extended the economic-calendar editor pattern to manual add/change/remove terminal events and accepted G2-020 through G2-023 with exact-ID correlation, bounded durable/UI refresh, production FMP import, and public-command baseline restoration. |
 | 1.2 | 2026-08-16 | Extracted shared terminal-event correlation and migrated automatic startup yield/calendar imports to independent listener-first, exact-ID, 30-second bounded observation with failure-only reporting, no retry, cleanup, and degraded startup continuation. |
 | 1.1 | 2026-08-16 | Migrated the economic-calendar editor to exact command-ID complete/fail correlation, durable refresh after complete, bounded early-event handling, typed failure, and awaited listener shutdown; recorded independent listener instances and identified automatic startup imports as a separate UI review. |
 | 1.0 | 2026-08-16 | Established the UI-only terminal-operation tracking and rollout convention, named the yield-curve editor as the reference implementation, identified the economic-calendar UI as the next migration, and explicitly deferred legacy scheduled-task review. |

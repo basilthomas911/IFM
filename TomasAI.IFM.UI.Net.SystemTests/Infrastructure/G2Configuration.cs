@@ -13,6 +13,7 @@ public sealed class G2Configuration
     public required string RunPrefix { get; init; }
     public required DateOnly ImportDate { get; init; }
     public required DateOnly YieldCurveManualDate { get; init; }
+    public required DateOnly EconomicCalendarManualDate { get; init; }
     public required string[] ImportCountryCodes { get; init; }
     public required string FundFixtureName { get; init; }
     public required string SecuritiesSymbol { get; init; }
@@ -44,6 +45,9 @@ public sealed class G2Configuration
                 "IFM_G2_IMPORT_DATE",
                 PreviousWeekday(DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)))),
             YieldCurveManualDate = ReadDate("IFM_G2_YIELD_CURVE_MANUAL_DATE", fixtureDate.AddDays(1)),
+            EconomicCalendarManualDate = ReadDate(
+                "IFM_G2_ECONOMIC_CALENDAR_MANUAL_DATE",
+                fixtureDate.AddDays(2)),
             ImportCountryCodes = ReadList("IFM_G2_COUNTRY_CODES", ["US"]),
             FundFixtureName = Read("IFM_G2_FUND_NAME", DefaultFundFixtureName),
             SecuritiesSymbol = Read("IFM_G2_SECURITIES_SYMBOL", "ES").ToUpperInvariant(),
@@ -71,6 +75,11 @@ public sealed class G2Configuration
             errors.Add("G2 manual yield-curve fixture date must be more than one year in the future.");
         if (YieldCurveManualDate == SecuritiesMaturityDate)
             errors.Add("G2 manual yield-curve and securities fixtures must use different dates.");
+        if (EconomicCalendarManualDate <= DateOnly.FromDateTime(DateTime.UtcNow.AddYears(1)))
+            errors.Add("G2 manual economic-calendar fixture date must be more than one year in the future.");
+        if (EconomicCalendarManualDate == SecuritiesMaturityDate
+            || EconomicCalendarManualDate == YieldCurveManualDate)
+            errors.Add("G2 manual economic-calendar fixture must use a date distinct from securities and yield-curve fixtures.");
         if (ImportCountryCodes.Length == 0
             || ImportCountryCodes.Any(code => code.Length is < 2 or > 3 || code.Any(character => !char.IsAsciiLetter(character))))
             errors.Add("G2 import country codes must contain one or more two- or three-letter ASCII codes.");
@@ -105,6 +114,7 @@ public sealed class G2Configuration
             RunPrefix,
             ImportDate,
             YieldCurveManualDate,
+            EconomicCalendarManualDate,
             ImportCountryCodes,
             FundFixtureName,
             SecuritiesSymbol,

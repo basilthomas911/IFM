@@ -26,12 +26,16 @@ namespace TomasAI.IFM.UI.Net.Models
         /// <param name="listenerAction"></param>
         public async Task StartEconomicCalendarEventListenersAsync( 
             Action<EconomicCalendarAddedCompleteEvent> addedAction,
+            Action<EconomicCalendarAddedFailEvent> addFailedAction,
             Action<EconomicCalendarChangedCompleteEvent> changedAction,
+            Action<EconomicCalendarChangedFailEvent> changeFailedAction,
             Action<EconomicCalendarRemovedCompleteEvent> removedAction,
+            Action<EconomicCalendarRemovedFailEvent> removeFailedAction,
             Action<EconomicCalendarsImportedCompleteEvent> importedAction,
             Action<EconomicCalendarsImportedFailEvent> importFailedAction)
             => await _economicCalendarEventConsumer.StartAsync(
-                addedAction, changedAction, removedAction, importedAction, importFailedAction);
+                addedAction, addFailedAction, changedAction, changeFailedAction,
+                removedAction, removeFailedAction, importedAction, importFailedAction);
 
         /// <summary>
         /// stop listening for economic calendar complete events

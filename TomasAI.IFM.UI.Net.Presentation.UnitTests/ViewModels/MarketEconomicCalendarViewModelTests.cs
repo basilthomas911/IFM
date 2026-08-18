@@ -178,14 +178,17 @@ public class MarketEconomicCalendarViewModelTests
         {
             consumer.StartAsync(
                     Arg.Any<Action<EconomicCalendarAddedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarAddedFailEvent>>(),
                     Arg.Any<Action<EconomicCalendarChangedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarChangedFailEvent>>(),
                     Arg.Any<Action<EconomicCalendarRemovedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarRemovedFailEvent>>(),
                     Arg.Any<Action<EconomicCalendarsImportedCompleteEvent>>(),
                     Arg.Any<Action<EconomicCalendarsImportedFailEvent>>())
                 .Returns(call =>
                 {
                     _added = call.ArgAt<Action<EconomicCalendarAddedCompleteEvent>>(0);
-                    _importFailed = call.ArgAt<Action<EconomicCalendarsImportedFailEvent>>(4);
+                    _importFailed = call.ArgAt<Action<EconomicCalendarsImportedFailEvent>>(7);
                     IsStarted = true;
                     return ValueTask.CompletedTask;
                 });

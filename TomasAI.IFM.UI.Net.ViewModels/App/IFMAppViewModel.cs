@@ -1172,6 +1172,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 _ => { },
                 _ => { },
                 _ => { },
+                _ => { },
+                _ => { },
+                _ => { },
                 @event => correlation.TryPublish(@event),
                 @event => correlation.TryPublish(@event)),
             cancellationToken);

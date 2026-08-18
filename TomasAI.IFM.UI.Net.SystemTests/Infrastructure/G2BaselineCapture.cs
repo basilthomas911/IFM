@@ -18,6 +18,7 @@ public sealed record G2BaselineSnapshot(
     FuturesOptionContractReadModel? SecuritiesFixtureOption,
     YieldCurveRateReadModel[] YieldCurveManualDateRows,
     YieldCurveRateReadModel[] YieldCurveImportDateRows,
+    EconomicCalendarReadModel[] EconomicCalendarManualDateRows,
     IReadOnlyDictionary<string, EconomicCalendarReadModel[]> EconomicCalendarImportDateRows,
     LookupTypeReadModel[] RunOwnedLookupTypes,
     FundReadModel? DesignatedFund,
@@ -72,6 +73,16 @@ public static class G2BaselineCapture
                     .WaitAsync(timeout, cancellationToken),
                 $"economic-calendar baseline for {countryCode}");
         }
+        var manualCalendarDate = DateTime.SpecifyKind(
+            configuration.EconomicCalendarManualDate.ToDateTime(TimeOnly.MinValue),
+            DateTimeKind.Utc);
+        var manualCalendars = RequireValue(
+            await queries.MarketData.GetEconomicCalendarsAsync(
+                    manualCalendarDate,
+                    EconomicCalendarViewType.Today,
+                    configuration.ImportCountryCodes[0])
+                .WaitAsync(timeout, cancellationToken),
+            $"manual economic-calendar baseline for {configuration.ImportCountryCodes[0]}");
 
         var lookupTypes = RequireValue(
             await queries.Reference.GetLookupTypesAsync().WaitAsync(timeout, cancellationToken),
@@ -137,6 +148,7 @@ public static class G2BaselineCapture
                 StringComparison.Ordinal)),
             manualYieldCurve,
             yieldCurve,
+            manualCalendars,
             calendars,
             lookupTypes.Where(lookup =>
                     IsRunOwned(lookup.LookupTypeName, configuration.RunPrefix)

@@ -322,13 +322,16 @@ public class IFMAppStartupReferenceDataImportTests
         {
             consumer.StartAsync(
                     Arg.Any<Action<EconomicCalendarAddedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarAddedFailEvent>>(),
                     Arg.Any<Action<EconomicCalendarChangedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarChangedFailEvent>>(),
                     Arg.Any<Action<EconomicCalendarRemovedCompleteEvent>>(),
+                    Arg.Any<Action<EconomicCalendarRemovedFailEvent>>(),
                     Arg.Any<Action<EconomicCalendarsImportedCompleteEvent>>(),
                     Arg.Any<Action<EconomicCalendarsImportedFailEvent>>())
                 .Returns(call =>
                 {
-                    _complete = call.ArgAt<Action<EconomicCalendarsImportedCompleteEvent>>(3);
+                    _complete = call.ArgAt<Action<EconomicCalendarsImportedCompleteEvent>>(6);
                     IsStarted = true;
                     return ValueTask.CompletedTask;
                 });

@@ -201,8 +201,11 @@ public sealed class MarketEconomicCalendarViewModel
             await _eventModel.ExecuteAsync(
                 async model => await model.StartEconomicCalendarEventListenersAsync(
                     _ => QueueRefresh(),
+                    failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Add Failed"),
                     _ => QueueRefresh(),
+                    failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Change Failed"),
                     _ => QueueRefresh(),
+                    failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Remove Failed"),
                     _ => QueueRefresh(),
                     failed => PublishError(
                         failed.ErrorCode,

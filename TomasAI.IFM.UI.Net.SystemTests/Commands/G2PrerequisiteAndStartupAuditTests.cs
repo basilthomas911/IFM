@@ -17,10 +17,10 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Commands;
 [Trait("Category", "G2StartupProcess")]
 public sealed class G2PrerequisiteAndStartupAuditTests
 {
-    const int ExpectedStepCount = 19;
+    const int ExpectedStepCount = 23;
 
     [Fact]
-    public async Task Development_command_audit_satisfies_G2_001_through_G2_019()
+    public async Task Development_command_audit_satisfies_G2_001_through_G2_023()
     {
         if (!G0Configuration.G2StartupLiveRunEnabled)
             return;
@@ -33,9 +33,14 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             Environment.GetEnvironmentVariable("IFM_G2_YIELD_CURVE_SLICE"),
             "1",
             StringComparison.Ordinal);
-        if (securitiesSlice && yieldCurveSlice)
+        var economicCalendarSlice = string.Equals(
+            Environment.GetEnvironmentVariable("IFM_G2_ECONOMIC_CALENDAR_SLICE"),
+            "1",
+            StringComparison.Ordinal);
+        if (new[] { securitiesSlice, yieldCurveSlice, economicCalendarSlice }.Count(enabled => enabled) > 1)
             throw new InvalidOperationException(
-                "IFM_G2_SECURITIES_SLICE and IFM_G2_YIELD_CURVE_SLICE cannot both be enabled.");
+                "IFM_G2_SECURITIES_SLICE, IFM_G2_YIELD_CURVE_SLICE, and "
+                + "IFM_G2_ECONOMIC_CALENDAR_SLICE are mutually exclusive.");
         var configuration = G2Configuration.Load();
         var process = configuration.Process;
         var redactor = new SecretRedactor([Environment.GetEnvironmentVariable("FMP_API_KEY")]);
@@ -46,8 +51,12 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 ? "G2-001-007+010-015"
                 : yieldCurveSlice
                     ? "G2-001-007+016-019"
-                    : "G2-001-019",
-            ExpectedStepCount = securitiesSlice ? 13 : yieldCurveSlice ? 11 : ExpectedStepCount,
+                    : economicCalendarSlice
+                        ? "G2-001-007+020-023"
+                        : "G2-001-023",
+            ExpectedStepCount = securitiesSlice || yieldCurveSlice || economicCalendarSlice
+                ? securitiesSlice ? 13 : 11
+                : ExpectedStepCount,
             RunId = process.RunId,
             Environment = process.EnvironmentName,
             StartedUtc = DateTimeOffset.UtcNow,
@@ -75,7 +84,9 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         G2BaselineSnapshot? baseline = null;
         G2SecuritiesFixture? securitiesFixture = null;
         G2YieldCurveFixture? yieldCurveFixture = null;
+        G2EconomicCalendarFixture? economicCalendarFixture = null;
         Window? marketDataWindow = null;
+        Window? referenceWindow = null;
         var cleanupFailures = new List<string>();
 
         try
@@ -155,7 +166,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     {
                         ["ASPNETCORE_ENVIRONMENT"] = process.EnvironmentName
                     };
-                    if (yieldCurveSlice)
+                    if (yieldCurveSlice || economicCalendarSlice)
                         apiEnvironment["AppSettings__Databento__DataSource"] = "Synthetic";
                     api = OwnedProcess.Start(
                         process.ApiExecutable,
@@ -179,7 +190,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                             $"API readiness was {readiness.Status}; actorTypes={readiness.RegisteredActorTypes}.");
                     return Observation(
                         $"API PID {api.Process.Id} is Healthy; registeredActorTypes={readiness.RegisteredActorTypes}; "
-                        + $"feedSource={(yieldCurveSlice ? "Synthetic (isolated yield/FMP slice)" : "Development configuration")}.",
+                        + $"feedSource={(yieldCurveSlice || economicCalendarSlice ? "Synthetic (isolated reference-data/FMP slice)" : "Development configuration")}.",
                         ["processes/api-start.json", "network/api-readiness.json"]);
                 });
 
@@ -200,23 +211,36 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         || baseline.RunOwnedLookupTypes.Length > 0)
                         throw new G0DependencyException(
                             $"Unique run prefix '{configuration.RunPrefix}' already owns mutable Development state.");
-                    if (!yieldCurveSlice
+                    if (!yieldCurveSlice && !economicCalendarSlice
                         && (baseline.SecuritiesFixtureContract is not null
                             || baseline.SecuritiesFixtureOption is not null))
                         throw new G0DependencyException(
                             $"Exact G2 securities fixture already exists: futures={configuration.SecuritiesFuturesContractId}; "
                             + $"option={configuration.SecuritiesOptionContractId}.");
-                    if (!securitiesSlice && baseline.YieldCurveManualDateRows.Length > 0)
+                    if (!securitiesSlice && !economicCalendarSlice
+                        && baseline.YieldCurveManualDateRows.Length > 0)
                         throw new G0DependencyException(
                             $"Exact G2 manual yield-curve fixture already exists for {configuration.YieldCurveManualDate:yyyy-MM-dd}.");
-                    if (!yieldCurveSlice)
+                    if (!securitiesSlice && !yieldCurveSlice
+                        && baseline.EconomicCalendarManualDateRows.Length > 0)
+                        throw new G0DependencyException(
+                            $"Exact G2 manual economic-calendar fixture date already contains "
+                            + $"{baseline.EconomicCalendarManualDateRows.Length} row(s) for "
+                            + $"{configuration.EconomicCalendarManualDate:yyyy-MM-dd}/{configuration.ImportCountryCodes[0]}.");
+                    if (!yieldCurveSlice && !economicCalendarSlice)
                         securitiesFixture = await G2SecuritiesFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
-                    if (!securitiesSlice)
+                    if (!securitiesSlice && !economicCalendarSlice)
                         yieldCurveFixture = await G2YieldCurveFixture.CreateAsync(
+                            queries,
+                            configuration,
+                            process.ReadinessTimeout,
+                            token);
+                    if (!securitiesSlice && !yieldCurveSlice)
+                        economicCalendarFixture = await G2EconomicCalendarFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
@@ -233,16 +257,22 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         Path.Combine("processes", "g2-yield-curve-fixture.json"),
                         JsonSerializer.Serialize(yieldCurveFixture, new JsonSerializerOptions { WriteIndented = true }),
                         token);
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "g2-economic-calendar-fixture.json"),
+                        JsonSerializer.Serialize(economicCalendarFixture, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
                     return Observation(
                         $"valueDate={baseline.ValueDate:yyyy-MM-dd}; importDate={baseline.ImportDate:yyyy-MM-dd}; "
                         + $"securitiesFixture={(securitiesFixture is null ? "not-in-slice" : $"{securitiesFixture.FuturesContractId}/{securitiesFixture.OptionContractId}")}; "
                         + $"manualYieldDate={configuration.YieldCurveManualDate:yyyy-MM-dd}; "
                         + $"manualYieldRows={baseline.YieldCurveManualDateRows.Length}; "
                         + $"yieldRows={baseline.YieldCurveImportDateRows.Length}; "
+                        + $"manualCalendarDate={configuration.EconomicCalendarManualDate:yyyy-MM-dd}; "
+                        + $"manualCalendarRows={baseline.EconomicCalendarManualDateRows.Length}; "
                         + $"calendarRows={baseline.EconomicCalendarImportDateRows.Sum(pair => pair.Value.Length)}; "
                         + $"designatedFund={(baseline.DesignatedFund is null ? "absent" : $"{baseline.DesignatedFund.FundId}:{baseline.DesignatedFund.Name}")}; "
                         + $"fundTransactions={baseline.DesignatedFundTransactions.Length}; fundOrders={baseline.DesignatedFundOrders.Length}; fundTrades={baseline.DesignatedFundTrades.Length}.",
-                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json", "processes/g2-yield-curve-fixture.json"]);
+                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json", "processes/g2-yield-curve-fixture.json", "processes/g2-economic-calendar-fixture.json"]);
                 });
 
             await Step("G2-006", "Launch the desktop and await initialized shell",
@@ -298,7 +328,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-command-listener-catalog.json", "network/g2-command-events.json"]);
                 });
 
-            if (!securitiesSlice && !yieldCurveSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice)
                 await Step("G2-008", "Start the current market-data feed from the UI",
                 "One UI start command is correlated from source event to successful terminal event and the shell shows the feed as active.",
                 async token =>
@@ -334,7 +364,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            if (!securitiesSlice && !yieldCurveSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice)
                 await Step("G2-009", "Stop the current market-data feed from the UI",
                 "One UI stop command is correlated from source event to successful terminal event and the shell shows the feed as inactive.",
                 async token =>
@@ -357,7 +387,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            if (!yieldCurveSlice)
+            if (!yieldCurveSlice && !economicCalendarSlice)
             {
             await Step("G2-010", "Add a futures contract from the UI",
                 "The UI adds the exact run-owned futures fixture, its source and successful terminal events correlate by command ID, and the typed query returns the durable row.",
@@ -585,7 +615,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 });
             }
 
-            if (!securitiesSlice)
+            if (!securitiesSlice && !economicCalendarSlice)
             {
             await Step("G2-016", "Add an isolated yield-curve record manually",
                 "The real editor submits the manual yield-curve add command without FMP, source and successful terminal events correlate by command ID, and durable/UI state contains the exact row.",
@@ -768,6 +798,209 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-yield-curve-command-events.json", "queries/G2-019.json", .. artifacts]);
                 });
             }
+
+            if (!securitiesSlice && !yieldCurveSlice)
+            {
+            await Step("G2-020", "Add an isolated economic-calendar record manually",
+                "The real editor submits the manual MarketData add command without FMP, source and successful terminal events correlate by command ID, and bounded durable/UI state contains the exact row.",
+                async token =>
+                {
+                    RequirePassed(
+                        recorder,
+                        economicCalendarSlice ? "G2-007" : "G2-019",
+                        economicCalendarSlice
+                            ? "The safety/startup prerequisites must complete before economic-calendar maintenance."
+                            : "Yield-curve maintenance must complete before economic-calendar maintenance.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = economicCalendarFixture ?? throw new InvalidOperationException("G2 economic-calendar fixture is unavailable.");
+
+                    ui.InvokeToolbarAction("Reference");
+                    referenceWindow = await ui.WaitForWindowAsync(
+                        "Reference Data Manager", process.ReadinessTimeout, token);
+                    var transition = await ExecuteEconomicCalendarMutationAsync(
+                        observer,
+                        nameof(EconomicCalendarAddedEvent),
+                        operationToken => ui.AddEconomicCalendarAsync(
+                            referenceWindow, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForEconomicCalendarsAsync(
+                        querySession,
+                        fixture.ManualDate,
+                        fixture.CountryCode,
+                        [fixture.AddedCalendar],
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteEconomicCalendarEvidenceAsync(
+                        evidence, observer, "G2-020", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-020-economic-calendar-added");
+                    return Observation(
+                        $"id={fixture.AddedCalendar.Id}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; actual={durable.Single().Actual}; "
+                        + $"uiRows={transition.UiState.Items.Count}.",
+                        ["network/g2-economic-calendar-command-events.json", "queries/G2-020.json", .. artifacts]);
+                });
+
+            await Step("G2-021", "Change the isolated economic-calendar record manually",
+                "The editor changes the run-owned values without changing identity, exact-ID completion succeeds, and bounded durable/refreshed UI state contains every changed field.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-020", "The isolated manual economic-calendar row must exist before change.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = economicCalendarFixture ?? throw new InvalidOperationException("G2 economic-calendar fixture is unavailable.");
+                    var window = referenceWindow ?? throw new InvalidOperationException("Reference Data Manager is unavailable.");
+
+                    var transition = await ExecuteEconomicCalendarMutationAsync(
+                        observer,
+                        nameof(EconomicCalendarChangedEvent),
+                        operationToken => ui.ChangeEconomicCalendarAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForEconomicCalendarsAsync(
+                        querySession,
+                        fixture.ManualDate,
+                        fixture.CountryCode,
+                        [fixture.ChangedCalendar],
+                        process.ReadinessTimeout,
+                        token);
+                    var refreshedUi = await ui.ReloadEconomicCalendarAsync(
+                        window,
+                        fixture.ManualDate,
+                        fixture.CountryCode,
+                        fixture.ChangedCalendar,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteEconomicCalendarEvidenceAsync(
+                        evidence, observer, "G2-021", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-021-economic-calendar-changed");
+                    return Observation(
+                        $"id={fixture.ChangedCalendar.Id}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; actual={durable.Single().Actual}; "
+                        + $"uiRows={refreshedUi.Items.Count}.",
+                        ["network/g2-economic-calendar-command-events.json", "queries/G2-021.json", .. artifacts]);
+                });
+
+            await Step("G2-022", "Remove the isolated economic-calendar record manually",
+                "The real editor confirms the domain remove command, exact-ID completion succeeds, and bounded durable plus refreshed visible state prove the row is absent.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-021", "The changed manual economic-calendar row must exist before removal.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = economicCalendarFixture ?? throw new InvalidOperationException("G2 economic-calendar fixture is unavailable.");
+                    var window = referenceWindow ?? throw new InvalidOperationException("Reference Data Manager is unavailable.");
+
+                    var transition = await ExecuteEconomicCalendarMutationAsync(
+                        observer,
+                        nameof(EconomicCalendarRemovedEvent),
+                        operationToken => ui.RemoveEconomicCalendarAsync(
+                            window, fixture, process.ReadinessTimeout, operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForEconomicCalendarsAsync(
+                        querySession,
+                        fixture.ManualDate,
+                        fixture.CountryCode,
+                        [],
+                        process.ReadinessTimeout,
+                        token);
+                    var refreshedUi = await ui.ReloadEconomicCalendarAsync(
+                        window,
+                        fixture.ManualDate,
+                        fixture.CountryCode,
+                        fixture.ChangedCalendar,
+                        present: false,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteEconomicCalendarEvidenceAsync(
+                        evidence, observer, "G2-022", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-022-economic-calendar-removed");
+                    return Observation(
+                        $"id={fixture.ChangedCalendar.Id}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; durableRows={durable.Length}; "
+                        + $"uiRows={refreshedUi.Items.Count}.",
+                        ["network/g2-economic-calendar-command-events.json", "queries/G2-022.json", .. artifacts]);
+                });
+
+            await Step("G2-023", "Import one FMP economic-calendar date from the UI",
+                "The UI-selected date/country reach the parameter-only import event, the domain handler acquires through IReferenceDataApi and emits exact-ID completion, and its canonical 0..N provider result agrees with bounded durable and visible state.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-022", "Manual economic-calendar maintenance must be clean before the provider import.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fixture = economicCalendarFixture ?? throw new InvalidOperationException("G2 economic-calendar fixture is unavailable.");
+                    var snapshot = baseline ?? throw new InvalidOperationException("G2 baseline is unavailable.");
+                    var window = referenceWindow ?? throw new InvalidOperationException("Reference Data Manager is unavailable.");
+
+                    var transition = await ExecuteEconomicCalendarMutationAsync(
+                        observer,
+                        nameof(EconomicCalendarsImportedEvent),
+                        operationToken => ui.ImportEconomicCalendarsAsync(
+                            window, fixture, process.StartupTimeout, operationToken),
+                        process.StartupTimeout,
+                        token);
+                    if (transition.ImportDate != fixture.ImportDate)
+                        throw new InvalidOperationException(
+                            $"The correlated FMP terminal event reported import date {transition.ImportDate:yyyy-MM-dd}; expected {fixture.ImportDate:yyyy-MM-dd}.");
+                    if (transition.ImportCountryCodes is null
+                        || !transition.ImportCountryCodes.SequenceEqual([fixture.CountryCode], StringComparer.Ordinal))
+                        throw new InvalidOperationException(
+                            "The correlated FMP terminal event did not preserve the UI-selected country filter.");
+                    var providerRows = transition.ImportedEconomicCalendars
+                        ?? throw new InvalidOperationException(
+                            "The successful FMP terminal event did not carry its canonical economic-calendar result.");
+                    if (providerRows.Any(row => DateOnly.FromDateTime(row.EventDate) != fixture.ImportDate
+                                                || !string.Equals(row.CountryCode, fixture.CountryCode, StringComparison.Ordinal))
+                        || providerRows.Select(EconomicCalendarIdentity).Distinct(StringComparer.Ordinal).Count() != providerRows.Length)
+                        throw new InvalidOperationException(
+                            "The single-date FMP terminal result contains an out-of-range, wrong-country, or duplicate logical row.");
+                    var expectedRows = MergeEconomicCalendars(
+                        snapshot.EconomicCalendarImportDateRows[fixture.CountryCode],
+                        providerRows);
+                    var durable = await WaitForEconomicCalendarsAsync(
+                        querySession,
+                        fixture.ImportDate,
+                        fixture.CountryCode,
+                        expectedRows,
+                        process.StartupTimeout,
+                        token);
+                    if (!EconomicCalendarsEqualWithMetadata(durable, expectedRows))
+                        throw new InvalidOperationException(
+                            "The bounded durable economic-calendar result did not preserve provider/baseline provenance metadata.");
+                    if (transition.UiState.SelectedDate != fixture.ImportDate
+                        || !string.Equals(transition.UiState.SelectedCountryCode, fixture.CountryCode, StringComparison.Ordinal)
+                        || transition.UiState.Items.Count != durable.Length
+                        || providerRows.Any(provider => !transition.UiState.Items.Any(item =>
+                            item.Contains(provider.EventName, StringComparison.Ordinal))))
+                        throw new InvalidOperationException(
+                            "The economic-calendar editor did not visibly render the selected import date/country and accepted provider rows.");
+                    await WriteEconomicCalendarEvidenceAsync(
+                        evidence,
+                        observer,
+                        "G2-023",
+                        transition,
+                        new { ProviderResult = providerRows, ExpectedState = expectedRows, DurableState = durable, VisibleState = transition.UiState },
+                        token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-023-fmp-economic-calendar-imported");
+                    await ui.CloseWindowAsync(window, process.ReadinessTimeout, token);
+                    referenceWindow = null;
+                    return Observation(
+                        $"importDate={fixture.ImportDate:yyyy-MM-dd}; country={fixture.CountryCode}; "
+                        + $"command={transition.CommandId}; terminal={transition.TerminalEventName}; "
+                        + $"providerRows={providerRows.Length}; durableRows={durable.Length}; "
+                        + $"uiRows={transition.UiState.Items.Count}; adapter={process.FmpAdapter}.",
+                        ["network/g2-economic-calendar-command-events.json", "queries/G2-023.json", .. artifacts]);
+                });
+            }
         }
         finally
         {
@@ -775,6 +1008,26 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             {
                 try { automation.CloseAllSecondaryWindows(); }
                 catch (Exception exception) { cleanupFailures.Add("Secondary-window cleanup failed: " + exception.Message); }
+            }
+
+            if (queries is not null
+                && commandObserver is not null
+                && economicCalendarFixture is not null
+                && baseline is not null
+                && api is not null
+                && !api.Process.HasExited)
+            {
+                var cleanup = await CleanupEconomicCalendarFixtureAsync(
+                    queries,
+                    commandObserver,
+                    economicCalendarFixture,
+                    baseline,
+                    process.ReadinessTimeout);
+                await evidence.WriteTextAsync(
+                    Path.Combine("processes", "g2-economic-calendar-cleanup.json"),
+                    JsonSerializer.Serialize(cleanup, new JsonSerializerOptions { WriteIndented = true }));
+                if (!cleanup.Succeeded)
+                    cleanupFailures.Add("Economic-calendar cleanup/baseline restoration failed: " + cleanup.Error);
             }
 
             if (queries is not null
@@ -900,7 +1153,9 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ? "G2-001-007 plus G2-010-015 harness cleanup; this is not G2-037 or G2-038 acceptance"
                         : yieldCurveSlice
                             ? "G2-001-007 plus G2-016-019 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance"
-                            : "G2-001-019 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance",
+                            : economicCalendarSlice
+                                ? "G2-001-007 plus G2-020-023 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance"
+                                : "G2-001-023 harness cleanup and imported-date restoration; this is not G2-037 or G2-038 acceptance",
                     Succeeded = run.CleanupSucceeded,
                     Failures = cleanupFailures
                 }, new JsonSerializerOptions { WriteIndented = true }));
@@ -1096,6 +1351,57 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             uiState);
     }
 
+    static async Task<G2EconomicCalendarTransitionEvidence> ExecuteEconomicCalendarMutationAsync(
+        G2CommandEventObserver observer,
+        string sourceEventName,
+        Func<CancellationToken, Task<G2EconomicCalendarEditorUiState>> invokeUi,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var operationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var invokedUtc = DateTimeOffset.UtcNow;
+        var uiTask = invokeUi(operationSource.Token);
+        var sourceTask = observer.WaitForAsync(
+            rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                    && row.Family == "EconomicCalendar"
+                                    && row.EventName == sourceEventName
+                                    && row.Success is null),
+            timeout,
+            operationSource.Token);
+        if (await Task.WhenAny(sourceTask, uiTask).ConfigureAwait(false) == uiTask)
+            await uiTask.ConfigureAwait(false);
+        var sourceEvents = await sourceTask.ConfigureAwait(false);
+        var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                              && row.Family == "EconomicCalendar"
+                                              && row.EventName == sourceEventName
+                                              && row.Success is null);
+        var terminalEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.CommandId == source.CommandId && row.Success.HasValue),
+            timeout,
+            cancellationToken);
+        var terminal = terminalEvents.Last(row => row.CommandId == source.CommandId && row.Success.HasValue);
+        if (terminal.Success != true)
+        {
+            operationSource.Cancel();
+            try { await uiTask.ConfigureAwait(false); }
+            catch { /* Preserve the correlated backend failure below. */ }
+            throw new InvalidOperationException(
+                $"{sourceEventName} command {source.CommandId} failed: {terminal.ErrorMessage}");
+        }
+
+        var uiState = await uiTask.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        return new G2EconomicCalendarTransitionEvidence(
+            source.CommandId,
+            source.EventName,
+            terminal.EventName,
+            source.ObservedUtc,
+            terminal.ObservedUtc,
+            terminal.ImportDate,
+            terminal.ImportCountryCodes,
+            terminal.ImportedEconomicCalendars,
+            uiState);
+    }
+
     static async Task<FuturesContractV2ReadModel?> WaitForFuturesContractAsync(
         G0QuerySession queries,
         string contractId,
@@ -1207,6 +1513,95 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         => actual.OrderBy(rate => rate.ValueDate)
             .SequenceEqual(expected.OrderBy(rate => rate.ValueDate));
 
+    static async Task<EconomicCalendarReadModel[]> WaitForEconomicCalendarsAsync(
+        G0QuerySession queries,
+        DateOnly eventDate,
+        string countryCode,
+        IReadOnlyList<EconomicCalendarReadModel> expectedRows,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        var queryDate = DateTime.SpecifyKind(eventDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var rows = RequireQueryValue(
+                await queries.MarketData.GetEconomicCalendarsAsync(
+                        queryDate,
+                        EconomicCalendarViewType.Today,
+                        countryCode)
+                    .WaitAsync(timeoutSource.Token),
+                $"economic calendars for {eventDate:yyyy-MM-dd}/{countryCode}");
+            if (EconomicCalendarsEqual(rows, expectedRows))
+                return rows;
+            try { await Task.Delay(TimeSpan.FromMilliseconds(150), timeoutSource.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { break; }
+        }
+        throw new TimeoutException(
+            $"Typed economic-calendar query for '{eventDate:yyyy-MM-dd}/{countryCode}' "
+            + $"did not match the expected {expectedRows.Count} row(s).");
+    }
+
+    static EconomicCalendarReadModel[] MergeEconomicCalendars(
+        IEnumerable<EconomicCalendarReadModel> baseline,
+        IEnumerable<EconomicCalendarReadModel> imported)
+    {
+        var rows = baseline.ToDictionary(EconomicCalendarIdentity, StringComparer.Ordinal);
+        foreach (var row in imported)
+            rows[EconomicCalendarIdentity(row)] = row;
+        return rows.Values
+            .OrderBy(row => row.EventDate)
+            .ThenBy(row => row.EventName, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    static bool EconomicCalendarsEqual(
+        IEnumerable<EconomicCalendarReadModel> actual,
+        IEnumerable<EconomicCalendarReadModel> expected)
+    {
+        var actualRows = actual.OrderBy(EconomicCalendarIdentity, StringComparer.Ordinal).ToArray();
+        var expectedRows = expected.OrderBy(EconomicCalendarIdentity, StringComparer.Ordinal).ToArray();
+        return actualRows.Length == expectedRows.Length
+               && actualRows.Zip(expectedRows).All(pair => EconomicCalendarEquivalent(pair.First, pair.Second));
+    }
+
+    static bool EconomicCalendarEquivalent(
+        EconomicCalendarReadModel left,
+        EconomicCalendarReadModel right)
+        => string.Equals(EconomicCalendarIdentity(left), EconomicCalendarIdentity(right), StringComparison.Ordinal)
+           && string.Equals(left.Actual, right.Actual, StringComparison.Ordinal)
+           && string.Equals(left.Forecast, right.Forecast, StringComparison.Ordinal)
+           && string.Equals(left.Prior, right.Prior, StringComparison.Ordinal)
+           && string.Equals(left.Impact, right.Impact, StringComparison.Ordinal)
+           && string.Equals(left.Unit, right.Unit, StringComparison.Ordinal)
+           && string.Equals(left.Change, right.Change, StringComparison.Ordinal)
+           && string.Equals(left.ChangePercentage, right.ChangePercentage, StringComparison.Ordinal);
+
+    static bool EconomicCalendarsEqualWithMetadata(
+        IEnumerable<EconomicCalendarReadModel> actual,
+        IEnumerable<EconomicCalendarReadModel> expected)
+    {
+        var actualRows = actual.OrderBy(EconomicCalendarIdentity, StringComparer.Ordinal).ToArray();
+        var expectedRows = expected.OrderBy(EconomicCalendarIdentity, StringComparer.Ordinal).ToArray();
+        return actualRows.Length == expectedRows.Length
+               && actualRows.Zip(expectedRows).All(pair =>
+                   EconomicCalendarEquivalent(pair.First, pair.Second)
+                   && NormalizeTimestamp(pair.First.CreatedOn) == NormalizeTimestamp(pair.Second.CreatedOn)
+                   && string.Equals(pair.First.CreatedBy, pair.Second.CreatedBy, StringComparison.Ordinal));
+    }
+
+    static string EconomicCalendarIdentity(EconomicCalendarReadModel row)
+        => $"{NormalizeTimestamp(row.EventDate):O}|{row.CountryCode}|{row.EventName}";
+
+    static DateTime NormalizeTimestamp(DateTime value)
+    {
+        var utc = value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+        return new DateTime(
+            utc.Ticks - utc.Ticks % TimeSpan.TicksPerMillisecond,
+            DateTimeKind.Utc);
+    }
+
     static T RequireQueryValue<T>(ServiceResult<T> result, string queryName)
         where T : class
     {
@@ -1249,6 +1644,27 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             Path.Combine("network", "g2-yield-curve-command-events.json"),
             JsonSerializer.Serialize(
                 observer.Events.Where(row => row.Family == "YieldCurve"),
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+        await evidence.WriteTextAsync(
+            Path.Combine("queries", stepId + ".json"),
+            JsonSerializer.Serialize(new { Transition = transition, DurableState = durableState },
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+    }
+
+    static async Task WriteEconomicCalendarEvidenceAsync(
+        G0EvidenceWriter evidence,
+        G2CommandEventObserver observer,
+        string stepId,
+        G2EconomicCalendarTransitionEvidence transition,
+        object? durableState,
+        CancellationToken cancellationToken)
+    {
+        await evidence.WriteTextAsync(
+            Path.Combine("network", "g2-economic-calendar-command-events.json"),
+            JsonSerializer.Serialize(
+                observer.Events.Where(row => row.Family == "EconomicCalendar"),
                 new JsonSerializerOptions { WriteIndented = true }),
             cancellationToken);
         await evidence.WriteTextAsync(
@@ -1386,6 +1802,108 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         }
     }
 
+    static async Task<G2EconomicCalendarCleanupEvidence> CleanupEconomicCalendarFixtureAsync(
+        G0QuerySession queries,
+        G2CommandEventObserver observer,
+        G2EconomicCalendarFixture fixture,
+        G2BaselineSnapshot baseline,
+        TimeSpan timeout)
+    {
+        List<string> actions = [];
+        try
+        {
+            var manualRows = await QueryEconomicCalendarsAsync(
+                queries, fixture.ManualDate, fixture.CountryCode, timeout);
+            foreach (var row in manualRows.Where(row => string.Equals(
+                         row.EventName,
+                         fixture.AddedCalendar.EventName,
+                         StringComparison.Ordinal)))
+            {
+                var result = await queries.MarketDataCommands.RemoveEconomicCalendarAsync(row.Id, true);
+                var commandId = RequireCommandId(result, "cleanup manual economic-calendar removal");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                actions.Add($"Removed manual economic-calendar row {row.Id} with command {commandId}.");
+            }
+            await WaitForEconomicCalendarsAsync(
+                queries,
+                fixture.ManualDate,
+                fixture.CountryCode,
+                baseline.EconomicCalendarManualDateRows,
+                timeout,
+                CancellationToken.None);
+
+            var baselineRows = baseline.EconomicCalendarImportDateRows[fixture.CountryCode];
+            var currentRows = await QueryEconomicCalendarsAsync(
+                queries, fixture.ImportDate, fixture.CountryCode, timeout);
+            var baselineById = baselineRows.ToDictionary(EconomicCalendarIdentity, StringComparer.Ordinal);
+            var currentById = currentRows.ToDictionary(EconomicCalendarIdentity, StringComparer.Ordinal);
+
+            foreach (var extra in currentById.Where(pair => !baselineById.ContainsKey(pair.Key)).Select(pair => pair.Value))
+            {
+                var result = await queries.MarketDataCommands.RemoveEconomicCalendarAsync(extra.Id, true);
+                var commandId = RequireCommandId(result, "import-date economic-calendar baseline removal");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                actions.Add($"Removed imported economic-calendar row {extra.Id} with command {commandId}.");
+            }
+
+            foreach (var missing in baselineById.Where(pair => !currentById.ContainsKey(pair.Key)).Select(pair => pair.Value))
+            {
+                var result = await queries.MarketDataCommands.AddEconomicCalendarAsync(missing);
+                var commandId = RequireCommandId(result, "import-date economic-calendar baseline add");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                actions.Add($"Restored absent economic-calendar row {missing.Id} with command {commandId}.");
+            }
+
+            foreach (var changed in baselineById
+                         .Where(pair => currentById.TryGetValue(pair.Key, out var current)
+                                        && !EconomicCalendarsEqualWithMetadata([current], [pair.Value]))
+                         .Select(pair => pair.Value))
+            {
+                var result = await queries.MarketDataCommands.ChangeEconomicCalendarAsync(
+                    changed.Id,
+                    changed,
+                    true);
+                var commandId = RequireCommandId(result, "import-date economic-calendar baseline change");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                actions.Add($"Restored changed economic-calendar row {changed.Id} with command {commandId}.");
+            }
+
+            var restoredRows = await WaitForEconomicCalendarsAsync(
+                queries,
+                fixture.ImportDate,
+                fixture.CountryCode,
+                baselineRows,
+                timeout,
+                CancellationToken.None);
+            if (!EconomicCalendarsEqualWithMetadata(restoredRows, baselineRows))
+                throw new InvalidOperationException(
+                    "Economic-calendar baseline business values were restored but provenance metadata did not match.");
+            if (actions.Count == 0)
+                actions.Add("No economic-calendar compensation was required; manual and import-date state already matched baseline.");
+            return new G2EconomicCalendarCleanupEvidence(true, actions, string.Empty);
+        }
+        catch (Exception exception)
+        {
+            return new G2EconomicCalendarCleanupEvidence(false, actions, exception.Message);
+        }
+    }
+
+    static async Task<EconomicCalendarReadModel[]> QueryEconomicCalendarsAsync(
+        G0QuerySession queries,
+        DateOnly eventDate,
+        string countryCode,
+        TimeSpan timeout)
+    {
+        var queryDate = DateTime.SpecifyKind(eventDate.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        return RequireQueryValue(
+            await queries.MarketData.GetEconomicCalendarsAsync(
+                    queryDate,
+                    EconomicCalendarViewType.Today,
+                    countryCode)
+                .WaitAsync(timeout),
+            $"economic calendars for {eventDate:yyyy-MM-dd}/{countryCode} during cleanup");
+    }
+
     static Guid RequireCommandId(ServiceResult<Guid> result, string operation)
     {
         if (!result.Success || result.Value == Guid.Empty)
@@ -1483,12 +2001,28 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         YieldCurveRateReadModel[]? ImportedYieldCurveRates,
         G2YieldCurveEditorUiState UiState);
 
+    sealed record G2EconomicCalendarTransitionEvidence(
+        Guid CommandId,
+        string SourceEventName,
+        string TerminalEventName,
+        DateTimeOffset SourceObservedUtc,
+        DateTimeOffset TerminalObservedUtc,
+        DateOnly? ImportDate,
+        string[]? ImportCountryCodes,
+        EconomicCalendarReadModel[]? ImportedEconomicCalendars,
+        G2EconomicCalendarEditorUiState UiState);
+
     sealed record G2SecuritiesCleanupEvidence(
         bool Succeeded,
         IReadOnlyList<string> Actions,
         string Error);
 
     sealed record G2YieldCurveCleanupEvidence(
+        bool Succeeded,
+        IReadOnlyList<string> Actions,
+        string Error);
+
+    sealed record G2EconomicCalendarCleanupEvidence(
         bool Succeeded,
         IReadOnlyList<string> Actions,
         string Error);

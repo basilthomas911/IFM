@@ -157,6 +157,42 @@ public sealed class G1UiAutomationSession : IDisposable
             cancellationToken);
     }
 
+    public async Task SelectReferenceEditorAsync(
+        Window window,
+        string selectorItem,
+        string editorAutomationId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var selector = RequireDescendant(window, "ddlReferenceDataSelector").AsComboBox();
+        var items = await WaitUntilAsync(
+            () =>
+            {
+                var catalog = ReadComboItems(selector);
+                return catalog.Contains(selectorItem, StringComparer.Ordinal) ? catalog : null;
+            },
+            timeout,
+            $"The Reference selector did not expose '{selectorItem}'.",
+            cancellationToken);
+        SelectComboIndex(selector, items
+            .Select((item, index) => (item, index))
+            .Single(pair => string.Equals(pair.item, selectorItem, StringComparison.Ordinal))
+            .index);
+        await WaitUntilAsync(
+            () =>
+            {
+                var editor = FindDescendant(window, editorAutomationId, null);
+                var add = FindDescendant(window, "btnAdd", null);
+                var country = FindDescendant(window, "ddlCountryCodes", null);
+                return editor is not null && add is { IsEnabled: true } && country is { IsEnabled: true }
+                    ? editor
+                    : null;
+            },
+            timeout,
+            $"The '{editorAutomationId}' editor did not finish loading.",
+            cancellationToken);
+    }
+
     public async Task<G2SecuritiesEditorUiState> AddFuturesContractAsync(
         Window window,
         G2SecuritiesFixture fixture,
@@ -434,6 +470,86 @@ public sealed class G1UiAutomationSession : IDisposable
             window, valueDate, expectedRate, present, timeout, cancellationToken);
     }
 
+    public async Task<G2EconomicCalendarEditorUiState> AddEconomicCalendarAsync(
+        Window window,
+        G2EconomicCalendarFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectReferenceEditorAsync(
+            window, fixture.DefinitionDescription, "EconomicCalendarEditorView", timeout, cancellationToken);
+        await SetDateAsync(window, "dtmEventDate", fixture.ManualDate, timeout, cancellationToken);
+        PostButtonClick(window, "btnAdd");
+        await WaitForEnabledAsync(window, "txtEventName", timeout, cancellationToken);
+        await SelectComboValueAsync(window, "ddlCountryCodes", fixture.CountryCode, timeout, cancellationToken);
+        SetEconomicCalendarFields(window, fixture.AddedCalendar, includeEventName: true);
+        PostButtonClick(window, "btnAdd");
+        return await WaitForEconomicCalendarStateAsync(
+            window, fixture.ManualDate, fixture.AddedCalendar, present: true, timeout, cancellationToken);
+    }
+
+    public async Task<G2EconomicCalendarEditorUiState> ChangeEconomicCalendarAsync(
+        Window window,
+        G2EconomicCalendarFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        SelectEconomicCalendarEvent(window, fixture.AddedCalendar.EventName);
+        PostButtonClick(window, "btnChange");
+        await WaitForEnabledAsync(window, "txtActual", timeout, cancellationToken);
+        SetEconomicCalendarFields(window, fixture.ChangedCalendar, includeEventName: false);
+        PostButtonClick(window, "btnChange");
+        return await WaitForEconomicCalendarStateAsync(
+            window, fixture.ManualDate, fixture.ChangedCalendar, present: true, timeout, cancellationToken);
+    }
+
+    public async Task<G2EconomicCalendarEditorUiState> RemoveEconomicCalendarAsync(
+        Window window,
+        G2EconomicCalendarFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        SelectEconomicCalendarEvent(window, fixture.ChangedCalendar.EventName);
+        PostButtonClick(window, "btnRemove");
+        await ConfirmAsync("Remove Economic Calendar", timeout, cancellationToken);
+        return await WaitForEconomicCalendarStateAsync(
+            window, fixture.ManualDate, fixture.ChangedCalendar, present: false, timeout, cancellationToken);
+    }
+
+    public async Task<G2EconomicCalendarEditorUiState> ImportEconomicCalendarsAsync(
+        Window window,
+        G2EconomicCalendarFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SetDateAsync(window, "dtmEventDate", fixture.ImportDate, timeout, cancellationToken);
+        await SelectComboValueAsync(window, "ddlCountryCodes", fixture.CountryCode, timeout, cancellationToken);
+        PostButtonClick(window, "btnImport");
+        await WaitUntilAsync(
+            () => FindDescendant(window, "dtmEventDate", null) is { IsEnabled: false } ? "busy" : null,
+            timeout,
+            "The economic-calendar import operation did not enter its busy state.",
+            cancellationToken);
+        await DismissDialogAsync("Economic Calendar Import", "OK", timeout, cancellationToken);
+        await WaitForEnabledAsync(window, "dtmEventDate", timeout, cancellationToken);
+        return ReadEconomicCalendarState(window, fixture.ImportDate);
+    }
+
+    public async Task<G2EconomicCalendarEditorUiState> ReloadEconomicCalendarAsync(
+        Window window,
+        DateOnly date,
+        string countryCode,
+        EconomicCalendarReadModel? expected,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SetDateAsync(window, "dtmEventDate", date, timeout, cancellationToken);
+        await SelectComboValueAsync(window, "ddlCountryCodes", countryCode, timeout, cancellationToken);
+        return await WaitForEconomicCalendarStateAsync(
+            window, date, expected, present, timeout, cancellationToken);
+    }
+
     public string ReadStatusText()
     {
         var statusBar = FindDescendant(MainWindow, "statusBar", "statusStrip1")
@@ -511,6 +627,26 @@ public sealed class G1UiAutomationSession : IDisposable
             cancellationToken);
     }
 
+    async Task DismissDialogAsync(
+        string title,
+        string actionName,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var dialog = await WaitForWindowAsync(title, timeout, cancellationToken);
+        var action = FindDescendant(dialog, null, actionName)
+            ?? throw new InvalidOperationException($"The '{title}' dialog did not expose a '{actionName}' action.");
+        PostControlClick(action);
+        await WaitUntilAsync(
+            () => TopLevelWindows().All(window =>
+                    !string.Equals(window.Title, title, StringComparison.OrdinalIgnoreCase))
+                ? "closed"
+                : null,
+            timeout,
+            $"The '{title}' dialog did not close.",
+            cancellationToken);
+    }
+
     static void ClickEnabled(AutomationElement root, string automationId)
     {
         var control = RequireDescendant(root, automationId);
@@ -581,6 +717,18 @@ public sealed class G1UiAutomationSession : IDisposable
             if (ReadAccessibleDate(picker, automationId) == value)
                 return;
         }
+
+        var nativeDate = new NativeSystemTime
+        {
+            Year = checked((ushort)value.Year),
+            Month = checked((ushort)value.Month),
+            Day = checked((ushort)value.Day)
+        };
+        SendMessage(pickerHandle, DtmSetSystemTime, new IntPtr(GdtValid), ref nativeDate);
+        Thread.Sleep(50);
+        picker = FindDescendant(root, automationId, null)?.AsDateTimePicker() ?? picker;
+        if (ReadAccessibleDate(picker, automationId) == value)
+            return;
 
         if (picker.Patterns.ExpandCollapse.IsSupported)
             picker.Patterns.ExpandCollapse.Pattern.Expand();
@@ -743,6 +891,30 @@ public sealed class G1UiAutomationSession : IDisposable
         SelectComboIndex(combo, index);
     }
 
+    async Task SelectComboValueAsync(
+        AutomationElement root,
+        string automationId,
+        string value,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await WaitForEnabledAsync(root, automationId, timeout, cancellationToken);
+        var combo = RequireDescendant(root, automationId).AsComboBox();
+        var items = await WaitUntilAsync(
+            () =>
+            {
+                var catalog = ReadComboItems(combo);
+                return catalog.Contains(value, StringComparer.Ordinal) ? catalog : null;
+            },
+            timeout,
+            $"The '{automationId}' selector did not expose '{value}'.",
+            cancellationToken);
+        SelectComboIndex(combo, items
+            .Select((item, index) => (item, index))
+            .Single(pair => string.Equals(pair.item, value, StringComparison.Ordinal))
+            .index);
+    }
+
     static void SelectListItem(AutomationElement root, string automationId, string value)
     {
         var list = RequireDescendant(root, automationId).AsListBox();
@@ -803,6 +975,91 @@ public sealed class G1UiAutomationSession : IDisposable
 
     static string FormatRate(double value)
         => value.ToString("0.00", CultureInfo.InvariantCulture);
+
+    static void SetEconomicCalendarFields(
+        AutomationElement root,
+        EconomicCalendarReadModel calendar,
+        bool includeEventName)
+    {
+        if (includeEventName)
+            SetText(root, "txtEventName", calendar.EventName);
+        SetText(root, "txtActual", calendar.Actual ?? string.Empty);
+        SetText(root, "txtForecast", calendar.Forecast ?? string.Empty);
+        SetText(root, "txtPrior", calendar.Prior ?? string.Empty);
+    }
+
+    static void SelectEconomicCalendarEvent(AutomationElement root, string eventName)
+    {
+        var list = RequireDescendant(root, "lstCalendarEvents").AsListBox();
+        if (!list.IsEnabled)
+            throw new InvalidOperationException("The economic-calendar event list is disabled.");
+        var item = list.Items.SingleOrDefault(candidate =>
+                candidate.Text.Contains(eventName, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"The economic-calendar list does not contain event '{eventName}'.");
+        list.Select(item.Text);
+    }
+
+    async Task<G2EconomicCalendarEditorUiState> WaitForEconomicCalendarStateAsync(
+        AutomationElement root,
+        DateOnly date,
+        EconomicCalendarReadModel? expected,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var state = ReadEconomicCalendarState(root, date);
+                var eventName = expected?.EventName ?? string.Empty;
+                var contains = !string.IsNullOrEmpty(eventName)
+                               && state.Items.Any(item => item.Contains(eventName, StringComparison.Ordinal));
+                if (contains != present)
+                    return null;
+                if (present)
+                {
+                    SelectEconomicCalendarEvent(root, eventName);
+                    state = ReadEconomicCalendarState(root, date);
+                    if (!string.Equals(state.EventName, eventName, StringComparison.Ordinal)
+                        || !string.Equals(state.Actual, expected?.Actual, StringComparison.Ordinal)
+                        || !string.Equals(state.Forecast, expected?.Forecast, StringComparison.Ordinal)
+                        || !string.Equals(state.Prior, expected?.Prior, StringComparison.Ordinal))
+                        return null;
+                }
+                return state;
+            },
+            timeout,
+            $"The economic-calendar editor did not render '{expected?.EventName}' as {(present ? "present" : "absent")}.",
+            cancellationToken);
+
+    static G2EconomicCalendarEditorUiState ReadEconomicCalendarState(
+        AutomationElement root,
+        DateOnly targetDate)
+    {
+        var picker = RequireDescendant(root, "dtmEventDate").AsDateTimePicker();
+        var country = ReadSelectedComboValue(RequireDescendant(root, "ddlCountryCodes").AsComboBox());
+        var list = RequireDescendant(root, "lstCalendarEvents").AsListBox();
+        return new G2EconomicCalendarEditorUiState(
+            ReadAccessibleDate(picker, "dtmEventDate"),
+            country,
+            targetDate,
+            list.Items.Select(item => item.Text).ToArray(),
+            ReadText(root, "txtEventName"),
+            ReadText(root, "txtActual"),
+            ReadText(root, "txtForecast"),
+            ReadText(root, "txtPrior"));
+    }
+
+    static string ReadSelectedComboValue(FlaUI.Core.AutomationElements.ComboBox combo)
+    {
+        var selected = combo.SelectedItem?.Text;
+        if (!string.IsNullOrWhiteSpace(selected))
+            return selected;
+
+        var label = (combo.Name ?? string.Empty).Split(';', 2)[0];
+        var separator = label.LastIndexOf(':');
+        return separator >= 0 ? label[(separator + 1)..].Trim() : string.Empty;
+    }
 
     static void SelectYieldCurveRow(AutomationElement root, DateOnly valueDate)
     {
@@ -1708,6 +1965,8 @@ public sealed class G1UiAutomationSession : IDisposable
     const uint BmClick = 0x00F5;
     const uint WmKeyDown = 0x0100;
     const uint WmKeyUp = 0x0101;
+    const uint DtmSetSystemTime = 0x1002;
+    const int GdtValid = 0;
     const int VkEnter = 0x0D;
     const int VkPageUp = 0x21;
     const int VkPageDown = 0x22;
@@ -1730,6 +1989,19 @@ public sealed class G1UiAutomationSession : IDisposable
         public int Bottom;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct NativeSystemTime
+    {
+        public ushort Year;
+        public ushort Month;
+        public ushort DayOfWeek;
+        public ushort Day;
+        public ushort Hour;
+        public ushort Minute;
+        public ushort Second;
+        public ushort Milliseconds;
+    }
+
     delegate bool EnumWindowsCallback(IntPtr windowHandle, IntPtr parameter);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -1746,6 +2018,13 @@ public sealed class G1UiAutomationSession : IDisposable
 
     [DllImport("user32.dll")]
     static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wordParameter, IntPtr longParameter);
+
+    [DllImport("user32.dll")]
+    static extern IntPtr SendMessage(
+        IntPtr windowHandle,
+        uint message,
+        IntPtr wordParameter,
+        ref NativeSystemTime longParameter);
 
     [DllImport("user32.dll")]
     static extern IntPtr GetParent(IntPtr windowHandle);
@@ -1775,6 +2054,16 @@ public sealed record G2YieldCurveEditorUiState(
     DateOnly? ImportDate,
     DateOnly TargetDate,
     IReadOnlyList<string> Rows);
+
+public sealed record G2EconomicCalendarEditorUiState(
+    DateOnly? SelectedDate,
+    string SelectedCountryCode,
+    DateOnly TargetDate,
+    IReadOnlyList<string> Items,
+    string EventName,
+    string Actual,
+    string Forecast,
+    string Prior);
 
 public sealed record G1StatusConsoleState(
     int RowCount,

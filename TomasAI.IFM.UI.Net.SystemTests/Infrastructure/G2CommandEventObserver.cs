@@ -23,7 +23,9 @@ public sealed record G2ObservedCommandEvent(
     bool? Success,
     string ErrorMessage,
     DateOnly? ImportDate,
-    YieldCurveRateReadModel[]? ImportedYieldCurveRates);
+    YieldCurveRateReadModel[]? ImportedYieldCurveRates,
+    string[]? ImportCountryCodes,
+    EconomicCalendarReadModel[]? ImportedEconomicCalendars);
 
 public sealed record G2CommandListenerRegistration(
     string Family,
@@ -76,12 +78,16 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<YieldCurveRatesImportedCompleteEvent>("YieldCurve", YieldCurveRatesImportedCompleteEvent.Actor, YieldCurveRatesImportedCompleteEvent.Verb, true),
         Route<YieldCurveRatesImportedFailEvent>("YieldCurve", YieldCurveRatesImportedFailEvent.Actor, YieldCurveRatesImportedFailEvent.Verb, false),
 
+        Route<EconomicCalendarAddedEvent>("EconomicCalendar", EconomicCalendarAddedEvent.Actor, EconomicCalendarAddedEvent.Verb, null),
         Route<EconomicCalendarAddedCompleteEvent>("EconomicCalendar", EconomicCalendarAddedCompleteEvent.Actor, EconomicCalendarAddedCompleteEvent.Verb, true),
         Route<EconomicCalendarAddedFailEvent>("EconomicCalendar", EconomicCalendarAddedFailEvent.Actor, EconomicCalendarAddedFailEvent.Verb, false),
+        Route<EconomicCalendarChangedEvent>("EconomicCalendar", EconomicCalendarChangedEvent.Actor, EconomicCalendarChangedEvent.Verb, null),
         Route<EconomicCalendarChangedCompleteEvent>("EconomicCalendar", EconomicCalendarChangedCompleteEvent.Actor, EconomicCalendarChangedCompleteEvent.Verb, true),
         Route<EconomicCalendarChangedFailEvent>("EconomicCalendar", EconomicCalendarChangedFailEvent.Actor, EconomicCalendarChangedFailEvent.Verb, false),
+        Route<EconomicCalendarRemovedEvent>("EconomicCalendar", EconomicCalendarRemovedEvent.Actor, EconomicCalendarRemovedEvent.Verb, null),
         Route<EconomicCalendarRemovedCompleteEvent>("EconomicCalendar", EconomicCalendarRemovedCompleteEvent.Actor, EconomicCalendarRemovedCompleteEvent.Verb, true),
         Route<EconomicCalendarRemovedFailEvent>("EconomicCalendar", EconomicCalendarRemovedFailEvent.Actor, EconomicCalendarRemovedFailEvent.Verb, false),
+        Route<EconomicCalendarsImportedEvent>("EconomicCalendar", EconomicCalendarsImportedEvent.Actor, EconomicCalendarsImportedEvent.Verb, null),
         Route<EconomicCalendarsImportedCompleteEvent>("EconomicCalendar", EconomicCalendarsImportedCompleteEvent.Actor, EconomicCalendarsImportedCompleteEvent.Verb, true),
         Route<EconomicCalendarsImportedFailEvent>("EconomicCalendar", EconomicCalendarsImportedFailEvent.Actor, EconomicCalendarsImportedFailEvent.Verb, false),
 
@@ -212,10 +218,23 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             YieldCurveRatesImportedEvent value => DateOnly.FromDateTime(value.ImportDate),
             YieldCurveRatesImportedCompleteEvent value => DateOnly.FromDateTime(value.ImportDate),
             YieldCurveRatesImportedFailEvent value => DateOnly.FromDateTime(value.ImportDate),
+            EconomicCalendarsImportedEvent value => DateOnly.FromDateTime(value.ImportedDate),
+            EconomicCalendarsImportedCompleteEvent value => DateOnly.FromDateTime(value.ImportedDate),
+            EconomicCalendarsImportedFailEvent value => DateOnly.FromDateTime(value.ImportedDate),
             _ => null as DateOnly?
         };
         var importedRates = domainEvent is YieldCurveRatesImportedCompleteEvent completed
             ? completed.YieldCurveRates
+            : null;
+        var importCountryCodes = domainEvent switch
+        {
+            EconomicCalendarsImportedEvent value => value.CountryCodes,
+            EconomicCalendarsImportedCompleteEvent value => value.CountryCodes,
+            EconomicCalendarsImportedFailEvent value => value.CountryCodes,
+            _ => null
+        };
+        var importedCalendars = domainEvent is EconomicCalendarsImportedCompleteEvent calendarCompleted
+            ? calendarCompleted.EconomicCalendars
             : null;
         _events.Enqueue(new G2ObservedCommandEvent(
             DateTimeOffset.UtcNow,
@@ -226,7 +245,9 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             route.Success,
             domainEvent is IErrorEvent error ? error.ErrorMessage : string.Empty,
             importDate,
-            importedRates));
+            importedRates,
+            importCountryCodes,
+            importedCalendars));
         return ValueTask.CompletedTask;
     }
 

@@ -44,7 +44,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
             pnlLocalSymbol = new Panel();
             lblForecast = new Label();
             pnlSecurityType = new Panel();
-            dtmEventDate = new DateTimePicker();
+            dtmEventDate = new TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker();
             txtEventName = new TextBox();
             pnlPrior = new Panel();
             label1 = new Label();
@@ -440,7 +440,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         private System.Windows.Forms.Panel pnlSecurityType;
         private System.Windows.Forms.Label lblCurrency;
         private System.Windows.Forms.ComboBox ddlCountryCodes;
-        private System.Windows.Forms.DateTimePicker dtmEventDate;
+        private TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker dtmEventDate;
         private System.Windows.Forms.Label lblEventName;
         private System.Windows.Forms.TextBox txtEventName;
         private System.Windows.Forms.Panel pnlPrior;

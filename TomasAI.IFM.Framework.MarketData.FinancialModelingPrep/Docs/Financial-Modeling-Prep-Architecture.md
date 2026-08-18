@@ -1,7 +1,7 @@
 # IFM Financial Modeling Prep Market Data Architecture
 
 Status: Implemented
-Version: 0.13
+Version: 0.14
 Date: 2026-08-18
 Scope: Financial Modeling Prep US Treasury curve and economic-calendar acquisition and MarketData-domain import
 
@@ -920,6 +920,7 @@ The design is implemented only when:
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.14 | 2026-08-18 | Accepted G2-020 through G2-023 through the real Development UI: manual economic-calendar add/change/remove, operator-selected date/country, exact-ID source/terminal correlation, 23 canonical production FMP rows matched to bounded durable and visible state, and public-command baseline restoration. |
 | 0.13 | 2026-08-18 | Accepted G2-016 through G2-019 through the real Development UI: explicit operator-selected treasury import date, exact-ID source/terminal correlation, production FMP canonical result matched to durable and visible state, manual yield-curve maintenance, and public-command baseline restoration. |
 | 0.12 | 2026-08-16 | Added the shared terminal-correlation primitive and migrated automatic desktop yield/calendar startup imports to listener-first exact-ID tracking, 30-second bounded observation, failure-only reporting, no retry, cleanup, and continued startup outside the live-feed trading-hours gate. |
 | 0.11 | 2026-08-16 | Implemented economic-calendar editor terminal tracking with exact command-ID complete/fail correlation, early-event buffering, durable projection refresh after complete, typed failure, independent listener lifecycle, and focused UI tests. |

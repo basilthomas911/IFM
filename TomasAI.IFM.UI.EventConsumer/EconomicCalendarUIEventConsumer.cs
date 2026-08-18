@@ -18,8 +18,11 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
     {
         [new ActorMailboxId(ActorType.Event, EconomicCalendarAddedCompleteEvent.Actor)]
             = [EconomicCalendarAddedCompleteEvent.Verb,
+                EconomicCalendarAddedFailEvent.Verb,
                 EconomicCalendarChangedCompleteEvent.Verb,
+                EconomicCalendarChangedFailEvent.Verb,
                 EconomicCalendarRemovedCompleteEvent.Verb,
+                EconomicCalendarRemovedFailEvent.Verb,
                 EconomicCalendarsImportedCompleteEvent.Verb,
                 EconomicCalendarsImportedFailEvent.Verb
             ]
@@ -35,8 +38,11 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
     /// <returns></returns>
     public async ValueTask StartAsync(
         Action<EconomicCalendarAddedCompleteEvent> addedAction,
-        Action<EconomicCalendarChangedCompleteEvent> changedAction, 
+        Action<EconomicCalendarAddedFailEvent> addFailedAction,
+        Action<EconomicCalendarChangedCompleteEvent> changedAction,
+        Action<EconomicCalendarChangedFailEvent> changeFailedAction,
         Action<EconomicCalendarRemovedCompleteEvent> removedAction,
+        Action<EconomicCalendarRemovedFailEvent> removeFailedAction,
         Action<EconomicCalendarsImportedCompleteEvent> importedAction,
         Action<EconomicCalendarsImportedFailEvent> importFailedAction)
     {
@@ -50,10 +56,16 @@ public class EconomicCalendarUIEventConsumer(INatsEventListenerOptions options, 
                 {
                     _ when eventVerb == EconomicCalendarAddedCompleteEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarAddedCompleteEvent>()!, e => addedAction(e as EconomicCalendarAddedCompleteEvent)),
+                    _ when eventVerb == EconomicCalendarAddedFailEvent.Verb
+                        => HandleEvent(eventMsg.AsEvent<EconomicCalendarAddedFailEvent>()!, e => addFailedAction(e as EconomicCalendarAddedFailEvent)),
                     _ when eventVerb == EconomicCalendarChangedCompleteEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarChangedCompleteEvent>()!, e => changedAction(e as EconomicCalendarChangedCompleteEvent)),
+                    _ when eventVerb == EconomicCalendarChangedFailEvent.Verb
+                        => HandleEvent(eventMsg.AsEvent<EconomicCalendarChangedFailEvent>()!, e => changeFailedAction(e as EconomicCalendarChangedFailEvent)),
                     _ when eventVerb == EconomicCalendarRemovedCompleteEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarRemovedCompleteEvent>()!, e => removedAction(e as EconomicCalendarRemovedCompleteEvent)),
+                    _ when eventVerb == EconomicCalendarRemovedFailEvent.Verb
+                        => HandleEvent(eventMsg.AsEvent<EconomicCalendarRemovedFailEvent>()!, e => removeFailedAction(e as EconomicCalendarRemovedFailEvent)),
                     _ when eventVerb == EconomicCalendarsImportedCompleteEvent.Verb 
                         => HandleEvent(eventMsg.AsEvent<EconomicCalendarsImportedCompleteEvent>()!, e => importedAction(e as EconomicCalendarsImportedCompleteEvent)),
                     _ when eventVerb == EconomicCalendarsImportedFailEvent.Verb
@@ -80,8 +92,11 @@ public interface IEconomicCalendarUIEventConsumer
 {
     ValueTask StartAsync(
         Action<EconomicCalendarAddedCompleteEvent> addedAction,
+        Action<EconomicCalendarAddedFailEvent> addFailedAction,
         Action<EconomicCalendarChangedCompleteEvent> changedAction,
+        Action<EconomicCalendarChangedFailEvent> changeFailedAction,
         Action<EconomicCalendarRemovedCompleteEvent> removedAction,
+        Action<EconomicCalendarRemovedFailEvent> removeFailedAction,
         Action<EconomicCalendarsImportedCompleteEvent> importedAction,
         Action<EconomicCalendarsImportedFailEvent> importFailedAction);
     ValueTask StopAsync();
