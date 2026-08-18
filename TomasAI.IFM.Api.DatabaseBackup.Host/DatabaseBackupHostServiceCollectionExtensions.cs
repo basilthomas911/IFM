@@ -123,6 +123,9 @@ public static class DatabaseBackupHostServiceCollectionExtensions
                 provider.GetRequiredService<LocalBackupRepository>());
             services.AddSingleton<IDatabaseBackupCatalog>(static provider =>
                 provider.GetRequiredService<LocalBackupRepository>());
+            services.AddSingleton<LocalBackupChainPlanner>();
+            services.AddSingleton<IDatabaseBackupChainPlanner>(static provider =>
+                provider.GetRequiredService<LocalBackupChainPlanner>());
             services.AddSingleton<LocalBackupGovernanceStore>();
             services.AddSingleton<IDatabaseRetentionCapability>(static provider =>
                 provider.GetRequiredService<LocalBackupGovernanceStore>());
@@ -135,6 +138,7 @@ public static class DatabaseBackupHostServiceCollectionExtensions
             services.AddSingleton<IDatabaseBackupPublicationCapability, FakeDatabaseBackupPublicationCapability>();
             services.AddSingleton<IDatabaseRestoreSourceCapability, FakeDatabaseRestoreSourceCapability>();
             services.AddSingleton<IDatabaseRecoveryEvidenceStore, FakeDatabaseRecoveryEvidenceStore>();
+            services.AddSingleton<IDatabaseBackupChainPlanner, FakeDatabaseBackupChainPlanner>();
         }
         services.AddSingleton<IDatabaseRecoveryEngineSelector, LocalWorkstationDatabaseRecoveryEngineSelector>();
         services.AddSingleton<LocalWorkstationDatabaseRecoveryProcessor>();

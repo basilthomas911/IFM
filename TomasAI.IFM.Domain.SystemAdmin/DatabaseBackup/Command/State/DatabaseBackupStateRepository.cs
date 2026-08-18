@@ -80,7 +80,8 @@ public sealed class DatabaseBackupStateRepository(
             RequiredDestinations = source.RequiredDestinations, ValidationRevision = source.ValidationRevision,
             RetentionPlanId = source.RetentionPlanId, RetentionPlanRevision = source.RetentionPlanRevision,
             RestoreClass = source.RestoreClass, EvaluationBoundaryUtc = source.EvaluationBoundaryUtc,
-            PolicyId = source.PolicyId, ManifestRevision = source.ManifestRevision
+            PolicyId = source.PolicyId, ManifestRevision = source.ManifestRevision,
+            BackupLineage = source.BackupLineage
         });
     }
 }

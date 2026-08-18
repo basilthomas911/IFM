@@ -78,6 +78,34 @@ public sealed class DatabaseBackupActorStateTests
     }
 
     [Fact]
+    public void Backup_state_preserves_requested_mode_and_adopts_resolved_native_lineage()
+    {
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        state.Execute(RequestBackup(operationId) with { RequestedBackupMode = DatabaseBackupMode.Automatic });
+
+        state.Operation.BackupLineage.Should().BeEquivalentTo(new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Automatic
+        });
+
+        var resolved = new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Automatic,
+            ResolvedMode = DatabaseBackupMode.Incremental,
+            NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+            BaseRestorePointId = new DatabaseRestorePointId("base-001"),
+            ParentRestorePointId = new DatabaseRestorePointId("incremental-002"),
+            ChainDepth = 3,
+            NativeIdentity = "postgres-system-42"
+        };
+        state.Execute(Internal<RecordDatabaseOperationAdmissionCommand>(
+            operationId, 1, DatabaseRecoveryPhase.Admitted, backupLineage: resolved));
+
+        state.Operation.BackupLineage.Should().BeEquivalentTo(resolved);
+    }
+
+    [Fact]
     public void Duplicate_service_event_is_idempotent_but_conflicting_content_is_rejected()
     {
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
@@ -136,6 +164,7 @@ public sealed class DatabaseBackupActorStateTests
         var state = new DatabaseBackupCommandState();
         state.Execute(RequestRestore(operationId));
         state.Operation.Phase.Should().Be(DatabaseRecoveryPhase.Requested);
+        state.Operation.BackupLineage.Should().BeNull();
 
         state.Execute(new ApproveDatabaseRestoreCommand
         {
@@ -210,7 +239,8 @@ public sealed class DatabaseBackupActorStateTests
         DatabaseRecoveryOperationId operationId, long sequence, DatabaseRecoveryPhase phase,
         DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None, int progress = 0, Guid? eventId = null,
         string host = "host-1", BackupSource source = BackupSource.LocalWorkstation, long validationRevision = 0,
-        DatabaseRecoveryOperationKind kind = DatabaseRecoveryOperationKind.Backup)
+        DatabaseRecoveryOperationKind kind = DatabaseRecoveryOperationKind.Backup,
+        DatabaseBackupLineage? backupLineage = null)
         where TCommand : DatabaseBackupInternalCommand, new()
     {
         var envelope = ServiceSource(operationId.Value, sequence, phase, eventId, host, source, kind);
@@ -219,7 +249,8 @@ public sealed class DatabaseBackupActorStateTests
         {
             CommandId = envelope.SourceEventId, EntityId = operationId, Source = envelope,
             Subject = new ActorSubject(ActorType.Command, DatabaseBackupCommand.Actor, template.Verb, operationId.Format()),
-            Outcome = outcome, ProgressPercent = progress, ValidationRevision = validationRevision
+            Outcome = outcome, ProgressPercent = progress, ValidationRevision = validationRevision,
+            BackupLineage = backupLineage
         });
     }
 

@@ -25,7 +25,9 @@ public sealed record DatabaseBackupOperationUiState(
     DatabaseRecoveryPhase Phase,
     DatabaseRecoveryOutcome Outcome,
     int ProgressPercent,
-    string SafeDiagnosticReference);
+    string SafeDiagnosticReference,
+    DatabaseBackupMode RequestedMode = DatabaseBackupMode.Full,
+    DatabaseBackupMode ResolvedMode = DatabaseBackupMode.None);
 
 /// <summary>Immutable restore-point summary displayed by the database-backup UI.</summary>
 public sealed record DatabaseRestorePointUiState(
@@ -58,6 +60,7 @@ public interface IDatabaseBackupModel
         BackupSource source,
         string protectionSet,
         long expectedPolicyRevision,
+        DatabaseBackupMode requestedMode = DatabaseBackupMode.Full,
         CancellationToken cancellationToken = default);
 
     /// <summary>Starts public DatabaseBackup domain-event observation.</summary>
@@ -144,7 +147,9 @@ public sealed class DatabaseBackupModel(
                         item.Phase,
                         item.Outcome,
                         item.ProgressPercent,
-                        item.SafeDiagnosticReference))
+                        item.SafeDiagnosticReference,
+                        item.BackupLineage?.RequestedMode ?? DatabaseBackupMode.Full,
+                        item.BackupLineage?.ResolvedMode ?? DatabaseBackupMode.None))
                     .ToArray(),
                 Map(latestVerified),
                 Map(latestRestoreTested)));
@@ -161,6 +166,7 @@ public sealed class DatabaseBackupModel(
         BackupSource source,
         string protectionSet,
         long expectedPolicyRevision,
+        DatabaseBackupMode requestedMode = DatabaseBackupMode.Full,
         CancellationToken cancellationToken = default)
         => _commandApi.RequestBackupAsync(new RequestDatabaseBackupCommand
         {
@@ -169,7 +175,8 @@ public sealed class DatabaseBackupModel(
             ProtectionSetId = new DatabaseProtectionSetId(protectionSet),
             ConsistencyMode = DatabaseConsistencyMode.CoordinatedProtectionSet,
             RequiredDestinations = [new DatabaseLogicalDestination("online-vault", true)],
-            ExpectedPolicyRevision = expectedPolicyRevision
+            ExpectedPolicyRevision = expectedPolicyRevision,
+            RequestedBackupMode = requestedMode
         }, cancellationToken);
 
     /// <inheritdoc />

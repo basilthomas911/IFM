@@ -36,8 +36,8 @@ INSERT INTO system_admin.database_recovery_operation
     (operation_id, backup_set_id, protection_set_id, source, operation_kind, phase, outcome,
      progress_percent, state_revision, created_utc, completed_utc, safe_diagnostic_reference,
      restore_point_id, restore_class, fresh_target_profile, validation_revision, cutover_state,
-     policy_revision, last_event_id, last_source_event_id)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+     policy_revision, backup_lineage_json, last_event_id, last_source_event_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
 ON CONFLICT (operation_id) DO UPDATE SET
     backup_set_id = COALESCE(EXCLUDED.backup_set_id, system_admin.database_recovery_operation.backup_set_id),
     protection_set_id = EXCLUDED.protection_set_id,
@@ -55,6 +55,7 @@ ON CONFLICT (operation_id) DO UPDATE SET
     validation_revision = GREATEST(system_admin.database_recovery_operation.validation_revision, EXCLUDED.validation_revision),
     cutover_state = CASE WHEN EXCLUDED.cutover_state = 0 THEN system_admin.database_recovery_operation.cutover_state ELSE EXCLUDED.cutover_state END,
     policy_revision = GREATEST(system_admin.database_recovery_operation.policy_revision, EXCLUDED.policy_revision),
+    backup_lineage_json = CASE WHEN EXCLUDED.backup_lineage_json = '' THEN system_admin.database_recovery_operation.backup_lineage_json ELSE EXCLUDED.backup_lineage_json END,
     last_event_id = EXCLUDED.last_event_id,
     last_source_event_id = EXCLUDED.last_source_event_id
 WHERE EXCLUDED.state_revision > system_admin.database_recovery_operation.state_revision;
@@ -71,8 +72,8 @@ ON CONFLICT (operation_id, phase, event_revision) DO NOTHING;
 INSERT INTO system_admin.database_restore_point
     (restore_point_id, source, backup_set_id, protection_set_id, recovery_point_utc,
      verification_level, verified_utc, restore_tested_utc, eligible, legal_hold,
-     manifest_revision, source_revision, last_event_id, last_source_event_id)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     manifest_revision, backup_lineage_json, source_revision, last_event_id, last_source_event_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 ON CONFLICT (restore_point_id, source) DO UPDATE SET
     backup_set_id = COALESCE(EXCLUDED.backup_set_id, system_admin.database_restore_point.backup_set_id),
     verification_level = GREATEST(system_admin.database_restore_point.verification_level, EXCLUDED.verification_level),
@@ -81,6 +82,7 @@ ON CONFLICT (restore_point_id, source) DO UPDATE SET
     eligible = EXCLUDED.eligible OR system_admin.database_restore_point.eligible,
     legal_hold = EXCLUDED.legal_hold,
     manifest_revision = GREATEST(system_admin.database_restore_point.manifest_revision, EXCLUDED.manifest_revision),
+    backup_lineage_json = CASE WHEN EXCLUDED.backup_lineage_json = '' THEN system_admin.database_restore_point.backup_lineage_json ELSE EXCLUDED.backup_lineage_json END,
     source_revision = EXCLUDED.source_revision,
     last_event_id = EXCLUDED.last_event_id,
     last_source_event_id = EXCLUDED.last_source_event_id
@@ -195,7 +197,8 @@ WHERE environment_identity = $1 AND policy_id = $2;
     public const string OperationColumns = """
 operation_id, backup_set_id, protection_set_id, source, operation_kind, phase, outcome,
 progress_percent, state_revision, created_utc, completed_utc, safe_diagnostic_reference,
-restore_point_id, restore_class, fresh_target_profile, validation_revision, cutover_state
+restore_point_id, restore_class, fresh_target_profile, validation_revision, cutover_state,
+backup_lineage_json
 """;
 
     public static readonly string GetOperation = $"SELECT {OperationColumns} FROM system_admin.database_recovery_operation WHERE operation_id = $1;";
@@ -216,7 +219,8 @@ LIMIT $6;
 
     public const string RestorePointColumns = """
 restore_point_id, backup_set_id, protection_set_id, source, recovery_point_utc,
-verification_level, verified_utc, restore_tested_utc, eligible, legal_hold, manifest_revision
+verification_level, verified_utc, restore_tested_utc, eligible, legal_hold, manifest_revision,
+backup_lineage_json
 """;
     public static readonly string ListRestorePoints = $"""
 SELECT {RestorePointColumns}

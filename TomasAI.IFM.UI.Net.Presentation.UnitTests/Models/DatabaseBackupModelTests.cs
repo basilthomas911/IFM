@@ -59,6 +59,7 @@ public sealed class DatabaseBackupModelTests
         appRoot.GetModel<DatabaseBackupModel>().Returns(model);
         var viewModel = new DatabaseBackupViewModel(appRoot);
         await viewModel.RefreshAsync();
+        viewModel.SelectBackupMode(DatabaseBackupMode.Incremental);
         Guid refreshOperationId = default;
         viewModel.RefreshRequested += operationId => refreshOperationId = operationId;
 
@@ -79,6 +80,7 @@ public sealed class DatabaseBackupModelTests
         await commandApi.Received(1).RequestBackupAsync(
             Arg.Is<RequestDatabaseBackupCommand>(command =>
                 command.Request.Origin == DatabaseRequestOrigin.UI &&
+                command.RequestedBackupMode == DatabaseBackupMode.Incremental &&
                 command.ProtectionSetId == new DatabaseProtectionSetId("core") &&
                 command.ExpectedPolicyRevision == 7),
             CancellationToken.None);

@@ -1,10 +1,10 @@
 # Local Workstation Database Backup and Restore Code Implementation Specification
 
-**Status:** Phase 10 development implementation and runtime qualification complete
+**Status:** Phase 10 development implementation, runtime qualification, and incremental-backup extension complete
 
-**Version:** 1.5
+**Version:** 1.6
 
-**Date:** 2026-08-12
+**Date:** 2026-08-18
 
 **Implementation target:** `BackupSource.LocalWorkstation`
 
@@ -1308,6 +1308,33 @@ for other clients.
 
 ## 26. Definition of done
 
+### 26.1 Incremental-backup extension
+
+The implemented extension adds one source-neutral `DatabaseBackupMode` request field and one bounded
+`DatabaseBackupLineage` value propagated through commands, execution/service/domain events, operation and restore-point
+read models, signed manifest schema version 2, the local catalog, and SystemAdmin projections.
+
+- `Full` always starts a new chain.
+- `Automatic` uses the newest verified parent common to every required replica and falls back to full when no eligible
+  parent exists, incremental mode is disabled, the chain-depth limit is reached, or the base is too old.
+- Explicit `Incremental` fails instead of silently changing the requested mode when the same planning checks fail.
+- The default limits are six incremental descendants and a seven-day maximum base age.
+- PostgreSQL incremental capture requires PostgreSQL/source/native tools 17 or later, `summarize_wal=on`, a matching
+  database-system identifier, the parent native evidence, and `pg_combinebackup`. Restore materializes and verifies the
+  complete dependency chain oldest-first before fresh-target boot and validation.
+- Scylla Manager snapshots are logically complete restore points and physically deduplicated by Manager/object storage.
+  IFM records `ScyllaManagerDeduplicatedSnapshot` lineage for incremental selection but does not invent a client-side
+  SSTable dependency chain. Manager retains 30 snapshots by default.
+- Retention continues to protect the transitive dependency closure of PostgreSQL chains. A parent missing from any
+  required replica is not eligible for a new incremental child.
+- UI, Console, and ScheduledTask use the same actor command. UI exposes a mode selector, Console accepts `--mode`, and
+  ScheduledTask reads `DatabaseBackup:Mode`; therefore either backup mode can use the same external schedule.
+- Native backup directories remain uncompressed so native verification and chain reconstruction operate directly.
+
+Validation includes planner policy tests, signed-publication/retention tests, MessagePack and actor-state tests,
+PostgreSQL deterministic chain tests, PostgreSQL 17 Docker native full/incremental/combined-restore tests, projection
+schema/read-write tests, and UI presentation/system tests.
+
 LocalWorkstation implementation is complete only when all statements are true:
 
 - [x] Common contracts contain `BackupSource` and no source-specific message types.
@@ -1320,7 +1347,9 @@ LocalWorkstation implementation is complete only when all statements are true:
 - [x] The host cannot write application projection or event-source databases.
 - [ ] SQLite journal survives container restart on an encrypted persistent mount.
 - [x] PostgreSQL backup, verification, WAL/dependency evidence, and fresh-target restore pass.
+- [x] PostgreSQL 17 incremental backup, dependency-complete `pg_combinebackup`, and fresh-target restore pass.
 - [x] Scylla backup, verification, schema/dependency evidence, and fresh-target restore pass.
+- [x] Automatic/full/incremental selection, fallback policy, lineage persistence, and chain-aware retention pass.
 - [x] Signed manifests and catalog entries publish atomically without overwrite.
 - [x] Restore drill, RPO/RTO evidence, cancellation, retention fencing, and reconciliation pass.
 - [x] Duplicate/redelivered messages never repeat destructive native work.
@@ -1380,3 +1409,4 @@ For each phase, the implementing agent must:
 | 1.3 | 2026-08-13 | Completed Phase 10 code and runtime qualification with pinned PostgreSQL 16.14 and Scylla 6.2.2 native fresh-target restores, PostgreSQL 16 manifest compatibility, scheduled-task migration, complete legacy SystemAdmin backup removal, regression coverage, and repeat Ubuntu container/restart validation. Gate 10 remains blocked only on administrator-only BitLocker evidence for the Docker backing volume. |
 | 1.4 | 2026-08-13 | Confirmed Docker Desktop's `CustomWslDistroDir` as `D:\Docker\wsl\data` and corrected the encryption evidence target. The elevated `C:` result is non-applicable, and `manage-bde -status D:` reports that `D:` is not a valid BitLocker volume. Gate 10 awaits alternative encryption evidence or encrypted-storage remediation. |
 | 1.5 | 2026-08-13 | Clarified the environment boundary: workstation development storage may be unencrypted, while production backup storage still requires encryption at rest. Added independent PostgreSQL/Scylla native-source selection and the `E:\IFM\DatabaseBackup` development composition/runbook. |
+| 1.6 | 2026-08-18 | Implemented source-neutral Full/Automatic/Incremental requests, bounded chain planning, PostgreSQL 17 native incrementals and combined restore, Scylla Manager deduplicated-snapshot semantics, signed manifest/catalog lineage, dependency-safe retention, SystemAdmin projection fields, UI/Console/ScheduledTask selection, and deterministic plus Docker-native validation. |

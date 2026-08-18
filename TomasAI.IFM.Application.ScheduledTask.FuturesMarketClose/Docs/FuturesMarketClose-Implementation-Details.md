@@ -28,6 +28,7 @@ Each request uses:
 - `BackupSource.LocalWorkstation`;
 - `DatabaseConsistencyMode.EngineConsistent`;
 - `DatabaseRequestOrigin.ScheduledTask`;
+- the configured `DatabaseBackup:Mode` (`Full`, `Automatic`, or `Incremental`);
 - caller role `database-backup-operator`;
 - the configured environment identity;
 - the required configured logical destination; and
@@ -43,6 +44,7 @@ publish execution events or call storage implementations directly.
 | `Nats:Url` | No | NATS endpoint; defaults to `nats://localhost:4222`. |
 | `DatabaseBackup:EnvironmentIdentity` | Yes | Identity of the local environment being protected. |
 | `DatabaseBackup:Destination` | No | Required logical destination; defaults to `online-vault`. |
+| `DatabaseBackup:Mode` | No | Backup selection mode; defaults to `Full`. Checked-in configuration uses `Automatic`. |
 | `DatabaseBackup:ProtectionSets` | Yes | Non-empty list of protection-set identifiers to submit. |
 | `Serilog:*` | Yes for configured logging | Console/file logging policy. |
 
@@ -63,6 +65,9 @@ configuration rather than the removed per-database SystemAdmin query.
 ## Operational behavior
 
 - An external scheduler determines when the process starts.
+- Full and incremental requests use the same external scheduling mechanism. In `Automatic` mode, the backup host
+  chooses incremental only when the complete required-replica parent and policy checks pass, otherwise it creates a
+  full restore point.
 - Command acceptance is durable; later progress and completion are queried or observed through the DatabaseBackup
   actor contracts.
 - A rejected shutdown or backup request is logged as an error and no false success is reported.

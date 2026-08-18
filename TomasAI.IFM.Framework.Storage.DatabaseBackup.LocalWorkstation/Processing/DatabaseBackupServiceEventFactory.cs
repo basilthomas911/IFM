@@ -35,19 +35,23 @@ internal static class DatabaseBackupServiceEventFactory
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
         long sequence,
-        string safeReference)
+        string safeReference,
+        DatabaseBackupLineage? backupLineage = null)
         => Create<DatabaseBackupBoundaryEstablishedEvent>(
             intent, hostId, sequence, DatabaseRecoveryPhase.Capturing,
-            safeDiagnosticReference: safeReference);
+            safeDiagnosticReference: safeReference,
+            backupLineage: backupLineage);
 
     public static DatabaseBackupVerificationCompletedEvent Verified(
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
         long sequence,
-        DatabaseVerificationLevel level)
+        DatabaseVerificationLevel level,
+        DatabaseBackupLineage? backupLineage = null)
         => Create<DatabaseBackupVerificationCompletedEvent>(
             intent, hostId, sequence, DatabaseRecoveryPhase.Verifying,
-            verificationLevel: level);
+            verificationLevel: level,
+            backupLineage: backupLineage);
 
     public static DatabaseBackupArtifactReplicaUpdatedEvent ReplicaPublished(
         DatabaseExecutionIntent intent,
@@ -55,12 +59,14 @@ internal static class DatabaseBackupServiceEventFactory
         long sequence,
         DatabaseArtifactReplicaDescriptor replica,
         DatabaseRestorePointId restorePointId,
-        long manifestRevision)
+        long manifestRevision,
+        DatabaseBackupLineage? backupLineage = null)
         => Create<DatabaseBackupArtifactReplicaUpdatedEvent>(
             intent, hostId, sequence, DatabaseRecoveryPhase.Transferring,
             artifactReplica: replica,
             restorePointId: restorePointId,
-            manifestRevision: manifestRevision);
+            manifestRevision: manifestRevision,
+            backupLineage: backupLineage);
 
     public static DatabaseRestoreValidationCompletedEvent RestoreValidated(
         DatabaseExecutionIntent intent,
@@ -79,9 +85,10 @@ internal static class DatabaseBackupServiceEventFactory
         DatabaseBackupHostId hostId,
         long sequence,
         DatabaseRecoveryPhase phase,
-        DatabaseRecoveryRunStatistics statistics)
+        DatabaseRecoveryRunStatistics statistics,
+        DatabaseBackupLineage? backupLineage = null)
         => Create<DatabaseRecoveryRunStatisticsCapturedEvent>(
-            intent, hostId, sequence, phase, statistics: statistics);
+            intent, hostId, sequence, phase, statistics: statistics, backupLineage: backupLineage);
 
     public static DatabaseRestoreReadyForCutoverEvent ReadyForCutover(
         DatabaseExecutionIntent intent,
@@ -97,14 +104,15 @@ internal static class DatabaseBackupServiceEventFactory
     public static DatabaseBackupServiceEventContract Completed(
         DatabaseExecutionIntent intent,
         DatabaseBackupHostId hostId,
-        long sequence)
+        long sequence,
+        DatabaseBackupLineage? backupLineage = null)
         => intent.ExecutionEvent.Source.OperationKind switch
         {
             DatabaseRecoveryOperationKind.RestoreDrill
-                => Create<DatabaseRestoreDrillCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded),
+                => Create<DatabaseRestoreDrillCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage),
             DatabaseRecoveryOperationKind.Restore
-                => Create<DatabaseRestoreServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded),
-            _ => Create<DatabaseBackupServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded)
+                => Create<DatabaseRestoreServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage),
+            _ => Create<DatabaseBackupServiceCompletedEvent>(intent, hostId, sequence, DatabaseRecoveryPhase.Completed, DatabaseRecoveryOutcome.Succeeded, backupLineage: backupLineage)
         };
 
     public static TEvent Create<TEvent>(
@@ -119,7 +127,8 @@ internal static class DatabaseBackupServiceEventFactory
         long validationRevision = 0,
         DatabaseArtifactReplicaDescriptor? artifactReplica = null,
         DatabaseRestorePointId? restorePointId = null,
-        long manifestRevision = 0)
+        long manifestRevision = 0,
+        DatabaseBackupLineage? backupLineage = null)
         where TEvent : DatabaseBackupServiceEventContract, new()
     {
         var execution = intent.ExecutionEvent;
@@ -159,7 +168,8 @@ internal static class DatabaseBackupServiceEventFactory
             RetentionPlanId = execution.RetentionPlanId,
             RetentionPlanRevision = execution.RetentionPlanRevision,
             EvaluationBoundaryUtc = execution.EvaluationBoundaryUtc,
-            ManifestRevision = manifestRevision == 0 ? execution.ManifestRevision : manifestRevision
+            ManifestRevision = manifestRevision == 0 ? execution.ManifestRevision : manifestRevision,
+            BackupLineage = backupLineage ?? execution.BackupLineage
         });
     }
 

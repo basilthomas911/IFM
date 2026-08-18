@@ -9,7 +9,7 @@ public sealed record DatabaseArtifactDigest(
 
 public sealed record DatabaseBackupManifest
 {
-    public int SchemaVersion { get; init; } = 1;
+    public int SchemaVersion { get; init; } = 2;
     public required string ManifestId { get; init; }
     public required DatabaseRecoveryOperationId OperationId { get; init; }
     public required DatabaseRestorePointId RestorePointId { get; init; }
@@ -23,6 +23,7 @@ public sealed record DatabaseBackupManifest
     public DatabaseArtifactDigest[] Artifacts { get; init; } = [];
     public DatabaseArtifactReplicaId[] Replicas { get; init; } = [];
     public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+    public DatabaseBackupLineage BackupLineage { get; init; } = new();
 }
 
 public sealed record DatabaseManifestSignature(
@@ -49,7 +50,8 @@ public sealed record DatabaseBackupPublicationRequest(
     string SafeBoundaryReference,
     DatabaseLogicalDestination[] RequiredDestinations,
     DatabaseRecoveryRunStatistics? Statistics = null,
-    DatabaseRestorePointId[]? Dependencies = null);
+    DatabaseRestorePointId[]? Dependencies = null,
+    DatabaseBackupLineage? BackupLineage = null);
 
 public sealed record DatabaseBackupPublicationPreflightRequest(
     DatabaseProtectionSetId ProtectionSetId,
@@ -74,7 +76,22 @@ public sealed record DatabasePreparedRestoreSource(
     string ManifestId,
     long ManifestRevision,
     long VerifiedBytes,
-    int VerifiedArtifactCount);
+    int VerifiedArtifactCount,
+    DatabaseRestorePointId[] DependencyChain);
+
+public sealed record DatabaseBackupPlanningRequest(
+    DatabaseRecoveryOperationId OperationId,
+    DatabaseProtectionSetId ProtectionSetId,
+    DatabaseEngine Engine,
+    DatabaseBackupMode RequestedMode,
+    DatabaseLogicalDestination[] RequiredDestinations);
+
+public interface IDatabaseBackupChainPlanner
+{
+    ValueTask<DatabaseBackupLineage> PlanAsync(
+        DatabaseBackupPlanningRequest request,
+        CancellationToken cancellationToken);
+}
 
 public sealed record DatabaseReplicaPublicationRequest(
     DatabaseBackupManifest Manifest,

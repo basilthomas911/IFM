@@ -28,6 +28,7 @@ public sealed record DatabaseBackupOperationReadModel
     [Key(9)] public DateTimeOffset CreatedUtc { get; init; }
     [Key(10)] public DateTimeOffset? CompletedUtc { get; init; }
     [Key(11)] public string SafeDiagnosticReference { get; init; } = string.Empty;
+    [Key(12)] public DatabaseBackupLineage? BackupLineage { get; init; }
 }
 
 [MessagePackObject]
@@ -56,6 +57,7 @@ public sealed record DatabaseRestorePointReadModel
     [Key(8)] public bool Eligible { get; init; }
     [Key(9)] public bool LegalHold { get; init; }
     [Key(10)] public long ManifestRevision { get; init; }
+    [Key(11)] public DatabaseBackupLineage? BackupLineage { get; init; }
 }
 
 [MessagePackObject]

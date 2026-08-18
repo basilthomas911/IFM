@@ -218,7 +218,8 @@ public sealed class DatabaseBackupCommandState
             HostId = source.ProducingHostId ?? Operation.HostId,
             LastServiceSequence = source.ProducingHostId is null ? Operation.LastServiceSequence : source.SourceRevisionOrSequence,
             ValidationRevision = e.ValidationRevision == 0 ? Operation.ValidationRevision : e.ValidationRevision,
-            CutoverState = e.CutoverState == DatabaseCutoverState.None ? Operation.CutoverState : e.CutoverState
+            CutoverState = e.CutoverState == DatabaseCutoverState.None ? Operation.CutoverState : e.CutoverState,
+            BackupLineage = e.BackupLineage ?? Operation.BackupLineage
         };
         if (source.ProducingHostId is not null)
         {
@@ -317,7 +318,15 @@ public sealed class DatabaseBackupCommandState
             ValidationRevision = command.ValidationRevision, RetentionPlanId = command.RetentionPlanId,
             RetentionPlanRevision = command.RetentionPlanRevision, RestoreClass = command.RestoreClass,
             EvaluationBoundaryUtc = command.EvaluationBoundaryUtc, PolicyId = command.PolicyId,
-            ManifestRevision = command.ExpectedManifestRevision
+            ManifestRevision = command.ExpectedManifestRevision,
+            BackupLineage = command is RequestDatabaseBackupCommand
+                ? new DatabaseBackupLineage
+                {
+                    RequestedMode = command.RequestedBackupMode == DatabaseBackupMode.None
+                        ? DatabaseBackupMode.Full
+                        : command.RequestedBackupMode
+                }
+                : null
         });
     }
 
@@ -341,7 +350,8 @@ public sealed class DatabaseBackupCommandState
             PolicyId = command.PolicyId, Policy = command.Policy,
             RetentionPlanId = command.RetentionPlanId, RetentionPlanRevision = command.RetentionPlanRevision,
             EvaluationBoundaryUtc = command.EvaluationBoundaryUtc,
-            ManifestRevision = command.ManifestRevision
+            ManifestRevision = command.ManifestRevision,
+            BackupLineage = command.BackupLineage
         });
     }
 
@@ -369,6 +379,7 @@ public sealed class DatabaseBackupCommandState
             domainEvent.RestoreClass,
             domainEvent.EvaluationBoundaryUtc,
             domainEvent.PolicyId,
-            domainEvent.ManifestRevision
+            domainEvent.ManifestRevision,
+            domainEvent.BackupLineage
         });
 }

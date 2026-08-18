@@ -3,6 +3,7 @@ using System.Text.Json;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Publication;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreSql;
 
@@ -14,7 +15,8 @@ internal sealed record PostgreSqlBackupEvidence(
     PostgreSqlWalContinuityEvidence WalContinuity,
     DatabaseRecoveryRunStatistics Statistics,
     int NativeMajorVersion,
-    DateTimeOffset VerifiedUtc);
+    DateTimeOffset VerifiedUtc,
+    DatabaseBackupLineage? BackupLineage = null);
 
 internal sealed record PostgreSqlRestoreEvidence(
     DatabaseRecoveryOperationId OperationId,
@@ -68,7 +70,7 @@ internal static class PostgreSqlBackupEvidenceSerializer
 {
     const string BackupEvidenceName = "ifm-postgresql-backup-evidence.json";
     const string RestoreEvidenceName = "ifm-postgresql-restore-evidence.json";
-    static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    static readonly JsonSerializerOptions Options = new(LocalBackupJson.Options) { WriteIndented = true };
 
     public static string BackupEvidencePath(string operationRoot) => Path.Combine(operationRoot, BackupEvidenceName);
     public static string RestoreEvidencePath(string operationRoot) => Path.Combine(operationRoot, RestoreEvidenceName);

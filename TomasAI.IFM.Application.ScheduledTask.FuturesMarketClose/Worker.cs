@@ -44,6 +44,7 @@ public sealed class Worker(
             var environmentIdentity = configuration["DatabaseBackup:EnvironmentIdentity"]
                 ?? throw new InvalidOperationException("The scheduled database-backup environment identity is missing.");
             var destination = configuration["DatabaseBackup:Destination"] ?? "online-vault";
+            var requestedMode = ParseBackupMode(configuration["DatabaseBackup:Mode"]);
             foreach (var protectionSet in protectionSets)
             {
                 var requestId = Guid.NewGuid();
@@ -64,6 +65,7 @@ public sealed class Worker(
                         Source = BackupSource.LocalWorkstation,
                         ProtectionSetId = new DatabaseProtectionSetId(protectionSet),
                         ConsistencyMode = DatabaseConsistencyMode.EngineConsistent,
+                        RequestedBackupMode = requestedMode,
                         RequiredDestinations = [new DatabaseLogicalDestination(destination, true)]
                     },
                     stoppingToken).ConfigureAwait(false);
@@ -91,4 +93,14 @@ public sealed class Worker(
             await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
+
+    static DatabaseBackupMode ParseBackupMode(string? value)
+        => (value ?? "full").ToLowerInvariant() switch
+        {
+            "automatic" or "auto" => DatabaseBackupMode.Automatic,
+            "full" => DatabaseBackupMode.Full,
+            "incremental" => DatabaseBackupMode.Incremental,
+            var unsupported => throw new InvalidOperationException(
+                $"The scheduled database-backup mode '{unsupported}' is unsupported.")
+        };
 }

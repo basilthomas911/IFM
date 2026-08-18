@@ -112,6 +112,9 @@ internal sealed record DatabaseBackupConsoleOptions(
           --source local|aws  --environment <name>  --caller <identity>
           --authorization <reference>  --nats-url <url>
 
+        Backup options:
+          --mode full|automatic|incremental  (default: full)
+
         Destructive operations require --confirm.
         """;
 }

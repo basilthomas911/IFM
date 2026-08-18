@@ -53,7 +53,7 @@ public sealed class DatabaseBackupConsoleTests
         using var output = new StringWriter();
         var runner = new DatabaseBackupConsoleRunner(commandApi, queryApi, output, new FixedTimeProvider(Now));
         var options = DatabaseBackupConsoleOptions.Parse(
-            ["backup", "--protection-set", "core", "--destination", "online-vault"]);
+            ["backup", "--protection-set", "core", "--destination", "online-vault", "--mode", "incremental"]);
 
         var exitCode = await runner.RunAsync(options, CancellationToken.None);
 
@@ -62,6 +62,7 @@ public sealed class DatabaseBackupConsoleTests
         await commandApi.Received(1).RequestBackupAsync(
             Arg.Is<RequestDatabaseBackupCommand>(command =>
                 command.Source == BackupSource.LocalWorkstation &&
+                command.RequestedBackupMode == DatabaseBackupMode.Incremental &&
                 command.ProtectionSetId == new DatabaseProtectionSetId("core") &&
                 command.Request.Origin == DatabaseRequestOrigin.Console &&
                 command.RequiredDestinations.Single().Name == "online-vault"),

@@ -7,6 +7,7 @@ namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreS
 internal enum PostgreSqlNativeTool
 {
     BaseBackup,
+    CombineBackup,
     VerifyBackup,
     Control,
     ControlData
@@ -96,6 +97,7 @@ internal sealed class PostgreSqlNativeProcessRunner(PostgreSqlBackupOptions opti
         var fileName = tool switch
         {
             PostgreSqlNativeTool.BaseBackup => OperatingSystem.IsWindows() ? "pg_basebackup.exe" : "pg_basebackup",
+            PostgreSqlNativeTool.CombineBackup => OperatingSystem.IsWindows() ? "pg_combinebackup.exe" : "pg_combinebackup",
             PostgreSqlNativeTool.VerifyBackup => OperatingSystem.IsWindows() ? "pg_verifybackup.exe" : "pg_verifybackup",
             PostgreSqlNativeTool.Control => OperatingSystem.IsWindows() ? "pg_ctl.exe" : "pg_ctl",
             PostgreSqlNativeTool.ControlData => OperatingSystem.IsWindows() ? "pg_controldata.exe" : "pg_controldata",
@@ -137,6 +139,7 @@ internal sealed class PostgreSqlNativeToolUnavailableException(PostgreSqlNativeT
     static string SafeName(PostgreSqlNativeTool value) => value switch
     {
         PostgreSqlNativeTool.BaseBackup => "base-backup",
+        PostgreSqlNativeTool.CombineBackup => "combine-backup",
         PostgreSqlNativeTool.VerifyBackup => "verification",
         PostgreSqlNativeTool.Control => "control",
         PostgreSqlNativeTool.ControlData => "control-data",
@@ -158,6 +161,7 @@ internal sealed class PostgreSqlNativeOperationException(
     static string SafeName(PostgreSqlNativeTool value) => value switch
     {
         PostgreSqlNativeTool.BaseBackup => "base-backup",
+        PostgreSqlNativeTool.CombineBackup => "combine-backup",
         PostgreSqlNativeTool.VerifyBackup => "verification",
         PostgreSqlNativeTool.Control => "control",
         PostgreSqlNativeTool.ControlData => "control-data",

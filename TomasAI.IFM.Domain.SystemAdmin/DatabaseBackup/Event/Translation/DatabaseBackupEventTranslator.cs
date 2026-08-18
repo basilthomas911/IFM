@@ -84,7 +84,8 @@ public static class DatabaseBackupEventTranslator
             RetentionPlanId = source.RetentionPlanId,
             RetentionPlanRevision = source.RetentionPlanRevision,
             EvaluationBoundaryUtc = source.EvaluationBoundaryUtc,
-            ManifestRevision = source.ManifestRevision
+            ManifestRevision = source.ManifestRevision,
+            BackupLineage = source.BackupLineage
         });
     }
 }

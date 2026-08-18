@@ -3,6 +3,7 @@ using System.Text.Json;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Publication;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Scylla;
 
@@ -14,7 +15,8 @@ internal sealed record ScyllaBackupEvidence(
     ScyllaSnapshotEvidence Snapshot,
     string[] ArtifactReferences,
     DatabaseRecoveryRunStatistics Statistics,
-    DateTimeOffset CapturedUtc);
+    DateTimeOffset CapturedUtc,
+    DatabaseBackupLineage? BackupLineage = null);
 
 internal sealed record ScyllaRestoreEvidence(
     DatabaseRecoveryOperationId OperationId,
@@ -62,7 +64,7 @@ internal static class ScyllaEvidenceSerializer
 {
     const string BackupEvidenceName = "ifm-scylla-backup-evidence.json";
     const string RestoreEvidenceName = "ifm-scylla-restore-evidence.json";
-    static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    static readonly JsonSerializerOptions Options = new(LocalBackupJson.Options) { WriteIndented = true };
 
     public static string BackupEvidencePath(string root) => Path.Combine(root, BackupEvidenceName);
     public static string RestoreEvidencePath(string root) => Path.Combine(root, RestoreEvidenceName);

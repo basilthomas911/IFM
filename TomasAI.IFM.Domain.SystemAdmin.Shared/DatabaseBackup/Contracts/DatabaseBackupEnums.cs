@@ -1,6 +1,15 @@
 namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 
 public enum BackupSource { None = 0, LocalWorkstation = 1, AwsCloud = 2 }
+public enum DatabaseBackupMode { None = 0, Automatic = 1, Full = 2, Incremental = 3 }
+public enum DatabaseNativeBackupKind
+{
+    None = 0,
+    PostgreSqlBase = 1,
+    PostgreSqlIncremental = 2,
+    ScyllaManagerSnapshot = 3,
+    ScyllaManagerDeduplicatedSnapshot = 4
+}
 public enum DatabaseRecoveryOperationKind { None = 0, Backup = 1, Verification = 2, Restore = 3, RestoreDrill = 4, Cutover = 5, Reconciliation = 6, Retention = 7 }
 public enum DatabaseEngine { None = 0, PostgreSql = 1, ScyllaDb = 2 }
 public enum DatabaseRecoveryPhase

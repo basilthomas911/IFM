@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Framework.Storage;
@@ -41,7 +42,7 @@ internal readonly record struct UpsertOperationParameter(DatabaseBackupEventCont
             TimestampTz(terminal ? e.Source.ObservedUtc.UtcDateTime : null), Text(e.SafeDiagnosticReference),
             Text(e.RestorePointId?.Value), Smallint((short)e.RestoreClass), Text(e.FreshTarget?.Profile ?? string.Empty),
             Bigint(e.ValidationRevision), Smallint((short)e.CutoverState), Bigint(e.Source.PolicyRevision),
-            Bigint(e.EventId), Uuid(e.Source.SourceEventId));
+            Text(SystemAdminDbJson.SerializeLineage(e.BackupLineage)), Bigint(e.EventId), Uuid(e.Source.SourceEventId));
     }
 }
 
@@ -61,7 +62,60 @@ internal readonly record struct UpsertRestorePointParameter(
         Text(Event.Source.ProtectionSetId.Value), TimestampTz(Event.Source.ObservedUtc.UtcDateTime),
         Smallint((short)Event.VerificationLevel), TimestampTz(Event.VerificationLevel == DatabaseVerificationLevel.None ? null : Event.Source.ObservedUtc.UtcDateTime),
         TimestampTz(RestoreTested ? Event.Source.ObservedUtc.UtcDateTime : null), Boolean(Eligible), Boolean(LegalHold),
-        Bigint(Event.ManifestRevision), Bigint(Event.EventId), Bigint(Event.EventId), Uuid(Event.Source.SourceEventId));
+        Bigint(Event.ManifestRevision), Text(SystemAdminDbJson.SerializeLineage(Event.BackupLineage)), Bigint(Event.EventId),
+        Bigint(Event.EventId), Uuid(Event.Source.SourceEventId));
+}
+
+static class SystemAdminDbJson
+{
+    internal static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+    internal static string SerializeLineage(DatabaseBackupLineage? lineage)
+        => lineage is null
+            ? string.Empty
+            : JsonSerializer.Serialize(DatabaseBackupLineageDocument.From(lineage), Options);
+
+    internal static DatabaseBackupLineage? DeserializeLineage(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var document = JsonSerializer.Deserialize<DatabaseBackupLineageDocument>(value, Options)
+            ?? throw new InvalidOperationException("Stored database backup lineage JSON is invalid.");
+        return document.ToLineage();
+    }
+
+    sealed record DatabaseBackupLineageDocument
+    {
+        public DatabaseBackupMode RequestedMode { get; init; }
+        public DatabaseBackupMode ResolvedMode { get; init; }
+        public DatabaseNativeBackupKind NativeKind { get; init; }
+        public string? BaseRestorePointId { get; init; }
+        public string? ParentRestorePointId { get; init; }
+        public int ChainDepth { get; init; }
+        public string NativeIdentity { get; init; } = string.Empty;
+
+        public static DatabaseBackupLineageDocument From(DatabaseBackupLineage value) => new()
+        {
+            RequestedMode = value.RequestedMode,
+            ResolvedMode = value.ResolvedMode,
+            NativeKind = value.NativeKind,
+            BaseRestorePointId = value.BaseRestorePointId?.Value,
+            ParentRestorePointId = value.ParentRestorePointId?.Value,
+            ChainDepth = value.ChainDepth,
+            NativeIdentity = value.NativeIdentity
+        };
+
+        public DatabaseBackupLineage ToLineage() => new()
+        {
+            RequestedMode = RequestedMode,
+            ResolvedMode = ResolvedMode,
+            NativeKind = NativeKind,
+            BaseRestorePointId = string.IsNullOrWhiteSpace(BaseRestorePointId)
+                ? null : new DatabaseRestorePointId(BaseRestorePointId),
+            ParentRestorePointId = string.IsNullOrWhiteSpace(ParentRestorePointId)
+                ? null : new DatabaseRestorePointId(ParentRestorePointId),
+            ChainDepth = ChainDepth,
+            NativeIdentity = NativeIdentity
+        };
+    }
 }
 
 internal readonly record struct UpsertArtifactReplicaParameter(DatabaseBackupEventContract Event) : IBindValue

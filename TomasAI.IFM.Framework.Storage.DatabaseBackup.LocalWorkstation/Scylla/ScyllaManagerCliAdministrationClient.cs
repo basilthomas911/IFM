@@ -63,7 +63,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
             "backup", "--cluster", protectionSet.ManagerCluster,
             "--location", protectionSet.BackupLocation,
             "--keyspace", string.Join(',', protectionSet.Keyspaces),
-            "--retention=1", "--num-retries=0", "--name", taskName
+            $"--retention={protectionSet.ManagerRetentionCount}", "--num-retries=0", "--name", taskName
         };
         var started = Stopwatch.GetTimestamp();
         var created = await RunAsync(

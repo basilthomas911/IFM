@@ -38,6 +38,7 @@ public abstract record DatabaseBackupInternalCommand : ICommand<DatabaseRecovery
     [Key(24)] public long RetentionPlanRevision { get; init; }
     [Key(25)] public DateTimeOffset EvaluationBoundaryUtc { get; init; }
     [Key(26)] public long ManifestRevision { get; init; }
+    [Key(27)] public DatabaseBackupLineage? BackupLineage { get; init; }
 
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
@@ -59,6 +60,7 @@ public abstract record DatabaseBackupInternalCommand : ICommand<DatabaseRecovery
         if (EvaluationBoundaryUtc != default && EvaluationBoundaryUtc.Offset != TimeSpan.Zero)
             throw new ArgumentException("EvaluationBoundaryUtc must be UTC.", nameof(EvaluationBoundaryUtc));
         if (ManifestRevision < 0) throw new ArgumentOutOfRangeException(nameof(ManifestRevision));
+        BackupLineage?.Validate(resolvedRequired: false);
     }
 }
 

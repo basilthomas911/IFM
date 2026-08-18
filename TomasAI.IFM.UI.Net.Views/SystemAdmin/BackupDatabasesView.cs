@@ -10,6 +10,8 @@ namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
 public partial class BackupDatabasesView : UserControl, IAsyncFormControl
 {
     readonly DatabaseBackupViewModel _viewModel;
+    readonly Label _backupModeLabel = new();
+    readonly ComboBox _backupMode = new();
     Task? _initializeTask;
 
     /// <summary>Creates the database-backup view.</summary>
@@ -17,6 +19,7 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
+        ConfigureModeControls();
     }
 
     /// <inheritdoc />
@@ -61,6 +64,34 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
         nudCommandTimeout.Visible = false;
         btnRun.Text = "Request Backup";
         _viewModel.SelectSource(BackupSource.LocalWorkstation);
+        _backupMode.SelectedItem = DatabaseBackupMode.Full;
+        _viewModel.SelectBackupMode(DatabaseBackupMode.Full);
+    }
+
+    void ConfigureModeControls()
+    {
+        _backupModeLabel.AutoSize = true;
+        _backupModeLabel.Font = radDiffBackup.Font;
+        _backupModeLabel.ForeColor = Color.White;
+        _backupModeLabel.Location = new Point(300, 6);
+        _backupModeLabel.Text = "Mode:";
+        _backupMode.DropDownStyle = ComboBoxStyle.DropDownList;
+        _backupMode.Font = radDiffBackup.Font;
+        _backupMode.Location = new Point(355, 2);
+        _backupMode.Size = new Size(145, 26);
+        _backupMode.Items.AddRange([
+            DatabaseBackupMode.Full,
+            DatabaseBackupMode.Automatic,
+            DatabaseBackupMode.Incremental]);
+        _backupMode.SelectedIndexChanged += (_, _) =>
+        {
+            if (_backupMode.SelectedItem is DatabaseBackupMode mode)
+                _viewModel.SelectBackupMode(mode);
+        };
+        pnlBackupType.Controls.Add(_backupModeLabel);
+        pnlBackupType.Controls.Add(_backupMode);
+        _backupMode.BringToFront();
+        _backupModeLabel.BringToFront();
     }
 
     void Subscribe()
@@ -129,7 +160,7 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
         foreach (var operation in _viewModel.State.RecentOperations.Where(item => item.ProtectionSet == protectionSet))
         {
             lbStatusMessages.Items.Add(
-                $"{operation.OperationId:N} | {operation.Phase} | {operation.ProgressPercent}% | {operation.Outcome} | {operation.SafeDiagnosticReference}");
+                $"{operation.OperationId:N} | {operation.RequestedMode}/{operation.ResolvedMode} | {operation.Phase} | {operation.ProgressPercent}% | {operation.Outcome} | {operation.SafeDiagnosticReference}");
         }
     }
 

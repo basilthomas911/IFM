@@ -24,9 +24,12 @@ CREATE TABLE IF NOT EXISTS system_admin.database_recovery_operation (
     validation_revision bigint NOT NULL DEFAULT 0,
     cutover_state smallint NOT NULL DEFAULT 0,
     policy_revision bigint NOT NULL DEFAULT 0,
+    backup_lineage_json text NOT NULL DEFAULT '',
     last_event_id bigint NOT NULL,
     last_source_event_id uuid NOT NULL
 );
+ALTER TABLE system_admin.database_recovery_operation
+    ADD COLUMN IF NOT EXISTS backup_lineage_json text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_history
     ON system_admin.database_recovery_operation (source, protection_set_id, created_utc DESC, operation_id);
 CREATE INDEX IF NOT EXISTS ix_database_recovery_operation_backup_set
@@ -90,11 +93,14 @@ CREATE TABLE IF NOT EXISTS system_admin.database_restore_point (
     eligible boolean NOT NULL DEFAULT false,
     legal_hold boolean NOT NULL DEFAULT false,
     manifest_revision bigint NOT NULL DEFAULT 0,
+    backup_lineage_json text NOT NULL DEFAULT '',
     source_revision bigint NOT NULL,
     last_event_id bigint NOT NULL,
     last_source_event_id uuid NOT NULL,
     PRIMARY KEY (restore_point_id, source)
 );
+ALTER TABLE system_admin.database_restore_point
+    ADD COLUMN IF NOT EXISTS backup_lineage_json text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS ix_database_restore_point_latest
     ON system_admin.database_restore_point (source, protection_set_id, recovery_point_utc DESC);
 """;

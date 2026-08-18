@@ -112,6 +112,7 @@ public sealed class ScyllaProtectionSetOptions
     public string BackupLocation { get; set; } = string.Empty;
     public string[] Keyspaces { get; set; } = [];
     public int RequiredLiveNodes { get; set; } = 1;
+    public int ManagerRetentionCount { get; set; } = 30;
 
     public void Validate()
     {
@@ -124,6 +125,8 @@ public sealed class ScyllaProtectionSetOptions
                 throw new InvalidOperationException("A Scylla keyspace selection contains unsupported characters.");
         if (RequiredLiveNodes <= 0)
             throw new InvalidOperationException("The required Scylla live-node count must be positive.");
+        if (ManagerRetentionCount < 2)
+            throw new InvalidOperationException("Scylla Manager retention must preserve at least two restore points.");
     }
 }
 

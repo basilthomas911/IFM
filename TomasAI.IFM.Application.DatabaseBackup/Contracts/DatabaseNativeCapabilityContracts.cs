@@ -6,7 +6,8 @@ public sealed record DatabaseNativeProgress(DatabaseRecoveryPhase Phase, int Per
 
 public sealed record PostgreSqlBackupRequest(
     DatabaseRecoveryOperationId OperationId,
-    DatabaseProtectionSetId ProtectionSetId);
+    DatabaseProtectionSetId ProtectionSetId,
+    DatabaseBackupLineage? BackupLineage = null);
 
 public sealed record PostgreSqlWalContinuityEvidence(
     string Timeline,
@@ -20,11 +21,13 @@ public sealed record PostgreSqlBackupBoundary(string SafeBoundaryReference)
     public PostgreSqlWalContinuityEvidence? WalContinuity { get; init; }
     public DatabaseRecoveryRunStatistics? Statistics { get; init; }
     public int NativeMajorVersion { get; init; }
+    public DatabaseBackupLineage? BackupLineage { get; init; }
 }
 
 public sealed record PostgreSqlVerificationRequest(
     DatabaseRecoveryOperationId OperationId,
-    string SafeBoundaryReference);
+    string SafeBoundaryReference,
+    DatabaseBackupLineage? BackupLineage = null);
 
 public sealed record PostgreSqlVerificationResult(DatabaseVerificationLevel Level, bool Succeeded)
 {
@@ -35,7 +38,8 @@ public sealed record PostgreSqlVerificationResult(DatabaseVerificationLevel Leve
 public sealed record PostgreSqlRestoreRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseRestorePointId RestorePointId,
-    DatabaseFreshTargetDescriptor FreshTarget);
+    DatabaseFreshTargetDescriptor FreshTarget,
+    DatabaseRestorePointId[]? DependencyChain = null);
 
 public sealed record PostgreSqlRestoreResult(bool Succeeded, long ValidationRevision)
 {
@@ -67,7 +71,8 @@ public interface IPostgreSqlBackupCapability
 
 public sealed record ScyllaBackupRequest(
     DatabaseRecoveryOperationId OperationId,
-    DatabaseProtectionSetId ProtectionSetId);
+    DatabaseProtectionSetId ProtectionSetId,
+    DatabaseBackupLineage? BackupLineage = null);
 
 public sealed record ScyllaTopologyEvidence(
     string ClusterName,
@@ -91,11 +96,13 @@ public sealed record ScyllaBackupBoundary(string SafeBoundaryReference)
     public ScyllaTopologyEvidence? Topology { get; init; }
     public ScyllaSnapshotEvidence? Snapshot { get; init; }
     public DatabaseRecoveryRunStatistics? Statistics { get; init; }
+    public DatabaseBackupLineage? BackupLineage { get; init; }
 }
 
 public sealed record ScyllaVerificationRequest(
     DatabaseRecoveryOperationId OperationId,
-    string SafeBoundaryReference);
+    string SafeBoundaryReference,
+    DatabaseBackupLineage? BackupLineage = null);
 
 public sealed record ScyllaVerificationResult(DatabaseVerificationLevel Level, bool Succeeded)
 {

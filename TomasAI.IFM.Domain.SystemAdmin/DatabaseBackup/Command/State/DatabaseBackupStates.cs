@@ -18,6 +18,7 @@ public sealed record DatabaseBackupOperationState
     public long LastServiceSequence { get; init; }
     public long ValidationRevision { get; init; }
     public DatabaseCutoverState CutoverState { get; init; }
+    public DatabaseBackupLineage? BackupLineage { get; init; }
     public bool Exists => OperationId.Value != Guid.Empty;
     public bool IsTerminal => Phase is DatabaseRecoveryPhase.Completed or DatabaseRecoveryPhase.Failed
         or DatabaseRecoveryPhase.Cancelled or DatabaseRecoveryPhase.Rejected;

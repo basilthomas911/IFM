@@ -146,6 +146,7 @@ internal sealed class DatabaseBackupConsoleRunner(
         {
             Request = CreateRequest(options), Source = options.Source,
             ProtectionSetId = new DatabaseProtectionSetId(options.Require("protection-set")),
+            RequestedBackupMode = ParseBackupMode(options.GetOptional("mode")),
             ConsistencyMode = ParseConsistency(options.GetOptional("consistency")),
             RequiredDestinations = options.Require("destination")
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -283,5 +284,14 @@ internal sealed class DatabaseBackupConsoleRunner(
             "coordinated" or "protection-set" => DatabaseConsistencyMode.CoordinatedProtectionSet,
             "engine" or "engine-consistent" => DatabaseConsistencyMode.EngineConsistent,
             var unsupported => throw new ArgumentException($"Unsupported consistency mode '{unsupported}'.")
+        };
+
+    static DatabaseBackupMode ParseBackupMode(string? value)
+        => (value ?? "full").ToLowerInvariant() switch
+        {
+            "automatic" or "auto" => DatabaseBackupMode.Automatic,
+            "full" => DatabaseBackupMode.Full,
+            "incremental" => DatabaseBackupMode.Incremental,
+            var unsupported => throw new ArgumentException($"Unsupported backup mode '{unsupported}'.")
         };
 }

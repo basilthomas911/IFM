@@ -9,6 +9,38 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuratio
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.PostgreSql;
 
 internal sealed record PostgreSqlFreshTargetValidation(string SystemIdentifier, long ValidationRevision);
+internal sealed record PostgreSqlSourceMetadata(string SystemIdentifier, int MajorVersion, bool WalSummariesEnabled);
+
+internal interface IPostgreSqlSourceMetadataReader
+{
+    ValueTask<PostgreSqlSourceMetadata> ReadAsync(string connectionString, CancellationToken cancellationToken);
+}
+
+internal sealed class PostgreSqlSourceMetadataReader : IPostgreSqlSourceMetadataReader
+{
+    public async ValueTask<PostgreSqlSourceMetadata> ReadAsync(
+        string connectionString,
+        CancellationToken cancellationToken)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false };
+        await using var connection = new NpgsqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT system_identifier::text,
+                   current_setting('server_version_num')::integer,
+                   COALESCE(current_setting('summarize_wal', true), 'off')
+            FROM pg_control_system()
+            """;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("The PostgreSQL source returned no native identity.");
+        return new PostgreSqlSourceMetadata(
+            reader.GetString(0),
+            reader.GetInt32(1) / 10000,
+            string.Equals(reader.GetString(2), "on", StringComparison.OrdinalIgnoreCase));
+    }
+}
 
 internal interface IPostgreSqlFreshTargetValidator
 {
@@ -80,6 +112,7 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
     readonly PostgreSqlBackupPathResolver _paths;
     readonly IPostgreSqlNativeProcessRunner _runner;
     readonly IPostgreSqlFreshTargetValidator _validator;
+    readonly IPostgreSqlSourceMetadataReader _sourceMetadata;
     int _nativeMajorVersion;
 
     public PostgreSqlBackupCapability(PostgreSqlBackupOptions options)
@@ -88,13 +121,15 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
     internal PostgreSqlBackupCapability(
         PostgreSqlBackupOptions options,
         IPostgreSqlNativeProcessRunner runner,
-        IPostgreSqlFreshTargetValidator validator)
+        IPostgreSqlFreshTargetValidator validator,
+        IPostgreSqlSourceMetadataReader? sourceMetadata = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
         _paths = new PostgreSqlBackupPathResolver(options);
         _runner = runner ?? throw new ArgumentNullException(nameof(runner));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _sourceMetadata = sourceMetadata ?? new PostgreSqlSourceMetadataReader();
     }
 
     public async ValueTask ValidateAsync(CancellationToken cancellationToken)
@@ -128,24 +163,38 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         var final = _paths.BackupFinal(request.OperationId);
         if (File.Exists(PostgreSqlBackupEvidenceSerializer.BackupEvidencePath(final)))
             return Boundary(await PostgreSqlBackupEvidenceSerializer.ReadBackupAsync(final, cancellationToken).ConfigureAwait(false));
+        var lineage = await ResolveLineageAsync(request, cancellationToken).ConfigureAwait(false);
 
         var staging = _paths.BackupStaging(request.OperationId);
         var data = Path.Combine(staging, "data");
         if (File.Exists(Path.Combine(data, "backup_manifest")))
-            return await BoundaryFromManifestAsync(data, TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
+            return await BoundaryFromManifestAsync(data, TimeSpan.Zero, lineage, cancellationToken).ConfigureAwait(false);
         if (Directory.Exists(staging) && Directory.EnumerateFileSystemEntries(staging).Any())
             throw new InvalidOperationException("An incomplete PostgreSQL native capture requires explicit reconciliation.");
 
         Directory.CreateDirectory(staging);
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Capturing, 1));
+        var arguments = new List<string>
+        {
+            "--pgdata", data, "--format=plain", "--wal-method=stream", "--checkpoint=fast",
+            "--progress", "--manifest-checksums=SHA256", "--no-password"
+        };
+        if (lineage.NativeKind == DatabaseNativeBackupKind.PostgreSqlIncremental)
+        {
+            var parent = lineage.ParentRestorePointId
+                ?? throw new InvalidOperationException("PostgreSQL incremental lineage has no parent.");
+            var parentManifest = Path.Combine(_paths.RestorePoint(parent), "data", "backup_manifest");
+            if (!File.Exists(parentManifest))
+                throw new FileNotFoundException("The PostgreSQL incremental parent manifest is unavailable.", parentManifest);
+            arguments.Add("--incremental=" + parentManifest);
+        }
         var result = await _runner.RunAsync(new PostgreSqlNativeInvocation(
             PostgreSqlNativeTool.BaseBackup,
-            ["--pgdata", data, "--format=plain", "--wal-method=stream", "--checkpoint=fast",
-                "--progress", "--manifest-checksums=SHA256", "--no-password"],
+            arguments,
             ConnectionEnvironment(),
             _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Capturing, 100));
-        return await BoundaryFromManifestAsync(data, result.Elapsed, cancellationToken).ConfigureAwait(false);
+        return await BoundaryFromManifestAsync(data, result.Elapsed, lineage, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<PostgreSqlVerificationResult> VerifyAsync(
@@ -175,7 +224,8 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
 
         var data = Path.Combine(staging, "data");
         var manifest = await ReadManifestAsync(data, cancellationToken).ConfigureAwait(false);
-        var expectedBoundary = SafeBoundary(manifest.ManifestSha256);
+        var lineage = (request.BackupLineage ?? new DatabaseBackupLineage()).NormalizeLegacyFull(DatabaseEngine.PostgreSql);
+        var expectedBoundary = SafeBoundary(manifest.ManifestSha256, lineage);
         EnsureBoundary(expectedBoundary, request.SafeBoundaryReference);
         var started = Stopwatch.GetTimestamp();
         await _runner.RunAsync(new PostgreSqlNativeInvocation(
@@ -193,7 +243,8 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
             manifest.WalContinuity,
             statistics,
             Volatile.Read(ref _nativeMajorVersion),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            lineage with { NativeIdentity = manifest.SystemIdentifier });
         await PostgreSqlBackupEvidenceSerializer.WriteBackupAsync(staging, evidence, cancellationToken).ConfigureAwait(false);
         Directory.Move(staging, final);
         return Verification(evidence);
@@ -214,11 +265,20 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         var source = _paths.RestorePoint(request.RestorePointId);
         var sourceEvidence = await PostgreSqlBackupEvidenceSerializer.ReadBackupAsync(source, cancellationToken).ConfigureAwait(false);
         var sourceData = Path.Combine(source, "data");
-        await _runner.RunAsync(new PostgreSqlNativeInvocation(
-            PostgreSqlNativeTool.VerifyBackup,
-            ["--exit-on-error", sourceData],
-            EmptyEnvironment,
-            _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
+        var dependencyData = new List<string>();
+        foreach (var dependency in request.DependencyChain ?? [])
+        {
+            var dependencyRoot = _paths.RestorePoint(dependency);
+            _ = await PostgreSqlBackupEvidenceSerializer.ReadBackupAsync(
+                dependencyRoot, cancellationToken).ConfigureAwait(false);
+            dependencyData.Add(Path.Combine(dependencyRoot, "data"));
+        }
+        foreach (var backupData in dependencyData.Append(sourceData))
+            await _runner.RunAsync(new PostgreSqlNativeInvocation(
+                PostgreSqlNativeTool.VerifyBackup,
+                ["--exit-on-error", backupData],
+                EmptyEnvironment,
+                _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
 
         var staging = _paths.RestoreStaging(request);
         if (Directory.Exists(staging))
@@ -227,7 +287,26 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         var targetData = Path.Combine(staging, "data");
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Transferring, 1));
         var started = Stopwatch.GetTimestamp();
-        await CopyDirectoryAsync(sourceData, targetData, cancellationToken).ConfigureAwait(false);
+        if (dependencyData.Count == 0)
+        {
+            await CopyDirectoryAsync(sourceData, targetData, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var combineVersion = await ReadVersionAsync(
+                PostgreSqlNativeTool.CombineBackup, cancellationToken).ConfigureAwait(false);
+            if (combineVersion != Volatile.Read(ref _nativeMajorVersion) || combineVersion < 17)
+                throw new InvalidOperationException(
+                    "PostgreSQL incremental restore requires matching PostgreSQL 17 or later pg_combinebackup tools.");
+            var arguments = new List<string> { "--output", targetData };
+            arguments.AddRange(dependencyData);
+            arguments.Add(sourceData);
+            await _runner.RunAsync(new PostgreSqlNativeInvocation(
+                PostgreSqlNativeTool.CombineBackup,
+                arguments,
+                EmptyEnvironment,
+                _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
+        }
         progress.Report(new DatabaseNativeProgress(DatabaseRecoveryPhase.Transferring, 60));
         await _runner.RunAsync(new PostgreSqlNativeInvocation(
             PostgreSqlNativeTool.VerifyBackup,
@@ -300,6 +379,72 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         if (Volatile.Read(ref _nativeMajorVersion) == 0) await ValidateAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    async ValueTask<DatabaseBackupLineage> ResolveLineageAsync(
+        PostgreSqlBackupRequest request,
+        CancellationToken cancellationToken)
+    {
+        var lineage = (request.BackupLineage ?? new DatabaseBackupLineage())
+            .NormalizeLegacyFull(DatabaseEngine.PostgreSql);
+        lineage.Validate(resolvedRequired: true);
+        if (lineage.NativeKind != DatabaseNativeBackupKind.PostgreSqlIncremental)
+            return lineage;
+        var metadata = await _sourceMetadata.ReadAsync(ConnectionString(), cancellationToken).ConfigureAwait(false);
+        int? combineMajorVersion = null;
+        try
+        {
+            combineMajorVersion = await ReadVersionAsync(
+                PostgreSqlNativeTool.CombineBackup, cancellationToken).ConfigureAwait(false);
+        }
+        catch (PostgreSqlNativeToolUnavailableException)
+        {
+            // Automatic mode may safely fall back to a full backup below.
+        }
+
+        string? ineligible = null;
+        if (Volatile.Read(ref _nativeMajorVersion) < 17)
+            ineligible = "PostgreSQL 17 or later native tools are required for incremental backup.";
+        else if (combineMajorVersion is null)
+            ineligible = "PostgreSQL pg_combinebackup is required for incremental backup.";
+        else if (combineMajorVersion != Volatile.Read(ref _nativeMajorVersion))
+            ineligible = "PostgreSQL pg_combinebackup must match the other native backup tools.";
+        else if (metadata.MajorVersion < 17)
+            ineligible = "PostgreSQL 17 or later is required for incremental backup.";
+        else if (!metadata.WalSummariesEnabled)
+            ineligible = "PostgreSQL summarize_wal must be enabled before incremental backup.";
+        PostgreSqlBackupEvidence? parentEvidence = null;
+        if (ineligible is null && lineage.ParentRestorePointId is { } parent)
+        {
+            var parentRoot = _paths.RestorePoint(parent);
+            if (!File.Exists(PostgreSqlBackupEvidenceSerializer.BackupEvidencePath(parentRoot)))
+                ineligible = "The PostgreSQL incremental parent evidence is unavailable.";
+            else
+            {
+                parentEvidence = await PostgreSqlBackupEvidenceSerializer.ReadBackupAsync(
+                    parentRoot, cancellationToken).ConfigureAwait(false);
+                if (!string.Equals(parentEvidence.SystemIdentifier, metadata.SystemIdentifier, StringComparison.Ordinal))
+                    ineligible = "The PostgreSQL incremental parent belongs to a different database system.";
+            }
+        }
+        else if (ineligible is null)
+        {
+            ineligible = "The PostgreSQL incremental parent is missing.";
+        }
+
+        if (ineligible is null)
+            return lineage with { NativeIdentity = metadata.SystemIdentifier };
+        if (lineage.RequestedMode != DatabaseBackupMode.Automatic)
+            throw new InvalidOperationException(ineligible);
+        return new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Automatic,
+            ResolvedMode = DatabaseBackupMode.Full,
+            NativeKind = DatabaseNativeBackupKind.PostgreSqlBase,
+            BaseRestorePointId = new DatabaseRestorePointId(request.OperationId.Format()),
+            ChainDepth = 0,
+            NativeIdentity = metadata.SystemIdentifier
+        };
+    }
+
     async ValueTask<int> ReadVersionAsync(PostgreSqlNativeTool tool, CancellationToken cancellationToken)
     {
         var result = await _runner.RunAsync(new PostgreSqlNativeInvocation(
@@ -312,10 +457,7 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
 
     IReadOnlyDictionary<string, string?> ConnectionEnvironment()
     {
-        var raw = Environment.GetEnvironmentVariable(_options.ConnectionStringEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(raw))
-            throw new InvalidOperationException("The configured PostgreSQL connection-string secret reference is unavailable.");
-        var connection = new NpgsqlConnectionStringBuilder(raw);
+        var connection = new NpgsqlConnectionStringBuilder(ConnectionString());
         if (string.IsNullOrWhiteSpace(connection.Host) || string.IsNullOrWhiteSpace(connection.Username)
             || string.IsNullOrWhiteSpace(connection.Password))
             throw new InvalidOperationException("The configured PostgreSQL backup connection is incomplete.");
@@ -328,6 +470,18 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
             ["PGDATABASE"] = string.IsNullOrWhiteSpace(connection.Database) ? "postgres" : connection.Database,
             ["PGSSLMODE"] = connection.SslMode.ToString().ToLowerInvariant()
         };
+    }
+
+    string ConnectionString()
+    {
+        var raw = Environment.GetEnvironmentVariable(_options.ConnectionStringEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(raw))
+            throw new InvalidOperationException("The configured PostgreSQL connection-string secret reference is unavailable.");
+        var connection = new NpgsqlConnectionStringBuilder(raw);
+        if (string.IsNullOrWhiteSpace(connection.Host) || string.IsNullOrWhiteSpace(connection.Username)
+            || string.IsNullOrWhiteSpace(connection.Password))
+            throw new InvalidOperationException("The configured PostgreSQL backup connection is incomplete.");
+        return connection.ConnectionString;
     }
 
     void ValidateRequest(PostgreSqlBackupRequest request)
@@ -350,16 +504,19 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
     async ValueTask<PostgreSqlBackupBoundary> BoundaryFromManifestAsync(
         string data,
         TimeSpan elapsed,
+        DatabaseBackupLineage lineage,
         CancellationToken cancellationToken)
     {
         var manifest = await ReadManifestAsync(data, cancellationToken).ConfigureAwait(false);
         if (!manifest.WalContinuity.RequiredWalPresent)
             throw new InvalidDataException("The PostgreSQL base backup does not contain its required streamed WAL.");
-        return new PostgreSqlBackupBoundary(SafeBoundary(manifest.ManifestSha256))
+        lineage = lineage with { NativeIdentity = manifest.SystemIdentifier };
+        return new PostgreSqlBackupBoundary(SafeBoundary(manifest.ManifestSha256, lineage))
         {
             WalContinuity = manifest.WalContinuity,
             NativeMajorVersion = Volatile.Read(ref _nativeMajorVersion),
-            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, manifest.SourceBytes, manifest.FileCount, elapsed)
+            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, manifest.SourceBytes, manifest.FileCount, elapsed),
+            BackupLineage = lineage
         };
     }
 
@@ -386,7 +543,8 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         {
             WalContinuity = evidence.WalContinuity,
             NativeMajorVersion = evidence.NativeMajorVersion,
-            Statistics = evidence.Statistics
+            Statistics = evidence.Statistics,
+            BackupLineage = evidence.BackupLineage?.NormalizeLegacyFull(DatabaseEngine.PostgreSql)
         };
 
     static PostgreSqlVerificationResult Verification(PostgreSqlBackupEvidence evidence)
@@ -429,7 +587,10 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
     static double? Rate(long bytes, TimeSpan elapsed)
         => elapsed > TimeSpan.Zero ? bytes / elapsed.TotalSeconds : null;
 
-    static string SafeBoundary(string manifestSha256) => $"postgres-base-{manifestSha256[..16]}";
+    static string SafeBoundary(string manifestSha256, DatabaseBackupLineage lineage)
+        => lineage.NativeKind == DatabaseNativeBackupKind.PostgreSqlIncremental
+            ? $"postgres-incremental-{manifestSha256[..16]}"
+            : $"postgres-base-{manifestSha256[..16]}";
 
     static void EnsureBoundary(string actual, string expected)
     {

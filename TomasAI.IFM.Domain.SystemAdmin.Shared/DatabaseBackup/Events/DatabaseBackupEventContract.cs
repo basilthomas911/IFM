@@ -41,6 +41,7 @@ public abstract record DatabaseBackupEventContract : IEvent<DatabaseRecoveryOper
     [Key(28)] public DateTimeOffset EvaluationBoundaryUtc { get; init; }
     [Key(29)] public DatabaseBackupPolicyId? PolicyId { get; init; }
     [Key(30)] public long ManifestRevision { get; init; }
+    [Key(31)] public DatabaseBackupLineage? BackupLineage { get; init; }
 
     [IgnoreMember] public string UserName => "DatabaseBackup";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -64,6 +65,7 @@ public abstract record DatabaseBackupEventContract : IEvent<DatabaseRecoveryOper
         if (EvaluationBoundaryUtc != default && EvaluationBoundaryUtc.Offset != TimeSpan.Zero)
             throw new ArgumentException("EvaluationBoundaryUtc must be UTC.", nameof(EvaluationBoundaryUtc));
         if (ManifestRevision < 0) throw new ArgumentOutOfRangeException(nameof(ManifestRevision));
+        BackupLineage?.Validate(resolvedRequired: false);
     }
 }
 

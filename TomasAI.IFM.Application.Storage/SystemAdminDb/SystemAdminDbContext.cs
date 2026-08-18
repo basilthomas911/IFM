@@ -339,7 +339,10 @@ public sealed class SystemAdminDbContext(
             Phase = EnumValue<DatabaseRecoveryPhase>(row, 5), Outcome = EnumValue<DatabaseRecoveryOutcome>(row, 6),
             ProgressPercent = row.GetInt(7), StateRevision = row.GetLong(8),
             CreatedUtc = AsOffset(row.GetDateTime(9)), CompletedUtc = row.IsNull(10) ? null : AsOffset(row.GetDateTime(10)),
-            SafeDiagnosticReference = row.GetString(11)
+            SafeDiagnosticReference = row.GetString(11),
+            BackupLineage = row.IsNull(17) || string.IsNullOrWhiteSpace(row.GetString(17))
+                ? null
+                : SystemAdminDbJson.DeserializeLineage(row.GetString(17))
         },
         row.IsNull(12) ? null : new DatabaseRestorePointId(row.GetString(12)),
         EnumValue<DatabaseRestoreClass>(row, 13), row.GetString(14), row.GetLong(15), EnumValue<DatabaseCutoverState>(row, 16));
@@ -352,7 +355,10 @@ public sealed class SystemAdminDbContext(
         RecoveryPointUtc = AsOffset(row.GetDateTime(4)), VerificationLevel = EnumValue<DatabaseVerificationLevel>(row, 5),
         VerifiedUtc = row.IsNull(6) ? null : AsOffset(row.GetDateTime(6)),
         RestoreTestedUtc = row.IsNull(7) ? null : AsOffset(row.GetDateTime(7)),
-        Eligible = row.GetBool(8), LegalHold = row.GetBool(9), ManifestRevision = row.GetLong(10)
+        Eligible = row.GetBool(8), LegalHold = row.GetBool(9), ManifestRevision = row.GetLong(10),
+        BackupLineage = row.IsNull(11) || string.IsNullOrWhiteSpace(row.GetString(11))
+            ? null
+            : SystemAdminDbJson.DeserializeLineage(row.GetString(11))
     };
 
     static DatabaseRestoreOperationReadModel ToRestoreOperation(OperationProjectionRow row) => new()

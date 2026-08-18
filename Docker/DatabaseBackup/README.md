@@ -120,12 +120,26 @@ Commands: backup, cancel, restore, restore-drill, approve-restore, approve-cutov
 Restore and retention execution require `--confirm`. A restore always targets an allowlisted fresh target; it never
 overwrites the live development database in place.
 
-The implemented local capabilities currently create PostgreSQL physical base backups and Scylla snapshots. In the
-public workflow these are full backups. There is no console `full`/`incremental` switch yet, and the console must not
-claim incremental support. PostgreSQL incrementals require a PostgreSQL 17 backup-manifest chain and
-`pg_combinebackup`; Scylla incrementals require a defined Manager-backed dependency chain. Add an explicit
-`Automatic | Full | Incremental` contract only when both engines have defined fallback, retention, verification, and
-chain-restore semantics. Until then, `backup` remains an unambiguous full backup request.
+The public workflow supports `Full`, `Automatic`, and `Incremental` modes. The console accepts
+`backup --mode full|automatic|incremental`; omitted mode remains `full` for compatibility. The WinForms backup view
+offers the same choices, and scheduled-task configuration uses `DatabaseBackup:Mode` (normally `Automatic`). All
+callers submit the same durable actor command, so incremental backup has the same scheduling and status behavior as
+full backup.
+
+`Automatic` creates an incremental restore point only when a verified common parent is present on every required
+replica and the configured depth/base-age limits permit it; otherwise it safely creates a full restore point.
+Explicit `Incremental` rejects the request when those requirements are not satisfied. PostgreSQL uses PostgreSQL 17
+`pg_basebackup --incremental`, retains the direct-parent dependency in the signed manifest/catalog, and reconstructs
+the complete chain with `pg_combinebackup` before fresh-target validation. The source must have `summarize_wal=on`.
+Full PostgreSQL backup remains compatible with older allowlisted native tool versions because `pg_combinebackup` is
+validated only for incremental work.
+
+Scylla Manager restore points remain logically complete Manager snapshots. Manager/object storage performs physical
+deduplication, so an incremental Scylla request is recorded as `ScyllaManagerDeduplicatedSnapshot` lineage without a
+client-built SSTable dependency chain. Manager retention is configured above one snapshot (30 by default), while IFM
+signed manifests, catalog records, and retention fencing remain authoritative for advertised restore points.
+
+Artifacts remain uncompressed in their database-native layouts. Compression is not part of this implementation.
 
 Useful next console additions, without changing backup semantics, are `cancel-restore`, `list-protection-sets`,
 `show-policy`, `update-policy`, `show-backup-set`, `show-restore-point`, `show-restore`, `list-drills`, `rpo-status`,

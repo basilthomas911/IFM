@@ -65,11 +65,32 @@ public sealed class DatabaseBackupContractTests
         ((int)BackupSource.AwsCloud).Should().Be(2);
         ((int)DatabaseRecoveryOperationKind.Retention).Should().Be(7);
         ((int)DatabaseArtifactReplicaState.Deleted).Should().Be(8);
+        ((int)DatabaseBackupMode.Automatic).Should().Be(1);
+        ((int)DatabaseBackupMode.Full).Should().Be(2);
+        ((int)DatabaseBackupMode.Incremental).Should().Be(3);
 
         var none = () => DatabaseBackupEnumValidation.RequireConcrete(BackupSource.None);
         var unknown = () => DatabaseBackupEnumValidation.RequireConcrete((BackupSource)99);
         none.Should().Throw<ArgumentOutOfRangeException>();
         unknown.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void Incremental_lineage_round_trips_without_losing_restore_chain_identity()
+    {
+        var lineage = new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Automatic,
+            ResolvedMode = DatabaseBackupMode.Incremental,
+            NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+            BaseRestorePointId = new DatabaseRestorePointId("base-001"),
+            ParentRestorePointId = new DatabaseRestorePointId("incremental-003"),
+            ChainDepth = 4,
+            NativeIdentity = "postgres-system-42"
+        };
+
+        lineage.Validate(resolvedRequired: true);
+        RoundTrip(lineage).Should().BeEquivalentTo(lineage);
     }
 
     [Fact]

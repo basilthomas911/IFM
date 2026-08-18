@@ -15,6 +15,7 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
     readonly AsyncLifecycleCoordinator _lifecycle;
     DatabaseBackupModel? _model;
     BackupSource _source = BackupSource.LocalWorkstation;
+    DatabaseBackupMode _requestedMode = DatabaseBackupMode.Full;
     string? _selectedProtectionSet;
 
     /// <summary>Creates a database-backup dashboard view model.</summary>
@@ -53,6 +54,13 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
     /// <summary>Selects the protection set used for targeted restore-point queries.</summary>
     public void SelectProtectionSet(string? protectionSet)
         => _selectedProtectionSet = string.IsNullOrWhiteSpace(protectionSet) ? null : protectionSet;
+
+    /// <summary>Selects the mode used by subsequent backup requests.</summary>
+    public void SelectBackupMode(DatabaseBackupMode mode)
+    {
+        DatabaseBackupEnumValidation.RequireDefined(mode, nameof(mode));
+        _requestedMode = mode;
+    }
 
     /// <summary>Refreshes bounded dashboard state through query actors.</summary>
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -113,7 +121,7 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
                 var policyRevision = State.ProtectionSets
                     .FirstOrDefault(item => item.Id == protectionSet)?.PolicyRevision ?? 0;
                 var result = await Model.RequestBackupAsync(
-                    _source, protectionSet, policyRevision, cancellationToken).ConfigureAwait(true);
+                    _source, protectionSet, policyRevision, _requestedMode, cancellationToken).ConfigureAwait(true);
                 if (!result.Success || result.Value is null)
                 {
                     Error?.Invoke(result.ErrorMessage);

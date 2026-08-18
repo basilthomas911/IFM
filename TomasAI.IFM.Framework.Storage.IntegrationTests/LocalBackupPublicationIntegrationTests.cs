@@ -307,7 +307,26 @@ public sealed class LocalBackupPublicationIntegrationTests : IDisposable
                     ? [new DatabaseLogicalDestination(fixture.OnlineReplica.Value, true),
                         new DatabaseLogicalDestination(fixture.OfflineReplica.Value, true)]
                     : [new DatabaseLogicalDestination(fixture.OnlineReplica.Value, true)],
-                Dependencies: dependencies),
+                Dependencies: dependencies,
+                BackupLineage: dependencies is { Length: > 0 }
+                    ? new DatabaseBackupLineage
+                    {
+                        RequestedMode = DatabaseBackupMode.Incremental,
+                        ResolvedMode = DatabaseBackupMode.Incremental,
+                        NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+                        BaseRestorePointId = dependencies[0],
+                        ParentRestorePointId = dependencies[0],
+                        ChainDepth = 1,
+                        NativeIdentity = "gate8-postgresql"
+                    }
+                    : new DatabaseBackupLineage
+                    {
+                        RequestedMode = DatabaseBackupMode.Full,
+                        ResolvedMode = DatabaseBackupMode.Full,
+                        NativeKind = DatabaseNativeBackupKind.PostgreSqlBase,
+                        BaseRestorePointId = new DatabaseRestorePointId(operation.Format()),
+                        NativeIdentity = "gate8-postgresql"
+                    }),
             CancellationToken.None);
 
     public void Dispose()

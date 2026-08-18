@@ -114,10 +114,21 @@ public sealed class DatabaseBackupProjectionSchemaTests
         var eventId = DateTime.UtcNow.Ticks;
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
         var sourceEventId = Guid.NewGuid();
+        var lineage = new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Automatic,
+            ResolvedMode = DatabaseBackupMode.Incremental,
+            NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+            BaseRestorePointId = new DatabaseRestorePointId("gate4-base"),
+            ParentRestorePointId = new DatabaseRestorePointId("gate4-parent"),
+            ChainDepth = 2,
+            NativeIdentity = "gate4-postgresql-system"
+        };
         var domainEvent = new DatabaseBackupRequestedDomainEvent
         {
             Id = sourceEventId, EventId = eventId, CommandId = Guid.NewGuid(), EntityId = operationId,
             AggregateId = operationId.Format(), EventSource = "DatabaseBackupCommandActor", ReceivedOn = DateTime.UtcNow,
+            BackupLineage = lineage,
             Source = new DatabaseSourceEnvelope
             {
                 SourceEventId = sourceEventId, OperationId = operationId, Source = BackupSource.LocalWorkstation,
@@ -143,7 +154,7 @@ public sealed class DatabaseBackupProjectionSchemaTests
                 EntityId = operationId, AggregateId = operationId.Format(),
                 EventSource = domainEvent.EventSource, ReceivedOn = DateTime.UtcNow,
                 RestorePointId = restorePointId, VerificationLevel = DatabaseVerificationLevel.Native,
-                ManifestRevision = 17,
+                ManifestRevision = 17, BackupLineage = lineage,
                 Source = domainEvent.Source with
                 {
                     SourceEventId = verificationSourceEventId,
@@ -168,9 +179,11 @@ public sealed class DatabaseBackupProjectionSchemaTests
             row.Should().NotBeNull();
             row!.OperationId.Should().Be(operationId);
             row.StateRevision.Should().Be(eventId + 1);
+            row.BackupLineage.Should().BeEquivalentTo(lineage);
             restorePoint.Should().NotBeNull();
             restorePoint!.VerificationLevel.Should().Be(DatabaseVerificationLevel.Native);
             restorePoint.ManifestRevision.Should().Be(17);
+            restorePoint.BackupLineage.Should().BeEquivalentTo(lineage);
         }
         finally
         {

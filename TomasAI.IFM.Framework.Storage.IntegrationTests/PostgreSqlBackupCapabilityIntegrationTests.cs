@@ -100,6 +100,74 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
 
     [Fact]
     [Trait("Category", "Gate6Integration")]
+    public async Task Incremental_backup_uses_parent_manifest_and_restore_combines_the_dependency_chain()
+    {
+        const string systemIdentifier = "7543210987654321000";
+        var options = Options(nativeMajorVersion: 17);
+        var native = new DeterministicPostgreSqlNativeRunner(nativeMajorVersion: 17);
+        var validator = new SyntheticPostgreSqlTargetValidator("synthetic-gate6-incremental-row");
+        var metadata = new SyntheticPostgreSqlSourceMetadataReader(systemIdentifier, 17, walSummariesEnabled: true);
+        var capability = new PostgreSqlBackupCapability(options, native, validator, metadata);
+        var baseOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var baseRestorePoint = new DatabaseRestorePointId(baseOperation.Format());
+
+        var baseBoundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(baseOperation, new DatabaseProtectionSetId("core-postgresql")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(baseOperation, baseBoundary.SafeBoundaryReference),
+            CancellationToken.None);
+
+        var incrementalOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var lineage = new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Incremental,
+            ResolvedMode = DatabaseBackupMode.Incremental,
+            NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+            BaseRestorePointId = baseRestorePoint,
+            ParentRestorePointId = baseRestorePoint,
+            ChainDepth = 1
+        };
+        var incrementalBoundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(
+                incrementalOperation, new DatabaseProtectionSetId("core-postgresql"), lineage),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(
+                incrementalOperation, incrementalBoundary.SafeBoundaryReference, incrementalBoundary.BackupLineage),
+            CancellationToken.None);
+        var recoveredIncrementalBoundary = await new PostgreSqlBackupCapability(options, native, validator, metadata)
+            .CreateBaseBackupAsync(
+                new PostgreSqlBackupRequest(
+                    incrementalOperation, new DatabaseProtectionSetId("core-postgresql"), lineage),
+                new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+
+        var restoreOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var restored = await capability.RestoreToFreshTargetAsync(
+            new PostgreSqlRestoreRequest(
+                restoreOperation,
+                new DatabaseRestorePointId(incrementalOperation.Format()),
+                new DatabaseFreshTargetDescriptor("disposable-validation", "gate6"),
+                [baseRestorePoint]),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+
+        incrementalBoundary.BackupLineage.Should().BeEquivalentTo(lineage with { NativeIdentity = systemIdentifier });
+        recoveredIncrementalBoundary.BackupLineage.Should().BeEquivalentTo(incrementalBoundary.BackupLineage);
+        native.Invocations.Single(value => value.Tool == PostgreSqlNativeTool.BaseBackup
+                && value.Arguments.Any(argument => argument.StartsWith("--incremental=", StringComparison.Ordinal)))
+            .Arguments.Should().Contain("--incremental=" + Path.Combine(
+                options.ResolveBackupRoot(), baseOperation.Format(), "data", "backup_manifest"));
+        native.Invocations.Should().ContainSingle(value => value.Tool == PostgreSqlNativeTool.CombineBackup
+            && value.Arguments.Contains(Path.Combine(options.ResolveBackupRoot(), baseOperation.Format(), "data"))
+            && value.Arguments.Contains(Path.Combine(options.ResolveBackupRoot(), incrementalOperation.Format(), "data")));
+        restored.Succeeded.Should().BeTrue();
+        File.ReadAllText(Path.Combine(
+            options.ResolveRestoreRoot(), "disposable-validation", "gate6", restoreOperation.Format(),
+            "data", "base", "synthetic-row.txt")).Should().Be("synthetic-gate6-incremental-row");
+    }
+
+    [Fact]
+    [Trait("Category", "Gate6Integration")]
     public async Task Non_allowlisted_protection_sets_and_fresh_targets_are_rejected_before_native_execution()
     {
         var options = Options();
@@ -120,7 +188,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
         native.Invocations.Should().BeEmpty();
     }
 
-    PostgreSqlBackupOptions Options() => new()
+    PostgreSqlBackupOptions Options(int nativeMajorVersion = 15) => new()
     {
         ToolDirectory = Path.Combine(_root, "tools"),
         BackupRoot = Path.Combine(_root, "backup"),
@@ -138,8 +206,8 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
                 StartupTimeout = TimeSpan.FromSeconds(5)
             }
         },
-        MinimumMajorVersion = 15,
-        MaximumMajorVersion = 15,
+        MinimumMajorVersion = nativeMajorVersion,
+        MaximumMajorVersion = nativeMajorVersion,
         ProcessTimeout = TimeSpan.FromMinutes(1),
         RequirePersistentBackupRoot = false
     };
@@ -163,7 +231,22 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
         }
     }
 
-    sealed class DeterministicPostgreSqlNativeRunner : IPostgreSqlNativeProcessRunner
+    sealed class SyntheticPostgreSqlSourceMetadataReader(
+        string systemIdentifier,
+        int majorVersion,
+        bool walSummariesEnabled) : IPostgreSqlSourceMetadataReader
+    {
+        public ValueTask<PostgreSqlSourceMetadata> ReadAsync(
+            string connectionString,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(new PostgreSqlSourceMetadata(
+                systemIdentifier, majorVersion, walSummariesEnabled));
+        }
+    }
+
+    sealed class DeterministicPostgreSqlNativeRunner(int nativeMajorVersion = 15) : IPostgreSqlNativeProcessRunner
     {
         public List<PostgreSqlNativeInvocation> Invocations { get; } = [];
 
@@ -174,11 +257,20 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             Invocations.Add(invocation);
             if (invocation.Arguments.SequenceEqual(["--version"]))
-                return new PostgreSqlNativeResult(0, "native (PostgreSQL) 15.10", "", TimeSpan.FromMilliseconds(1));
+                return new PostgreSqlNativeResult(
+                    0, $"native (PostgreSQL) {nativeMajorVersion}.10", "", TimeSpan.FromMilliseconds(1));
             switch (invocation.Tool)
             {
                 case PostgreSqlNativeTool.BaseBackup:
-                    await CreateBackupAsync(ValueAfter(invocation.Arguments, "--pgdata"), cancellationToken);
+                    await CreateBackupAsync(
+                        ValueAfter(invocation.Arguments, "--pgdata"),
+                        invocation.Arguments.Any(argument => argument.StartsWith("--incremental=", StringComparison.Ordinal))
+                            ? "synthetic-gate6-incremental-row"
+                            : "synthetic-gate6-row",
+                        cancellationToken);
+                    break;
+                case PostgreSqlNativeTool.CombineBackup:
+                    await CombineBackupsAsync(invocation.Arguments, cancellationToken);
                     break;
                 case PostgreSqlNativeTool.VerifyBackup:
                     await VerifyAsync(invocation.Arguments[^1], cancellationToken);
@@ -192,12 +284,12 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
             return new PostgreSqlNativeResult(0, "", "", TimeSpan.FromMilliseconds(20));
         }
 
-        static async Task CreateBackupAsync(string data, CancellationToken cancellationToken)
+        static async Task CreateBackupAsync(string data, string value, CancellationToken cancellationToken)
         {
             var baseDirectory = Directory.CreateDirectory(Path.Combine(data, "base")).FullName;
             var walDirectory = Directory.CreateDirectory(Path.Combine(data, "pg_wal")).FullName;
             var file = Path.Combine(baseDirectory, "synthetic-row.txt");
-            await File.WriteAllTextAsync(file, "synthetic-gate6-row", cancellationToken);
+            await File.WriteAllTextAsync(file, value, cancellationToken);
             await File.WriteAllBytesAsync(Path.Combine(walDirectory, "000000010000000000000001"), new byte[128], cancellationToken);
             var content = await File.ReadAllBytesAsync(file, cancellationToken);
             var manifest = new
@@ -230,6 +322,30 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
                 .Replace("System_Identifier", "System-Identifier", StringComparison.Ordinal)
                 .Replace("WAL_Ranges", "WAL-Ranges", StringComparison.Ordinal);
             await File.WriteAllTextAsync(Path.Combine(data, "backup_manifest"), json, cancellationToken);
+        }
+
+        static async Task CombineBackupsAsync(
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken)
+        {
+            var output = ValueAfter(arguments, "--output");
+            var outputIndex = arguments.IndexOf(output);
+            foreach (var source in arguments.Skip(outputIndex + 1))
+                await CopyDirectoryAsync(source, output, cancellationToken);
+        }
+
+        static async Task CopyDirectoryAsync(string source, string destination, CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(destination);
+            foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+                Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+            foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+            {
+                var target = Path.Combine(destination, Path.GetRelativePath(source, file));
+                await using var input = File.OpenRead(file);
+                await using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+                await input.CopyToAsync(output, cancellationToken);
+            }
         }
 
         static async Task VerifyAsync(string data, CancellationToken cancellationToken)

@@ -64,6 +64,17 @@ public sealed class LocalBackupRepository :
         if (existing is not null) return existing;
         var artifactPrefix = ArtifactPrefix(request.ProtectionSetId, request.OperationId, request.Engine, manifestId);
         var artifacts = await DescribeArtifactsAsync(sourceRoot, artifactPrefix, cancellationToken).ConfigureAwait(false);
+        var lineage = request.BackupLineage?.NormalizeLegacyFull(request.Engine)
+            ?? new DatabaseBackupLineage
+            {
+                RequestedMode = DatabaseBackupMode.Full,
+                ResolvedMode = DatabaseBackupMode.Full,
+                NativeKind = request.Engine == DatabaseEngine.PostgreSql
+                    ? DatabaseNativeBackupKind.PostgreSqlBase
+                    : DatabaseNativeBackupKind.ScyllaManagerSnapshot,
+                BaseRestorePointId = restorePointId
+            };
+        lineage.Validate(resolvedRequired: true);
         var manifest = new DatabaseBackupManifest
         {
             ManifestId = manifestId,
@@ -76,7 +87,8 @@ public sealed class LocalBackupRepository :
             Dependencies = request.Dependencies ?? [],
             Artifacts = artifacts,
             Replicas = requestedReplicas,
-            Statistics = request.Statistics
+            Statistics = request.Statistics,
+            BackupLineage = lineage
         };
         LocalBackupManifestStore.Validate(manifest);
 
@@ -131,10 +143,19 @@ public sealed class LocalBackupRepository :
         {
             try
             {
-                var restorePoint = await ResolveAsync(request.RestorePointId, replica, cancellationToken)
-                    .ConfigureAwait(false);
+                var available = await EnumerateAsync(replica, cancellationToken).ConfigureAwait(false);
+                var restorePoint = available.SingleOrDefault(value => value.Entry.RestorePointId == request.RestorePointId)
+                    ?? throw new FileNotFoundException("The restore point is not catalog-visible on the requested replica.");
                 if (restorePoint.Manifest.Engine != request.Engine)
                     throw new InvalidDataException("The restore point engine does not match the requested engine.");
+                var dependencies = ResolveDependencyOrder(restorePoint, available);
+                foreach (var dependency in dependencies)
+                {
+                    var dependencyStaged = await StageAsync(request.OperationId, dependency, cancellationToken)
+                        .ConfigureAwait(false);
+                    await MaterializeNativeRestorePointAsync(
+                        dependencyStaged, dependency.Manifest, cancellationToken).ConfigureAwait(false);
+                }
                 var staged = await StageAsync(request.OperationId, restorePoint, cancellationToken).ConfigureAwait(false);
                 await MaterializeNativeRestorePointAsync(staged, restorePoint.Manifest, cancellationToken)
                     .ConfigureAwait(false);
@@ -144,7 +165,8 @@ public sealed class LocalBackupRepository :
                     restorePoint.Manifest.ManifestId,
                     restorePoint.Manifest.Revision,
                     restorePoint.VerifiedBytes,
-                    restorePoint.VerifiedArtifactCount);
+                    restorePoint.VerifiedArtifactCount,
+                    dependencies.Select(static point => point.Entry.RestorePointId).ToArray());
             }
             catch (Exception exception) when (request.PreferredReplicaId is null
                 && exception is IOException or UnauthorizedAccessException or CryptographicException or InvalidDataException)
@@ -305,6 +327,29 @@ public sealed class LocalBackupRepository :
                 Visit(dependency, byId, visiting, visited);
             visiting.Remove(id);
             visited.Add(id);
+        }
+    }
+
+    static DatabaseCatalogRestorePoint[] ResolveDependencyOrder(
+        DatabaseCatalogRestorePoint target,
+        IReadOnlyList<DatabaseCatalogRestorePoint> available)
+    {
+        var byId = available.ToDictionary(static point => point.Entry.RestorePointId);
+        var ordered = new List<DatabaseCatalogRestorePoint>();
+        var visited = new HashSet<DatabaseRestorePointId>();
+        Visit(target);
+        return [.. ordered];
+
+        void Visit(DatabaseCatalogRestorePoint point)
+        {
+            foreach (var dependencyId in point.Manifest.Dependencies)
+            {
+                if (!byId.TryGetValue(dependencyId, out var dependency))
+                    throw new InvalidDataException("A restore dependency is missing from the selected replica.");
+                if (!visited.Add(dependencyId)) continue;
+                Visit(dependency);
+                ordered.Add(dependency);
+            }
         }
     }
 
@@ -648,7 +693,10 @@ public sealed class LocalBackupRepository :
                 || manifest.Engine != request.Engine
                 || manifest.ProtectionSetId != request.ProtectionSetId
                 || !string.Equals(manifest.SafeBoundaryReference, request.SafeBoundaryReference, StringComparison.Ordinal)
-                || !manifest.Replicas.SequenceEqual(replicas))
+                || !manifest.Replicas.SequenceEqual(replicas)
+                || !manifest.Dependencies.SequenceEqual(request.Dependencies ?? [])
+                || manifest.BackupLineage != (request.BackupLineage?.NormalizeLegacyFull(request.Engine)
+                    ?? manifest.BackupLineage))
                 throw new InvalidDataException("An existing immutable publication conflicts with this operation.");
             if (canonical is not null
                 && !LocalBackupJson.Serialize(canonical).AsSpan().SequenceEqual(LocalBackupJson.Serialize(manifest)))

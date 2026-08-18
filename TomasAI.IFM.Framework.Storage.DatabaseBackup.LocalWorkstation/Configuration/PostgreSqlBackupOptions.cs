@@ -10,12 +10,19 @@ public sealed class LocalWorkstationSourceOptions
     public bool DryRun { get; set; } = true;
     public bool PostgreSqlEnabled { get; set; } = true;
     public bool ScyllaEnabled { get; set; } = true;
+    public bool IncrementalEnabled { get; set; }
+    public int MaximumIncrementalChainDepth { get; set; } = 6;
+    public TimeSpan MaximumIncrementalBaseAge { get; set; } = TimeSpan.FromDays(7);
 
     public void Validate()
     {
         if (Enabled && !DryRun && !PostgreSqlEnabled && !ScyllaEnabled)
             throw new InvalidOperationException(
                 "At least one native database engine must be enabled when LocalWorkstation dry-run mode is disabled.");
+        if (MaximumIncrementalChainDepth <= 0)
+            throw new InvalidOperationException("The maximum incremental chain depth must be positive.");
+        if (MaximumIncrementalBaseAge <= TimeSpan.Zero)
+            throw new InvalidOperationException("The maximum incremental base age must be positive.");
     }
 
     public bool IsEngineEnabled(DatabaseEngine engine)

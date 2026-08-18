@@ -1,8 +1,8 @@
 # IFM Local Workstation Database Backup and Restore Architecture
 
-Status: Draft for architecture review; paper-trading deployment amendment approved
-Version: 0.4
-Date: 2026-08-12
+Status: Approved architecture with implemented incremental-backup amendment
+Version: 0.5
+Date: 2026-08-18
 Scope: Local workstation protection for PostgreSQL and ScyllaDB using encrypted online and rotated offline storage
 Parent architecture: Database-Backup-Architecture-Overview.md version 0.9
 Reference architecture: AWS-Cloud-Backup-Restore-Architecture.md version 0.4
@@ -67,6 +67,10 @@ This design inherits these non-negotiable rules:
     LocalWorkstation processor never writes it directly.
 18. The local Database Backup Host stores its private execution journal on an encrypted persistent volume separate
     from the protected databases, removable backup media, and disposable container filesystem.
+19. Backup callers choose `Full`, `Automatic`, or `Incremental` through the common actor contract. `Automatic` may
+    fall back to full; explicit `Incremental` must fail when a valid common parent or native eligibility is absent.
+20. PostgreSQL incremental restore points form an explicit signed dependency chain. Scylla Manager restore points are
+    logically complete and may be physically deduplicated without exposing an artificial SSTable chain to callers.
 
 If this document conflicts with the approved overview, the overview controls. Where this document offers weaker
 protection than the AWS reference, the limitation must be visible in policy, read models, UI, alerts, and recovery
@@ -1623,3 +1627,4 @@ The local design is accepted only when:
 | 0.2 | 2026-08-11 | Aligned local backup with overview 0.7: direct Docker/Aspire host deployment, shared three-value BackupSource semantics, the common UI/Console/ScheduledTask actor API, the Domain.SystemAdmin DatabaseBackup feature boundary, and typed PostgreSQL/Scylla native capability adapters. |
 | 0.3 | 2026-08-11 | Proposed the shared four-store persistence model for LocalWorkstation: `SystemAdminDbContext` projections/run statistics, a durable embedded execution journal on an encrypted persistent volume, immutable local manifest run evidence, and event-gated post-restore reconciliation. |
 | 0.4 | 2026-08-12 | Approved standalone Worker development for paper trading, Ubuntu 24.04/.NET 10 Docker qualification after functional gates, and deferral of Aspire to the later full-system Linux production migration. |
+| 0.5 | 2026-08-18 | Added the implemented Full/Automatic/Incremental contract, common-replica chain planning and fallback rules, PostgreSQL 17 manifest-chain capture and `pg_combinebackup` restore, Scylla Manager deduplicated-snapshot semantics, lineage persistence, dependency-safe retention, and common UI/Console/ScheduledTask selection. |

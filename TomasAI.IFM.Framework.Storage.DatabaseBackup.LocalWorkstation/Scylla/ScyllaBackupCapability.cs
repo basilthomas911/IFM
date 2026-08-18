@@ -40,6 +40,12 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
         CancellationToken cancellationToken)
     {
         var protectionSet = ValidateRequest(request);
+        var lineage = (request.BackupLineage ?? new DatabaseBackupLineage())
+            .NormalizeLegacyFull(DatabaseEngine.ScyllaDb) with
+        {
+            NativeIdentity = $"{protectionSet.ManagerCluster}:{string.Join(',', protectionSet.Keyspaces.Order(StringComparer.Ordinal))}"
+        };
+        lineage.Validate(resolvedRequired: true);
         ArgumentNullException.ThrowIfNull(progress);
         await EnsureValidatedAsync(cancellationToken).ConfigureAwait(false);
         var final = _paths.BackupFinal(request.OperationId);
@@ -66,7 +72,8 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
             Snapshot(capture),
             capture.ArtifactReferences,
             statistics,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            lineage);
         await ScyllaEvidenceSerializer.WriteBackupAsync(staging, evidence, cancellationToken).ConfigureAwait(false);
         return Boundary(evidence);
     }
@@ -229,7 +236,8 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
         {
             Topology = evidence.Topology,
             Snapshot = evidence.Snapshot,
-            Statistics = evidence.Statistics
+            Statistics = evidence.Statistics,
+            BackupLineage = evidence.BackupLineage?.NormalizeLegacyFull(DatabaseEngine.ScyllaDb)
         };
 
     static ScyllaRestoreResult RestoreResult(ScyllaRestoreEvidence evidence)

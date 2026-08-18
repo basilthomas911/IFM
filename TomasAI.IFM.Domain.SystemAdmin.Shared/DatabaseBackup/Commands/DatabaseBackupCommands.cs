@@ -43,6 +43,7 @@ public abstract record DatabaseBackupCommand : ICommand<DatabaseRecoveryOperatio
     [Key(28)] public DateTimeOffset EvaluationBoundaryUtc { get; init; }
     [Key(29)] public DatabaseRetentionPlanId? RetentionPlanId { get; init; }
     [Key(30)] public long RetentionPlanRevision { get; init; }
+    [Key(31)] public DatabaseBackupMode RequestedBackupMode { get; init; }
 
     [IgnoreMember] public string CommandName => GetType().Name;
     [IgnoreMember] public string StreamId => Subject.StreamId;
@@ -58,6 +59,7 @@ public abstract record DatabaseBackupCommand : ICommand<DatabaseRecoveryOperatio
         if (Source != BackupSource.None) DatabaseBackupEnumValidation.RequireConcrete(Source);
         DatabaseBackupEnumValidation.RequireOptionalDefined(ConsistencyMode, nameof(ConsistencyMode));
         DatabaseBackupEnumValidation.RequireOptionalDefined(RestoreClass, nameof(RestoreClass));
+        DatabaseBackupEnumValidation.RequireOptionalDefined(RequestedBackupMode, nameof(RequestedBackupMode));
     }
 
     protected void RequireSourceAndProtectionSet()

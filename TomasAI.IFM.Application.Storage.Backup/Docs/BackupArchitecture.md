@@ -1,17 +1,18 @@
 # Database Backup and Restore Architecture
 
-Status: Revised first draft
+Status: Implemented through incremental-backup and chain-restore milestone
 Scope: PostgreSQL and ScyllaDB running in Docker
-Last reviewed: 2026-07-31
+Last reviewed: 2026-08-18
 
 ## Purpose
 
 This document proposes an asynchronous backup and restore service that can be called from a high-level actor, scheduled daily, and observed through structured status and log events.
 
-The target architecture supports two backup types:
+The implemented actor contract supports three request modes:
 
-- **Full**: backs up the complete supported scope.
-- **Partial**: backs up changes since the latest successful full or partial backup.
+- **Full**: backs up the complete supported scope and starts a new chain.
+- **Automatic**: uses incremental when a valid common parent and native prerequisites exist, otherwise creates full.
+- **Incremental**: requires incremental execution and fails when it cannot be honored.
 
 The backup process runs inside a dedicated Docker container. Backup artifacts and manifests are written to a mounted backup drive. The backup container must not modify active database source data.
 
@@ -29,7 +30,8 @@ The paper-trading milestone is complete only when all of the following are autom
 - At least one automated restore drill runs on a regular schedule. Daily is preferred during paper trading; the frequency may be reduced only after the process has demonstrated sustained reliability.
 - Restore-drill volumes are explicitly deleted only after successful validation and according to the test cleanup policy. Active volumes are never cleanup targets.
 
-Incremental/partial backup, point-in-time recovery, long-term production retention, encryption, and off-site replication remain later phases. They must not delay the verified full-backup/full-restore milestone.
+Incremental backup and chain restore are now implemented. Point-in-time recovery, long-term production retention,
+production encryption evidence, and off-site replication remain separate later phases.
 
 ## Terminology
 
@@ -55,9 +57,10 @@ The live PostgreSQL data directory must not be copied from a read-only Docker vo
 
 A ScyllaDB full backup consists of a schema export and snapshots of the selected keyspaces or tables. Snapshots are hard links to immutable SSTables created by the ScyllaDB process.
 
-A ScyllaDB partial backup consists of newly flushed SSTables since the previous full or partial backup. Incremental backup must be enabled on the ScyllaDB node. Restoration requires the base snapshot and all dependent partial backups.
-
-Scylla backup is a per-node operation. The initial implementation may target the current single-node Docker deployment. A multi-node deployment should use Scylla Manager for cluster-wide coordination, manifests, progress reporting, and restore handling.
+The implementation uses Scylla Manager for coordinated schema/data snapshots. Each advertised restore point is logically
+complete, while Manager/object storage deduplicates unchanged SSTables physically. IFM records the parent and chain
+depth for audit/policy but does not construct a client-side SSTable dependency chain or require earlier IFM artifacts
+to restore a Manager snapshot.
 
 ## Proposed architecture
 
@@ -90,7 +93,7 @@ The C# service executes database utilities inside its own container. It does not
 | Engine | Full backup and restore | Partial backup and chain restore |
 |---|---|---|
 | PostgreSQL | Complete physical cluster backup restored directly into a fresh PostgreSQL volume | Changed blocks since the parent backup; reconstruct a synthetic full backup with the complete chain before restoring it into a fresh volume |
-| ScyllaDB | Schema plus snapshot of configured keyspaces/tables restored into a fresh ScyllaDB volume with the same topology | Newly flushed SSTables plus required commit-log information since the base snapshot; restore the base and every dependent partial into a fresh volume |
+| ScyllaDB | Schema plus Manager snapshot of configured keyspaces/tables restored into a fresh ScyllaDB target | Logically complete Manager snapshot with physical object-store deduplication; IFM records lineage but restore does not assemble an IFM SSTable chain |
 
 Every partial backup records:
 
@@ -103,7 +106,9 @@ Every partial backup records:
 - Artifact paths, sizes, and checksums.
 - Backup command version and relevant options.
 
-If no valid parent backup exists, the default policy is to create a full backup automatically.
+`Automatic` creates a full backup when no valid common parent exists. Explicit `Incremental` fails instead. Parent
+eligibility requires presence on every required replica, chain depth at or below the configured limit, and a base no
+older than the configured maximum.
 
 ## Cross-database consistency boundary
 
@@ -555,10 +560,10 @@ Restore tests must use disposable volumes and must never target the active devel
    - Automate the recurring restore drill and alerting.
    - Add a separate confirmed cutover process.
 
-9. **Partial backup and chain restore**
-   - Enable PostgreSQL WAL summaries and implement incremental backup, chain reconstruction, and restore validation.
-   - Enable and implement ScyllaDB incremental SSTable and commit-log handling, chain reconstruction, and restore validation.
-   - Add chain-aware retention.
+9. **Incremental backup and chain restore — implemented**
+   - PostgreSQL WAL summaries, incremental capture, dependency-complete reconstruction, and restore validation.
+   - Scylla Manager logically complete, physically deduplicated snapshot lineage.
+   - Signed manifest/catalog lineage and dependency-aware retention.
 
 10. **Automated verification and hardening**
    - Add unit, Docker integration, capacity, failure, and recovery tests.

@@ -16,7 +16,8 @@ public sealed class FakePostgreSqlBackupCapability : IPostgreSqlBackupCapability
         {
             NativeMajorVersion = 15,
             WalContinuity = new PostgreSqlWalContinuityEvidence("1", "0/1000000", "0/2000000", 1, true),
-            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, sourceBytes: 1024)
+            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, sourceBytes: 1024),
+            BackupLineage = request.BackupLineage?.NormalizeLegacyFull(DatabaseEngine.PostgreSql)
         });
     }
 
@@ -83,7 +84,8 @@ public sealed class FakeScyllaBackupCapability : IScyllaBackupCapability
             Snapshot = new ScyllaSnapshotEvidence(
                 "sm_20000101000000UTC", "backup/fake", new string('a', 64), new string('b', 64),
                 1, 1, 1, "fake", "fake"),
-            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, sourceBytes: 1024)
+            Statistics = Statistics(DatabaseRecoveryPhase.Capturing, sourceBytes: 1024),
+            BackupLineage = request.BackupLineage?.NormalizeLegacyFull(DatabaseEngine.ScyllaDb)
         });
     }
 
@@ -185,7 +187,42 @@ public sealed class FakeDatabaseRestoreSourceCapability : IDatabaseRestoreSource
             $"fake-manifest-{request.RestorePointId.Value}",
             1,
             1024,
-            1));
+            1,
+            []));
+    }
+}
+
+public sealed class FakeDatabaseBackupChainPlanner : IDatabaseBackupChainPlanner
+{
+    public ValueTask<DatabaseBackupLineage> PlanAsync(
+        DatabaseBackupPlanningRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var requested = request.RequestedMode == DatabaseBackupMode.None
+            ? DatabaseBackupMode.Full
+            : request.RequestedMode;
+        var resolved = requested == DatabaseBackupMode.Incremental
+            ? DatabaseBackupMode.Incremental
+            : DatabaseBackupMode.Full;
+        var restorePointId = new DatabaseRestorePointId(request.OperationId.Format());
+        var parentRestorePointId = new DatabaseRestorePointId("fake-parent-" + request.OperationId.Format());
+        return ValueTask.FromResult(new DatabaseBackupLineage
+        {
+            RequestedMode = requested,
+            ResolvedMode = resolved,
+            NativeKind = request.Engine switch
+            {
+                DatabaseEngine.PostgreSql when resolved == DatabaseBackupMode.Incremental => DatabaseNativeBackupKind.PostgreSqlIncremental,
+                DatabaseEngine.PostgreSql => DatabaseNativeBackupKind.PostgreSqlBase,
+                DatabaseEngine.ScyllaDb when resolved == DatabaseBackupMode.Incremental => DatabaseNativeBackupKind.ScyllaManagerDeduplicatedSnapshot,
+                _ => DatabaseNativeBackupKind.ScyllaManagerSnapshot
+            },
+            BaseRestorePointId = resolved == DatabaseBackupMode.Incremental ? parentRestorePointId : restorePointId,
+            ParentRestorePointId = resolved == DatabaseBackupMode.Incremental ? parentRestorePointId : null,
+            ChainDepth = resolved == DatabaseBackupMode.Incremental ? 1 : 0,
+            NativeIdentity = "fake"
+        });
     }
 }
 
