@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`TomasAI.IFM.Domain.MarketData.Analytics` implements event-sourced command actors, event actors, and query actors for futures ADX, ATR, intrinsic-time (ITI), MACD, RSI, TDI, and composite trade signals. It also exposes actor-facing analytics command and query APIs.
+`TomasAI.IFM.Domain.MarketData.Analytics` implements the durable control plane and realtime data plane for futures ADX, ATR, intrinsic-time (ITI), MACD, RSI, TDI, and composite trade signals. It also exposes actor-facing analytics command and query APIs.
 
 ## Root-to-leaf directory inventory
 
@@ -18,11 +18,15 @@ FuturesAdxSignal/Command/Validation/
 FuturesAdxSignal/Event/Actor/
 FuturesAdxSignal/Event/Extensions/
 FuturesAdxSignal/Query/Actor/
+FuturesAdxSignal/Realtime/Actor/
+FuturesAdxSignal/Realtime/Projector/
 FuturesAtrSignal/Command/Actor/
 FuturesAtrSignal/Command/Model/
 FuturesAtrSignal/Command/State/
 FuturesAtrSignal/Event/Actor/
 FuturesAtrSignal/Query/Actor/
+FuturesAtrSignal/Realtime/Actor/
+FuturesAtrSignal/Realtime/Projector/
 FuturesItiSignal/Command/Actor/
 FuturesItiSignal/Command/Model/
 FuturesItiSignal/Command/State/
@@ -36,6 +40,8 @@ FuturesMacdSignal/Command/State/
 FuturesMacdSignal/Command/Validation/
 FuturesMacdSignal/Event/Actor/
 FuturesMacdSignal/Query/Actor/
+FuturesMacdSignal/Realtime/Actor/
+FuturesMacdSignal/Realtime/Projector/
 FuturesRsiSignal/Command/Actor/
 FuturesRsiSignal/Command/Model/
 FuturesRsiSignal/Command/State/
@@ -44,12 +50,16 @@ FuturesRsiSignal/Event/Actor/
 FuturesRsiSignal/Event/Extensions/
 FuturesRsiSignal/Event/Model/
 FuturesRsiSignal/Query/Actor/
+FuturesRsiSignal/Realtime/Actor/
+FuturesRsiSignal/Realtime/Projector/
 FuturesTdiSignal/Command/Actor/
 FuturesTdiSignal/Command/Model/
 FuturesTdiSignal/Command/State/
 FuturesTdiSignal/Command/Validation/
 FuturesTdiSignal/Event/Actor/
 FuturesTdiSignal/Query/Actor/
+FuturesTdiSignal/Realtime/Actor/
+FuturesTdiSignal/Realtime/Projector/
 FuturesTradeSignal/Command/Actor/
 FuturesTradeSignal/Command/Model/
 FuturesTradeSignal/Command/State/
@@ -78,17 +88,18 @@ obj/Release/net10.0/refint/
 - Each `Futures*Signal/Command/Actor/` owns the signal's command mailbox.
 - Each `Command/State/` contains event-sourced state and repository behavior; `Command/Model/` and `Command/Validation/` hold write-side structures and rules when the feature needs them.
 - Each `Event/Actor/` consumes that signal's events. `Event/Extensions/` holds actor-context helpers and `Event/Model/` holds event-processing data where present.
+- Each `Realtime/Actor/` owns best-effort live calculation state and Core NATS routing. Its `Realtime/Projector/` applies the calculated record once to ScyllaDB and publishes source plus complete/fail events without durable projection replay.
 - Each `Query/Actor/` exposes the signal's read side.
 - `MarketEvaluationSnapshot/` and `VixVolatility/` reserve future feature structure.
 - `Docs/` contains this document; the root assembly marker supports scanning and registration.
 
 ## Implemented actor groups
 
-ADX, ATR, ITI, MACD, RSI, TDI, and Trade Signal each have command, event, and query actors. Command actors inherit the shared event-source command base, event actors inherit the supervised event base, and query actors inherit the query base. `ActorMarketDataAnalyticsCommandApi` and `ActorMarketDataAnalyticsQueryApi` are the public adapters used by other domain services.
+ADX, ATR, ITI, MACD, RSI, TDI, and Trade Signal each retain command, event, and query actors. Command actors inherit the shared event-source command base, event actors inherit the supervised event base, and query actors inherit the query base. ITI, ADX, ATR, MACD, RSI, and TDI additionally have realtime actors for their live data planes. `ActorMarketDataAnalyticsCommandApi` and `ActorMarketDataAnalyticsQueryApi` remain the public durable control/query adapters.
 
 ## Processing model
 
-Incoming NATS subjects select an actor mailbox and verb. Command actors deserialize and validate the contract, load state from snapshot/event storage, execute typed signal-generation logic, persist emitted events, and publish them for denormalization or downstream coordination. Event actors dispatch published signal events and may invoke other actor APIs through context extensions. Query actors retrieve the persisted analytics read models.
+Incoming NATS subjects select an actor mailbox and verb. Durable command actors deserialize and validate their contracts, load state from snapshot/event storage, persist emitted events, and publish them for control-plane processing. Realtime actors receive transient live observations, calculate against actor-owned bounded state, project accepted outputs once, and never create replay work. Event actors dispatch durable lifecycle events and may invoke other actor APIs through context extensions. Query actors retrieve the persisted analytics read models.
 
 ## Extension points
 
@@ -134,9 +145,26 @@ The shared compute model is used by both the realtime pre-filter and durable com
 
 ### Intraday start/stop lifecycle
 
-MACD, ADX, and ATR now implement the same event-driven lifecycle as RSI for intraday entity IDs only. Public HTTP and NATS command APIs publish typed Start/Stop commands; command actors persist Started/Stopped domain events; repositories publish those events to the same-domain event actor; and event actors register or remove the entity's recurring generation loop.
+MACD, ADX, and ATR implement the same durable event-driven lifecycle as RSI for intraday entity IDs only. Public HTTP and NATS command APIs publish typed Start/Stop commands; command actors persist Started/Stopped domain events; repositories publish those events to the same-domain event actor; and event actors register or remove the entity's recurring sampling loop.
 
 The shared timer registry guarantees one loop per entity, makes duplicate Start events idempotent, serializes callbacks within a loop, waits for an in-flight callback during Stop, and drains all loops during actor shutdown. The registry cancellation source is local lifecycle control. Daily signal entity types have no Start/Stop contracts or timer registrations: they remain one-shot commands intended to be scheduled once after market close.
+
+### Realtime intraday indicator data plane (Phase 2)
+
+The UI-started intraday profile is exactly `15 seconds`, `1 minute`, `5 minutes`, `15 minutes`, `1 hour`, and `4 hours`. Every period starts RSI-13, ATR-14, ADX-14, and conventional MACD with signal/fast/slow EMA periods `9/12/26`. TDI has no timer of its own; every accepted RSI-13 series produces its TDI input window for the same contract, value date, and timeframe.
+
+The live path is:
+
+1. A durable Started event owns the timer lifecycle but performs no indicator calculation.
+2. On each interval, the timer reads the latest futures market price from the hot Blackboard cache. It suppresses a source sequence already sampled by that timer and publishes an indicator-specific `*SampledRealtimeEvent` to Core NATS.
+3. The matching realtime actor validates the intraday entity, calculates against its bounded process-local window, and creates the conventional generated event as a transient projection source. No Generate command is sent and no Generate command/event stream is created.
+4. `BaseRealtimeProjector` publishes the source event, inserts the signal into `MarketDataDbContext` once, then publishes the complete event. A storage exception publishes the fail event once; there is no retry, replay, checkpoint, recovery row, or operator retry operation. The next timed observation remains eligible.
+5. The actor confirms the calculated candidate into its live window only after the storage projection succeeds. This prevents an unpersisted candidate from becoming the basis of later calculations.
+6. RSI publishes a bounded `FuturesRsiSignalsGeneratedEvent` after it has the 34 valid RSI-13 values required by the standard TDI configuration. `FuturesTdiSignalRealtimeActor` consumes that event, calculates TDI, and applies the same source/insert/complete-or-fail contract.
+
+Generated signal rows remain durable read models even though their calculation and projection delivery are realtime and non-replayable. Source sequence and UTC source-event timestamp are carried through the live contracts; the authoritative RSI table now persists both fields as calculation lineage. Realtime source, complete, and fail subjects are normalized to the owning realtime actor name as well as `ActorType.Realtime`, including terminal event types whose compatibility contracts still declare legacy Event actor names.
+
+The actor-owned indicator windows intentionally reset when their realtime actor/process restarts and repopulate from subsequent samples; persisted rows are query history, not a replay source for this live path. The older intraday Generate commands, durable generated-event projectors, and TDI event actor remain compatibility surfaces but are not called by the UI autostart/timer flow. Daily-or-longer generation remains outside this phase and awaits the scheduled-task redesign.
 
 ### Graceful cancellation status
 

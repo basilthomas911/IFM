@@ -1564,7 +1564,9 @@ internal static class MarketDataDbCql
             rs,
             rsi,
             rsiAverage,
-            rsiSlope
+            rsiSlope,
+            sourceSequence,
+            sourceEventTimestamp
         ) VALUES (
             :contractId,
             :valueDate,
@@ -1580,7 +1582,9 @@ internal static class MarketDataDbCql
             :rs,
             :rsi,
             :rsiAverage,
-            :rsiSlope
+            :rsiSlope,
+            :sourceSequence,
+            :sourceEventTimestamp
         );
     """;
 
@@ -2078,6 +2082,8 @@ internal static class MarketDataDbCql
             rsi AS "RSI",
             rsiaverage AS "RSIAverage",
             rsislope AS "RSISlope",
+            sourceSequence AS "SourceSequence",
+            sourceEventTimestamp AS "SourceEventTimestamp",
             windowsize AS "WindowSize"
         FROM futures_rsi_signal
         WHERE contractid = :contractId
@@ -2103,6 +2109,8 @@ internal static class MarketDataDbCql
             rsi AS "RSI",
             rsiaverage AS "RSIAverage",
             rsislope AS "RSISlope",
+            sourceSequence AS "SourceSequence",
+            sourceEventTimestamp AS "SourceEventTimestamp",
             windowsize AS "WindowSize"
         FROM futures_rsi_signal
            WHERE contractid = :contractId

@@ -48,10 +48,29 @@ public abstract class SchemaDbContext<TSchemaDb>(
                 continue;
 
             cancellationToken.ThrowIfCancellationRequested();
-            await Use(definition.CreateStatement)
-                .ExecuteCommandAsync(cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                await Use(definition.CreateStatement)
+                    .ExecuteCommandAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception) when (IsAlreadyApplied(definition, exception))
+            {
+                // Some supported Scylla releases do not implement ADD IF NOT EXISTS.
+                // Checked-in additive migrations therefore identify only the exact
+                // provider messages that mean the requested schema is already present.
+            }
         }
+    }
+
+    static bool IsAlreadyApplied(SchemaObjectDefinition definition, Exception exception)
+    {
+        var fragments = definition.AlreadyAppliedErrorFragments;
+        if (fragments is null || fragments.Count == 0)
+            return false;
+        var error = exception.ToString();
+        return fragments.Any(fragment =>
+            error.Contains(fragment, StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task CreateAllAsync()

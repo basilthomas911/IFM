@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
@@ -18,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesRsiSignal;
 public sealed class FuturesRsiSignalHotCacheTests
 {
     [Fact]
-    public async Task ExecuteAsync_ActiveFreshTrade_SendsPriceAndProvenanceToRsiCommand()
+    public async Task ExecuteAsync_ActiveFreshTrade_PublishesPriceAndProvenanceToRealtimeRsi()
     {
         const string contractId = "ESU26";
         var valueDate = new DateOnly(2026, 8, 14);
@@ -54,37 +55,36 @@ public sealed class FuturesRsiSignalHotCacheTests
                 callInfo[1] = snapshot;
                 return true;
             });
+        FuturesRsiSignalSampledRealtimeEvent? published = null;
         var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var context = Substitute.For<IEventActorContext>();
+        context.SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(
+                Arg.Do<FuturesRsiSignalSampledRealtimeEvent>(sampled =>
+                {
+                    published = sampled;
+                    sent.TrySetResult();
+                }))
+            .Returns(ValueTask.CompletedTask);
         var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
-        commandApi.GenerateFuturesRsiSignalAsync(
-                Arg.Any<FuturesRsiSignalId>(),
-                Arg.Any<decimal>(),
-                Arg.Any<long>(),
-                Arg.Any<DateTime>())
-            .Returns(_ =>
-            {
-                sent.TrySetResult();
-                return new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()));
-            });
 
         try
         {
             (await started.ExecuteAsync(
-                Substitute.For<IEventActorContext>(),
+                context,
                 commandApi,
                 marketDataApi,
                 Substitute.For<IStatusConsoleWriter>(),
                 Substitute.For<ILogger>())).Should().BeTrue();
             await sent.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-            await commandApi.Received(1).GenerateFuturesRsiSignalAsync(
-                Arg.Is<FuturesRsiSignalId>(id =>
-                    id.ContractId == contractId
-                    && id.TimePeriod == TimeFrameType.OneMinute
-                    && id.Timestamp == TimeOnly.FromDateTime(eventTimestamp.UtcDateTime)),
-                6425.25m,
-                9001,
-                eventTimestamp.UtcDateTime);
+            published.Should().NotBeNull();
+            published!.Subject.ActorType.Should().Be(ActorType.Realtime);
+            published.EntityId.Should().Be(entityId);
+            published.FuturesPrice.Should().Be(6425.25m);
+            published.SourceSequence.Should().Be(9001);
+            published.SourceEventTimestamp.Should().Be(eventTimestamp.UtcDateTime);
+            await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesRsiSignalAsync(
+                default!, default, default, default);
         }
         finally
         {

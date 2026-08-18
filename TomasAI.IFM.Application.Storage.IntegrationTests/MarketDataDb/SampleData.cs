@@ -263,7 +263,9 @@ public class SampleData
         rs: 2.0,
         rsi: 66.67,
         rsiAverage: 65.0,
-        rsiSlope: 0.5
+        rsiSlope: 0.5,
+        sourceSequence: 123456,
+        sourceEventTimestamp: new DateTime(2025, 2, 20, 14, 30, 0, DateTimeKind.Utc)
     );
 
     public static FuturesTdiSignalReadModel FuturesTdiSignal => new (

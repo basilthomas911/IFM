@@ -28,6 +28,8 @@ public sealed class BaseRealtimeProjectorTests
             {
                 call.Arg<FuturesTickTradeDataInsertedEvent>().Subject.ActorType
                     .Should().Be(ActorType.Realtime);
+                call.Arg<FuturesTickTradeDataInsertedEvent>().Subject.Name
+                    .Should().Be(FuturesMarketPriceRealtimeActor.ActorName);
                 steps.Add("source");
             });
         context
@@ -38,6 +40,8 @@ public sealed class BaseRealtimeProjectorTests
             {
                 call.Arg<FuturesTickTradeDataInsertedCompleteEvent>().Subject.ActorType
                     .Should().Be(ActorType.Realtime);
+                call.Arg<FuturesTickTradeDataInsertedCompleteEvent>().Subject.Name
+                    .Should().Be(FuturesMarketPriceRealtimeActor.ActorName);
                 steps.Add("complete");
             });
         var projector = new TestRealtimeProjector((_, _) =>
@@ -87,6 +91,7 @@ public sealed class BaseRealtimeProjectorTests
         applyCalls.Should().Be(1);
         publishedFailure.Should().NotBeNull();
         publishedFailure!.Subject.ActorType.Should().Be(ActorType.Realtime);
+        publishedFailure.Subject.Name.Should().Be(FuturesMarketPriceRealtimeActor.ActorName);
         publishedFailure.ErrorMessage.Should().Be("storage unavailable");
         await context.Received(1).SendAsync<
             FuturesTickTradeDataInsertedFailEvent,

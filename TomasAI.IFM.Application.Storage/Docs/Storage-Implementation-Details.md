@@ -309,7 +309,9 @@ CreateAllAsync: Definitions first → last
 DropAllAsync:   Definitions last → first
 ```
 
-Each `SchemaObjectDefinition` contains a stable name, create statement, and drop statement. The schema layer does not record migration versions; it executes the checked-in definitions against an already configured database/keyspace.
+Each `SchemaObjectDefinition` contains a stable name, create statement, drop statement, and an optional exact set of provider-error fragments that mean an additive operation is already applied. The error fragments are used only where a supported Scylla release does not accept `ADD IF NOT EXISTS`; unrelated errors still fail schema application. The schema layer does not record migration versions; it executes the checked-in definitions against an already configured database/keyspace.
+
+The Market Data catalog uses that narrow additive convention for the authoritative `futures_rsi_signal.sourceSequence` and `sourceEventTimestamp` columns. New table creation includes the columns directly, while repeated application to an existing development table accepts only Scylla's already-existing-column responses. The RSI insert, select, positional bind catalog, and ordinal mapper preserve both source-lineage values end to end.
 
 | Schema context | Managed objects |
 | --- | --- |

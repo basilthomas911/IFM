@@ -29,6 +29,7 @@ all future target-operation additions remain subject to the operational and exte
 | File | Responsibility |
 | --- | --- |
 | `BaseEventProjector.cs` | Validates descriptors, routes each event to one delivery lane, owns lifecycle/readiness, selects execution, and publishes typed actor events. |
+| `Realtime/BaseRealtimeProjector.cs` | Runs source/apply/complete-or-fail directly in a realtime actor mailbox, with one attempt and no event store, queue, outbox, checkpoint, retry, recovery, or replay surface. |
 | `EventProjectorTransientQueue.cs` | Runs explicitly non-durable descriptors through a bounded, ordered, process-local channel. |
 | `EventProjectorExecutionEngine.cs` | Claims a leased execution, applies fenced stage transitions, releases failed claims for retry, terminalizes failures, and creates explicit target-operation contexts. |
 | `EventProjectorOutboxDispatcher.cs` | Claims bounded outbox batches with `SKIP LOCKED`, publishes typed events, and records delivery or bounded retry. |
@@ -80,6 +81,18 @@ This convention does not require every projection to use durable replay. Each de
 durable JetStream process/replay remains the default, while explicitly best-effort projections may set the final
 `Describe` parameter to `useDurableReplay: false`. A command actor with mixed projection requirements may own both
 descriptor modes in the same EventProjector.
+
+### Realtime actor projector contract
+
+`BaseRealtimeProjector<TActor>` is distinct from a command actor's `BaseEventProjector` transient descriptor lane. It
+is owned only by an `ActorType.Realtime` domain actor and executes the conventional source, target update, and exactly
+one complete/fail outcome within that actor's admitted mailbox work. It creates no durable projector execution state
+and has no process/replay queue, outbox, retry, recovery, checkpoint, or operator-control API.
+
+Before every source or terminal publication, the base rewrites the subject to both `ActorType.Realtime` and the owning
+projector's `ActorName`. The name rewrite is required because shared completion/failure compatibility types may declare
+a legacy Event actor name; retaining that name would route the realtime terminal message to an incompatible mailbox.
+An update failure is logged and publishes failure once with no retry. It does not poison the next realtime observation.
 
 `ProjectionExecutionContext` carries the durable projector name, event ID, event-stream ID, stream version, execution token,
 deterministic target-effect identity, strategy, and cancellation token. The effect identity is stable across retries;

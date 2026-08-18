@@ -2386,6 +2386,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.RSI.Should().Be(expectedSignal.RSI);
         result.RSIAverage.Should().Be(expectedSignal.RSIAverage);
         result.RSISlope.Should().Be(expectedSignal.RSISlope);
+        result.SourceSequence.Should().Be(expectedSignal.SourceSequence);
+        result.SourceEventTimestamp.Should().Be(expectedSignal.SourceEventTimestamp);
     }
 
     /// <summary>

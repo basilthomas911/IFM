@@ -1579,7 +1579,9 @@ public partial class MarketDataDbContext(
             rs: e.GetDouble(11),
             rsi: e.GetDouble(12),
             rsiAverage: e.GetDouble(13),
-            rsiSlope: e.GetDouble(14)
+            rsiSlope: e.GetDouble(14),
+            sourceSequence: e.GetLong(15),
+            sourceEventTimestamp: e.GetDateTime(16)
         );
 
     static FuturesContractV2ReadModel MapToFuturesContract(IObjectDataRecord o)
@@ -2411,7 +2413,9 @@ public partial class MarketDataDbContext(
                 e.RS,
                 e.RSI,
                 e.RSIAverage,
-                e.RSISlope);
+                e.RSISlope,
+                e.SourceSequence,
+                e.SourceEventTimestamp);
         await _dbFactory.MarketDataDb
             .Use(MarketDataDbCql.InsertFuturesRsiSignal)
             .SetParameters(parameters)

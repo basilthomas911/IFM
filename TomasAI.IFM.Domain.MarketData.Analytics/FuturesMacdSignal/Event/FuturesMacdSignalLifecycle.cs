@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
@@ -34,12 +35,21 @@ public static class FuturesMacdSignalLifecycle
                         || snapshot.AssetTypeId != AssetTypeId.Futures)
                         throw new MarketDataContractMappingException(entityId.ContractId, "the MACD timer entity and hot-cache snapshot identities do not match");
                     if (!e.TryAcceptSourceSequence(trade.SourceSequence)) return;
-                    var id = new FuturesMacdSignalId(entityId.ContractId, entityId.ValueDate, entityId.TimePeriod,
-                        entityId.SignalEmaPeriod,
-                        entityId.FastEmaPeriod,
-                        entityId.SlowEmaPeriod,
-                        TimeOnly.FromDateTime(trade.EventTimestamp.UtcDateTime));
-                    _ = await commandApi.GenerateFuturesMacdSignalAsync(id, trade.LastPrice);
+                    var sourceTimestamp = trade.EventTimestamp.UtcDateTime;
+                    await context.SendAsync<FuturesMacdSignalSampledRealtimeEvent, FuturesMacdSignalEntityId>(new()
+                    {
+                        Subject = new(ActorType.Realtime, FuturesMacdSignalSampledRealtimeEvent.Actor,
+                            FuturesMacdSignalSampledRealtimeEvent.Verb, entityId.Format()),
+                        Id = Guid.NewGuid(),
+                        EntityId = entityId,
+                        CommandId = e.CommandId,
+                        AggregateId = entityId.Format(),
+                        EventSource = nameof(FuturesMacdSignalStartedEvent),
+                        ReceivedOn = DateTime.UtcNow,
+                        FuturesPrice = trade.LastPrice,
+                        SourceSequence = trade.SourceSequence,
+                        SourceEventTimestamp = sourceTimestamp
+                    });
                 }
                 catch (Exception ex)
                 {

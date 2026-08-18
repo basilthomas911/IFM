@@ -141,11 +141,23 @@ internal static class MarketDataSchemaCql
             rsi DOUBLE,
             rsiAverage DOUBLE,
             rsiSlope DOUBLE,
+            sourceSequence BIGINT,
+            sourceEventTimestamp TIMESTAMP,
             signalType TEXT,
             timePeriod TEXT,
             windowSize INT,
             PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string AddFuturesRsiSignalSourceSequenceColumn = """
+        ALTER TABLE futures_rsi_signal
+        ADD sourceSequence BIGINT;
+        """;
+
+    public const string AddFuturesRsiSignalSourceEventTimestampColumn = """
+        ALTER TABLE futures_rsi_signal
+        ADD sourceEventTimestamp TIMESTAMP;
         """;
 
     public const string CreateFuturesTdiSignalTable = """

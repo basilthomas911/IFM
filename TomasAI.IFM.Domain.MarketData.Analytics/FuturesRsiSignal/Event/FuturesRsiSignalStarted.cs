@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -89,17 +90,26 @@ public static class FuturesRsiSignalStarted
                     return;
 
                 var sourceTimestamp = trade.EventTimestamp.UtcDateTime;
-                var futuresRsiSignalId = new FuturesRsiSignalId(
-                    e.EntityId.ContractId,
-                    e.EntityId.ValueDate,
-                    e.EntityId.TimePeriod,
-                    e.EntityId.PeriodLength,
-                    TimeOnly.FromDateTime(sourceTimestamp));
-                await commandApi.GenerateFuturesRsiSignalAsync(
-                    futuresRsiSignalId,
-                    trade.LastPrice,
-                    trade.SourceSequence,
-                    sourceTimestamp);
+                var sampled = new FuturesRsiSignalSampledRealtimeEvent
+                {
+                    Subject = new(
+                        ActorType.Realtime,
+                        FuturesRsiSignalSampledRealtimeEvent.Actor,
+                        FuturesRsiSignalSampledRealtimeEvent.Verb,
+                        e.EntityId.Format()),
+                    Id = Guid.NewGuid(),
+                    EntityId = e.EntityId,
+                    CommandId = e.CommandId,
+                    AggregateId = e.EntityId.Format(),
+                    EventSource = nameof(FuturesRsiSignalStartedEvent),
+                    ReceivedOn = DateTime.UtcNow,
+                    FuturesPrice = trade.LastPrice,
+                    SourceSequence = trade.SourceSequence,
+                    SourceEventTimestamp = sourceTimestamp
+                };
+                await context.SendAsync<
+                    FuturesRsiSignalSampledRealtimeEvent,
+                    FuturesRsiSignalEntityId>(sampled);
             }
             catch (Exception ex)
             {

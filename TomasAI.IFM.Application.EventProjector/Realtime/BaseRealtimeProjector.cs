@@ -91,7 +91,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
 
         try
         {
-            await PublishRealtimeEventAsync(context, domainEvent, cancellationToken)
+            await PublishRealtimeEventAsync(context, domainEvent, ActorName, cancellationToken)
                 .ConfigureAwait(false);
             await descriptor.ApplyAsync(domainEvent, cancellationToken).ConfigureAwait(false);
 
@@ -99,7 +99,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
                 ?? throw new InvalidOperationException(
                     $"Realtime projector '{ProjectorName}' returned no complete event for "
                     + $"'{domainEvent.EventName}'.");
-            await PublishRealtimeEventAsync(context, completedEvent, cancellationToken)
+            await PublishRealtimeEventAsync(context, completedEvent, ActorName, cancellationToken)
                 .ConfigureAwait(false);
             return true;
         }
@@ -190,7 +190,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
                 ?? throw new InvalidOperationException(
                     $"Realtime projector '{ProjectorName}' returned no failure event for "
                     + $"'{sourceEvent.EventName}'.");
-            await PublishRealtimeEventAsync(context, failedEvent, CancellationToken.None)
+            await PublishRealtimeEventAsync(context, failedEvent, ActorName, CancellationToken.None)
                 .ConfigureAwait(false);
         }
         catch (Exception publicationException)
@@ -258,6 +258,7 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
     static async ValueTask PublishRealtimeEventAsync(
         IEventActorContext context,
         IEvent domainEvent,
+        string actorName,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -265,7 +266,11 @@ public abstract class BaseRealtimeProjector<TActor>(ILogger logger)
         EventInitHelper.SetProperty(
             domainEvent,
             nameof(IEvent.Subject),
-            domainEvent.Subject.SetActorType(ActorType.Realtime));
+            domainEvent.Subject with
+            {
+                ActorType = ActorType.Realtime,
+                Name = actorName
+            });
 
         var publisher = EventPublishers.GetOrAdd(
             domainEvent.GetType(),

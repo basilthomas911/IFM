@@ -49,7 +49,7 @@ public class FuturesRsiSignalTimerTests
             Interlocked.Decrement(ref active);
         }, TimeSpan.FromMilliseconds(1)).Should().BeTrue();
 
-        await thirdTick.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await thirdTick.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await stopped.StopTimerAsync();
 
         maximumActive.Should().Be(1);

@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
@@ -34,9 +35,21 @@ public static class FuturesAdxSignalLifecycle
                         || snapshot.AssetTypeId != AssetTypeId.Futures)
                         throw new MarketDataContractMappingException(entityId.ContractId, "the ADX timer entity and hot-cache snapshot identities do not match");
                     if (!e.TryAcceptSourceSequence(trade.SourceSequence)) return;
-                    var id = new FuturesAdxSignalId(entityId.ContractId, entityId.ValueDate, entityId.TimePeriod,
-                        entityId.PeriodLength, TimeOnly.FromDateTime(trade.EventTimestamp.UtcDateTime));
-                    _ = await commandApi.GenerateFuturesAdxSignalAsync(id, trade.LastPrice);
+                    var sourceTimestamp = trade.EventTimestamp.UtcDateTime;
+                    await context.SendAsync<FuturesAdxSignalSampledRealtimeEvent, FuturesAdxSignalEntityId>(new()
+                    {
+                        Subject = new(ActorType.Realtime, FuturesAdxSignalSampledRealtimeEvent.Actor,
+                            FuturesAdxSignalSampledRealtimeEvent.Verb, entityId.Format()),
+                        Id = Guid.NewGuid(),
+                        EntityId = entityId,
+                        CommandId = e.CommandId,
+                        AggregateId = entityId.Format(),
+                        EventSource = nameof(FuturesAdxSignalStartedEvent),
+                        ReceivedOn = DateTime.UtcNow,
+                        FuturesPrice = trade.LastPrice,
+                        SourceSequence = trade.SourceSequence,
+                        SourceEventTimestamp = sourceTimestamp
+                    });
                 }
                 catch (Exception ex) { await LogAsync(ex); }
             });
