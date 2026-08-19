@@ -183,9 +183,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.txtReference.Location = new System.Drawing.Point(110, 155);
             this.txtReference.Margin = new System.Windows.Forms.Padding(2);
             this.txtReference.Name = "txtReference";
-            this.txtReference.ReadOnly = true;
             this.txtReference.Size = new System.Drawing.Size(609, 23);
             this.txtReference.TabIndex = 9;
+            this.txtReference.TextChanged += new System.EventHandler(this.txtReference_TextChanged);
             // 
             // pnlBaseContracts
             // 

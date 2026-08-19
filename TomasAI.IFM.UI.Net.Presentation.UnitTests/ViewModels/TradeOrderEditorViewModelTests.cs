@@ -146,6 +146,38 @@ public class TradeOrderEditorViewModelTests
     }
 
     [Fact]
+    public async Task ChangeTradeState_AwaitsExactTerminalAndRefreshesTheDurableState()
+    {
+        var commandId = Guid.NewGuid();
+        var initial = Trade();
+        var changed = initial with { TradeState = TradeState.OrderSubmitted };
+        var subject = CreateSubject();
+        subject.QueryApi.GetFundOrderTradesAsync().Returns(
+            new ServiceOk<FundOrderTradeReadModel[]>([initial]),
+            new ServiceOk<FundOrderTradeReadModel[]>([changed]));
+        subject.CommandApi.ChangeFundOrderTradeStateAsync(initial.Id, TradeState.OrderSubmitted)
+            .Returns(new ServiceOk<Guid>(commandId));
+        await subject.ViewModel.InitializeAsync(CancellationToken.None);
+        await subject.ViewModel.LoadOperation.ExecuteAsync();
+
+        var operation = subject.ViewModel.ChangeFundOrderTradeState(initial.Id, TradeState.OrderSubmitted);
+        await WaitForCommandAsync(subject.ViewModel, commandId);
+        await subject.Events.PublishAsync(new FundOrderTradeStateChangedCompleteEvent
+        {
+            CommandId = commandId,
+            FundOrderTradeId = initial.Id,
+            TradeState = TradeState.OrderSubmitted
+        });
+        await operation;
+
+        subject.ViewModel.LastChange!.Kind.Should().Be(TradeOrderEditorChangeKind.TradeStateChanged);
+        subject.ViewModel.SelectedFundOrderTrade!.TradeState.Should().Be(TradeState.OrderSubmitted);
+        subject.ViewModel.CommandId.Should().BeEmpty();
+        await subject.QueryApi.Received(2).GetFundOrderTradesAsync();
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
     public async Task EmbeddedCommandCompletionBeforeCorrelationCallback_IsRetained()
     {
         var commandId = Guid.NewGuid();

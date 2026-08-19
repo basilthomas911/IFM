@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
+using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -9,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -28,7 +30,12 @@ public sealed record G2ObservedCommandEvent(
     string[]? ImportCountryCodes,
     EconomicCalendarReadModel[]? ImportedEconomicCalendars,
     FundReadModel? Fund,
-    FundTransactionReadModel? FundTransaction);
+    FundTransactionReadModel? FundTransaction,
+    FundOrderReadModel? FundOrder,
+    FundOrderId? FundOrderId,
+    FundOrderTradeReadModel? FundOrderTrade,
+    FundOrderTradeId? FundOrderTradeId,
+    TradeState? TradeState);
 
 public sealed record G2CommandListenerRegistration(
     string Family,
@@ -111,14 +118,19 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<FundTransactionCreatedCompleteEvent>("FundTransaction", FundTransactionCreatedCompleteEvent.Actor, FundTransactionCreatedCompleteEvent.Verb, true),
         Route<FundTransactionCreatedFailEvent>("FundTransaction", FundTransactionCreatedFailEvent.Actor, FundTransactionCreatedFailEvent.Verb, false),
 
+        Route<OrderAddedToFundEvent>("FundOrder", OrderAddedToFundEvent.Actor, OrderAddedToFundEvent.Verb, null),
         Route<OrderAddedToFundCompleteEvent>("FundOrder", OrderAddedToFundCompleteEvent.Actor, OrderAddedToFundCompleteEvent.Verb, true),
         Route<OrderAddedToFundFailEvent>("FundOrder", OrderAddedToFundFailEvent.Actor, OrderAddedToFundFailEvent.Verb, false),
+        Route<OrderRemovedFromFundEvent>("FundOrder", OrderRemovedFromFundEvent.Actor, OrderRemovedFromFundEvent.Verb, null),
         Route<OrderRemovedFromFundCompleteEvent>("FundOrder", OrderRemovedFromFundCompleteEvent.Actor, OrderRemovedFromFundCompleteEvent.Verb, true),
         Route<OrderRemovedFromFundFailEvent>("FundOrder", OrderRemovedFromFundFailEvent.Actor, OrderRemovedFromFundFailEvent.Verb, false),
+        Route<TradeAddedToFundOrderEvent>("FundOrder", TradeAddedToFundOrderEvent.Actor, TradeAddedToFundOrderEvent.Verb, null),
         Route<TradeAddedToFundOrderCompleteEvent>("FundOrder", TradeAddedToFundOrderCompleteEvent.Actor, TradeAddedToFundOrderCompleteEvent.Verb, true),
         Route<TradeAddedToFundOrderFailEvent>("FundOrder", TradeAddedToFundOrderFailEvent.Actor, TradeAddedToFundOrderFailEvent.Verb, false),
+        Route<TradeRemovedFromFundOrderEvent>("FundOrder", TradeRemovedFromFundOrderEvent.Actor, TradeRemovedFromFundOrderEvent.Verb, null),
         Route<TradeRemovedFromFundOrderCompleteEvent>("FundOrder", TradeRemovedFromFundOrderCompleteEvent.Actor, TradeRemovedFromFundOrderCompleteEvent.Verb, true),
         Route<TradeRemovedFromFundOrderFailEvent>("FundOrder", TradeRemovedFromFundOrderFailEvent.Actor, TradeRemovedFromFundOrderFailEvent.Verb, false),
+        Route<FundOrderTradeStateChangedEvent>("FundOrder", FundOrderTradeStateChangedEvent.Actor, FundOrderTradeStateChangedEvent.Verb, null),
         Route<FundOrderTradeStateChangedCompleteEvent>("FundOrder", FundOrderTradeStateChangedCompleteEvent.Actor, FundOrderTradeStateChangedCompleteEvent.Verb, true),
         Route<FundOrderTradeStateChangedFailEvent>("FundOrder", FundOrderTradeStateChangedFailEvent.Actor, FundOrderTradeStateChangedFailEvent.Verb, false),
 
@@ -256,6 +268,38 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             FundTransactionCreatedCompleteEvent value => value.FundTransaction,
             _ => null
         };
+        var fundOrder = domainEvent switch
+        {
+            OrderAddedToFundEvent value => value.FundOrder,
+            OrderAddedToFundCompleteEvent value => value.FundOrder,
+            _ => null
+        };
+        var fundOrderId = domainEvent switch
+        {
+            OrderRemovedFromFundEvent value => value.FundOrderId,
+            OrderRemovedFromFundCompleteEvent value => value.FundOrderId,
+            _ => null
+        };
+        var fundOrderTrade = domainEvent switch
+        {
+            TradeAddedToFundOrderEvent value => value.FundOrderTrade,
+            TradeAddedToFundOrderCompleteEvent value => value.FundOrderTrade,
+            _ => null
+        };
+        var fundOrderTradeId = domainEvent switch
+        {
+            TradeRemovedFromFundOrderEvent value => value.FundOrderTradeId,
+            TradeRemovedFromFundOrderCompleteEvent value => value.FundOrderTradeId,
+            FundOrderTradeStateChangedEvent value => value.FundOrderTradeId,
+            FundOrderTradeStateChangedCompleteEvent value => value.FundOrderTradeId,
+            _ => null
+        };
+        var tradeState = domainEvent switch
+        {
+            FundOrderTradeStateChangedEvent value => value.TradeState,
+            FundOrderTradeStateChangedCompleteEvent value => value.TradeState,
+            _ => null as TradeState?
+        };
         _events.Enqueue(new G2ObservedCommandEvent(
             DateTimeOffset.UtcNow,
             route.Family,
@@ -269,7 +313,12 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             importCountryCodes,
             importedCalendars,
             fund,
-            fundTransaction));
+            fundTransaction,
+            fundOrder,
+            fundOrderId,
+            fundOrderTrade,
+            fundOrderTradeId,
+            tradeState));
         return ValueTask.CompletedTask;
     }
 

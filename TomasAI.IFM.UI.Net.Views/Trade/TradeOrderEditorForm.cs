@@ -94,14 +94,12 @@ public partial class TradeOrderEditorForm
             switch (change.Event)
             {
                 case TradeAddedToFundOrderCompleteEvent added:
-                    await _viewModel.AddTradeLiveFeed(added.FundOrderTrade.OrderId, added.FundOrderTrade.TradeId);
+                    if (cbLiveFeed.Checked)
+                        await _viewModel.AddTradeLiveFeed(added.FundOrderTrade.OrderId, added.FundOrderTrade.TradeId);
                     break;
                 case TradeRemovedFromFundOrderCompleteEvent removed:
-                    await _viewModel.RemoveTradeLiveFeed(removed.FundOrderTradeId.OrderId, removed.FundOrderTradeId.TradeId);
-                    break;
-                case FundOrderTradeStateChangedCompleteEvent:
-                    DialogResult = DialogResult.OK;
-                    Close();
+                    if (cbLiveFeed.Checked)
+                        await _viewModel.RemoveTradeLiveFeed(removed.FundOrderTradeId.OrderId, removed.FundOrderTradeId.TradeId);
                     break;
             }
         }
@@ -229,6 +227,10 @@ public partial class TradeOrderEditorForm
                     fundOrder.Reference ?? string.Empty
                 ]));
             }
+            lstTradeOrders.AccessibleDescription = string.Join(" || ", _viewModel.FundOrders.Select(fundOrder =>
+                $"{fundOrder.OrderId} | {EasternTime.FromUtc(fundOrder.OrderDate):yyyy-MMM-dd} | "
+                + $"{fundOrder.OrderStatus} | {fundOrder.Reference ?? string.Empty}"));
+            lstTradeOrders.AccessibleName = $"Fund orders; rows: {lstTradeOrders.AccessibleDescription}";
             var index = _lastTradeOrderIndex >= 0 ? _lastTradeOrderIndex : _viewModel.FundOrderSelectedIndex;
             _lastTradeOrderIndex = -1;
             if (index >= 0 && index < lstTradeOrders.Items.Count)
@@ -247,6 +249,7 @@ public partial class TradeOrderEditorForm
         try
         {
             lstTrades.Items.Clear();
+            ddlTradeState.Items.Clear();
             foreach (var trade in _viewModel.FundOrderTrades)
             {
                 lstTrades.Items.Add(new ListViewItem([
@@ -258,6 +261,10 @@ public partial class TradeOrderEditorForm
                     $"{trade.TradeAction} {trade.Reference}"
                 ]));
             }
+            lstTrades.AccessibleDescription = string.Join(" || ", _viewModel.FundOrderTrades.Select(trade =>
+                $"{trade.TradeId} | {trade.TradeType} | {trade.TradeDate:yyyy-MMM-dd} | "
+                + $"{trade.MaturityDate:yyyy-MMM-dd} | {trade.TradeState} | {trade.TradeAction} {trade.Reference}"));
+            lstTrades.AccessibleName = $"Fund order trades; rows: {lstTrades.AccessibleDescription}";
             var index = _lastTradeIndex >= 0 ? _lastTradeIndex : _viewModel.FundOrderTradeSelectedIndex;
             _lastTradeIndex = -1;
             if (index >= 0 && index < lstTrades.Items.Count)
@@ -281,6 +288,8 @@ public partial class TradeOrderEditorForm
         btnCompleteOrder.Enabled = _viewModel.CanCompleteOrder;
         btnAddTrade.Enabled = _viewModel.CanAddTrade;
         btnRemoveTrade.Enabled = _viewModel.CanRemoveTrade;
+        btnChangeTradeState.Enabled = _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
+        ddlTradeState.Enabled = _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
         btnEndOfDay.Enabled = _viewModel.CanEndOfDay;
         btnSubmitOrder.Enabled = _viewModel.CanSubmitOrder;
         cbLiveFeed.Enabled = _viewModel.CanUseLiveFeed;
@@ -426,6 +435,7 @@ public partial class TradeOrderEditorForm
             _lastTradeIndex = index;
             _viewModel.SelectFundOrderTrade(index);
             var fundOrderTrade = _viewModel.GetFundOrderTrade(index);
+            LoadTradeStateTargets(fundOrderTrade!.TradeState);
             var controls = new Control[] { dtpTradeDate, ddlOrderActionType };
             foreach (var o in controls)
                 o.Enabled = fundOrderTrade!.TradeState == TradeState.NewTrade;
@@ -566,6 +576,27 @@ public partial class TradeOrderEditorForm
         var dlgResult = dlg.ShowDialog();
         if (dlgResult == DialogResult.OK)
             await ObserveAsync(LoadFundsAsync);
+    }
+
+    async void btnChangeTradeState_Click(object sender, EventArgs e)
+    {
+        var trade = _viewModel.SelectedFundOrderTrade;
+        if (trade is null || ddlTradeState.SelectedItem is null)
+            return;
+        if (!Enum.TryParse<TradeState>(ddlTradeState.SelectedItem.ToString(), out var targetState))
+            return;
+        await ObserveAsync(() => _viewModel.ChangeFundOrderTradeState(trade.Id, targetState));
+    }
+
+    void LoadTradeStateTargets(TradeState currentState)
+    {
+        ddlTradeState.Items.Clear();
+        foreach (var state in Enum.GetValues<TradeState>().Where(state => state != currentState))
+            ddlTradeState.Items.Add(state.ToStringFast());
+        var preferred = currentState == TradeState.NewTrade ? TradeState.OrderSubmitted.ToStringFast() : null;
+        ddlTradeState.SelectedIndex = preferred is null
+            ? (ddlTradeState.Items.Count > 0 ? 0 : -1)
+            : ddlTradeState.Items.IndexOf(preferred);
     }
 
     async void btnCreateFund_Click(object sender, EventArgs e)

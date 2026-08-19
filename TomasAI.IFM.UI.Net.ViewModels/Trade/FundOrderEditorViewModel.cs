@@ -198,6 +198,14 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         OnPropertyChanged(nameof(CanSave));
     }
 
+    /// <summary>Overrides the generated reference with an operator-provided audit reference.</summary>
+    public void SetReference(string reference)
+    {
+        Reference = reference?.Trim() ?? string.Empty;
+        OnPropertyChanged(nameof(FundOrder));
+        OnPropertyChanged(nameof(CanSave));
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {

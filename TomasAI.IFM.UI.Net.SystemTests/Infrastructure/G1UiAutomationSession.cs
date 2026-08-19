@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
@@ -726,6 +727,344 @@ public sealed class G1UiAutomationSession : IDisposable
             timeout,
             $"Fund '{fundName}' did not render the required transaction history.",
             cancellationToken);
+
+    public async Task<G2TradeOrderUiState> CreateFundOrderAsync(
+        Window tradeWindow,
+        string fundName,
+        G2OrderTradeFixture fixture,
+        DateOnly tradeDate,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
+        PostButtonClick(tradeWindow, "btnCreateOrder");
+        var dialog = await WaitForWindowAsync("Create Fund Order", timeout, cancellationToken);
+        var orderId = await WaitUntilAsync(
+            () => int.TryParse(ReadText(dialog, "txtOrderId"), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out var value) && value > 0 ? value : null as int?,
+            timeout,
+            "The Create Fund Order dialog did not resolve a positive order identifier.",
+            cancellationToken);
+        var contracts = await WaitUntilAsync(
+            () =>
+            {
+                var items = ReadComboItems(dialog, "ddlBaseContracts");
+                return items.Count > 0 ? items : null;
+            },
+            timeout,
+            "The Create Fund Order dialog did not expose a base contract.",
+            cancellationToken);
+        var contractId = contracts.FirstOrDefault(item =>
+                item.StartsWith(fixture.PreferredBaseSymbol, StringComparison.OrdinalIgnoreCase))
+            ?? contracts[0];
+        await SelectComboValueAsync(
+            dialog, "ddlBaseContracts", contractId, timeout, cancellationToken);
+        await WaitForEnabledAsync(dialog, "dtpTradeDate", timeout, cancellationToken);
+        SetDate(dialog, "dtpTradeDate", tradeDate);
+        SetDate(dialog, "dtpMaturityDate", tradeDate.AddDays(fixture.MaturityDays));
+        SetText(dialog, "txtReference", fixture.OrderReference);
+        await WaitForEnabledAsync(dialog, "btnSave", timeout, cancellationToken);
+        PostButtonClick(dialog, "btnSave");
+        await WaitForWindowClosedAsync("Create Fund Order", timeout, cancellationToken);
+        await WaitForListItemAsync(
+            tradeWindow, "lstTradeOrders", orderId, present: true, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        return await WaitForTradeOrderStateAsync(
+            tradeWindow,
+            fundName,
+            orderId,
+            orderPresent: true,
+            fixture.OrderReference,
+            tradeId: null,
+            tradePresent: false,
+            expectedTradeReference: null,
+            expectedTradeState: null,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2TradeOrderUiState> AddFundOrderTradeAsync(
+        Window tradeWindow,
+        string fundName,
+        int orderId,
+        G2OrderTradeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        await WaitForEnabledAsync(tradeWindow, "btnAddTrade", timeout, cancellationToken);
+        PostButtonClick(tradeWindow, "btnAddTrade");
+        var dialog = await WaitForWindowAsync("Add Trade", timeout, cancellationToken);
+        var tradeId = await WaitUntilAsync(
+            () => int.TryParse(ReadText(dialog, "txtTradeId"), NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out var value) && value > 0 ? value : null as int?,
+            timeout,
+            "The Add Trade dialog did not resolve a positive trade identifier.",
+            cancellationToken);
+        await SelectComboValueAsync(
+            dialog, "ddlTradeType", fixture.TradeType.ToString(), timeout, cancellationToken);
+        var symbols = await WaitUntilAsync(
+            () =>
+            {
+                var items = ReadComboItems(dialog, "ddlBaseSymbol");
+                return items.Count > 0 ? items : null;
+            },
+            timeout,
+            "The Add Trade dialog did not expose a base symbol.",
+            cancellationToken);
+        var symbol = symbols.FirstOrDefault(item =>
+                item.Contains(fixture.PreferredBaseSymbol, StringComparison.OrdinalIgnoreCase))
+            ?? symbols[0];
+        await SelectComboValueAsync(dialog, "ddlBaseSymbol", symbol, timeout, cancellationToken);
+        SetText(dialog, "txtReference", fixture.TradeReference);
+        PostButtonClick(dialog, "btnSave");
+        await WaitForWindowClosedAsync("Add Trade", timeout, cancellationToken);
+        await WaitForListItemAsync(
+            tradeWindow, "lstTrades", tradeId, present: true, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTrades", tradeId);
+        return await WaitForTradeOrderStateAsync(
+            tradeWindow,
+            fundName,
+            orderId,
+            orderPresent: true,
+            fixture.OrderReference,
+            tradeId,
+            tradePresent: true,
+            fixture.TradeReference,
+            fixture.InitialTradeState,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2TradeOrderUiState> ChangeFundOrderTradeStateAsync(
+        Window tradeWindow,
+        string fundName,
+        int orderId,
+        int tradeId,
+        G2OrderTradeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        SelectListItemById(tradeWindow, "lstTrades", tradeId);
+        await SelectComboValueAsync(
+            tradeWindow,
+            "ddlTradeState",
+            fixture.ChangedTradeState.ToStringFast(),
+            timeout,
+            cancellationToken);
+        PostButtonClick(tradeWindow, "btnChangeTradeState");
+        return await WaitForTradeOrderStateAsync(
+            tradeWindow,
+            fundName,
+            orderId,
+            orderPresent: true,
+            fixture.OrderReference,
+            tradeId,
+            tradePresent: true,
+            fixture.TradeReference,
+            fixture.ChangedTradeState,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2TradeOrderUiState> RemoveFundOrderTradeAsync(
+        Window tradeWindow,
+        string fundName,
+        int orderId,
+        int tradeId,
+        G2OrderTradeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        SelectListItemById(tradeWindow, "lstTrades", tradeId);
+        PostButtonClick(tradeWindow, "btnRemoveTrade");
+        return await WaitForTradeOrderStateAsync(
+            tradeWindow,
+            fundName,
+            orderId,
+            orderPresent: true,
+            fixture.OrderReference,
+            tradeId,
+            tradePresent: false,
+            expectedTradeReference: null,
+            expectedTradeState: null,
+            timeout,
+            cancellationToken);
+    }
+
+    public async Task<G2TradeOrderUiState> RemoveFundOrderAsync(
+        Window tradeWindow,
+        string fundName,
+        int orderId,
+        G2OrderTradeFixture fixture,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        PostButtonClick(tradeWindow, "btnDeleteOrder");
+        var dialog = await WaitForWindowAsync("Delete Fund Order", timeout, cancellationToken);
+        PostButtonClick(dialog, "btnYes");
+        await WaitForWindowClosedAsync("Delete Fund Order", timeout, cancellationToken);
+        return await WaitForTradeOrderStateAsync(
+            tradeWindow,
+            fundName,
+            orderId,
+            orderPresent: false,
+            expectedOrderReference: null,
+            tradeId: null,
+            tradePresent: false,
+            expectedTradeReference: null,
+            expectedTradeState: null,
+            timeout,
+            cancellationToken);
+    }
+
+    async Task SelectTradeFundAsync(
+        Window tradeWindow,
+        string fundName,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectComboValueAsync(tradeWindow, "ddlFund", fundName, timeout, cancellationToken);
+        await WaitForEnabledAsync(tradeWindow, "btnCreateOrder", timeout, cancellationToken);
+    }
+
+    async Task<G2TradeOrderUiState> WaitForTradeOrderStateAsync(
+        Window tradeWindow,
+        string fundName,
+        int orderId,
+        bool orderPresent,
+        string? expectedOrderReference,
+        int? tradeId,
+        bool tradePresent,
+        string? expectedTradeReference,
+        TradeState? expectedTradeState,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var state = ReadTradeOrderState(tradeWindow, fundName);
+                if (state is null)
+                    return null;
+                var orderRow = state.OrderRows.SingleOrDefault(row => HasLeadingId(row, orderId));
+                if ((orderRow is not null) != orderPresent)
+                    return null;
+                if (expectedOrderReference is not null
+                    && (orderRow is null || !orderRow.Contains(expectedOrderReference, StringComparison.Ordinal)))
+                    return null;
+                if (tradeId is not null)
+                {
+                    var tradeRow = state.TradeRows.SingleOrDefault(row => HasLeadingId(row, tradeId.Value));
+                    if ((tradeRow is not null) != tradePresent)
+                        return null;
+                    if (expectedTradeReference is not null
+                        && (tradeRow is null || !tradeRow.Contains(expectedTradeReference, StringComparison.Ordinal)))
+                        return null;
+                    if (expectedTradeState is not null
+                        && (tradeRow is null || !tradeRow.Contains(
+                            $"| {expectedTradeState.Value} |", StringComparison.Ordinal)))
+                        return null;
+                }
+                return state;
+            },
+            timeout,
+            $"The Trade Orders editor did not render order {orderId} as {(orderPresent ? "present" : "absent")}"
+            + (tradeId is null ? string.Empty : $" and trade {tradeId} as {(tradePresent ? "present" : "absent")}"),
+            cancellationToken);
+
+    G2TradeOrderUiState? ReadTradeOrderState(Window tradeWindow, string fundName)
+    {
+        var selector = RequireDescendant(tradeWindow, "ddlFund").AsComboBox();
+        if (!string.Equals(ReadSelectedComboValue(selector), fundName, StringComparison.Ordinal))
+            return null;
+        return new G2TradeOrderUiState(
+            fundName,
+            ReadSelectedListId(tradeWindow, "lstTradeOrders"),
+            ReadSelectedListId(tradeWindow, "lstTrades"),
+            ReadSemanticListRows(tradeWindow, "lstTradeOrders"),
+            ReadSemanticListRows(tradeWindow, "lstTrades"),
+            ReadCommandStates(tradeWindow));
+    }
+
+    async Task WaitForListItemAsync(
+        AutomationElement root,
+        string automationId,
+        int id,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () => ReadListItemIds(root, automationId).Contains(id) == present ? id : null as int?,
+            timeout,
+            $"The '{automationId}' list did not render {id} as {(present ? "present" : "absent")}.",
+            cancellationToken);
+
+    async Task WaitForWindowClosedAsync(
+        string title,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () => TopLevelWindows().All(window =>
+                    !string.Equals(window.Title, title, StringComparison.OrdinalIgnoreCase))
+                ? title
+                : null,
+            timeout,
+            $"The '{title}' window did not close.",
+            cancellationToken);
+
+    static void SelectListItemById(AutomationElement root, string automationId, int id)
+    {
+        var list = RequireDescendant(root, automationId).AsListBox();
+        var item = list.Items.SingleOrDefault(candidate =>
+                int.TryParse(candidate.Text.Split(' ', '|')[0], NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out var value) && value == id)
+            ?? throw new InvalidOperationException($"The '{automationId}' list does not contain ID {id}.");
+        item.Select();
+    }
+
+    static int? ReadSelectedListId(AutomationElement root, string automationId)
+    {
+        var selected = RequireDescendant(root, automationId).AsListBox().SelectedItem?.Text;
+        return int.TryParse(selected?.Split(' ', '|')[0], NumberStyles.Integer,
+            CultureInfo.InvariantCulture, out var id) ? id : null;
+    }
+
+    static IReadOnlyList<int> ReadListItemIds(AutomationElement root, string automationId)
+        => RequireDescendant(root, automationId).AsListBox().Items
+            .Select(item => int.TryParse(item.Text.Split(' ', '|')[0], NumberStyles.Integer,
+                CultureInfo.InvariantCulture, out var id) ? id : 0)
+            .Where(id => id > 0)
+            .ToArray();
+
+    static IReadOnlyList<string> ReadSemanticListRows(AutomationElement root, string automationId)
+    {
+        var list = RequireDescendant(root, automationId);
+        string description = string.Empty;
+        try { description = list.Properties.HelpText.Value ?? string.Empty; }
+        catch { /* Fall back to the accessible name and visible items. */ }
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            var name = list.Name ?? string.Empty;
+            var marker = name.IndexOf("rows:", StringComparison.OrdinalIgnoreCase);
+            if (marker >= 0)
+                description = name[(marker + "rows:".Length)..].Trim();
+        }
+        var rows = description.Split(" || ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (rows.Length > 0)
+            return rows;
+        return list.AsListBox().Items.Select(item => item.Text).ToArray();
+    }
+
+    static bool HasLeadingId(string row, int id)
+        => row.StartsWith(id.ToString(CultureInfo.InvariantCulture) + " |", StringComparison.Ordinal)
+           || string.Equals(row, id.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
     G2FundTransactionUiState? ReadFundTransactionState(Window fundWindow, string fundName)
     {
@@ -1943,7 +2282,7 @@ public sealed class G1UiAutomationSession : IDisposable
                  {
                      "btnAdd", "btnChange", "btnRemove", "btnImport", "btnClose", "btnAdjust",
                      "btnCreateFund", "btnCreateOrder", "btnDeleteOrder", "btnLoadOrder",
-                     "btnCompleteOrder", "btnAddTrade", "btnRemoveTrade", "btnEndOfDay", "btnSubmitOrder",
+                     "btnCompleteOrder", "btnAddTrade", "btnRemoveTrade", "btnChangeTradeState", "btnEndOfDay", "btnSubmitOrder",
                      "btnRun"
                  })
         {
@@ -2419,6 +2758,14 @@ public sealed record G2FundTransactionUiState(
     string FundName,
     string Balance,
     IReadOnlyList<string> Rows);
+
+public sealed record G2TradeOrderUiState(
+    string FundName,
+    int? SelectedOrderId,
+    int? SelectedTradeId,
+    IReadOnlyList<string> OrderRows,
+    IReadOnlyList<string> TradeRows,
+    IReadOnlyDictionary<string, bool> CommandStates);
 
 public sealed record G1TradeWindowState(
     IReadOnlyList<string> Funds,

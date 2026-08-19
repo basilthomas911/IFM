@@ -118,6 +118,8 @@ public sealed class G2InfrastructureTests
             .Should().Be(1, "fund creation must expose its source-event route");
         registrations.Count(item => item.Family == "FundTransaction" && item.Success is null)
             .Should().Be(1, "fund transactions must expose their source-event route");
+        registrations.Count(item => item.Family == "FundOrder" && item.Success is null)
+            .Should().Be(5, "fund-order lifecycle must expose add/remove order, add/remove trade, and state-change source routes");
         registrations.Should().OnlyContain(item =>
             !string.IsNullOrWhiteSpace(item.Actor)
             && !string.IsNullOrWhiteSpace(item.Verb)

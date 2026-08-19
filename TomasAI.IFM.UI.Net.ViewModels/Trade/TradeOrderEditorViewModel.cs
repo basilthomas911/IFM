@@ -183,6 +183,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         && SelectedFundOrder?.OrderStatus == TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open;
     public bool CanAddTrade => CanCompleteOrder;
     public bool CanRemoveTrade => CanCompleteOrder && SelectedFundOrderTrade is not null;
+    public bool CanChangeTradeState => CanCompleteOrder && SelectedFundOrderTrade is not null;
     public bool CanEndOfDay => CanCompleteOrder && SelectedFundOrderTrade is not null;
     public bool CanSubmitOrder => CanCompleteOrder && SelectedFundOrderTrade?.TradeState == TradeState.NewTrade;
     public bool CanUseLiveFeed => CanSubmitOrder;
@@ -643,6 +644,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         OnPropertyChanged(nameof(CanCompleteOrder));
         OnPropertyChanged(nameof(CanAddTrade));
         OnPropertyChanged(nameof(CanRemoveTrade));
+        OnPropertyChanged(nameof(CanChangeTradeState));
         OnPropertyChanged(nameof(CanEndOfDay));
         OnPropertyChanged(nameof(CanSubmitOrder));
         OnPropertyChanged(nameof(CanUseLiveFeed));

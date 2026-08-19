@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -23,10 +24,10 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Commands;
 [Trait("Category", "G2StartupProcess")]
 public sealed class G2PrerequisiteAndStartupAuditTests
 {
-    const int ExpectedStepCount = 29;
+    const int ExpectedStepCount = 34;
 
     [Fact]
-    public async Task Development_command_audit_satisfies_G2_001_through_G2_029()
+    public async Task Development_command_audit_satisfies_G2_001_through_G2_034()
     {
         if (!G0Configuration.G2StartupLiveRunEnabled)
             return;
@@ -51,10 +52,15 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             Environment.GetEnvironmentVariable("IFM_G2_FUND_SLICE"),
             "1",
             StringComparison.Ordinal);
-        if (new[] { securitiesSlice, yieldCurveSlice, economicCalendarSlice, lookupSlice, fundSlice }.Count(enabled => enabled) > 1)
+        var orderTradeSlice = string.Equals(
+            Environment.GetEnvironmentVariable("IFM_G2_ORDER_TRADE_SLICE"),
+            "1",
+            StringComparison.Ordinal);
+        if (new[] { securitiesSlice, yieldCurveSlice, economicCalendarSlice, lookupSlice, fundSlice, orderTradeSlice }.Count(enabled => enabled) > 1)
             throw new InvalidOperationException(
                 "IFM_G2_SECURITIES_SLICE, IFM_G2_YIELD_CURVE_SLICE, and "
-                + "IFM_G2_ECONOMIC_CALENDAR_SLICE, IFM_G2_LOOKUP_SLICE, and IFM_G2_FUND_SLICE are mutually exclusive.");
+                + "IFM_G2_ECONOMIC_CALENDAR_SLICE, IFM_G2_LOOKUP_SLICE, IFM_G2_FUND_SLICE, and "
+                + "IFM_G2_ORDER_TRADE_SLICE are mutually exclusive.");
         var configuration = G2Configuration.Load();
         var process = configuration.Process;
         var redactor = new SecretRedactor([Environment.GetEnvironmentVariable("FMP_API_KEY")]);
@@ -71,9 +77,11 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                             ? "G2-001-007+024-026"
                             : fundSlice
                                 ? "G2-001-007+027-029"
-                                : "G2-001-029",
-            ExpectedStepCount = securitiesSlice || yieldCurveSlice || economicCalendarSlice || lookupSlice || fundSlice
-                ? securitiesSlice ? 13 : lookupSlice || fundSlice ? 10 : 11
+                                : orderTradeSlice
+                                    ? "G2-001-007+027+030-034"
+                                    : "G2-001-034",
+            ExpectedStepCount = securitiesSlice || yieldCurveSlice || economicCalendarSlice || lookupSlice || fundSlice || orderTradeSlice
+                ? securitiesSlice || orderTradeSlice ? 13 : lookupSlice || fundSlice ? 10 : 11
                 : ExpectedStepCount,
             RunId = process.RunId,
             Environment = process.EnvironmentName,
@@ -105,11 +113,15 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         G2EconomicCalendarFixture? economicCalendarFixture = null;
         G2LookupTypeFixture? lookupTypeFixture = null;
         G2FundFixture? fundFixture = null;
+        G2OrderTradeFixture? orderTradeFixture = null;
         FundReadModel? designatedFund = null;
         decimal? fundStartingBalance = null;
+        FundOrderReadModel? createdFundOrder = null;
+        FundOrderTradeReadModel? createdFundOrderTrade = null;
         Window? marketDataWindow = null;
         Window? referenceWindow = null;
         Window? fundWindow = null;
+        Window? tradeWindow = null;
         var cleanupFailures = new List<string>();
 
         try
@@ -189,7 +201,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     {
                         ["ASPNETCORE_ENVIRONMENT"] = process.EnvironmentName
                     };
-                    if (yieldCurveSlice || economicCalendarSlice || fundSlice)
+                    if (yieldCurveSlice || economicCalendarSlice || fundSlice || orderTradeSlice)
                         apiEnvironment["AppSettings__Databento__DataSource"] = "Synthetic";
                     api = OwnedProcess.Start(
                         process.ApiExecutable,
@@ -213,7 +225,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                             $"API readiness was {readiness.Status}; actorTypes={readiness.RegisteredActorTypes}.");
                     return Observation(
                         $"API PID {api.Process.Id} is Healthy; registeredActorTypes={readiness.RegisteredActorTypes}; "
-                        + $"feedSource={(yieldCurveSlice || economicCalendarSlice || fundSlice ? "Synthetic (isolated non-feed slice)" : "Development configuration")}.",
+                        + $"feedSource={(yieldCurveSlice || economicCalendarSlice || fundSlice || orderTradeSlice ? "Synthetic (isolated non-feed slice)" : "Development configuration")}.",
                         ["processes/api-start.json", "network/api-readiness.json"]);
                 });
 
@@ -234,47 +246,48 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         || baseline.RunOwnedLookupTypes.Length > 0)
                         throw new G0DependencyException(
                             $"Unique run prefix '{configuration.RunPrefix}' already owns mutable Development state.");
-                    if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice
+                    if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice
                         && (baseline.SecuritiesFixtureContract is not null
                             || baseline.SecuritiesFixtureOption is not null))
                         throw new G0DependencyException(
                             $"Exact G2 securities fixture already exists: futures={configuration.SecuritiesFuturesContractId}; "
                             + $"option={configuration.SecuritiesOptionContractId}.");
-                    if (!securitiesSlice && !economicCalendarSlice && !lookupSlice && !fundSlice
+                    if (!securitiesSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice
                         && baseline.YieldCurveManualDateRows.Length > 0)
                         throw new G0DependencyException(
                             $"Exact G2 manual yield-curve fixture already exists for {configuration.YieldCurveManualDate:yyyy-MM-dd}.");
-                    if (!securitiesSlice && !yieldCurveSlice && !lookupSlice && !fundSlice
+                    if (!securitiesSlice && !yieldCurveSlice && !lookupSlice && !fundSlice && !orderTradeSlice
                         && baseline.EconomicCalendarManualDateRows.Length > 0)
                         throw new G0DependencyException(
                             $"Exact G2 manual economic-calendar fixture date already contains "
                             + $"{baseline.EconomicCalendarManualDateRows.Length} row(s) for "
                             + $"{configuration.EconomicCalendarManualDate:yyyy-MM-dd}/{configuration.ImportCountryCodes[0]}.");
-                    if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+                    if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
                         securitiesFixture = await G2SecuritiesFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
-                    if (!securitiesSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+                    if (!securitiesSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
                         yieldCurveFixture = await G2YieldCurveFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
-                    if (!securitiesSlice && !yieldCurveSlice && !lookupSlice && !fundSlice)
+                    if (!securitiesSlice && !yieldCurveSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
                         economicCalendarFixture = await G2EconomicCalendarFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
-                    if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !fundSlice)
+                    if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !fundSlice && !orderTradeSlice)
                         lookupTypeFixture = await G2LookupTypeFixture.CreateAsync(
                             queries,
                             configuration,
                             process.ReadinessTimeout,
                             token);
                     fundFixture = G2FundFixture.Create(configuration);
+                    orderTradeFixture = G2OrderTradeFixture.Create(configuration);
                     if (baseline.DesignatedFund is { IsProduction: true })
                         throw new G0DependencyException(
                             $"Designated G2 fund '{configuration.FundFixtureName}' is marked as production.");
@@ -282,6 +295,12 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                             transaction.Description.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase)))
                         throw new G0DependencyException(
                             $"Unique run prefix '{configuration.RunPrefix}' already owns a designated-fund transaction.");
+                    if (baseline.DesignatedFundOrders.Any(order =>
+                            order.Reference.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                        || baseline.DesignatedFundTrades.Any(trade =>
+                            trade.Reference.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase)))
+                        throw new G0DependencyException(
+                            $"Unique run prefix '{configuration.RunPrefix}' already owns a designated-fund order or trade.");
                     await evidence.WriteTextAsync(
                         Path.Combine("processes", "g2-baseline.json"),
                         JsonSerializer.Serialize(baseline, new JsonSerializerOptions { WriteIndented = true }),
@@ -306,6 +325,10 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         Path.Combine("processes", "g2-fund-fixture.json"),
                         JsonSerializer.Serialize(fundFixture, new JsonSerializerOptions { WriteIndented = true }),
                         token);
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "g2-order-trade-fixture.json"),
+                        JsonSerializer.Serialize(orderTradeFixture, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
                     return Observation(
                         $"valueDate={baseline.ValueDate:yyyy-MM-dd}; importDate={baseline.ImportDate:yyyy-MM-dd}; "
                         + $"securitiesFixture={(securitiesFixture is null ? "not-in-slice" : $"{securitiesFixture.FuturesContractId}/{securitiesFixture.OptionContractId}")}; "
@@ -319,7 +342,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         + $"runOwnedLookupRows={baseline.RunOwnedLookupTypes.Length}; "
                         + $"designatedFund={(baseline.DesignatedFund is null ? "absent" : $"{baseline.DesignatedFund.FundId}:{baseline.DesignatedFund.Name}")}; "
                         + $"fundTransactions={baseline.DesignatedFundTransactions.Length}; fundOrders={baseline.DesignatedFundOrders.Length}; fundTrades={baseline.DesignatedFundTrades.Length}.",
-                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json", "processes/g2-yield-curve-fixture.json", "processes/g2-economic-calendar-fixture.json", "processes/g2-lookup-type-fixture.json", "processes/g2-fund-fixture.json"]);
+                        ["processes/g2-baseline.json", "processes/g2-securities-fixture.json", "processes/g2-yield-curve-fixture.json", "processes/g2-economic-calendar-fixture.json", "processes/g2-lookup-type-fixture.json", "processes/g2-fund-fixture.json", "processes/g2-order-trade-fixture.json"]);
                 });
 
             await Step("G2-006", "Launch the desktop and await initialized shell",
@@ -375,7 +398,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-command-listener-catalog.json", "network/g2-command-events.json"]);
                 });
 
-            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
                 await Step("G2-008", "Start the current market-data feed from the UI",
                 "One UI start command is correlated from source event to successful terminal event and the shell shows the feed as active.",
                 async token =>
@@ -411,7 +434,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
                 await Step("G2-009", "Stop the current market-data feed from the UI",
                 "One UI stop command is correlated from source event to successful terminal event and the shell shows the feed as inactive.",
                 async token =>
@@ -434,7 +457,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-market-data-feed-events.json", .. artifacts]);
                 });
 
-            if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+            if (!yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
             {
             await Step("G2-010", "Add a futures contract from the UI",
                 "The UI adds the exact run-owned futures fixture, its source and successful terminal events correlate by command ID, and the typed query returns the durable row.",
@@ -662,7 +685,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 });
             }
 
-            if (!securitiesSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+            if (!securitiesSlice && !economicCalendarSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
             {
             await Step("G2-016", "Add an isolated yield-curve record manually",
                 "The real editor submits the manual yield-curve add command without FMP, source and successful terminal events correlate by command ID, and durable/UI state contains the exact row.",
@@ -846,7 +869,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 });
             }
 
-            if (!securitiesSlice && !yieldCurveSlice && !lookupSlice && !fundSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !lookupSlice && !fundSlice && !orderTradeSlice)
             {
             await Step("G2-020", "Add an isolated economic-calendar record manually",
                 "The real editor submits the manual MarketData add command without FMP, source and successful terminal events correlate by command ID, and bounded durable/UI state contains the exact row.",
@@ -1049,7 +1072,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 });
             }
 
-            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !fundSlice)
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !fundSlice && !orderTradeSlice)
             {
             await Step("G2-024", "Add an isolated lookup value from the UI",
                 "The real lookup editor submits one run-owned value, exact source/success events correlate by command ID, and the typed durable query plus refreshed UI show every business field.",
@@ -1180,8 +1203,8 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 {
                     RequirePassed(
                         recorder,
-                        fundSlice ? "G2-007" : "G2-026",
-                        fundSlice
+                        fundSlice || orderTradeSlice ? "G2-007" : "G2-026",
+                        fundSlice || orderTradeSlice
                             ? "The safety/startup prerequisites must complete before resolving the retained fund fixture."
                             : "Lookup maintenance must complete before fund transaction verification.");
                     var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
@@ -1249,6 +1272,11 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         token);
                     await WriteFundCommandEvidenceAsync(evidence, observer, token);
                     var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-027-fund-fixture");
+                    if (orderTradeSlice)
+                    {
+                        await ui.CloseWindowAsync(fundWindow, process.ReadinessTimeout, token);
+                        fundWindow = null;
+                    }
                     return Observation(
                         $"fund={designatedFund.FundId}:{designatedFund.Name}; "
                         + $"created={(creation is not null)}; production={designatedFund.IsProduction}; "
@@ -1256,6 +1284,8 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-fund-command-events.json", "queries/G2-027.json", .. artifacts]);
                 });
 
+            if (!orderTradeSlice)
+            {
             await Step("G2-028", "Create a reversible fund cash transaction",
                 "A run-referenced cash deposit completes through the public UI/domain command, changes the queried and displayed balance by the configured amount, and appears exactly once in immutable transaction history.",
                 async token =>
@@ -1367,6 +1397,249 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["network/g2-fund-command-events.json", "queries/G2-029.json", .. artifacts]);
                 });
             }
+            }
+
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice)
+            {
+            await Step("G2-030", "Add an isolated order to the reusable G2 fund",
+                "The real Trade Orders editor submits one run-referenced open order; exact source/terminal correlation, typed durable state, and the refreshed selected-fund list agree.",
+                async token =>
+                {
+                    RequirePassed(
+                        recorder,
+                        orderTradeSlice ? "G2-027" : "G2-029",
+                        "The reusable fund fixture and preceding reversible fund flow must complete before order creation.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fund = designatedFund ?? throw new InvalidOperationException("G2 designated fund is unavailable.");
+                    var fixture = orderTradeFixture ?? throw new InvalidOperationException("G2 order/trade fixture is unavailable.");
+                    var snapshot = baseline ?? throw new InvalidOperationException("G2 baseline is unavailable.");
+
+                    ui.InvokeToolbarAction("Trade");
+                    tradeWindow = await ui.WaitForWindowAsync("Trade Orders", process.ReadinessTimeout, token);
+                    var transition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(OrderAddedToFundEvent),
+                        operationToken => ui.CreateFundOrderAsync(
+                            tradeWindow,
+                            fund.Name,
+                            fixture,
+                            snapshot.ValueDate,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    createdFundOrder = await WaitForFundOrderAsync(
+                        querySession,
+                        fund.FundId,
+                        transition.Terminal.FundOrder!.OrderId,
+                        fixture.OrderReference,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    ValidateFundOrder(createdFundOrder!, fund.FundId, fixture, snapshot.ValueDate);
+                    await WriteFundOrderEvidenceAsync(
+                        evidence, observer, "G2-030", transition, createdFundOrder, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-030-order-added");
+                    return Observation(
+                        $"fund={fund.FundId}; order={createdFundOrder!.OrderId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; reference={createdFundOrder.Reference}; "
+                        + $"baseContract={createdFundOrder.BaseContractId}.",
+                        ["network/g2-fund-order-command-events.json", "queries/G2-030.json", .. artifacts]);
+                });
+
+            await Step("G2-031", "Add an isolated trade to the order",
+                "The selected order receives one run-referenced NewTrade through the real UI/domain command; exact event, durable, and refreshed visible identities agree.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-030", "The isolated parent order must exist before adding its trade.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fund = designatedFund ?? throw new InvalidOperationException("G2 designated fund is unavailable.");
+                    var order = createdFundOrder ?? throw new InvalidOperationException("G2 order is unavailable.");
+                    var fixture = orderTradeFixture ?? throw new InvalidOperationException("G2 order/trade fixture is unavailable.");
+                    var window = tradeWindow ?? throw new InvalidOperationException("Trade Orders editor is unavailable.");
+
+                    var transition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(TradeAddedToFundOrderEvent),
+                        operationToken => ui.AddFundOrderTradeAsync(
+                            window,
+                            fund.Name,
+                            order.OrderId,
+                            fixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    createdFundOrderTrade = await WaitForFundOrderTradeAsync(
+                        querySession,
+                        fund.FundId,
+                        order.OrderId,
+                        transition.Terminal.FundOrderTrade!.TradeId,
+                        fixture.TradeReference,
+                        fixture.InitialTradeState,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    ValidateFundOrderTrade(createdFundOrderTrade!, fund.FundId, order.OrderId, fixture);
+                    await WriteFundOrderEvidenceAsync(
+                        evidence, observer, "G2-031", transition, createdFundOrderTrade, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-031-trade-added");
+                    return Observation(
+                        $"fund={fund.FundId}; order={order.OrderId}; trade={createdFundOrderTrade!.TradeId}; "
+                        + $"command={transition.CommandId}; terminal={transition.TerminalEventName}; "
+                        + $"state={createdFundOrderTrade.TradeState}; reference={createdFundOrderTrade.Reference}.",
+                        ["network/g2-fund-order-command-events.json", "queries/G2-031.json", .. artifacts]);
+                });
+
+            await Step("G2-032", "Change the isolated trade state",
+                "The editor changes NewTrade to OrderSubmitted through ChangeFundOrderTradeState; the exact terminal event, durable projection, and visible state column agree.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-031", "The isolated trade must exist before its state transition.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fund = designatedFund ?? throw new InvalidOperationException("G2 designated fund is unavailable.");
+                    var order = createdFundOrder ?? throw new InvalidOperationException("G2 order is unavailable.");
+                    var trade = createdFundOrderTrade ?? throw new InvalidOperationException("G2 trade is unavailable.");
+                    var fixture = orderTradeFixture ?? throw new InvalidOperationException("G2 order/trade fixture is unavailable.");
+                    var window = tradeWindow ?? throw new InvalidOperationException("Trade Orders editor is unavailable.");
+
+                    var transition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(FundOrderTradeStateChangedEvent),
+                        operationToken => ui.ChangeFundOrderTradeStateAsync(
+                            window,
+                            fund.Name,
+                            order.OrderId,
+                            trade.TradeId,
+                            fixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    createdFundOrderTrade = await WaitForFundOrderTradeAsync(
+                        querySession,
+                        fund.FundId,
+                        order.OrderId,
+                        trade.TradeId,
+                        fixture.TradeReference,
+                        fixture.ChangedTradeState,
+                        present: true,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteFundOrderEvidenceAsync(
+                        evidence, observer, "G2-032", transition, createdFundOrderTrade, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-032-trade-state-changed");
+                    return Observation(
+                        $"fund={fund.FundId}; order={order.OrderId}; trade={trade.TradeId}; "
+                        + $"command={transition.CommandId}; terminal={transition.TerminalEventName}; "
+                        + $"state={createdFundOrderTrade!.TradeState}.",
+                        ["network/g2-fund-order-command-events.json", "queries/G2-032.json", .. artifacts]);
+                });
+
+            await Step("G2-033", "Remove the isolated trade from the order",
+                "The child trade is removed first through its domain command and disappears from both the typed query and refreshed selected-order list.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-032", "The changed child trade must exist before removal.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fund = designatedFund ?? throw new InvalidOperationException("G2 designated fund is unavailable.");
+                    var order = createdFundOrder ?? throw new InvalidOperationException("G2 order is unavailable.");
+                    var trade = createdFundOrderTrade ?? throw new InvalidOperationException("G2 trade is unavailable.");
+                    var fixture = orderTradeFixture ?? throw new InvalidOperationException("G2 order/trade fixture is unavailable.");
+                    var window = tradeWindow ?? throw new InvalidOperationException("Trade Orders editor is unavailable.");
+
+                    var transition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(TradeRemovedFromFundOrderEvent),
+                        operationToken => ui.RemoveFundOrderTradeAsync(
+                            window,
+                            fund.Name,
+                            order.OrderId,
+                            trade.TradeId,
+                            fixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFundOrderTradeAsync(
+                        querySession,
+                        fund.FundId,
+                        order.OrderId,
+                        trade.TradeId,
+                        expectedReference: null,
+                        expectedState: null,
+                        present: false,
+                        process.ReadinessTimeout,
+                        token);
+                    await WriteFundOrderEvidenceAsync(
+                        evidence, observer, "G2-033", transition, durable, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-033-trade-removed");
+                    return Observation(
+                        $"fund={fund.FundId}; order={order.OrderId}; trade={trade.TradeId}; "
+                        + $"command={transition.CommandId}; terminal={transition.TerminalEventName}; childAbsent=true.",
+                        ["network/g2-fund-order-command-events.json", "queries/G2-033.json", .. artifacts]);
+                });
+
+            await Step("G2-034", "Remove the isolated order from the fund",
+                "After child removal, the parent order is removed through its domain command and no run-owned order or trade remains in typed or refreshed UI state.",
+                async token =>
+                {
+                    RequirePassed(recorder, "G2-033", "The child trade must be absent before parent-order removal.");
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var fund = designatedFund ?? throw new InvalidOperationException("G2 designated fund is unavailable.");
+                    var order = createdFundOrder ?? throw new InvalidOperationException("G2 order is unavailable.");
+                    var fixture = orderTradeFixture ?? throw new InvalidOperationException("G2 order/trade fixture is unavailable.");
+                    var window = tradeWindow ?? throw new InvalidOperationException("Trade Orders editor is unavailable.");
+
+                    var transition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(OrderRemovedFromFundEvent),
+                        operationToken => ui.RemoveFundOrderAsync(
+                            window,
+                            fund.Name,
+                            order.OrderId,
+                            fixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    var durable = await WaitForFundOrderAsync(
+                        querySession,
+                        fund.FundId,
+                        order.OrderId,
+                        expectedReference: null,
+                        present: false,
+                        process.ReadinessTimeout,
+                        token);
+                    var runTrades = RequireQueryValue(
+                            await querySession.Fund.GetFundOrderTradesAsync().WaitAsync(process.ReadinessTimeout, token),
+                            "fund order trades after G2 parent removal")
+                        .Where(item => item.FundId == fund.FundId
+                                       && item.Reference.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                    if (runTrades.Length > 0)
+                        throw new InvalidOperationException("Run-owned child trade state remains after parent removal.");
+                    await WriteFundOrderEvidenceAsync(
+                        evidence, observer, "G2-034", transition, new { DurableOrder = durable, RunTrades = runTrades }, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-034-order-removed");
+                    await ui.CloseWindowAsync(window, process.ReadinessTimeout, token);
+                    tradeWindow = null;
+                    return Observation(
+                        $"fund={fund.FundId}; order={order.OrderId}; command={transition.CommandId}; "
+                        + $"terminal={transition.TerminalEventName}; parentAbsent=true; runTrades=0; childFirst=true.",
+                        ["network/g2-fund-order-command-events.json", "queries/G2-034.json", .. artifacts]);
+                });
+            }
         }
         finally
         {
@@ -1374,6 +1647,29 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             {
                 try { automation.CloseAllSecondaryWindows(); }
                 catch (Exception exception) { cleanupFailures.Add("Secondary-window cleanup failed: " + exception.Message); }
+            }
+
+            if (!securitiesSlice && !yieldCurveSlice && !economicCalendarSlice && !lookupSlice && !fundSlice
+                && queries is not null
+                && commandObserver is not null
+                && orderTradeFixture is not null
+                && designatedFund is not null
+                && baseline is not null
+                && api is not null
+                && !api.Process.HasExited)
+            {
+                var cleanup = await CleanupFundOrderTradeFixtureAsync(
+                    queries,
+                    commandObserver,
+                    orderTradeFixture,
+                    designatedFund,
+                    baseline,
+                    process.ReadinessTimeout);
+                await evidence.WriteTextAsync(
+                    Path.Combine("processes", "g2-fund-order-trade-cleanup.json"),
+                    JsonSerializer.Serialize(cleanup, new JsonSerializerOptions { WriteIndented = true }));
+                if (!cleanup.Succeeded)
+                    cleanupFailures.Add("Fund order/trade child-first cleanup failed: " + cleanup.Error);
             }
 
             if (queries is not null
@@ -1569,7 +1865,9 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                                 ? "G2-001-007 plus G2-024-026 harness cleanup; this is not G2-037 or G2-038 acceptance"
                                 : fundSlice
                                     ? "G2-001-007 plus G2-027-029 fund reconciliation; this is not G2-037 or G2-038 acceptance"
-                                    : "G2-001-029 harness cleanup, imported-date restoration, and fund reconciliation; this is not G2-037 or G2-038 acceptance",
+                                    : orderTradeSlice
+                                        ? "G2-001-007 plus G2-027 and G2-030-034 child-first order/trade cleanup; this is not G2-037 or G2-038 acceptance"
+                                        : "G2-001-034 harness cleanup, imported-date restoration, fund reconciliation, and child-first order/trade cleanup; this is not G2-037 or G2-038 acceptance",
                     Succeeded = run.CleanupSucceeded,
                     Failures = cleanupFailures
                 }, new JsonSerializerOptions { WriteIndented = true }));
@@ -1972,6 +2270,90 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             uiState);
     }
 
+    static async Task<G2FundOrderTransitionEvidence> ExecuteFundOrderMutationAsync(
+        G2CommandEventObserver observer,
+        string sourceEventName,
+        Func<CancellationToken, Task<G2TradeOrderUiState>> invokeUi,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var operationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var invokedUtc = DateTimeOffset.UtcNow;
+        var uiTask = invokeUi(operationSource.Token);
+        var sourceTask = observer.WaitForAsync(
+            rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                    && row.Family == "FundOrder"
+                                    && row.EventName == sourceEventName
+                                    && row.Success is null),
+            timeout,
+            operationSource.Token);
+        if (await Task.WhenAny(sourceTask, uiTask).ConfigureAwait(false) == uiTask)
+            await uiTask.ConfigureAwait(false);
+        var sourceEvents = await sourceTask.ConfigureAwait(false);
+        var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                              && row.Family == "FundOrder"
+                                              && row.EventName == sourceEventName
+                                              && row.Success is null);
+        var terminalEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.Family == "FundOrder"
+                                    && row.CommandId == source.CommandId
+                                    && row.Success.HasValue),
+            timeout,
+            cancellationToken);
+        var terminal = terminalEvents.Last(row => row.Family == "FundOrder"
+                                                  && row.CommandId == source.CommandId
+                                                  && row.Success.HasValue);
+        if (terminal.Success != true)
+        {
+            operationSource.Cancel();
+            try { await uiTask.ConfigureAwait(false); }
+            catch { /* Preserve the correlated backend failure below. */ }
+            throw new InvalidOperationException(
+                $"{sourceEventName} command {source.CommandId} failed: {terminal.ErrorMessage}");
+        }
+        ValidateFundOrderEventPayloads(source, terminal);
+        var uiState = await uiTask.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        return new G2FundOrderTransitionEvidence(
+            source.CommandId,
+            source.EventName,
+            terminal.EventName,
+            source.ObservedUtc,
+            terminal.ObservedUtc,
+            source,
+            terminal,
+            uiState);
+    }
+
+    static void ValidateFundOrderEventPayloads(
+        G2ObservedCommandEvent source,
+        G2ObservedCommandEvent terminal)
+    {
+        var valid = source.EventName switch
+        {
+            nameof(OrderAddedToFundEvent) => source.FundOrder is not null
+                && terminal.FundOrder is not null
+                && source.FundOrder.Id == terminal.FundOrder.Id
+                && string.Equals(source.FundOrder.Reference, terminal.FundOrder.Reference, StringComparison.Ordinal),
+            nameof(OrderRemovedFromFundEvent) => source.FundOrderId is not null
+                && source.FundOrderId == terminal.FundOrderId,
+            nameof(TradeAddedToFundOrderEvent) => source.FundOrderTrade is not null
+                && terminal.FundOrderTrade is not null
+                && source.FundOrderTrade.Id == terminal.FundOrderTrade.Id
+                && source.FundOrderTrade.TradeState == terminal.FundOrderTrade.TradeState
+                && string.Equals(source.FundOrderTrade.Reference, terminal.FundOrderTrade.Reference, StringComparison.Ordinal),
+            nameof(TradeRemovedFromFundOrderEvent) => source.FundOrderTradeId is not null
+                && source.FundOrderTradeId == terminal.FundOrderTradeId,
+            nameof(FundOrderTradeStateChangedEvent) => source.FundOrderTradeId is not null
+                && source.FundOrderTradeId == terminal.FundOrderTradeId
+                && source.TradeState is not null
+                && source.TradeState == terminal.TradeState,
+            _ => false
+        };
+        if (!valid)
+            throw new InvalidOperationException(
+                $"Fund-order source and terminal payloads do not agree for {source.EventName} command {source.CommandId}.");
+    }
+
     static async Task<FundReadModel> WaitForFundAsync(
         G0QuerySession queries,
         string fundName,
@@ -2039,6 +2421,108 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         }
         throw new TimeoutException(
             $"Fund {fundId} did not expose exactly one transaction for each required run reference within {timeout}.");
+    }
+
+    static async Task<FundOrderReadModel?> WaitForFundOrderAsync(
+        G0QuerySession queries,
+        int fundId,
+        int orderId,
+        string? expectedReference,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var result = await queries.Fund.GetFundOrdersAsync().ConfigureAwait(false);
+            if (result.Success && result.Value is { } orders)
+            {
+                var order = orders.SingleOrDefault(item => item.FundId == fundId && item.OrderId == orderId);
+                if (!present && order is null)
+                    return null;
+                if (present && order is not null
+                    && (expectedReference is null
+                        || string.Equals(order.Reference, expectedReference, StringComparison.Ordinal)))
+                    return order;
+            }
+            await DelayForProjectionAsync(timeoutSource.Token, cancellationToken).ConfigureAwait(false);
+        }
+        throw new TimeoutException(
+            $"Fund {fundId} order {orderId} did not become {(present ? "durable" : "absent")} within {timeout}.");
+    }
+
+    static async Task<FundOrderTradeReadModel?> WaitForFundOrderTradeAsync(
+        G0QuerySession queries,
+        int fundId,
+        int orderId,
+        int tradeId,
+        string? expectedReference,
+        TradeState? expectedState,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var result = await queries.Fund.GetFundOrderTradesAsync().ConfigureAwait(false);
+            if (result.Success && result.Value is { } trades)
+            {
+                var trade = trades.SingleOrDefault(item => item.FundId == fundId
+                                                           && item.OrderId == orderId
+                                                           && item.TradeId == tradeId);
+                if (!present && trade is null)
+                    return null;
+                if (present && trade is not null
+                    && (expectedReference is null
+                        || string.Equals(trade.Reference, expectedReference, StringComparison.Ordinal))
+                    && (expectedState is null || trade.TradeState == expectedState))
+                    return trade;
+            }
+            await DelayForProjectionAsync(timeoutSource.Token, cancellationToken).ConfigureAwait(false);
+        }
+        throw new TimeoutException(
+            $"Fund {fundId} order {orderId} trade {tradeId} did not become "
+            + $"{(present ? "durable in the expected state" : "absent")} within {timeout}.");
+    }
+
+    static void ValidateFundOrder(
+        FundOrderReadModel order,
+        int fundId,
+        G2OrderTradeFixture fixture,
+        DateOnly tradeDate)
+    {
+        if (order.FundId != fundId
+            || order.OrderId <= 0
+            || order.OrderStatus != TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open
+            || order.TradeDate != tradeDate
+            || order.MaturityDate != tradeDate.AddDays(fixture.MaturityDays)
+            || string.IsNullOrWhiteSpace(order.BaseContractId)
+            || !string.Equals(order.Reference, fixture.OrderReference, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Unexpected G2 fund order: fund={order.FundId}; order={order.OrderId}; "
+                + $"status={order.OrderStatus}; tradeDate={order.TradeDate}; maturity={order.MaturityDate}; "
+                + $"base={order.BaseContractId}; reference={order.Reference}.");
+    }
+
+    static void ValidateFundOrderTrade(
+        FundOrderTradeReadModel trade,
+        int fundId,
+        int orderId,
+        G2OrderTradeFixture fixture)
+    {
+        if (trade.FundId != fundId
+            || trade.OrderId != orderId
+            || trade.TradeId <= 0
+            || trade.TradeType != fixture.TradeType
+            || trade.TradeState != fixture.InitialTradeState
+            || !string.Equals(trade.Reference, fixture.TradeReference, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                $"Unexpected G2 fund-order trade: fund={trade.FundId}; order={trade.OrderId}; trade={trade.TradeId}; "
+                + $"type={trade.TradeType}; state={trade.TradeState}; reference={trade.Reference}.");
     }
 
     static void ValidateCashTransaction(
@@ -2427,6 +2911,27 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             cancellationToken);
     }
 
+    static async Task WriteFundOrderEvidenceAsync(
+        G0EvidenceWriter evidence,
+        G2CommandEventObserver observer,
+        string stepId,
+        G2FundOrderTransitionEvidence transition,
+        object? durableState,
+        CancellationToken cancellationToken)
+    {
+        await evidence.WriteTextAsync(
+            Path.Combine("network", "g2-fund-order-command-events.json"),
+            JsonSerializer.Serialize(
+                observer.Events.Where(row => row.Family == "FundOrder"),
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+        await evidence.WriteTextAsync(
+            Path.Combine("queries", stepId + ".json"),
+            JsonSerializer.Serialize(new { Transition = transition, DurableState = durableState },
+                new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+    }
+
     static async Task DelayForProjectionAsync(
         CancellationToken timeoutToken,
         CancellationToken cancellationToken)
@@ -2505,6 +3010,102 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         catch (Exception exception)
         {
             return new G2FundCleanupEvidence(false, actions, exception.ToString());
+        }
+    }
+
+    static async Task<G2FundOrderTradeCleanupEvidence> CleanupFundOrderTradeFixtureAsync(
+        G0QuerySession queries,
+        G2CommandEventObserver observer,
+        G2OrderTradeFixture fixture,
+        FundReadModel fund,
+        G2BaselineSnapshot baseline,
+        TimeSpan timeout)
+    {
+        List<string> actions = [];
+        try
+        {
+            var orders = RequireQueryValue(
+                    await queries.Fund.GetFundOrdersAsync().WaitAsync(timeout),
+                    "fund orders during G2 child-first cleanup")
+                .Where(order => order.FundId == fund.FundId
+                                && string.Equals(order.Reference, fixture.OrderReference, StringComparison.Ordinal))
+                .ToArray();
+            var trades = RequireQueryValue(
+                await queries.Fund.GetFundOrderTradesAsync().WaitAsync(timeout),
+                "fund order trades during G2 child-first cleanup");
+
+            foreach (var order in orders)
+            {
+                foreach (var trade in trades.Where(trade => trade.FundId == fund.FundId
+                                                             && trade.OrderId == order.OrderId))
+                {
+                    var childResult = await queries.FundCommands.RemoveTradeFromFundOrderAsync(trade.Id)
+                        .WaitAsync(timeout);
+                    var childCommandId = RequireCommandId(childResult, "cleanup fund-order trade removal");
+                    await AwaitSuccessfulTerminalAsync(observer, childCommandId, timeout);
+                    await WaitForFundOrderTradeAsync(
+                        queries,
+                        fund.FundId,
+                        order.OrderId,
+                        trade.TradeId,
+                        expectedReference: null,
+                        expectedState: null,
+                        present: false,
+                        timeout,
+                        CancellationToken.None);
+                    actions.Add(
+                        $"Removed child trade {order.OrderId}:{trade.TradeId} with command {childCommandId}.");
+                }
+
+                var result = await queries.FundCommands.RemoveOrderFromFundAsync(order.Id)
+                    .WaitAsync(timeout);
+                var commandId = RequireCommandId(result, "cleanup fund order removal");
+                await AwaitSuccessfulTerminalAsync(observer, commandId, timeout);
+                await WaitForFundOrderAsync(
+                    queries,
+                    fund.FundId,
+                    order.OrderId,
+                    expectedReference: null,
+                    present: false,
+                    timeout,
+                    CancellationToken.None);
+                actions.Add($"Removed parent order {order.OrderId} with command {commandId}.");
+            }
+
+            var finalOrders = RequireQueryValue(
+                    await queries.Fund.GetFundOrdersAsync().WaitAsync(timeout),
+                    "fund orders after G2 child-first cleanup")
+                .Where(order => order.FundId == fund.FundId)
+                .ToArray();
+            var finalTrades = RequireQueryValue(
+                    await queries.Fund.GetFundOrderTradesAsync().WaitAsync(timeout),
+                    "fund order trades after G2 child-first cleanup")
+                .Where(trade => trade.FundId == fund.FundId)
+                .ToArray();
+            if (finalOrders.Any(order => string.Equals(
+                    order.Reference, fixture.OrderReference, StringComparison.Ordinal))
+                || finalTrades.Any(trade => string.Equals(
+                    trade.Reference, fixture.TradeReference, StringComparison.Ordinal)))
+                throw new InvalidOperationException("Run-owned order/trade state remains after cleanup.");
+
+            var expectedOrderIds = baseline.DesignatedFundOrders
+                .Select(order => order.Id.Format())
+                .ToHashSet(StringComparer.Ordinal);
+            var actualOrderIds = finalOrders.Select(order => order.Id.Format()).ToHashSet(StringComparer.Ordinal);
+            var expectedTradeIds = baseline.DesignatedFundTrades
+                .Select(trade => trade.Id.Format())
+                .ToHashSet(StringComparer.Ordinal);
+            var actualTradeIds = finalTrades.Select(trade => trade.Id.Format()).ToHashSet(StringComparer.Ordinal);
+            if (!expectedOrderIds.SetEquals(actualOrderIds) || !expectedTradeIds.SetEquals(actualTradeIds))
+                throw new InvalidOperationException(
+                    "Designated-fund order/trade identities do not match the captured baseline after cleanup.");
+            actions.Add(
+                $"Verified baseline restoration: orders={actualOrderIds.Count}; trades={actualTradeIds.Count}.");
+            return new G2FundOrderTradeCleanupEvidence(true, actions, string.Empty);
+        }
+        catch (Exception exception)
+        {
+            return new G2FundOrderTradeCleanupEvidence(false, actions, exception.ToString());
         }
     }
 
@@ -2929,7 +3530,22 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         FundTransactionReadModel TerminalTransaction,
         G2FundTransactionUiState UiState);
 
+    sealed record G2FundOrderTransitionEvidence(
+        Guid CommandId,
+        string SourceEventName,
+        string TerminalEventName,
+        DateTimeOffset SourceObservedUtc,
+        DateTimeOffset TerminalObservedUtc,
+        G2ObservedCommandEvent Source,
+        G2ObservedCommandEvent Terminal,
+        G2TradeOrderUiState UiState);
+
     sealed record G2FundCleanupEvidence(
+        bool Succeeded,
+        IReadOnlyList<string> Actions,
+        string Error);
+
+    sealed record G2FundOrderTradeCleanupEvidence(
         bool Succeeded,
         IReadOnlyList<string> Actions,
         string Error);

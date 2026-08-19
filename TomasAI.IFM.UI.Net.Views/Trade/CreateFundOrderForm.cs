@@ -195,6 +195,12 @@ public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFo
             _viewModel.SetMaturityDate(DateOnly.FromDateTime(dtpMaturityDate.Value));
     }
 
+    void txtReference_TextChanged(object sender, EventArgs e)
+    {
+        if (!_rendering)
+            _viewModel.SetReference(txtReference.Text);
+    }
+
     public void Open() => throw new NotImplementedException();
 
     void IFormControl.Resize(Control parentControl) => throw new NotImplementedException();

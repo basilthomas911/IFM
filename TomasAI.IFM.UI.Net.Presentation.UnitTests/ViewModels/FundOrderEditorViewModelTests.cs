@@ -69,6 +69,19 @@ public class FundOrderEditorViewModelTests
     }
 
     [Fact]
+    public async Task OperatorReferenceOverride_IsTrimmedAndPublishedInTheOrderPayload()
+    {
+        var subject = CreateSubject();
+        await subject.ViewModel.LoadOperation.ExecuteAsync();
+
+        subject.ViewModel.SetReference("  G2-UNITTEST-Order  ");
+
+        subject.ViewModel.Reference.Should().Be("G2-UNITTEST-Order");
+        subject.ViewModel.FundOrder.Reference.Should().Be("G2-UNITTEST-Order");
+        subject.ViewModel.CanSave.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task LoadOperation_IsSingleFlightAndBlocksSelectionWhileRunning()
     {
         var completion = new TaskCompletionSource<ServiceResult<ScalarReadModel<int>>>(
