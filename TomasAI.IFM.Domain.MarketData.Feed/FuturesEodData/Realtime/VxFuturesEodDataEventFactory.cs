@@ -13,8 +13,9 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
 internal static class VxFuturesEodDataEventFactory
 {
     internal static VixFuturesEodDataInsertedEvent Create(
-        IEvent<TickDataEntityId> source,
-        FuturesTickDataV2ReadModel tickData)
+        IEvent source,
+        FuturesTickDataV2ReadModel tickData,
+        FuturesSessionStatisticsSnapshot? sessionStatistics = null)
     {
         var entityId = new FuturesEodDataId(tickData.ContractId, tickData.ValueDate);
         return new VixFuturesEodDataInsertedEvent
@@ -31,6 +32,7 @@ internal static class VxFuturesEodDataEventFactory
             EventSource = source.EventName,
             ReceivedOn = DateTime.UtcNow,
             VixFuturesTickData = tickData,
+            SessionStatistics = sessionStatistics,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
         };

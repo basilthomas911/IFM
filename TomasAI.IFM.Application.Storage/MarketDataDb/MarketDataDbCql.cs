@@ -1203,7 +1203,7 @@ internal static class MarketDataDbCql
             ValueDate as "ValueDate", 
             max(price) as "HighPrice",
             min(price) as "LowPrice",
-            sum(size) as "Volume"
+            sum(cast(size as bigint)) as "Volume"
         FROM futures_tick_data
         WHERE ContractId = :contractId
         AND ValueDate = :valueDate
@@ -1221,6 +1221,7 @@ internal static class MarketDataDbCql
             openPrice = :openPrice,
             highPrice = :highPrice,
             lowPrice = :lowPrice,
+            volume = :volume,
             dailyPercentChange = :dailyPercentChange,
             priceDirection = :priceDirection
         WHERE

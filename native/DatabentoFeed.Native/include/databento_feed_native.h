@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-enum { DBF_ABI_VERSION = 1u, DBF_WAIT_INFINITE = 0xffffffffu };
+enum { DBF_ABI_VERSION = 2u, DBF_WAIT_INFINITE = 0xffffffffu };
 
 typedef enum dbf_status {
     DBF_OK = 0,
@@ -63,14 +63,16 @@ typedef enum dbf_record_kind {
     DBF_RECORD_TRADE = 2,
     DBF_RECORD_MBO = 3,
     DBF_RECORD_STATISTICS = 4,
-    DBF_RECORD_STATISTICS_REPLAY_COMPLETE = 5
+    DBF_RECORD_STATISTICS_REPLAY_COMPLETE = 5,
+    DBF_RECORD_TRADE_REPLAY_COMPLETE = 6
 } dbf_record_kind;
 
 typedef enum dbf_market_data_kind_flags {
     DBF_MARKET_DATA_QUOTE = 1,
     DBF_MARKET_DATA_TRADE = 2,
     DBF_MARKET_DATA_MBO = 4,
-    DBF_MARKET_DATA_STATISTICS = 8
+    DBF_MARKET_DATA_STATISTICS = 8,
+    DBF_MARKET_DATA_SESSION_VOLUME = 16
 } dbf_market_data_kind_flags;
 
 typedef enum dbf_record_flags {
@@ -202,14 +204,13 @@ typedef struct dbf_mbo_record64 {
 typedef struct dbf_statistics_record64 {
     dbf_record_header32 header;
     int64_t price;
+    int64_t quantity;
     int64_t ts_ref_ns;
-    int32_t ts_in_delta_ns;
     uint16_t stat_type;
     uint16_t channel_id;
     uint8_t update_action;
     uint8_t stat_flags;
     uint16_t reserved16;
-    uint32_t reserved32;
 } dbf_statistics_record64;
 
 typedef union dbf_market_record64 {
@@ -251,7 +252,8 @@ typedef struct dbf_feed_config_v1 {
     uint16_t drain_alternate_logical_processor;
     uint32_t reserved32;
     uint64_t statistics_replay_start_ns;
-    uint64_t reserved[2];
+    uint64_t trade_replay_start_ns;
+    uint64_t reserved[1];
 } dbf_feed_config_v1;
 
 typedef struct dbf_ticker_subscription_v1 {

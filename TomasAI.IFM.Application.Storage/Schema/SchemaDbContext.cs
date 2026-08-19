@@ -76,6 +76,40 @@ public abstract class SchemaDbContext<TSchemaDb>(
     public async Task CreateAllAsync()
         => await CreateAsync(ManagedObjects).ConfigureAwait(false);
 
+    /// <summary>
+    /// Destructively recreates only the named objects. Callers must explicitly name
+    /// every disposable object; dependencies are dropped in reverse declaration order
+    /// and recreated in declaration order.
+    /// </summary>
+    public async Task RecreateAsync(
+        IReadOnlyCollection<string> objectNames,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(objectNames);
+        var requested = objectNames.ToHashSet(StringComparer.Ordinal);
+        if (requested.Count != objectNames.Count)
+            throw new ArgumentException("Schema object names must be unique.", nameof(objectNames));
+
+        var known = Definitions.Select(static definition => definition.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        var unknown = requested.Except(known).Order(StringComparer.Ordinal).ToArray();
+        if (unknown.Length != 0)
+            throw new ArgumentException(
+                $"Unknown managed schema object(s): {string.Join(", ", unknown)}.",
+                nameof(objectNames));
+
+        foreach (var definition in Definitions.Reverse())
+        {
+            if (!requested.Contains(definition.Name))
+                continue;
+            cancellationToken.ThrowIfCancellationRequested();
+            await Use(definition.DropStatement)
+                .ExecuteCommandAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        await CreateAsync(objectNames, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task DropAllAsync()
     {
         foreach (var definition in Definitions.Reverse())

@@ -75,7 +75,7 @@ public record ProcessOptionTradeEndOfDayCommand : ICommand<OptionTradeEntityId>
 
     /// <summary>Trading volume.</summary>
     [Key(16)]
-    public int Volume { get; init; }
+    public long Volume { get; init; }
 
     /// <summary>Optional reference or note.</summary>
     [Key(17)]
@@ -100,7 +100,7 @@ public record ProcessOptionTradeEndOfDayCommand : ICommand<OptionTradeEntityId>
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume,
+        long volume,
         string reference)
     {
         FundId = fundId;
@@ -142,7 +142,7 @@ public record ProcessOptionTradeEndOfDayCommand : ICommand<OptionTradeEntityId>
         decimal highPrice,              // Key(13)
         decimal lowPrice,               // Key(14)
         decimal closePrice,             // Key(15)
-        int volume,                     // Key(16)
+        long volume,                    // Key(16)
         string reference)               // Key(17)
     {
         CommandId = commandId;

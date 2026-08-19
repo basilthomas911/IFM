@@ -80,8 +80,23 @@ public class MarketDataFixture : IDisposable
         var dbCache = new DbCache();
         var logger = Substitute.For<ILogger<DbProvider>>();
         logger.When(_ => { }).Do(_ => { });
-        new TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb(dbConn, logger)
-            .CreateAllAsync().GetAwaiter().GetResult();
+        var schema = new TomasAI.IFM.Application.Storage.MarketDataDb.Schema.MarketDataSchemaDb(
+            dbConn,
+            logger);
+        schema.RecreateAsync([
+            "futures_eod_data",
+            "futures_eod_data_by_month",
+            "futures_intra_day_data",
+            "vix_futures_eod_data",
+            "vix_futures_contract_index",
+            "market_data_projection_month",
+            "market_data_projection_state_v2",
+            "market_data_projection_mutation",
+            "market_data_projection_scope_state_v3",
+            "market_data_projection_scope_mutation_v3",
+            "futures_eod_data_index"
+        ]).GetAwaiter().GetResult();
+        schema.CreateAllAsync().GetAwaiter().GetResult();
         diContainer.Add(typeof(IObjectRepository<Storage.MarketDataDb.MarketDataDbContext>), new Storage.MarketDataDb.MarketDataDbContext(dbConn, dbFactory, blackboardService, SequenceIdGenerator, logger));
         diContainer.Add(typeof(IObjectRepository<SecuritiesDbContext>), SecDatabase );
 
@@ -478,6 +493,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             OpenPrice = 101m,
             HighPrice = 106m,
             LowPrice = 94m,
+            Volume = 3_500_000_000L,
             DailyPercentChange = 0.0099,
             PriceDirection = PriceDirectionType.Rising
         };
@@ -491,6 +507,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         canonical!.OpenPrice.Should().Be(101m);
         canonical.HighPrice.Should().Be(106m);
         canonical.LowPrice.Should().Be(94m);
+        canonical.Volume.Should().Be(3_500_000_000L);
         canonical.DailyPercentChange.Should().Be(0.0099);
         canonical.PriceDirection.Should().Be(PriceDirectionType.Rising);
         canonical.ClosePrice.Should().Be(original.ClosePrice);
@@ -509,6 +526,52 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             original.ContractId,
             original.ValueDate);
         afterIntraday.Should().HaveCount(beforeIntraday.Count);
+    }
+
+    [Fact]
+    public async Task UpsertVxSessionSnapshot_SetsBigintVolumeWithoutDoubleCounting()
+    {
+        var contractId = $"VX_SESSION_{Guid.NewGuid():N}";
+        var valueDate = new DateOnly(2048, 8, 18);
+        var tick = SampleData.VixFuturesTickData with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate,
+            Price = 20.25m,
+            Size = 17
+        };
+        var statistics = new FuturesSessionStatisticsSnapshot(
+            contractId,
+            valueDate,
+            20m,
+            21m,
+            19m,
+            100,
+            200,
+            4_500_000_000L,
+            FuturesSessionVolumeQuality.OfficialFinal);
+        await TestFixture.DevDatabase.DeleteVixFuturesEodDataAsync(contractId, valueDate);
+        try
+        {
+            await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(tick, statistics);
+            await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(
+                tick with { Price = 20.30m, Size = 0 },
+                statistics);
+
+            var stored = await TestFixture.DevDatabase.GetVixFuturesEodDataAsync(
+                contractId,
+                valueDate);
+            stored.Should().NotBeNull();
+            stored!.OpenPrice.Should().Be(20m);
+            stored.HighPrice.Should().Be(21m);
+            stored.LowPrice.Should().Be(19m);
+            stored.ClosePrice.Should().Be(20.30m);
+            stored.Volume.Should().Be(4_500_000_000L);
+        }
+        finally
+        {
+            await TestFixture.DevDatabase.DeleteVixFuturesEodDataAsync(contractId, valueDate);
+        }
     }
 
     [Fact]
@@ -1571,7 +1634,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             projectedEod.Where(row => row.ContractId.StartsWith($"SCOPED-EOD-{suffix}", StringComparison.Ordinal))
                 .Should().HaveCount(eodRows.Length);
 
-            await Task.WhenAll(vixRows.Select(db.InsertVixFuturesEodDataAsync));
+            await Task.WhenAll(vixRows.Select(row =>
+                db.InsertVixFuturesEodDataAsync(row)));
             (await db.GetQueryProjectionReadinessAsync()).VixFuturesContractIndex.Should().BeTrue();
             await AssertProjectionScopesReadyAsync(
                 db,

@@ -11,6 +11,23 @@
 
 namespace dbf_live {
 
+enum class replay_schema {
+    unknown,
+    trades,
+    statistics,
+};
+
+inline replay_schema classify_replay_schema(
+    std::string_view message) noexcept {
+    if (message.find("trades") != std::string_view::npos) {
+        return replay_schema::trades;
+    }
+    if (message.find("statistics") != std::string_view::npos) {
+        return replay_schema::statistics;
+    }
+    return replay_schema::unknown;
+}
+
 inline std::int64_t nanos(databento::UnixNanos value) noexcept {
     return value.time_since_epoch().count();
 }
@@ -40,7 +57,8 @@ inline void fill_header(dbf_record_header32& destination,
 
 inline bool normalize(const databento::Record& source,
                       dbf_market_record64& destination,
-                      bool statistics_replay = false) noexcept {
+                      bool statistics_replay = false,
+                      bool trade_replay = false) noexcept {
     destination = {};
     if (const auto* message = source.GetIf<databento::Mbp1Msg>()) {
         fill_header(destination.header, message->hd, DBF_RECORD_QUOTE,
@@ -65,6 +83,9 @@ inline bool normalize(const databento::Record& source,
                     static_cast<std::uint16_t>(databento::Schema::Trades));
         if (message->flags.IsSnapshot()) {
             destination.header.flags |= DBF_RECORD_FLAG_SNAPSHOT;
+        }
+        if (trade_replay) {
+            destination.header.flags |= DBF_RECORD_FLAG_REPLAY;
         }
         destination.trade.price = price_or_zero(
             message->price, destination.header.flags);
@@ -103,8 +124,8 @@ inline bool normalize(const databento::Record& source,
         }
         destination.statistics.price = price_or_zero(
             message->price, destination.header.flags);
+        destination.statistics.quantity = message->quantity;
         destination.statistics.ts_ref_ns = nanos(message->ts_ref);
-        destination.statistics.ts_in_delta_ns = message->ts_in_delta.count();
         destination.statistics.stat_type =
             static_cast<std::uint16_t>(message->stat_type);
         destination.statistics.channel_id = message->channel_id;

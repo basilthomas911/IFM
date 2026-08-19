@@ -43,7 +43,7 @@ public record VixFuturesEodDataReadModel
 
     /// <summary>Trading volume.</summary>
     [Key(6)]
-    public int Volume { get; init; }
+    public long Volume { get; init; }
 
     /// <summary>
     /// Composite entity identifier (not serialized).
@@ -67,7 +67,7 @@ public record VixFuturesEodDataReadModel
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume)
+        long volume)
     {
         ContractId = contractId;
         ValueDate = valueDate;

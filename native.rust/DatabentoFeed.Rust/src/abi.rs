@@ -1,6 +1,6 @@
 use core::ffi::c_void;
 
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;
 pub const WAIT_INFINITE: u32 = u32::MAX;
 pub const UNPINNED_PROCESSOR: u16 = u16::MAX;
 
@@ -39,10 +39,12 @@ pub const RECORD_TRADE: u8 = 2;
 pub const RECORD_MBO: u8 = 3;
 pub const RECORD_STATISTICS: u8 = 4;
 pub const RECORD_STATISTICS_REPLAY_COMPLETE: u8 = 5;
+pub const RECORD_TRADE_REPLAY_COMPLETE: u8 = 6;
 pub const MARKET_DATA_QUOTE: u32 = 1;
 pub const MARKET_DATA_TRADE: u32 = 2;
 pub const MARKET_DATA_MBO: u32 = 4;
 pub const MARKET_DATA_STATISTICS: u32 = 8;
+pub const MARKET_DATA_SESSION_VOLUME: u32 = 16;
 pub const STATE_CREATED: u32 = 1;
 pub const STATE_SUBSCRIBED: u32 = 2;
 pub const STATE_STARTING: u32 = 3;
@@ -132,14 +134,13 @@ pub struct MboRecord64 {
 pub struct StatisticsRecord64 {
     pub header: RecordHeader32,
     pub price: i64,
+    pub quantity: i64,
     pub ts_ref_ns: i64,
-    pub ts_in_delta_ns: i32,
     pub stat_type: u16,
     pub channel_id: u16,
     pub update_action: u8,
     pub stat_flags: u8,
     pub reserved16: u16,
-    pub reserved32: u32,
 }
 
 #[repr(C)]
@@ -193,7 +194,8 @@ pub struct FeedConfigV1 {
     pub drain_alternate_logical_processor: u16,
     pub reserved32: u32,
     pub statistics_replay_start_ns: u64,
-    pub reserved: [u64; 2],
+    pub trade_replay_start_ns: u64,
+    pub reserved: [u64; 1],
 }
 
 #[repr(C)]

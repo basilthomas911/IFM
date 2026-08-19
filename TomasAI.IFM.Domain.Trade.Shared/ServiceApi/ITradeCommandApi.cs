@@ -58,7 +58,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.ServiceApi
             decimal highPrice,
             decimal lowPrice,
             decimal closePrice,
-            int volume,
+            long volume,
             string reference);
     
         Task<ServiceResult<Guid>> DeleteAsync(int orderid, int tradeId);

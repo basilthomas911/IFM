@@ -90,6 +90,10 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
         && mappings
             .iter()
             .any(|mapping| mapping.data_kinds & MARKET_DATA_STATISTICS != 0);
+    let mut trade_replay_pending = feed.config.trade_replay_start_ns != 0
+        && mappings
+            .iter()
+            .any(|mapping| mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0);
     for input_symbology in [1u32, 2u32] {
         subscribe_group(
             &mut client,
@@ -98,10 +102,15 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             MARKET_DATA_QUOTE,
             Schema::Mbp1,
             0,
+            0,
         )
         .await?;
-        expected_acknowledgements +=
-            u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_QUOTE));
+        expected_acknowledgements += u32::from(group_exists(
+            &mappings,
+            input_symbology,
+            MARKET_DATA_QUOTE,
+            0,
+        ));
         subscribe_group(
             &mut client,
             &mappings,
@@ -109,10 +118,31 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             MARKET_DATA_TRADE,
             Schema::Trades,
             0,
+            MARKET_DATA_SESSION_VOLUME,
         )
         .await?;
-        expected_acknowledgements +=
-            u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_TRADE));
+        expected_acknowledgements += u32::from(group_exists(
+            &mappings,
+            input_symbology,
+            MARKET_DATA_TRADE,
+            MARKET_DATA_SESSION_VOLUME,
+        ));
+        subscribe_group(
+            &mut client,
+            &mappings,
+            input_symbology,
+            MARKET_DATA_SESSION_VOLUME,
+            Schema::Trades,
+            feed.config.trade_replay_start_ns,
+            0,
+        )
+        .await?;
+        expected_acknowledgements += u32::from(group_exists(
+            &mappings,
+            input_symbology,
+            MARKET_DATA_SESSION_VOLUME,
+            0,
+        ));
         subscribe_group(
             &mut client,
             &mappings,
@@ -120,10 +150,11 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             MARKET_DATA_MBO,
             Schema::Mbo,
             0,
+            0,
         )
         .await?;
         expected_acknowledgements +=
-            u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_MBO));
+            u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_MBO, 0));
         subscribe_group(
             &mut client,
             &mappings,
@@ -131,10 +162,15 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
             MARKET_DATA_STATISTICS,
             Schema::Statistics,
             feed.config.statistics_replay_start_ns,
+            0,
         )
         .await?;
-        expected_acknowledgements +=
-            u32::from(group_exists(&mappings, input_symbology, MARKET_DATA_STATISTICS));
+        expected_acknowledgements += u32::from(group_exists(
+            &mappings,
+            input_symbology,
+            MARKET_DATA_STATISTICS,
+            0,
+        ));
     }
     let metadata = client.start().await.map_err(LiveFailure::from)?;
     if !metadata.not_found.is_empty() || !metadata.partial.is_empty() {
@@ -164,6 +200,7 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
                 true,
                 &mut acknowledgements,
                 &mut statistics_replay_pending,
+                &mut trade_replay_pending,
             )?;
         }
     }
@@ -180,6 +217,7 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
                 false,
                 &mut acknowledgements,
                 &mut statistics_replay_pending,
+                &mut trade_replay_pending,
             )?;
         }
     }
@@ -187,9 +225,16 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
     Ok(())
 }
 
-fn group_exists(mappings: &[Mapping], input_symbology: u32, data_kind: u32) -> bool {
+fn group_exists(
+    mappings: &[Mapping],
+    input_symbology: u32,
+    data_kind: u32,
+    excluded_data_kind: u32,
+) -> bool {
     mappings.iter().any(|mapping| {
-        mapping.input_symbology == input_symbology && mapping.data_kinds & data_kind != 0
+        mapping.input_symbology == input_symbology
+            && mapping.data_kinds & data_kind != 0
+            && mapping.data_kinds & excluded_data_kind == 0
     })
 }
 
@@ -200,11 +245,14 @@ async fn subscribe_group(
     data_kind: u32,
     schema: Schema,
     replay_start_ns: u64,
+    excluded_data_kind: u32,
 ) -> Result<(), LiveFailure> {
     let symbols: Vec<String> = mappings
         .iter()
         .filter(|mapping| {
-            mapping.input_symbology == input_symbology && mapping.data_kinds & data_kind != 0
+            mapping.input_symbology == input_symbology
+                && mapping.data_kinds & data_kind != 0
+                && mapping.data_kinds & excluded_data_kind == 0
         })
         .map(|mapping| {
             String::from_utf8(mapping.requested_symbol.clone())
@@ -258,6 +306,7 @@ fn process_record(
     initial_mapping: bool,
     acknowledgements: &mut u32,
     statistics_replay_pending: &mut bool,
+    trade_replay_pending: &mut bool,
 ) -> Result<(), LiveFailure> {
     if let Some(error) = source.get::<ErrorMsg>() {
         return Err(failure(
@@ -268,9 +317,18 @@ fn process_record(
     if let Some(system) = source.get::<SystemMsg>() {
         match system.code().unwrap_or(SystemCode::Unset) {
             SystemCode::SubscriptionAck => *acknowledgements = acknowledgements.saturating_add(1),
-            SystemCode::ReplayCompleted if *statistics_replay_pending => {
-                *statistics_replay_pending = false;
-                publish_statistics_replay_complete(feed)?;
+            SystemCode::ReplayCompleted => {
+                match classify_replay_schema(system.msg().unwrap_or_default()) {
+                    Some(Schema::Statistics) if *statistics_replay_pending => {
+                        *statistics_replay_pending = false;
+                        publish_statistics_replay_complete(feed)?;
+                    }
+                    Some(Schema::Trades) if *trade_replay_pending => {
+                        *trade_replay_pending = false;
+                        publish_trade_replay_complete(feed)?;
+                    }
+                    _ => {}
+                }
             }
             SystemCode::SlowReaderWarning => {
                 return Err(failure(
@@ -300,7 +358,9 @@ fn process_record(
         feed.resolve_mapping_publisher(header.instrument_id, header.publisher_id)
             .map_err(|(status, message)| failure(status, String::from_utf8_lossy(message)))?;
     }
-    if let Some(record) = normalize(source, *statistics_replay_pending)
+    let trade_replay =
+        *trade_replay_pending && feed.is_session_volume_instrument(source.header().instrument_id);
+    if let Some(record) = normalize(source, *statistics_replay_pending, trade_replay)
         && !feed.publish_live(record)
     {
         return Err(failure(
@@ -309,6 +369,16 @@ fn process_record(
         ));
     }
     Ok(())
+}
+
+fn classify_replay_schema(message: &str) -> Option<Schema> {
+    if message.contains("trades") {
+        Some(Schema::Trades)
+    } else if message.contains("statistics") {
+        Some(Schema::Statistics)
+    } else {
+        None
+    }
 }
 
 fn publish_statistics_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
@@ -327,7 +397,35 @@ fn publish_statistics_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
             },
         };
         if !feed.publish_live(record) {
-            return Err(failure(feed.terminal_status(), "Native ring publication failed"));
+            return Err(failure(
+                feed.terminal_status(),
+                "Native ring publication failed",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn publish_trade_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
+    for mapping in feed.mappings_snapshot().into_iter().filter(|mapping| {
+        mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0
+            && mapping.instrument_id != 0
+            && mapping.publisher_id != 0
+    }) {
+        let record = MarketRecord64 {
+            header: RecordHeader32 {
+                instrument_id: mapping.instrument_id,
+                publisher_id: mapping.publisher_id,
+                record_kind: RECORD_TRADE_REPLAY_COMPLETE,
+                source_schema: Schema::Trades as u16,
+                ..RecordHeader32::default()
+            },
+        };
+        if !feed.publish_live(record) {
+            return Err(failure(
+                feed.terminal_status(),
+                "Native ring publication failed",
+            ));
         }
     }
     Ok(())
@@ -385,6 +483,7 @@ fn price_or_zero(value: i64, flags: &mut u8) -> i64 {
 pub(crate) fn normalize(
     source: RecordRef<'_>,
     statistics_replay: bool,
+    trade_replay: bool,
 ) -> Option<MarketRecord64> {
     if let Some(message) = source.get::<Mbp1Msg>() {
         let mut header = fill_header(
@@ -420,6 +519,9 @@ pub(crate) fn normalize(
         );
         if message.flags.is_snapshot() {
             header.flags |= 1;
+        }
+        if trade_replay {
+            header.flags |= 2;
         }
         return Some(MarketRecord64 {
             trade: TradeRecord64 {
@@ -478,14 +580,13 @@ pub(crate) fn normalize(
             statistics: StatisticsRecord64 {
                 price: price_or_zero(message.price, &mut header.flags),
                 header,
+                quantity: message.quantity,
                 ts_ref_ns: message.ts_ref as i64,
-                ts_in_delta_ns: message.ts_in_delta,
                 stat_type: message.stat_type,
                 channel_id: message.channel_id,
                 update_action: message.update_action,
                 stat_flags: message.stat_flags,
                 reserved16: 0,
-                reserved32: 0,
             },
         });
     }
@@ -923,6 +1024,16 @@ mod tests {
 
     #[test]
     fn normalizes_quote_trade_mbo_and_statistics_like_the_cpp_reference() {
+        assert_eq!(
+            classify_replay_schema("Finished trades replay"),
+            Some(Schema::Trades)
+        );
+        assert_eq!(
+            classify_replay_schema("Finished statistics replay"),
+            Some(Schema::Statistics)
+        );
+        assert_eq!(classify_replay_schema("Finished mbp-1 replay"), None);
+
         let mut quote = Mbp1Msg::default();
         quote.hd.instrument_id = 42;
         quote.hd.publisher_id = 7;
@@ -936,7 +1047,7 @@ mod tests {
         quote.levels[0].ask_sz = 5;
         quote.levels[0].bid_ct = 2;
         quote.levels[0].ask_ct = 3;
-        let normalized = normalize(RecordRef::from(&quote), false).expect("quote");
+        let normalized = normalize(RecordRef::from(&quote), false, false).expect("quote");
         let normalized = unsafe { normalized.quote };
         assert_eq!(normalized.header.record_kind, RECORD_QUOTE);
         assert_eq!(normalized.header.flags, 1);
@@ -953,12 +1064,14 @@ mod tests {
         trade.depth = 1;
         trade.ts_in_delta = -12;
         trade.sequence = 4;
-        let normalized = normalize(RecordRef::from(&trade), false).expect("trade");
+        let normalized = normalize(RecordRef::from(&trade), false, false).expect("trade");
         let normalized = unsafe { normalized.trade };
         assert_eq!(normalized.header.record_kind, RECORD_TRADE);
         assert_eq!(normalized.price, trade.price);
         assert_eq!(normalized.dbn_flags, flags::LAST);
         assert_eq!(normalized.ts_in_delta_ns, -12);
+        let replayed = normalize(RecordRef::from(&trade), false, true).expect("replayed trade");
+        assert_eq!(unsafe { replayed.trade }.header.flags & 2, 2);
 
         let mut mbo = MboMsg::default();
         mbo.hd.instrument_id = 44;
@@ -969,7 +1082,7 @@ mod tests {
         mbo.side = b'A' as _;
         mbo.channel_id = 2;
         mbo.sequence = 5;
-        let normalized = normalize(RecordRef::from(&mbo), false).expect("mbo");
+        let normalized = normalize(RecordRef::from(&mbo), false, false).expect("mbo");
         let normalized = unsafe { normalized.mbo };
         assert_eq!(normalized.header.record_kind, RECORD_MBO);
         assert_eq!(normalized.header.flags & 4, 4);
@@ -983,17 +1096,19 @@ mod tests {
         statistics.ts_recv = 130;
         statistics.ts_ref = 125;
         statistics.price = 104_000_000_000;
+        statistics.quantity = 987_654_321;
         statistics.sequence = 10;
         statistics.ts_in_delta = 21;
         statistics.stat_type = 5;
         statistics.channel_id = 3;
         statistics.update_action = 1;
         statistics.stat_flags = 7;
-        let normalized = normalize(RecordRef::from(&statistics), true).expect("statistics");
+        let normalized = normalize(RecordRef::from(&statistics), true, false).expect("statistics");
         let normalized = unsafe { normalized.statistics };
         assert_eq!(normalized.header.record_kind, RECORD_STATISTICS);
         assert_eq!(normalized.header.flags & 2, 2);
         assert_eq!(normalized.price, statistics.price);
+        assert_eq!(normalized.quantity, 987_654_321);
         assert_eq!(normalized.ts_ref_ns, 125);
         assert_eq!(normalized.stat_type, 5);
         assert_eq!(normalized.update_action, 1);

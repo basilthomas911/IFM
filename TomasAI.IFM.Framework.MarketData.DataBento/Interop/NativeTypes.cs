@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal static class NativeConstants
 {
-    public const uint AbiVersion = 1;
+    public const uint AbiVersion = 2;
     public const uint WaitInfinite = uint.MaxValue;
     public const ushort UnpinnedProcessor = ushort.MaxValue;
 }
@@ -43,7 +43,8 @@ public enum MarketRecordKind : byte
     Trade = 2,
     Mbo = 3,
     Statistics = 4,
-    StatisticsReplayComplete = 5
+    StatisticsReplayComplete = 5,
+    TradeReplayComplete = 6
 }
 
 [Flags]
@@ -53,7 +54,8 @@ public enum MarketDataKinds : byte
     Quote = 1,
     Trade = 2,
     MboOrderUpdate = 4,
-    Statistics = 8
+    Statistics = 8,
+    SessionVolume = 16
 }
 
 public enum FeedState : uint
@@ -192,20 +194,19 @@ public readonly struct StatisticsRecord64
 {
     public readonly MarketRecordHeader32 Header;
     public readonly long Price;
+    public readonly long Quantity;
     public readonly long ReferenceTimestampNanoseconds;
-    public readonly int TimestampInDeltaNanoseconds;
     public readonly ushort StatisticType;
     public readonly ushort ChannelId;
     public readonly byte UpdateAction;
     public readonly byte StatisticFlags;
     private readonly ushort _reserved16;
-    private readonly uint _reserved32;
 
     public StatisticsRecord64(
         MarketRecordHeader32 header,
         long price,
+        long quantity,
         long referenceTimestampNanoseconds,
-        int timestampInDeltaNanoseconds,
         ushort statisticType,
         ushort channelId,
         byte updateAction,
@@ -213,14 +214,13 @@ public readonly struct StatisticsRecord64
     {
         Header = header;
         Price = price;
+        Quantity = quantity;
         ReferenceTimestampNanoseconds = referenceTimestampNanoseconds;
-        TimestampInDeltaNanoseconds = timestampInDeltaNanoseconds;
         StatisticType = statisticType;
         ChannelId = channelId;
         UpdateAction = updateAction;
         StatisticFlags = statisticFlags;
         _reserved16 = 0;
-        _reserved32 = 0;
     }
 }
 
@@ -285,7 +285,8 @@ internal unsafe struct NativeFeedConfig
     public ushort DrainAlternateLogicalProcessor;
     public uint Reserved32;
     public ulong StatisticsReplayStartTimestampNanoseconds;
-    public fixed ulong Reserved[2];
+    public ulong TradeReplayStartTimestampNanoseconds;
+    public fixed ulong Reserved[1];
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 32)]

@@ -104,7 +104,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                     || (subscription.DataKinds & ~(MarketDataKinds.Quote
                                                    | MarketDataKinds.Trade
                                                    | MarketDataKinds.MboOrderUpdate
-                                                   | MarketDataKinds.Statistics)) != 0)
+                                                   | MarketDataKinds.Statistics
+                                                   | MarketDataKinds.SessionVolume)) != 0
+                    || ((subscription.DataKinds & MarketDataKinds.SessionVolume) != 0
+                        && (subscription.DataKinds & MarketDataKinds.Trade) == 0))
                 {
                     throw new ArgumentException("A subscription contains invalid market-data kinds.");
                 }
@@ -146,7 +149,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 || (dataKinds & ~(MarketDataKinds.Quote
                                   | MarketDataKinds.Trade
                                   | MarketDataKinds.MboOrderUpdate
-                                  | MarketDataKinds.Statistics)) != 0)
+                                  | MarketDataKinds.Statistics
+                                  | MarketDataKinds.SessionVolume)) != 0
+                || ((dataKinds & MarketDataKinds.SessionVolume) != 0
+                    && (dataKinds & MarketDataKinds.Trade) == 0))
             {
                 throw new ArgumentException("Option market-data kinds are invalid.", nameof(dataKinds));
             }
@@ -503,6 +509,8 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 _options.ProcessorResidency.ForcedMigrationIntervalRecords),
             StatisticsReplayStartTimestampNanoseconds =
                 _options.StatisticsReplayStartTimestampNanoseconds,
+            TradeReplayStartTimestampNanoseconds =
+                _options.TradeReplayStartTimestampNanoseconds,
             ProducerAlternateProcessorGroup =
                 _placementLease.NativeProducerAlternate?.ProcessorGroup ?? 0,
             ProducerAlternateLogicalProcessor =

@@ -90,7 +90,7 @@ public class TradeCommandModel : BaseModel<TradeCommandModel>
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume,
+        long volume,
         string reference)
         => ExecuteCommandAsync(() => _commandApi.ProcessEndOfDayAsync(
             fundId,

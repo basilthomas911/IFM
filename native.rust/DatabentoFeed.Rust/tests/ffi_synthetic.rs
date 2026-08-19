@@ -76,7 +76,7 @@ unsafe fn create_subscribed(
 
 #[test]
 fn layouts_and_version_match_the_c_header() {
-    assert_eq!(dbf_get_abi_version(), 1);
+    assert_eq!(dbf_get_abi_version(), 2);
     assert_eq!(size_of::<RecordHeader32>(), 32);
     assert_eq!(size_of::<StatisticsRecord64>(), 64);
     assert_eq!(size_of::<MarketRecord64>(), 64);

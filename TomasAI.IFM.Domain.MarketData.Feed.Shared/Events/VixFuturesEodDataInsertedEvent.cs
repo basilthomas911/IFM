@@ -30,6 +30,7 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
     [Key(8)] public FuturesTickDataV2ReadModel VixFuturesTickData { get; init; }
     [Key(9)] public DateTime CreatedOn { get; init; }
     [Key(10)] public string CreatedBy { get; init; }
+    [Key(11)] public FuturesSessionStatisticsSnapshot? SessionStatistics { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -52,7 +53,8 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
         DateTime receivedOn,
         FuturesTickDataV2ReadModel vixFuturesTickData,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        FuturesSessionStatisticsSnapshot? sessionStatistics = null)
     {
         Subject = subject;
         Id = id;
@@ -65,6 +67,7 @@ public record VixFuturesEodDataInsertedEvent : IEvent<FuturesEodDataId>
         VixFuturesTickData = vixFuturesTickData;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
+        SessionStatistics = sessionStatistics;
     }
 
     /// <summary>

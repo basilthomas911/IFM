@@ -163,7 +163,8 @@ public static class DatabentoSyntheticQualificationProbe
                 "QUALIFICATION",
                 DatabentoInputSymbology.RawSymbol,
                 MarketDataKinds.Quote | MarketDataKinds.Trade
-                    | MarketDataKinds.MboOrderUpdate | MarketDataKinds.Statistics)
+                    | MarketDataKinds.MboOrderUpdate | MarketDataKinds.Statistics
+                    | MarketDataKinds.SessionVolume)
         ], timeout);
 
         var stopped = false;

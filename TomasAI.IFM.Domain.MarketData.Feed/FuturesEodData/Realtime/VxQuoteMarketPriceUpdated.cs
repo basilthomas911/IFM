@@ -61,8 +61,15 @@ internal static class VxQuoteMarketPriceUpdated
                 TimeOnly.FromDateTime(quote.EventTimestamp.UtcDateTime),
                 midpoint,
                 0);
+            FuturesSessionStatisticsSnapshot? statistics =
+                marketDataApi.TryGetFuturesSessionStatistics(
+                    source.EntityId.ContractId,
+                    out var currentStatistics)
+                && currentStatistics.ValueDate == source.EntityId.ValueDate
+                    ? currentStatistics
+                    : null;
             return await projector.ProcessRealtimeEventAsync(
-                    VxFuturesEodDataEventFactory.Create(source, tickData))
+                    VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
                 .ConfigureAwait(false);
         }
         catch (Exception exception)

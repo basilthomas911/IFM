@@ -32,7 +32,7 @@ public record OptionTradeEndOfDayProcessedEvent : IEvent<OptionTradeEntityId>
     [Key(13)] public decimal HighPrice { get; init; }
     [Key(14)] public decimal LowPrice { get; init; }
     [Key(15)] public decimal ClosePrice { get; init; }
-    [Key(16)] public int Volume { get; init; }
+    [Key(16)] public long Volume { get; init; }
     [Key(17)] public decimal TradePnl { get; init; }
     [Key(18)] public string Reference { get; init; }
     [Key(19)] public DateTime UpdatedOn { get; init; }
@@ -62,7 +62,7 @@ public record OptionTradeEndOfDayProcessedEvent : IEvent<OptionTradeEntityId>
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume,
+        long volume,
         decimal tradePnl,
         string reference,
         DateTime updatedOn,
@@ -177,7 +177,7 @@ public record OptionTradeEndOfDayProcessedCompleteEvent : ICompleteEvent<OptionT
     [Key(13)] public decimal HighPrice { get; init; }
     [Key(14)] public decimal LowPrice { get; init; }
     [Key(15)] public decimal ClosePrice { get; init; }
-    [Key(16)] public int Volume { get; init; }
+    [Key(16)] public long Volume { get; init; }
     [Key(17)] public decimal TradePnl { get; init; }
     [Key(18)] public string Reference { get; init; }
     [Key(19)] public DateTime UpdatedOn { get; init; }
@@ -207,7 +207,7 @@ public record OptionTradeEndOfDayProcessedCompleteEvent : ICompleteEvent<OptionT
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume,
+        long volume,
         decimal tradePnl,
         string reference,
         DateTime updatedOn,

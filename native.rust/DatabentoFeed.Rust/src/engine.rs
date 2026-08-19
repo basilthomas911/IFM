@@ -466,6 +466,14 @@ impl Feed {
     }
 
     #[cfg(feature = "live")]
+    pub(crate) fn is_session_volume_instrument(&self, instrument_id: u32) -> bool {
+        lock(&self.mappings).iter().any(|mapping| {
+            mapping.instrument_id == instrument_id
+                && mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0
+        })
+    }
+
+    #[cfg(feature = "live")]
     pub(crate) fn all_mappings_resolved(&self) -> bool {
         lock(&self.mappings).iter().all(|mapping| mapping.resolved)
     }
@@ -952,8 +960,8 @@ fn make_synthetic_record(
                         2 => price + 1_000_000_000,
                         _ => price,
                     },
+                    quantity: 0,
                     ts_ref_ns: timestamp,
-                    ts_in_delta_ns: 0,
                     stat_type: match statistic_index {
                         1 => 4,
                         2 => 5,
@@ -963,7 +971,6 @@ fn make_synthetic_record(
                     update_action: 1,
                     stat_flags: 0,
                     reserved16: 0,
-                    reserved32: 0,
                 },
             }
         }

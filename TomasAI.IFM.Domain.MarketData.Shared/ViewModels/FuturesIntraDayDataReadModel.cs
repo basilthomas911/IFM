@@ -49,7 +49,7 @@ public record FuturesIntraDayDataReadModel
 
     /// <summary>Session volume.</summary>
     [Key(8)]
-    public int Volume { get; init; }
+    public long Volume { get; init; }
 
     /// <summary>Percent change over the analysis window (daily or rolling).</summary>
     [Key(9)]
@@ -134,7 +134,7 @@ public record FuturesIntraDayDataReadModel
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume,
+        long volume,
         double dailyPercentChange = 0,
         double dailyStdDev = 0,
         double dailyStdDevAmount = 0,

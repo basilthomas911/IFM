@@ -4,6 +4,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -24,7 +25,7 @@ internal static class FuturesSessionStatisticsUpdated
         ArgumentNullException.ThrowIfNull(logger);
 
         var statistics = source.Statistics;
-        if (!statistics.IsComplete
+        if (!statistics.HasAnyData
             || !StringComparer.Ordinal.Equals(
                 statistics.ContractId,
                 source.EntityId.ContractId)
@@ -36,33 +37,56 @@ internal static class FuturesSessionStatisticsUpdated
                 source.EntityId.ValueDate)
             .ConfigureAwait(false);
         if (current is null)
-            return true;
+        {
+            var vxRows = await context.GetVixFuturesEodDataAsync(
+                    source.EntityId.ContractId,
+                    source.EntityId.ValueDate)
+                .ConfigureAwait(false);
+            var vxCurrent = vxRows.SingleOrDefault(row =>
+                StringComparer.Ordinal.Equals(row.ContractId, source.EntityId.ContractId)
+                && row.ValueDate == source.EntityId.ValueDate);
+            if (vxCurrent is null)
+                return true;
+            var tick = new FuturesTickDataV2ReadModel(
+                vxCurrent.ContractId,
+                vxCurrent.ValueDate,
+                statistics.SourceSequence,
+                TimeOnly.FromDateTime(DateTime.UtcNow),
+                vxCurrent.ClosePrice,
+                0);
+            return await projector.ProcessRealtimeEventAsync(
+                    VxFuturesEodDataEventFactory.Create(source, tick, statistics))
+                .ConfigureAwait(false);
+        }
 
         // Mixed-schema delivery can momentarily place a trade ahead of its matching
         // official high/low update. Wait for the next statistics observation rather
         // than persisting an internally inconsistent EOD row.
-        if (current.ClosePrice < statistics.LowPrice
-            || current.ClosePrice > statistics.HighPrice)
-            return true;
-
-        var dailyPercentChange = CalculateDailyPercentChange(
-            current.ClosePrice,
-            statistics.OpenPrice);
-        var priceDirection = CalculatePriceDirection(
-            current.ClosePrice,
-            statistics.OpenPrice);
-        if (current.OpenPrice == statistics.OpenPrice
-            && current.HighPrice == statistics.HighPrice
-            && current.LowPrice == statistics.LowPrice
-            && current.DailyPercentChange == dailyPercentChange
-            && current.PriceDirection == priceDirection)
+        var updatePrices = statistics.HasPriceStatistics
+            && current.ClosePrice >= statistics.LowPrice
+            && current.ClosePrice <= statistics.HighPrice;
+        var dailyPercentChange = updatePrices
+            ? CalculateDailyPercentChange(current.ClosePrice, statistics.OpenPrice)
+            : current.DailyPercentChange;
+        var priceDirection = updatePrices
+            ? CalculatePriceDirection(current.ClosePrice, statistics.OpenPrice)
+            : current.PriceDirection;
+        var volume = statistics.HasVolume ? statistics.Volume : current.Volume;
+        if ((!updatePrices
+             || (current.OpenPrice == statistics.OpenPrice
+                 && current.HighPrice == statistics.HighPrice
+                 && current.LowPrice == statistics.LowPrice
+                 && current.DailyPercentChange == dailyPercentChange
+                 && current.PriceDirection == priceDirection))
+            && current.Volume == volume)
             return true;
 
         var updated = current with
         {
-            OpenPrice = statistics.OpenPrice,
-            HighPrice = statistics.HighPrice,
-            LowPrice = statistics.LowPrice,
+            OpenPrice = updatePrices ? statistics.OpenPrice : current.OpenPrice,
+            HighPrice = updatePrices ? statistics.HighPrice : current.HighPrice,
+            LowPrice = updatePrices ? statistics.LowPrice : current.LowPrice,
+            Volume = volume,
             DailyPercentChange = dailyPercentChange,
             PriceDirection = priceDirection
         };

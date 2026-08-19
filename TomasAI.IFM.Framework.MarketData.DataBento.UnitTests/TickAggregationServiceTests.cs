@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
@@ -179,6 +180,67 @@ public sealed class TickAggregationServiceTests
         Assert.True(service.TryGetFuturesSessionStatistics("ESU6", out var current));
         Assert.Equal(5_020m, current.HighPrice);
         Assert.Equal(2, publisher.SessionStatistics.Count);
+
+        await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task Trade_replay_reconstructs_volume_without_publishing_ticks_then_live_extends_it()
+    {
+        var valueDate = new DateOnly(2026, 8, 18);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new RunningFeed(instrument);
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument, CreateDetails(valueDate, instrument)),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        feed.Publish(ReplayTrade(instrument, 10, 5_000_000_000, 100));
+        feed.Publish(ReplayTrade(instrument, 11, 5_010_000_000, 125));
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().SourceTradeRecords == 2,
+            TimeSpan.FromSeconds(2)));
+        Assert.Empty(publisher.MarketPrices);
+        Assert.Empty(publisher.Trades);
+        Assert.False(service.TryGetFuturesSessionStatistics("ESU6", out _));
+
+        feed.Publish(TradeReplayComplete(instrument));
+        var reconstructed = await publisher.SessionStatisticsFirst.Task.WaitAsync(
+            TimeSpan.FromSeconds(2));
+        Assert.Equal(225, reconstructed.Statistics.Volume);
+        Assert.Equal(
+            FuturesSessionVolumeQuality.ObservedComplete,
+            reconstructed.Statistics.VolumeQuality);
+
+        feed.Publish(new MarketRecord64(new TradeRecord64(
+            new MarketRecordHeader32(
+                instrument.InstrumentId,
+                instrument.PublisherId,
+                MarketRecordKind.Trade,
+                0,
+                12,
+                12,
+                12),
+            5_020_000_000,
+            50,
+            1,
+            2,
+            0)));
+        Assert.True(SpinWait.SpinUntil(
+            () => publisher.Trades.Count == 1,
+            TimeSpan.FromSeconds(2)));
+        Assert.True(service.TryGetFuturesSessionStatistics("ESU6", out var current));
+        Assert.Equal(275, current.Volume);
+        Assert.Single(publisher.SessionStatistics);
 
         await service.StopAsync();
     }
@@ -695,6 +757,44 @@ public sealed class TickAggregationServiceTests
         new TradeRecord64(
             new MarketRecordHeader32(key.InstrumentId, key.PublisherId, MarketRecordKind.Trade, 0, sequence, sequence, sequence),
             price, 12, 1, 2, 0));
+
+    private static MarketRecord64 ReplayTrade(
+        InstrumentKey key,
+        uint sequence,
+        long price,
+        uint size) => new(
+        new TradeRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.Trade,
+                2,
+                sequence,
+                sequence,
+                sequence),
+            price,
+            size,
+            1,
+            2,
+            0));
+
+    private static MarketRecord64 TradeReplayComplete(InstrumentKey key) => new(
+        new StatisticsRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.TradeReplayComplete,
+                0,
+                0,
+                0,
+                0),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0));
 
     private static MarketRecord64 Statistic(
         InstrumentKey key,

@@ -966,12 +966,14 @@ void subscribe_group(databento::LiveBlocking& client,
                      std::uint32_t data_kind,
                      databento::Schema schema,
                      std::uint32_t& subscription_count,
-                     std::uint64_t replay_start_ns = 0) {
+                     std::uint64_t replay_start_ns = 0,
+                     std::uint32_t excluded_data_kind = 0) {
     std::vector<std::string> symbols;
     symbols.reserve(mappings.size());
     for (const auto& mapping : mappings) {
         if (mapping.input_symbology == input_symbology
-            && (mapping.data_kinds & data_kind) != 0) {
+            && (mapping.data_kinds & data_kind) != 0
+            && (mapping.data_kinds & excluded_data_kind) == 0) {
             symbols.push_back(mapping.requested_symbol);
         }
     }
@@ -1001,6 +1003,25 @@ bool publish_statistics_replay_complete(dbf_feed* feed) noexcept {
         record.header.record_kind = DBF_RECORD_STATISTICS_REPLAY_COMPLETE;
         record.header.source_schema =
             static_cast<std::uint16_t>(databento::Schema::Statistics);
+        if (!publish_record(feed, record)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool publish_trade_replay_complete(dbf_feed* feed) noexcept {
+    for (const auto& mapping : feed->mappings) {
+        if ((mapping.data_kinds & DBF_MARKET_DATA_SESSION_VOLUME) == 0
+            || mapping.instrument_id == 0 || mapping.publisher_id == 0) {
+            continue;
+        }
+        dbf_market_record64 record{};
+        record.header.instrument_id = mapping.instrument_id;
+        record.header.publisher_id = mapping.publisher_id;
+        record.header.record_kind = DBF_RECORD_TRADE_REPLAY_COMPLETE;
+        record.header.source_schema =
+            static_cast<std::uint16_t>(databento::Schema::Trades);
         if (!publish_record(feed, record)) {
             return false;
         }
@@ -1077,7 +1098,8 @@ bool all_mappings_resolved(const dbf_feed* feed) noexcept {
 bool process_live_record(dbf_feed* feed,
                          const databento::Record& source,
                          bool initial_mapping,
-                         bool& statistics_replay_pending) {
+                         bool& statistics_replay_pending,
+                         bool& trade_replay_pending) {
     feed->last_message_monotonic_ns.store(
         monotonic_nanoseconds(), std::memory_order_relaxed);
     if (const auto* error = source.GetIf<databento::ErrorMsg>()) {
@@ -1092,11 +1114,27 @@ bool process_live_record(dbf_feed* feed,
             feed->subscription_acknowledgements.fetch_add(1, std::memory_order_relaxed);
             break;
         case databento::SystemCode::ReplayCompleted:
-            if (statistics_replay_pending) {
+            switch (dbf_live::classify_replay_schema(system->Msg())) {
+            case dbf_live::replay_schema::statistics:
+                if (!statistics_replay_pending) {
+                    break;
+                }
                 statistics_replay_pending = false;
                 if (!publish_statistics_replay_complete(feed)) {
                     return false;
                 }
+                break;
+            case dbf_live::replay_schema::trades:
+                if (!trade_replay_pending) {
+                    break;
+                }
+                trade_replay_pending = false;
+                if (!publish_trade_replay_complete(feed)) {
+                    return false;
+                }
+                break;
+            case dbf_live::replay_schema::unknown:
+                break;
             }
             break;
         case databento::SystemCode::SlowReaderWarning:
@@ -1114,8 +1152,16 @@ bool process_live_record(dbf_feed* feed,
     if (initial_mapping && !resolve_mapping_publisher(feed, source.Header())) {
         return false;
     }
+    const auto trade_replay = trade_replay_pending
+        && std::any_of(feed->mappings.begin(), feed->mappings.end(),
+                       [&source](const mapping_entry& mapping) {
+                           return mapping.instrument_id == source.Header().instrument_id
+                               && (mapping.data_kinds
+                                   & DBF_MARKET_DATA_SESSION_VOLUME) != 0;
+                       });
     dbf_market_record64 normalized{};
-    return !dbf_live::normalize(source, normalized, statistics_replay_pending)
+    return !dbf_live::normalize(
+               source, normalized, statistics_replay_pending, trade_replay)
            || publish_record(feed, normalized);
 }
 
@@ -1148,13 +1194,26 @@ void live_producer_main(dbf_feed* feed) noexcept {
                                return (mapping.data_kinds
                                        & DBF_MARKET_DATA_STATISTICS) != 0;
                            });
+        auto trade_replay_pending =
+            feed->config.trade_replay_start_ns != 0
+            && std::any_of(feed->mappings.begin(), feed->mappings.end(),
+                           [](const mapping_entry& mapping) {
+                               return (mapping.data_kinds
+                                       & DBF_MARKET_DATA_SESSION_VOLUME) != 0;
+                           });
         for (const auto input_symbology : {1u, 2u}) {
             subscribe_group(client, feed->mappings, input_symbology,
                             DBF_MARKET_DATA_QUOTE, databento::Schema::Mbp1,
                             expected_acknowledgements);
             subscribe_group(client, feed->mappings, input_symbology,
                             DBF_MARKET_DATA_TRADE, databento::Schema::Trades,
-                            expected_acknowledgements);
+                            expected_acknowledgements, 0,
+                            DBF_MARKET_DATA_SESSION_VOLUME);
+            subscribe_group(client, feed->mappings, input_symbology,
+                            DBF_MARKET_DATA_SESSION_VOLUME,
+                            databento::Schema::Trades,
+                            expected_acknowledgements,
+                            feed->config.trade_replay_start_ns);
             subscribe_group(client, feed->mappings, input_symbology,
                             DBF_MARKET_DATA_MBO, databento::Schema::Mbo,
                             expected_acknowledgements);
@@ -1188,7 +1247,8 @@ void live_producer_main(dbf_feed* feed) noexcept {
             const auto* record = client.NextRecord(std::chrono::milliseconds{
                 std::min<std::uint32_t>(remaining, 250u)});
             if (record != nullptr && !process_live_record(
-                    feed, *record, true, statistics_replay_pending)) {
+                    feed, *record, true, statistics_replay_pending,
+                    trade_replay_pending)) {
                 client.Stop();
                 finish_producer(feed);
                 return;
@@ -1214,7 +1274,8 @@ void live_producer_main(dbf_feed* feed) noexcept {
                && feed->state.load(std::memory_order_acquire) != DBF_STATE_FAULTED) {
             const auto* record = client.NextRecord(std::chrono::milliseconds{250});
             if (record != nullptr && !process_live_record(
-                    feed, *record, false, statistics_replay_pending)) {
+                    feed, *record, false, statistics_replay_pending,
+                    trade_replay_pending)) {
                 break;
             }
         }
@@ -1650,13 +1711,15 @@ dbf_status DBF_CALL dbf_feed_subscribe_tickers(
                 || item.symbol_length == 0 || item.symbol_length > 0xffffu
                 || utf8_blob == nullptr
                 || (item.input_symbology != 1u && item.input_symbology != 2u)
-                || (item.data_kinds & 15u) == 0 || (item.data_kinds & ~15u) != 0) {
+                || (item.data_kinds & 15u) == 0 || (item.data_kinds & ~31u) != 0
+                || ((item.data_kinds & DBF_MARKET_DATA_SESSION_VOLUME) != 0
+                    && (item.data_kinds & DBF_MARKET_DATA_TRADE) == 0)) {
                 return DBF_INVALID_ARGUMENT;
             }
             mapping_entry mapping{};
             mapping.subscription_index = index;
             mapping.input_symbology = item.input_symbology;
-            mapping.data_kinds = item.data_kinds & 15u;
+            mapping.data_kinds = item.data_kinds & 31u;
             mapping.requested_symbol.assign(
                 reinterpret_cast<const char*>(utf8_blob + item.symbol_offset),
                 item.symbol_length);

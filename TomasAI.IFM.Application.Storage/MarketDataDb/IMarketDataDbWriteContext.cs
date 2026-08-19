@@ -90,5 +90,7 @@ public interface IMarketDataDbWriteContext
     Task UpdateFuturesEodSessionStatisticsAsync(FuturesEodDataV2ReadModel e);
     Task InsertFuturesEodDataAsync(ICollection<FuturesEodDataV2ReadModel> futuresEodData);
     Task<long> InsertFuturesEodDataAsync(IEnumerable<FuturesEodDataV2ReadModel> futuresEodData);
-    Task InsertVixFuturesEodDataAsync(FuturesTickDataV2ReadModel e);
+    Task InsertVixFuturesEodDataAsync(
+        FuturesTickDataV2ReadModel e,
+        FuturesSessionStatisticsSnapshot? sessionStatistics = null);
 }

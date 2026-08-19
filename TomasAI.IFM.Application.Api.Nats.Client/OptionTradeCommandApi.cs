@@ -182,7 +182,7 @@ public class OptionTradeCommandApi(IActorProducer actorProducer)
         decimal highPrice,
         decimal lowPrice,
         decimal closePrice,
-        int volume,
+        long volume,
         string reference)
         => SendAsync(
             new OptionTradeEntityId(orderId, tradeId),

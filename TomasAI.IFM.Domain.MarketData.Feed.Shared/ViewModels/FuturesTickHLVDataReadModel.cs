@@ -5,4 +5,4 @@ public record FuturesTickHLVDataReadModel(
     DateOnly ValueDate,
     decimal HighPrice,
     decimal LowPrice,
-    int  Volume);
+    long Volume);

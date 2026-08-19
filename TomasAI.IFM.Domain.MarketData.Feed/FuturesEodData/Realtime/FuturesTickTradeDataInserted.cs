@@ -60,8 +60,15 @@ internal static class FuturesTickTradeDataInserted
             var tickData = ToFuturesTickData(source);
             if (contract.Id.IsVxContract)
             {
+                FuturesSessionStatisticsSnapshot? statistics =
+                    marketDataApi.TryGetFuturesSessionStatistics(
+                        source.EntityId.ContractId,
+                        out var currentStatistics)
+                    && currentStatistics.ValueDate == source.EntityId.ValueDate
+                        ? currentStatistics
+                        : null;
                 return await projector.ProcessRealtimeEventAsync(
-                        VxFuturesEodDataEventFactory.Create(source, tickData))
+                        VxFuturesEodDataEventFactory.Create(source, tickData, statistics))
                     .ConfigureAwait(false);
             }
 
@@ -106,6 +113,7 @@ internal static class FuturesTickTradeDataInserted
             contract.ContractId,
             valueDate).ConfigureAwait(false);
         var hasCurrentSessionRow = eodDataToday is not null;
+        var persistedVolume = eodDataToday?.Volume;
         eodDataToday ??= await context.GetLastFuturesEodDataAsync(
             contract.ContractId,
             valueDate).ConfigureAwait(false);
@@ -127,10 +135,21 @@ internal static class FuturesTickTradeDataInserted
             {
                 OpenPrice = statistics.OpenPrice,
                 HighPrice = statistics.HighPrice,
-                LowPrice = statistics.LowPrice
+                LowPrice = statistics.LowPrice,
+                Volume = statistics.HasVolume ? statistics.Volume : eodDataToday.Volume
             };
         }
-        if (hasCurrentSessionRow && eodDataToday.ClosePrice == tickData.Price)
+        else if (marketDataApi.TryGetFuturesSessionStatistics(
+                     contract.ContractId,
+                     out statistics)
+                 && statistics.ValueDate == valueDate
+                 && statistics.HasVolume)
+        {
+            eodDataToday = eodDataToday with { Volume = statistics.Volume };
+        }
+        if (hasCurrentSessionRow
+            && eodDataToday.ClosePrice == tickData.Price
+            && (!statistics.HasVolume || persistedVolume == statistics.Volume))
             return null;
 
         var vixContractId = blackboardService.MarketDataFeed.VixFuturesContractId.Get(valueDate);

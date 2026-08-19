@@ -121,11 +121,13 @@ public sealed class TickerStreamActorWorkflowTests
         var instrument = new InstrumentKey(7, 42);
         using var feed = new FiniteFeed(
             instrument,
-            Statistic(instrument, 1, 1, 5400m, replay: true),
-            Statistic(instrument, 2, 4, 5350m, replay: true),
-            Statistic(instrument, 3, 5, 5500m, replay: true),
+            ReplayTrade(instrument, 1, 5410m, 90),
+            Statistic(instrument, 2, 1, 5400m, replay: true),
+            Statistic(instrument, 3, 4, 5350m, replay: true),
+            Statistic(instrument, 4, 5, 5500m, replay: true),
             StatisticsReplayComplete(instrument),
-            Trade(instrument, 4, 5425m, 10));
+            TradeReplayComplete(instrument),
+            Trade(instrument, 5, 5425m, 10));
         using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
         var publisher = new CapturingPublisher();
         await using var aggregation = CreateAggregation(
@@ -194,6 +196,7 @@ public sealed class TickerStreamActorWorkflowTests
                 && inserted.FuturesEodData.HighPrice == 5500m
                 && inserted.FuturesEodData.LowPrice == 5350m
                 && inserted.FuturesEodData.ClosePrice == 5425m
+                && inserted.FuturesEodData.Volume == 100
                 && inserted.FuturesEodData.DailyPercentChange == 0.0046d
                 && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Rising),
             Arg.Any<CancellationToken>());
@@ -209,8 +212,10 @@ public sealed class TickerStreamActorWorkflowTests
         var instrument = new InstrumentKey(7, 42);
         using var feed = new FiniteFeed(
             instrument,
-            Quote(instrument, 1, 20.10m, 20.20m),
-            Trade(instrument, 2, 20.15m, 17));
+            ReplayTrade(instrument, 1, 20.12m, 100),
+            TradeReplayComplete(instrument),
+            Quote(instrument, 2, 20.10m, 20.20m),
+            Trade(instrument, 3, 20.15m, 17));
         using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
         var publisher = new CapturingPublisher();
         await using var aggregation = CreateAggregation(
@@ -261,6 +266,10 @@ public sealed class TickerStreamActorWorkflowTests
         emitted.VixFuturesTickData.Price.Should().Be(20.15m);
         emitted.VixFuturesTickData.Size.Should().Be(17);
         emitted.VixFuturesTickData.TickId.Should().Be(2);
+        emitted.SessionStatistics.Should().NotBeNull();
+        emitted.SessionStatistics!.Value.Volume.Should().Be(117);
+        emitted.SessionStatistics.Value.VolumeQuality.Should().Be(
+            FuturesSessionVolumeQuality.ObservedComplete);
 
         aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
         await aggregation.StopAsync();
@@ -657,6 +666,43 @@ public sealed class TickerStreamActorWorkflowTests
         1,
         2,
         0));
+
+    private static MarketRecord64 ReplayTrade(
+        InstrumentKey key,
+        uint sequence,
+        decimal price,
+        uint size) => new(new TradeRecord64(
+        new MarketRecordHeader32(
+            key.InstrumentId,
+            key.PublisherId,
+            MarketRecordKind.Trade,
+            2,
+            sequence,
+            sequence,
+            sequence),
+        Scale(price),
+        size,
+        1,
+        2,
+        0));
+
+    private static MarketRecord64 TradeReplayComplete(InstrumentKey key) => new(
+        new StatisticsRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.TradeReplayComplete,
+                0,
+                0,
+                0,
+                0),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0));
 
     private static MarketRecord64 Statistic(
         InstrumentKey key,

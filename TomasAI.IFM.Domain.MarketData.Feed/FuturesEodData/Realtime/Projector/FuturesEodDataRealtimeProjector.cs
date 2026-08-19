@@ -35,7 +35,9 @@ public sealed class FuturesEodDataRealtimeProjector(
             VixFuturesEodDataInsertedEvent,
             VixFuturesEodDataInsertedCompleteEvent,
             VixFuturesEodDataInsertedFailEvent,
-            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(e.VixFuturesTickData))
+            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertVixFuturesEodDataAsync(
+                e.VixFuturesTickData,
+                e.SessionStatistics))
     ];
 
     public override string ActorName => FuturesEodDataRealtimeActor.ActorName;

@@ -194,7 +194,15 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             EventSource = "unit-test",
             ReceivedOn = DateTime.UtcNow,
             Statistics = new FuturesSessionStatisticsSnapshot(
-                contractId, ValueDate, 5400m, 5500m, 5350m, 10, 20)
+                contractId,
+                ValueDate,
+                5400m,
+                5500m,
+                5350m,
+                10,
+                20,
+                12_345,
+                FuturesSessionVolumeQuality.ObservedComplete)
         };
         NatsMsg<byte[]> message = new()
         {
@@ -228,8 +236,61 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
                 && projected.FuturesEodData.OpenPrice == 5400m
                 && projected.FuturesEodData.HighPrice == 5500m
                 && projected.FuturesEodData.LowPrice == 5350m
+                && projected.FuturesEodData.Volume == 12_345
                 && projected.FuturesEodData.DailyPercentChange == 0.0046d
                 && projected.FuturesEodData.PriceDirection == PriceDirectionType.Rising),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Realtime_actor_routes_volume_only_session_snapshot_to_vx_storage_event()
+    {
+        var entityId = new FuturesEodDataId(ContractId, ValueDate);
+        var source = new FuturesSessionStatisticsUpdatedRealtimeEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Realtime,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
+                FuturesSessionStatisticsUpdatedRealtimeEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = Guid.NewGuid(),
+            AggregateId = entityId.Format(),
+            EventSource = "unit-test",
+            ReceivedOn = DateTime.UtcNow,
+            Statistics = new FuturesSessionStatisticsSnapshot(
+                ContractId,
+                ValueDate,
+                0,
+                0,
+                0,
+                99,
+                100,
+                50_000,
+                FuturesSessionVolumeQuality.OfficialFinal)
+        };
+        var projector = CreateProjector();
+        var actor = CreateRealtimeActor(projector, out _);
+        var context = Substitute.For<IEventActorContext>();
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(null!));
+        context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(
+                Arg.Any<GetVixFuturesEodDataQuery>())
+            .Returns(new ServiceOk<VixFuturesEodDataReadModel[]>([
+                new VixFuturesEodDataReadModel(
+                    ContractId, ValueDate, 20m, 21m, 19m, 20.25m, 100)
+            ]));
+
+        await actor.Receive(context, source);
+
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Is<VixFuturesEodDataInsertedEvent>(projected =>
+                projected.VixFuturesTickData.ContractId == ContractId
+                && projected.VixFuturesTickData.Price == 20.25m
+                && projected.VixFuturesTickData.Size == 0
+                && projected.SessionStatistics == source.Statistics),
             Arg.Any<CancellationToken>());
     }
 

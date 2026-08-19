@@ -51,7 +51,7 @@ public class BollingerBands
     public decimal High => _futuresEodData[0].HighPrice;
     public decimal Low => _futuresEodData[0].LowPrice;
     public decimal Close => _futuresEodData[0].ClosePrice;
-    public int Volume => _futuresEodData[0].Volume;
+    public long Volume => _futuresEodData[0].Volume;
 
     public int WindowSize => _windowSize;
     public double StdDev => _stdDev;

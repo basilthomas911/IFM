@@ -138,10 +138,12 @@ public sealed class DatabentoProductionEpochTests
             provider.Feeds.Keys.Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(["XCBF.PITCH", "GLBX.MDP3"], provider.FeedStartOrder);
         Assert.Equal(
-            MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.Statistics,
+            MarketDataKinds.Quote | MarketDataKinds.Trade
+                | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume,
             provider.Feeds["GLBX.MDP3"].Subscriptions.Single().DataKinds);
         Assert.Equal(
-            MarketDataKinds.Quote | MarketDataKinds.Trade,
+            MarketDataKinds.Quote | MarketDataKinds.Trade
+                | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume,
             provider.Feeds["XCBF.PITCH"].Subscriptions.Single().DataKinds);
         var expectedReplayStart = checked((ulong)(
             FuturesTradingValueDate.GetSessionStartUtc(valueDate).UtcTicks
@@ -149,6 +151,9 @@ public sealed class DatabentoProductionEpochTests
         Assert.All(provider.FeedOptions.Values, options => Assert.Equal(
             expectedReplayStart,
             options.StatisticsReplayStartTimestampNanoseconds));
+        Assert.All(provider.FeedOptions.Values, options => Assert.Equal(
+            expectedReplayStart,
+            options.TradeReplayStartTimestampNanoseconds));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("ES20260918"));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("VX20260916"));
 

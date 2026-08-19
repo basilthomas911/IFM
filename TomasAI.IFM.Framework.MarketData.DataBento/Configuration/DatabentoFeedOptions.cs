@@ -157,6 +157,11 @@ public sealed record DatabentoFeedOptions
     /// Quote, trade, and MBO subscriptions remain live-only.
     /// </summary>
     public ulong StatisticsReplayStartTimestampNanoseconds { get; init; }
+    /// <summary>
+    /// Inclusive UTC start used by futures trade subscriptions to reconstruct the
+    /// current session volume before live publication begins.
+    /// </summary>
+    public ulong TradeReplayStartTimestampNanoseconds { get; init; }
 
     public static DatabentoFeedOptions ForProfile(
         FeedDeploymentProfile profile,

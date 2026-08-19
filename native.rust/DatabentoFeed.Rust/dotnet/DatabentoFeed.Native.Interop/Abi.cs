@@ -4,7 +4,7 @@ namespace DatabentoFeed.Native.Interop;
 
 public static class Dbf
 {
-    public const uint AbiVersion = 1;
+    public const uint AbiVersion = 2;
     public const int Ok = 0;
     public const int InvalidArgument = 1;
     public const int InvalidState = 2;
@@ -42,7 +42,9 @@ public unsafe struct FeedConfigV1
     public ushort ProducerAlternateProcessorGroup, ProducerAlternateLogicalProcessor,
         DrainAlternateProcessorGroup, DrainAlternateLogicalProcessor;
     public uint Reserved32;
-    public fixed ulong Reserved[3];
+    public ulong StatisticsReplayStartTimestampNanoseconds;
+    public ulong TradeReplayStartTimestampNanoseconds;
+    public fixed ulong Reserved[1];
 }
 
 [StructLayout(LayoutKind.Sequential)]

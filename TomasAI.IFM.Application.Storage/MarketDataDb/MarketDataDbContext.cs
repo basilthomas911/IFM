@@ -983,7 +983,7 @@ public partial class MarketDataDbContext(
             highPrice: e.GetDecimal(4),
             lowPrice: e.GetDecimal(5),
             closePrice: e.GetDecimal(6),
-            volume: e.GetInt(7),
+            volume: e.GetLong(7),
             dailyPercentChange: e.GetDouble(8),
             dailyStdDev: e.GetDouble(9),
             dailyStdDevAmount: e.GetDouble(10),
@@ -1008,7 +1008,7 @@ public partial class MarketDataDbContext(
             highPrice: e.GetDecimal(5),
             lowPrice: e.GetDecimal(6),
             closePrice: e.GetDecimal(7),
-            volume: e.GetInt(8),
+            volume: e.GetLong(8),
             dailyPercentChange: e.GetDouble(9),
             dailyStdDev: e.GetDouble(10),
             dailyStdDevAmount: e.GetDouble(11),
@@ -1036,7 +1036,7 @@ public partial class MarketDataDbContext(
             ValueDate: e.GetDateOnly(1),
             HighPrice: e.GetDecimal(2),
             LowPrice: e.GetDecimal(3),
-            Volume: e.GetInt(4)
+            Volume: e.GetLong(4)
         );
 
     static FuturesItiSignalV2ReadModel MapToFuturesItiSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -1314,7 +1314,7 @@ public partial class MarketDataDbContext(
             highPrice: e.GetDecimal(3),
             lowPrice: e.GetDecimal(4),
             closePrice: e.GetDecimal(5),
-            volume: e.GetInt(6)
+            volume: e.GetLong(6)
         );
 
     static InsertFuturesEodData CreateFuturesEodDataParameters(FuturesEodDataV2ReadModel e, decimal openPrice)
@@ -3657,6 +3657,7 @@ public partial class MarketDataDbContext(
                             openPrice: e.OpenPrice,
                             highPrice: e.HighPrice,
                             lowPrice: e.LowPrice,
+                            volume: e.Volume,
                             dailyPercentChange: e.DailyPercentChange,
                             priceDirection: e.PriceDirection.ToStringFast()))
                         .QueueCommand(),
@@ -3710,7 +3711,9 @@ public partial class MarketDataDbContext(
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
-    public async Task InsertVixFuturesEodDataAsync(FuturesTickDataV2ReadModel e)
+    public async Task InsertVixFuturesEodDataAsync(
+        FuturesTickDataV2ReadModel e,
+        FuturesSessionStatisticsSnapshot? sessionStatistics = null)
     {
         // check if the data already exists...
         var db = _dbFactory.MarketDataDb;
@@ -3723,6 +3726,13 @@ public partial class MarketDataDbContext(
 
         if (existingData == null)
         {
+            var hasPrices = sessionStatistics is { HasPriceStatistics: true };
+            var openPrice = hasPrices ? sessionStatistics.Value.OpenPrice : e.Price;
+            var highPrice = hasPrices ? sessionStatistics.Value.HighPrice : e.Price;
+            var lowPrice = hasPrices ? sessionStatistics.Value.LowPrice : e.Price;
+            var volume = sessionStatistics is { HasVolume: true }
+                ? sessionStatistics.Value.Volume
+                : e.Size;
             await ExecuteMaintainedProjectionMutationAsync(
                 VixFuturesContractIndexProjection,
                 new[] { GetVixContractIndexScopeKey(e.ContractId) },
@@ -3732,11 +3742,11 @@ public partial class MarketDataDbContext(
                    .SetParameters(new InsertVixFuturesEodData(
                        contractId: e.ContractId,
                        valueDate: e.ValueDate,
-                       openPrice: e.Price,
-                       highPrice: e.Price,
-                       lowPrice: e.Price,
+                       openPrice,
+                       highPrice,
+                       lowPrice,
                        closePrice: e.Price,
-                       volume: e.Size
+                       volume
                    ))
                    .ExecuteCommandAsync();
                 await UpsertVixFuturesContractIndexAsync(e.ContractId);
@@ -3748,15 +3758,28 @@ public partial class MarketDataDbContext(
             // partition, so avoid an index and projection-state write on every VX observation.
             // Derive the rolling row only from its current stored state and the incoming
             // trade-or-quote observation; tick storage is an independent realtime projection.
+            var hasPrices = sessionStatistics is { HasPriceStatistics: true };
+            var openPrice = hasPrices
+                ? sessionStatistics.Value.OpenPrice
+                : existingData.OpenPrice;
+            var highPrice = hasPrices
+                ? sessionStatistics.Value.HighPrice
+                : Math.Max(existingData.HighPrice, e.Price);
+            var lowPrice = hasPrices
+                ? sessionStatistics.Value.LowPrice
+                : Math.Min(existingData.LowPrice, e.Price);
+            var volume = sessionStatistics is { HasVolume: true }
+                ? sessionStatistics.Value.Volume
+                : checked(existingData.Volume + e.Size);
             await db.Use(MarketDataDbCql.UpdateVixFuturesEodData)
                .SetParameters(new UpdateVixFuturesEodData(
                     contractId: e.ContractId,
                     valueDate: e.ValueDate,
-                    openPrice: existingData.OpenPrice,
-                    highPrice: Math.Max(existingData.HighPrice, e.Price),
-                    lowPrice: Math.Min(existingData.LowPrice, e.Price),
+                    openPrice,
+                    highPrice,
+                    lowPrice,
                     closePrice: e.Price,
-                    volume: checked(existingData.Volume + e.Size)
+                    volume
                 ))
                .ExecuteCommandAsync();
         }

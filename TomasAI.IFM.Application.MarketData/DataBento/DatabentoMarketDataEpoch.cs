@@ -217,6 +217,9 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
                             Dataset = dataset,
                             StatisticsReplayStartTimestampNanoseconds =
                                 ToUnixNanoseconds(
+                                    FuturesTradingValueDate.GetSessionStartUtc(ValueDate)),
+                            TradeReplayStartTimestampNanoseconds =
+                                ToUnixNanoseconds(
                                     FuturesTradingValueDate.GetSessionStartUtc(ValueDate))
                         });
                     TickAggregationService? aggregation = null;
@@ -491,9 +494,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
         DatabentoMarketDataCatalog.ResolvedContract resolved)
     {
         var kinds = MarketDataKinds.Quote | MarketDataKinds.Trade;
-        if (resolved.Registration.AssetTypeId == AssetTypeId.Futures
-            && !StringComparer.OrdinalIgnoreCase.Equals(resolved.Detail.Ticker, "VX"))
-            kinds |= MarketDataKinds.Statistics;
+        if (resolved.Registration.AssetTypeId == AssetTypeId.Futures)
+            kinds |= MarketDataKinds.Statistics | MarketDataKinds.SessionVolume;
         return kinds;
     }
 

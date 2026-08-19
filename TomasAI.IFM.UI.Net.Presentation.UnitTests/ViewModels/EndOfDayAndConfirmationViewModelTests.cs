@@ -214,7 +214,7 @@ public class EndOfDayAndConfirmationViewModelTests
                 Arg.Any<decimal>(),
                 Arg.Any<decimal>(),
                 Arg.Any<decimal>(),
-                Arg.Any<int>(),
+                Arg.Any<long>(),
                 Arg.Any<string>())
             .Returns(_ => result());
 

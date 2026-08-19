@@ -547,7 +547,7 @@ internal static class MarketDataSchemaCql
     highPrice decimal,
     lowPrice decimal,
     closePrice decimal,
-    volume int,
+    volume bigint,
     dailyPercentChange double,
     dailyStdDev double,
     dailyStdDevAmount double,
@@ -574,7 +574,7 @@ internal static class MarketDataSchemaCql
     highPrice decimal,
     lowPrice decimal,
     closePrice decimal,
-    volume int,
+    volume bigint,
     dailyPercentChange double,
     dailyStdDev double,
     dailyStdDevAmount double,
@@ -601,7 +601,7 @@ internal static class MarketDataSchemaCql
     highPrice decimal,
     lowPrice decimal,
     closePrice decimal,
-    volume int,
+    volume bigint,
     dailyPercentChange double,
     dailyStdDev double,
     dailyStdDevAmount double,
@@ -626,7 +626,7 @@ internal static class MarketDataSchemaCql
     highPrice decimal,
     lowPrice decimal,
     closePrice decimal,
-    volume int,
+    volume bigint,
     PRIMARY KEY (contractId, valueDate)
     ) WITH CLUSTERING ORDER BY (valueDate DESC);
     """;

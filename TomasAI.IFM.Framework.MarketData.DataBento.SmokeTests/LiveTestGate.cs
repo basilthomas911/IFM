@@ -61,12 +61,14 @@ internal static class LiveTestGate
             Environment.GetEnvironmentVariable("DATABENTO_API_KEY")));
     }
 
-    internal static DatabentoFeedOptions CreateOptions() =>
+    internal static DatabentoFeedOptions CreateOptions(
+        string dataset = "GLBX.MDP3") =>
         DatabentoFeedOptions.ForProfile(
             FeedDeploymentProfile.Development,
-            "GLBX.MDP3");
+            dataset);
 
-    internal static DatabentoFeedOptions CreateLiveOptions() => CreateOptions() with
+    internal static DatabentoFeedOptions CreateLiveOptions(
+        string dataset = "GLBX.MDP3") => CreateOptions(dataset) with
     {
         DataSource = FeedDataSourceMode.DatabentoLive,
         CpuAffinity = new FeedCpuAffinityOptions

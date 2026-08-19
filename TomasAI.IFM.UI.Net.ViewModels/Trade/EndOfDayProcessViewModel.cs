@@ -21,7 +21,7 @@ public sealed record EndOfDayProcessSnapshot(
     decimal HighPrice,
     decimal LowPrice,
     decimal ClosePrice,
-    int Volume,
+    long Volume,
     decimal TradePnl,
     decimal FundBalance);
 
@@ -112,7 +112,7 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
     public decimal HighPrice => Snapshot?.HighPrice ?? 0m;
     public decimal LowPrice => Snapshot?.LowPrice ?? 0m;
     public decimal ClosePrice => Snapshot?.ClosePrice ?? 0m;
-    public int Volume => Snapshot?.Volume ?? 0;
+    public long Volume => Snapshot?.Volume ?? 0;
     public decimal TradePnl => Snapshot?.TradePnl ?? 0m;
     public decimal FundBalance => Snapshot?.FundBalance ?? 0m;
     public Guid CommandId

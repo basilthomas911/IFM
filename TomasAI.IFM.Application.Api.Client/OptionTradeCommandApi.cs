@@ -153,7 +153,7 @@ public class OptionTradeCommandApi(ICommandServiceApi commandSvc) : ITradeComman
     /// <param name="closePrice"></param>
     /// <param name="volume"></param>
     /// <param name="reference"></param>
-    public async Task<ServiceResult<Guid>> ProcessEndOfDayAsync(int fundId, int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, TradeStatus tradeStatus, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, int volume, string reference)
+    public async Task<ServiceResult<Guid>> ProcessEndOfDayAsync(int fundId, int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, TradeStatus tradeStatus, decimal openPrice, decimal highPrice, decimal lowPrice, decimal closePrice, long volume, string reference)
         => await new ProcessOptionTradeEndOfDayCommand(fundId, orderId, tradeId, tradeType, valueDate, tradeStatus, openPrice, highPrice, lowPrice, closePrice, volume, reference)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(OptionTradeUriPath.ProcessEndOfDay, e));
 

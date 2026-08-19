@@ -455,6 +455,12 @@ databento::RecordHeader make_dbn_header(databento::RType type,
 }
 
 void test_live_dbn_normalization() {
+    assert(dbf_live::classify_replay_schema("Finished trades replay")
+           == dbf_live::replay_schema::trades);
+    assert(dbf_live::classify_replay_schema("Finished statistics replay")
+           == dbf_live::replay_schema::statistics);
+    assert(dbf_live::classify_replay_schema("Finished mbp-1 replay")
+           == dbf_live::replay_schema::unknown);
     databento::Mbp1Msg quote{};
     quote.hd = make_dbn_header(databento::RType::Mbp1, sizeof(quote));
     quote.ts_recv = databento::UnixNanos{std::chrono::nanoseconds{123456999}};
@@ -517,6 +523,7 @@ void test_live_dbn_normalization() {
     statistics.ts_recv = databento::UnixNanos{std::chrono::nanoseconds{123457200}};
     statistics.ts_ref = databento::UnixNanos{std::chrono::nanoseconds{123450000}};
     statistics.price = 104'000'000'000LL;
+    statistics.quantity = 987'654'321LL;
     statistics.sequence = 10;
     statistics.ts_in_delta = databento::TimeDeltaNanos{21};
     statistics.stat_type = databento::StatType::TradingSessionHighPrice;
@@ -528,6 +535,7 @@ void test_live_dbn_normalization() {
     assert(normalized.header.record_kind == DBF_RECORD_STATISTICS);
     assert((normalized.header.flags & DBF_RECORD_FLAG_REPLAY) != 0);
     assert(normalized.statistics.price == 104'000'000'000LL);
+    assert(normalized.statistics.quantity == 987'654'321LL);
     assert(normalized.statistics.ts_ref_ns == 123450000);
     assert(normalized.statistics.stat_type == 5);
     assert(normalized.statistics.update_action == 1);

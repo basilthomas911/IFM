@@ -75,6 +75,10 @@ The implementation shall follow these decisions:
 30. Cold-path health snapshots are polled every second and aggregated metrics are exported every five seconds.
 31. Local pipeline qualification uses explicit p50/p99/p99.9 latency gates in addition to the existing throughput and loss requirements.
 32. Development, paper-trading, production, and synthetic-CI profiles define the strictness of every platform feature without changing record or recovery semantics.
+33. Futures open/high/low and session volume follow the implemented replay,
+    accumulator, official-final, lifecycle, and persistence rules in
+    `Futures_Session_Statistics_and_Volume_Implementation.md`; replayed trades
+    rebuild state without entering the real-time domain tick pipeline.
 
 ## 3. Databento limits and terminology
 
