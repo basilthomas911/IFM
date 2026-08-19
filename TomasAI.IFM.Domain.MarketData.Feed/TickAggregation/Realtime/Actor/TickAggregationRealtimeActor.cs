@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -34,6 +35,8 @@ public sealed class TickAggregationRealtimeActor(
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
         [FuturesTickQuoteDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickQuoteDataInsertedEvent>()!,
+        [FuturesSessionStatisticsUpdatedRealtimeEvent.Verb] =
+            message => message.AsEvent<FuturesSessionStatisticsUpdatedRealtimeEvent>()!,
         [FuturesTickTradeDataInsertedCompleteEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedCompleteEvent>()!,
         [FuturesTickQuoteDataInsertedCompleteEvent.Verb] =
@@ -94,6 +97,7 @@ public sealed class TickAggregationRealtimeActor(
                 break;
             case FuturesTickTradeDataInsertedEvent:
             case FuturesTickQuoteDataInsertedEvent:
+            case FuturesSessionStatisticsUpdatedRealtimeEvent:
             case TickAggregationCompleteEvent:
                 break;
             default:

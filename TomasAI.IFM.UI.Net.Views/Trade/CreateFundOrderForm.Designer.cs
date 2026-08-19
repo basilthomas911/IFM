@@ -44,10 +44,10 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             this.lblReference = new System.Windows.Forms.Label();
             this.pnlTradeDate = new System.Windows.Forms.Panel();
             this.lblTradeDate = new System.Windows.Forms.Label();
-            this.dtpTradeDate = new System.Windows.Forms.DateTimePicker();
+            this.dtpTradeDate = new TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker();
             this.pnlMaturityDate = new System.Windows.Forms.Panel();
             this.lblMaturityDate = new System.Windows.Forms.Label();
-            this.dtpMaturityDate = new System.Windows.Forms.DateTimePicker();
+            this.dtpMaturityDate = new TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker();
             this.txtOrderStatus = new System.Windows.Forms.TextBox();
             this.pnlButtons = new System.Windows.Forms.Panel();
             this.btnCancel = new System.Windows.Forms.Button();
@@ -423,10 +423,10 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         private System.Windows.Forms.Label lblReference;
         private System.Windows.Forms.Panel pnlTradeDate;
         private System.Windows.Forms.Label lblTradeDate;
-        private System.Windows.Forms.DateTimePicker dtpTradeDate;
+        private TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker dtpTradeDate;
         private System.Windows.Forms.Panel pnlMaturityDate;
         private System.Windows.Forms.Label lblMaturityDate;
-        private System.Windows.Forms.DateTimePicker dtpMaturityDate;
+        private TomasAI.IFM.UI.Net.Views.MarketData.AccessibleDateTimePicker dtpMaturityDate;
         private System.Windows.Forms.TextBox txtOrderStatus;
         private System.Windows.Forms.TextBox txtOrderDate;
     }

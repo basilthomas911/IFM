@@ -38,6 +38,7 @@ public sealed class TickAggregationRealtimeArchitectureTests
         FuturesTickQuoteDataChangedEvent.Actor.Should().Be(TickAggregationRealtimeActor.ActorName);
         FuturesTickTradeDataInsertedEvent.Actor.Should().Be(TickAggregationRealtimeActor.ActorName);
         FuturesTickQuoteDataInsertedEvent.Actor.Should().Be(TickAggregationRealtimeActor.ActorName);
+        FuturesSessionStatisticsUpdatedRealtimeEvent.Actor.Should().Be(TickAggregationRealtimeActor.ActorName);
     }
 
     [Fact]

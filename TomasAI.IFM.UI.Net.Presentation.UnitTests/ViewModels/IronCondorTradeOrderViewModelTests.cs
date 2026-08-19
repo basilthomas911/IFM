@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
@@ -90,16 +91,33 @@ public class IronCondorTradeOrderViewModelTests
             .WithMessage("*invalid trade type*");
     }
 
+    [Fact]
+    public void NewTradeWithOrdinaryReference_CreatesFourUnsetOptionLegs()
+    {
+        var viewModel = CreateViewModel(reference: "G2-TEST-Trade");
+        var createTrade = typeof(IronCondorTradeOrderViewModel).GetMethod(
+            "CreateIronCondorTrade",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var trade = (OptionTradeReadModel)createTrade.Invoke(viewModel, [TradeStatus.Open])!;
+
+        trade.OptionLegs.Should().HaveCount(4);
+        trade.OptionLegs.Should().OnlyContain(leg => leg.ContractId == string.Empty);
+        trade.OptionLegs.Select(leg => (leg.OptionLegType, leg.OptionLegAction))
+            .Should().OnlyHaveUniqueItems();
+    }
+
     static IronCondorTradeOrderViewModel CreateViewModel(
         IAppRoot? appRoot = null,
-        TradeType tradeType = TradeType.ShortIronCondor)
+        TradeType tradeType = TradeType.ShortIronCondor,
+        string reference = "P:4500:4550 X C:5000:5050")
         => new(
             appRoot ?? Substitute.For<IAppRoot>(),
             ValueDate,
             17,
             Contract(),
             Order(),
-            Trade(tradeType),
+            Trade(tradeType, reference),
             OrderActionType.Open);
 
     static FundOrderReadModel Order()
@@ -117,7 +135,7 @@ public class IronCondorTradeOrderViewModelTests
             null,
             "test");
 
-    static FundOrderTradeReadModel Trade(TradeType tradeType)
+    static FundOrderTradeReadModel Trade(TradeType tradeType, string reference)
         => new(
             17,
             101,
@@ -127,7 +145,7 @@ public class IronCondorTradeOrderViewModelTests
             new DateOnly(2026, 9, 18),
             TradeState.NewTrade,
             TradeAction.Sell,
-            "P:4500:4550 X C:5000:5050",
+            reference,
             true,
             "ES",
             DateTime.UtcNow,

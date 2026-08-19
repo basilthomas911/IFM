@@ -1,7 +1,7 @@
 # UI Terminal-Operation Tracking and Rollout
 
 Status: Approved UI reference pattern
-Version: 1.4
+Version: 1.5
 Date: 2026-08-18
 Scope: UI-originated commands whose accepted work finishes asynchronously through correlated complete/fail events
 
@@ -105,6 +105,14 @@ typed lookup projection only after exact-ID completion, exposes typed failure wi
 listener shutdown through `LookupTypeEditorView`. G2-024 through G2-026 prove the real editor, source/terminal events,
 durable partition query, visible name/short-code selectors, and public-command cleanup agree for every transition.
 
+The fund-transaction and Trade Orders editors extend the same contract to financial and parent/child mutations. The
+transaction editor correlates a cash deposit and compensating withdrawal before refreshing its immutable rows and
+balance. `TradeOrderEditorViewModel` starts its event listeners before command admission, retains bounded early terminal
+events, accepts only the exact returned command ID, refreshes the complete typed fund/order/trade snapshot after success,
+and exposes the resulting change to the view. G2-027 through G2-034 prove deposit/compensation, order add, trade add,
+trade-state change, child removal, and parent removal through the real Development UI, with durable/visible agreement
+and restored baselines.
+
 New UI implementations should compose the shared correlation primitive with operation-specific lifecycle, command,
 terminal-event, durable-refresh, and presentation behavior. They must preserve bounded race handling, typed errors,
 cancellation semantics, and exact command matching.
@@ -164,6 +172,8 @@ proving that the REST- and NATS-backed clients reach the same actor contract and
 | Yield-curve editor | Reference implementation | Correlates complete/fail by command ID, handles an early event, and refreshes durable state after complete. |
 | Economic-calendar editor | Accepted implementation | Correlates manual and imported complete/fail by command ID, handles early and duplicate delivery, refreshes the bounded durable date/country projection after complete, and owns awaited listener shutdown; G2-020 through G2-023 passed in the real Development UI. |
 | Lookup editor | Accepted implementation | Correlates add/change/remove complete/fail by command ID, handles early and unrelated delivery, refreshes the full durable lookup catalog only after complete, and owns awaited listener shutdown; G2-024 through G2-026 passed in the real Development UI. |
+| Fund Transactions editor | Accepted implementation | Correlates the cash deposit and compensating withdrawal by exact command ID, refreshes immutable rows and balance after complete, and restores the captured balance; G2-027 through G2-029 passed in the real Development UI. |
+| Trade Orders editor | Accepted implementation | Correlates order/trade add, trade-state change, and child-first removal by exact command ID, handles early terminal events, and refreshes the typed fund/order/trade snapshot after complete; G2-030 through G2-034 passed in the real Development UI. |
 | Market economic-calendar view | Partial supporting behavior | Owns calendar listeners, refreshes on events, and exposes import failure, but it is not the submitting command's correlation owner. |
 | Application-startup automatic imports | Implemented | Attempts both imports once before the live-feed trading-hours gate, observes exact-ID complete/fail events for up to 30 seconds, reports only failed/unobserved outcomes, performs no retry, and continues startup. |
 | Legacy scheduled tasks | Explicitly excluded | Unreviewed and not approved as terminal-operation tracking implementations. |
@@ -201,6 +211,7 @@ completed scheduled-task rollout.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 1.5 | 2026-08-18 | Accepted reusable-fund deposit/compensation and Trade Orders add/change/child-first-remove flows through G2-034 with listener-first exact-ID correlation, durable/UI agreement, single modal/command trade identity, and restored baselines. |
 | 1.4 | 2026-08-18 | Migrated lookup add/change/remove to the shared listener-first exact-ID pattern and accepted G2-024 through G2-026 with durable partition/UI selector agreement and public Reference-command cleanup. |
 | 1.3 | 2026-08-18 | Extended the economic-calendar editor pattern to manual add/change/remove terminal events and accepted G2-020 through G2-023 with exact-ID correlation, bounded durable/UI refresh, production FMP import, and public-command baseline restoration. |
 | 1.2 | 2026-08-16 | Extracted shared terminal-event correlation and migrated automatic startup yield/calendar imports to independent listener-first, exact-ID, 30-second bounded observation with failure-only reporting, no retry, cleanup, and degraded startup continuation. |

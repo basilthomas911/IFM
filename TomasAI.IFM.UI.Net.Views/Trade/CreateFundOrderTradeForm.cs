@@ -23,7 +23,8 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
         _appRoot = appRoot;
         _baseSymbolMap = [];
         InitializeComponent();
-      }
+        ddlBaseSymbol.SelectedIndexChanged += ddlBaseSymbol_SelectedIndexChanged;
+    }
 
     public void SetViewModel(TradeOrderEditorViewModel viewModel) => _viewModel = viewModel;
 
@@ -42,6 +43,7 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
         ddlTradeType.Items.Add($"{TradeType.ShortIronCondor}");
         ddlTradeType.Items.Add($"{TradeType.LongIronCondor}");
         ddlTradeType.SelectedIndex = 0;
+        UpdateSelectorAccessibility(ddlTradeType, "Trade type selector");
         ddlTradeType.Enabled = true;
     }
 
@@ -108,6 +110,7 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
                 ddlBaseSymbol.Items.Add(e.Description);
             }
             ddlBaseSymbol.SelectedIndex = 0;
+            UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
             ddlBaseSymbol.Enabled = true;
         }
     }
@@ -182,12 +185,25 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
 
     void ddlTradeType_SelectedIndexChanged(object sender, EventArgs e)
     {
+        UpdateSelectorAccessibility(ddlTradeType, "Trade type selector");
+        if (ddlTradeType.SelectedItem is null)
+            return;
         var tradeType = Enum.Parse<TradeType>($"{ddlTradeType.SelectedItem}");
         txtTradeAction.Text = tradeType switch {
             TradeType.ShortIronCondor => $"{TradeAction.Sell}",
             TradeType.LongIronCondor => $"{TradeAction.Buy}",
             _ => throw new NotImplementedException()
         };
+    }
+
+    void ddlBaseSymbol_SelectedIndexChanged(object? sender, EventArgs e)
+        => UpdateSelectorAccessibility(ddlBaseSymbol, "Base symbol selector");
+
+    static void UpdateSelectorAccessibility(ComboBox selector, string label)
+    {
+        selector.AccessibleDescription = string.Join(", ", selector.Items.Cast<object>());
+        selector.AccessibleName = $"{label}; selected={selector.SelectedItem}; "
+            + $"catalog: {selector.AccessibleDescription}";
     }
 
     public void Open()

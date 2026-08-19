@@ -819,9 +819,10 @@ public sealed class G1UiAutomationSession : IDisposable
         await SelectComboValueAsync(dialog, "ddlBaseSymbol", symbol, timeout, cancellationToken);
         SetText(dialog, "txtReference", fixture.TradeReference);
         PostButtonClick(dialog, "btnSave");
-        await WaitForWindowClosedAsync("Add Trade", timeout, cancellationToken);
+        var refreshTimeout = TimeSpan.FromSeconds(Math.Min(timeout.TotalSeconds, 30));
+        await WaitForWindowClosedAsync("Add Trade", refreshTimeout, cancellationToken);
         await WaitForListItemAsync(
-            tradeWindow, "lstTrades", tradeId, present: true, timeout, cancellationToken);
+            tradeWindow, "lstTrades", tradeId, present: true, refreshTimeout, cancellationToken);
         SelectListItemById(tradeWindow, "lstTrades", tradeId);
         return await WaitForTradeOrderStateAsync(
             tradeWindow,
@@ -833,7 +834,7 @@ public sealed class G1UiAutomationSession : IDisposable
             tradePresent: true,
             fixture.TradeReference,
             fixture.InitialTradeState,
-            timeout,
+            refreshTimeout,
             cancellationToken);
     }
 

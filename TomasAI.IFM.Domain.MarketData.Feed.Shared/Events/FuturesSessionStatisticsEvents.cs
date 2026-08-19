@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -13,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 [MessagePackObject]
 public sealed record FuturesSessionStatisticsUpdatedRealtimeEvent : IEvent<FuturesEodDataId>
 {
-    public const string Actor = "FuturesSessionStatisticsRealtime";
+    public const string Actor = FuturesTickTradeDataInsertedEvent.Actor;
     public const string Verb = "SessionStatisticsObserved";
 
     [Key(0)] public ActorSubject Subject { get; init; }

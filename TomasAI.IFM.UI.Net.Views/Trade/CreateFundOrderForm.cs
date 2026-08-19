@@ -90,6 +90,7 @@ public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFo
             dtpMaturityDate.Value = _viewModel.MaturityDate.ToDateTime(TimeOnly.MinValue);
             ddlBaseContracts.Items.Clear();
             ddlBaseContracts.Items.AddRange(_viewModel.BaseContractIds.Cast<object>().ToArray());
+            ddlBaseContracts.AccessibleDescription = string.Join(", ", _viewModel.BaseContractIds);
             RenderSelectedBaseContract();
         }
         finally
@@ -117,7 +118,12 @@ public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFo
             .First();
         if (ddlBaseContracts.SelectedIndex != selectedIndex)
             ddlBaseContracts.SelectedIndex = selectedIndex;
+        UpdateBaseContractSelectorAccessibility();
     }
+
+    void UpdateBaseContractSelectorAccessibility()
+        => ddlBaseContracts.AccessibleName = $"Base contract selector; selected={ddlBaseContracts.SelectedItem}; "
+            + $"catalog: {ddlBaseContracts.AccessibleDescription}";
 
     void RenderOperationState()
     {
@@ -170,6 +176,7 @@ public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFo
 
     async void ddlBaseContracts_SelectedIndexChanged(object sender, EventArgs e)
     {
+        UpdateBaseContractSelectorAccessibility();
         if (_rendering || !_viewModel.SelectBaseContract(ddlBaseContracts.SelectedIndex))
             return;
 

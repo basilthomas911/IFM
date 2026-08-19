@@ -1302,33 +1302,33 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
         OptionTradeLegReadModel[] GetOptionLegs()
         {
-            var contractIs = _fundOrderTrade.GetContractIds();
+            var contractIds = _fundOrderTrade.GetContractIds();
             return [
                 OptionTradeLegReadModel.Default(
                 orderId: _fundOrderTrade.OrderId,
                 tradeId: _fundOrderTrade.TradeId,
-                contractId: contractIs[0],
+                contractId: contractIds.ElementAtOrDefault(0) ?? string.Empty,
                 optionType: OptionType.Put,
                 optionLegAction: this.ShortOptionLegAction
             ),
                 OptionTradeLegReadModel.Default(
                 orderId: _fundOrderTrade.OrderId,
                 tradeId: _fundOrderTrade.TradeId,
-                contractId: contractIs[1],
+                contractId: contractIds.ElementAtOrDefault(1) ?? string.Empty,
                 optionType: OptionType.Put,
                 optionLegAction: this.LongOptionLegAction
             ),
                 OptionTradeLegReadModel.Default(
                 orderId: _fundOrderTrade.OrderId,
                 tradeId: _fundOrderTrade.TradeId,
-                contractId: contractIs[2],
+                contractId: contractIds.ElementAtOrDefault(2) ?? string.Empty,
                 optionType: OptionType.Call,
                 optionLegAction: this.ShortOptionLegAction
             ),
                 OptionTradeLegReadModel.Default(
                 orderId: _fundOrderTrade.OrderId,
                 tradeId: _fundOrderTrade.TradeId,
-                contractId: contractIs[3],
+                contractId: contractIds.ElementAtOrDefault(3) ?? string.Empty,
                 optionType: OptionType.Call,
                 optionLegAction: this.LongOptionLegAction
             )];

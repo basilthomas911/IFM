@@ -25,6 +25,7 @@ public partial class TradeOrderEditorForm
     TradeOrderEditorViewModel _viewModel = null!;
     int _lastTradeIndex;
     int _lastTradeOrderIndex;
+    FundOrderTradeId? _displayedTradeId;
     long _lastErrorSequence;
     long _lastChangeSequence;
     bool _rendering;
@@ -36,6 +37,7 @@ public partial class TradeOrderEditorForm
     public TradeOrderEditorForm(IAppRoot appRoot)
     {
         InitializeComponent();
+        ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
     }
 
@@ -179,6 +181,7 @@ public partial class TradeOrderEditorForm
     {
         _lastTradeIndex = -1;
         _lastTradeOrderIndex = -1;
+        _displayedTradeId = null;
         pnlTradeControl.Controls.Clear();
         await _viewModel.LoadFunds();
     }
@@ -202,8 +205,7 @@ public partial class TradeOrderEditorForm
                 ddlFund.Items.Add(fund.Name);
             ddlFund.AccessibleDescription = string.Join(", ", _viewModel.Funds.Select(fund => fund.Name));
             ddlFund.SelectedIndex = _viewModel.FundSelectedIndex;
-            ddlFund.AccessibleName = $"Trade fund selector; selected={ddlFund.SelectedItem}; "
-                + $"catalog: {ddlFund.AccessibleDescription}";
+            UpdateFundSelectorAccessibility();
         }
         finally
         {
@@ -273,6 +275,11 @@ public partial class TradeOrderEditorForm
         finally
         {
             _rendering = wasRendering;
+        }
+        if (lstTrades.Items.Count == 0)
+        {
+            _displayedTradeId = null;
+            pnlTradeControl.Controls.Clear();
         }
         if (!wasRendering && lstTrades.SelectedIndices.Count > 0)
             ShowSelectedTrade();
@@ -382,6 +389,7 @@ public partial class TradeOrderEditorForm
 
     void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
     {
+        UpdateFundSelectorAccessibility();
         if (_rendering) return;
         if (ddlFund.SelectedIndex < 0) return;
         if (_viewModel.SelectFund(ddlFund.SelectedIndex))
@@ -391,6 +399,10 @@ public partial class TradeOrderEditorForm
         }
         UpdateButtons();
     }
+
+    void UpdateFundSelectorAccessibility()
+        => ddlFund.AccessibleName = $"Trade fund selector; selected={ddlFund.SelectedItem}; "
+            + $"catalog: {ddlFund.AccessibleDescription}";
 
     void ShowFundOrders()
     {
@@ -403,6 +415,7 @@ public partial class TradeOrderEditorForm
     void lstTradeOrders_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (_rendering) return;
+        _displayedTradeId = null;
         pnlTradeControl.Controls.Clear();
         ddlOrderActionType.Enabled = false;
         txtDaysToExpiry.Visible = false;
@@ -430,8 +443,6 @@ public partial class TradeOrderEditorForm
         if (_viewModel!.FundOrders.Count > 0 && _viewModel!.FundOrderTrades.Count > 0)
         {
             var index = lstTrades.SelectedIndices.Count > 0 ? lstTrades.SelectedIndices[0] : 0;
-            if (_lastTradeIndex == index)
-                return;
             _lastTradeIndex = index;
             _viewModel.SelectFundOrderTrade(index);
             var fundOrderTrade = _viewModel.GetFundOrderTrade(index);
@@ -443,7 +454,11 @@ public partial class TradeOrderEditorForm
             dtpTradeDate.Value = fundOrderTrade.TradeDate.ToDateTime(TimeOnly.MinValue);
             txtDaysToExpiry.Visible = true;
             lblDaysToExpiry.Visible = true;
-            ClearTradeOrderControl();
+            if (_displayedTradeId != fundOrderTrade.Id)
+            {
+                _displayedTradeId = fundOrderTrade.Id;
+                ClearTradeOrderControl();
+            }
         }
         return;
         
@@ -493,11 +508,7 @@ public partial class TradeOrderEditorForm
                 };
                 _lastTradeOrderIndex = lstTradeOrders.SelectedIndices[0];
                 _lastTradeIndex = lstTrades.Items.Count;
-                await ObserveAsync(async () =>
-                {
-                    var newTradeId = await _viewModel.GetNewTradeIdAsync();
-                    await _viewModel.AddTradeToFundOrder(fundOrderTrade with { TradeId = newTradeId });
-                });
+                await ObserveAsync(() => _viewModel.AddTradeToFundOrder(fundOrderTrade));
             }
         }
     }
@@ -597,6 +608,17 @@ public partial class TradeOrderEditorForm
         ddlTradeState.SelectedIndex = preferred is null
             ? (ddlTradeState.Items.Count > 0 ? 0 : -1)
             : ddlTradeState.Items.IndexOf(preferred);
+        UpdateTradeStateSelectorAccessibility();
+    }
+
+    void ddlTradeState_SelectedIndexChanged(object? sender, EventArgs e)
+        => UpdateTradeStateSelectorAccessibility();
+
+    void UpdateTradeStateSelectorAccessibility()
+    {
+        ddlTradeState.AccessibleDescription = string.Join(", ", ddlTradeState.Items.Cast<object>());
+        ddlTradeState.AccessibleName = $"Trade state selector; selected={ddlTradeState.SelectedItem}; "
+            + $"catalog: {ddlTradeState.AccessibleDescription}";
     }
 
     async void btnCreateFund_Click(object sender, EventArgs e)
