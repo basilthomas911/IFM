@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Application.Storage.CommandDeduplication;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -29,11 +31,17 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 /// <param name="blackboardService">Blackboard service for cached ID resolution and lookups.</param>
 /// <param name="logger">Logger for database provider diagnostics.</param>
 public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ILogger<DbProvider> logger)
-    : ObjectDataRepository<EventSourceActorDbContext>(connectionSettings[EventSourceActorDbConnection], logger), IEventSourceActorDbContext
+    : ObjectDataRepository<EventSourceActorDbContext>(connectionSettings[EventSourceActorDbConnection], logger),
+      IEventSourceActorDbContext,
+      ICommandDuplicateGuard
 {
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new();
+    readonly Lazy<CommandDuplicateCoordinator> _commandDuplicates = new(
+        static () => new CommandDuplicateCoordinator(
+            CommandDuplicateCoordinator.ReadConfiguredCapacity()),
+        LazyThreadSafetyMode.ExecutionAndPublication);
 
     /// <summary>
     /// Gets the database context.
@@ -352,24 +360,61 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         DateTime commandTimestamp,
         string commandData,
         CancellationToken cancellationToken)
-        => await _dbFactory.ActorEventSourceDb
-                .Use(EventSourceDbSql.InsertCommandLog)
-                .SetParameters(new InsertActorCommandLog(
-                    commandId: command.CommandId,
-                    streamId: command.StreamId,
-                    aggregateName: $"{command.RouteTo}",
-                    commandName: command.CommandName,
-                    commandTimestamp: $"{commandTimestamp:o}",
-                    commandStatus: $"{CommandStatus.InProgress}",
-                    commandData: commandData
-                ))
-                .ExecuteCommandAsync(cancellationToken);
+        => _ = await TryInsertCommandLogAsync(
+                command,
+                commandTimestamp,
+                commandData,
+                cancellationToken)
+            .ConfigureAwait(false);
 
     public async Task<bool> TryInsertCommandLogAsync(
         ICommand command,
         DateTime commandTimestamp,
         string commandData)
-        => await _dbFactory.ActorEventSourceDb
+        => await TryInsertCommandLogAsync(
+                command,
+                commandTimestamp,
+                commandData,
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+    public async Task<bool> TryInsertCommandLogAsync(
+        ICommand command,
+        DateTime commandTimestamp,
+        string commandData,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandData);
+
+        return await _commandDuplicates.Value.TryAcceptAsync(
+                command.CommandId,
+                token => InsertCommandLogCoreAsync(command, commandTimestamp, commandData, token),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public ValueTask<bool> TryAcceptAsync(
+        ICommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return _commandDuplicates.Value.TryAcceptAsync(
+            command.CommandId,
+            token => InsertCommandLogCoreAsync(
+                command,
+                DateTime.UtcNow,
+                JsonConvert.SerializeObject(command),
+                token),
+            cancellationToken);
+    }
+
+    Task<bool> InsertCommandLogCoreAsync(
+        ICommand command,
+        DateTime commandTimestamp,
+        string commandData,
+        CancellationToken cancellationToken)
+        => _dbFactory.ActorEventSourceDb
             .Use(EventSourceDbSql.TryInsertCommandLog)
             .SetParameters(new InsertActorCommandLog(
                 command.CommandId,
@@ -379,7 +424,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 $"{commandTimestamp:o}",
                 $"{CommandStatus.InProgress}",
                 commandData))
-            .ExecuteScalarAsync(static value => value.GetBool(0));
+            .ExecuteScalarAsync(static value => value.GetBool(0), cancellationToken);
 
     public async Task InsertEventProjectorStateAsync(EventProjectorStateReadModel state)
         => await InsertEventProjectorStateAsync(state, CancellationToken.None).ConfigureAwait(false);

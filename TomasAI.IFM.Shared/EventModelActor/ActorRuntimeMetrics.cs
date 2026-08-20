@@ -11,6 +11,7 @@ internal static class ActorRuntimeMetrics
 {
     internal const string MeterName = ActorLifecycleMetrics.MeterName;
     internal const string ValidationStage = "validation";
+    internal const string DeduplicationStage = "deduplication";
     internal const string ReplayStage = "replay";
     internal const string ExecutionStage = "execution";
     internal const string PersistenceStage = "persistence";
@@ -98,6 +99,10 @@ internal static class ActorRuntimeMetrics
     internal static readonly Counter<long> StageFailures = Meter.CreateCounter<long>(
         "ifm.actor.stage.failures",
         description: "Actor processing stage failures handled by a domain actor.");
+
+    internal static readonly Counter<long> DuplicateCommands = Meter.CreateCounter<long>(
+        "ifm.actor.commands.duplicates",
+        description: "Commands acknowledged without processing because their command identifier was already reserved.");
 
     internal static readonly Counter<long> AdmissionWouldReject = Meter.CreateCounter<long>(
         "ifm.actor.admission.would_reject",

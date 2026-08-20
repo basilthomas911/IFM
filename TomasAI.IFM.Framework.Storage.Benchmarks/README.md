@@ -1,5 +1,40 @@
 # Framework.Storage benchmarks
 
+`CommandLogProviderBenchmarks` compares only the database guard operation: the existing authoritative PostgreSQL
+`command_log` table (`ON CONFLICT DO NOTHING`, current JSON/text payload) against an isolated ScyllaDB
+`command_log_benchmark` table (`IF NOT EXISTS`, MessagePack/blob payload). The Scylla store is not registered in the
+application runtime and does not shadow, replace, or dual-write the PostgreSQL command log. First-insert and duplicate
+shortcut workloads run at 1, 16, and 32 concurrent requests; serialization is performed once in setup so database
+latency and allocation are not conflated with codec cost.
+
+```powershell
+$env:DOTNET_ENVIRONMENT = 'Test'
+$env:IFM_SCYLLA_TEST_CONNECTION = 'Contact Points=localhost;Port=9042;Default Keyspace=fund_test_db'
+$env:SCYLLADB_TEST_KEY = '{"userid":"...","password":"..."}'
+$env:IFM_POSTGRES_EVENTSOURCE_TEST_CONNECTION = 'Host=localhost;Port=5432;Database=event-source-test-db'
+$env:POSTGRES_TEST_KEY = '{"userid":"...","password":"..."}'
+
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- `
+  --filter '*CommandLogProviderBenchmarks*' `
+  --artifacts .test-results/benchmarks-command-log
+```
+
+Treat the results as a decision input, not a cutover. PostgreSQL remains authoritative until correctness, operations,
+and representative sustained-load evidence support a separate migration decision.
+
+`CommandDuplicateCoordinatorBenchmarks` measures the bounded process-local fast path without database latency:
+
+```powershell
+dotnet run -c Release --project TomasAI.IFM.Framework.Storage.Benchmarks -- `
+  --filter '*CommandDuplicateCoordinatorBenchmarks*' `
+  --artifacts .test-results/benchmarks-command-dedup-l1
+```
+
+`CompletedIdShortcut` measures IDs already in the 100,000-entry completed cache. `SameIdCoalescing` measures one
+local reservation owner followed by same-ID local duplicates; the unit suite separately forces a genuinely concurrent
+32-caller in-flight race and verifies one owner. Evicted IDs and independent application processes fall
+through to the authoritative PostgreSQL path measured by `CommandLogProviderBenchmarks`.
+
 `ScyllaBulkWriteBenchmarks` compares the former logged-batch write path with the per-call bounded-concurrency
 production path. `PostgresBulkWriteBenchmarks` compares the former sequential prepared-command path with bounded
 `NpgsqlBatch` chunks. Each benchmark creates one table in its dedicated test database and reserves negative partition

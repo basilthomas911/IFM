@@ -26,6 +26,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     string _serviceId = string.Empty;
 
     ICommandActorContext? _context;
+    ICommandDuplicateGuard? _commandDuplicateGuard;
     IActorSupervisor _supervisor;
     int _lifecycle;
 
@@ -70,6 +71,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
             _context = supervisor.CreateCommandActorContext(actorId);
+            _commandDuplicateGuard = _context.Container.Resolve<ICommandDuplicateGuard>()
+                ?? throw new InvalidOperationException(
+                    $"{nameof(ICommandDuplicateGuard)} must be registered before command actors start.");
             cancellationToken.ThrowIfCancellationRequested();
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
@@ -170,64 +174,87 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             /// get any existing error code from the message info...
             errorCode = command.ErrorCode;
 
-            /// check if the message is a command and validate it...
             cancellationToken.ThrowIfCancellationRequested();
-            activeStage = ActorRuntimeMetrics.ValidationStage;
+            activeStage = ActorRuntimeMetrics.DeduplicationStage;
             var stageStarted = ActorRuntimeMetrics.StartStage();
+            bool accepted;
             try
             {
-                if (cancellationToken.CanBeCanceled)
-                    await OnValidateAsync(_context!, threadId, command, cancellationToken);
-                else
-                    await OnValidateAsync(_context!, threadId, command);
+                accepted = await _commandDuplicateGuard!
+                    .TryAcceptAsync(command, cancellationToken)
+                    .ConfigureAwait(false);
             }
             finally
             {
                 ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
             }
 
-            /// load the current state, process the message, and save the updated state...
-            cancellationToken.ThrowIfCancellationRequested();
-            activeStage = ActorRuntimeMetrics.ReplayStage;
-            stageStarted = ActorRuntimeMetrics.StartStage();
-            IActorState state;
-            try
+            if (!accepted)
             {
-                state = cancellationToken.CanBeCanceled
-                    ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
-                    : await OnLoadStateAsync(_context!, threadId, command);
+                ActorRuntimeMetrics.DuplicateCommands.Add(1);
+                result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
             }
-            finally
+            else
             {
-                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
-            }
-            state?.Id = threadId;
+                /// check if the message is a command and validate it...
+                cancellationToken.ThrowIfCancellationRequested();
+                activeStage = ActorRuntimeMetrics.ValidationStage;
+                stageStarted = ActorRuntimeMetrics.StartStage();
+                try
+                {
+                    if (cancellationToken.CanBeCanceled)
+                        await OnValidateAsync(_context!, threadId, command, cancellationToken);
+                    else
+                        await OnValidateAsync(_context!, threadId, command);
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                }
 
-            /// process the message...
-            cancellationToken.ThrowIfCancellationRequested();
-            activeStage = ActorRuntimeMetrics.ExecutionStage;
-            stageStarted = ActorRuntimeMetrics.StartStage();
-            try
-            {
-                result = cancellationToken.CanBeCanceled
-                    ? await ReceiveAsync(_context!, state!, command, cancellationToken)
-                    : await ReceiveAsync(_context!, state!, command);
-            }
-            finally
-            {
-                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
-            }
+                /// load the current state, process the message, and save the updated state...
+                cancellationToken.ThrowIfCancellationRequested();
+                activeStage = ActorRuntimeMetrics.ReplayStage;
+                stageStarted = ActorRuntimeMetrics.StartStage();
+                IActorState state;
+                try
+                {
+                    state = cancellationToken.CanBeCanceled
+                        ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
+                        : await OnLoadStateAsync(_context!, threadId, command);
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                }
+                state?.Id = threadId;
 
-            /// save the updated state...
-            activeStage = ActorRuntimeMetrics.PersistenceStage;
-            stageStarted = ActorRuntimeMetrics.StartStage();
-            try
-            {
-                await OnSaveStateAsync(_context!, threadId, state!, command);
-            }
-            finally
-            {
-                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                /// process the message...
+                cancellationToken.ThrowIfCancellationRequested();
+                activeStage = ActorRuntimeMetrics.ExecutionStage;
+                stageStarted = ActorRuntimeMetrics.StartStage();
+                try
+                {
+                    result = cancellationToken.CanBeCanceled
+                        ? await ReceiveAsync(_context!, state!, command, cancellationToken)
+                        : await ReceiveAsync(_context!, state!, command);
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                }
+
+                /// save the updated state...
+                activeStage = ActorRuntimeMetrics.PersistenceStage;
+                stageStarted = ActorRuntimeMetrics.StartStage();
+                try
+                {
+                    await OnSaveStateAsync(_context!, threadId, state!, command);
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

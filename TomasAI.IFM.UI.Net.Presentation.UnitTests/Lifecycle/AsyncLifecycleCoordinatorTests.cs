@@ -81,6 +81,35 @@ public class AsyncLifecycleCoordinatorTests
     }
 
     [Fact]
+    public async Task StopAsync_WhileInitializing_CancelsStartupBeforeWaitingForLifecycleGate()
+    {
+        var initializationEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleanupCount = 0;
+        await using var lifecycle = new AsyncLifecycleCoordinator(
+            async cancellationToken =>
+            {
+                initializationEntered.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            },
+            _ =>
+            {
+                cleanupCount++;
+                return Task.CompletedTask;
+            });
+
+        var initialization = lifecycle.InitializeAsync(CancellationToken.None);
+        await initializationEntered.Task;
+
+        await lifecycle.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(2));
+
+        var observeInitialization = async () => await initialization;
+        await observeInitialization.Should().ThrowAsync<OperationCanceledException>();
+        cleanupCount.Should().Be(1);
+        lifecycle.IsRunning.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task InitializeAsync_Failure_CancelsOwnedWorkAndCanBeRetried()
     {
         var initializeCount = 0;

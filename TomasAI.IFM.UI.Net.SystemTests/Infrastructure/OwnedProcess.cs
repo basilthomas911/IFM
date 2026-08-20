@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
@@ -9,6 +10,8 @@ public sealed class OwnedProcess : IAsyncDisposable
     readonly StreamWriter _standardError;
     readonly SecretRedactor _redactor;
     readonly object _outputGate = new();
+    readonly StringBuilder _standardOutputSnapshot = new();
+    readonly StringBuilder _standardErrorSnapshot = new();
     bool _disposed;
 
     OwnedProcess(Process process, StreamWriter standardOutput, StreamWriter standardError, SecretRedactor redactor)
@@ -21,6 +24,22 @@ public sealed class OwnedProcess : IAsyncDisposable
 
     public Process Process { get; }
     public bool ForcedTermination { get; private set; }
+    public string StandardOutputSnapshot
+    {
+        get
+        {
+            lock (_outputGate)
+                return _standardOutputSnapshot.ToString();
+        }
+    }
+    public string StandardErrorSnapshot
+    {
+        get
+        {
+            lock (_outputGate)
+                return _standardErrorSnapshot.ToString();
+        }
+    }
 
     public static OwnedProcess Start(
         string executable,
@@ -124,7 +143,11 @@ public sealed class OwnedProcess : IAsyncDisposable
         if (eventArgs.Data is null)
             return;
         lock (_outputGate)
-            _standardOutput.WriteLine(_redactor.Redact(eventArgs.Data));
+        {
+            var line = _redactor.Redact(eventArgs.Data);
+            _standardOutput.WriteLine(line);
+            _standardOutputSnapshot.AppendLine(line);
+        }
     }
 
     void OnErrorDataReceived(object sender, DataReceivedEventArgs eventArgs)
@@ -132,7 +155,11 @@ public sealed class OwnedProcess : IAsyncDisposable
         if (eventArgs.Data is null)
             return;
         lock (_outputGate)
-            _standardError.WriteLine(_redactor.Redact(eventArgs.Data));
+        {
+            var line = _redactor.Redact(eventArgs.Data);
+            _standardError.WriteLine(line);
+            _standardErrorSnapshot.AppendLine(line);
+        }
     }
 
     bool SafeHasExited()

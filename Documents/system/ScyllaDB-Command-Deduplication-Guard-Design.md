@@ -1,6 +1,6 @@
 # ScyllaDB Command Deduplication Guard Design
 
-**Status:** Approved design; G2/G3 prerequisite satisfied; implementation remains a separate post-UI task
+**Status:** PostgreSQL guard plus bounded L1 accelerator implemented; ScyllaDB remains benchmark-only
 
 **Decision date:** 2026-08-20
 
@@ -10,34 +10,40 @@
 
 ## 1. Decision
 
-IFM will separate command admission/deduplication from the PostgreSQL event-source database. A dedicated ScyllaDB command guard will become the authoritative answer to this question:
+IFM will keep the PostgreSQL `command_log` as the only authoritative runtime command guard. A dedicated ScyllaDB candidate has been implemented only for integration testing and BenchmarkDotNet comparison of this question:
 
 > Has this exact `CommandId` already been admitted for processing?
 
-The guard is not initially a general-purpose command history, reporting, or audit subsystem. Its first responsibility is to make duplicate command delivery cheap to detect and to stop duplicate processing at the earliest safe point.
+The candidate is not registered in runtime dependency injection, is not dual-written, and does not participate in command processing. Its only responsibility in this tranche is to test whether ScyllaDB can make duplicate admission materially cheaper without risking the current path.
 
-The stored command payload will use the existing MessagePack-CSharp contract and options already used by the actor/NATS transport. Newtonsoft JSON will not be the durable command representation in the new store.
+The ScyllaDB comparison table stores MessagePack-CSharp bytes in a blob. The existing PostgreSQL table and its Newtonsoft JSON/text payload remain unchanged, providing an apples-to-current-production comparison rather than an invented PostgreSQL replacement.
 
-UI gates G2 and G3 were accepted on 2026-08-20. Implementation remains outside this UI change set and starts only as a separately authorized post-UI task, so the storage migration is not mixed into restoration acceptance.
+UI gates G2, G3, and G4 were accepted on 2026-08-20. The benchmark candidate was implemented only after G4 acceptance, as separately authorized.
+
+The measured ScyllaDB LWT path was slower in every completed scenario and timed out when 64 same-command duplicates contended on the single test node. No authority switch is justified. Any future proposal must start from new topology/capacity evidence and a separately authorized migration plan.
+
+Runtime admission now uses a bounded process-local completed-ID cache and same-ID in-flight coalescing ahead of the PostgreSQL insert. The cache accelerates repeated local deliveries but never replaces PostgreSQL authority. Its default capacity is 100,000 IDs and can be changed with `IFM_COMMAND_DUPLICATE_CACHE_CAPACITY`. Eviction removes only the memory entry; a later duplicate falls through to PostgreSQL and is rejected by the durable primary key.
 
 ## 2. Current behavior and reason for change
 
-The current `command_log` table is in PostgreSQL beside the event-source tables. Each command actor:
+The `command_log` table remains in PostgreSQL beside the event-source tables. The shared command-actor pipeline now:
 
 1. deserializes the incoming MessagePack command;
-2. serializes the command again as Newtonsoft JSON;
-3. starts a PostgreSQL `command_log` insert during parsing; and
-4. awaits that insert before domain validation continues.
+2. checks the bounded completed-ID cache;
+3. joins an existing process-local reservation when the same ID is already in flight;
+4. performs `INSERT ... ON CONFLICT DO NOTHING` on a cache miss;
+5. acknowledges a duplicate with its original `CommandId` without validation, state loading, execution, or persistence; and
+6. allows only the PostgreSQL insert winner to continue through ordinary actor processing.
 
-The current table is keyed by `CommandId`, but the runtime path does not use the insert as a universal atomic admission decision. Duplicate protection therefore depends on downstream behavior rather than a single guard that stops work before state loading and command execution.
+Existing actor audit calls use the same atomic compatibility method. After ingress has admitted an ID, those calls are completed by the L1 cache without another database operation.
 
-The target removes JSON reserialization, gives duplicate admission one explicit contract, and uses ScyllaDB's partition-key lookup path for the guard record.
+The PostgreSQL row retains the current JSON payload. MessagePack/blob storage remains confined to the ScyllaDB benchmark candidate.
 
-## 3. Required semantics
+## 3. Required semantics for any future authoritative implementation
 
 ### 3.1 First delivery
 
-The first valid delivery of a `CommandId` performs an atomic conditional insert. When ScyllaDB reports `applied = true`, the actor may continue to validation, replay/state loading, execution, and persistence.
+The first valid delivery of a `CommandId` performs an atomic PostgreSQL insert with `ON CONFLICT DO NOTHING`. Only the caller receiving `inserted = true` may continue to validation, replay/state loading, execution, and persistence.
 
 ### 3.2 Duplicate delivery
 
@@ -50,11 +56,13 @@ When the conditional insert reports `applied = false`, the actor must stop befor
 - event creation or publication; and
 - any external provider or broker call.
 
-The caller receives a typed duplicate-command outcome containing the original `CommandId`. A duplicate must not be presented as a newly executed command.
+The caller receives an idempotent successful result containing the original `CommandId`; the duplicate is not executed again. The `ifm.actor.commands.duplicates` metric distinguishes this path from newly executed commands.
 
 ### 3.3 Concurrency
 
-Two concurrent deliveries of the same `CommandId` must not both pass admission. This requires ScyllaDB lightweight-transaction semantics:
+Two concurrent deliveries of the same `CommandId` must not both pass admission. PostgreSQL enforces this across processes with its primary key and `ON CONFLICT DO NOTHING`. Within one process, callers share one in-flight reservation and only its owner can receive an accepted result.
+
+The benchmark-only ScyllaDB equivalent still requires lightweight-transaction semantics:
 
 ```sql
 INSERT INTO command_guard_by_id (...)
@@ -66,19 +74,19 @@ A normal ScyllaDB insert is an upsert and cannot distinguish the first delivery 
 
 ### 3.4 Crash window
 
-An admission record can be committed immediately before the process crashes. A later delivery would then be a duplicate even though domain processing may never have completed. A permanent guard without recovery would convert at-least-once delivery into command loss.
+An admission record can be committed immediately before the process crashes. A later delivery would then be a duplicate even though domain processing may never have completed. This is a known first-phase limitation of the requested guard-first implementation.
 
-For that reason, the minimum record includes admission state and a renewable processing lease even though rich terminal failure reporting is deferred. The first implementation requires these states:
+Status, a renewable processing lease, and recovery ownership remain the required follow-up before automatic recovery is enabled:
 
 - `Admitted`: the conditional insert succeeded;
 - `Processing`: one actor instance owns a bounded processing lease; and
 - `Completed`: domain persistence reached its declared success boundary.
 
-Detailed failure status, stack diagnostics, retry policy, and operator reporting may be added later. The lease/recovery distinction is not optional because it is required to make the deduplication guard safe across crashes.
+Detailed failure status, stack diagnostics, retry policy, and operator reporting are not implemented in this tranche. Until they are, an admitted row fails closed and requires operator reconciliation if processing does not reach its durable boundary.
 
 A duplicate observing an unexpired `Admitted` or `Processing` record returns `DuplicateInProgress`. A delivery observing an expired lease may acquire recovery ownership with a conditional update. A duplicate observing `Completed` returns `DuplicateCompleted` without executing domain behavior.
 
-## 4. ScyllaDB table
+## 4. Future production table design (not deployed by the benchmark)
 
 The initial table is query-specific and supports exact lookup by command ID:
 
@@ -143,85 +151,100 @@ MessagePack numeric keys are append-only:
 - new optional members receive new keys; and
 - every persisted command type receives an old-payload/new-code compatibility test.
 
-## 6. Runtime boundary
+## 6. Implemented runtime boundary
 
-Extract command admission from `IEventSourceActorDbContext`:
+The shared actor runtime resolves this contract at startup and calls it immediately after command materialization:
 
 ```csharp
-public interface ICommandDeduplicationGuard
+public interface ICommandDuplicateGuard
 {
-    ValueTask<CommandAdmissionResult> TryAdmitAsync(
-        CommandAdmission admission,
-        CancellationToken cancellationToken);
-
-    ValueTask<CommandLeaseResult> TryAcquireExpiredLeaseAsync(
-        Guid commandId,
-        string owner,
-        DateTimeOffset leaseExpiresAt,
-        CancellationToken cancellationToken);
-
-    ValueTask MarkCompletedAsync(
-        Guid commandId,
-        string owner,
-        DateTimeOffset completedAt,
-        CancellationToken cancellationToken);
+    ValueTask<bool> TryAcceptAsync(
+        ICommand command,
+        CancellationToken cancellationToken = default);
 }
 ```
 
 The command actor pipeline becomes:
 
-1. Parse and validate only the transport envelope needed to resolve the concrete command and `CommandId`.
-2. Copy or transfer the exact MessagePack payload.
-3. Call `TryAdmitAsync`.
-4. If duplicate, reply with the typed duplicate outcome and release the message without loading state.
-5. If admitted or recovery ownership was acquired, continue through ordinary domain validation and processing.
-6. Mark the guard completed only after the command's declared durable success boundary.
-7. Publish/reply using the existing correlated command ID.
+1. Materialize the command and release its pooled transport payload.
+2. Call `TryAcceptAsync`.
+3. If duplicate, reply successfully with the original ID without validation or loading state.
+4. If admitted, continue through ordinary validation and processing.
+5. Publish/reply using the existing correlated command ID.
 
 Command-specific domain validation still occurs after admission. Invalid commands may later gain a terminal `Rejected` state, but they must not execute repeatedly while that reporting work is pending.
 
-## 7. Performance position
+## 7. Performance result
 
-ScyllaDB is selected because the target workload is a high-concurrency, exact-partition-key admission lookup/write and because IFM already operates a ScyllaDB storage path. The expected result is better scaling and lower contention than the shared PostgreSQL event-source database as command volume grows.
+The implemented comparison uses the current PostgreSQL `ON CONFLICT DO NOTHING` guard with JSON/text and an isolated ScyllaDB `IF NOT EXISTS` guard with a MessagePack/blob. Serialization occurs once during setup, outside the timed database operation. Both providers use their configured production-strength consistency behavior; ScyllaDB uses `LOCAL_QUORUM` and `LOCAL_SERIAL`.
 
-The atomic guard uses a lightweight transaction, however, so its latency cannot be inferred from ordinary ScyllaDB upsert or bulk-write benchmarks. Acceptance requires a direct comparison using identical durability and concurrency:
+The completed 2026-08-20 BenchmarkDotNet run produced these mean workload latencies:
 
-- current JSON plus PostgreSQL unique insert;
-- MessagePack plus PostgreSQL binary insert;
-- MessagePack plus ScyllaDB `IF NOT EXISTS`;
-- first delivery and duplicate delivery;
-- 1, 8, 32, and 128 concurrent command streams; and
-- P50, P95, P99, throughput, allocation, and payload size.
+| Workload | Concurrency | PostgreSQL | ScyllaDB | Scylla/PostgreSQL |
+|---|---:|---:|---:|---:|
+| Duplicate shortcut | 1 | 1.414 ms | 18.000 ms | 12.76x |
+| Duplicate shortcut | 16 | 3.100 ms | 326.724 ms | 105.52x |
+| Duplicate shortcut | 32 | 4.402 ms | 671.593 ms | 152.69x |
+| First insert | 1 | 5.452 ms | 17.880 ms | 3.29x |
+| First insert | 16 | 10.272 ms | 249.815 ms | 24.33x |
+| First insert | 32 | 14.154 ms | 327.712 ms | 23.93x |
 
-The migration proceeds with ScyllaDB as the target, while the benchmark establishes capacity, timeout, and alert thresholds rather than reopening the architectural decision.
+The initial 64-way same-ID Scylla workload also produced a server-side `LOCAL_SERIAL` write timeout. The final supported report therefore uses the 1/16/32 levels that pass the live correctness suite. Managed allocations were also 38-77% higher on the measured Scylla path depending on scenario.
+
+These results refute the assumption that ScyllaDB inserts are automatically faster for this guard. The operation is a lightweight transaction, not an ordinary upsert, and same-key duplicate bursts serialize consensus work. PostgreSQL remains the preferred implementation for the current topology and workload.
+
+The completed-ID L1 benchmark measured the following total shortcut time per invocation:
+
+| Local duplicates in invocation | Mean |
+|---:|---:|
+| 1 | 135.4 ns |
+| 16 | 608.7 ns |
+| 32 | 1.031 us |
+
+Creating one new local reservation plus the remaining same-ID local duplicates cost 30.965 us at one request, 31.629 us at 16 requests, and 32.863 us at 32 requests, excluding database latency. The forced-concurrency unit test separately verifies that 32 callers share exactly one durable callback. These process-local results are directional BenchmarkDotNet measurements on the development host; cache misses continue to have the PostgreSQL latencies shown above.
 
 ## 8. Failure handling
 
+- A PostgreSQL reservation failure fails command admission closed. The L1 coordinator records an ID only after PostgreSQL definitively returns inserted or already present; exceptions and cancellation remove the in-flight operation so the ID is not poisoned in memory.
+- Cancellation by a local follower does not cancel or remove the process-local reservation owner.
+- Cache eviction never deletes a PostgreSQL row and therefore changes latency, not correctness.
 - A ScyllaDB timeout after a conditional insert is an unknown admission result. The actor must read the exact partition at `LocalQuorum` before deciding whether it may execute.
 - A guard outage fails command admission closed. The actor must not process a command whose uniqueness cannot be established.
 - A failed completion update does not rerun domain behavior. Recovery compares the guard with the event/business persistence boundary before changing state.
 - Duplicate outcomes are observable and counted separately from validation failures and infrastructure failures.
 - Payload decoding failure never deletes or overwrites the guard row.
 
-## 9. Migration sequence after G2 and G3
+## 9. Implemented comparison and runtime acceleration
 
-1. Add `ICommandDeduplicationGuard` and a provider-independent contract test suite.
-2. Add the ScyllaDB schema, prepared statements, conditional result mapping, timeout reconciliation, and lease operations.
-3. Add explicit transport-payload ownership/copy support.
-4. Add the stable command contract registry and MessagePack compatibility tests.
-5. Run a non-authoritative shadow period that records ScyllaDB admissions while PostgreSQL remains the operational path; compare command IDs and payload hashes.
-6. Run the command-specific performance and failure-injection gates.
-7. Switch admission authority to ScyllaDB.
-8. Retain PostgreSQL command-log reads temporarily for migration diagnostics, then remove the old write path and table in a separately reviewed schema migration.
-9. Add terminal failure/rejection status and operator diagnostics as the next tranche.
+1. Added a deliberately narrow `ICommandLogBenchmarkStore`; no ScyllaDB runtime service registration was added.
+2. Added isolated ScyllaDB schema, prepared LWT insert, exact lookup/delete, and MessagePack blob mapping.
+3. Added a PostgreSQL adapter over the existing table and exact `ON CONFLICT` SQL.
+4. Added unit contract/codec tests and live first/duplicate/32-way contention integration tests.
+5. Added and ran the side-by-side BenchmarkDotNet suite.
+6. Retained PostgreSQL as the sole operational path based on the measured result.
+7. Added the bounded L1/in-flight accelerator to the production PostgreSQL context and registered its shared ingress contract in both actor hosts.
+8. Added actor short-circuit, cache, eviction, cancellation, failure recovery, and independent-process PostgreSQL tests.
+9. Added and ran the L1 BenchmarkDotNet suite.
+
+No shadow writer or ScyllaDB migration is authorized. If materially different multi-node hardware, latency, or workload distribution warrants another experiment, rerun the isolated benchmark first. Lease recovery, terminal status, and automatic reconciliation of admitted-but-unfinished commands remain future work.
 
 Synchronous dual-writing to both databases is not the final architecture because it makes command latency and availability depend on both stores.
 
-## 10. Acceptance criteria
+## 10. Benchmark-tranche acceptance criteria
 
-- Exactly one of two concurrent deliveries with the same `CommandId` receives first-admission ownership.
-- A duplicate is rejected before aggregate replay, domain execution, event persistence, provider calls, or broker calls.
-- A duplicate completed command returns a deterministic typed result carrying the original `CommandId`.
+- PostgreSQL schema, JSON serialization, and authority remain unchanged; runtime admission now uses the L1 accelerator and atomic insert result.
+- ScyllaDB code is accessible only to explicit tests and benchmarks; there is no application registration or dual-write.
+- Both providers atomically admit exactly one of 32 concurrent same-ID attempts.
+- ScyllaDB stores and round-trips the MessagePack blob; PostgreSQL stores and round-trips the existing JSON text.
+- The real-provider benchmark records complete first-insert and duplicate results at 1, 16, and 32 concurrent requests.
+- The benchmark result, including the failed 64-way exploratory run, is used as a decision gate rather than assuming provider performance.
+- Exactly one of concurrent deliveries with the same `CommandId` receives first-admission ownership.
+- A duplicate is rejected before validation, aggregate replay, domain execution, event persistence, provider calls, or broker calls.
+- A duplicate returns a deterministic successful result carrying the original `CommandId`.
+- Cache eviction and process restart fall back to the PostgreSQL primary key without weakening correctness.
+
+The following remain acceptance criteria for lease/status recovery or a separately approved future ScyllaDB migration:
+
 - A crash after admission but before completion can be recovered through an expired conditional lease without allowing two active owners.
 - An ambiguous conditional-write timeout is reconciled before processing.
 - The persisted blob round-trips through the stable concrete command registry.

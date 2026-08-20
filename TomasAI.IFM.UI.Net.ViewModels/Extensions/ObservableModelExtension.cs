@@ -20,7 +20,8 @@ public static class ObservableModelExtension
     {
         ArgumentNullException.ThrowIfNull(operation);
         return model.ExecuteObservableAsync(
-            (concreteModel, _) => operation(concreteModel),
+            (concreteModel, operationCancellation) =>
+                operation(concreteModel).WaitAsync(operationCancellation),
             cancellationToken);
     }
 

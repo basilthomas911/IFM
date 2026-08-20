@@ -9,6 +9,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposable
 {
     readonly SemaphoreSlim _gate = new(1, 1);
+    readonly object _lifetimeGate = new();
     readonly Func<CancellationToken, Task> _initialize;
     readonly Func<CancellationToken, Task> _stop;
     readonly List<Task> _ownedTasks = [];
@@ -45,10 +46,12 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
                 throw new InvalidOperationException($"Cannot initialize while lifecycle state is {_state}.");
 
             _state = LifecycleState.Initializing;
-            _lifetimeCancellation = new CancellationTokenSource();
+            var lifetimeCancellation = new CancellationTokenSource();
+            lock (_lifetimeGate)
+                _lifetimeCancellation = lifetimeCancellation;
             using var initializationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
-                _lifetimeCancellation.Token);
+                lifetimeCancellation.Token);
             try
             {
                 await _initialize(initializationCancellation.Token).ConfigureAwait(false);
@@ -56,7 +59,7 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
             }
             catch (Exception initializationFailure)
             {
-                _lifetimeCancellation.Cancel();
+                lifetimeCancellation.Cancel();
                 await AwaitOwnedTasksAsync().ConfigureAwait(false);
                 Exception? cleanupFailure = null;
                 try
@@ -67,8 +70,7 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
                 {
                     cleanupFailure = ex;
                 }
-                _lifetimeCancellation.Dispose();
-                _lifetimeCancellation = null;
+                ClearLifetimeCancellation(lifetimeCancellation);
                 _state = LifecycleState.Stopped;
                 if (cleanupFailure is not null)
                     throw new AggregateException(initializationFailure, cleanupFailure);
@@ -104,6 +106,10 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
     /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        // Initialization owns the lifecycle gate until it completes. Signal its lifetime token before
+        // waiting for that gate so a close request can interrupt in-flight startup work instead of
+        // deadlocking behind it.
+        CancelLifetime();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -111,7 +117,7 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
                 return;
 
             _state = LifecycleState.Stopping;
-            _lifetimeCancellation?.Cancel();
+            CancelLifetime();
 
             Exception? backgroundFailure = null;
             try
@@ -134,8 +140,7 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
             }
             finally
             {
-                _lifetimeCancellation?.Dispose();
-                _lifetimeCancellation = null;
+                ClearLifetimeCancellation();
                 _state = LifecycleState.Stopped;
             }
 
@@ -178,6 +183,24 @@ public sealed class AsyncLifecycleCoordinator : IAsyncLifecycle, IAsyncDisposabl
         catch (OperationCanceledException) when (_lifetimeCancellation?.IsCancellationRequested == true)
         {
             // Expected cooperative lifetime cancellation.
+        }
+    }
+
+    void CancelLifetime()
+    {
+        lock (_lifetimeGate)
+            _lifetimeCancellation?.Cancel();
+    }
+
+    void ClearLifetimeCancellation(CancellationTokenSource? expected = null)
+    {
+        lock (_lifetimeGate)
+        {
+            if (expected is not null && !ReferenceEquals(_lifetimeCancellation, expected))
+                return;
+
+            _lifetimeCancellation?.Dispose();
+            _lifetimeCancellation = null;
         }
     }
 

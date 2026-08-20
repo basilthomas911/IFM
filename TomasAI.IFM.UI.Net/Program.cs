@@ -43,7 +43,19 @@ namespace TomasAI.IFM.UI.Net
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-            return builder.Build();
+            var configuration = builder.Build();
+            ApplyEnvironmentOverride("IFM_UI_NATS_URL", "AppSettings:NatsServerUri");
+            ApplyEnvironmentOverride(
+                "IFM_UI_NATS_STARTUP_TIMEOUT_SECONDS",
+                "AppSettings:NatsStartupTimeoutSeconds");
+            return configuration;
+
+            void ApplyEnvironmentOverride(string variable, string key)
+            {
+                var value = Environment.GetEnvironmentVariable(variable);
+                if (!string.IsNullOrWhiteSpace(value))
+                    configuration[key] = value;
+            }
         }
 
         static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -82,6 +94,8 @@ namespace TomasAI.IFM.UI.Net
                 errorMessage.AppendLine(current.Message);
                 errorMessage.AppendLine(current.StackTrace);
             }
+
+            Console.Error.WriteLine($"{caption}:{Environment.NewLine}{errorMessage}");
 
             WinForms.MessageBox.Show(
                 $"{errorMessage}",

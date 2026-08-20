@@ -141,14 +141,30 @@ namespace TomasAI.IFM.UI.Net
         }
 
         /// <summary>Connects the shared command/query transport before the WinForms shell starts loading data.</summary>
-        public static ValueTask StartAsync(CancellationToken cancellationToken = default)
+        public static async ValueTask StartAsync(CancellationToken cancellationToken = default)
         {
             if (_container is null)
                 throw new InvalidOperationException("The UI container has not been configured.");
 
-            return _container.GetInstance<IActorProducer>().StartAsync(
-                new ActorMailboxId(ActorType.Query, "IFM.UI"),
-                cancellationToken);
+            var timeoutSeconds = _config?.GetValue<int?>("AppSettings:NatsStartupTimeoutSeconds") ?? 15;
+            if (timeoutSeconds <= 0)
+                throw new InvalidOperationException("AppSettings:NatsStartupTimeoutSeconds must be positive.");
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+            try
+            {
+                await _container.GetInstance<IActorProducer>().StartAsync(
+                    new ActorMailboxId(ActorType.Query, "IFM.UI"),
+                    timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                var natsUrl = _config?.GetValue<string>("AppSettings:NatsServerUri") ?? "<not configured>";
+                throw new TimeoutException(
+                    $"NATS startup at '{natsUrl}' did not complete within {timeoutSeconds} seconds.",
+                    exception);
+            }
         }
 
         /// <summary>Stops UI producers and disposes the shared NATS connection after all forms have closed.</summary>

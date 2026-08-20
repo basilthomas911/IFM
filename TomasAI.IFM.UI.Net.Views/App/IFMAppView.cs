@@ -30,6 +30,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 
 public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMAppLiveViewAdapter
 {
+    static readonly TimeSpan PresentationShutdownTimeout = TimeSpan.FromSeconds(10);
     private IAppRoot _appRoot;
     private readonly IViewNavigator _navigator;
     private Control? _tradeBlotter;
@@ -221,13 +222,27 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         if (_shutdownStarted)
             return;
         _shutdownStarted = true;
+        _viewModel.StartupOperation.Cancel();
+        _viewModel.PropertyChanged -= ViewModelPropertyChanged;
         try
         {
-            await ((IAsyncFormControl)economicCalendarView1).CloseAsync();
-            await _viewModel.ShutdownOperation.ExecuteAsync();
-            statusConsoleView1.UnloadView();
-            _viewModel.PropertyChanged -= ViewModelPropertyChanged;
-            await _viewModel.DisposeAsync();
+            var presentationShutdown = ShutdownPresentationAsync();
+            try
+            {
+                await presentationShutdown.WaitAsync(PresentationShutdownTimeout);
+            }
+            catch (TimeoutException)
+            {
+                Console.Error.WriteLine(
+                    $"Presentation cleanup exceeded {PresentationShutdownTimeout.TotalSeconds:F0} seconds; " +
+                    "continuing with transport shutdown.");
+                _ = presentationShutdown.ContinueWith(
+                    completed => _ = completed.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+
             _shutdownComplete = true;
             Close();
         }
@@ -235,6 +250,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         {
             _shutdownStarted = false;
             this.ShowErrorMessage(ex.Message, "Application Shutdown Error");
+        }
+
+        async Task ShutdownPresentationAsync()
+        {
+            await ((IAsyncFormControl)economicCalendarView1).CloseAsync();
+            await _viewModel.ShutdownOperation.ExecuteAsync();
+            statusConsoleView1.UnloadView();
+            await _viewModel.DisposeAsync();
         }
     }
 

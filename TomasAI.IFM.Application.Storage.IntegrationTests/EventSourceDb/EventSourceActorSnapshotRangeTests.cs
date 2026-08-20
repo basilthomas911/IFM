@@ -28,15 +28,19 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.EventSourceDb;
 
 public sealed class EventSourceActorSnapshotRangeFixture
 {
+    readonly IDbConnectionSettings _connectionSettings;
+    readonly IBlackboardService _blackboard;
+    readonly ILogger<DbProvider> _logger;
+
     public EventSourceActorSnapshotRangeFixture()
     {
-        var connectionSettings = new DbConnectionSettings()
+        _connectionSettings = new DbConnectionSettings()
             .Add("EventSourceActorDbConnection", "Host=localhost;Port=5432;Database=event-source-test-db", "System.Data.Postgres");
         var repositories = new Dictionary<Type, object>();
         var resolver = new DbContextResolver(type => repositories[type]);
         DbFactory = new DbContextFactory(resolver);
-        var logger = Substitute.For<ILogger<DbProvider>>();
-        new EventSourceSchemaDb(connectionSettings, logger).CreateAllAsync().GetAwaiter().GetResult();
+        _logger = Substitute.For<ILogger<DbProvider>>();
+        new EventSourceSchemaDb(_connectionSettings, _logger).CreateAllAsync().GetAwaiter().GetResult();
 
         var cache = Substitute.For<IRedisCache>();
         var cacheValues = new Dictionary<string, string>();
@@ -48,14 +52,17 @@ public sealed class EventSourceActorSnapshotRangeFixture
         });
         cache.When(instance => instance.Set(Arg.Any<string>(), Arg.Any<string>()))
             .Do(call => cacheValues[call.ArgAt<string>(0)] = call.ArgAt<string>(1));
-        var blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
+        _blackboard = new BlackboardService(cache, new SystemTextJsonSerializer());
 
-        ActorEventDb = new EventSourceActorDbContext(connectionSettings, DbFactory, blackboard, logger);
+        ActorEventDb = CreateActorEventDb();
         repositories.Add(typeof(IObjectRepository<EventSourceActorDbContext>), ActorEventDb);
     }
 
     public DbContextFactory DbFactory { get; }
     public EventSourceActorDbContext ActorEventDb { get; }
+
+    public EventSourceActorDbContext CreateActorEventDb()
+        => new(_connectionSettings, DbFactory, _blackboard, _logger);
 }
 
 public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFixture fixture)
@@ -207,6 +214,30 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
 
         (await fixture.ActorEventDb.TryInsertCommandLogAsync(command, DateTime.UtcNow, "payload")).Should().BeTrue();
         (await fixture.ActorEventDb.TryInsertCommandLogAsync(command, DateTime.UtcNow, "payload")).Should().BeFalse();
+        (await fixture.ActorEventDb.GetCommandLogAsync(command.CommandId)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Independent_process_caches_still_have_one_postgres_winner()
+    {
+        var entity = new TickDataEntityId("ESU6", new DateOnly(2026, 8, 7), AssetTypeId.Futures);
+        var command = new InsertFuturesTickTradeDataCommand
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, InsertFuturesTickTradeDataCommand.Actor,
+                InsertFuturesTickTradeDataCommand.Verb, entity.Format()),
+            EntityId = entity
+        };
+        var firstProcess = fixture.CreateActorEventDb();
+        var secondProcess = fixture.CreateActorEventDb();
+
+        var attempts = Enumerable.Range(0, 32)
+            .Select(index => (index & 1) == 0
+                ? firstProcess.TryInsertCommandLogAsync(command, DateTime.UtcNow, "payload")
+                : secondProcess.TryInsertCommandLogAsync(command, DateTime.UtcNow, "payload"));
+        var results = await Task.WhenAll(attempts);
+
+        results.Count(accepted => accepted).Should().Be(1);
         (await fixture.ActorEventDb.GetCommandLogAsync(command.CommandId)).Should().NotBeNull();
     }
 

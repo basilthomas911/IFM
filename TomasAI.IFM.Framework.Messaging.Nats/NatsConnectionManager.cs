@@ -49,7 +49,15 @@ public sealed class NatsConnectionManager : IAsyncDisposable
                 ConsumerDrainOnDisposeTimeout = TimeSpan.FromSeconds(30)
             };
             var client = new NatsClient(options);
-            await client.ConnectAsync().ConfigureAwait(false);
+            try
+            {
+                await client.ConnectAsync().AsTask().WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                await client.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
             _url = url;
             Volatile.Write(ref _client, client);
             return client;
