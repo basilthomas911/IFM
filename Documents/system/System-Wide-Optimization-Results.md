@@ -798,6 +798,7 @@ paper-trading verification remain open under the dedicated migration specificati
 
 ## 8. References
 
+- `Documents/system/System-Wide-Telemetry-and-Distributed-Tracing-Design.md`
 - [OpenTelemetry .NET metrics documentation](https://opentelemetry.io/docs/languages/dotnet/metrics/)
 - [OpenTelemetry.Extensions.Hosting package](https://www.nuget.org/packages/OpenTelemetry.Extensions.Hosting/)
 - [OpenTelemetry OTLP exporter package](https://www.nuget.org/packages/OpenTelemetry.Exporter.OpenTelemetryProtocol/)

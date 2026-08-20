@@ -1,6 +1,5 @@
-using System;
+using System.ComponentModel;
 using System.Windows;
-using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Application.ServerManager;
 
@@ -9,19 +8,29 @@ namespace TomasAI.IFM.Application.ServerManager;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private readonly IMainWindowViewModel _viewModel;
+    private bool _allowClose;
+
     public MainWindow(IMainWindowViewModel mainWindowViewModel)
     {
         InitializeComponent();
-        this.DataContext = mainWindowViewModel;
+        _viewModel = mainWindowViewModel;
+        DataContext = mainWindowViewModel;
+        Closing += OnClosing;
     }
 
-    public void AddServerLog(ServerLogType serverLogType, string? logEntry)
-    {
-        Console.WriteLine($"{logEntry ?? ""}");
-    }
+    public void PrepareForShutdown() => _allowClose = true;
 
-    public void Clear()
+    private void OnClosing(object? sender, CancelEventArgs e)
     {
+        if (_allowClose)
+        {
+            return;
+        }
 
+        e.Cancel = true;
+        _viewModel.ConsoleVisibility = Visibility.Hidden;
+        _viewModel.ConsoleWindowState = WindowState.Minimized;
+        Hide();
     }
 }

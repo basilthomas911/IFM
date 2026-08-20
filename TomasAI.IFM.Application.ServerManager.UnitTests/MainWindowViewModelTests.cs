@@ -1,0 +1,95 @@
+using FluentAssertions;
+
+namespace TomasAI.IFM.Application.ServerManager.UnitTests;
+
+public sealed class MainWindowViewModelTests
+{
+    [Fact]
+    public void AddLog_keeps_only_the_configured_newest_entries()
+    {
+        var viewModel = new MainWindowViewModel(
+            new ServerManagerOptions { MaximumLogEntries = 3 },
+            new ImmediateDispatcher());
+
+        for (var index = 0; index < 10; index++)
+        {
+            viewModel.AddLog(new ManagedProcessLogEntry(
+                DateTimeOffset.UnixEpoch.AddSeconds(index),
+                "api",
+                "API Server",
+                ManagedProcessLogStream.StandardOutput,
+                $"line-{index}"));
+        }
+
+        viewModel.ConsoleStatus.Select(entry => entry.Message)
+            .Should().Equal("line-9", "line-8", "line-7");
+    }
+
+    [Fact]
+    public void AddLog_preserves_process_stream_and_timestamp()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var viewModel = new MainWindowViewModel(
+            new ServerManagerOptions { MaximumLogEntries = 3 },
+            new ImmediateDispatcher());
+
+        viewModel.AddLog(new ManagedProcessLogEntry(
+            timestamp,
+            "ui",
+            "UI.Net",
+            ManagedProcessLogStream.StandardError,
+            "failure"));
+
+        viewModel.ConsoleStatus.Should().ContainSingle().Which.Should().BeEquivalentTo(new StatusLog
+        {
+            Timestamp = timestamp,
+            ProcessName = "UI.Net",
+            Stream = ManagedProcessLogStream.StandardError,
+            Message = "failure"
+        });
+    }
+
+    [Fact]
+    public void AddLog_bounds_entries_waiting_for_the_ui_dispatcher_and_reports_drops()
+    {
+        var dispatcher = new QueuedDispatcher();
+        var viewModel = new MainWindowViewModel(
+            new ServerManagerOptions { MaximumLogEntries = 3 },
+            dispatcher);
+
+        for (var index = 0; index < 10; index++)
+        {
+            viewModel.AddLog(new ManagedProcessLogEntry(
+                DateTimeOffset.UnixEpoch.AddSeconds(index),
+                "api",
+                "API Server",
+                ManagedProcessLogStream.StandardOutput,
+                $"line-{index}"));
+        }
+
+        dispatcher.RunPending();
+
+        viewModel.ConsoleStatus.Should().HaveCount(3);
+        viewModel.ConsoleStatus.Should().Contain(entry => entry.Message.Contains("Dropped 7 pending log entries"));
+        viewModel.ConsoleStatus.Should().Contain(entry => entry.Message == "line-9");
+    }
+
+    private sealed class ImmediateDispatcher : IUiDispatcher
+    {
+        public void Post(Action action) => action();
+    }
+
+    private sealed class QueuedDispatcher : IUiDispatcher
+    {
+        private Action? _pending;
+
+        public void Post(Action action) => _pending += action;
+
+        public void RunPending()
+        {
+            var pending = _pending;
+            _pending = null;
+            pending?.Invoke();
+        }
+    }
+}

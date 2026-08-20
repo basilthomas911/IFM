@@ -739,6 +739,10 @@ The Aspire dashboard is a development and diagnostic view. Production telemetry 
 HTTP/OTLP path to a durable observability stack, such as OpenTelemetry Collector and Grafana-compatible backends.
 Aspire is not the sole production monitoring system.
 
+The identity model, UI/query roots, NATS header propagation, database span policy, long-running workflow boundaries,
+sampling, and Server Manager summary are defined by
+`Documents/system/System-Wide-Telemetry-and-Distributed-Tracing-Design.md`.
+
 ## 19. Aspire's architectural role
 
 There is one Aspire AppHost topology project. The Core Actor Host and satellites are Aspire-managed project resources,
@@ -1020,6 +1024,7 @@ The architecture is considered successfully established only when:
 
 ## 28. Related documents
 
+- `Documents/system/System-Wide-Telemetry-and-Distributed-Tracing-Design.md`
 - `Documents/system/System-Wide-Optimization-Plan.md`
 - `Documents/system/System-Wide-Optimization-Results.md`
 - `Documents/system/Aggregate-Actor-Backlog-Overload-Control-Implementation-Plan.md`

@@ -5,13 +5,21 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TomasAI.IFM.Application.ServerManager"
         mc:Ignorable="d"
-        Title="IFM Server Manager" Height="450" Width="800"  WindowStyle="ToolWindow"
+        Title="IFM Server Manager" Height="600" Width="1100" WindowStyle="ToolWindow"
         Visibility="{Binding ConsoleVisibility}" 
-        WindowState="{Binding ConsoleWindowState}"        >
+        WindowState="{Binding ConsoleWindowState}">
     <Grid>
-        <DataGrid Name="ConsoleStatusDataGrid" ItemsSource="{Binding ConsoleStatus}" AutoGenerateColumns="False">
+        <DataGrid Name="ConsoleStatusDataGrid"
+                  ItemsSource="{Binding ConsoleStatus}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  EnableRowVirtualization="True">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Status Log" Width="3000" Binding="{Binding LogEntry}"/>
+                <DataGridTextColumn Header="Time" Width="165" Binding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.fff}}"/>
+                <DataGridTextColumn Header="Process" Width="150" Binding="{Binding ProcessName}"/>
+                <DataGridTextColumn Header="Stream" Width="120" Binding="{Binding Stream}"/>
+                <DataGridTextColumn Header="Message" Width="*" Binding="{Binding Message}"/>
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

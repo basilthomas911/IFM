@@ -1,117 +1,134 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using WinForms=System.Windows.Forms;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using TomasAI.IFM.Shared.StatusConsole;
+using WinForms = System.Windows.Forms;
 
 namespace TomasAI.IFM.Application.ServerManager;
 
-public class ServerLauncherContext : WinForms.ApplicationContext
+public sealed class ServerLauncherContext : IAsyncDisposable
 {
-    ServerLauncher? _telemetryServer;
-    ServerLauncher? _eventServer;
-    ServerLauncher? _predictiveModelServer;
-    WinForms.NotifyIcon _notifyIcon;
+    private readonly App _application;
+    private readonly IMainWindowViewModel _viewModel;
+    private readonly ManagedProcessSupervisor _supervisor;
+    private readonly WinForms.NotifyIcon _notifyIcon;
+    private readonly MainWindow _console;
+    private int _stopped;
 
-    public ServerLauncherContext(App serverApp)
+    public ServerLauncherContext(
+        App application,
+        ServerManagerOptions options,
+        IMainWindowViewModel viewModel,
+        MainWindow console)
     {
-        _notifyIcon = new WinForms.NotifyIcon
+        _application = application;
+        _viewModel = viewModel;
+        _console = console;
+        _supervisor = new ManagedProcessSupervisor(options.Processes, options.ShutdownTimeout, viewModel.AddLog);
+        _notifyIcon = CreateNotifyIcon();
+
+        _viewModel.ConsoleVisibility = Visibility.Hidden;
+        _viewModel.ConsoleWindowState = WindowState.Minimized;
+        console.Show();
+        console.Hide();
+
+        _application.Exit += OnApplicationExit;
+        _ = StartProcessesAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _stopped, 1) != 0)
+        {
+            return;
+        }
+
+        await _supervisor.DisposeAsync().ConfigureAwait(false);
+        _notifyIcon.Visible = false;
+        _notifyIcon.Dispose();
+    }
+
+    public void PrepareForShutdown() => _console.PrepareForShutdown();
+
+    private WinForms.NotifyIcon CreateNotifyIcon()
+    {
+        var notifyIcon = new WinForms.NotifyIcon
         {
             Icon = Resource1.AppIcon,
             Text = "IFM Server Manager",
-            Visible = true
+            Visible = true,
+            ContextMenuStrip = new WinForms.ContextMenuStrip()
         };
-        _notifyIcon.ContextMenuStrip = new WinForms.ContextMenuStrip();
-        _notifyIcon.ContextMenuStrip.Items.Add("View Console", null, (sender, e) => ViewConsole(serverApp)).Name = "ViewConsole";
-        _notifyIcon.ContextMenuStrip.Items.Add("Minimize Console", null, (sender, e) => MinimizeConsole(serverApp)).Name = "MinimizeConsole";
-        _notifyIcon.ContextMenuStrip.Items.Add("Reset", null, async (sender, e) => await ResetServersAsync(serverApp)).Name = "Reset";
-        _notifyIcon.DoubleClick += (sender, e) => ViewConsole(serverApp);
-        serverApp.Exit += (sender, e) => Exit(serverApp, _notifyIcon);
 
-        var viewModel = serverApp.ServiceProvider.GetRequiredService<IMainWindowViewModel>();
-        viewModel.ConsoleVisibility = Visibility.Hidden;
-        viewModel.ConsoleWindowState = WindowState.Minimized;
-        
-        var console = serverApp.ServiceProvider.GetRequiredService<MainWindow>();
-        console.Show();
-
-        _ = StartServersAsync(serverApp);
+        notifyIcon.ContextMenuStrip.Items.Add("View Console", null, (_, _) => ViewConsole()).Name = "ViewConsole";
+        notifyIcon.ContextMenuStrip.Items.Add("Minimize Console", null, (_, _) => MinimizeConsole()).Name = "MinimizeConsole";
+        notifyIcon.ContextMenuStrip.Items.Add("Reset API and UI", null, async (_, _) => await ResetProcessesAsync()).Name = "Reset";
+        notifyIcon.ContextMenuStrip.Items.Add("Exit Server Manager", null, async (_, _) => await ExitAsync()).Name = "Exit";
+        notifyIcon.DoubleClick += (_, _) => ViewConsole();
+        return notifyIcon;
     }
 
-    void ViewConsole(App serverApp)
+    private void ViewConsole()
     {
-        _notifyIcon.ContextMenuStrip.Items["ViewConsole"].Enabled = false;
-        var viewModel = serverApp.ServiceProvider.GetRequiredService<IMainWindowViewModel>();
-        viewModel.ConsoleVisibility = Visibility.Visible;
-        viewModel.ConsoleWindowState = WindowState.Maximized;
-       }
-
-    void MinimizeConsole(App serverApp)
-    {
-        // If we are already showing the window, merely focus it.
-        _notifyIcon.ContextMenuStrip.Items["ViewConsole"].Enabled = true;
-        var viewModel = serverApp.ServiceProvider.GetRequiredService<IMainWindowViewModel>();
-        viewModel.ConsoleVisibility = Visibility.Hidden;
-        viewModel.ConsoleWindowState = WindowState.Minimized;
-
+        _notifyIcon.ContextMenuStrip!.Items["ViewConsole"]!.Enabled = false;
+        _viewModel.ConsoleVisibility = Visibility.Visible;
+        _viewModel.ConsoleWindowState = WindowState.Maximized;
+        _console.Show();
+        _console.Activate();
     }
 
-    async Task ResetServersAsync(App serverApp)
+    private void MinimizeConsole()
     {
-        //serverConsole.Clear();
-        StopServers();
-        await StartServersAsync(serverApp);
+        _notifyIcon.ContextMenuStrip!.Items["ViewConsole"]!.Enabled = true;
+        _viewModel.ConsoleVisibility = Visibility.Hidden;
+        _viewModel.ConsoleWindowState = WindowState.Minimized;
+        _console.Hide();
     }
 
-    void Exit(App serverApp, WinForms.NotifyIcon notifyIcon)
+    private async Task StartProcessesAsync()
     {
-        // We must manually tidy up and remove the icon before we exit.
-        // Otherwise it will be left behind until the user mouses over.
-        StopServers();
-        notifyIcon.Visible = false;
-        serverApp.Shutdown();
-    }
-
-    async Task StartServersAsync(App serverApp)
-    {
-        var viewModel = serverApp.ServiceProvider.GetRequiredService<IMainWindowViewModel>();
-        _telemetryServer = new ServerLauncher(
-            workingDirectory: serverApp.Configuration.GetValue<string>("ServerManager:Telemetry:WorkingDirectory") ?? "",
-            exeName: serverApp.Configuration.GetValue<string>("ServerManager:Telemetry:ExeName") ?? "",
-            exeArguments: "",
-            onDataReceived: e => viewModel.AddServerLog(ServerLogType.Telemetry, e.Data));
-        await Task.Delay(TimeSpan.FromSeconds(5));
-        _eventServer = new ServerLauncher(
-            workingDirectory: serverApp.Configuration.GetValue<string>("ServerManager:Event:WorkingDirectory") ?? "",
-            exeName: serverApp.Configuration.GetValue<string>("ServerManager:Event:ExeName") ?? "",
-            exeArguments: "",
-            onDataReceived: e => viewModel.AddServerLog(ServerLogType.Event, e.Data));
-        _predictiveModelServer = new ServerLauncher(
-             workingDirectory: serverApp.Configuration.GetValue<string>("ServerManager:PredictiveModel:WorkingDirectory") ?? "",
-             exeName: serverApp.Configuration.GetValue<string>("ServerManager:PredictiveModel:ExeName") ?? "",
-             exeArguments: "",
-             onDataReceived: e => viewModel.AddServerLog(ServerLogType.Query, e.Data));
-    }
-
-    void StopServers()
-    {
-        if (_predictiveModelServer is not null)
+        WriteManagerLog("Starting configured API/UI processes.");
+        try
         {
-            _predictiveModelServer.Dispose();
-            _predictiveModelServer = null;
+            await _supervisor.StartAllAsync().ConfigureAwait(false);
         }
-        if (_eventServer is not null)
+        catch (Exception exception)
         {
-            _eventServer.Dispose();
-            _eventServer = null;
-        }
-        if (_telemetryServer is not null)
-        {
-            _telemetryServer.Dispose();
-            _telemetryServer = null;
+            WriteManagerLog($"Process startup failed: {exception.Message}");
         }
     }
 
+    private async Task ResetProcessesAsync()
+    {
+        WriteManagerLog("Reset requested for configured API/UI processes.");
+        try
+        {
+            await _supervisor.RestartAllAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            WriteManagerLog($"Reset failed: {exception.Message}");
+        }
+    }
+
+    private async Task ExitAsync()
+    {
+        WriteManagerLog("Server Manager exit requested.");
+        PrepareForShutdown();
+        await DisposeAsync();
+        _application.Shutdown();
+    }
+
+    private void OnApplicationExit(object? sender, ExitEventArgs e)
+    {
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    private void WriteManagerLog(string message)
+        => _viewModel.AddLog(new ManagedProcessLogEntry(
+            DateTimeOffset.Now,
+            "manager",
+            "Server Manager",
+            ManagedProcessLogStream.Manager,
+            message));
 }

@@ -1,47 +1,95 @@
-using System.ComponentModel;
-using System.Windows;
-using TomasAI.IFM.Shared.StatusConsole;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Threading;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace TomasAI.IFM.Application.ServerManager;
 
-public class MainWindowViewModel : IMainWindowViewModel, INotifyPropertyChanged
+public sealed partial class MainWindowViewModel : ObservableObject, IMainWindowViewModel
 {
-    Visibility _visibility;
-    WindowState _windowState;
+    private readonly int _maximumLogEntries;
+    private readonly IUiDispatcher _dispatcher;
+    private readonly ConcurrentQueue<ManagedProcessLogEntry> _pendingEntries = new();
+    private int _pendingCount;
+    private int _drainScheduled;
+    private int _droppedSinceLastDrain;
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(ServerManagerOptions options, IUiDispatcher dispatcher)
     {
+        _maximumLogEntries = options.MaximumLogEntries;
+        _dispatcher = dispatcher;
         ConsoleStatus = new ObservableCollection<StatusLog>();
     }
 
     public ObservableCollection<StatusLog> ConsoleStatus { get; }
 
-    public Visibility ConsoleVisibility
+    [ObservableProperty]
+    private Visibility _consoleVisibility;
+
+    [ObservableProperty]
+    private WindowState _consoleWindowState;
+
+    public void AddLog(ManagedProcessLogEntry entry)
     {
-        get => _visibility;
-        set
+        _pendingEntries.Enqueue(entry);
+        var pendingCount = Interlocked.Increment(ref _pendingCount);
+        while (pendingCount > _maximumLogEntries && _pendingEntries.TryDequeue(out _))
         {
-            _visibility = value;
-            NotifyPropertyChanged("ConsoleVisibility");
+            Interlocked.Decrement(ref _pendingCount);
+            Interlocked.Increment(ref _droppedSinceLastDrain);
+            pendingCount = Volatile.Read(ref _pendingCount);
+        }
+
+        if (Interlocked.CompareExchange(ref _drainScheduled, 1, 0) == 0)
+        {
+            _dispatcher.Post(DrainPendingEntries);
         }
     }
-    public WindowState ConsoleWindowState
+
+    private void DrainPendingEntries()
     {
-        get => _windowState;
-        set
+        while (true)
         {
-            _windowState = value;
-            NotifyPropertyChanged("ConsoleWindowState");
+            var dropped = Interlocked.Exchange(ref _droppedSinceLastDrain, 0);
+            while (_pendingEntries.TryDequeue(out var entry))
+            {
+                Interlocked.Decrement(ref _pendingCount);
+                Insert(entry);
+            }
+
+            if (dropped > 0)
+            {
+                Insert(new ManagedProcessLogEntry(
+                    DateTimeOffset.Now,
+                    "manager",
+                    "Server Manager",
+                    ManagedProcessLogStream.Manager,
+                    $"Dropped {dropped} pending log entries because the UI log buffer was full."));
+            }
+
+            Interlocked.Exchange(ref _drainScheduled, 0);
+            if (_pendingEntries.IsEmpty || Interlocked.CompareExchange(ref _drainScheduled, 1, 0) != 0)
+            {
+                return;
+            }
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
+    private void Insert(ManagedProcessLogEntry entry)
+    {
+        ConsoleStatus.Insert(0, new StatusLog
+        {
+            Timestamp = entry.Timestamp,
+            ProcessName = entry.ProcessName,
+            Stream = entry.Stream,
+            Message = entry.Message
+        });
 
-    public void AddServerLog(ServerLogType serverLogType, string? logEntry)
-        => System.Windows.Application.Current.Dispatcher.Invoke(() => ConsoleStatus.Insert(0, new StatusLog { LogEntry = $"{serverLogType} {logEntry}" }));
-
-    void NotifyPropertyChanged(string info)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(info));
-    
+        while (ConsoleStatus.Count > _maximumLogEntries)
+        {
+            ConsoleStatus.RemoveAt(ConsoleStatus.Count - 1);
+        }
+    }
 }

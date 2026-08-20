@@ -1,0 +1,115 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace TomasAI.IFM.Application.ServerManager;
+
+public sealed class ServerManagerOptions
+{
+    public int MaximumLogEntries { get; set; } = 5_000;
+
+    public int ShutdownTimeoutSeconds { get; set; } = 10;
+
+    public List<ManagedProcessDefinition> Processes { get; set; } = [];
+
+    public TimeSpan ShutdownTimeout => TimeSpan.FromSeconds(ShutdownTimeoutSeconds);
+
+    public void Validate()
+    {
+        if (MaximumLogEntries <= 0)
+        {
+            throw new InvalidOperationException("ServerManager:MaximumLogEntries must be greater than zero.");
+        }
+
+        if (ShutdownTimeoutSeconds <= 0)
+        {
+            throw new InvalidOperationException("ServerManager:ShutdownTimeoutSeconds must be greater than zero.");
+        }
+
+        if (Processes.Count == 0)
+        {
+            throw new InvalidOperationException("ServerManager:Processes must define at least one process.");
+        }
+
+        var duplicateKey = Processes
+            .GroupBy(process => process.Key, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateKey is not null)
+        {
+            throw new InvalidOperationException($"ServerManager process key '{duplicateKey}' is duplicated.");
+        }
+
+        foreach (var process in Processes)
+        {
+            process.Validate();
+        }
+    }
+}
+
+public sealed class ManagedProcessDefinition
+{
+    public string Key { get; set; } = string.Empty;
+
+    public string DisplayName { get; set; } = string.Empty;
+
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    public string ExecutablePath { get; set; } = string.Empty;
+
+    public List<string> Arguments { get; set; } = [];
+
+    public int StartOrder { get; set; }
+
+    public bool Enabled { get; set; } = true;
+
+    public ProcessShutdownMode ShutdownMode { get; set; } = ProcessShutdownMode.CloseMainWindow;
+
+    public string? ShutdownInput { get; set; }
+
+    public string ResolveExecutablePath()
+        => Path.IsPathRooted(ExecutablePath)
+            ? Path.GetFullPath(ExecutablePath)
+            : Path.GetFullPath(Path.Combine(ResolveWorkingDirectory(), ExecutablePath));
+
+    public string ResolveWorkingDirectory()
+        => Path.IsPathRooted(WorkingDirectory)
+            ? Path.GetFullPath(WorkingDirectory)
+            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, WorkingDirectory));
+
+    public void Validate()
+    {
+        if (string.IsNullOrWhiteSpace(Key))
+        {
+            throw new InvalidOperationException("Every ServerManager process requires a key.");
+        }
+
+        if (string.IsNullOrWhiteSpace(DisplayName))
+        {
+            throw new InvalidOperationException($"ServerManager process '{Key}' requires a display name.");
+        }
+
+        if (string.IsNullOrWhiteSpace(WorkingDirectory))
+        {
+            throw new InvalidOperationException($"ServerManager process '{Key}' requires a working directory.");
+        }
+
+        if (string.IsNullOrWhiteSpace(ExecutablePath))
+        {
+            throw new InvalidOperationException($"ServerManager process '{Key}' requires an executable path.");
+        }
+
+        if (ShutdownMode == ProcessShutdownMode.StandardInput && string.IsNullOrWhiteSpace(ShutdownInput))
+        {
+            throw new InvalidOperationException(
+                $"ServerManager process '{Key}' requires ShutdownInput when ShutdownMode is StandardInput.");
+        }
+    }
+}
+
+public enum ProcessShutdownMode
+{
+    None,
+    CloseMainWindow,
+    StandardInput
+}

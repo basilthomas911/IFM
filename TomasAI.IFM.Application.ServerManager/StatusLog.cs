@@ -1,13 +1,14 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace TomasAI.IFM.Application.ServerManager
+namespace TomasAI.IFM.Application.ServerManager;
+
+public sealed class StatusLog
 {
-    public class StatusLog
-    {
-        public string? LogEntry { get; set; }
-    }
+    public required DateTimeOffset Timestamp { get; init; }
+
+    public required string ProcessName { get; init; }
+
+    public required ManagedProcessLogStream Stream { get; init; }
+
+    public required string Message { get; init; }
 }

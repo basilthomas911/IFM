@@ -1,45 +1,73 @@
 using System;
-using System.IO;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace TomasAI.IFM.Application.ServerManager
+namespace TomasAI.IFM.Application.ServerManager;
+
+/// <summary>
+/// Interaction logic for App.xaml.
+/// </summary>
+public partial class App : System.Windows.Application
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
-    public partial class App : System.Windows.Application
+    private ServiceProvider? _serviceProvider;
+    private ServerLauncherContext? _launcherContext;
+
+    public IServiceProvider ServiceProvider => _serviceProvider
+        ?? throw new InvalidOperationException("The application service provider has not been initialized.");
+
+    public IConfiguration Configuration { get; private set; } = null!;
+
+    protected override void OnStartup(StartupEventArgs e)
     {
-        public IServiceProvider ServiceProvider { get; private set; }
+        base.OnStartup(e);
 
-        public IConfiguration Configuration { get; private set; }
+        var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Development";
+        Configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: true)
+            .Build();
 
-        protected override void OnStartup(StartupEventArgs e)
+        var options = Configuration.GetSection("ServerManager").Get<ServerManagerOptions>()
+            ?? throw new InvalidOperationException("The ServerManager configuration section is missing.");
+        options.Validate();
+
+        var services = new ServiceCollection();
+        ConfigureServices(services, options);
+        _serviceProvider = services.BuildServiceProvider();
+
+        _launcherContext = new ServerLauncherContext(
+            this,
+            options,
+            ServiceProvider.GetRequiredService<IMainWindowViewModel>(),
+            ServiceProvider.GetRequiredService<MainWindow>());
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try
         {
-            var builder = new ConfigurationBuilder()
-                 .SetBasePath(Directory.GetCurrentDirectory())
-                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-            Configuration = builder.Build();
-
-            var serviceCollection = new ServiceCollection();
-            ConfigureServices(serviceCollection);
-            ServiceProvider = serviceCollection.BuildServiceProvider();
-
-            new ServerLauncherContext(this);
+            _launcherContext?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            _serviceProvider?.Dispose();
         }
-
-        protected override void OnExit(ExitEventArgs e)
+        finally
         {
             base.OnExit(e);
-
         }
+    }
 
-        void ConfigureServices(IServiceCollection services)
-        {
-            // ...
-            services.AddSingleton<IMainWindowViewModel, MainWindowViewModel>();
-            services.AddSingleton<MainWindow>();
-        }
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        _launcherContext?.PrepareForShutdown();
+        base.OnSessionEnding(e);
+    }
+
+    private static void ConfigureServices(IServiceCollection services, ServerManagerOptions options)
+    {
+        services.AddSingleton(options);
+        services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
+        services.AddSingleton<IMainWindowViewModel, MainWindowViewModel>();
+        services.AddSingleton<MainWindow>();
     }
 }

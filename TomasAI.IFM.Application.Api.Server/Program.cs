@@ -12,6 +12,7 @@ try
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
     await app.MapEventModelActorsAsync(logger);
+    app.EnableServerManagerStandardInputShutdown(args, logger);
     var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
     try
     {

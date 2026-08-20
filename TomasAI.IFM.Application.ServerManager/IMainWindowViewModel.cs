@@ -1,13 +1,15 @@
+using System.Collections.ObjectModel;
 using System.Windows;
-using TomasAI.IFM.Shared.StatusConsole;
 
 namespace TomasAI.IFM.Application.ServerManager;
 
 public interface IMainWindowViewModel
 {
+    ObservableCollection<StatusLog> ConsoleStatus { get; }
+
     Visibility ConsoleVisibility { get; set; }
+
     WindowState ConsoleWindowState { get; set; }
 
-    void AddServerLog(ServerLogType serverLogType, string? logEntry);
-
+    void AddLog(ManagedProcessLogEntry entry);
 }
