@@ -288,6 +288,13 @@ public partial class TradeOrderEditorForm
     void UpdateButtons()
     {
         Cursor.Current = _viewModel.IsBusy ? Cursors.WaitCursor : Cursors.Default;
+        btnDeleteOrder.AccessibleName = _viewModel.SelectedFundOrder is { } selectedOrder
+            ? $"Delete Order {selectedOrder.OrderId}"
+            : "Delete Order";
+        btnRemoveTrade.AccessibleName = _viewModel.SelectedFundOrder is { } tradeOrder
+                                        && _viewModel.SelectedFundOrderTrade is { } selectedTrade
+            ? $"Remove Trade {selectedTrade.TradeId} From Order {tradeOrder.OrderId}"
+            : "Remove Trade";
         btnCreateFund.Enabled = !_viewModel.IsBusy;
         btnLoadOrder.Enabled = _viewModel.CanLoadOrder;
         btnCreateOrder.Enabled = _viewModel.CanCreateOrder;

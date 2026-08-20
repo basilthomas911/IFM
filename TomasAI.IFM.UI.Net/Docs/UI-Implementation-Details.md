@@ -416,7 +416,7 @@ When a singleton form is reopened, its load method must fully reset any state th
 - The main form is gated on actual NATS producer readiness; there is no elapsed-time startup delay.
 - Normal close awaits NATS producer shutdown and connection/container disposal before the WinForms message loop exits.
 - Forms are singletons while models are transient. Reopened forms can retain control or field state unless their load/close paths reset it.
-- `CommandResponseUIEventConsumer.StartAsync` currently completes without creating a subscription. `EventModel.WaitingForCommandResponse` can therefore become true even though that consumer has not started listening.
+- `CommandResponseUIEventConsumer` builds its NATS routes from the supplied event prototypes' public `Actor` and `Verb` constants, deserializes each concrete MessagePack event type, and owns stop/reopen lifecycle. The G3 live test proves ordered correlation, typed failure delivery, stopped-listener rejection, and one delivery after reopen.
 - Some event-consumer method parameters, such as selected `consumeEvents` collections or site identifiers, are not used by their current concrete implementations.
 - The economic-calendar dashboard and editor resolve independent transient event consumers so stopping one listener cannot stop the other.
 - `IFMAppViewModel` attempts both reference-data imports once before the live-feed value-date gate, observes correlated

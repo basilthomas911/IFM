@@ -151,7 +151,9 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
             + string.Join(", ", _viewModel.State.ProtectionSets.Select(item => item.Id));
         if (clbDatabases.Items.Count > 0)
         {
-            var selectedIndex = Math.Max(0, clbDatabases.Items.IndexOf(selected));
+            var selectedIndex = selected is null
+                ? 0
+                : Math.Max(0, clbDatabases.Items.IndexOf(selected));
             clbDatabases.SelectedIndex = selectedIndex;
         }
         clbDatabases.Enabled = !_viewModel.IsBusy && clbDatabases.Items.Count > 0;

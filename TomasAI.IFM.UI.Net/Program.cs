@@ -52,6 +52,7 @@ namespace TomasAI.IFM.UI.Net
             errorMessage.AppendLine(((Exception)e.ExceptionObject).GetType().FullName);
             errorMessage.AppendLine(((Exception)e.ExceptionObject).Message);
             errorMessage.AppendLine(((Exception)e.ExceptionObject).StackTrace);
+            Console.Error.WriteLine(errorMessage);
             WinForms.MessageBox.Show($"{errorMessage}", "UnhandledException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
             Environment.ExitCode = 1;
             WinForms.Application.Exit();
@@ -66,6 +67,7 @@ namespace TomasAI.IFM.UI.Net
             errorMessage.AppendLine(exception.GetType().FullName);
             errorMessage.AppendLine(exception.Message);
             errorMessage.AppendLine(exception.StackTrace);
+            Console.Error.WriteLine(errorMessage);
             WinForms.MessageBox.Show($"{errorMessage}", "ThreadException", WinForms.MessageBoxButtons.OK, WinForms.MessageBoxIcon.Error);
             Environment.ExitCode = 1;
             WinForms.Application.Exit();

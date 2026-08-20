@@ -301,6 +301,8 @@ Existing Iron Condor screens, plans, positions, calculations, and stored order i
 
 ## G3 — NATS event and streaming catalog
 
+**Accepted in Development on 2026-08-20.** The accepted result and executable evidence map are recorded in [`TestResults/G3-Development-2026-08-20.md`](TestResults/G3-Development-2026-08-20.md).
+
 - Status console: publish/receive representative statuses, preserve the newest-first bounded history, and prevent duplicate deliveries after reopening.
 - Application lifecycle and command responses: correlate terminal state with the initiating UI operation.
 - Economic calendar and market-data maintenance: reflect create/change/remove events exactly once.
@@ -399,4 +401,4 @@ Normal test runs do not launch the API Server or desktop. The non-process infras
 
 ## Acceptance
 
-G0 and G1 are accepted, and G2-001 through G2-034 have accepted partial-gate evidence. A gate passes only when every required step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, `SkippedDependency`, or `NotRun`. The FMP implementation is present; the run must supply valid provider credentials or the approved deterministic adapter, usable Development infrastructure, current ES/VX contracts, and deterministic current-market data. Existing NATS transport and lower-level integration verification are prerequisites, not substitutes for desktop process evidence. G2-035 through G2-038, G3, G4, and operator confirmation remain required for Milestone A; G5 is outside the restoration milestone.
+G0, G1, G2, and G3 are accepted in Development. A gate passes only when every required step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, `SkippedDependency`, or `NotRun`. G2 includes live desktop, domain, persistence, and cleanup evidence through G2-038. G3 combines that live desktop event evidence with a real NATS MessagePack burst/reopen test and deterministic catalog, correlation, ordering, coalescing, bounded-history, diagnostics, and lifecycle tests. G4 and operator confirmation remain required for Milestone A; G5 is outside the restoration milestone.

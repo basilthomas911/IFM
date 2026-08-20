@@ -902,6 +902,12 @@ public sealed class G1UiAutomationSession : IDisposable
         await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
         SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
         SelectListItemById(tradeWindow, "lstTrades", tradeId);
+        await WaitForSelectedActionAsync(
+            tradeWindow,
+            "btnRemoveTrade",
+            $"Remove Trade {tradeId} From Order {orderId}",
+            timeout,
+            cancellationToken);
         PostButtonClick(tradeWindow, "btnRemoveTrade");
         return await WaitForTradeOrderStateAsync(
             tradeWindow,
@@ -925,8 +931,15 @@ public sealed class G1UiAutomationSession : IDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
+        tradeWindow = ResolveTradeOrderWindow(tradeWindow);
         await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
         SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        await WaitForSelectedActionAsync(
+            tradeWindow,
+            "btnDeleteOrder",
+            $"Delete Order {orderId}",
+            timeout,
+            cancellationToken);
         PostButtonClick(tradeWindow, "btnDeleteOrder");
         var dialog = await WaitForWindowAsync("Delete Fund Order", timeout, cancellationToken);
         PostButtonClick(dialog, "btnYes");
@@ -1108,7 +1121,7 @@ public sealed class G1UiAutomationSession : IDisposable
         => await WaitUntilAsync(
             () =>
             {
-                var state = ReadTradeOrderState(tradeWindow, fundName);
+                var state = ReadTradeOrderState(ResolveTradeOrderWindow(tradeWindow), fundName);
                 if (state is null)
                     return null;
                 var orderRow = state.OrderRows.SingleOrDefault(row => HasLeadingId(row, orderId));
@@ -1136,6 +1149,34 @@ public sealed class G1UiAutomationSession : IDisposable
             $"The Trade Orders editor did not render order {orderId} as {(orderPresent ? "present" : "absent")}"
             + (tradeId is null ? string.Empty : $" and trade {tradeId} as {(tradePresent ? "present" : "absent")}"),
             cancellationToken);
+
+    static async Task WaitForSelectedActionAsync(
+        AutomationElement root,
+        string automationId,
+        string expectedName,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () => FindDescendant(root, automationId, null) is { IsEnabled: true } action
+                  && string.Equals(action.Name, expectedName, StringComparison.Ordinal)
+                ? expectedName
+                : null,
+            timeout,
+            $"The '{automationId}' action did not bind to '{expectedName}'.",
+            cancellationToken);
+
+    Window ResolveTradeOrderWindow(Window candidate)
+    {
+        if (FindDescendant(candidate, "ddlFund", null) is not null)
+            return candidate;
+
+        return FindNativeWindow("Trade Orders")
+               ?? FindFocusedWindow("Trade Orders")
+               ?? TopLevelWindows().FirstOrDefault(window =>
+                   string.Equals(window.Title, "Trade Orders", StringComparison.OrdinalIgnoreCase)
+                   && FindDescendant(window, "ddlFund", null) is not null)
+               ?? candidate;
+    }
 
     G2TradeOrderUiState? ReadTradeOrderState(Window tradeWindow, string fundName)
     {
