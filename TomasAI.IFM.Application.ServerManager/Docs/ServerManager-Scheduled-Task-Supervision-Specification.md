@@ -2,7 +2,7 @@
 
 Status: **Proposed for review**
 
-Version: **1.6**
+Version: **1.7**
 
 Date: **2026-08-20**
 
@@ -880,6 +880,9 @@ Before enabling each real task:
 
 ### Phase SM-S2 — Scheduler Host and persistence
 
+**Status:** Complete. Evidence is recorded in
+`ServerManager-SM-S2-Scheduler-Host-and-Persistence.md`.
+
 - create Scheduler Host and contracts projects;
 - add Windows Service and console modes;
 - configure the dedicated PostgreSQL database, Quartz schema, IFM scheduler schema, and migrations;
@@ -990,6 +993,7 @@ This capability is accepted only when:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.7 | 2026-08-20 | Marked SM-S2 complete and linked its Scheduler Host, PostgreSQL/Quartz, catalog/run/attempt recovery, Job Object, pipe-dashboard, and test evidence. |
 | 1.6 | 2026-08-20 | Marked SM-S1 complete and linked its API/UI process supervision, graceful/forced shutdown, bounded combined log, and automated-test evidence. |
 | 1.5 | 2026-08-20 | Corrected the scheduler baseline to greenfield: there is no operational legacy scheduler or schedule-data export/migration prerequisite; dormant Reference-domain contracts are historical code only. |
 | 1.4 | 2026-08-20 | Marked SM-S0 complete and linked its inventory, security/package decisions, PostgreSQL persistence prototype, tests, and SM-S1 entry evidence. |

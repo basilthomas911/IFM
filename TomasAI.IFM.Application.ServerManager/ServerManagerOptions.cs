@@ -11,6 +11,8 @@ public sealed class ServerManagerOptions
 
     public int ShutdownTimeoutSeconds { get; set; } = 10;
 
+    public SchedulerClientOptions Scheduler { get; set; } = new();
+
     public List<ManagedProcessDefinition> Processes { get; set; } = [];
 
     public TimeSpan ShutdownTimeout => TimeSpan.FromSeconds(ShutdownTimeoutSeconds);
@@ -32,6 +34,8 @@ public sealed class ServerManagerOptions
             throw new InvalidOperationException("ServerManager:Processes must define at least one process.");
         }
 
+        Scheduler.Validate();
+
         var duplicateKey = Processes
             .GroupBy(process => process.Key, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault(group => group.Count() > 1)?.Key;
@@ -43,6 +47,31 @@ public sealed class ServerManagerOptions
         foreach (var process in Processes)
         {
             process.Validate();
+        }
+    }
+}
+
+public sealed class SchedulerClientOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    public string PipeName { get; set; } = "IFM.ServerManager.Scheduler.v1";
+
+    public int ConnectTimeoutMilliseconds { get; set; } = 2_000;
+
+    public int RefreshIntervalSeconds { get; set; } = 5;
+
+    public void Validate()
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(PipeName);
+        if (ConnectTimeoutMilliseconds <= 0 || RefreshIntervalSeconds <= 0)
+        {
+            throw new InvalidOperationException("Scheduler client connection and refresh limits must be positive.");
         }
     }
 }

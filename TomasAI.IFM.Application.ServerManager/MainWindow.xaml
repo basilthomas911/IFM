@@ -9,18 +9,101 @@
         Visibility="{Binding ConsoleVisibility}" 
         WindowState="{Binding ConsoleWindowState}">
     <Grid>
-        <DataGrid Name="ConsoleStatusDataGrid"
-                  ItemsSource="{Binding ConsoleStatus}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserAddRows="False"
-                  EnableRowVirtualization="True">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Time" Width="165" Binding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.fff}}"/>
-                <DataGridTextColumn Header="Process" Width="150" Binding="{Binding ProcessName}"/>
-                <DataGridTextColumn Header="Stream" Width="120" Binding="{Binding Stream}"/>
-                <DataGridTextColumn Header="Message" Width="*" Binding="{Binding Message}"/>
-            </DataGrid.Columns>
-        </DataGrid>
+        <TabControl>
+            <TabItem Header="Applications">
+                <DataGrid ItemsSource="{Binding Applications}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Application" Width="180" Binding="{Binding DisplayName}"/>
+                        <DataGridCheckBoxColumn Header="Enabled" Width="80" Binding="{Binding Enabled}"/>
+                        <DataGridTextColumn Header="Start order" Width="90" Binding="{Binding StartOrder}"/>
+                        <DataGridTextColumn Header="Executable" Width="*" Binding="{Binding ExecutablePath}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Scheduled Tasks">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="8">
+                        <Button Content="Refresh" Command="{Binding RefreshSchedulerCommand}" Padding="14,4"/>
+                        <TextBlock Margin="12,5,0,0" Text="{Binding SchedulerMessage}"/>
+                    </StackPanel>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Schedules}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Enabled" Width="70" Binding="{Binding Enabled}"/>
+                            <DataGridTextColumn Header="Name" Width="180" Binding="{Binding Name}"/>
+                            <DataGridTextColumn Header="Task" Width="170" Binding="{Binding TaskKey}"/>
+                            <DataGridTextColumn Header="Schedule" Width="*" Binding="{Binding ScheduleExplanation}"/>
+                            <DataGridTextColumn Header="Timezone" Width="140" Binding="{Binding TimeZoneId}"/>
+                            <DataGridTextColumn Header="Next UTC" Width="170" Binding="{Binding NextFireUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Task Runs">
+                <DataGrid ItemsSource="{Binding TaskRuns}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" EnableRowVirtualization="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Run" Width="220" Binding="{Binding RunId}"/>
+                        <DataGridTextColumn Header="Task" Width="170" Binding="{Binding TaskKey}"/>
+                        <DataGridTextColumn Header="State" Width="110" Binding="{Binding State}"/>
+                        <DataGridTextColumn Header="Origin" Width="100" Binding="{Binding Origin}"/>
+                        <DataGridTextColumn Header="Started UTC" Width="170" Binding="{Binding StartedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+                        <DataGridTextColumn Header="Exit" Width="65" Binding="{Binding ExitCode}"/>
+                        <DataGridTextColumn Header="Detail" Width="*" Binding="{Binding Detail}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Logs">
+                <DataGrid Name="ConsoleStatusDataGrid"
+                          ItemsSource="{Binding ConsoleStatus}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          EnableRowVirtualization="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Time" Width="165" Binding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.fff}}"/>
+                        <DataGridTextColumn Header="Process" Width="150" Binding="{Binding ProcessName}"/>
+                        <DataGridTextColumn Header="Stream" Width="120" Binding="{Binding Stream}"/>
+                        <DataGridTextColumn Header="Message" Width="*" Binding="{Binding Message}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Scheduler Health">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Refresh" Command="{Binding RefreshSchedulerCommand}" Padding="14,4"/>
+                            <TextBlock Margin="12,5,0,0" FontWeight="Bold" Text="{Binding SchedulerState}"/>
+                            <TextBlock Margin="8,5,0,0" Text="{Binding SchedulerMessage}"/>
+                        </StackPanel>
+                        <WrapPanel Margin="0,10,0,6">
+                            <TextBlock Margin="0,0,18,0" Text="{Binding SchedulerVersion, StringFormat=Version: {0}}"/>
+                            <TextBlock Margin="0,0,18,0" Text="{Binding SchedulerDatabaseAvailable, StringFormat=PostgreSQL: {0}}"/>
+                            <TextBlock Margin="0,0,18,0" Text="{Binding QuartzAvailable, StringFormat=Quartz: {0}}"/>
+                            <TextBlock Margin="0,0,18,0" Text="{Binding SchedulingStarted, StringFormat=Scheduling: {0}}"/>
+                            <TextBlock Text="{Binding SchedulerLastRefreshedUtc, StringFormat=Refreshed UTC: {0:yyyy-MM-dd HH:mm:ss}}"/>
+                        </WrapPanel>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Margin="0,8,0,5" FontWeight="Bold" Text="Approved task catalog"/>
+                    <DataGrid Grid.Row="2" ItemsSource="{Binding TaskCatalog}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Task" Width="180" Binding="{Binding DisplayName}"/>
+                            <DataGridTextColumn Header="Environment" Width="110" Binding="{Binding RequiredEnvironment}"/>
+                            <DataGridTextColumn Header="Risk" Width="130" Binding="{Binding RiskClassification}"/>
+                            <DataGridCheckBoxColumn Header="Deployed" Width="80" Binding="{Binding ExecutableAvailable}"/>
+                            <DataGridTextColumn Header="Manifest" Width="80" Binding="{Binding ManifestVersion}"/>
+                            <DataGridTextColumn Header="Executable" Width="*" Binding="{Binding ExecutablePath}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

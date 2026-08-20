@@ -1,19 +1,21 @@
 # IFM Server Manager Implementation Details
 
-**Status:** SM-S1 implemented
+**Status:** SM-S2 implemented
 
-**Version:** 2.0
+**Version:** 3.0
 
 **Date:** 2026-08-20
 
 ## 1. Current responsibility
 
 `TomasAI.IFM.Application.ServerManager` is the interactive WPF/tray supervisor for the current IFM API Server and
-UI.Net desktop application. It starts the two configured processes, owns their lifecycle while the manager is
-running, captures standard output and standard error concurrently, and displays a bounded combined log.
+UI.Net desktop application and the read-only operator client for the separate Scheduler Host. It starts the two
+interactive processes, captures their output, displays bounded logs, and queries scheduler health/catalog/schedules/
+runs through the local pipe. It never reads scheduler PostgreSQL tables directly.
 
-It is not yet the scheduled-task engine. Quartz, scheduler persistence, task definitions, scheduled-run history, and
-the Scheduler Host Windows Service begin in SM-S2.
+`TomasAI.IFM.Application.ServerManager.SchedulerHost` is the independent console/Windows Service process that owns
+Quartz, PostgreSQL scheduler persistence, catalog snapshots, durable run/attempt state, recovery, and scheduled child
+process ownership.
 
 ## 2. Runtime flow
 
@@ -149,15 +151,13 @@ entry mapping, displayed-log bounds, pending-queue bounds, and visible drop evid
 
 ## 9. Remaining staged work
 
-SM-S2 creates the separate Scheduler Host, Quartz/PostgreSQL persistence, scheduler contracts, task catalog, durable
-run state, recovery, and a read-only scheduled-task dashboard. It starts with an empty scheduler store; there is no
-legacy schedule export or import prerequisite.
-
-SM-S3 adds schedule editing, manual execution, cancellation, durable stdout/stderr history, retention, and broader
+SM-S3 adds schedule editing, preview, manual execution, cancellation, durable stdout/stderr paging/tailing, retention,
+idempotent mutating pipe requests, audit writes, and broader
 failure injection. Production-grade topology and observability remain part of the later Aspire transition.
 
 ## 10. Revision history
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 3.0 | 2026-08-20 | Added the implemented SM-S2 Scheduler Host, PostgreSQL/Quartz authority, local pipe client, and read-only scheduler dashboard boundary. |
 | 2.0 | 2026-08-20 | Replaced the obsolete three-server description with the implemented SM-S1 API/UI supervisor, structured bounded logs, graceful shutdown protocol, tests, and staged boundaries. |

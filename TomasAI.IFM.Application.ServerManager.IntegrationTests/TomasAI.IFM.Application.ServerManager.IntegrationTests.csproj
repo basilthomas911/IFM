@@ -12,11 +12,14 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="8.10.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.Contracts\TomasAI.IFM.Application.ServerManager.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.SchedulerHost\TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager\TomasAI.IFM.Application.ServerManager.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.TestProcess\TomasAI.IFM.Application.ServerManager.TestProcess.csproj" />
   </ItemGroup>

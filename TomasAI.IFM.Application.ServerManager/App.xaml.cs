@@ -66,7 +66,9 @@ public partial class App : System.Windows.Application
     private static void ConfigureServices(IServiceCollection services, ServerManagerOptions options)
     {
         services.AddSingleton(options);
+        services.AddSingleton(options.Scheduler);
         services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
+        services.AddSingleton<ISchedulerDashboardClient, SchedulerPipeClient>();
         services.AddSingleton<IMainWindowViewModel, MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
     }

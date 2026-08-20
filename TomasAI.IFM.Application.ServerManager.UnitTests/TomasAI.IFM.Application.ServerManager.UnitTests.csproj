@@ -17,6 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.Contracts\TomasAI.IFM.Application.ServerManager.Contracts.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager.SchedulerHost\TomasAI.IFM.Application.ServerManager.SchedulerHost.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Application.ServerManager\TomasAI.IFM.Application.ServerManager.csproj" />
   </ItemGroup>
 

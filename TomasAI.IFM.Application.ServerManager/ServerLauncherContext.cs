@@ -13,6 +13,9 @@ public sealed class ServerLauncherContext : IAsyncDisposable
     private readonly ManagedProcessSupervisor _supervisor;
     private readonly WinForms.NotifyIcon _notifyIcon;
     private readonly MainWindow _console;
+    private readonly SchedulerClientOptions _schedulerOptions;
+    private readonly CancellationTokenSource _schedulerMonitorCancellation = new();
+    private readonly Task _schedulerMonitor;
     private int _stopped;
 
     public ServerLauncherContext(
@@ -24,6 +27,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         _application = application;
         _viewModel = viewModel;
         _console = console;
+        _schedulerOptions = options.Scheduler;
         _supervisor = new ManagedProcessSupervisor(options.Processes, options.ShutdownTimeout, viewModel.AddLog);
         _notifyIcon = CreateNotifyIcon();
 
@@ -34,6 +38,7 @@ public sealed class ServerLauncherContext : IAsyncDisposable
 
         _application.Exit += OnApplicationExit;
         _ = StartProcessesAsync();
+        _schedulerMonitor = MonitorSchedulerAsync(_schedulerMonitorCancellation.Token);
     }
 
     public async ValueTask DisposeAsync()
@@ -43,6 +48,17 @@ public sealed class ServerLauncherContext : IAsyncDisposable
             return;
         }
 
+        _schedulerMonitorCancellation.Cancel();
+        try
+        {
+            await _schedulerMonitor.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected while stopping the periodic dashboard refresh.
+        }
+
+        _schedulerMonitorCancellation.Dispose();
         await _supervisor.DisposeAsync().ConfigureAwait(false);
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
@@ -109,6 +125,22 @@ public sealed class ServerLauncherContext : IAsyncDisposable
         {
             WriteManagerLog($"Reset failed: {exception.Message}");
         }
+    }
+
+    private async Task MonitorSchedulerAsync(CancellationToken cancellationToken)
+    {
+        if (!_schedulerOptions.Enabled)
+        {
+            await _viewModel.RefreshSchedulerAsync(cancellationToken);
+            return;
+        }
+
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_schedulerOptions.RefreshIntervalSeconds));
+        do
+        {
+            await _viewModel.RefreshSchedulerAsync(cancellationToken);
+        }
+        while (await timer.WaitForNextTickAsync(cancellationToken));
     }
 
     private async Task ExitAsync()
