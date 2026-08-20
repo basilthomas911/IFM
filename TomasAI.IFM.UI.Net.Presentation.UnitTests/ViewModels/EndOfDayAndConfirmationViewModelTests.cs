@@ -55,12 +55,14 @@ public class EndOfDayAndConfirmationViewModelTests
         await WaitForCommandAsync(subject.ViewModel, commandId);
         await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedCompleteEvent
         {
-            CommandId = Guid.NewGuid()
+            CommandId = Guid.NewGuid(),
+            CorrelationId = Guid.NewGuid()
         });
         operation.IsCompleted.Should().BeFalse();
         await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedCompleteEvent
         {
-            CommandId = commandId
+            CommandId = Guid.NewGuid(),
+            CorrelationId = commandId
         });
         await operation;
 
@@ -89,7 +91,8 @@ public class EndOfDayAndConfirmationViewModelTests
         {
             await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedCompleteEvent
             {
-                CommandId = commandId
+                CommandId = Guid.NewGuid(),
+                CorrelationId = commandId
             });
             return new ServiceOk<Guid>(commandId);
         }
@@ -107,7 +110,8 @@ public class EndOfDayAndConfirmationViewModelTests
         await WaitForCommandAsync(subject.ViewModel, commandId);
         await subject.Events.PublishAsync(new EndOfDayFundTransactionProcessedFailEvent
         {
-            CommandId = commandId,
+            CommandId = Guid.NewGuid(),
+            CorrelationId = commandId,
             ErrorCode = 731,
             ErrorMessage = "position projection failed"
         });

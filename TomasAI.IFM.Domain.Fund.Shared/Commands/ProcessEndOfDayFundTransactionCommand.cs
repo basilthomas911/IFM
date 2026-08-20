@@ -41,8 +41,10 @@ public record ProcessEndOfDayFundTransactionCommand : ICommand<FundTransactionEn
     /// Gets or sets the fund transaction to process at end-of-day.
     /// </summary>
     /// <remarks>Serialized with key 6.</remarks>
-    [Key(6)]
-    public FundTransactionReadModel FundTransaction { get; init; }
+    [Key(6)] public FundTransactionReadModel FundTransaction { get; init; }
+
+    /// <summary>The originating option-trade command that owns the terminal UI operation.</summary>
+    [Key(7)] public Guid CorrelationId { get; init; }
 
     /// <summary>
     /// Parameterless constructor used by MessagePack for property-based deserialization.
@@ -71,6 +73,7 @@ public record ProcessEndOfDayFundTransactionCommand : ICommand<FundTransactionEn
     /// <param name="errorCode">Error code (key 4).</param>
     /// <param name="routeTo">Target bounded context (key 5).</param>
     /// <param name="fundTransaction">Fund transaction payload (key 6).</param>
+    /// <param name="correlationId">Originating operation identifier (key 7).</param>
     [SerializationConstructor]
     public ProcessEndOfDayFundTransactionCommand(
         Guid commandId,
@@ -79,7 +82,8 @@ public record ProcessEndOfDayFundTransactionCommand : ICommand<FundTransactionEn
         FundTransactionEntityId entityId,
         int errorCode,
         BoundedContextName routeTo,
-        FundTransactionReadModel fundTransaction)
+        FundTransactionReadModel fundTransaction,
+        Guid correlationId)
     {
         CommandId = commandId;
         Subject = subject;
@@ -88,5 +92,6 @@ public record ProcessEndOfDayFundTransactionCommand : ICommand<FundTransactionEn
         ErrorCode = errorCode;
         RouteTo = routeTo;
         FundTransaction = fundTransaction;
+        CorrelationId = correlationId;
     }
 }

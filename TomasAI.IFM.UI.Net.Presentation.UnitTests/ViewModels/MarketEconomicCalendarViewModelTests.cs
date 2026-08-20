@@ -77,16 +77,14 @@ public class MarketEconomicCalendarViewModelTests
     }
 
     [Fact]
-    public async Task ImportFailure_IsPublishedAsObservableError()
+    public async Task ImportFailure_FromAnotherWorkflow_DoesNotPublishADuplicateDashboardError()
     {
         var subject = CreateSubject();
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
 
         subject.EventSource.PublishImportFailed(429, "provider rate limited");
 
-        subject.ViewModel.LastError.Should().NotBeNull();
-        subject.ViewModel.LastError!.ErrorCode.Should().Be(429);
-        subject.ViewModel.LastError.Message.Should().Be("provider rate limited");
+        subject.ViewModel.LastError.Should().BeNull();
         await subject.ViewModel.DisposeAsync();
     }
 

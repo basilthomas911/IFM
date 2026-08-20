@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Reflection;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
@@ -21,6 +23,9 @@ public sealed class DatabaseBackupStateRepository(
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
       IEventSourceActorStateRepository<DatabaseBackupCommandState>
 {
+    static readonly MethodInfo SendConcreteEventMethod = typeof(DatabaseBackupStateRepository)
+        .GetMethod(nameof(SendConcreteEventCoreAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
+    static readonly ConcurrentDictionary<Type, MethodInfo> ConcreteSendMethods = [];
     readonly IDatabaseBackupExecutionOutbox _executionOutbox = executionOutbox;
     readonly IEventProjector<DatabaseBackupCommandActor> _eventProjector = eventProjector;
 
@@ -41,14 +46,33 @@ public sealed class DatabaseBackupStateRepository(
         await _eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
         foreach (var domainEvent in domainEvents.OfType<DatabaseBackupEventContract>())
         {
-            await context.SendAsync<DatabaseBackupEventContract, Shared.DatabaseBackup.Contracts.DatabaseRecoveryOperationId>(domainEvent).ConfigureAwait(false);
             var executionEvent = ToExecutionEvent(domainEvent);
             if (executionEvent is null) continue;
             await _executionOutbox.EnqueueAsync(executionEvent).ConfigureAwait(false);
-            await context.SendAsync<DatabaseBackupEventContract, Shared.DatabaseBackup.Contracts.DatabaseRecoveryOperationId>(executionEvent).ConfigureAwait(false);
+            await SendConcreteEventAsync(context, executionEvent).ConfigureAwait(false);
             await _executionOutbox.MarkPublishedAsync(executionEvent.Id).ConfigureAwait(false);
         }
     }
+
+    internal static ValueTask SendConcreteEventAsync(
+        ICommandActorContext context,
+        DatabaseBackupEventContract domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        var method = ConcreteSendMethods.GetOrAdd(
+            domainEvent.GetType(),
+            static eventType => SendConcreteEventMethod.MakeGenericMethod(eventType));
+        return (ValueTask)method.Invoke(null, [context, domainEvent])!;
+    }
+
+    static ValueTask SendConcreteEventCoreAsync<TEvent>(
+        ICommandActorContext context,
+        DatabaseBackupEventContract domainEvent)
+        where TEvent : DatabaseBackupEventContract,
+            IEvent<Shared.DatabaseBackup.Contracts.DatabaseRecoveryOperationId>
+        => context.SendAsync<TEvent, Shared.DatabaseBackup.Contracts.DatabaseRecoveryOperationId>(
+            (TEvent)domainEvent);
 
     public static DatabaseBackupEventContract? ToExecutionEvent(DatabaseBackupEventContract domainEvent)
         => domainEvent switch

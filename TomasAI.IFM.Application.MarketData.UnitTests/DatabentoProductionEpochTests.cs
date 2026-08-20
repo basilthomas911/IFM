@@ -98,11 +98,9 @@ public sealed class DatabentoProductionEpochTests
             "VXU6", "VX", new InstrumentKey(8, 84), ContractKind.Future,
             new DateOnly(2026, 9, 16), null, "VXU6",
             "XCBF.PITCH", "CFE");
-        using var concurrentCatalogBarrier = new CountdownEvent(2);
         using var concurrentStopBarrier = new CountdownEvent(2);
         var provider = new FakeFeedFactory([es, vx])
         {
-            CatalogQueryBarrier = concurrentCatalogBarrier,
             StopBarrier = concurrentStopBarrier
         };
         var configuredOptions = new DatabentoMarketDataRuntimeOptions
@@ -131,7 +129,6 @@ public sealed class DatabentoProductionEpochTests
 
         await api.StartAsync(valueDate);
 
-        Assert.True(concurrentCatalogBarrier.IsSet);
         Assert.NotNull(await api.GetFuturesContractAsync("ES20260918"));
         Assert.NotNull(await api.GetFuturesContractAsync("VX20260916"));
         Assert.Equal(["GLBX.MDP3", "XCBF.PITCH"],

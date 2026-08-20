@@ -14,7 +14,6 @@ internal sealed class ActorEventPublisher(
     readonly ActorMailboxId _publisherId = publisherId;
     IActorProducer? _coreProducer;
     IActorProducer? _notifyProducer;
-    IJSActorProducer? _jetStreamProducer;
 
     internal ValueTask SendAsync<TEvent, TEntityId>(
         TEvent @event,
@@ -32,10 +31,31 @@ internal sealed class ActorEventPublisher(
                     : (_coreProducer ??= _supervisor.GetProducer(subject.ActorId)))
                     .SendAsync<TEvent, TEntityId>(subject, @event, cancellationToken),
             ActorDeliveryType.NatsJetStream =>
-                (_jetStreamProducer ??= _supervisor.GetJSProducer(subject.ActorId))
-                    .SendAsync<TEvent, TEntityId>(subject, @event, cancellationToken),
+                SendJetStreamAsync<TEvent, TEntityId>(subject, @event, cancellationToken),
             _ => ValueTask.FromException(new InvalidOperationException(
                 $"Actor type '{subject.ActorType}' does not define a delivery transport."))
         };
+    }
+
+    async ValueTask SendJetStreamAsync<TEvent, TEntityId>(
+        ActorSubject subject,
+        TEvent @event,
+        CancellationToken cancellationToken)
+        where TEvent : class, IEvent<TEntityId>
+        where TEntityId : IActorEntityId
+    {
+        var actorExists = _supervisor.ActorExists(subject.ActorId);
+        var producer = actorExists
+            ? _supervisor.GetJSProducer(subject.ActorId)
+            : _supervisor.GetJSEventProducer(subject.ActorId);
+
+        // Durable service/execution events deliberately have no destination actor.
+        // Their supervisor-owned producer therefore has no actor startup path and
+        // must be started at first publication. Actor-owned producers are already
+        // started with their actor.
+        if (!actorExists)
+            await producer.StartAsync(subject.ActorId, cancellationToken).ConfigureAwait(false);
+
+        await producer.SendAsync<TEvent, TEntityId>(subject, @event, cancellationToken).ConfigureAwait(false);
     }
 }

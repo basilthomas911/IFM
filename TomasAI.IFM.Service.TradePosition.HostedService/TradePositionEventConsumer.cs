@@ -45,7 +45,6 @@ public class TradePositionEventConsumer : NatsEventConsumer, ITradePositionEvent
         {
             new TradePositionChangedEvent{ },
             new OptionTradeLegDataChangedEvent{ },
-            new OptionTradeEndOfDayProcessedEvent{ },
             new OptionTradeSpreadDistributionStatisticsChangedEvent{ },
             new OptionTradeOrderPlacedEvent{ },
             new OptionTradePositionOpenedEvent{ },

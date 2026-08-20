@@ -23,6 +23,8 @@ public sealed class G2Configuration
     public required DateOnly SecuritiesMaturityDate { get; init; }
     public required int SecuritiesOptionStrike { get; init; }
     public required string BackupDestinationRoot { get; init; }
+    public required string BackupHostExecutable { get; init; }
+    public required Uri BackupHostReadyUri { get; init; }
     public required string ServerConfigurationPath { get; init; }
     public required G2DatabaseIdentity[] DatabaseIdentities { get; init; }
 
@@ -64,6 +66,18 @@ public sealed class G2Configuration
             BackupDestinationRoot = Path.GetFullPath(Read(
                 "IFM_G2_BACKUP_ROOT",
                 Path.Combine(process.ResultsRoot, "G2BackupArtifacts", process.RunId))),
+            BackupHostExecutable = Path.GetFullPath(Read(
+                "IFM_G2_BACKUP_HOST_EXECUTABLE",
+                Path.Combine(
+                    process.RepositoryRoot,
+                    "TomasAI.IFM.Api.DatabaseBackup.Host",
+                    "bin",
+                    "Debug",
+                    "net10.0",
+                    "TomasAI.IFM.Api.DatabaseBackup.Host.exe"))),
+            BackupHostReadyUri = new Uri(Read(
+                "IFM_G2_BACKUP_HOST_READY_URI",
+                "http://127.0.0.1:22643/health/ready"), UriKind.Absolute),
             ServerConfigurationPath = serverConfigurationPath,
             DatabaseIdentities = ReadDatabaseIdentities(serverConfigurationPath)
         };
@@ -114,6 +128,10 @@ public sealed class G2Configuration
         }
         if (!IsDescendantOf(BackupDestinationRoot, Process.ResultsRoot))
             errors.Add("G2 backup destination must be contained by the configured ignored test-results root.");
+        if (!File.Exists(BackupHostExecutable))
+            errors.Add($"G2 database-backup host executable does not exist: {BackupHostExecutable}");
+        if (!BackupHostReadyUri.IsLoopback)
+            errors.Add("G2 database-backup readiness endpoint must be loopback-only.");
         return errors;
     }
 
@@ -136,6 +154,8 @@ public sealed class G2Configuration
             SecuritiesFuturesContractId,
             SecuritiesOptionContractId,
             BackupDestinationRoot,
+            BackupHostExecutable,
+            BackupHostReadyUri,
             ServerConfigurationPath,
             DatabaseIdentities,
             Process.FmpAdapter,

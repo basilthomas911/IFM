@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -21,6 +22,8 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
     IAsyncLifetime
 {
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
+    private readonly List<(FuturesContractRolloverReadModel Rollover, FuturesContractV2ReadModel Contract)>
+        _originalAssignments = [];
 
     [Fact]
     public async Task StartupSeedsResolvesPersistsAndRefreshesCurrentRows()
@@ -38,15 +41,27 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         var runtimeOptions = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = DatabentoFeedOptions.ForProfile(
-                FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+                FeedDeploymentProfile.Development, "GLBX.MDP3") with
+            {
+                DataSource = FeedDataSourceMode.DatabentoLive
+            },
             Contracts = []
         };
         var registry = new DatabentoContractRegistrationRegistry([], runtimeOptions);
         var check = new FuturesContractRolloverStartupCheck(
-            api, fixture.Db, clock, registry);
+            api, fixture.Db, clock, runtimeOptions, registry);
 
         var first = await check.ExecuteAsync(ValueDate);
         var second = await check.ExecuteAsync(ValueDate);
+        var syntheticOptions = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
+                FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            Contracts = []
+        };
+        var syntheticCheck = new FuturesContractRolloverStartupCheck(
+            api, fixture.Db, clock, syntheticOptions, registry);
+        var synthetic = await syntheticCheck.ExecuteAsync(new DateOnly(2026, 9, 18));
 
         first.Should().Contain(row => row.Symbol == "ES"
             && row.ContractId == "ES20260918"
@@ -55,7 +70,9 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             && row.ContractId == "VX20260916"
             && row.NextRolloverDate == new DateOnly(2026, 9, 16));
         second.Should().Contain(row => row.Symbol == "ES" && row.ContractId == "ES20260918");
-        resolver.CallCount.Should().Be(4, "startup must revalidate provider identities even before rollover is due");
+        synthetic.Should().Contain(row => row.Symbol == "VX" && row.ContractId == "VX20260916");
+        resolver.CallCount.Should().Be(4,
+            "live startup revalidates both provider identities while synthetic startup reuses the stored contracts without another provider call");
 
         var es = await fixture.Db.GetFuturesContractAsync("ES20260918");
         var vx = await fixture.Db.GetFuturesContractAsync("VX20260916");
@@ -141,11 +158,79 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             clock,
             resolver,
             fixture.Db);
-        var check = new FuturesContractRolloverStartupCheck(api, fixture.Db, clock);
+        var runtimeOptions = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
+                FeedDeploymentProfile.Development, "GLBX.MDP3") with
+            {
+                DataSource = FeedDataSourceMode.DatabentoLive
+            },
+            Contracts = []
+        };
+        var check = new FuturesContractRolloverStartupCheck(
+            api, fixture.Db, clock, runtimeOptions);
 
         var act = () => check.ExecuteAsync(ValueDate);
 
         await act.Should().ThrowAsync<CurrentlyTradedFuturesContractNotFoundException>();
+    }
+
+    [Fact]
+    public async Task SyntheticStartupBootstrapsConfiguredContractsWithoutProviderCalls()
+    {
+        await ResetAsync();
+        var resolver = new FakeResolver(failVx: true);
+        var clock = new FixedTimeProvider(
+            new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var api = new DatabentoMarketDataApi(
+            Substitute.For<IDatabentoMarketDataEpochFactory>(),
+            new DatabentoMarketDataApiOptions(),
+            clock,
+            resolver,
+            fixture.Db);
+        DatabentoContractRegistration[] registrations =
+        [
+            new()
+            {
+                DomainContractId = "ES20260918",
+                ProviderContractName = "ESU6",
+                AssetTypeId = AssetTypeId.Futures,
+                RootSymbol = "ES",
+                Dataset = "GLBX.MDP3"
+            },
+            new()
+            {
+                DomainContractId = "VX20260916",
+                ProviderContractName = "VX/U6",
+                AssetTypeId = AssetTypeId.Futures,
+                RootSymbol = "VX",
+                Dataset = "XCBF.PITCH"
+            }
+        ];
+        var runtimeOptions = new DatabentoMarketDataRuntimeOptions
+        {
+            FeedOptions = DatabentoFeedOptions.ForProfile(
+                FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            Contracts = registrations
+        };
+        var registry = new DatabentoContractRegistrationRegistry(
+            registrations, runtimeOptions);
+        var check = new FuturesContractRolloverStartupCheck(
+            api, fixture.Db, clock, runtimeOptions, registry);
+
+        var rows = await check.ExecuteAsync(new DateOnly(2026, 8, 19));
+
+        resolver.CallCount.Should().Be(0);
+        rows.Should().Contain(row => row.Symbol == "ES"
+            && row.ContractId == "ES20260918"
+            && row.NextRolloverDate == new DateOnly(2026, 9, 18));
+        rows.Should().Contain(row => row.Symbol == "VX"
+            && row.ContractId == "VX20260916"
+            && row.NextRolloverDate == new DateOnly(2026, 9, 16));
+        registry.TryGetCurrentlyTradedFuturesContract("ES", out var es).Should().BeTrue();
+        es.ContractId.Should().Be("ES20260918");
+        registry.TryGetCurrentlyTradedFuturesContract("VX", out var vx).Should().BeTrue();
+        vx.ContractId.Should().Be("VX20260916");
     }
 
     private async Task ResetAsync()
@@ -162,9 +247,34 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         }
     }
 
-    public Task InitializeAsync() => ResetAsync();
+    public async Task InitializeAsync()
+    {
+        foreach (var symbol in FuturesContractRolloverStartupCheck.RequiredSymbols)
+        {
+            var row = await fixture.Db.GetFuturesContractRolloverAsync(symbol);
+            if (row?.ContractId is not { Length: > 0 })
+                continue;
+            var contract = await fixture.Db.GetPersistedFuturesContractAsync(row.ContractId);
+            if (contract is not null)
+                _originalAssignments.Add((row, contract));
+        }
+        await ResetAsync();
+    }
 
-    public Task DisposeAsync() => ResetAsync();
+    public async Task DisposeAsync()
+    {
+        await ResetAsync();
+        await fixture.Db.EnsureFuturesContractRolloverRowsAsync(
+            FuturesContractRolloverStartupCheck.RequiredSymbols,
+            DateTime.UtcNow,
+            nameof(FuturesContractRolloverStartupIntegrationTests));
+        foreach (var assignment in _originalAssignments)
+        {
+            await fixture.Db.ReplaceCurrentlyTradedFuturesContractAsync(
+                assignment.Rollover,
+                assignment.Contract);
+        }
+    }
 
     private sealed class FakeResolver(bool failVx = false) : IDatabentoCurrentFuturesContractResolver
     {

@@ -1,6 +1,9 @@
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -12,6 +15,7 @@ public sealed class FuturesContractRolloverStartupCheck(
     IMarketDataApi marketDataApi,
     IFuturesContractRolloverStore store,
     TimeProvider timeProvider,
+    DatabentoMarketDataRuntimeOptions runtimeOptions,
     IDatabentoContractRegistrationRegistry? registry = null)
 {
     public static readonly string[] RequiredSymbols = ["ES", "VX"];
@@ -37,13 +41,21 @@ public sealed class FuturesContractRolloverStartupCheck(
                 "The futures_contract_rollover table must contain at least one row.");
         }
 
-        foreach (var symbol in RequiredSymbols)
+        if (runtimeOptions.FeedOptions.DataSource != FeedDataSourceMode.Synthetic)
         {
-            await marketDataApi.UpdateCurrentlyTradedFuturesContractAsync(
-                symbol,
-                valueDate,
-                cancellationToken,
-                forceProviderRefresh: true).ConfigureAwait(false);
+            foreach (var symbol in RequiredSymbols)
+            {
+                await marketDataApi.UpdateCurrentlyTradedFuturesContractAsync(
+                    symbol,
+                    valueDate,
+                    cancellationToken,
+                    forceProviderRefresh: true).ConfigureAwait(false);
+            }
+        }
+        else
+        {
+            await SeedSyntheticAssignmentsAsync(seeded, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var validated = await store.GetFuturesContractRolloversAsync(cancellationToken)
@@ -72,5 +84,49 @@ public sealed class FuturesContractRolloverStartupCheck(
         }
         registry?.ReplaceCurrentFuturesContracts(currentContracts);
         return validated;
+    }
+
+    private async Task SeedSyntheticAssignmentsAsync(
+        IReadOnlyCollection<FuturesContractRolloverReadModel> seeded,
+        CancellationToken cancellationToken)
+    {
+        foreach (var symbol in RequiredSymbols)
+        {
+            var row = seeded.Single(candidate =>
+                string.Equals(candidate.Symbol, symbol, StringComparison.Ordinal));
+            var persisted = string.IsNullOrWhiteSpace(row.ContractId)
+                ? null
+                : await store.GetPersistedFuturesContractAsync(
+                    row.ContractId, cancellationToken).ConfigureAwait(false);
+            if (row.NextRolloverDate is not null
+                && persisted is not null
+                && persisted.CurrentlyTraded
+                && string.Equals(persisted.Symbol, symbol, StringComparison.Ordinal))
+                continue;
+
+            var registration = runtimeOptions.Contracts.FirstOrDefault(candidate =>
+                candidate.AssetTypeId == AssetTypeId.Futures
+                && string.Equals(
+                    string.IsNullOrWhiteSpace(candidate.RootSymbol)
+                        ? new FuturesContractIdParser(candidate.DomainContractId).Symbol
+                        : candidate.RootSymbol,
+                    symbol,
+                    StringComparison.OrdinalIgnoreCase));
+            if (registration is null)
+                continue;
+
+            var now = timeProvider.GetUtcNow().UtcDateTime;
+            var contract = SyntheticFuturesContractFactory.Create(registration);
+            await store.ReplaceCurrentlyTradedFuturesContractAsync(
+                row with
+                {
+                    ContractId = contract.ContractId,
+                    NextRolloverDate = contract.LastTradeDate,
+                    UpdatedOn = now,
+                    UpdatedBy = nameof(FuturesContractRolloverStartupCheck)
+                },
+                contract,
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 }

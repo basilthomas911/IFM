@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event.Actor;
 
@@ -21,6 +22,8 @@ public class OptionTradeEventActor(
     IActorOptionPricerCommandApi? _commandApi;
     static readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
+        [typeof(OptionTradeEndOfDayProcessedEvent).Name] = static (evt, ctx, _, _, _)
+            => ((OptionTradeEndOfDayProcessedEvent)evt).ProcessFundEndOfDayAsync(ctx),
         [typeof(OptionTradeLegDataChangedEvent).Name] = static (evt, ctx, commandApi, statusConsoleWriter, logger)
             => ((OptionTradeLegDataChangedEvent)evt).ExecuteAsync(ctx, commandApi, statusConsoleWriter, logger)
     };
@@ -36,6 +39,7 @@ public class OptionTradeEventActor(
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
+        [OptionTradeEndOfDayProcessedEvent.Verb] = msg => msg.AsEvent<OptionTradeEndOfDayProcessedEvent>()!,
         [OptionTradeLegDataChangedEvent.Verb] = msg => msg.AsEvent<OptionTradeLegDataChangedEvent>()!,
     };
 

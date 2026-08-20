@@ -325,6 +325,7 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
 
     ValueTask HandleEventAsync(IEvent @event)
     {
+        var correlationId = TerminalCorrelationId(@event);
         TaskCompletionSource<IEvent>? completion;
         lock (_correlationGate)
         {
@@ -334,17 +335,27 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
                 {
                     if (_earlyTerminalEvents.Count >= 16)
                         _earlyTerminalEvents.Remove(_earlyTerminalEvents.Keys.First());
-                    _earlyTerminalEvents[@event.CommandId] = @event;
+                    _earlyTerminalEvents[correlationId] = @event;
                 }
                 return ValueTask.CompletedTask;
             }
-            if (_commandId != @event.CommandId)
+            if (_commandId != correlationId)
                 return ValueTask.CompletedTask;
             completion = _terminalCompletion;
         }
         completion?.TrySetResult(@event);
         return ValueTask.CompletedTask;
     }
+
+    static Guid TerminalCorrelationId(IEvent @event)
+        => @event switch
+        {
+            EndOfDayFundTransactionProcessedCompleteEvent completed
+                when completed.CorrelationId != Guid.Empty => completed.CorrelationId,
+            EndOfDayFundTransactionProcessedFailEvent failed
+                when failed.CorrelationId != Guid.Empty => failed.CorrelationId,
+            _ => @event.CommandId
+        };
 
     void ClearCorrelation()
     {

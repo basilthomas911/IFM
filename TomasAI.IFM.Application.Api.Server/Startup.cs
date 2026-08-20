@@ -61,6 +61,7 @@ using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using Microsoft.AspNetCore.Authentication.Negotiate;
+using Microsoft.AspNetCore.DataProtection;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -199,6 +200,14 @@ public static class Startup
             services.AddHealthChecks()
                 .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"])
                 .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["ready"]);
+            var dataProtectionKeyPath = config.GetValue<string>("DataProtection:KeyPath");
+            if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
+            {
+                Directory.CreateDirectory(dataProtectionKeyPath);
+                services.AddDataProtection()
+                    .SetApplicationName("TomasAI.IFM.Application.Api.Server")
+                    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath));
+            }
             services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
             services.AddAuthorization();
 
@@ -470,6 +479,9 @@ public static class Startup
                     DataSource = configuredDataSource
                 };
             }
+            logger.LogInformationEvent(
+                "ApiServer",
+                $"configure Databento market-data source: configured='{dataSourceName ?? "(default)"}', effective='{feedOptions.DataSource}'.");
             var configuredSynthetic = config
                 .GetSection("AppSettings:Databento:Synthetic")
                 .Get<SyntheticFeedOptions>();

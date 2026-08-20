@@ -135,6 +135,9 @@ public class FundCommandApi(ICommandServiceApi commandSvc) : IFundCommandApi
     /// <param name="fundTransaction"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> ProcessEndOfDayFundTransactionAsync(Guid correlationId, FundTransactionReadModel fundTransaction)
-        => await new ProcessEndOfDayFundTransactionParameter(IsArgumentNull.Set(fundTransaction), ProcessEndOfDayFundTransactionCommand.ErrorId)
+        => await new ProcessEndOfDayFundTransactionParameter(
+            IsArgumentNull.Set(fundTransaction),
+            correlationId,
+            ProcessEndOfDayFundTransactionCommand.ErrorId)
         .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(FundTransactionUriPath.ProcessEndOfDay, e));
 }

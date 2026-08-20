@@ -489,6 +489,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             // btnRun
             // 
             this.btnRun.Font = new System.Drawing.Font("Microsoft Sans Serif", 10.2F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnRun.Enabled = false;
             this.btnRun.Location = new System.Drawing.Point(222, 5);
             this.btnRun.Name = "btnRun";
             this.btnRun.Size = new System.Drawing.Size(94, 30);

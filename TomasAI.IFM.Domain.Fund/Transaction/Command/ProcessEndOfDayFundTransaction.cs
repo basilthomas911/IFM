@@ -59,6 +59,7 @@ public static class ProcessEndOfDayFundTransaction
            CommandId = e.CommandId,
            Subject = new ActorSubject(ActorType.Event, EndOfDayFundTransactionProcessedEvent.Actor, EndOfDayFundTransactionProcessedEvent.Verb, e.EntityId.Format()),
            EntityId = e.EntityId,
+           CorrelationId = e.CorrelationId == Guid.Empty ? e.CommandId : e.CorrelationId,
            FundTransaction = fundTransaction,
            CreatedOn = e.OriginatedOn,
            CreatedBy = e.OriginatedBy

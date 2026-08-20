@@ -70,12 +70,14 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
 
     void ConfigureModeControls()
     {
+        _backupModeLabel.Name = "lblBackupMode";
         _backupModeLabel.AutoSize = true;
         _backupModeLabel.Font = radDiffBackup.Font;
         _backupModeLabel.ForeColor = Color.White;
         _backupModeLabel.Location = new Point(300, 6);
         _backupModeLabel.Text = "Mode:";
         _backupMode.DropDownStyle = ComboBoxStyle.DropDownList;
+        _backupMode.Name = "ddlBackupMode";
         _backupMode.Font = radDiffBackup.Font;
         _backupMode.Location = new Point(355, 2);
         _backupMode.Size = new Size(145, 26);
@@ -87,11 +89,21 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
         {
             if (_backupMode.SelectedItem is DatabaseBackupMode mode)
                 _viewModel.SelectBackupMode(mode);
+            UpdateBackupModeAccessibility();
         };
+        UpdateBackupModeAccessibility();
         pnlBackupType.Controls.Add(_backupModeLabel);
         pnlBackupType.Controls.Add(_backupMode);
         _backupMode.BringToFront();
         _backupModeLabel.BringToFront();
+    }
+
+    void UpdateBackupModeAccessibility()
+    {
+        var selected = _backupMode.SelectedItem?.ToString() ?? string.Empty;
+        _backupMode.AccessibleName = "Database backup mode; selected=" + selected
+            + "; catalog: "
+            + string.Join(", ", _backupMode.Items.Cast<object>());
     }
 
     void Subscribe()
@@ -135,6 +147,8 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
             var index = clbDatabases.Items.Add(protectionSet.Id);
             clbDatabases.SetItemChecked(index, checkedIds.Contains(protectionSet.Id));
         }
+        clbDatabases.AccessibleName = "Database protection sets; catalog: "
+            + string.Join(", ", _viewModel.State.ProtectionSets.Select(item => item.Id));
         if (clbDatabases.Items.Count > 0)
         {
             var selectedIndex = Math.Max(0, clbDatabases.Items.IndexOf(selected));

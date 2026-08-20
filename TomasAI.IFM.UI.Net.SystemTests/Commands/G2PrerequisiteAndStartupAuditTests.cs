@@ -12,7 +12,16 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Commands;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ReadModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
+using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,6 +39,8 @@ public sealed class G2PrerequisiteAndStartupAuditTests
     public async Task Development_command_audit_satisfies_G2_001_through_G2_034()
     {
         if (!G0Configuration.G2StartupLiveRunEnabled)
+            return;
+        if (string.Equals(Environment.GetEnvironmentVariable("IFM_G2_FINAL_SLICE"), "1", StringComparison.Ordinal))
             return;
 
         var securitiesSlice = string.Equals(
@@ -202,7 +213,10 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                         ["ASPNETCORE_ENVIRONMENT"] = process.EnvironmentName
                     };
                     if (yieldCurveSlice || economicCalendarSlice || fundSlice || orderTradeSlice)
+                    {
                         apiEnvironment["AppSettings__Databento__DataSource"] = "Synthetic";
+                        AddSyntheticFuturesContractBootstrap(apiEnvironment);
+                    }
                     api = OwnedProcess.Start(
                         process.ApiExecutable,
                         evidence.ApiLogDirectory,
@@ -1907,6 +1921,967 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             => Step(id, name, expectedOutcome, token => Task.FromResult(action(token)));
     }
 
+    [Fact]
+    public async Task Development_final_slice_satisfies_G2_035_through_G2_038()
+    {
+        if (!G0Configuration.G2StartupLiveRunEnabled
+            || !string.Equals(Environment.GetEnvironmentVariable("IFM_G2_FINAL_SLICE"), "1", StringComparison.Ordinal))
+            return;
+
+        var configuration = G2Configuration.Load();
+        var process = configuration.Process;
+        var redactor = new SecretRedactor([Environment.GetEnvironmentVariable("FMP_API_KEY")]);
+        var evidence = new G0EvidenceWriter(process, redactor);
+        var run = new G0RunResult
+        {
+            Gate = "G2-035-038",
+            ExpectedStepCount = 4,
+            RunId = process.RunId,
+            Environment = process.EnvironmentName,
+            StartedUtc = DateTimeOffset.UtcNow,
+            ApiExecutable = process.ApiExecutable,
+            DesktopExecutable = process.DesktopExecutable,
+            Endpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["apiReadiness"] = process.ApiReadyUri.ToString(),
+                ["backupHostReadiness"] = configuration.BackupHostReadyUri.ToString(),
+                ["nats"] = process.NatsUri.ToString(),
+                ["postgresql"] = $"{process.PostgreSql.Host}:{process.PostgreSql.Port}",
+                ["scyllaDb"] = $"{process.ScyllaDb.Host}:{process.ScyllaDb.Port}",
+                ["redis"] = $"{process.Redis.Host}:{process.Redis.Port}"
+            }
+        };
+        var recorder = new G0AuditRecorder(run);
+        using var auditTimeout = new CancellationTokenSource(process.AuditTimeout);
+        var cancellationToken = auditTimeout.Token;
+
+        OwnedProcess? api = null;
+        OwnedProcess? desktop = null;
+        OwnedProcess? backupHost = null;
+        G0QuerySession? queries = null;
+        G2CommandEventObserver? commandObserver = null;
+        G1UiAutomationSession? automation = null;
+        G2BaselineSnapshot? baseline = null;
+        Window? tradeWindow = null;
+        Window? systemWindow = null;
+        FundReadModel? fund = null;
+        FundOrderReadModel? order = null;
+        FundOrderTradeReadModel? trade = null;
+        var orderFixture = G2OrderTradeFixture.Create(configuration);
+        var openingReference = $"{configuration.RunPrefix}-EOD-Opening";
+        var eodReference = $"{configuration.RunPrefix}-EOD";
+        var optionTradeOpened = false;
+        var orderRemoved = false;
+        var backupRootRemoved = false;
+        var explicitShutdownCompleted = false;
+        var cleanupFailures = new List<string>();
+
+        try
+        {
+            var validationErrors = configuration.Validate()
+                .Concat(FindConflictingProcesses(process))
+                .ToList();
+            using (var backupProcesses = new ProcessCollection(Process.GetProcessesByName(
+                       Path.GetFileNameWithoutExtension(configuration.BackupHostExecutable))))
+            {
+                if (backupProcesses.Count > 0)
+                    validationErrors.Add(
+                        $"G2 requires an isolated database-backup host; PID(s) "
+                        + string.Join(", ", backupProcesses.Select(item => item.Id)) + " are already running.");
+            }
+            if (validationErrors.Count > 0)
+                throw new G0DependencyException(string.Join(Environment.NewLine, validationErrors));
+
+            foreach (var endpoint in new[]
+                     {
+                         new G0Endpoint("NATS", process.NatsUri.Host, process.NatsUri.Port),
+                         process.PostgreSql,
+                         process.ScyllaDb,
+                         process.Redis
+                     })
+                await InfrastructureProbe.ProbeTcpAsync(endpoint, process.ReadinessTimeout, cancellationToken);
+
+            Directory.CreateDirectory(configuration.BackupDestinationRoot);
+            await evidence.WriteTextAsync(
+                Path.Combine("processes", "g2-final-safety-policy.json"),
+                JsonSerializer.Serialize(configuration.ToSafeEvidence(), new JsonSerializerOptions { WriteIndented = true }),
+                cancellationToken);
+
+            Dictionary<string, string?> apiEnvironment = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ASPNETCORE_ENVIRONMENT"] = process.EnvironmentName,
+                ["AppSettings__Databento__DataSource"] = "Synthetic",
+                ["DataProtection__KeyPath"] = Path.Combine(
+                    evidence.ProcessDirectory, "data-protection-keys")
+            };
+            AddSyntheticFuturesContractBootstrap(apiEnvironment);
+            api = OwnedProcess.Start(
+                process.ApiExecutable,
+                evidence.ApiLogDirectory,
+                redactor,
+                apiEnvironment);
+            run.ApiProcessId = api.Process.Id.ToString(CultureInfo.InvariantCulture);
+            var readiness = await InfrastructureProbe.WaitForApiReadinessAsync(
+                process.ApiReadyUri,
+                process.ReadinessTimeout,
+                cancellationToken,
+                () => (api.Process.HasExited, api.Process.HasExited ? api.Process.ExitCode : null));
+            if (!string.Equals(readiness.Status, "Healthy", StringComparison.OrdinalIgnoreCase)
+                || readiness.RegisteredActorTypes != process.ExpectedActorTypeCount)
+                throw new InvalidOperationException(
+                    $"API readiness was {readiness.Status}; actorTypes={readiness.RegisteredActorTypes}.");
+            await evidence.WriteTextAsync(
+                Path.Combine("network", "api-readiness.json"),
+                JsonSerializer.Serialize(readiness, new JsonSerializerOptions { WriteIndented = true }),
+                cancellationToken);
+
+            queries = new G0QuerySession(process.NatsUri);
+            await queries.StartAsync(process.RunId, cancellationToken, "G2Final");
+            baseline = await G2BaselineCapture.CaptureAsync(
+                queries, configuration, process.ReadinessTimeout, cancellationToken);
+            fund = baseline.DesignatedFund
+                ?? throw new G0DependencyException(
+                    $"The accepted reusable G2 fund '{configuration.FundFixtureName}' is not present.");
+            if (fund.IsProduction)
+                throw new G0DependencyException("The designated G2 fund is marked as production.");
+            if (baseline.DesignatedFundBalance is null)
+                throw new G0DependencyException("The designated G2 fund balance is unavailable.");
+            if (baseline.DesignatedFundTransactions.Any(item =>
+                    item.Description.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                || baseline.DesignatedFundOrders.Any(item =>
+                    item.Reference.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                || baseline.DesignatedFundTrades.Any(item =>
+                    item.Reference.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase)))
+                throw new G0DependencyException(
+                    $"Run prefix '{configuration.RunPrefix}' already owns designated-fund state.");
+            await evidence.WriteTextAsync(
+                Path.Combine("processes", "g2-final-baseline.json"),
+                JsonSerializer.Serialize(baseline, new JsonSerializerOptions { WriteIndented = true }),
+                cancellationToken);
+
+            desktop = OwnedProcess.Start(process.DesktopExecutable, evidence.UiLogDirectory, redactor);
+            run.DesktopProcessId = desktop.Process.Id.ToString(CultureInfo.InvariantCulture);
+            automation = new G1UiAutomationSession(desktop.Process.Id);
+            _ = await automation.WaitForMainWindowAsync(process.StartupTimeout, cancellationToken);
+            _ = await automation.WaitForInitializedShellAsync(process.StartupTimeout, cancellationToken);
+
+            commandObserver = new G2CommandEventObserver(process.NatsUri);
+            await commandObserver.StartAsync(process.RunId + "-final", cancellationToken);
+            await commandObserver.WriteEvidenceAsync(evidence, cancellationToken);
+
+            await Step(
+                "G2-035",
+                "Run the supported EOD workflow",
+                "A disposable order/trade under the reusable G2 fund uses persisted ES EOD inputs, preserves exact command correlation through fund processing, and records the durable/UI result.",
+                async token =>
+                {
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var snapshot = baseline ?? throw new InvalidOperationException("G2 baseline is unavailable.");
+                    var designatedFund = fund ?? throw new InvalidOperationException("G2 fund is unavailable.");
+
+                    var currentEs = RequireQueryValue(
+                        await querySession.MarketData.GetCurrentlyTradedFuturesContractAsync("ES")
+                            .WaitAsync(process.ReadinessTimeout, token),
+                        "current ES futures contract");
+                    _ = await G0DevelopmentDataFixture.EnsureEodAsync(
+                        querySession,
+                        currentEs,
+                        snapshot.ValueDate,
+                        process.ReadinessTimeout,
+                        token);
+
+                    ui.InvokeToolbarAction("Trade");
+                    tradeWindow = await ui.WaitForWindowAsync("Trade Orders", process.ReadinessTimeout, token);
+                    var orderTransition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(OrderAddedToFundEvent),
+                        operationToken => ui.CreateFundOrderAsync(
+                            tradeWindow,
+                            designatedFund.Name,
+                            orderFixture,
+                            snapshot.ValueDate,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    order = await WaitForFundOrderAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        orderTransition.Terminal.FundOrder!.OrderId,
+                        orderFixture.OrderReference,
+                        true,
+                        process.ReadinessTimeout,
+                        token);
+                    var durableOrder = order ?? throw new InvalidOperationException("The G2 EOD order was not projected.");
+
+                    var tradeTransition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(TradeAddedToFundOrderEvent),
+                        operationToken => ui.AddFundOrderTradeAsync(
+                            tradeWindow,
+                            designatedFund.Name,
+                            durableOrder.OrderId,
+                            orderFixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    trade = await WaitForFundOrderTradeAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        durableOrder.OrderId,
+                        tradeTransition.Terminal.FundOrderTrade!.TradeId,
+                        orderFixture.TradeReference,
+                        orderFixture.InitialTradeState,
+                        true,
+                        process.ReadinessTimeout,
+                        token);
+                    var durableTrade = trade ?? throw new InvalidOperationException("The G2 EOD trade was not projected.");
+
+                    var marketData = RequireQueryValue(
+                        await querySession.MarketDataFeed.GetFuturesEodDataAsync(
+                                durableOrder.BaseContractId,
+                                snapshot.ValueDate)
+                            .WaitAsync(process.ReadinessTimeout, token),
+                        $"EOD inputs for {durableOrder.BaseContractId}/{snapshot.ValueDate:yyyy-MM-dd}");
+                    var shortLegAction = durableTrade.TradeType == TradeType.ShortIronCondor
+                        ? OptionLegAction.Short
+                        : OptionLegAction.Long;
+                    var longLegAction = shortLegAction == OptionLegAction.Short
+                        ? OptionLegAction.Long
+                        : OptionLegAction.Short;
+                    var putSpreadType = durableTrade.TradeType == TradeType.ShortIronCondor
+                        ? TradeType.PutCreditSpread
+                        : TradeType.PutDebitSpread;
+                    var callSpreadType = durableTrade.TradeType == TradeType.ShortIronCondor
+                        ? TradeType.CallCreditSpread
+                        : TradeType.CallDebitSpread;
+                    var tradeOrder = new TradeOrderReadModel
+                    {
+                        FundId = designatedFund.FundId,
+                        OrderId = durableOrder.OrderId,
+                        TradeId = durableTrade.TradeId,
+                        ValueDate = snapshot.ValueDate,
+                        TradeType = durableTrade.TradeType,
+                        TradeDate = durableTrade.TradeDate,
+                        MaturityDate = durableTrade.MaturityDate,
+                        TradeOrderState = TradeOrderState.OrderOpened,
+                        UnderlyingContractId = durableOrder.BaseContractId,
+                        UnderlyingAssetType = AssetType.Futures,
+                        OrderDescription = durableTrade.Reference,
+                        OrderAction = durableTrade.TradeAction == TradeAction.Sell ? OrderAction.Sell : OrderAction.Buy,
+                        OrderActionType = OrderActionType.Open,
+                        OrderQuantity = 1,
+                        OrderFilled = 1,
+                        OrderPrice = marketData.ClosePrice,
+                        OrderAmount = marketData.ClosePrice,
+                        Commission = 1m,
+                        TotalAmount = marketData.ClosePrice + 1m,
+                        OrderType = OrderType.Market,
+                        TradeFillType = TradeFillType.Manual,
+                        CreatedBy = configuration.RunPrefix,
+                        UpdatedBy = configuration.RunPrefix
+                    }
+                    .SetTradeLimit(TradeLimitReadModel.Default(durableTrade.TradeId, durableTrade.TradeType))
+                    .AddTradeTypeLimits(
+                    [
+                        new TradeTypeLimitReadModel(durableTrade.TradeId, putSpreadType, 0m, 0m, 0m),
+                        new TradeTypeLimitReadModel(durableTrade.TradeId, callSpreadType, 0m, 0m, 0m)
+                    ])
+                    .AddOptionLegs(
+                    [
+                        OptionTradeLegReadModel.Default(
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            $"{durableOrder.BaseContractId}-G2-P-S",
+                            OptionType.Put,
+                            shortLegAction),
+                        OptionTradeLegReadModel.Default(
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            $"{durableOrder.BaseContractId}-G2-P-L",
+                            OptionType.Put,
+                            longLegAction),
+                        OptionTradeLegReadModel.Default(
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            $"{durableOrder.BaseContractId}-G2-C-S",
+                            OptionType.Call,
+                            shortLegAction),
+                        OptionTradeLegReadModel.Default(
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            $"{durableOrder.BaseContractId}-G2-C-L",
+                            OptionType.Call,
+                            longLegAction)
+                    ]);
+                    var openCommandId = RequireCommandId(
+                        await querySession.TradeCommands.OpenOptionTradeAsync(tradeOrder)
+                            .WaitAsync(process.ReadinessTimeout, token),
+                        "G2 EOD option-trade fixture open");
+                    _ = await WaitForOptionTradeAsync(
+                        querySession,
+                        durableOrder.OrderId,
+                        durableTrade.TradeId,
+                        true,
+                        process.ReadinessTimeout,
+                        token);
+                    optionTradeOpened = true;
+
+                    var openingTransaction = FundTransactionReadModel.AsOpeningTradeTransaction(
+                        designatedFund.FundId,
+                        durableOrder.OrderId,
+                        durableTrade.TradeId,
+                        durableTrade.TradeType,
+                        snapshot.ValueDate,
+                        openingReference,
+                        0m);
+                    var openingCommandId = RequireCommandId(
+                        await querySession.FundCommands.CreateFundTransactionAsync(openingTransaction)
+                            .WaitAsync(process.ReadinessTimeout, token),
+                        "G2 EOD opening transaction");
+                    await AwaitSuccessfulTerminalAsync(observer, openingCommandId, process.ReadinessTimeout);
+                    _ = await WaitForFundTransactionsAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        snapshot.ValueDate,
+                        [openingReference],
+                        process.ReadinessTimeout,
+                        token);
+
+                    var eodTransition = await ExecuteEndOfDayMutationAsync(
+                        observer,
+                        operationToken => ui.RunFundOrderTradeEndOfDayAsync(
+                            tradeWindow,
+                            designatedFund.Name,
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            eodReference,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    if (eodTransition.UiState.ValueDate != snapshot.ValueDate)
+                        throw new InvalidOperationException(
+                            $"EOD UI date {eodTransition.UiState.ValueDate:yyyy-MM-dd} does not match "
+                            + $"the application value date {snapshot.ValueDate:yyyy-MM-dd}.");
+                    var transactions = await WaitForFundTransactionsAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        snapshot.ValueDate,
+                        [openingReference, eodReference],
+                        process.ReadinessTimeout,
+                        token);
+                    var eodTransaction = transactions.Single(item =>
+                        string.Equals(item.Description, eodReference, StringComparison.Ordinal));
+                    if (eodTransaction.TransactionType != FundTransactionType.UnrealizedTradePnl
+                        || eodTransaction.Amount != 0m
+                        || eodTransaction.Balance != snapshot.DesignatedFundBalance!.Value)
+                        throw new InvalidOperationException(
+                            $"Unexpected EOD transaction: type={eodTransaction.TransactionType}; "
+                            + $"amount={eodTransaction.Amount}; balance={eodTransaction.Balance}.");
+                    var terminalTransaction = eodTransition.Terminal.FundTransaction
+                        ?? throw new InvalidOperationException("The EOD terminal payload is missing its fund transaction.");
+                    if (terminalTransaction.FundId != eodTransaction.FundId
+                        || terminalTransaction.OrderId != eodTransaction.OrderId
+                        || terminalTransaction.TradeId != eodTransaction.TradeId
+                        || terminalTransaction.TradeType != eodTransaction.TradeType
+                        || terminalTransaction.ValueDate != eodTransaction.ValueDate
+                        || terminalTransaction.TradeStatus != eodTransaction.TradeStatus
+                        || terminalTransaction.TransactionType != eodTransaction.TransactionType
+                        || Math.Abs((terminalTransaction.TransactionDate.ToUniversalTime()
+                            - eodTransaction.TransactionDate.ToUniversalTime()).TotalMilliseconds) > 1
+                        || !string.Equals(
+                            terminalTransaction.Description,
+                            eodTransaction.Description,
+                            StringComparison.Ordinal)
+                        || terminalTransaction.Amount != eodTransaction.Amount)
+                        throw new InvalidOperationException(
+                            "The EOD terminal payload does not match the durable transaction intent. "
+                            + $"terminal={terminalTransaction}; durable={eodTransaction}.");
+
+                    await evidence.WriteTextAsync(
+                        Path.Combine("queries", "G2-035.json"),
+                        JsonSerializer.Serialize(new
+                        {
+                            MarketData = marketData,
+                            OpenOptionTradeCommandId = openCommandId,
+                            OpeningTransactionCommandId = openingCommandId,
+                            OrderTransition = orderTransition,
+                            TradeTransition = tradeTransition,
+                            EodTransition = eodTransition,
+                            DurableTransactions = transactions.Where(item =>
+                                item.Description.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                        }, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
+                    await observer.WriteEvidenceAsync(evidence, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-035-eod-complete");
+                    await ui.CloseWindowAsync(tradeWindow, process.ReadinessTimeout, token);
+                    tradeWindow = null;
+                    return Observation(
+                        $"fund={designatedFund.FundId}; order={durableOrder.OrderId}; trade={durableTrade.TradeId}; "
+                        + $"valueDate={snapshot.ValueDate:yyyy-MM-dd}; contract={durableOrder.BaseContractId}; "
+                        + $"command={eodTransition.CommandId}; terminal={eodTransition.Terminal.EventName}; "
+                        + "durableUnrealizedPnl=0; uiDialogClosed=true.",
+                        ["queries/G2-035.json", "network/g2-command-events.json", .. artifacts]);
+                });
+
+            await Step(
+                "G2-036",
+                "Run an approved database backup",
+                "The real System Admin UI submits a full LocalWorkstation dry-run for allowlisted core-postgresql, and exact operation/event, typed projection, visible status, and run-owned journal evidence agree.",
+                async token =>
+                {
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    const string protectionSet = "core-postgresql";
+
+                    var journalPath = Path.Combine(configuration.BackupDestinationRoot, "journal", "execution-journal.db");
+                    var onlineVault = Path.Combine(configuration.BackupDestinationRoot, "online-vault");
+                    var restoreWorkspace = Path.Combine(configuration.BackupDestinationRoot, "restore-workspace");
+                    Directory.CreateDirectory(Path.GetDirectoryName(journalPath)!);
+                    backupHost = OwnedProcess.Start(
+                        configuration.BackupHostExecutable,
+                        Path.Combine(evidence.RunDirectory, "logs", "backup-host"),
+                        redactor,
+                        CreateBackupHostEnvironment(configuration, journalPath, onlineVault, restoreWorkspace));
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "backup-host-start.json"),
+                        backupHost.Describe(),
+                        token);
+                    var backupHealth = await WaitForHttpHealthAsync(
+                        configuration.BackupHostReadyUri,
+                        process.ReadinessTimeout,
+                        token,
+                        backupHost);
+                    await evidence.WriteTextAsync(
+                        Path.Combine("network", "backup-host-readiness.txt"),
+                        backupHealth,
+                        token);
+
+                    // The current projection-backed UI catalog is established by operation history.
+                    // Bootstrap it once through the same public typed command API, then prove the
+                    // operator-visible request itself independently below.
+                    var bootstrap = await RequestBackupAsync(
+                        querySession,
+                        protectionSet,
+                        DatabaseBackupMode.Full,
+                        configuration.RunPrefix + "-backup-bootstrap",
+                        process.ReadinessTimeout,
+                        token);
+                    var bootstrapTerminal = await WaitForDatabaseBackupTerminalAsync(
+                        observer, bootstrap.OperationId.Value, process.ReadinessTimeout, token);
+                    if (bootstrapTerminal.Success != true)
+                        throw new InvalidOperationException(
+                            $"Backup-catalog bootstrap failed: {bootstrapTerminal.ErrorMessage}");
+                    var bootstrapProjection = await WaitForDatabaseBackupOperationAsync(
+                        querySession,
+                        bootstrap.OperationId,
+                        process.ReadinessTimeout,
+                        token);
+
+                    ui.InvokeToolbarAction("System");
+                    systemWindow = await ui.WaitForWindowAsync(
+                        "System Admin Manager", process.ReadinessTimeout, token);
+                    var invokedUtc = DateTimeOffset.UtcNow;
+                    await ui.RequestDatabaseBackupAsync(
+                        systemWindow,
+                        protectionSet,
+                        DatabaseBackupMode.Full,
+                        process.ReadinessTimeout,
+                        token);
+                    var sourceEvents = await observer.WaitForAsync(
+                        rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                                && row.Family == "DatabaseBackup"
+                                                && row.EventName == nameof(DatabaseBackupRequestedDomainEvent)
+                                                && row.Success is null),
+                        process.ReadinessTimeout,
+                        token);
+                    var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                                          && row.Family == "DatabaseBackup"
+                                                          && row.EventName == nameof(DatabaseBackupRequestedDomainEvent)
+                                                          && row.Success is null);
+                    var operationId = source.DatabaseOperationId
+                        ?? throw new InvalidOperationException("The UI backup source event has no operation ID.");
+                    var terminal = await WaitForDatabaseBackupTerminalAsync(
+                        observer, operationId, process.ReadinessTimeout, token);
+                    if (terminal.Success != true)
+                        throw new InvalidOperationException($"UI backup failed: {terminal.ErrorMessage}");
+                    var durable = await WaitForDatabaseBackupOperationAsync(
+                        querySession,
+                        new DatabaseRecoveryOperationId(operationId),
+                        process.ReadinessTimeout,
+                        token);
+                    if (durable.Phase != DatabaseRecoveryPhase.Completed
+                        || durable.Outcome != DatabaseRecoveryOutcome.Succeeded
+                        || durable.Source != BackupSource.LocalWorkstation
+                        || durable.ProtectionSetId.Value != protectionSet
+                        || durable.BackupLineage?.RequestedMode != DatabaseBackupMode.Full
+                        || durable.BackupLineage.ResolvedMode != DatabaseBackupMode.Full)
+                        throw new InvalidOperationException(
+                            $"Unexpected durable backup operation {operationId:N}: "
+                            + $"phase={durable.Phase}; outcome={durable.Outcome}; "
+                            + $"source={durable.Source}; set={durable.ProtectionSetId.Value}; "
+                            + $"lineage={durable.BackupLineage}.");
+                    var visible = await ui.WaitForDatabaseBackupStatusAsync(
+                        systemWindow, operationId, process.ReadinessTimeout, token);
+                    var files = Directory.GetFiles(
+                        configuration.BackupDestinationRoot, "*", SearchOption.AllDirectories);
+                    if (!files.Contains(journalPath, StringComparer.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("The run-owned backup execution journal was not created.");
+
+                    await evidence.WriteTextAsync(
+                        Path.Combine("queries", "G2-036.json"),
+                        JsonSerializer.Serialize(new
+                        {
+                            Mode = "LocalWorkstation dry-run",
+                            Bootstrap = new { bootstrap.OperationId, Terminal = bootstrapTerminal, Projection = bootstrapProjection },
+                            UiSource = source,
+                            UiTerminal = terminal,
+                            Durable = durable,
+                            Visible = visible,
+                            RunOwnedArtifacts = files.Select(path => Path.GetRelativePath(configuration.BackupDestinationRoot, path))
+                        }, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
+                    await observer.WriteEvidenceAsync(evidence, token);
+                    var artifacts = CaptureAcceptedEvidence(ui, evidence, "G2-036-backup-complete");
+                    await ui.CloseWindowAsync(systemWindow, process.ReadinessTimeout, token);
+                    systemWindow = null;
+                    return Observation(
+                        $"operation={operationId:N}; protectionSet={protectionSet}; source=LocalWorkstation; "
+                        + "requested/resolved=Full/Full; phase=Completed; outcome=Succeeded; "
+                        + $"runOwnedFiles={files.Length}; uiStatusVisible=true.",
+                        ["queries/G2-036.json", "network/g2-command-events.json", "processes/backup-host-start.json", .. artifacts]);
+                });
+
+            await Step(
+                "G2-037",
+                "Restore imported baselines and clean run-owned state",
+                "The EOD fixture is removed child-first through public commands, append-only zero-value fund history reconciles, imported baselines remain equal, and the stopped backup host leaves no run-owned artifact.",
+                async token =>
+                {
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
+                    var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
+                    var snapshot = baseline ?? throw new InvalidOperationException("G2 baseline is unavailable.");
+                    var designatedFund = fund ?? throw new InvalidOperationException("G2 fund is unavailable.");
+                    var durableOrder = order ?? throw new InvalidOperationException("G2 EOD order is unavailable.");
+                    var durableTrade = trade ?? throw new InvalidOperationException("G2 EOD trade is unavailable.");
+
+                    ui.InvokeToolbarAction("Trade");
+                    tradeWindow = await ui.WaitForWindowAsync(
+                        "Trade Orders", process.ReadinessTimeout, token);
+                    var window = tradeWindow;
+
+                    if (optionTradeOpened)
+                    {
+                        _ = RequireCommandId(
+                            await querySession.TradeCommands.DeleteAsync(durableOrder.OrderId, durableTrade.TradeId)
+                                .WaitAsync(process.ReadinessTimeout, token),
+                            "G2 EOD option-trade cleanup");
+                        _ = await WaitForOptionTradeAsync(
+                            querySession,
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            false,
+                            process.ReadinessTimeout,
+                            token);
+                        optionTradeOpened = false;
+                    }
+
+                    var childTransition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(TradeRemovedFromFundOrderEvent),
+                        operationToken => ui.RemoveFundOrderTradeAsync(
+                            window,
+                            designatedFund.Name,
+                            durableOrder.OrderId,
+                            durableTrade.TradeId,
+                            orderFixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    _ = await WaitForFundOrderTradeAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        durableOrder.OrderId,
+                        durableTrade.TradeId,
+                        null,
+                        null,
+                        false,
+                        process.ReadinessTimeout,
+                        token);
+                    var parentTransition = await ExecuteFundOrderMutationAsync(
+                        observer,
+                        nameof(OrderRemovedFromFundEvent),
+                        operationToken => ui.RemoveFundOrderAsync(
+                            window,
+                            designatedFund.Name,
+                            durableOrder.OrderId,
+                            orderFixture,
+                            process.ReadinessTimeout,
+                            operationToken),
+                        process.ReadinessTimeout,
+                        token);
+                    _ = await WaitForFundOrderAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        durableOrder.OrderId,
+                        null,
+                        false,
+                        process.ReadinessTimeout,
+                        token);
+                    orderRemoved = true;
+                    await ui.CloseWindowAsync(window, process.ReadinessTimeout, token);
+                    tradeWindow = null;
+
+                    if (systemWindow is not null)
+                    {
+                        await ui.CloseWindowAsync(systemWindow, process.ReadinessTimeout, token);
+                        systemWindow = null;
+                    }
+
+                    var balance = await WaitForFundBalanceAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        snapshot.DesignatedFundBalance!.Value,
+                        process.ReadinessTimeout,
+                        token);
+                    var transactions = await WaitForFundTransactionsAsync(
+                        querySession,
+                        designatedFund.FundId,
+                        snapshot.ValueDate,
+                        [openingReference, eodReference],
+                        process.ReadinessTimeout,
+                        token);
+                    var runTransactions = transactions.Where(item =>
+                            item.Description.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                    if (runTransactions.Length != 2 || runTransactions.Sum(item => item.Amount) != 0m)
+                        throw new InvalidOperationException(
+                            $"Run-owned append-only EOD history is not reconciled: rows={runTransactions.Length}; "
+                            + $"net={runTransactions.Sum(item => item.Amount)}.");
+
+                    var yieldCurve = RequireQueryValue(
+                        await querySession.MarketData.GetYieldCurveRatesAsync(
+                                configuration.ImportDate, configuration.ImportDate)
+                            .WaitAsync(process.ReadinessTimeout, token),
+                        "G2 final yield-curve baseline");
+                    if (!YieldCurveRatesEqual(yieldCurve, snapshot.YieldCurveImportDateRows))
+                        throw new InvalidOperationException("The imported yield-curve baseline changed during the final slice.");
+                    Dictionary<string, EconomicCalendarReadModel[]> calendars = new(StringComparer.Ordinal);
+                    foreach (var countryCode in configuration.ImportCountryCodes)
+                    {
+                        var rows = await QueryEconomicCalendarsAsync(
+                            querySession, configuration.ImportDate, countryCode, process.ReadinessTimeout);
+                        if (!EconomicCalendarsEqualWithMetadata(rows, snapshot.EconomicCalendarImportDateRows[countryCode]))
+                            throw new InvalidOperationException(
+                                $"The imported economic-calendar baseline changed for {countryCode}.");
+                        calendars[countryCode] = rows;
+                    }
+                    var finalOrders = RequireQueryValue(
+                            await querySession.Fund.GetFundOrdersAsync().WaitAsync(process.ReadinessTimeout, token),
+                            "G2 final fund orders")
+                        .Where(item => item.FundId == designatedFund.FundId)
+                        .ToArray();
+                    var finalTrades = RequireQueryValue(
+                            await querySession.Fund.GetFundOrderTradesAsync().WaitAsync(process.ReadinessTimeout, token),
+                            "G2 final fund trades")
+                        .Where(item => item.FundId == designatedFund.FundId)
+                        .ToArray();
+                    if (!snapshot.DesignatedFundOrders.Select(item => item.Id.Format()).ToHashSet(StringComparer.Ordinal)
+                            .SetEquals(finalOrders.Select(item => item.Id.Format()))
+                        || !snapshot.DesignatedFundTrades.Select(item => item.Id.Format()).ToHashSet(StringComparer.Ordinal)
+                            .SetEquals(finalTrades.Select(item => item.Id.Format())))
+                        throw new InvalidOperationException("The designated-fund mutable baseline was not restored.");
+
+                    var backupFiles = Directory.Exists(configuration.BackupDestinationRoot)
+                        ? Directory.GetFiles(configuration.BackupDestinationRoot, "*", SearchOption.AllDirectories)
+                        : [];
+                    if (backupHost is not null && !backupHost.Process.HasExited)
+                        if (!await backupHost.TerminateOwnedTreeAsync(process.ShutdownTimeout, token))
+                            throw new InvalidOperationException("The database-backup host did not stop within the cleanup bound.");
+                    if (Directory.Exists(configuration.BackupDestinationRoot))
+                        Directory.Delete(configuration.BackupDestinationRoot, recursive: true);
+                    backupRootRemoved = !Directory.Exists(configuration.BackupDestinationRoot);
+                    if (!backupRootRemoved)
+                        throw new InvalidOperationException("The run-owned backup root still exists after cleanup.");
+
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "G2-037-cleanup.json"),
+                        JsonSerializer.Serialize(new
+                        {
+                            ChildTransition = childTransition,
+                            ParentTransition = parentTransition,
+                            RestoredBalance = balance,
+                            AppendOnlyRunTransactions = runTransactions,
+                            YieldCurveBaselineRows = yieldCurve.Length,
+                            CalendarBaselineRows = calendars.ToDictionary(item => item.Key, item => item.Value.Length),
+                            RestoredOrderCount = finalOrders.Length,
+                            RestoredTradeCount = finalTrades.Length,
+                            RemovedBackupArtifacts = backupFiles.Select(path =>
+                                Path.GetRelativePath(configuration.BackupDestinationRoot, path)),
+                            BackupHostExited = backupHost?.Process.HasExited,
+                            BackupRootRemoved = backupRootRemoved
+                        }, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
+                    return Observation(
+                        $"balance={balance}; appendOnlyEodRows={runTransactions.Length}; net=0; "
+                        + $"orders={finalOrders.Length}; trades={finalTrades.Length}; "
+                        + $"yieldRows={yieldCurve.Length}; calendarRows={calendars.Sum(item => item.Value.Length)}; "
+                        + $"removedBackupFiles={backupFiles.Length}; backupRootAbsent={backupRootRemoved}.",
+                        ["processes/G2-037-cleanup.json"]);
+                });
+
+            await Step(
+                "G2-038",
+                "Close normally and verify bounded cleanup",
+                "All secondary windows and the shell close normally; listeners/connections stop; owned API, desktop, and backup-host processes exit within bounds; terminal evidence is complete.",
+                async token =>
+                {
+                    var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
+                    ui.CloseAllSecondaryWindows();
+                    ui.RequestMainWindowClose();
+                    if (desktop is null || !await desktop.WaitForExitAsync(process.ShutdownTimeout, token))
+                        throw new InvalidOperationException("The desktop did not exit normally within the shutdown bound.");
+                    if (desktop.ForcedTermination)
+                        throw new InvalidOperationException("The desktop required forced termination.");
+                    ui.Dispose();
+                    automation = null;
+
+                    if (commandObserver is not null)
+                    {
+                        await commandObserver.WriteEvidenceAsync(evidence, token);
+                        await commandObserver.DisposeAsync();
+                        commandObserver = null;
+                    }
+                    if (queries is not null)
+                    {
+                        await queries.DisposeAsync();
+                        queries = null;
+                    }
+                    if (api is not null && !api.Process.HasExited)
+                        if (!await api.TerminateOwnedTreeAsync(process.ShutdownTimeout, token))
+                            throw new InvalidOperationException("The actor backend did not stop within the shutdown bound.");
+                    if (backupHost is not null && !backupHost.Process.HasExited)
+                        throw new InvalidOperationException("The database-backup host remains active after G2-037 cleanup.");
+                    if (!backupRootRemoved)
+                        throw new InvalidOperationException("The run-owned backup root remains after G2-037 cleanup.");
+
+                    explicitShutdownCompleted = true;
+                    run.CleanupSucceeded = true;
+                    await evidence.WriteTextAsync(
+                        Path.Combine("processes", "G2-038-shutdown.json"),
+                        JsonSerializer.Serialize(new
+                        {
+                            DesktopExited = desktop.Process.HasExited,
+                            DesktopForcedTermination = desktop.ForcedTermination,
+                            ApiExited = api?.Process.HasExited,
+                            ApiHarnessTermination = api?.ForcedTermination,
+                            BackupHostExited = backupHost?.Process.HasExited,
+                            BackupHostHarnessTermination = backupHost?.ForcedTermination,
+                            CommandObserverDisposed = commandObserver is null,
+                            QuerySessionDisposed = queries is null,
+                            BackupRootRemoved = backupRootRemoved,
+                            TerminalOperations = new
+                            {
+                                EndOfDay = run.Steps.SingleOrDefault(item => item.Id == "G2-035")?.Status,
+                                DatabaseBackup = run.Steps.SingleOrDefault(item => item.Id == "G2-036")?.Status,
+                                Cleanup = run.Steps.SingleOrDefault(item => item.Id == "G2-037")?.Status
+                            }
+                        }, new JsonSerializerOptions { WriteIndented = true }),
+                        token);
+                    return Observation(
+                        $"desktopExited={desktop.Process.HasExited}; desktopNormal=true; "
+                        + $"apiExited={api?.Process.HasExited}; backupHostExited={backupHost?.Process.HasExited}; "
+                        + "commandListenerStopped=true; queryConnectionStopped=true; backupRootAbsent=true.",
+                        ["processes/G2-038-shutdown.json", "network/g2-command-events.json"]);
+                });
+        }
+        finally
+        {
+            if (!orderRemoved && queries is not null && fund is not null)
+            {
+                try
+                {
+                    if (optionTradeOpened && order is not null && trade is not null)
+                    {
+                        _ = await queries.TradeCommands.DeleteAsync(order.OrderId, trade.TradeId)
+                            .WaitAsync(process.ReadinessTimeout);
+                        _ = await WaitForOptionTradeAsync(
+                            queries, order.OrderId, trade.TradeId, false, process.ReadinessTimeout, CancellationToken.None);
+                        optionTradeOpened = false;
+                    }
+                    var orders = RequireQueryValue(
+                            await queries.Fund.GetFundOrdersAsync().WaitAsync(process.ReadinessTimeout),
+                            "G2 final fallback orders")
+                        .Where(item => item.FundId == fund.FundId
+                                       && item.Reference.Contains(configuration.RunPrefix, StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                    var trades = RequireQueryValue(
+                        await queries.Fund.GetFundOrderTradesAsync().WaitAsync(process.ReadinessTimeout),
+                        "G2 final fallback trades");
+                    foreach (var cleanupOrder in orders)
+                    {
+                        foreach (var cleanupTrade in trades.Where(item =>
+                                     item.FundId == fund.FundId && item.OrderId == cleanupOrder.OrderId))
+                        {
+                            var childResult = await queries.FundCommands.RemoveTradeFromFundOrderAsync(cleanupTrade.Id)
+                                .WaitAsync(process.ReadinessTimeout);
+                            var childCommandId = RequireCommandId(childResult, "G2 final fallback child removal");
+                            if (commandObserver is not null)
+                                await AwaitSuccessfulTerminalAsync(commandObserver, childCommandId, process.ReadinessTimeout);
+                        }
+                        var parentResult = await queries.FundCommands.RemoveOrderFromFundAsync(cleanupOrder.Id)
+                            .WaitAsync(process.ReadinessTimeout);
+                        var parentCommandId = RequireCommandId(parentResult, "G2 final fallback parent removal");
+                        if (commandObserver is not null)
+                            await AwaitSuccessfulTerminalAsync(commandObserver, parentCommandId, process.ReadinessTimeout);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add("Final-slice order/trade fallback cleanup failed: " + exception.Message);
+                }
+            }
+
+            if (automation is not null)
+            {
+                try
+                {
+                    automation.CloseAllSecondaryWindows();
+                    if (desktop is not null && !desktop.Process.HasExited)
+                    {
+                        automation.RequestMainWindowClose();
+                        if (!await desktop.WaitForExitAsync(process.ShutdownTimeout, CancellationToken.None))
+                            cleanupFailures.Add("Desktop did not exit normally during final fallback cleanup.");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add("Desktop final fallback cleanup failed: " + exception.Message);
+                }
+                automation.Dispose();
+                automation = null;
+            }
+            if (commandObserver is not null)
+            {
+                try
+                {
+                    await commandObserver.WriteEvidenceAsync(evidence, CancellationToken.None);
+                    await commandObserver.DisposeAsync();
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add("G2 final command-observer cleanup failed: " + exception.Message);
+                }
+                commandObserver = null;
+            }
+            if (queries is not null)
+            {
+                try { await queries.DisposeAsync(); }
+                catch (Exception exception) { cleanupFailures.Add("G2 final query cleanup failed: " + exception.Message); }
+                queries = null;
+            }
+            if (backupHost is not null && !backupHost.Process.HasExited)
+            {
+                try
+                {
+                    if (!await backupHost.TerminateOwnedTreeAsync(process.ShutdownTimeout, CancellationToken.None))
+                        cleanupFailures.Add("Database-backup host did not stop during fallback cleanup.");
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add("Database-backup host fallback cleanup failed: " + exception.Message);
+                }
+            }
+            if (Directory.Exists(configuration.BackupDestinationRoot))
+            {
+                try
+                {
+                    Directory.Delete(configuration.BackupDestinationRoot, recursive: true);
+                    backupRootRemoved = true;
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add("Run-owned backup-root cleanup failed: " + exception.Message);
+                }
+            }
+            if (api is not null && !api.Process.HasExited)
+            {
+                try
+                {
+                    if (!await api.TerminateOwnedTreeAsync(process.ShutdownTimeout, CancellationToken.None))
+                        cleanupFailures.Add("Actor backend did not stop during fallback cleanup.");
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailures.Add("Actor backend fallback cleanup failed: " + exception.Message);
+                }
+            }
+
+            if (desktop is not null)
+                await evidence.WriteTextAsync(Path.Combine("processes", "desktop-final.json"), desktop.Describe());
+            if (api is not null)
+                await evidence.WriteTextAsync(Path.Combine("processes", "api-final.json"), api.Describe());
+            if (backupHost is not null)
+                await evidence.WriteTextAsync(Path.Combine("processes", "backup-host-final.json"), backupHost.Describe());
+            if (desktop is not null)
+                try { await desktop.DisposeAsync(); }
+                catch (Exception exception) { cleanupFailures.Add("Desktop process disposal failed: " + exception.Message); }
+            if (api is not null)
+                try { await api.DisposeAsync(); }
+                catch (Exception exception) { cleanupFailures.Add("API process disposal failed: " + exception.Message); }
+            if (backupHost is not null)
+                try { await backupHost.DisposeAsync(); }
+                catch (Exception exception) { cleanupFailures.Add("Backup-host process disposal failed: " + exception.Message); }
+
+            run.CleanupSucceeded = cleanupFailures.Count == 0 && (explicitShutdownCompleted || run.Steps.Count < 4);
+            run.CompletedUtc = DateTimeOffset.UtcNow;
+            await evidence.WriteTextAsync(
+                Path.Combine("processes", "g2-final-cleanup.json"),
+                JsonSerializer.Serialize(new
+                {
+                    ExplicitShutdownCompleted = explicitShutdownCompleted,
+                    OrderRemoved = orderRemoved,
+                    OptionTradeRemoved = !optionTradeOpened,
+                    BackupRootRemoved = backupRootRemoved,
+                    Succeeded = run.CleanupSucceeded,
+                    Failures = cleanupFailures
+                }, new JsonSerializerOptions { WriteIndented = true }));
+            await evidence.WriteResultAsync(run, CancellationToken.None);
+        }
+
+        run.Passed.Should().BeTrue(
+            $"{run.Gate} evidence was written to {evidence.RunDirectory}; "
+            + string.Join("; ", run.Steps
+                .Where(step => step.Status != G0StepStatus.Passed)
+                .Select(step => $"{step.Id}={step.Status}: {step.Actual}"))
+            + (cleanupFailures.Count == 0 ? string.Empty : "; cleanup=" + string.Join(" | ", cleanupFailures)));
+
+        async Task<G0StepResult> Step(
+            string id,
+            string name,
+            string expectedOutcome,
+            Func<CancellationToken, Task<G0StepObservation>> action)
+        {
+            var step = await recorder.RunAsync(id, name, expectedOutcome, action, cancellationToken);
+            if (step.Status == G0StepStatus.Failed && automation is not null)
+            {
+                try { CaptureAcceptedEvidence(automation, evidence, id + "-failure"); }
+                catch { /* Failure evidence must not hide the original step. */ }
+                try { automation.CloseAllSecondaryWindows(); }
+                catch { /* Failure recovery must not hide the original step. */ }
+            }
+            await evidence.WriteResultAsync(run, CancellationToken.None);
+            return step;
+        }
+    }
+
     static IReadOnlyList<string> CaptureAcceptedEvidence(
         G1UiAutomationSession automation,
         G0EvidenceWriter evidence,
@@ -1917,6 +2892,245 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 prefix)
             .Select(path => Path.GetRelativePath(evidence.RunDirectory, path))
             .ToArray();
+
+    static async Task<G2EndOfDayTransitionEvidence> ExecuteEndOfDayMutationAsync(
+        G2CommandEventObserver observer,
+        Func<CancellationToken, Task<G2EndOfDayUiState>> invokeUi,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var operationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var invokedUtc = DateTimeOffset.UtcNow;
+        var uiTask = invokeUi(operationSource.Token);
+        var sourceWait = observer.WaitForAsync(
+            rows => rows.Any(row => row.ObservedUtc >= invokedUtc
+                                    && row.Family == "EndOfDay"
+                                    && row.EventName == nameof(OptionTradeEndOfDayProcessedEvent)
+                                    && row.Success is null),
+            timeout,
+            operationSource.Token);
+        var firstCompleted = await Task.WhenAny(sourceWait, uiTask).ConfigureAwait(false);
+        if (firstCompleted == uiTask && !uiTask.IsCompletedSuccessfully)
+            await uiTask.ConfigureAwait(false);
+        var sourceEvents = await sourceWait.ConfigureAwait(false);
+        var source = sourceEvents.Last(row => row.ObservedUtc >= invokedUtc
+                                              && row.Family == "EndOfDay"
+                                              && row.EventName == nameof(OptionTradeEndOfDayProcessedEvent)
+                                              && row.Success is null);
+        var terminalEvents = await observer.WaitForAsync(
+            rows => rows.Any(row => row.Family == "EndOfDay"
+                                    && row.CorrelationId == source.CommandId
+                                    && row.Success.HasValue),
+            timeout,
+            operationSource.Token);
+        var terminal = terminalEvents.Last(row => row.Family == "EndOfDay"
+                                                  && row.CorrelationId == source.CommandId
+                                                  && row.Success.HasValue);
+        if (terminal.Success != true)
+        {
+            operationSource.Cancel();
+            try { await uiTask.ConfigureAwait(false); }
+            catch { /* Preserve the correlated terminal failure below. */ }
+            throw new InvalidOperationException(
+                $"End-of-day command {source.CommandId} failed: {terminal.ErrorMessage}");
+        }
+        var uiState = await uiTask.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        if (terminal.FundTransaction is null)
+            throw new InvalidOperationException("The successful fund EOD terminal event omitted its transaction payload.");
+        return new G2EndOfDayTransitionEvidence(
+            source.CommandId,
+            source,
+            terminal,
+            uiState);
+    }
+
+    static async Task<OptionTradeReadModel?> WaitForOptionTradeAsync(
+        G0QuerySession queries,
+        int orderId,
+        int tradeId,
+        bool present,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var result = await queries.Trade.GetOptionTradeAsync(orderId, tradeId).ConfigureAwait(false);
+            if (present && result.Success && result.Value is { } trade)
+                return trade;
+            if (!present && (!result.Success || result.Value is null))
+                return null;
+            await DelayForProjectionAsync(timeoutSource.Token, cancellationToken).ConfigureAwait(false);
+        }
+        throw new TimeoutException(
+            $"Option trade {orderId}:{tradeId} did not become {(present ? "durable" : "absent")} within {timeout}.");
+    }
+
+    static IReadOnlyDictionary<string, string?> CreateBackupHostEnvironment(
+        G2Configuration configuration,
+        string journalPath,
+        string onlineVault,
+        string restoreWorkspace)
+    {
+        var runToken = configuration.Process.RunId
+            .Replace("_", "-", StringComparison.Ordinal)
+            .ToLowerInvariant();
+        return new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ASPNETCORE_ENVIRONMENT"] = configuration.Process.EnvironmentName,
+            ["ASPNETCORE_URLS"] = configuration.BackupHostReadyUri.GetLeftPart(UriPartial.Authority),
+            ["IFM_ENVIRONMENT"] = "development-g2",
+            ["DatabaseBackup__Host__HostId"] = "g2-" + runToken[^Math.Min(runToken.Length, 32)..],
+            ["DatabaseBackup__Journal__Path"] = journalPath,
+            ["DatabaseBackup__Journal__RequirePersistentPath"] = "true",
+            ["DatabaseBackup__Sources__LocalWorkstation__Enabled"] = "true",
+            ["DatabaseBackup__Sources__LocalWorkstation__DryRun"] = "true",
+            ["DatabaseBackup__Sources__LocalWorkstation__PostgreSqlEnabled"] = "true",
+            ["DatabaseBackup__Sources__LocalWorkstation__ScyllaEnabled"] = "false",
+            ["DatabaseBackup__Sources__LocalWorkstation__IncrementalEnabled"] = "true",
+            ["DatabaseBackup__EnvironmentId"] = "development-g2",
+            ["DatabaseBackup__OnlineVault__Root"] = onlineVault,
+            ["DatabaseBackup__OnlineVault__MinimumFreeBytes"] = "0",
+            ["DatabaseBackup__RestoreWorkspace__Root"] = restoreWorkspace,
+            ["DatabaseBackup__RestoreWorkspace__MinimumFreeBytes"] = "0",
+            ["Nats__JetStreamEventListener__Url"] = configuration.Process.NatsUri.ToString(),
+            ["Nats__JetStreamEventListener__DurableConsumerNamePrefix"] = "ifm-g2-" + runToken,
+            ["Nats__JetStreamEventListener__DeliverPolicy"] = "New",
+            ["Nats__JetStreamProducer__Url"] = configuration.Process.NatsUri.ToString()
+        };
+    }
+
+    static async Task<string> WaitForHttpHealthAsync(
+        Uri uri,
+        TimeSpan timeout,
+        CancellationToken cancellationToken,
+        OwnedProcess process)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+        Exception? lastError = null;
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            if (process.Process.HasExited)
+                throw new InvalidOperationException(
+                    $"Database-backup host exited before readiness with code {process.Process.ExitCode}.");
+            try
+            {
+                using var response = await client.GetAsync(uri, timeoutSource.Token).ConfigureAwait(false);
+                var content = await response.Content.ReadAsStringAsync(timeoutSource.Token).ConfigureAwait(false);
+                if (response.IsSuccessStatusCode
+                    && content.Contains("Healthy", StringComparison.OrdinalIgnoreCase))
+                    return content;
+                lastError = new InvalidOperationException(
+                    $"Health endpoint returned {(int)response.StatusCode}: {content}");
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                lastError = exception;
+            }
+            try { await Task.Delay(TimeSpan.FromMilliseconds(150), timeoutSource.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { break; }
+        }
+        throw new TimeoutException(
+            $"Database-backup host did not become ready at {uri} within {timeout}. Last error: {lastError?.Message}");
+    }
+
+    static async Task<DatabaseOperationAcceptedResult> RequestBackupAsync(
+        G0QuerySession queries,
+        string protectionSet,
+        DatabaseBackupMode mode,
+        string authorizationReference,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var request = CreateDatabaseRequest(authorizationReference, DatabaseRequestOrigin.Console);
+        var result = await queries.DatabaseBackupCommands.RequestBackupAsync(
+                new RequestDatabaseBackupCommand
+                {
+                    Request = request,
+                    Source = BackupSource.LocalWorkstation,
+                    ProtectionSetId = new DatabaseProtectionSetId(protectionSet),
+                    ConsistencyMode = DatabaseConsistencyMode.CoordinatedProtectionSet,
+                    RequiredDestinations = [new DatabaseLogicalDestination("online-vault", true)],
+                    ExpectedPolicyRevision = 0,
+                    RequestedBackupMode = mode
+                },
+                cancellationToken)
+            .AsTask()
+            .WaitAsync(timeout, cancellationToken);
+        if (!result.Success || result.Value is null)
+            throw new InvalidOperationException(
+                $"Database backup was not accepted: code={result.ErrorCode}; message={result.ErrorMessage}");
+        return result.Value;
+    }
+
+    static async Task<G2ObservedCommandEvent> WaitForDatabaseBackupTerminalAsync(
+        G2CommandEventObserver observer,
+        Guid operationId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var events = await observer.WaitForAsync(
+            rows => rows.Any(row => row.Family == "DatabaseBackup"
+                                    && row.DatabaseOperationId == operationId
+                                    && row.Success.HasValue),
+            timeout,
+            cancellationToken);
+        return events.Last(row => row.Family == "DatabaseBackup"
+                                  && row.DatabaseOperationId == operationId
+                                  && row.Success.HasValue);
+    }
+
+    static async Task<DatabaseBackupOperationReadModel> WaitForDatabaseBackupOperationAsync(
+        G0QuerySession queries,
+        DatabaseRecoveryOperationId operationId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var request = CreateDatabaseRequest("g2-backup-query", DatabaseRequestOrigin.Console);
+            var result = await queries.DatabaseBackup.GetBackupOperationAsync(
+                    new GetDatabaseBackupOperationQuery
+                    {
+                        Request = request,
+                        OperationId = operationId,
+                        Source = BackupSource.LocalWorkstation
+                    },
+                    timeoutSource.Token)
+                .ConfigureAwait(false);
+            if (result.Success && result.Value is { } operation
+                && operation.Phase is DatabaseRecoveryPhase.Completed
+                    or DatabaseRecoveryPhase.Failed
+                    or DatabaseRecoveryPhase.Cancelled)
+                return operation;
+            await DelayForProjectionAsync(timeoutSource.Token, cancellationToken).ConfigureAwait(false);
+        }
+        throw new TimeoutException(
+            $"Database-backup operation {operationId.Value:N} did not become terminal within {timeout}.");
+    }
+
+    static DatabaseRequestEnvelope CreateDatabaseRequest(
+        string authorizationReference,
+        DatabaseRequestOrigin origin)
+    {
+        var requestId = Guid.NewGuid();
+        return new DatabaseRequestEnvelope
+        {
+            RequestId = requestId,
+            CallerIdentity = Environment.UserName,
+            AuthorizationReference = authorizationReference,
+            CallerRoles = ["DatabaseRecoveryOperator"],
+            Origin = origin,
+            CorrelationId = requestId,
+            EnvironmentIdentity = "development-g2",
+            CreatedUtc = DateTimeOffset.UtcNow
+        };
+    }
 
     static G0StepObservation Observation(string actual, IReadOnlyList<string>? evidence = null)
         => new(string.Empty, actual, G0StepStatus.Passed, evidence);
@@ -3428,6 +4642,23 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 new JsonSerializerOptions { WriteIndented = true }),
             cancellationToken);
 
+    static void AddSyntheticFuturesContractBootstrap(
+        IDictionary<string, string?> environment)
+    {
+        environment["AppSettings__Databento__Contracts__0__DomainContractId"] = "ES20260918";
+        environment["AppSettings__Databento__Contracts__0__ProviderContractName"] = "ESU6";
+        environment["AppSettings__Databento__Contracts__0__AssetTypeId"] = "Futures";
+        environment["AppSettings__Databento__Contracts__0__RootSymbol"] = "ES";
+        environment["AppSettings__Databento__Contracts__0__Dataset"] = "GLBX.MDP3";
+        environment["AppSettings__Databento__Contracts__1__DomainContractId"] = "VX20260916";
+        environment["AppSettings__Databento__Contracts__1__ProviderContractName"] = "VX/U6";
+        environment["AppSettings__Databento__Contracts__1__AssetTypeId"] = "Futures";
+        environment["AppSettings__Databento__Contracts__1__RootSymbol"] = "VX";
+        environment["AppSettings__Databento__Contracts__1__Dataset"] = "XCBF.PITCH";
+        environment["AppSettings__Databento__Synthetic__RecordCount"] = "2";
+        environment["AppSettings__Databento__Synthetic__RecordsPerSecond"] = "1";
+    }
+
     static void RequirePassed(G0AuditRecorder recorder, string stepId, string reason)
     {
         var step = recorder.Result.Steps.SingleOrDefault(candidate => candidate.Id == stepId);
@@ -3539,6 +4770,12 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         G2ObservedCommandEvent Source,
         G2ObservedCommandEvent Terminal,
         G2TradeOrderUiState UiState);
+
+    sealed record G2EndOfDayTransitionEvidence(
+        Guid CommandId,
+        G2ObservedCommandEvent Source,
+        G2ObservedCommandEvent Terminal,
+        G2EndOfDayUiState UiState);
 
     sealed record G2FundCleanupEvidence(
         bool Succeeded,

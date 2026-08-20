@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
@@ -53,15 +54,19 @@ public sealed class G1UiAutomationSession : IDisposable
             () =>
             {
                 var candidate = _application.GetMainWindow(_automation, TimeSpan.FromMilliseconds(500));
-                return candidate is { IsEnabled: true } && !string.IsNullOrWhiteSpace(candidate.Title)
+                return candidate is not null
+                       && (candidate.Title ?? string.Empty).StartsWith(
+                           "Investment Fund Manager",
+                           StringComparison.OrdinalIgnoreCase)
                     ? candidate
-                    : null;
+                    : FindNativeWindowStartingWith("Investment Fund Manager");
             },
             timeout,
-            "The responsive IFM main window did not appear.",
+            "The IFM main window did not appear.",
             cancellationToken);
         _mainWindow = window;
-        window.Focus();
+        if (window.IsEnabled)
+            window.Focus();
         return window;
     }
 
@@ -71,6 +76,20 @@ public sealed class G1UiAutomationSession : IDisposable
         => await WaitUntilAsync(
             () =>
             {
+                var startupReport = TopLevelWindows().FirstOrDefault(window =>
+                    string.Equals(
+                        window.Title,
+                        "Startup Reference Data Import",
+                        StringComparison.OrdinalIgnoreCase));
+                if (startupReport is not null)
+                {
+                    var acknowledge = FindDescendant(startupReport, null, "OK");
+                    if (acknowledge is not null && acknowledge.IsEnabled)
+                        PostControlClick(acknowledge);
+                    return null;
+                }
+                if (!MainWindow.IsEnabled)
+                    return null;
                 var toolbar = ReadToolbarEnabledState();
                 if (toolbar.Values.Any(enabled => !enabled))
                     return null;
@@ -926,6 +945,144 @@ public sealed class G1UiAutomationSession : IDisposable
             cancellationToken);
     }
 
+    public async Task<G2EndOfDayUiState> RunFundOrderTradeEndOfDayAsync(
+        Window tradeWindow,
+        string fundName,
+        int orderId,
+        int tradeId,
+        string reference,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await SelectTradeFundAsync(tradeWindow, fundName, timeout, cancellationToken);
+        SelectListItemById(tradeWindow, "lstTradeOrders", orderId);
+        SelectListItemById(tradeWindow, "lstTrades", tradeId);
+        _ = await DismissOptionalDialogAsync(
+            "Loading Iron Condor Trade Order Error",
+            "OK",
+            TimeSpan.FromSeconds(10),
+            cancellationToken);
+        await WaitForEnabledAsync(tradeWindow, "btnEndOfDay", timeout, cancellationToken);
+        PostButtonClick(tradeWindow, "btnEndOfDay");
+
+        const string title = "Run End Of Day Process";
+        var dialog = await WaitForWindowAsync(title, timeout, cancellationToken);
+        SetText(dialog, "txtReference", reference);
+        await WaitUntilAsync(
+            () =>
+            {
+                var requiredValues = new[]
+                {
+                    ReadText(dialog, "txtOpenPrice"),
+                    ReadText(dialog, "txtHighPrice"),
+                    ReadText(dialog, "txtLowPrice"),
+                    ReadText(dialog, "txtClosePrice"),
+                    ReadText(dialog, "txtVolume")
+                };
+                var runButton = FindDescendant(dialog, "btnRun", null)?.AsButton();
+                return requiredValues.All(value => !string.IsNullOrWhiteSpace(value))
+                    && runButton?.IsEnabled == true
+                        ? runButton
+                        : null;
+            },
+            timeout,
+            "The end-of-day dialog did not finish loading its market-data snapshot.",
+            cancellationToken);
+        var state = new G2EndOfDayUiState(
+            ReadAccessibleDate(RequireDescendant(dialog, "dtpValueDate").AsDateTimePicker(), "dtpValueDate"),
+            ReadText(dialog, "txtOpenPrice"),
+            ReadText(dialog, "txtHighPrice"),
+            ReadText(dialog, "txtLowPrice"),
+            ReadText(dialog, "txtClosePrice"),
+            ReadText(dialog, "txtVolume"),
+            ReadText(dialog, "txtTradePnl"),
+            reference);
+        PostButtonClick(dialog, "btnRun");
+        await WaitForWindowClosedAsync(title, timeout, cancellationToken);
+        return state;
+    }
+
+    public async Task RequestDatabaseBackupAsync(
+        Window systemWindow,
+        string protectionSet,
+        DatabaseBackupMode mode,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await WaitForEnabledAsync(systemWindow, "ddlBackupMode", timeout, cancellationToken);
+        var modeIndex = mode switch
+        {
+            DatabaseBackupMode.Full => 0,
+            DatabaseBackupMode.Automatic => 1,
+            DatabaseBackupMode.Incremental => 2,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unsupported database-backup mode.")
+        };
+        var modeSelector = RequireDescendant(systemWindow, "ddlBackupMode").AsComboBox();
+        if (!string.Equals(ReadSelectedComboValue(modeSelector), mode.ToString(), StringComparison.Ordinal))
+        {
+            SetCombo(systemWindow, "ddlBackupMode", modeIndex);
+            await WaitUntilAsync(
+                () => string.Equals(
+                        ReadSelectedComboValue(RequireDescendant(systemWindow, "ddlBackupMode").AsComboBox()),
+                        mode.ToString(),
+                        StringComparison.Ordinal)
+                    ? mode.ToString()
+                    : null,
+                timeout,
+                $"The database-backup mode did not select '{mode}'.",
+                cancellationToken);
+        }
+        var item = await WaitUntilAsync(
+            () =>
+            {
+                var list = FindDescendant(systemWindow, "clbDatabases", null);
+                return list?.FindFirstDescendant(condition => condition.ByName(protectionSet));
+            },
+            timeout,
+            $"The database-backup catalog did not expose '{protectionSet}'.",
+            cancellationToken);
+
+        if (item.Patterns.SelectionItem.IsSupported)
+            item.Patterns.SelectionItem.Pattern.Select();
+        if (item.Patterns.Toggle.IsSupported)
+        {
+            var toggle = item.Patterns.Toggle.Pattern;
+            if (toggle.ToggleState.Value != ToggleState.On)
+                toggle.Toggle();
+        }
+        else
+        {
+            // WinForms CheckedListBox requires the selected item to be clicked once more
+            // when CheckOnClick is disabled.
+            PostControlClick(item);
+        }
+
+        await WaitForEnabledAsync(systemWindow, "btnRun", timeout, cancellationToken);
+        PostButtonClick(systemWindow, "btnRun");
+    }
+
+    public async Task<G2DatabaseBackupUiState> WaitForDatabaseBackupStatusAsync(
+        Window systemWindow,
+        Guid operationId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => await WaitUntilAsync(
+            () =>
+            {
+                var status = FindDescendant(systemWindow, "lbStatusMessages", null)?.AsListBox();
+                var rows = status?.Items.Select(item => item.Text).ToArray() ?? [];
+                var operation = rows.SingleOrDefault(row =>
+                    row.Contains(operationId.ToString("N"), StringComparison.OrdinalIgnoreCase));
+                return operation is not null
+                       && (operation.Contains("Completed", StringComparison.OrdinalIgnoreCase)
+                           || operation.Contains("Succeeded", StringComparison.OrdinalIgnoreCase))
+                    ? new G2DatabaseBackupUiState(operationId, rows, operation)
+                    : null;
+            },
+            timeout,
+            $"The database-backup view did not render successful operation '{operationId:N}'.",
+            cancellationToken);
+
     async Task SelectTradeFundAsync(
         Window tradeWindow,
         string fundName,
@@ -1178,6 +1335,47 @@ public sealed class G1UiAutomationSession : IDisposable
             cancellationToken);
     }
 
+    public async Task<bool> DismissOptionalDialogAsync(
+        string title,
+        string actionName,
+        TimeSpan observationWindow,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(observationWindow);
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            var dialog = TopLevelWindows().FirstOrDefault(window =>
+                string.Equals(window.Title, title, StringComparison.OrdinalIgnoreCase));
+            if (dialog is not null)
+            {
+                var action = FindDescendant(dialog, null, actionName)
+                    ?? throw new InvalidOperationException(
+                        $"The '{title}' dialog did not expose a '{actionName}' action.");
+                PostControlClick(action);
+                await WaitUntilAsync(
+                    () => TopLevelWindows().All(window =>
+                            !string.Equals(window.Title, title, StringComparison.OrdinalIgnoreCase))
+                        ? "closed"
+                        : null,
+                    observationWindow,
+                    $"The '{title}' dialog did not close.",
+                    cancellationToken);
+                return true;
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(150), timeoutSource.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+        return false;
+    }
+
     static void ClickEnabled(AutomationElement root, string automationId)
     {
         var control = RequireDescendant(root, automationId);
@@ -1286,14 +1484,25 @@ public sealed class G1UiAutomationSession : IDisposable
         FlaUI.Core.AutomationElements.DateTimePicker picker,
         string automationId)
     {
-        var name = picker.Name;
-        var separator = name.IndexOf(',', StringComparison.Ordinal);
-        var dateText = separator >= 0 ? name[(separator + 1)..].Trim() : name;
-        if (DateTime.TryParse(dateText, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out var date)
-            || DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out date))
-            return DateOnly.FromDateTime(date);
+        if (picker.SelectedDate is { } selectedDate)
+            return DateOnly.FromDateTime(selectedDate);
+
+        var candidates = new List<string?> { picker.Name };
+        if (picker.Patterns.Value.IsSupported)
+            candidates.Add(picker.Patterns.Value.Pattern.Value.ValueOrDefault);
+        if (picker.Patterns.LegacyIAccessible.IsSupported)
+            candidates.Add(picker.Patterns.LegacyIAccessible.Pattern.Value.ValueOrDefault);
+        foreach (var candidate in candidates.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            var separator = candidate!.IndexOf(',', StringComparison.Ordinal);
+            var dateText = separator >= 0 ? candidate[(separator + 1)..].Trim() : candidate;
+            if (DateTime.TryParse(dateText, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out var date)
+                || DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out date))
+                return DateOnly.FromDateTime(date);
+        }
         throw new InvalidOperationException(
-            $"The '{automationId}' date input did not expose a parseable accessible value; name='{name}'.");
+            $"The '{automationId}' date input did not expose a parseable accessible value; "
+            + $"name='{picker.Name}'.");
     }
 
     static void OpenDateTimePickerDropDown(IntPtr pickerHandle)
@@ -2150,7 +2359,7 @@ public sealed class G1UiAutomationSession : IDisposable
         var index = 0;
         foreach (var window in TopLevelWindows())
         {
-            var safeTitle = string.Concat(window.Title.Select(character =>
+            var safeTitle = string.Concat((window.Title ?? string.Empty).Select(character =>
                 Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
             if (string.IsNullOrWhiteSpace(safeTitle))
                 safeTitle = "window";
@@ -2223,6 +2432,18 @@ public sealed class G1UiAutomationSession : IDisposable
         foreach (var handle in EnumerateTopLevelWindowHandles(_processId))
         {
             if (!string.Equals(ReadWindowTitle(handle), title, StringComparison.OrdinalIgnoreCase))
+                continue;
+            try { return _automation.FromHandle(handle).AsWindow(); }
+            catch { /* The matching window may still be initializing its UIA provider. */ }
+        }
+        return null;
+    }
+
+    Window? FindNativeWindowStartingWith(string titlePrefix)
+    {
+        foreach (var handle in EnumerateTopLevelWindowHandles(_processId))
+        {
+            if (!ReadWindowTitle(handle).StartsWith(titlePrefix, StringComparison.OrdinalIgnoreCase))
                 continue;
             try { return _automation.FromHandle(handle).AsWindow(); }
             catch { /* The matching window may still be initializing its UIA provider. */ }
@@ -2767,6 +2988,21 @@ public sealed record G2TradeOrderUiState(
     IReadOnlyList<string> OrderRows,
     IReadOnlyList<string> TradeRows,
     IReadOnlyDictionary<string, bool> CommandStates);
+
+public sealed record G2EndOfDayUiState(
+    DateOnly ValueDate,
+    string OpenPrice,
+    string HighPrice,
+    string LowPrice,
+    string ClosePrice,
+    string Volume,
+    string TradePnl,
+    string Reference);
+
+public sealed record G2DatabaseBackupUiState(
+    Guid OperationId,
+    IReadOnlyList<string> StatusRows,
+    string OperationRow);
 
 public sealed record G1TradeWindowState(
     IReadOnlyList<string> Funds,

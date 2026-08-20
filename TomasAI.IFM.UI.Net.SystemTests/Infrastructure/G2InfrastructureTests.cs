@@ -170,6 +170,8 @@ public sealed class G2InfrastructureTests
             SecuritiesMaturityDate = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(2)),
             SecuritiesOptionStrike = 4500,
             BackupDestinationRoot = backupRoot ?? Path.Combine(resultsRoot, "backups", "unit-test"),
+            BackupHostExecutable = api,
+            BackupHostReadyUri = new Uri("http://127.0.0.1:22643/health/ready"),
             ServerConfigurationPath = serverConfiguration,
             DatabaseIdentities = databases
         };

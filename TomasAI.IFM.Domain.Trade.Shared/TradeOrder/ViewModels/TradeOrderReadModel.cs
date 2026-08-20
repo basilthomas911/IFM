@@ -172,22 +172,38 @@ public partial record TradeOrderReadModel
     /// <summary>Project legs as an array for JSON (excluded from MessagePack).</summary>
     [JsonProperty]
     [IgnoreMember]
-    public OptionTradeLegReadModel[] OptionLegs => _optionLegs is null ? [] : [.. _optionLegs];
+    public OptionTradeLegReadModel[] OptionLegs
+    {
+        get => _optionLegs is null ? [] : [.. _optionLegs];
+        private set => _optionLegs = value is null ? [] : [.. value];
+    }
 
     /// <summary>Trade limit projection for JSON (excluded from MessagePack).</summary>
     [JsonProperty]
     [IgnoreMember]
-    public TradeLimitReadModel TradeLimit => _tradeLimit!;
+    public TradeLimitReadModel TradeLimit
+    {
+        get => _tradeLimit!;
+        private set => _tradeLimit = value;
+    }
 
     /// <summary>Trade type limits projection for JSON (excluded from MessagePack).</summary>
     [JsonProperty]
     [IgnoreMember]
-    public TradeTypeLimitReadModel[] TradeTypeLimits => _tradeTypeLimits is null ? [] : [.. _tradeTypeLimits];
+    public TradeTypeLimitReadModel[] TradeTypeLimits
+    {
+        get => _tradeTypeLimits is null ? [] : [.. _tradeTypeLimits];
+        private set => _tradeTypeLimits = value is null ? [] : [.. value];
+    }
 
     /// <summary>Trade fills projection for JSON (excluded from MessagePack).</summary>
     [JsonProperty]
     [IgnoreMember]
-    public TradeFillReadModel[] TradeFills => _tradeFills is null ? [] : [.. _tradeFills];
+    public TradeFillReadModel[] TradeFills
+    {
+        get => _tradeFills is null ? [] : [.. _tradeFills];
+        private set => _tradeFills = value is null ? [] : [.. value];
+    }
 
     /// <summary>Total filled quantity based on fills (excluded from MessagePack).</summary>
     [JsonIgnore]

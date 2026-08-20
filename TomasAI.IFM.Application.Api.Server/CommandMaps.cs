@@ -240,6 +240,7 @@ public static class FundTransactionCommands
                 ProcessEndOfDayFundTransactionCommand cmd = new(cmdParam.FundTransaction)
                 {
                     CommandId = Guid.NewGuid(),
+                    CorrelationId = cmdParam.CorrelationId,
                     Subject = new ActorSubject(ActorType.Command, ProcessEndOfDayFundTransactionCommand.Actor, ProcessEndOfDayFundTransactionCommand.Verb, entityId.Format()),
                     EntityId = entityId
                 };

@@ -91,8 +91,8 @@ public sealed class DatabaseBackupCommandState
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.Backup, DatabaseRecoveryPhase.Requested);
         Update(Create<DatabaseBackupRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseBackupAuthorizedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.Authorized }), command);
-        Update(Create<DatabaseBackupExecutionRequestedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.Requested }), command);
+        Update(Create<DatabaseBackupAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
+        Update(Create<DatabaseBackupExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)), command);
         return command.EntityId;
     }
 
@@ -109,7 +109,7 @@ public sealed class DatabaseBackupCommandState
         EnsureOperation(DatabaseRecoveryOperationKind.Restore, DatabaseRecoveryPhase.Requested);
         var source = Source(command, Operation.Kind, DatabaseRecoveryPhase.Authorized);
         Update(Create<DatabaseRestoreAuthorizedDomainEvent>(command, source), command);
-        Update(Create<DatabaseRestoreExecutionRequestedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.Requested }), command);
+        Update(Create<DatabaseRestoreExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)), command);
         return Operation.OperationId;
     }
 
@@ -118,8 +118,8 @@ public sealed class DatabaseBackupCommandState
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.RestoreDrill, DatabaseRecoveryPhase.Requested);
         Update(Create<DatabaseRestoreDrillRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseRestoreDrillAuthorizedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.Authorized }), command);
-        Update(Create<DatabaseRestoreDrillExecutionRequestedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.Requested }), command);
+        Update(Create<DatabaseRestoreDrillAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
+        Update(Create<DatabaseRestoreDrillExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Requested)), command);
         return command.EntityId;
     }
 
@@ -130,8 +130,8 @@ public sealed class DatabaseBackupCommandState
             throw new InvalidOperationException("Cutover approval does not match the current validation revision.");
         var source = Source(command, DatabaseRecoveryOperationKind.Cutover, DatabaseRecoveryPhase.Authorized);
         Update(Create<DatabaseCutoverRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseCutoverAuthorizedDomainEvent>(command, source), command);
-        Update(Create<DatabaseCutoverExecutionRequestedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.CuttingOver }), command);
+        Update(Create<DatabaseCutoverAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
+        Update(Create<DatabaseCutoverExecutionRequestedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.CuttingOver)), command);
         return Operation.OperationId;
     }
 
@@ -147,7 +147,7 @@ public sealed class DatabaseBackupCommandState
     {
         var source = Source(command, DatabaseRecoveryOperationKind.Reconciliation, DatabaseRecoveryPhase.Authorized);
         Update(Create<DatabaseBackupPolicyRevisedEvent>(command, source), command);
-        Update(Create<DatabaseBackupPolicyEnforcedEvent>(command, source), command);
+        Update(Create<DatabaseBackupPolicyEnforcedEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
         return command.EntityId;
     }
 
@@ -170,7 +170,7 @@ public sealed class DatabaseBackupCommandState
         EnsureNewOperation(command.EntityId);
         var source = Source(command, DatabaseRecoveryOperationKind.Retention, DatabaseRecoveryPhase.Requested);
         Update(Create<DatabaseRetentionRequestedDomainEvent>(command, source), command);
-        Update(Create<DatabaseRetentionAuthorizedDomainEvent>(command, source with { Phase = DatabaseRecoveryPhase.Authorized }), command);
+        Update(Create<DatabaseRetentionAuthorizedDomainEvent>(command, NextSource(source, DatabaseRecoveryPhase.Authorized)), command);
         return command.EntityId;
     }
 
@@ -302,6 +302,9 @@ public sealed class DatabaseBackupCommandState
             CorrelationId = command.Request.CorrelationId, CausationId = command.Request.CausationId,
             ObservedUtc = command.Request.CreatedUtc
         };
+
+    static DatabaseSourceEnvelope NextSource(DatabaseSourceEnvelope source, DatabaseRecoveryPhase phase)
+        => source with { SourceEventId = Guid.NewGuid(), Phase = phase };
 
     static TEvent Create<TEvent>(DatabaseBackupCommand command, DatabaseSourceEnvelope source, DatabaseRecoveryOutcome outcome = DatabaseRecoveryOutcome.None)
         where TEvent : DatabaseBackupEventContract, new()

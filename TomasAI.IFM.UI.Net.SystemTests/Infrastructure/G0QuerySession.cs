@@ -25,6 +25,10 @@ public sealed class G0QuerySession : IAsyncDisposable
         ReferenceCommands = new ReferenceCommandApi(_producer);
         Fund = new FundQueryApi(_producer);
         FundCommands = new FundCommandApi(_producer);
+        Trade = new OptionTradeQueryApi(_producer);
+        TradeCommands = new OptionTradeCommandApi(_producer);
+        DatabaseBackup = new DatabaseBackupQueryApi(_producer);
+        DatabaseBackupCommands = new DatabaseBackupCommandApi(_producer);
     }
 
     public MarketDataQueryApi MarketData { get; }
@@ -36,6 +40,10 @@ public sealed class G0QuerySession : IAsyncDisposable
     public ReferenceCommandApi ReferenceCommands { get; }
     public FundQueryApi Fund { get; }
     public FundCommandApi FundCommands { get; }
+    public OptionTradeQueryApi Trade { get; }
+    public OptionTradeCommandApi TradeCommands { get; }
+    public DatabaseBackupQueryApi DatabaseBackup { get; }
+    public DatabaseBackupCommandApi DatabaseBackupCommands { get; }
 
     public ValueTask StartAsync(
         string runId,

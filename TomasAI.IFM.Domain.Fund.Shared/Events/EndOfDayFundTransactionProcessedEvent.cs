@@ -32,6 +32,7 @@ public record EndOfDayFundTransactionProcessedEvent : IEvent<FundTransactionEnti
     [Key(8)] public FundTransactionReadModel FundTransaction { get; init; }
     [Key(9)] public string CreatedBy { get; init; }
     [Key(10)] public DateTime CreatedOn { get; init; }
+    [Key(11)] public Guid CorrelationId { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -54,7 +55,8 @@ public record EndOfDayFundTransactionProcessedEvent : IEvent<FundTransactionEnti
         DateTime receivedOn,
         FundTransactionReadModel fundTransaction,
         string createdBy,
-        DateTime createdOn)
+        DateTime createdOn,
+        Guid correlationId)
     {
         Subject = subject;
         Id = id;
@@ -67,6 +69,7 @@ public record EndOfDayFundTransactionProcessedEvent : IEvent<FundTransactionEnti
         FundTransaction = fundTransaction;
         CreatedBy = createdBy ?? string.Empty;
         CreatedOn = createdOn;
+        CorrelationId = correlationId;
     }
 
     /// <summary>
@@ -86,6 +89,7 @@ public record EndOfDayFundTransactionProcessedEvent : IEvent<FundTransactionEnti
             Id = this.Id,
             EventId = this.EventId,
             CommandId = this.CommandId,
+            CorrelationId = this.CorrelationId,
             AggregateId = this.AggregateId,
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
@@ -112,6 +116,7 @@ public record EndOfDayFundTransactionProcessedEvent : IEvent<FundTransactionEnti
             ErrorDate = DateTime.UtcNow,
             EventId = this.EventId,
             CommandId = this.CommandId,
+            CorrelationId = this.CorrelationId,
             EventSource = this.EventSource,
             ErrorMessage = ex.Message,
             ErrorType = ErrorType.Command,
@@ -146,6 +151,7 @@ public record EndOfDayFundTransactionProcessedCompleteEvent : ICompleteEvent<Fun
     [Key(8)] public FundTransactionReadModel FundTransaction { get; init; }
     [Key(9)] public string CreatedBy { get; init; }
     [Key(10)] public DateTime CreatedOn { get; init; }
+    [Key(11)] public Guid CorrelationId { get; init; }
 
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
@@ -165,7 +171,8 @@ public record EndOfDayFundTransactionProcessedCompleteEvent : ICompleteEvent<Fun
         DateTime receivedOn,
         FundTransactionReadModel fundTransaction,
         string createdBy,
-        DateTime createdOn)
+        DateTime createdOn,
+        Guid correlationId)
     {
         Subject = subject;
         EntityId = entityId;
@@ -178,6 +185,7 @@ public record EndOfDayFundTransactionProcessedCompleteEvent : ICompleteEvent<Fun
         FundTransaction = fundTransaction;
         CreatedBy = createdBy ?? string.Empty;
         CreatedOn = createdOn;
+        CorrelationId = correlationId;
     }
 }
 
@@ -206,6 +214,7 @@ public record EndOfDayFundTransactionProcessedFailEvent : IErrorEvent<FundTransa
     [Key(13)] public string CommandName { get; init; }
     [Key(14)] public string CommandData { get; init; }
     [Key(15)] public string RouteTo { get; init; }
+    [Key(16)] public Guid CorrelationId { get; init; }
 
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -230,7 +239,8 @@ public record EndOfDayFundTransactionProcessedFailEvent : IErrorEvent<FundTransa
         string aggregateId,
         string commandName,
         string commandData,
-        string routeTo)
+        string routeTo,
+        Guid correlationId)
     {
         Subject = subject;
         EntityId = entityId;
@@ -248,5 +258,6 @@ public record EndOfDayFundTransactionProcessedFailEvent : IErrorEvent<FundTransa
         CommandName = commandName ?? string.Empty;
         CommandData = commandData ?? string.Empty;
         RouteTo = routeTo ?? string.Empty;
+        CorrelationId = correlationId;
     }
 }

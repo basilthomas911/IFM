@@ -52,6 +52,13 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
     {
         ValidateOptions(options);
         var registrations = options.Contracts.ToArray();
+        if (options.FeedOptions.DataSource == FeedDataSourceMode.Synthetic
+            && registrations.All(static registration =>
+                registration.AssetTypeId == AssetTypeId.Futures))
+        {
+            return CreateSyntheticFuturesCatalog(
+                registrations, operationsByDataset, options);
+        }
         var resolved = new ResolvedContract[registrations.Length];
         var indexed = registrations.Select(static (registration, index) =>
             (Registration: registration, Index: index));
@@ -125,6 +132,50 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             resolved[item.Index] = item.Contract;
 
         return new DatabentoMarketDataCatalog(resolved, operationsByDataset, options);
+    }
+
+    private static DatabentoMarketDataCatalog CreateSyntheticFuturesCatalog(
+        IReadOnlyList<DatabentoContractRegistration> registrations,
+        IReadOnlyDictionary<string, IDatabentoOperationRunner> operationsByDataset,
+        DatabentoMarketDataRuntimeOptions options)
+    {
+        var resolved = registrations.Select((registration, index) =>
+        {
+            var contract = SyntheticFuturesContractFactory.Create(registration);
+            var dataset = DatabentoDatasetSelection.Resolve(options, registration);
+            var multiplier = int.TryParse(
+                contract.Multiplier,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var parsedMultiplier)
+                    ? parsedMultiplier
+                    : 1;
+            var detail = new ContractDetail
+            {
+                Dataset = dataset,
+                RawSymbol = registration.ProviderContractName,
+                Ticker = contract.Symbol,
+                Underlying = registration.ProviderContractName,
+                Instrument = new InstrumentKey(1, checked((uint)index + 1)),
+                ContractKind = ContractKind.Future,
+                ContractMultiplier = multiplier,
+                MaturityDate = contract.LastTradeDate,
+                Currency = contract.Currency,
+                SettlementCurrency = contract.Currency,
+                Exchange = contract.Exchange,
+                SecurityType = contract.SecurityType,
+                Cfi = string.Empty,
+                UnitOfMeasure = contract.Currency
+            };
+            return new ResolvedContract(
+                registration,
+                dataset,
+                detail,
+                contract,
+                null);
+        }).ToArray();
+        return new DatabentoMarketDataCatalog(
+            resolved, operationsByDataset, options);
     }
 
     public FuturesContractV2ReadModel? FindFutures(string contractId) =>

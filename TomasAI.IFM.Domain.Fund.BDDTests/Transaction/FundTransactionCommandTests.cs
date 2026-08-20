@@ -217,7 +217,13 @@ public class FundTransactionCommandTests
         await new CreateFundTransactionCommand(existingTransaction).ExecuteAsync(state);
 
         var eodTransaction = existingTransaction with { TransactionType = FundTransactionType.UnrealizedTradePnl, Amount = 25m };
-        var command = new ProcessEndOfDayFundTransactionCommand(eodTransaction);
+        var downstreamCommandId = Guid.NewGuid();
+        var originatingCommandId = Guid.NewGuid();
+        var command = new ProcessEndOfDayFundTransactionCommand(eodTransaction)
+        {
+            CommandId = downstreamCommandId,
+            CorrelationId = originatingCommandId
+        };
 
         // Act - When executing ProcessEndOfDayFundTransactionCommand
         var result = await command.ExecuteAsync(state);
@@ -227,6 +233,13 @@ public class FundTransactionCommandTests
         state.Events.Should().Contain(e => e is EndOfDayFundTransactionProcessedEvent);
         var evt = state.Events.OfType<EndOfDayFundTransactionProcessedEvent>().First();
         evt.FundTransaction.TransactionType.Should().Be(FundTransactionType.UnrealizedTradePnl);
+        evt.CommandId.Should().Be(downstreamCommandId);
+        evt.CorrelationId.Should().Be(originatingCommandId);
+        var completed = evt
+            .ToCompleteEvent<EndOfDayFundTransactionProcessedCompleteEvent, FundTransactionEntityId>()
+            .Should().BeOfType<EndOfDayFundTransactionProcessedCompleteEvent>().Subject;
+        completed.CommandId.Should().Be(downstreamCommandId);
+        completed.CorrelationId.Should().Be(originatingCommandId);
     }
 
     #endregion

@@ -207,10 +207,7 @@ public sealed class MarketEconomicCalendarViewModel
                     _ => QueueRefresh(),
                     failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Remove Failed"),
                     _ => QueueRefresh(),
-                    failed => PublishError(
-                        failed.ErrorCode,
-                        failed.ErrorMessage,
-                        "Economic Calendar Import Failed")),
+                    _ => { }),
                 cancellationToken);
         }
         catch

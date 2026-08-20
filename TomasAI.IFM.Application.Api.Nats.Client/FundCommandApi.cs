@@ -338,6 +338,7 @@ public class FundCommandApi(IActorProducer actorProducer)
             ProcessEndOfDayFundTransactionCommand cmd = new(fundTransaction)
             {
                 CommandId = cmdId,
+                CorrelationId = correlationId == Guid.Empty ? cmdId : correlationId,
                 Subject = new ActorSubject(ActorType.Command, ProcessEndOfDayFundTransactionCommand.Actor, ProcessEndOfDayFundTransactionCommand.Verb, entityId.Format()),
                 ErrorCode = ProcessEndOfDayFundTransactionCommand.ErrorId
             };

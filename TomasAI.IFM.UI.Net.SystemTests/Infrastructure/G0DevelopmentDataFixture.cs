@@ -41,7 +41,7 @@ public static class G0DevelopmentDataFixture
             timeout,
             cancellationToken);
 
-    static async Task<bool> EnsureEodAsync(
+    public static async Task<bool> EnsureEodAsync(
         G0QuerySession session,
         FuturesContractV2ReadModel contract,
         DateOnly valueDate,

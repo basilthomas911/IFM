@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Newtonsoft.Json;
+using NSubstitute;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Actor;
@@ -11,11 +13,25 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Queries;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing.ViewModels;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests.DatabaseBackup;
 
 public sealed class DatabaseBackupActorStateTests
 {
+    [Fact]
+    public async Task State_repository_publishes_using_the_concrete_event_contract()
+    {
+        var context = Substitute.For<ICommandActorContext>();
+        var domainEvent = new DatabaseBackupRequestedDomainEvent();
+
+        await DatabaseBackupStateRepository.SendConcreteEventAsync(context, domainEvent);
+
+        await context.Received(1)
+            .SendAsync<DatabaseBackupRequestedDomainEvent, DatabaseRecoveryOperationId>(domainEvent);
+    }
+
     [Fact]
     public void Every_phase_3_contract_has_exactly_one_actor_route()
     {
@@ -64,6 +80,9 @@ public sealed class DatabaseBackupActorStateTests
         state.Execute(RequestBackup(operationId));
         state.Operation.Phase.Should().Be(DatabaseRecoveryPhase.Requested);
         state.Events.Should().HaveCount(3);
+        state.Events.OfType<DatabaseBackupEventContract>()
+            .Select(item => item.Source.SourceEventId)
+            .Should().OnlyHaveUniqueItems();
 
         state.Execute(Internal<RecordDatabaseOperationAdmissionCommand>(operationId, 1, DatabaseRecoveryPhase.Admitted));
         state.Execute(Internal<RecordDatabaseOperationStartedCommand>(operationId, 2, DatabaseRecoveryPhase.Started));
@@ -123,6 +142,66 @@ public sealed class DatabaseBackupActorStateTests
         state.Events.Should().HaveCount(eventCount);
         var conflict = Internal<RecordDatabaseOperationAdmissionCommand>(operationId, 1, DatabaseRecoveryPhase.Started, eventId: eventId);
         ((Action)(() => state.Execute(conflict))).Should().Throw<InvalidOperationException>().WithMessage("*conflicting*");
+    }
+
+    [Fact]
+    public void Duplicate_service_event_remains_idempotent_after_event_replay()
+    {
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        state.Execute(RequestBackup(operationId));
+        var requestEvents = state.Events.ToArray();
+        state.Events.Clear();
+        var eventId = Guid.NewGuid();
+        var admission = Internal<RecordDatabaseOperationAdmissionCommand>(
+            operationId,
+            1,
+            DatabaseRecoveryPhase.Admitted,
+            eventId: eventId);
+        state.Execute(admission);
+        var admissionEvent = state.Events.Single();
+
+        var reloaded = new DatabaseBackupCommandState();
+        reloaded.ReplayEvents([.. requestEvents, admissionEvent]);
+        var revision = reloaded.Operation.Revision;
+
+        reloaded.Execute(admission);
+
+        reloaded.Operation.Revision.Should().Be(revision);
+        reloaded.Events.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Duplicate_service_event_remains_idempotent_after_persisted_json_replay()
+    {
+        var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var state = new DatabaseBackupCommandState();
+        state.Execute(RequestBackup(operationId));
+        var history = state.Events.ToList();
+        state.Events.Clear();
+        var eventId = Guid.NewGuid();
+        var admission = Internal<RecordDatabaseOperationAdmissionCommand>(
+            operationId,
+            1,
+            DatabaseRecoveryPhase.Admitted,
+            eventId: eventId);
+        state.Execute(admission);
+        history.Add(state.Events.Single());
+
+        var persisted = history.Select((domainEvent, index) => new EventStreamReadModel
+        {
+            EventVersion = index + 1,
+            EventTypeName = domainEvent.GetType().AssemblyQualifiedName!,
+            EventData = JsonConvert.SerializeObject(domainEvent)
+        }).ToArray();
+        var reloaded = new DatabaseBackupCommandState();
+        reloaded.ReplayEvents(persisted);
+        var revision = reloaded.Operation.Revision;
+
+        reloaded.Execute(admission);
+
+        reloaded.Operation.Revision.Should().Be(revision);
+        reloaded.Events.Should().BeEmpty();
     }
 
     [Fact]

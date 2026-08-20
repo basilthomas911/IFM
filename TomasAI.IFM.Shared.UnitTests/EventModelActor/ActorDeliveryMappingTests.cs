@@ -53,6 +53,35 @@ public sealed class ActorDeliveryMappingTests
         fixture.Core.VerifyNoOtherCalls();
     }
 
+    [Fact]
+    public async Task Durable_service_event_uses_started_supervisor_owned_external_producer()
+    {
+        var fixture = new PublisherFixture();
+        var @event = CreateEvent(ActorType.Event);
+        var external = new Mock<IJSActorProducer>(MockBehavior.Strict);
+        fixture.Supervisor.Setup(supervisor => supervisor.ActorExists(@event.Subject.ActorId))
+            .Returns(false);
+        fixture.Supervisor.Setup(supervisor => supervisor.GetJSEventProducer(@event.Subject.ActorId))
+            .Returns(external.Object);
+        external.Setup(producer => producer.StartAsync(
+                @event.Subject.ActorId,
+                It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+        external.Setup(producer => producer.SendAsync<TestEvent, ActorEntityId>(
+                @event.Subject,
+                @event,
+                It.IsAny<CancellationToken>()))
+            .Returns(ValueTask.CompletedTask);
+
+        await fixture.Publisher.SendAsync<TestEvent, ActorEntityId>(@event);
+
+        external.VerifyAll();
+        fixture.Supervisor.Verify(
+            supervisor => supervisor.GetJSProducer(@event.Subject.ActorId),
+            Times.Never);
+        fixture.JetStream.VerifyNoOtherCalls();
+    }
+
     [Theory]
     [InlineData(ActorType.Notify)]
     [InlineData(ActorType.Realtime)]
@@ -163,6 +192,8 @@ public sealed class ActorDeliveryMappingTests
                 .Returns(ValueTask.CompletedTask);
             Supervisor.Setup(supervisor => supervisor.GetProducer(It.IsAny<ActorMailboxId>()))
                 .Returns(Core.Object);
+            Supervisor.Setup(supervisor => supervisor.ActorExists(It.IsAny<ActorMailboxId>()))
+                .Returns(true);
             Supervisor.Setup(supervisor => supervisor.GetJSProducer(It.IsAny<ActorMailboxId>()))
                 .Returns(JetStream.Object);
             Publisher = new ActorEventPublisher(Supervisor.Object, PublisherId);

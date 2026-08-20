@@ -9,8 +9,11 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Domain;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -23,6 +26,7 @@ public sealed record G2ObservedCommandEvent(
     string EventName,
     string Subject,
     Guid CommandId,
+    Guid? CorrelationId,
     bool? Success,
     string ErrorMessage,
     DateOnly? ImportDate,
@@ -35,7 +39,12 @@ public sealed record G2ObservedCommandEvent(
     FundOrderId? FundOrderId,
     FundOrderTradeReadModel? FundOrderTrade,
     FundOrderTradeId? FundOrderTradeId,
-    TradeState? TradeState);
+    TradeState? TradeState,
+    Guid? DatabaseOperationId,
+    string? DatabaseProtectionSet,
+    DatabaseRecoveryOutcome? DatabaseOutcome,
+    DatabaseBackupMode? RequestedBackupMode,
+    DatabaseBackupMode? ResolvedBackupMode);
 
 public sealed record G2CommandListenerRegistration(
     string Family,
@@ -134,6 +143,8 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         Route<FundOrderTradeStateChangedCompleteEvent>("FundOrder", FundOrderTradeStateChangedCompleteEvent.Actor, FundOrderTradeStateChangedCompleteEvent.Verb, true),
         Route<FundOrderTradeStateChangedFailEvent>("FundOrder", FundOrderTradeStateChangedFailEvent.Actor, FundOrderTradeStateChangedFailEvent.Verb, false),
 
+        Route<OptionTradeEndOfDayProcessedEvent>("EndOfDay", OptionTradeEndOfDayProcessedEvent.Actor, OptionTradeEndOfDayProcessedEvent.Verb, null),
+        Route<OptionTradeEndOfDayProcessedFailEvent>("EndOfDay", OptionTradeEndOfDayProcessedFailEvent.Actor, OptionTradeEndOfDayProcessedFailEvent.Verb, false),
         Route<EndOfDayFundTransactionProcessedCompleteEvent>("EndOfDay", EndOfDayFundTransactionProcessedCompleteEvent.Actor, EndOfDayFundTransactionProcessedCompleteEvent.Verb, true),
         Route<EndOfDayFundTransactionProcessedFailEvent>("EndOfDay", EndOfDayFundTransactionProcessedFailEvent.Actor, EndOfDayFundTransactionProcessedFailEvent.Verb, false),
 
@@ -266,6 +277,7 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
         {
             FundTransactionEvent value => value.FundTransaction,
             FundTransactionCreatedCompleteEvent value => value.FundTransaction,
+            EndOfDayFundTransactionProcessedCompleteEvent value => value.FundTransaction,
             _ => null
         };
         var fundOrder = domainEvent switch
@@ -300,12 +312,19 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             FundOrderTradeStateChangedCompleteEvent value => value.TradeState,
             _ => null as TradeState?
         };
+        var databaseEvent = domainEvent as DatabaseBackupEventContract;
         _events.Enqueue(new G2ObservedCommandEvent(
             DateTimeOffset.UtcNow,
             route.Family,
             domainEvent.EventName,
             domainEvent.Subject.ToString(),
             domainEvent.CommandId,
+            domainEvent switch
+            {
+                EndOfDayFundTransactionProcessedCompleteEvent value => value.CorrelationId,
+                EndOfDayFundTransactionProcessedFailEvent value => value.CorrelationId,
+                _ => null
+            },
             route.Success,
             domainEvent is IErrorEvent error ? error.ErrorMessage : string.Empty,
             importDate,
@@ -318,7 +337,12 @@ public sealed class G2CommandEventObserver : IAsyncDisposable
             fundOrderId,
             fundOrderTrade,
             fundOrderTradeId,
-            tradeState));
+            tradeState,
+            databaseEvent?.EntityId.Value,
+            databaseEvent?.Source.ProtectionSetId.Value,
+            databaseEvent?.Outcome,
+            databaseEvent?.BackupLineage?.RequestedMode,
+            databaseEvent?.BackupLineage?.ResolvedMode));
         return ValueTask.CompletedTask;
     }
 
