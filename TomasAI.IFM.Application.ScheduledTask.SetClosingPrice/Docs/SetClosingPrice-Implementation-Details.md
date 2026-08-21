@@ -1,5 +1,9 @@
 # Set Closing Price Scheduled Task — Implementation Details
 
+> **SM-S4 update (2026-08-20):** The current implementation targets .NET 10, uses typed NATS APIs, takes timezone,
+> close time, and symbols from configuration, checks cancellation between contracts, aggregates failures into a
+> nonzero exit, and supports control-pipe cancellation. Later .NET 7/REST limitations are superseded.
+
 ## Purpose
 
 `TomasAI.IFM.Application.ScheduledTask.SetClosingPrice` is a one-shot .NET worker executable intended to run after the futures close. It obtains the IFM value date and currently traded futures contracts, uses the last tick at the assumed 4:00 p.m. close as each contract's closing price, persists that price, and stops trade placement for contracts whose IDs begin with `ES`.

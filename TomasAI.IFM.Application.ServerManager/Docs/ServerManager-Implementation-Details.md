@@ -1,17 +1,17 @@
 # IFM Server Manager Implementation Details
 
-**Status:** SM-S2 implemented
+**Status:** SM-S3 implemented; SM-S4 software modernized; SM-S5 deployment-ready
 
-**Version:** 3.0
+**Version:** 4.0
 
 **Date:** 2026-08-20
 
 ## 1. Current responsibility
 
 `TomasAI.IFM.Application.ServerManager` is the interactive WPF/tray supervisor for the current IFM API Server and
-UI.Net desktop application and the read-only operator client for the separate Scheduler Host. It starts the two
-interactive processes, captures their output, displays bounded logs, and queries scheduler health/catalog/schedules/
-runs through the local pipe. It never reads scheduler PostgreSQL tables directly.
+UI.Net desktop application and the operator client for the separate Scheduler Host. It starts the two interactive
+processes, captures their output, displays bounded logs, and performs validated/audited scheduler operations through
+the local pipe. It never reads scheduler PostgreSQL tables directly.
 
 `TomasAI.IFM.Application.ServerManager.SchedulerHost` is the independent console/Windows Service process that owns
 Quartz, PostgreSQL scheduler persistence, catalog snapshots, durable run/attempt state, recovery, and scheduled child
@@ -53,6 +53,11 @@ ordered `ServerManager:Processes` collection.
 | `api` | `TomasAI.IFM.Application.Api.Server.exe` | 10 | Write `shutdown` to redirected stdin |
 | `ui` | `TomasAI.IFM.UI.Net.exe` | 20 | Request normal main-window close |
 
+The API definition has an HTTP readiness gate. Server Manager does not launch the next process (UI.Net) until
+`/health/ready` returns a successful status. Development uses `http://localhost:22543/health/ready`; the Production
+overlay uses port `4096`. A bounded timeout fails startup visibly and prevents the UI from racing incomplete NATS
+actor registration.
+
 The API receives `--server-manager-stdin-shutdown`. Only when that opt-in argument is present does it monitor stdin
 for the exact `shutdown` control message. It then calls `IHostApplicationLifetime.StopApplication()`, allowing the
 web host and actor supervisor to shut down normally.
@@ -80,6 +85,9 @@ as graceful shutdown.
         "Arguments": [ "--server-manager-stdin-shutdown" ],
         "StartOrder": 10,
         "Enabled": true,
+        "ReadinessUri": "http://localhost:22543/health/ready",
+        "ReadinessTimeoutSeconds": 300,
+        "ReadinessPollIntervalMilliseconds": 500,
         "ShutdownMode": "StandardInput",
         "ShutdownInput": "shutdown"
       }
@@ -89,7 +97,8 @@ as graceful shutdown.
 ```
 
 `Key`, `DisplayName`, `WorkingDirectory`, and `ExecutablePath` are required. Keys are unique without regard to case.
-Positive log and shutdown limits are mandatory. `StandardInput` requires a non-empty `ShutdownInput` value.
+Positive log and shutdown limits are mandatory. `StandardInput` requires a non-empty `ShutdownInput` value. When
+configured, `ReadinessUri` must be an absolute HTTP(S) address and its timeout/polling values must be positive.
 
 Relative executable paths resolve beneath their configured working directory. Arguments are passed through
 `ProcessStartInfo.ArgumentList`; they are not concatenated into a shell command.
@@ -146,18 +155,25 @@ entry mapping, displayed-log bounds, pending-queue bounds, and visible drop evid
 - nonzero exit-code evidence;
 - graceful stdin shutdown;
 - forced process-tree fallback;
-- stop-before-restart ordering and replacement startup; and
+- stop-before-restart ordering and replacement startup;
+- readiness-gated downstream startup; and
 - safe missing-executable failure.
+
+Release Development acceptance on 2026-08-20 exercised two complete API/UI cycles through the real supervisor. The
+API reached HTTP readiness before each UI launch, UI.Net displayed its main window, both applications exited with
+code 0 through their graceful paths, and no managed child process remained after final shutdown.
 
 ## 9. Remaining staged work
 
-SM-S3 adds schedule editing, preview, manual execution, cancellation, durable stdout/stderr paging/tailing, retention,
-idempotent mutating pipe requests, audit writes, and broader
-failure injection. Production-grade topology and observability remain part of the later Aspire transition.
+SM-S3 is complete. SM-S4 real-task enablement still requires approved Development/paper-trading execution and
+calendar/idempotency review. SM-S5 still requires target-machine reboot/sign-out/outage/backup/soak evidence and named
+operator approval. Production-grade topology and observability remain part of the later Aspire transition.
 
 ## 10. Revision history
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 4.1 | 2026-08-20 | Added API readiness gating and recorded successful two-cycle real API/UI lifecycle acceptance. |
+| 4.0 | 2026-08-20 | Added SM-S3 operations/UI, SM-S4 .NET 10 task modernization and disabled templates, and SM-S5 Windows Service/ACL/health/backup acceptance tooling. |
 | 3.0 | 2026-08-20 | Added the implemented SM-S2 Scheduler Host, PostgreSQL/Quartz authority, local pipe client, and read-only scheduler dashboard boundary. |
 | 2.0 | 2026-08-20 | Replaced the obsolete three-server description with the implemented SM-S1 API/UI supervisor, structured bounded logs, graceful shutdown protocol, tests, and staged boundaries. |

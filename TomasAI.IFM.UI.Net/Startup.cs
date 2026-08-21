@@ -178,7 +178,10 @@ namespace TomasAI.IFM.UI.Net
             await StopAsync(_container.GetInstance<IActorProducer>());
             try
             {
-                await _container.GetInstance<NatsConnectionManager>().DisposeAsync();
+                // The container owns the shared NATS connection manager. Dispose
+                // it asynchronously so async-only singleton registrations are
+                // released without Simple Injector falling back to Dispose().
+                await _container.DisposeAsync();
             }
             catch (Exception exception)
             {
@@ -186,7 +189,7 @@ namespace TomasAI.IFM.UI.Net
             }
             finally
             {
-                _container.Dispose();
+                _container = null;
                 Log.CloseAndFlush();
             }
 

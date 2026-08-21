@@ -1,48 +1,37 @@
-using System.Diagnostics;
-using RestSharp.Serialization;
+using Microsoft.Extensions.Logging.Abstractions;
 using Serilog;
-using Serilog.Extensions.Logging;
-using TomasAI.IFM.Framework.Serialization;
-using TomasAI.IFM.Framework.Messaging;
-using TomasAI.IFM.Framework.Messaging.RestApi;
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
-using TomasAI.IFM.Application.Command.Client;
-using TomasAI.IFM.Application.Query.Client;
-using TomasAI.IFM.Application.ScheduledTask.SetClosingPrice;
+using TomasAI.IFM.Framework.Messaging.NatsJetStream;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
-try 
-{ 
-    var host = Host.CreateDefaultBuilder(args)
-        .ConfigureAppConfiguration( (hostCtx, config)
-            => config.SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{hostCtx.HostingEnvironment.EnvironmentName}.json", optional: true, reloadOnChange: true))
-        .ConfigureServices((hostCtx,services) =>
-        {
-            services.AddLogging(configure => configure.AddSerilog());
-            Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(hostCtx.Configuration)
-                .CreateLogger();
-            var loggerFactory = new SerilogLoggerFactory(Log.Logger);
-            services.AddSingleton(loggerFactory.CreateLogger("IFM-ScheduledTask-SetClosingPrice"));
-            services.AddSingleton<IRestApiSerializer, NewtonSoftJsonSerializer>();
-            services.AddSingleton<ICommandServiceRestApiOptions>(sp => new CommandServiceRestApiOptions(hostCtx.Configuration.GetValue<string>("AppSettings:CommandServerBaseUri")));
-            services.AddSingleton<ICommandService, CommandServiceRestApiClient>();
-            services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
-            services.AddSingleton<IQueryServiceRestApiOptions>(sp => new QueryServiceRestApiOptions(hostCtx.Configuration.GetValue<string>("AppSettings:QueryServerBaseUri")));
-            services.AddSingleton<IQueryService, QueryServiceRestClientApi>();
-            services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
-            services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
-            services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
-            services.AddHostedService<Worker>();
-        })
-        .Build();
-    await host.RunAsync();
-}
-catch { }
-finally
+namespace TomasAI.IFM.Application.ScheduledTask.SetClosingPrice;
+
+internal static class Program
 {
-    Process.GetCurrentProcess().Kill();
+    public static async Task<int> Main(string[] args)
+    {
+        var builder = Host.CreateApplicationBuilder(args);
+        Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).CreateLogger();
+        builder.Services.AddSerilog();
+        builder.Services.AddSingleton<NatsConnectionManager>();
+        builder.Services.AddSingleton<IActorProducer>(services => new NatsActorProducer(
+            new NatsProducerOptions { Url = builder.Configuration["Nats:Url"] ?? "nats://localhost:4222" },
+            NullLogger.Instance,
+            services.GetRequiredService<NatsConnectionManager>()));
+        builder.Services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
+        builder.Services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
+        builder.Services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
+        builder.Services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
+        builder.Services.AddScheduledTaskRuntime();
+        builder.Services.AddHostedService<Worker>();
+
+        using var host = builder.Build();
+        var outcome = host.Services.GetRequiredService<ScheduledTaskOutcome>();
+        await host.RunAsync().ConfigureAwait(false);
+        return outcome.ExitCode;
+    }
 }

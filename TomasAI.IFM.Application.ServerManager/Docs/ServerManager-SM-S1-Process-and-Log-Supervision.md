@@ -4,7 +4,7 @@
 
 **Status:** Complete for entry into SM-S2
 
-**Version:** 1.0
+**Version:** 1.1
 
 **Date:** 2026-08-20
 
@@ -21,6 +21,7 @@ This gate does not introduce Quartz, create schedules, install a Windows Service
 ## 2. Implemented behavior
 
 - API starts before UI according to explicit `StartOrder` values.
+- API readiness must return HTTP 2xx before UI startup; timeout stops every process started by the attempt.
 - Each child has an explicit executable path and working directory.
 - Arguments use `ProcessStartInfo.ArgumentList`; no shell is used.
 - Server Manager never mutates `Environment.CurrentDirectory`.
@@ -58,14 +59,21 @@ API Server build (including stdin shutdown integration)
 Succeeded, Warnings: 0, Errors: 0
 
 Server Manager unit tests
-Passed: 6, Failed: 0, Skipped: 0
+Passed: 29, Failed: 0, Skipped: 0
 
-Server Manager helper-process integration tests
-Passed: 5, Failed: 0, Skipped: 0
+Server Manager integration tests
+Passed: 16, Failed: 0, Skipped: 0
+
+UI presentation unit tests
+Passed: 194, Failed: 0, Skipped: 0
 ```
 
 The helper-process suite uses real redirected operating-system streams. Its high-output case writes 1,000 lines to
 stdout and 1,000 lines to stderr and verifies both readers finish before exit completion.
+
+Real-machine Development acceptance also launched the Release API against PostgreSQL, ScyllaDB, NATS, Redis, and
+the live Databento adapter. Both initial startup and restart reached API HTTP readiness before UI.Net launched. The
+UI displayed its main window, both processes stopped with exit code 0, and no API/UI child process remained.
 
 ## 5. Exit checklist
 
@@ -77,6 +85,7 @@ stdout and 1,000 lines to stderr and verifies both readers finish before exit co
 | Bounded combined UI log | Pass | bounded pending/display queues and unit tests |
 | API graceful shutdown | Pass | opt-in stdin protocol and helper integration test |
 | UI graceful shutdown request | Pass | `CloseMainWindow` uses existing UI cleanup path |
+| API readiness gates UI startup | Pass | HTTP readiness integration test and two-cycle real launch acceptance |
 | Bounded forced fallback with evidence | Pass | process-tree termination integration test |
 | Reset stops old processes before replacements | Pass | restart integration test |
 | Missing executable is visible and contained | Pass | failure integration test |
@@ -100,4 +109,5 @@ required.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 1.1 | 2026-08-20 | Added readiness-gated startup and recorded two-cycle real API/UI start, restart, clean shutdown, and orphan verification. |
 | 1.0 | 2026-08-20 | Recorded SM-S1 API/UI supervision, bounded combined logs, graceful/forced shutdown evidence, and automated validation. |

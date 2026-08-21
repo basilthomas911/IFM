@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using FluentAssertions;
 using TomasAI.IFM.Application.ServerManager.TestProcess;
 
@@ -84,6 +87,47 @@ public sealed class ManagedProcessSupervisorTests
     }
 
     [Fact]
+    public async Task Readiness_gate_delays_the_next_process_until_the_endpoint_is_healthy()
+    {
+        var logs = new ConcurrentQueue<ManagedProcessLogEntry>();
+        var readinessPort = ReserveAvailablePort();
+        var first = CreateDefinition(
+            "first",
+            ProcessShutdownMode.StandardInput,
+            "--wait-for-shutdown", "stop");
+        first.ReadinessUri = $"http://127.0.0.1:{readinessPort}/health/ready";
+        first.ReadinessTimeoutSeconds = 10;
+        first.ReadinessPollIntervalMilliseconds = 50;
+        var second = CreateDefinition(
+            "second",
+            ProcessShutdownMode.StandardInput,
+            "--wait-for-shutdown", "stop");
+        second.StartOrder = 20;
+
+        await using var supervisor = new ManagedProcessSupervisor(
+            [first, second],
+            TimeSpan.FromSeconds(2),
+            logs.Enqueue);
+
+        var start = supervisor.StartAllAsync();
+        await WaitUntilAsync(
+            () => logs.Any(entry => entry.ProcessKey == "first"
+                && entry.Message.StartsWith("Started process")),
+            TimeSpan.FromSeconds(5));
+        await Task.Delay(200);
+        logs.Count(entry => entry.Message.StartsWith("Started process")).Should().Be(1);
+
+        var readinessResponse = ServeReadinessAsync(readinessPort);
+        await start.WaitAsync(TimeSpan.FromSeconds(15));
+        await readinessResponse.WaitAsync(TimeSpan.FromSeconds(5));
+
+        logs.Should().Contain(entry => entry.ProcessKey == "first"
+            && entry.Message == "Readiness confirmed with HTTP 200.");
+        logs.Count(entry => entry.Message.StartsWith("Started process")).Should().Be(2);
+        await supervisor.StopAllAsync();
+    }
+
+    [Fact]
     public async Task Missing_executable_is_reported_without_abandoning_lifecycle_control()
     {
         var logs = new ConcurrentQueue<ManagedProcessLogEntry>();
@@ -110,6 +154,16 @@ public sealed class ManagedProcessSupervisorTests
         ProcessShutdownMode shutdownMode,
         params string[] arguments)
     {
+        var definition = CreateDefinition("test", shutdownMode, arguments);
+
+        return new ManagedProcessSupervisor([definition], TimeSpan.FromSeconds(2), logs.Enqueue);
+    }
+
+    private static ManagedProcessDefinition CreateDefinition(
+        string key,
+        ProcessShutdownMode shutdownMode,
+        params string[] arguments)
+    {
         var dotnet = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             "dotnet",
@@ -119,8 +173,8 @@ public sealed class ManagedProcessSupervisorTests
         var helperAssembly = typeof(TestProcessMarker).Assembly.Location;
         var definition = new ManagedProcessDefinition
         {
-            Key = "test",
-            DisplayName = "Test Process",
+            Key = key,
+            DisplayName = $"{key} Process",
             WorkingDirectory = Path.GetDirectoryName(helperAssembly)!,
             ExecutablePath = dotnet,
             Arguments = [helperAssembly, .. arguments],
@@ -128,6 +182,52 @@ public sealed class ManagedProcessSupervisorTests
             ShutdownInput = shutdownMode == ProcessShutdownMode.StandardInput ? "stop" : null
         };
 
-        return new ManagedProcessSupervisor([definition], TimeSpan.FromSeconds(2), logs.Enqueue);
+        return definition;
+    }
+
+    private static int ReserveAvailablePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    private static async Task ServeReadinessAsync(int port)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, port);
+        listener.Start();
+        try
+        {
+            using var client = await listener.AcceptTcpClientAsync();
+            await using var stream = client.GetStream();
+            using var reader = new StreamReader(
+                stream,
+                Encoding.ASCII,
+                detectEncodingFromByteOrderMarks: false,
+                leaveOpen: true);
+            while (!string.IsNullOrEmpty(await reader.ReadLineAsync()))
+            {
+            }
+
+            var response = Encoding.ASCII.GetBytes(
+                "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK");
+            await stream.WriteAsync(response);
+            await stream.FlushAsync();
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout);
+        while (!condition())
+        {
+            await Task.Delay(25, cancellation.Token);
+        }
     }
 }

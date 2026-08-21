@@ -3,7 +3,7 @@ using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
 
-public sealed class SchedulerStore(NpgsqlDataSource dataSource, SchedulerHostOptions options)
+public sealed partial class SchedulerStore(NpgsqlDataSource dataSource, SchedulerHostOptions options)
 {
     public async Task<IReadOnlyList<TaskCatalogItemDto>> GetTaskCatalogAsync(CancellationToken cancellationToken)
     {
@@ -42,8 +42,10 @@ public sealed class SchedulerStore(NpgsqlDataSource dataSource, SchedulerHostOpt
         command.CommandText = """
             SELECT schedule_definition_id, name, task_key, enabled, schedule_kind, schedule_expression,
                    schedule_explanation, time_zone_id, misfire_policy, previous_fire_utc, next_fire_utc,
-                   version, updated_by, updated_at_utc
+                   version, updated_by, updated_at_utc, description, maximum_runtime_seconds,
+                   successful_retention_days, failed_retention_days
             FROM ifm_scheduler.schedule_definition
+            WHERE deleted_at_utc IS NULL
             ORDER BY name;
             """;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -63,7 +65,11 @@ public sealed class SchedulerStore(NpgsqlDataSource dataSource, SchedulerHostOpt
                 ReadTimestamp(reader, 10),
                 reader.GetInt64(11),
                 reader.GetString(12),
-                ReadRequiredTimestamp(reader, 13)));
+                ReadRequiredTimestamp(reader, 13),
+                reader.GetString(14),
+                reader.IsDBNull(15) ? null : reader.GetInt32(15),
+                reader.GetInt32(16),
+                reader.GetInt32(17)));
         }
 
         return result;

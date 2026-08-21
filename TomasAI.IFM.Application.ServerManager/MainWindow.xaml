@@ -24,13 +24,19 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="3*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal" Margin="8">
                         <Button Content="Refresh" Command="{Binding RefreshSchedulerCommand}" Padding="14,4"/>
-                        <TextBlock Margin="12,5,0,0" Text="{Binding SchedulerMessage}"/>
+                        <Button Content="New" Command="{Binding NewScheduleCommand}" Margin="6,0,0,0" Padding="14,4"/>
+                        <Button Content="Enable/Disable" Command="{Binding ToggleScheduleCommand}" Margin="6,0,0,0" Padding="10,4"/>
+                        <Button Content="Run now" Command="{Binding RunNowCommand}" Margin="6,0,0,0" Padding="10,4"/>
+                        <Button Content="Delete" Command="{Binding DeleteScheduleCommand}" Margin="6,0,0,0" Padding="10,4"/>
+                        <TextBlock Margin="12,5,0,0" Text="{Binding SchedulerOperationMessage}" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding Schedules}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Schedules}" SelectedItem="{Binding SelectedSchedule}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn Header="Enabled" Width="70" Binding="{Binding Enabled}"/>
                             <DataGridTextColumn Header="Name" Width="180" Binding="{Binding Name}"/>
@@ -40,20 +46,95 @@
                             <DataGridTextColumn Header="Next UTC" Width="170" Binding="{Binding NextFireUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
                         </DataGrid.Columns>
                     </DataGrid>
+                    <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"/>
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                        <Grid Margin="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,4" Text="Name"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" Margin="6,2" Text="{Binding EditorName, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Margin="12,4,0,4" Text="Approved task"/>
+                            <ComboBox Grid.Row="0" Grid.Column="3" Margin="6,2" ItemsSource="{Binding TaskCatalog}" DisplayMemberPath="DisplayName" SelectedValuePath="TaskKey" SelectedValue="{Binding EditorTaskKey}"/>
+                            <TextBox Grid.Row="0" Grid.Column="4" Margin="6,2" Text="{Binding EditorDescription, UpdateSourceTrigger=PropertyChanged}" ToolTip="Description"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,4" Text="Kind"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1" Margin="6,2" ItemsSource="{Binding ScheduleKinds}" SelectedItem="{Binding EditorKind}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="12,4,0,4" Text="Expression"/>
+                            <TextBox Grid.Row="1" Grid.Column="3" Margin="6,2" Text="{Binding EditorExpression, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Grid.Row="1" Grid.Column="4" Margin="6,2" Text="{Binding EditorTimeZoneId, UpdateSourceTrigger=PropertyChanged}" ToolTip="Timezone ID"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,4" Text="Misfire"/>
+                            <ComboBox Grid.Row="2" Grid.Column="1" Margin="6,2" ItemsSource="{Binding MisfirePolicies}" SelectedItem="{Binding EditorMisfirePolicy}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Margin="12,4,0,4" Text="Max runtime (s)"/>
+                            <TextBox Grid.Row="2" Grid.Column="3" Margin="6,2" Text="{Binding EditorMaximumRuntimeSeconds}"/>
+                            <StackPanel Grid.Row="2" Grid.Column="4" Orientation="Horizontal">
+                                <TextBlock Margin="6,4" Text="Retention success/failure days"/>
+                                <TextBox Width="45" Margin="3,2" Text="{Binding EditorSuccessfulRetentionDays}"/>
+                                <TextBox Width="45" Margin="3,2" Text="{Binding EditorFailedRetentionDays}"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,4" Text="Reason"/>
+                            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="6,2" Text="{Binding OperatorReason, UpdateSourceTrigger=PropertyChanged}" ToolTip="Required for enable, disable, run, cancel, retry, and delete"/>
+                            <StackPanel Grid.Row="3" Grid.Column="4" Orientation="Horizontal">
+                                <Button Content="Validate / Preview" Command="{Binding ValidateScheduleCommand}" Margin="6,2" Padding="10,4"/>
+                                <Button Content="Save disabled / Update" Command="{Binding SaveScheduleCommand}" Margin="6,2" Padding="10,4"/>
+                            </StackPanel>
+
+                            <ItemsControl Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="5" ItemsSource="{Binding SchedulePreview}" Margin="0,6,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Utc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss zzz} UTC}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ScrollViewer>
                 </Grid>
             </TabItem>
             <TabItem Header="Task Runs">
-                <DataGrid ItemsSource="{Binding TaskRuns}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" EnableRowVirtualization="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Run" Width="220" Binding="{Binding RunId}"/>
-                        <DataGridTextColumn Header="Task" Width="170" Binding="{Binding TaskKey}"/>
-                        <DataGridTextColumn Header="State" Width="110" Binding="{Binding State}"/>
-                        <DataGridTextColumn Header="Origin" Width="100" Binding="{Binding Origin}"/>
-                        <DataGridTextColumn Header="Started UTC" Width="170" Binding="{Binding StartedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
-                        <DataGridTextColumn Header="Exit" Width="65" Binding="{Binding ExitCode}"/>
-                        <DataGridTextColumn Header="Detail" Width="*" Binding="{Binding Detail}"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="8">
+                        <Button Content="Cancel" Command="{Binding CancelRunCommand}" Padding="10,4"/>
+                        <Button Content="Retry" Command="{Binding RetryRunCommand}" Margin="6,0" Padding="10,4"/>
+                        <ComboBox Width="140" ItemsSource="{Binding OutputStreams}" SelectedItem="{Binding SelectedOutputStream}"/>
+                        <Button Content="Load output" Command="{Binding LoadOutputCommand}" Margin="6,0" Padding="10,4"/>
+                        <TextBlock Margin="10,5" Text="{Binding SchedulerOperationMessage}"/>
+                    </StackPanel>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding TaskRuns}" SelectedItem="{Binding SelectedTaskRun}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" EnableRowVirtualization="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Run" Width="220" Binding="{Binding RunId}"/>
+                            <DataGridTextColumn Header="Task" Width="170" Binding="{Binding TaskKey}"/>
+                            <DataGridTextColumn Header="State" Width="110" Binding="{Binding State}"/>
+                            <DataGridTextColumn Header="Origin" Width="100" Binding="{Binding Origin}"/>
+                            <DataGridTextColumn Header="Started UTC" Width="170" Binding="{Binding StartedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+                            <DataGridTextColumn Header="Exit" Width="65" Binding="{Binding ExitCode}"/>
+                            <DataGridTextColumn Header="Detail" Width="*" Binding="{Binding Detail}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <DataGrid Grid.Row="2" ItemsSource="{Binding TaskOutput}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" EnableRowVirtualization="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Width="70" Binding="{Binding Sequence}"/>
+                            <DataGridTextColumn Header="Output" Width="*" Binding="{Binding Text}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
             </TabItem>
             <TabItem Header="Logs">
                 <DataGrid Name="ConsoleStatusDataGrid"

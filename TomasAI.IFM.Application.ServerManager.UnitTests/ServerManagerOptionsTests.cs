@@ -49,6 +49,29 @@ public sealed class ServerManagerOptionsTests
         options.Invoking(value => value.Validate()).Should().NotThrow();
     }
 
+    [Fact]
+    public void Validate_accepts_absolute_http_readiness_probe()
+    {
+        var options = ValidOptions();
+        options.Processes[0].ReadinessUri = "http://localhost:22543/health/ready";
+        options.Processes[0].ReadinessTimeoutSeconds = 300;
+        options.Processes[0].ReadinessPollIntervalMilliseconds = 500;
+
+        options.Invoking(value => value.Validate()).Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData("health/ready")]
+    [InlineData("file:///C:/ready.txt")]
+    public void Validate_rejects_non_http_absolute_readiness_probe(string readinessUri)
+    {
+        var options = ValidOptions();
+        options.Processes[0].ReadinessUri = readinessUri;
+
+        options.Invoking(value => value.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*absolute HTTP(S) ReadinessUri*");
+    }
+
     private static ServerManagerOptions ValidOptions()
         => new()
         {

@@ -29,13 +29,17 @@ public sealed class QuartzScheduleReconciler(SchedulerStore store)
                 .WithIdentity(jobKey)
                 .UsingJobData(ScheduledTaskExecutionService.TaskKeyData, schedule.TaskKey)
                 .UsingJobData(ScheduledTaskExecutionService.ScheduleDefinitionIdData, schedule.ScheduleDefinitionId.ToString("D"))
-                .StoreDurably()
-                .Build();
+                .StoreDurably();
+            if (schedule.MaximumRuntimeSeconds is not null)
+            {
+                job.UsingJobData(ScheduledTaskExecutionService.MaximumRuntimeSecondsData, schedule.MaximumRuntimeSeconds.Value.ToString());
+            }
+            var jobDetail = job.Build();
             var trigger = BuildTrigger(schedule, jobKey, triggerKey);
 
             if (await scheduler.CheckExists(jobKey, cancellationToken))
             {
-                await scheduler.AddJob(job, true, true, cancellationToken);
+                await scheduler.AddJob(jobDetail, true, true, cancellationToken);
                 if (await scheduler.CheckExists(triggerKey, cancellationToken))
                 {
                     await scheduler.RescheduleJob(triggerKey, trigger, cancellationToken);
@@ -47,7 +51,7 @@ public sealed class QuartzScheduleReconciler(SchedulerStore store)
             }
             else
             {
-                await scheduler.ScheduleJob(job, trigger, cancellationToken);
+                await scheduler.ScheduleJob(jobDetail, trigger, cancellationToken);
             }
 
             await store.UpdateScheduleFireTimesAsync(
@@ -58,7 +62,7 @@ public sealed class QuartzScheduleReconciler(SchedulerStore store)
         }
     }
 
-    private static ITrigger BuildTrigger(ScheduleSummaryDto schedule, JobKey jobKey, TriggerKey triggerKey)
+    internal static ITrigger BuildTrigger(ScheduleSummaryDto schedule, JobKey jobKey, TriggerKey triggerKey)
     {
         var builder = TriggerBuilder.Create()
             .WithIdentity(triggerKey)

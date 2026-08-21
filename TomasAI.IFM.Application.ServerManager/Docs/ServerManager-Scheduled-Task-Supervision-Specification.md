@@ -892,6 +892,8 @@ Before enabling each real task:
 
 ### Phase SM-S3 — editing and operations
 
+**Status:** Complete. Evidence is recorded in `ServerManager-SM-S3-Editing-and-Operations.md`.
+
 - implement schedule validation, next-fire preview, CRUD, enable/disable, and audit;
 - implement manual run, cancellation, timeout, and explicit retry;
 - implement live/historical stdout/stderr views; and
@@ -899,11 +901,18 @@ Before enabling each real task:
 
 ### Phase SM-S4 — real task modernization
 
+**Status:** Software modernization and disabled registration are complete. Real-task Development acceptance and
+enablement approval remain pending. Evidence is recorded in `ServerManager-SM-S4-Real-Task-Modernization.md`.
+
 Adopt tasks one at a time. Start with Futures Market Close only after its Development acceptance passes. Modernize
 Futures Market Open, Set Closing Price, and predictive-model training before catalog registration. Every newly
 created definition remains disabled until its individual gate passes.
 
 ### Phase SM-S5 — unattended operational acceptance
+
+**Status:** Deployment, recovery, backup/restore, ACL, and acceptance tooling are complete. Target-machine restart,
+reboot, sign-out, outage, soak, and operator acceptance remain pending. The runbook is
+`ServerManager-SM-S5-Unattended-Operations-Runbook.md`.
 
 - install Scheduler Host with automatic delayed start and recovery policy;
 - exercise restart, workstation reboot, sign-out, DST, missed-trigger, disk-pressure, API-down, and NATS-down cases;
@@ -993,6 +1002,7 @@ This capability is accepted only when:
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.8 | 2026-08-20 | Implemented SM-S3 operations, modernized and disabled-registered SM-S4 tasks, and added SM-S5 service/ACL/recovery/backup tooling while retaining external acceptance gates. |
 | 1.7 | 2026-08-20 | Marked SM-S2 complete and linked its Scheduler Host, PostgreSQL/Quartz, catalog/run/attempt recovery, Job Object, pipe-dashboard, and test evidence. |
 | 1.6 | 2026-08-20 | Marked SM-S1 complete and linked its API/UI process supervision, graceful/forced shutdown, bounded combined log, and automated-test evidence. |
 | 1.5 | 2026-08-20 | Corrected the scheduler baseline to greenfield: there is no operational legacy scheduler or schedule-data export/migration prerequisite; dormant Reference-domain contracts are historical code only. |

@@ -25,9 +25,17 @@ public static class SchedulerHostApplication
         builder.Services.AddSingleton<SchedulerDatabaseMigrator>();
         builder.Services.AddSingleton<TaskCatalogProvider>();
         builder.Services.AddSingleton<SchedulerStore>();
+        builder.Services.AddHttpClient();
+        builder.Services.AddSingleton<DependencyProbeService>();
+        builder.Services.AddSingleton<ActiveRunRegistry>();
         builder.Services.AddSingleton<ScheduledProcessRunner>();
         builder.Services.AddSingleton<ScheduledTaskExecutionService>();
         builder.Services.AddSingleton<QuartzScheduleReconciler>();
+        builder.Services.AddSingleton<ScheduleValidationService>();
+        builder.Services.AddSingleton<ScheduleSeedProvider>();
+        builder.Services.AddSingleton<SchedulerOutputService>();
+        builder.Services.AddSingleton<SchedulerRetentionService>();
+        builder.Services.AddSingleton<SchedulerOperationsService>();
         builder.Services.AddSingleton<SchedulerDashboardQueryService>();
 
         builder.Services.AddQuartz(quartz =>
@@ -49,6 +57,9 @@ public static class SchedulerHostApplication
 
         builder.Services.AddHostedService<SchedulerBootstrapService>();
         builder.Services.AddHostedService<SchedulerRuntimeService>();
+        builder.Services.AddHostedService<SchedulerOperationalMonitor>();
+        builder.Services.AddHostedService<SchedulerRunRequestDispatcher>();
+        builder.Services.AddHostedService<SchedulerRetentionHostedService>();
         builder.Services.AddHostedService<SchedulerPipeServer>();
         return builder.Build();
     }

@@ -92,6 +92,12 @@ public sealed class ManagedProcessDefinition
 
     public bool Enabled { get; set; } = true;
 
+    public string? ReadinessUri { get; set; }
+
+    public int ReadinessTimeoutSeconds { get; set; } = 300;
+
+    public int ReadinessPollIntervalMilliseconds { get; set; } = 500;
+
     public ProcessShutdownMode ShutdownMode { get; set; } = ProcessShutdownMode.CloseMainWindow;
 
     public string? ShutdownInput { get; set; }
@@ -132,6 +138,22 @@ public sealed class ManagedProcessDefinition
         {
             throw new InvalidOperationException(
                 $"ServerManager process '{Key}' requires ShutdownInput when ShutdownMode is StandardInput.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(ReadinessUri))
+        {
+            if (!Uri.TryCreate(ReadinessUri, UriKind.Absolute, out var readinessUri)
+                || readinessUri.Scheme is not ("http" or "https"))
+            {
+                throw new InvalidOperationException(
+                    $"ServerManager process '{Key}' requires an absolute HTTP(S) ReadinessUri.");
+            }
+
+            if (ReadinessTimeoutSeconds <= 0 || ReadinessPollIntervalMilliseconds <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"ServerManager process '{Key}' readiness timeout and polling interval must be positive.");
+            }
         }
     }
 }

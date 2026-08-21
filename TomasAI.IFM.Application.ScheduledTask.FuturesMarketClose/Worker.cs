@@ -7,25 +7,26 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.ScheduledTask.Shared;
 
 namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose;
 
 public sealed class Worker(
-    IHost host,
+    IHostApplicationLifetime lifetime,
+    ScheduledTaskOutcome outcome,
     ILogger<Worker> logger,
     IApplicationCommandApi applicationCommandApi,
     IDatabaseBackupCommandApi databaseBackupCommandApi,
     IActorProducer actorProducer,
-    IConfiguration configuration) : BackgroundService
+    IConfiguration configuration) : OneShotScheduledTaskWorker(lifetime, outcome, logger)
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteTaskAsync(CancellationToken stoppingToken)
     {
+        await actorProducer.StartAsync(
+            new ActorMailboxId(ActorType.Query, "FuturesMarketClose"),
+            stoppingToken).ConfigureAwait(false);
         try
         {
-            await actorProducer.StartAsync(
-                new ActorMailboxId(ActorType.Query, "FuturesMarketClose"),
-                stoppingToken).ConfigureAwait(false);
-
             logger.LogInformation("Shutting down IFM application services before the scheduled protection-set backup.");
             var shutdownResult = await applicationCommandApi
                 .ShutdownApplicationAsync(DateOnly.FromDateTime(DateTime.UtcNow))
@@ -79,18 +80,9 @@ public sealed class Worker(
                     protectionSet);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            logger.LogInformation("Scheduled database backup submission was cancelled.");
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(exception, "Unable to submit the scheduled database protection-set backup.");
-        }
         finally
         {
             await actorProducer.StopAsync().ConfigureAwait(false);
-            await host.StopAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
 

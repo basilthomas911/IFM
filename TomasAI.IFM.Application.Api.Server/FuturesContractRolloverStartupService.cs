@@ -20,11 +20,19 @@ internal sealed class FuturesContractRolloverStartupService(
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        logger.LogInformation("Creating or validating the futures rollover schema.");
         await schema.CreateAsync(["futures_contract_rollover"], cancellationToken)
             .ConfigureAwait(false);
+        logger.LogInformation("Futures rollover schema is ready.");
         var valueDate = FuturesTradingValueDate.GetOperational(timeProvider.GetUtcNow());
+        logger.LogInformation(
+            "Resolving required futures rollover contracts for value date {ValueDate}.",
+            valueDate);
         var rows = await check.ExecuteAsync(valueDate, cancellationToken)
             .ConfigureAwait(false);
+        logger.LogInformation(
+            "Resolved {RolloverCount} futures rollover rows; starting the market-data runtime.",
+            rows.Count);
         await marketDataApi.StartAsync(valueDate, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         _activeValueDate = valueDate;

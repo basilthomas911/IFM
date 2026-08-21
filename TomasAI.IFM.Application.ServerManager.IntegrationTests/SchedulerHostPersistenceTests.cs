@@ -36,6 +36,85 @@ public sealed class SchedulerHostPersistenceTests(SchedulerHostPostgresFixture f
     }
 
     [Fact]
+    public async Task Schedule_mutations_are_idempotent_audited_and_optimistically_concurrent()
+    {
+        var services = await CreateServicesAsync();
+        await services.Migrator.MigrateAsync(CancellationToken.None);
+        await services.Catalog.SynchronizeSnapshotAsync(CancellationToken.None);
+        var validator = new ScheduleValidationService(services.Options, services.Catalog);
+        var input = new ScheduleDefinitionInputDto(
+            null,
+            $"schedule-{Guid.NewGuid():N}",
+            "integration",
+            "helper",
+            ScheduleKind.SimpleInterval,
+            "300",
+            "UTC",
+            SchedulerMisfirePolicy.DoNothing,
+            20);
+        var validation = validator.Validate(input);
+        validation.IsValid.Should().BeTrue();
+        var requestId = Guid.NewGuid();
+
+        var created = await services.Store.CreateScheduleAsync(
+            requestId,
+            "integration-test",
+            input,
+            validation.Explanation,
+            "1",
+            CancellationToken.None);
+        var replay = await services.Store.CreateScheduleAsync(
+            requestId,
+            "integration-test",
+            input,
+            validation.Explanation,
+            "1",
+            CancellationToken.None);
+
+        replay.Replayed.Should().BeTrue();
+        replay.EntityId.Should().Be(created.EntityId);
+        (await services.Store.GetSchedulesAsync(CancellationToken.None)).Should().ContainSingle();
+        var updatedInput = input with
+        {
+            ScheduleDefinitionId = created.EntityId,
+            Description = "updated"
+        };
+        var stale = async () => await services.Store.UpdateScheduleAsync(
+            Guid.NewGuid(),
+            "integration-test",
+            99,
+            updatedInput,
+            validation.Explanation,
+            "1",
+            CancellationToken.None);
+        await stale.Should().ThrowAsync<SchedulerConflictException>();
+
+        var updated = await services.Store.UpdateScheduleAsync(
+            Guid.NewGuid(),
+            "integration-test",
+            1,
+            updatedInput,
+            validation.Explanation,
+            "1",
+            CancellationToken.None);
+        updated.Version.Should().Be(2);
+        var deleted = await services.Store.DeleteScheduleAsync(
+            Guid.NewGuid(),
+            "integration-test",
+            2,
+            created.EntityId!.Value,
+            "test cleanup",
+            CancellationToken.None);
+        deleted.Version.Should().Be(3);
+        (await services.Store.GetSchedulesAsync(CancellationToken.None)).Should().BeEmpty();
+
+        await using var connection = await services.DataSource.OpenConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM ifm_scheduler.audit_entry;";
+        Convert.ToInt32(await command.ExecuteScalarAsync()).Should().Be(3);
+    }
+
+    [Fact]
     public async Task Recovery_marks_incomplete_run_abandoned_without_retrying_it()
     {
         var services = await CreateServicesAsync();
@@ -66,6 +145,44 @@ public sealed class SchedulerHostPersistenceTests(SchedulerHostPostgresFixture f
             .Single(value => value.RunId == run.RunId);
         recovered.State.Should().Be(ScheduledRunState.Abandoned);
         recovered.Detail.Should().Contain("restarted");
+    }
+
+    [Fact]
+    public async Task Retention_selects_expired_terminal_output_but_preserves_active_and_abandoned_evidence()
+    {
+        var services = await CreateServicesAsync();
+        await services.Migrator.MigrateAsync(CancellationToken.None);
+        await services.Catalog.SynchronizeSnapshotAsync(CancellationToken.None);
+        var succeeded = NewRun();
+        var active = NewRun();
+        var abandoned = NewRun();
+        await services.Store.RecordTerminalRunAsync(succeeded, ScheduledRunState.Succeeded, "done", CancellationToken.None);
+        (await services.Store.TryCreateRunAsync(active, CancellationToken.None)).Should().BeTrue();
+        (await services.Store.TryCreateRunAsync(abandoned, CancellationToken.None)).Should().BeTrue();
+        await services.Store.TransitionRunAsync(
+            abandoned.RunId,
+            ScheduledRunState.Abandoned,
+            "ambiguous",
+            null,
+            null,
+            null,
+            CancellationToken.None);
+        await using (var connection = await services.DataSource.OpenConnectionAsync())
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                UPDATE ifm_scheduler.task_run
+                SET finished_at_utc = now() - interval '400 days'
+                WHERE run_id = ANY($1);
+                """;
+            command.Parameters.AddWithValue(new[] { succeeded.RunId, abandoned.RunId });
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var candidates = await services.Store.GetRetentionCandidatesAsync(CancellationToken.None);
+
+        candidates.Should().ContainSingle(value => value.RunId == succeeded.RunId);
+        candidates.Should().NotContain(value => value.RunId == active.RunId || value.RunId == abandoned.RunId);
     }
 
     [Fact]
@@ -137,7 +254,7 @@ public sealed class SchedulerHostPersistenceTests(SchedulerHostPostgresFixture f
             var dashboard = await client.GetDashboardAsync(CancellationToken.None);
 
             dashboard.Health.State.Should().Be(SchedulerServiceState.Ready);
-            dashboard.TaskCatalog.Should().ContainSingle();
+            dashboard.TaskCatalog.Should().Contain(value => value.TaskKey == "helper");
             dashboard.Schedules.Should().BeEmpty();
         }
         finally
@@ -166,6 +283,8 @@ public sealed class SchedulerHostPersistenceTests(SchedulerHostPostgresFixture f
             ["SchedulerHost:MaximumConcurrentProcesses"] = "1",
             ["SchedulerHost:ShutdownTimeoutSeconds"] = "5",
             ["SchedulerHost:RecentRunLimit"] = "20",
+            ["SchedulerHost:SeedInitialSchedules"] = "false",
+            ["SchedulerHost:UseOperatorGroupPipeAcl"] = "false",
             ["SchedulerHost:TaskCatalog:0:TaskKey"] = "helper",
             ["SchedulerHost:TaskCatalog:0:DisplayName"] = "Helper",
             ["SchedulerHost:TaskCatalog:0:Description"] = "Host integration helper",
@@ -196,6 +315,23 @@ public sealed class SchedulerHostPersistenceTests(SchedulerHostPostgresFixture f
             dashboard.Health.QuartzAvailable.Should().BeTrue();
             dashboard.Health.SchedulingStarted.Should().BeTrue();
             dashboard.Schedules.Should().BeEmpty();
+
+            var input = new ScheduleDefinitionInputDto(
+                null,
+                $"pipe-schedule-{Guid.NewGuid():N}",
+                "pipe integration",
+                "helper",
+                ScheduleKind.SimpleInterval,
+                "300",
+                "UTC",
+                SchedulerMisfirePolicy.DoNothing,
+                20);
+            var validation = await client.ValidateScheduleAsync(input, CancellationToken.None);
+            validation.IsValid.Should().BeTrue();
+            var created = await client.CreateScheduleAsync(input, CancellationToken.None);
+            created.Version.Should().Be(1);
+            (await client.GetDashboardAsync(CancellationToken.None)).Schedules.Should().ContainSingle(value =>
+                value.ScheduleDefinitionId == created.EntityId && !value.Enabled);
         }
         finally
         {

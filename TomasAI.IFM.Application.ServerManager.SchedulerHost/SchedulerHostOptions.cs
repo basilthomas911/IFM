@@ -26,7 +26,29 @@ public sealed class SchedulerHostOptions
 
     public int RecentRunLimit { get; set; } = 200;
 
+    public int MaximumOutputLineCharacters { get; set; } = 65_536;
+
+    public long MaximumOutputBytesPerStream { get; set; } = 100L * 1024 * 1024;
+
+    public int SuccessfulRunRetentionDays { get; set; } = 30;
+
+    public int FailedRunRetentionDays { get; set; } = 180;
+
+    public Dictionary<string, string> DependencyEndpoints { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public List<string> AllowedOperatorGroups { get; set; } = [];
+
+    public bool UseOperatorGroupPipeAcl { get; set; }
+
+    public long MinimumFreeDiskBytes { get; set; } = 1024L * 1024 * 1024;
+
+    public int HealthProbeIntervalSeconds { get; set; } = 10;
+
     public List<ScheduledTaskCatalogDefinition> TaskCatalog { get; set; } = [];
+
+    public List<InitialScheduleDefinition> InitialSchedules { get; set; } = [];
+
+    public bool SeedInitialSchedules { get; set; } = true;
 
     public TimeSpan ShutdownTimeout => TimeSpan.FromSeconds(ShutdownTimeoutSeconds);
 
@@ -37,9 +59,23 @@ public sealed class SchedulerHostOptions
         ArgumentException.ThrowIfNullOrWhiteSpace(PipeName);
         ArgumentException.ThrowIfNullOrWhiteSpace(TaskRunRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(DeploymentRoot);
-        if (MaximumConcurrentProcesses <= 0 || ShutdownTimeoutSeconds <= 0 || RecentRunLimit <= 0)
+        if (MaximumConcurrentProcesses <= 0 || ShutdownTimeoutSeconds <= 0 || RecentRunLimit <= 0
+            || MaximumOutputLineCharacters <= 0 || MaximumOutputBytesPerStream <= 0
+            || SuccessfulRunRetentionDays <= 0 || FailedRunRetentionDays <= 0
+            || MinimumFreeDiskBytes <= 0 || HealthProbeIntervalSeconds <= 0)
         {
-            throw new InvalidOperationException("Scheduler concurrency, shutdown, and recent-run limits must be positive.");
+            throw new InvalidOperationException("Scheduler concurrency, shutdown, output, retention, and recent-run limits must be positive.");
+        }
+
+        if (SuccessfulRunRetentionDays > FailedRunRetentionDays)
+        {
+            throw new InvalidOperationException("Successful-run retention cannot exceed failed-run retention.");
+        }
+
+        if (UseOperatorGroupPipeAcl
+            && AllowedOperatorGroups.Count == 0)
+        {
+            throw new InvalidOperationException("Operator-group pipe ACL mode requires at least one explicit Scheduler Host operator group.");
         }
 
         var duplicate = TaskCatalog
@@ -53,8 +89,57 @@ public sealed class SchedulerHostOptions
         foreach (var task in TaskCatalog)
         {
             task.Validate(this);
+            foreach (var endpoint in task.RequiredEndpoints)
+            {
+                if (!DependencyEndpoints.ContainsKey(endpoint))
+                {
+                    throw new InvalidOperationException($"Task '{task.TaskKey}' references undefined dependency endpoint '{endpoint}'.");
+                }
+            }
+        }
+
+        var duplicateScheduleId = InitialSchedules.GroupBy(value => value.ScheduleDefinitionId)
+            .FirstOrDefault(group => group.Count() > 1)?.Key;
+        if (duplicateScheduleId is not null)
+        {
+            throw new InvalidOperationException($"Initial schedule ID '{duplicateScheduleId}' is duplicated.");
+        }
+
+        if (InitialSchedules.Any(value => value.Enabled))
+        {
+            throw new InvalidOperationException("Configuration-seeded schedules must always start disabled.");
         }
     }
+}
+
+public sealed class InitialScheduleDefinition
+{
+    public Guid ScheduleDefinitionId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string TaskKey { get; set; } = string.Empty;
+    public bool Enabled { get; set; }
+    public ScheduleKind Kind { get; set; }
+    public string ScheduleExpression { get; set; } = string.Empty;
+    public string TimeZoneId { get; set; } = "UTC";
+    public SchedulerMisfirePolicy MisfirePolicy { get; set; } = SchedulerMisfirePolicy.DoNothing;
+    public int? MaximumRuntimeSeconds { get; set; }
+    public int SuccessfulRetentionDays { get; set; } = 30;
+    public int FailedRetentionDays { get; set; } = 180;
+
+    public ScheduleDefinitionInputDto ToInput()
+        => new(
+            ScheduleDefinitionId,
+            Name,
+            Description,
+            TaskKey,
+            Kind,
+            ScheduleExpression,
+            TimeZoneId,
+            MisfirePolicy,
+            MaximumRuntimeSeconds,
+            SuccessfulRetentionDays,
+            FailedRetentionDays);
 }
 
 public sealed class ScheduledTaskCatalogDefinition

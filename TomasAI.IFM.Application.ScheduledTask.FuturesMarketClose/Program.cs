@@ -7,12 +7,13 @@ using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.ServiceApi;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.ScheduledTask.Shared;
 
 namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketClose;
 
 internal static class Program
 {
-    public static async Task Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
         Log.Logger = new LoggerConfiguration()
@@ -30,9 +31,12 @@ internal static class Program
             services.GetRequiredService<NatsConnectionManager>()));
         builder.Services.AddSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
         builder.Services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
+        builder.Services.AddScheduledTaskRuntime();
         builder.Services.AddHostedService<Worker>();
 
         using var host = builder.Build();
+        var outcome = host.Services.GetRequiredService<ScheduledTaskOutcome>();
         await host.RunAsync().ConfigureAwait(false);
+        return outcome.ExitCode;
     }
 }

@@ -1,5 +1,9 @@
 # Futures Market Open Scheduled Task — Implementation Details
 
+> **SM-S4 update (2026-08-20):** The current implementation targets .NET 10, uses typed NATS APIs, checks the
+> application-start result, returns meaningful process exit codes, and supports Scheduler Host control-pipe
+> cancellation. Later .NET 7/REST/forced-kill limitations describe the superseded implementation.
+
 ## Purpose
 
 `TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen` is a one-shot .NET worker executable intended to be launched when the futures market opens. It obtains the current IFM value date and, when that query succeeds, asks the application command service to start the IFM application services.

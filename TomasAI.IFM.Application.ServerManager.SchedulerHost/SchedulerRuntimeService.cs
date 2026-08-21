@@ -8,6 +8,8 @@ public sealed class SchedulerRuntimeService(
     QuartzScheduleReconciler reconciler,
     SchedulerBootstrapState bootstrap,
     SchedulerHealthState health,
+    SchedulerHostOptions options,
+    ActiveRunRegistry activeRuns,
     ILogger<SchedulerRuntimeService> logger) : IHostedService
 {
     private IScheduler? _scheduler;
@@ -59,6 +61,12 @@ public sealed class SchedulerRuntimeService(
         }
 
         await _scheduler.Standby(CancellationToken.None);
-        await _scheduler.Shutdown(waitForJobsToComplete: false, CancellationToken.None);
+        activeRuns.CancelAll();
+        var shutdown = _scheduler.Shutdown(waitForJobsToComplete: true, CancellationToken.None);
+        if (await Task.WhenAny(shutdown, Task.Delay(options.ShutdownTimeout, CancellationToken.None)) != shutdown)
+        {
+            logger.LogError("Quartz jobs did not complete within the configured {Timeout}; shutdown continues after Job Object cancellation.", options.ShutdownTimeout);
+            await _scheduler.Shutdown(waitForJobsToComplete: false, CancellationToken.None);
+        }
     }
 }

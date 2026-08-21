@@ -25,6 +25,11 @@ public static class ServerManagerStandardInputShutdown
 
     private static async Task MonitorAsync(IHostApplicationLifetime lifetime, ILogger logger)
     {
+        // Console.In can be backed by an anonymous process pipe whose asynchronous
+        // read blocks synchronously until data arrives. Yield before beginning the
+        // read so enabling the control channel can never delay host startup.
+        await Task.Yield();
+
         try
         {
             while (!lifetime.ApplicationStopping.IsCancellationRequested)

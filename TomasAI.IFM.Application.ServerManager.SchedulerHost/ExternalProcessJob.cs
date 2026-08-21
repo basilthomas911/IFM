@@ -1,4 +1,5 @@
 using Quartz;
+using System.Text.Json;
 using TomasAI.IFM.Application.ServerManager.Contracts;
 
 namespace TomasAI.IFM.Application.ServerManager.SchedulerHost;
@@ -14,10 +15,18 @@ public sealed class ScheduledTaskExecutionService(
     TaskCatalogProvider catalog,
     SchedulerStore store,
     ScheduledProcessRunner runner,
+    DependencyProbeService dependencies,
+    ActiveRunRegistry activeRuns,
+    IHostApplicationLifetime applicationLifetime,
     ILogger<ScheduledTaskExecutionService> logger)
 {
     public const string TaskKeyData = "taskKey";
     public const string ScheduleDefinitionIdData = "scheduleDefinitionId";
+    public const string RunIdData = "runId";
+    public const string OccurrenceIdData = "occurrenceId";
+    public const string AttemptIdData = "attemptId";
+    public const string OriginData = "origin";
+    public const string MaximumRuntimeSecondsData = "maximumRuntimeSeconds";
 
     public async Task ExecuteAsync(IJobExecutionContext context)
     {
@@ -26,12 +35,20 @@ public sealed class ScheduledTaskExecutionService(
         var task = catalog.GetRequired(taskKey);
         var scheduleIdText = context.MergedJobDataMap.GetString(ScheduleDefinitionIdData);
         var scheduleId = Guid.TryParse(scheduleIdText, out var parsedScheduleId) ? parsedScheduleId : (Guid?)null;
+        var runId = ReadGuid(context, RunIdData) ?? Guid.NewGuid();
         var identity = new ScheduledProcessIdentity(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            ScheduledRunOrigin.Scheduled,
-            context.ScheduledFireTimeUtc ?? DateTimeOffset.UtcNow);
+            runId,
+            ReadGuid(context, OccurrenceIdData) ?? Guid.NewGuid(),
+            ReadGuid(context, AttemptIdData) ?? Guid.NewGuid(),
+            Enum.TryParse<ScheduledRunOrigin>(context.MergedJobDataMap.GetString(OriginData), out var origin)
+                ? origin
+                : ScheduledRunOrigin.Scheduled,
+            context.ScheduledFireTimeUtc ?? DateTimeOffset.UtcNow,
+            $"IFM.TaskControl.{runId:N}");
+        using var active = activeRuns.Register(
+            identity.RunId,
+            context.CancellationToken,
+            applicationLifetime.ApplicationStopping);
         var runDirectory = Path.Combine(options.TaskRunRoot, task.TaskKey, identity.RunId.ToString("N"));
         var stdoutPath = Path.Combine(runDirectory, "stdout.log");
         var stderrPath = Path.Combine(runDirectory, "stderr.log");
@@ -46,13 +63,28 @@ public sealed class ScheduledTaskExecutionService(
             identity.ScheduledFireUtc,
             stdoutPath,
             stderrPath);
-        if (!await store.TryCreateRunAsync(newRun, context.CancellationToken))
+        Directory.CreateDirectory(runDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(runDirectory, "run.json"),
+            JsonSerializer.Serialize(new
+            {
+                identity.RunId,
+                identity.OccurrenceId,
+                identity.AttemptId,
+                ScheduleDefinitionId = scheduleId,
+                task.TaskKey,
+                identity.Origin,
+                identity.ScheduledFireUtc,
+                task.ManifestVersion
+            }, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }),
+            CancellationToken.None);
+        if (!await store.TryCreateRunAsync(newRun, CancellationToken.None))
         {
             await store.RecordTerminalRunAsync(
                 newRun,
                 ScheduledRunState.SkippedOverlap,
                 "Another run already owns this schedule definition.",
-                context.CancellationToken);
+                CancellationToken.None);
             logger.LogWarning("Skipped overlapping execution for schedule {ScheduleDefinitionId}.", scheduleId);
             return;
         }
@@ -66,7 +98,7 @@ public sealed class ScheduledTaskExecutionService(
                 null,
                 null,
                 null,
-                context.CancellationToken);
+                CancellationToken.None);
             return;
         }
 
@@ -79,7 +111,21 @@ public sealed class ScheduledTaskExecutionService(
                 null,
                 null,
                 null,
-                context.CancellationToken);
+                CancellationToken.None);
+            return;
+        }
+
+        var blockingDependency = await dependencies.FindBlockingDependencyAsync(task, active.Token);
+        if (blockingDependency is not null)
+        {
+            await store.TransitionRunAsync(
+                identity.RunId,
+                ScheduledRunState.BlockedDependency,
+                blockingDependency,
+                null,
+                null,
+                null,
+                CancellationToken.None);
             return;
         }
 
@@ -90,7 +136,7 @@ public sealed class ScheduledTaskExecutionService(
             null,
             null,
             null,
-            context.CancellationToken);
+            CancellationToken.None);
         var result = await runner.RunAsync(
             task,
             identity,
@@ -103,10 +149,13 @@ public sealed class ScheduledTaskExecutionService(
                 processId,
                 processStartedAt,
                 null,
-                cancellationToken),
-            context.CancellationToken);
+                CancellationToken.None),
+            active.Token,
+            int.TryParse(context.MergedJobDataMap.GetString(MaximumRuntimeSecondsData), out var runtimeSeconds)
+                ? runtimeSeconds
+                : null);
 
-        if (result.State == ScheduledRunState.ForceTerminated)
+        if (result.State is ScheduledRunState.Cancelled or ScheduledRunState.ForceTerminated)
         {
             await store.TransitionRunAsync(
                 identity.RunId,
@@ -126,5 +175,13 @@ public sealed class ScheduledTaskExecutionService(
             result.ProcessStartedAtUtc,
             result.ExitCode,
             CancellationToken.None);
+        await store.RecordOutputDispositionAsync(
+            identity.RunId,
+            result.StdoutTruncated,
+            result.StderrTruncated,
+            CancellationToken.None);
     }
+
+    private static Guid? ReadGuid(IJobExecutionContext context, string key)
+        => Guid.TryParse(context.MergedJobDataMap.GetString(key), out var value) ? value : null;
 }

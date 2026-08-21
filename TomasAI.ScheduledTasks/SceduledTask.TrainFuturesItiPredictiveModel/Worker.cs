@@ -1,62 +1,59 @@
+using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
-using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
-using TomasAI.IFM.Shared.PredictiveModel.FuturesItiTrend.ServiceApi;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 
-namespace TomasAI.ScheduledTasks.SceduledTask.TrainFuturesItiPredictiveModel
+namespace TomasAI.ScheduledTasks.SceduledTask.TrainFuturesItiPredictiveModel;
+
+public sealed class Worker(
+    IHostApplicationLifetime lifetime,
+    ScheduledTaskOutcome outcome,
+    ILogger<Worker> logger,
+    IActorProducer actorProducer,
+    IMarketDataQueryApi marketDataQueryApi,
+    PredictiveModelBuildClient commandApi,
+    IConfiguration configuration)
+    : OneShotScheduledTaskWorker(lifetime, outcome, logger)
 {
-    public class Worker : BackgroundService
+    protected override async Task ExecuteTaskAsync(CancellationToken cancellationToken)
     {
-        readonly IHost _host;
-        readonly ILogger<Worker> _logger;
-        readonly IMarketDataQueryApi _marketDataQueryApi;
-        readonly IFuturesItiTrendCommandApi _commandApi;
-
-        public Worker(
-            IHost host,
-            ILogger<Worker> logger,
-            IMarketDataQueryApi marketDataQueryApi,
-            IFuturesItiTrendCommandApi commandApi)
+        await actorProducer.StartAsync(
+            new ActorMailboxId(ActorType.Query, "TrainFuturesItiPredictiveModel"),
+            cancellationToken).ConfigureAwait(false);
+        try
         {
-            _host = IsArgumentNull.Set(host);
-            _logger = IsArgumentNull.Set(logger);
-            _marketDataQueryApi = IsArgumentNull.Set(marketDataQueryApi);
-            _commandApi = IsArgumentNull.Set(commandApi);
+            var valueDateResult = await marketDataQueryApi.GetValueDateAsync().ConfigureAwait(false);
+            if (!valueDateResult.Success || valueDateResult.Value is null)
+            {
+                throw new InvalidOperationException($"Unable to load value date: {valueDateResult.ErrorMessage}");
+            }
+
+            var symbol = configuration["PredictiveModel:Symbol"] ?? "ES";
+            var startDateText = configuration["PredictiveModel:TrainingStartDate"]
+                ?? throw new InvalidOperationException("PredictiveModel:TrainingStartDate is required.");
+            if (!DateOnly.TryParse(startDateText, out var startDate))
+            {
+                throw new InvalidOperationException("PredictiveModel:TrainingStartDate must be an ISO date.");
+            }
+
+            var valueDate = valueDateResult.Value.Value;
+            if (startDate >= valueDate)
+            {
+                throw new InvalidOperationException("Training start date must precede the current value date.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await commandApi.BuildAsync(symbol, valueDate, startDate, valueDate).ConfigureAwait(false);
+            if (!result.Success)
+            {
+                throw new InvalidOperationException($"Predictive-model build command was rejected: {result.ErrorMessage}");
+            }
+
+            logger.LogInformation("Predictive-model build command {CommandId} accepted for {Symbol}.", result.Value, symbol);
         }
-
-        /// <summary>
-        /// start up IFM application services when futures market opens
-        /// </summary>
-        /// <param name="stoppingToken"></param>
-        /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        finally
         {
-            try
-            {
-                var testMode = true;
-                _logger.LogInformation("loading value date...");
-                var valueDateResult = await _marketDataQueryApi.GetValueDateAsync();
-                if (valueDateResult.Success && valueDateResult.Value is not null || testMode)
-                {
-                    var valueDate = testMode 
-                        ? DateTime.Now.Date
-                        : valueDateResult.Value.Value;
-
-                    _logger.LogInformation($"starting up Futures ITI Predictive Model Training for {valueDate:yyyy-mm-dd}... ");
-                    var startDate = new DateTime(2023, 12, 1);
-                    await _commandApi.BuildFuturesItiTrendModelAsync("ES",  valueDate, startDate, valueDate);
-                }
-                else
-                    _logger.LogError($"unable to load value date due to {valueDateResult.ErrorMessage}");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"unknown error due to {ex}");
-            }
-            finally
-            {
-                await _host.StopAsync();
-            }
+            await actorProducer.StopAsync().ConfigureAwait(false);
         }
     }
 }

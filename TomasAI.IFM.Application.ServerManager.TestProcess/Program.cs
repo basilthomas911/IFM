@@ -1,3 +1,6 @@
+using System.IO.Pipes;
+using System.Text;
+
 namespace TomasAI.IFM.Application.ServerManager.TestProcess;
 
 public static class TestProcessMarker;
@@ -33,6 +36,28 @@ internal static class Program
             }
 
             Console.Out.WriteLine("graceful-shutdown");
+        }
+
+        if (options.ContainsKey("wait-for-control-pipe"))
+        {
+            var pipeName = Environment.GetEnvironmentVariable("IFM_TASK_CONTROL_PIPE")
+                ?? throw new InvalidOperationException("IFM_TASK_CONTROL_PIPE was not supplied.");
+            await using var pipe = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.In,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            await pipe.WaitForConnectionAsync();
+            using var reader = new StreamReader(pipe, new UTF8Encoding(false), leaveOpen: true);
+            var command = await reader.ReadLineAsync();
+            if (!string.Equals(command, "Cancel", StringComparison.Ordinal))
+            {
+                return 92;
+            }
+
+            Console.Out.WriteLine("control-pipe-cancelled");
+            return 2;
         }
 
         var delayMilliseconds = GetInt(options, "delay-ms");

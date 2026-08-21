@@ -6,6 +6,7 @@ public sealed class SchedulerBootstrapService(
     SchedulerHostOptions options,
     SchedulerDatabaseMigrator migrator,
     TaskCatalogProvider catalog,
+    ScheduleSeedProvider scheduleSeeds,
     SchedulerStore store,
     SchedulerBootstrapState bootstrap,
     SchedulerHealthState health,
@@ -31,6 +32,7 @@ public sealed class SchedulerBootstrapService(
                 FileShare.None);
             await migrator.MigrateAsync(cancellationToken);
             await catalog.SynchronizeSnapshotAsync(cancellationToken);
+            await scheduleSeeds.SeedDisabledDefinitionsAsync(cancellationToken);
             var abandoned = await store.RecoverIncompleteRunsAsync(cancellationToken);
             bootstrap.Succeeded = true;
             health.Set(

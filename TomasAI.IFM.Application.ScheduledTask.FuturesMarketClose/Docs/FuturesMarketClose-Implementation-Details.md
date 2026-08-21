@@ -73,7 +73,8 @@ configuration rather than the removed per-database SystemAdmin query.
 - A rejected shutdown or backup request is logged as an error and no false success is reported.
 - Cancellation is propagated to producer startup, the readiness delay, and every backup request.
 - Producer and host shutdown execute from `finally`.
-- This project is built independently because it is not currently listed in `TomasAI.IFM.sln`.
+- The project is listed in `TomasAI.IFM.sln`, uses the shared one-shot runtime, returns explicit outcome exit codes,
+  and accepts cooperative Scheduler Host control-pipe cancellation.
 
 Do not reintroduce database-name enumeration, per-database backup types, legacy SystemAdmin backup APIs, or Core NATS
 completion listeners here. Scheduling policy should select protection sets; the durable actor workflow owns recovery.

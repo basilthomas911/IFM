@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -53,10 +55,19 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            foreach (var definition in _definitions)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await StartCoreAsync(definition).ConfigureAwait(false);
+                foreach (var definition in _definitions)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await StartCoreAsync(definition).ConfigureAwait(false);
+                    await WaitForReadinessAsync(definition, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                await StopAllCoreAsync(CancellationToken.None).ConfigureAwait(false);
+                throw;
             }
         }
         finally
@@ -72,10 +83,19 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         try
         {
             await StopAllCoreAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var definition in _definitions)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await StartCoreAsync(definition).ConfigureAwait(false);
+                foreach (var definition in _definitions)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await StartCoreAsync(definition).ConfigureAwait(false);
+                    await WaitForReadinessAsync(definition, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                await StopAllCoreAsync(CancellationToken.None).ConfigureAwait(false);
+                throw;
             }
         }
         finally
@@ -246,6 +266,74 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         catch (Exception exception)
         {
             WriteLifecycle(owned.Definition, $"{stream} capture failed: {exception.Message}");
+        }
+    }
+
+    private async Task WaitForReadinessAsync(
+        ManagedProcessDefinition definition,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(definition.ReadinessUri))
+        {
+            return;
+        }
+
+        WriteLifecycle(definition, $"Waiting for readiness at {definition.ReadinessUri}.");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(definition.ReadinessTimeoutSeconds));
+        using var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        HttpStatusCode? lastStatus = null;
+        Exception? lastException = null;
+        try
+        {
+            while (true)
+            {
+                timeout.Token.ThrowIfCancellationRequested();
+                if (!IsRunning(definition.Key))
+                {
+                    throw new InvalidOperationException(
+                        $"Process '{definition.Key}' exited before its readiness endpoint became healthy.");
+                }
+
+                try
+                {
+                    using var response = await client.GetAsync(definition.ReadinessUri, timeout.Token)
+                        .ConfigureAwait(false);
+                    lastStatus = response.StatusCode;
+                    lastException = null;
+                    if (response.IsSuccessStatusCode)
+                    {
+                        WriteLifecycle(definition, $"Readiness confirmed with HTTP {(int)response.StatusCode}.");
+                        return;
+                    }
+                }
+                catch (HttpRequestException exception)
+                {
+                    lastException = exception;
+                }
+
+                await Task.Delay(definition.ReadinessPollIntervalMilliseconds, timeout.Token)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            var detail = lastStatus is not null
+                ? $"last HTTP status was {(int)lastStatus.Value}"
+                : lastException is not null
+                    ? lastException.Message
+                    : "no response was received";
+            var message = $"Readiness timed out after {definition.ReadinessTimeoutSeconds} seconds: {detail}.";
+            WriteLifecycle(definition, message);
+            throw new TimeoutException(message);
+        }
+    }
+
+    private bool IsRunning(string processKey)
+    {
+        lock (_sync)
+        {
+            return _running.ContainsKey(processKey);
         }
     }
 

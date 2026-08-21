@@ -1,60 +1,44 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
-using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor;
 
-namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen
+namespace TomasAI.IFM.Application.ScheduledTask.FuturesMarketOpen;
+
+public sealed class Worker(
+    IHostApplicationLifetime lifetime,
+    ScheduledTaskOutcome outcome,
+    ILogger<Worker> logger,
+    IActorProducer actorProducer,
+    IMarketDataQueryApi marketDataQueryApi,
+    IApplicationCommandApi applicationCommandApi)
+    : OneShotScheduledTaskWorker(lifetime, outcome, logger)
 {
-    public class Worker : BackgroundService
+    protected override async Task ExecuteTaskAsync(CancellationToken cancellationToken)
     {
-        readonly IHost _host;
-        readonly ILogger<Worker> _logger;
-        readonly IMarketDataQueryApi _marketDataQueryApi;
-        readonly IApplicationCommandApi _appCommandApi;
-
-        public Worker(
-            IHost host,
-            ILogger<Worker> logger,
-            IMarketDataQueryApi marketDataQueryApi,
-            IApplicationCommandApi appCommandApi)
+        await actorProducer.StartAsync(new ActorMailboxId(ActorType.Query, "FuturesMarketOpen"), cancellationToken).ConfigureAwait(false);
+        try
         {
-            _host = IsArgumentNull.Set(host);
-            _logger = IsArgumentNull.Set(logger);
-            _marketDataQueryApi = IsArgumentNull.Set(marketDataQueryApi);
-            _appCommandApi = IsArgumentNull.Set(appCommandApi);
+            var valueDateResult = await marketDataQueryApi.GetValueDateAsync().ConfigureAwait(false);
+            if (!valueDateResult.Success || valueDateResult.Value is null)
+            {
+                throw new InvalidOperationException($"Unable to load value date: {valueDateResult.ErrorMessage}");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var valueDate = valueDateResult.Value.Value;
+            var startResult = await applicationCommandApi.StartApplicationAsync(valueDate).ConfigureAwait(false);
+            if (!startResult.Success)
+            {
+                throw new InvalidOperationException($"Application start command was rejected: {startResult.ErrorMessage}");
+            }
+
+            logger.LogInformation("Application start command {CommandId} accepted for {ValueDate}.", startResult.Value, valueDate);
         }
-
-        /// <summary>
-        /// start up IFM application services when futures market opens
-        /// </summary>
-        /// <param name="stoppingToken"></param>
-        /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        finally
         {
-            try
-            {
-                _logger.LogInformation("loading value date...");
-                var valueDateResult = await _marketDataQueryApi.GetValueDateAsync();
-                if (valueDateResult.Success && valueDateResult.Value is not null)
-                {
-                    var valueDate = valueDateResult.Value.Value;
-                    _logger.LogInformation($"starting up IFM application services on {valueDate:yyyy-mm-dd}... ");
-                    await _appCommandApi.StartApplicationAsync();
-                    await Task.Delay(TimeSpan.FromSeconds(2));
-                    _logger.LogInformation("IFM application services started ");
-                    _logger.LogInformation($"loaded value date for {valueDate:yyyy-MM-dd}");
-                    _logger.LogInformation("loading currently traded futures contracts...");
-                }
-                else
-                    _logger.LogError($"unable to load value date due to {valueDateResult.ErrorMessage}");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"unknown error due to {ex}");
-            }
-            finally
-            {
-                await _host.StopAsync();
-            }
+            await actorProducer.StopAsync().ConfigureAwait(false);
         }
     }
 }
