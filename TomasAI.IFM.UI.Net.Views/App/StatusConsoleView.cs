@@ -1,12 +1,10 @@
 using System.ComponentModel;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using System.Globalization;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.App;
-using TomasAI.IFM.UI.Net.ViewModels.MarketData;
-using TomasAI.IFM.UI.Net.ViewModels.Reference;
 using TomasAI.IFM.UI.Net.Views.Presentation;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
@@ -22,8 +20,6 @@ public partial class StatusConsoleView : UserControl
     public StatusConsoleView()
     {
         InitializeComponent();
-        pnlTradeLayout.Height = 25;
-        txtTradeStatus.Enabled = false;
         lstStatusConsole.SetDoubleBuffered(true);
     }
 
@@ -36,7 +32,7 @@ public partial class StatusConsoleView : UserControl
 
         _viewModel = viewModel;
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
-        RenderObservableState();
+        ShowLastError();
     }
 
     /// <summary>Detaches this view without stopping the shell-owned ViewModel.</summary>
@@ -77,58 +73,14 @@ public partial class StatusConsoleView : UserControl
             if (_viewModel is null)
                 return;
 
-            switch (eventArgs.PropertyName)
-            {
-                case nameof(StatusConsoleViewModel.TradeSignals):
-                    RefreshTradeConsole(_viewModel.TradeSignals);
-                    break;
-                case nameof(StatusConsoleViewModel.TradeStatus):
-                    RefreshTradeStatus(_viewModel.TradeStatus);
-                    break;
-                case nameof(StatusConsoleViewModel.MDIForwardLossRatios):
-                    RefreshMDIForwardLossRatios(_viewModel.MDIForwardLossRatios);
-                    break;
-                case nameof(StatusConsoleViewModel.LastError):
-                    if (_viewModel.LastError is { } error)
-                        this.ShowErrorMessage(error.Message, error.Caption);
-                    break;
-            }
+            if (eventArgs.PropertyName == nameof(StatusConsoleViewModel.LastError))
+                ShowLastError();
         });
 
-    void RenderObservableState()
+    void ShowLastError()
     {
-        if (_viewModel is null)
-            return;
-
-        RefreshTradeConsole(_viewModel.TradeSignals);
-        RefreshTradeStatus(_viewModel.TradeStatus);
-        RefreshMDIForwardLossRatios(_viewModel.MDIForwardLossRatios);
-        if (_viewModel.LastError is { } error)
+        if (_viewModel?.LastError is { } error)
             this.ShowErrorMessage(error.Message, error.Caption);
-    }
-
-    void RefreshTradeConsole(IReadOnlyList<FuturesItiSignalV2ReadModel> futuresItiSignals)
-    {
-        lstTradeStatus.BeginUpdate();
-        lstTradeStatus.Items.Clear();
-        lstTradeStatus.Items.AddRange(futuresItiSignals.Select(CreateTradeStatusItem).ToArray());
-        lstTradeStatus.EndUpdate();
-    }
-
-    void RefreshTradeStatus(FuturesTradeStatusUIViewModel tradeStatus)
-    {
-        txtTradeStatus.Text = tradeStatus.TradeStatus;
-        txtTradeStatus.ForeColor = tradeStatus.TradeStatusForeColor.ToColor();
-        txtTradeStatus.BackColor = tradeStatus.TradeStatusBackColor.ToColor();
-        txtTradeStatus.Enabled = true;
-    }
-
-    void RefreshMDIForwardLossRatios(IReadOnlyList<MDIForwardLossRatioUIViewModel> ratios)
-    {
-        lstMDIFwdLossRatio.BeginUpdate();
-        lstMDIFwdLossRatio.Items.Clear();
-        lstMDIFwdLossRatio.Items.AddRange(ratios.Select(CreateForwardLossRatioItem).ToArray());
-        lstMDIFwdLossRatio.EndUpdate();
     }
 
     public void ResizeView(Control parentControl)
@@ -138,28 +90,7 @@ public partial class StatusConsoleView : UserControl
     }
 
     static ListViewItem CreateStatusLogItem(StatusConsoleLogReadModel log)
-        => new([$"{EasternTime.FromUtc(log.StatusDate):T}", log.Message]);
-
-    static ListViewItem CreateTradeStatusItem(FuturesItiSignalV2ReadModel signal)
         => new([
-            $"{EasternTime.FromUtc(signal.IntrinsicTime):T}",
-            $"{signal.ContractId} - {signal.IntrinsicTimeTrend} @ {signal.IntrinsicPrice:F2} := {signal.TargetDelta:F4}"]);
-
-    static ListViewItem CreateForwardLossRatioItem(MDIForwardLossRatioUIViewModel ratio)
-        => new([ratio.MDI, ratio.TrendDirection, ratio.TradeType, ratio.ForwardLossRatio]);
-
-    async void tabConsoles_SelectedIndexChanged(object sender, EventArgs e)
-    {
-        if (tabConsoles.SelectedIndex != 0 || _viewModel is null)
-            return;
-
-        try
-        {
-            await _viewModel.LoadTradeStatusOperation.ExecuteAsync();
-        }
-        catch (Exception exception)
-        {
-            this.ShowErrorMessage(exception.Message, "Trade Status Error");
-        }
-    }
+            EasternTime.FromUtc(log.StatusDate).ToString("hh:mm:ss.fff tt", CultureInfo.InvariantCulture),
+            log.Message]);
 }

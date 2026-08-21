@@ -372,6 +372,11 @@ public sealed class TickAggregationServiceTests
         Assert.Equal(5m, snapshot.Quote!.Value.BidPrice);
         Assert.Single(publisher.MarketPrices);
         Assert.Equal(snapshot, publisher.MarketPrices[0].Price);
+        var status = service.GetContractStatus("ESU6");
+        Assert.True(status.ContractConfigured);
+        Assert.NotNull(status.LastSourceRecordObservedAtUtc);
+        Assert.NotNull(status.LastMarketPricePublishedAtUtc);
+        Assert.NotNull(status.LastDurableTickPublishedAtUtc);
 
         await service.StopAsync();
     }
@@ -652,12 +657,13 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
-    public async Task Rejected_quote_publication_retains_lease_sequence_and_event_identity_for_stop_retry()
+    public async Task Rejected_quote_publication_does_not_end_worker_and_retries_on_bounded_stop()
     {
         var instrument = new InstrumentKey(7, 42);
         using var feed = new FakeFeed(instrument,
             Quote(instrument, 1, 5_000_000_000, 5_100_000_000),
-            Trade(instrument, 2, 5_050_000_000));
+            Trade(instrument, 2, 5_050_000_000),
+            Trade(instrument, 3, 5_060_000_000));
         var publisher = new RejectFirstQuotePublisher();
         await using var service = new TickAggregationService(
             feed,
@@ -668,12 +674,19 @@ public sealed class TickAggregationServiceTests
             new TickAggregationOptions { Dataset = "GLBX.MDP3", DefinitionDate = new DateOnly(2026, 8, 7) });
 
         await service.StartAsync();
-        await Assert.ThrowsAsync<AggregateException>(() => service.StopAsync().AsTask());
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().EmittedTradeEvents == 1,
+            TimeSpan.FromSeconds(2)));
+        await service.StopAsync();
 
         Assert.Equal(2, publisher.QuoteAttempts.Count);
         Assert.Equal(publisher.QuoteAttempts[0], publisher.QuoteAttempts[1]);
         Assert.Equal(QuoteEmissionReason.TradeObserved, publisher.Reasons[0]);
         Assert.Equal(publisher.Reasons[0], publisher.Reasons[1]);
+        Assert.Equal(1, service.GetMetrics().ProcessingFailures);
+        Assert.Equal(1, publisher.DurableTradeCount);
+        Assert.True(service.TryGetLastTickPrice("ESU6", out var latest));
+        Assert.Equal(5.06m, latest.Trade!.Value.LastPrice);
     }
 
     [Fact]
@@ -973,11 +986,16 @@ public sealed class TickAggregationServiceTests
     {
         public List<(Guid EventId, Guid CommandId, long Sequence)> QuoteAttempts { get; } = [];
         public List<QuoteEmissionReason> Reasons { get; } = [];
+        public int DurableTradeCount { get; private set; }
         public bool IsRunning { get; private set; }
         public ValueTask StartAsync() { IsRunning = true; return ValueTask.CompletedTask; }
         public ValueTask PublishAsync(FuturesMarketPriceUpdatedRealtimeEvent e) =>
             ValueTask.CompletedTask;
-        public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e) => ValueTask.CompletedTask;
+        public ValueTask PublishAsync(FuturesTickTradeDataChangedEvent e)
+        {
+            DurableTradeCount++;
+            return ValueTask.CompletedTask;
+        }
         public ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent e, ITickQuoteBufferLease lease)
         {
             QuoteAttempts.Add((e.Id, e.CommandId, e.TickDataId.SequenceId));

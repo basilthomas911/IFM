@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -93,6 +94,37 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
                     command.ValueDate == @event.ValueDate
                     && command.Contracts.Select(value => value.ContractId)
                         .SequenceEqual(SampleData.FuturesContracts.Select(value => value.ContractId))));
+    }
+
+    [Fact]
+    public async Task StartedComplete_DoesNotReportOrContinueAfterTickStreamCommandIsRejected()
+    {
+        var status = Substitute.For<IStatusConsoleWriter>();
+        var actor = _fixture.CreateMarketDataFeedEventActor(statusConsoleWriter: status);
+        var context = Substitute.For<IEventActorContext>();
+        context.RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
+                Arg.Any<StartFuturesTickDataStreamingCommand>())
+            .Returns(new ServiceFailed<GuidResult>(6003, "route rejected"));
+        var @event = CreateStartedCompleteEvent();
+        var firstContract = SampleData.FuturesContracts[0];
+
+        await actor.InvokeReceiveAsync(context, @event);
+
+        await context.Received(1)
+            .RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
+                Arg.Any<StartFuturesTickDataStreamingCommand>());
+        await context.DidNotReceive()
+            .RequestAsync<StartFuturesBarDataStreamingCommand, FuturesBarDataStreamingId>(
+                Arg.Any<StartFuturesBarDataStreamingCommand>());
+        await status.DidNotReceive().WriteConsoleAsync(
+            LogSourceType.MarketDataFeedEvent,
+            $"Streaming Futures {firstContract.ContractId} started");
+        await status.Received(1).WriteConsoleAsync(
+            LogSourceType.MarketDataFeedEvent,
+            -1,
+            Arg.Is<string>(message => message.Contains("route rejected", StringComparison.Ordinal)),
+            string.Empty,
+            string.Empty);
     }
 
     static MarketDataFeedStartedEvent CreateStartedEvent(Guid? commandId = null)

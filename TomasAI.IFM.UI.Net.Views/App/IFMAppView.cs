@@ -31,6 +31,7 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMAppLiveViewAdapter
 {
     static readonly TimeSpan PresentationShutdownTimeout = TimeSpan.FromSeconds(10);
+    const double DefaultSidePanelWidthRatio = 0.22;
     private IAppRoot _appRoot;
     private readonly IViewNavigator _navigator;
     private Control? _tradeBlotter;
@@ -52,6 +53,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 
     private async void IFMApp_Load(object sender, EventArgs e)
     {
+        InitializeDashboardSplitters();
         _viewModel = new IFMAppViewModel(
             _appRoot,
             _appVersion,
@@ -115,6 +117,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.CanToggleMarketDataFeed):
             case nameof(IFMAppViewModel.MarketDataFeedActionText):
             case nameof(IFMAppViewModel.MarketDataFeedStateText):
+            case nameof(IFMAppViewModel.MarketDataFeedHealthState):
                 RenderMarketDataFeedState();
                 break;
             case nameof(IFMAppViewModel.StatusLine):
@@ -123,9 +126,9 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.StatusLogs):
                 statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
                 break;
-            case nameof(IFMAppViewModel.StatusConsole):
-                if (_viewModel.StatusConsole is { } statusConsole)
-                    statusConsoleView1.LoadViewModel(statusConsole);
+            case nameof(IFMAppViewModel.Operations):
+                if (_viewModel.Operations is { } operations)
+                    operationsView1.RefreshView(operations);
                 break;
             case nameof(IFMAppViewModel.MarketOutlook):
                 if (_viewModel.MarketOutlook is { } marketOutlook)
@@ -158,8 +161,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         RenderMenuState();
         RenderStatusLine();
         statusConsoleView1.RenderStatusConsole(_viewModel.StatusLogs);
-        if (_viewModel.StatusConsole is { } statusConsole)
-            statusConsoleView1.LoadViewModel(statusConsole);
+        if (_viewModel.Operations is { } operations)
+            operationsView1.LoadViewModel(operations);
         if (_viewModel.MarketOutlook is { } marketOutlook)
             marketOutlookView1.RefreshView(marketOutlook);
         if (_viewModel.FuturesTradeSignal is { } tradeSignal)
@@ -185,11 +188,18 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     {
         marketDataFeedButton.Text = _viewModel.MarketDataFeedActionText;
         marketDataFeedButton.AccessibleName = _viewModel.MarketDataFeedActionText;
+        marketDataFeedButton.AccessibleDescription = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.ToolTipText = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.Enabled = _viewModel.CanToggleMarketDataFeed;
-        marketDataFeedButton.ForeColor = _viewModel.IsMarketDataFeedActive
-            ? Color.DarkGreen
-            : Color.DarkRed;
+        (marketDataFeedButton.BackColor, marketDataFeedButton.ForeColor) = _viewModel.MarketDataFeedHealthState switch
+        {
+            MarketDataFeedHealthState.Healthy => (Color.LimeGreen, Color.Black),
+            MarketDataFeedHealthState.Intermittent => (Color.Yellow, Color.Black),
+            MarketDataFeedHealthState.Failed => (Color.Orange, Color.Black),
+            MarketDataFeedHealthState.Critical => (Color.Red, Color.White),
+            MarketDataFeedHealthState.OutsidePositionEntryWindow => (Color.DimGray, Color.White),
+            _ => (SystemColors.Control, Color.DarkRed)
+        };
     }
 
     private void RenderStatusLine()
@@ -293,9 +303,11 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                                 [.. _viewModel.BaseContracts]);
                             if (_tradeBlotter is not null)
                                  ((IFormControl)_tradeBlotter)?.Open();
-                            tabPage.BackColor = SystemColors.ControlDarkDark;
+                            tabPage.UseVisualStyleBackColor = false;
+                            tabPage.BackColor = Color.Black;
                             tabPage.Controls.Clear();
                             tabPage.Controls.Add(_tradeBlotter);
+                            tabTradeBlotter.Visible = true;
                             break;
                         }
                 }
@@ -369,11 +381,38 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         tabPage.Controls.Clear();
         tabTradeBlotter.TabPages.Remove(tabPage);
         if (tabTradeBlotter.TabPages.Count == 0)
+        {
             btnCloseOrder.Visible = false;
+            tabTradeBlotter.Visible = false;
+        }
     }
 
-    private void tradeSplitter_SplitterMoved(object sender, SplitterEventArgs e)
+    private void operationViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)
         => ResizeTabPages();
+
+    private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)
+        => ResizeTabPages();
+
+    private void InitializeDashboardSplitters()
+    {
+        var dashboardWidth = operationViewSplitter.ClientSize.Width;
+        if (dashboardWidth <= 0)
+            return;
+
+        var sidePanelWidth = (int)Math.Round(
+            dashboardWidth * DefaultSidePanelWidthRatio,
+            MidpointRounding.AwayFromZero);
+        operationViewSplitter.SplitterDistance = Math.Clamp(
+            sidePanelWidth,
+            operationViewSplitter.Panel1MinSize,
+            dashboardWidth - operationViewSplitter.SplitterWidth - operationViewSplitter.Panel2MinSize);
+
+        var marketSplitterWidth = marketViewSplitter.ClientSize.Width;
+        marketViewSplitter.SplitterDistance = Math.Clamp(
+            marketSplitterWidth - marketViewSplitter.SplitterWidth - sidePanelWidth,
+            marketViewSplitter.Panel1MinSize,
+            marketSplitterWidth - marketViewSplitter.SplitterWidth - marketViewSplitter.Panel2MinSize);
+    }
 
 
     private void ResizeTabPages()
@@ -400,7 +439,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             tabPage.Controls.Clear();
             tabTradeBlotter.TabPages.RemoveAt(tabIndex);
             if (tabTradeBlotter.TabPages.Count == 0)
+            {
                 btnCloseOrder.Visible = false;
+                tabTradeBlotter.Visible = false;
+            }
         }
     }
 

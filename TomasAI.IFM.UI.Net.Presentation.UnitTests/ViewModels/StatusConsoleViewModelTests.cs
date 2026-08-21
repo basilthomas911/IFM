@@ -1,6 +1,7 @@
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
@@ -125,13 +126,14 @@ public class StatusConsoleViewModelTests
             .Returns(Task.FromResult(downTrendResult));
 
         var consumer = Substitute.For<IFuturesItiSignalUIEventConsumer>();
-        var eventSource = new TestEventSource(consumer);
+        var tradeSignalConsumer = Substitute.For<IFuturesTradeSignalUIEventConsumer>();
+        var eventSource = new TestEventSource(consumer, tradeSignalConsumer);
         var appRoot = Substitute.For<IAppRoot>();
         appRoot.GetModel<MarketDataAnalyticsQueryModel>()
             .Returns(new MarketDataAnalyticsQueryModel(analyticsApi));
         appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(referenceApi));
         appRoot.GetModel<MarketDataAnalyticsEventModel>()
-            .Returns(new MarketDataAnalyticsEventModel(consumer));
+            .Returns(new MarketDataAnalyticsEventModel(consumer, tradeSignalConsumer));
 
         return new Subject(
             new StatusConsoleViewModel(appRoot, "ESZ26", ValueDate),
@@ -173,40 +175,52 @@ public class StatusConsoleViewModelTests
 
     sealed class TestEventSource
     {
-        Action<FuturesItiSignalV2ReadModel>? _direction;
-        Action<FuturesItiSignalV2ReadModel>? _extreme;
-        Action<FuturesTradeSignalV2ReadModel>? _tradeSignal;
+        Action<FuturesItiSignalUpdatedNotifyEvent>? _itiSignal;
+        Action<FuturesTradeSignalUpdatedNotifyEvent>? _tradeSignal;
 
-        public TestEventSource(IFuturesItiSignalUIEventConsumer consumer)
+        public TestEventSource(
+            IFuturesItiSignalUIEventConsumer consumer,
+            IFuturesTradeSignalUIEventConsumer tradeSignalConsumer)
         {
             consumer.StartAsync(
-                    Arg.Any<Action<FuturesItiSignalV2ReadModel>>(),
-                    Arg.Any<Action<FuturesItiSignalV2ReadModel>>(),
-                    Arg.Any<Action<FuturesTradeSignalV2ReadModel>>())
+                    Arg.Any<Guid>(),
+                    Arg.Any<Action<FuturesItiSignalUpdatedNotifyEvent>>())
                 .Returns(call =>
                 {
-                    _direction = call.ArgAt<Action<FuturesItiSignalV2ReadModel>>(0);
-                    _extreme = call.ArgAt<Action<FuturesItiSignalV2ReadModel>>(1);
-                    _tradeSignal = call.ArgAt<Action<FuturesTradeSignalV2ReadModel>>(2);
+                    _itiSignal = call.ArgAt<Action<FuturesItiSignalUpdatedNotifyEvent>>(1);
                     IsStarted = true;
                     return ValueTask.CompletedTask;
                 });
-            consumer.StopAsync().Returns(_ =>
+            consumer.StopAsync(Arg.Any<Guid>()).Returns(_ =>
             {
                 IsStarted = false;
                 return ValueTask.CompletedTask;
             });
+            tradeSignalConsumer.StartAsync(
+                    Arg.Any<Guid>(),
+                    Arg.Any<Action<FuturesTradeSignalUpdatedNotifyEvent>>())
+                .Returns(call =>
+                {
+                    _tradeSignal = call.ArgAt<Action<FuturesTradeSignalUpdatedNotifyEvent>>(1);
+                    return ValueTask.CompletedTask;
+                });
+            tradeSignalConsumer.StopAsync(Arg.Any<Guid>()).Returns(ValueTask.CompletedTask);
         }
 
         public bool IsStarted { get; private set; }
 
         public void PublishDirection(FuturesItiSignalV2ReadModel signal)
-            => (_direction ?? throw new InvalidOperationException("Listener not started."))(signal);
+            => PublishIti(signal);
 
         public void PublishExtreme(FuturesItiSignalV2ReadModel signal)
-            => (_extreme ?? throw new InvalidOperationException("Listener not started."))(signal);
+            => PublishIti(signal);
 
         public void PublishTradeSignal(FuturesTradeSignalV2ReadModel signal)
-            => (_tradeSignal ?? throw new InvalidOperationException("Listener not started."))(signal);
+            => (_tradeSignal ?? throw new InvalidOperationException("Listener not started."))(
+                new FuturesTradeSignalUpdatedNotifyEvent { FuturesTradeSignal = signal });
+
+        void PublishIti(FuturesItiSignalV2ReadModel signal)
+            => (_itiSignal ?? throw new InvalidOperationException("Listener not started."))(
+                new FuturesItiSignalUpdatedNotifyEvent { FuturesItiSignal = signal });
     }
 }

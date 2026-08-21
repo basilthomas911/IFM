@@ -1,88 +1,135 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 
 /// <summary>
-/// Consumes and processes UI events related to futures ITI signals.
+/// Delivers every valid, successfully persisted Futures ITI change to independently owned UI subscribers.
 /// </summary>
-/// <remarks>This class subscribes to specific market data analytic events and executes provided actions when
-/// these events occur. It handles events such as trend direction changes, trend extreme changes, and futures trade
-/// signal updates.</remarks>
-/// <param name="options"></param>
-/// <param name="logger"></param>
-public class FuturesItiSignalUIEventConsumer(INatsEventListenerOptions options, ILogger logger)
+public sealed class FuturesItiSignalUIEventConsumer(INatsEventListenerOptions options, ILogger logger)
     : NatsActorEventListener(options, logger), IFuturesItiSignalUIEventConsumer
 {
+    const string EventConsumer = nameof(FuturesItiSignalUIEventConsumer);
     readonly ILogger _logger = logger;
-    readonly static string EventConsumer = "FuturesEodDataUIEventConsumer";
+    readonly ConcurrentDictionary<Guid, Action<FuturesItiSignalUpdatedNotifyEvent>> _eventActions = new();
+    readonly SemaphoreSlim _subscriberGate = new(1, 1);
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new ActorMailboxId(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor)]
-               = [FuturesItiSignalGeneratedEvent.Verb],
-        [new ActorMailboxId(ActorType.Event, FuturesTradeSignalUpdatedEvent.Actor)]
-               = [FuturesTradeSignalUpdatedEvent.Verb]
+        [new(ActorType.Notify, FuturesItiSignalUpdatedNotifyEvent.Actor)] =
+            [FuturesItiSignalUpdatedNotifyEvent.Verb]
     };
 
     public async ValueTask StartAsync(
-        Action<FuturesItiSignalV2ReadModel> trendDirectionChangedAction, 
-        Action<FuturesItiSignalV2ReadModel> trendExtremeChangedAction, 
-        Action<FuturesTradeSignalV2ReadModel> futuresTradeSignalAction)
+        Guid siteId,
+        Action<FuturesItiSignalUpdatedNotifyEvent> eventAction)
     {
-        await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
+        await _subscriberGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var startListener = AddSubscriber(siteId, eventAction);
+            if (!startListener)
+                return;
 
-        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+            try
+            {
+                await StartAsync(EventConsumer, _eventMap, EventHandlerAsync).ConfigureAwait(false);
+            }
+            catch
+            {
+                _eventActions.TryRemove(siteId, out _);
+                throw;
+            }
+        }
+        finally
+        {
+            _subscriberGate.Release();
+        }
+    }
+
+    public async ValueTask StopAsync(Guid siteId)
+    {
+        if (siteId == Guid.Empty)
+            return;
+
+        await _subscriberGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (RemoveSubscriber(siteId))
+                await base.StopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _subscriberGate.Release();
+        }
+    }
+
+    async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMessage)
+    {
+        try
+        {
+            if (eventVerb != FuturesItiSignalUpdatedNotifyEvent.Verb)
+                return;
+
+            var notification = eventMessage.AsEvent<FuturesItiSignalUpdatedNotifyEvent>();
+            if (notification is not null)
+                Dispatch(notification);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogErrorEvent(
+                EventConsumer,
+                exception,
+                "Failed while processing Futures ITI event verb {EventVerb}",
+                eventVerb);
+        }
+
+        await ValueTask.CompletedTask;
+    }
+
+    internal void Dispatch(FuturesItiSignalUpdatedNotifyEvent notification)
+    {
+        if (!notification.IsValid)
+            return;
+
+        foreach (var eventAction in _eventActions.Values)
         {
             try
             {
-                _ = eventVerb switch
-                {
-                    _ when eventVerb == FuturesItiSignalGeneratedEvent.Verb
-                        => HandleGenerateEvent(eventMsg.AsEvent<FuturesItiSignalGeneratedEvent>()!),
-                    _ when eventVerb == FuturesTradeSignalUpdatedEvent.Verb
-                        => HandleUpdatedEvent(eventMsg.AsEvent<FuturesTradeSignalUpdatedEvent>()!),
-                    _ => default!
-                };
-                await ValueTask.CompletedTask;
+                eventAction(notification);
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                _logger.LogErrorEvent(EventConsumer, ex, "EventHandlerAsync: failed while processing event verb: {EventVerb}", eventVerb);
-            }
-
-            IEvent HandleGenerateEvent(FuturesItiSignalGeneratedEvent e)
-            {
-                _ = e switch
-                {
-                    _ when e.FuturesItiSignal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendDirectionChanged
-                        => HandleSignalData(e.FuturesItiSignal, x => trendDirectionChangedAction?.Invoke(x)),
-                    _ when e.FuturesItiSignal.IntrinsicTimeMode == IntrinsicTimeModeType.TrendExtremeChanged
-                        => HandleSignalData(e.FuturesItiSignal, x => trendExtremeChangedAction?.Invoke(x)),
-                    _ => default!
-                };
-                return e;
-
-                FuturesItiSignalV2ReadModel HandleSignalData(FuturesItiSignalV2ReadModel e, Action<FuturesItiSignalV2ReadModel> action)
-                {
-                    action?.Invoke(e);
-                    return e;
-                }
-            }
-
-            IEvent HandleUpdatedEvent(FuturesTradeSignalUpdatedEvent e)
-            {
-                futuresTradeSignalAction?.Invoke(e.FuturesTradeSignal);
-                return e;
+                _logger.LogErrorEvent(
+                    EventConsumer,
+                    exception,
+                    "A Futures ITI UI subscriber failed while processing {EventVerb}",
+                    FuturesItiSignalUpdatedNotifyEvent.Verb);
             }
         }
+    }
+
+    internal bool AddSubscriber(
+        Guid siteId,
+        Action<FuturesItiSignalUpdatedNotifyEvent> eventAction)
+    {
+        if (siteId == Guid.Empty)
+            throw new ArgumentException("A non-empty UI site identifier is required.", nameof(siteId));
+        ArgumentNullException.ThrowIfNull(eventAction);
+
+        var startListener = _eventActions.IsEmpty;
+        _eventActions[siteId] = eventAction;
+        return startListener;
+    }
+
+    internal bool RemoveSubscriber(Guid siteId)
+    {
+        _eventActions.TryRemove(siteId, out _);
+        return _eventActions.IsEmpty;
     }
 }

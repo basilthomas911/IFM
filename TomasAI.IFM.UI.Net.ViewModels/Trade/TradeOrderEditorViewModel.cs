@@ -37,6 +37,7 @@ public sealed record TradeOrderEditorChange(
 public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     readonly IAppRoot _appRoot;
+    readonly TimeProvider _timeProvider;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
     readonly IReadOnlyList<FuturesContractV2ReadModel> _baseContracts;
@@ -68,11 +69,13 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public TradeOrderEditorViewModel(
         IAppRoot appRoot,
         DateOnly? valueDate,
-        ICollection<FuturesContractV2ReadModel> baseContracts)
+        ICollection<FuturesContractV2ReadModel> baseContracts,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
         _appRoot = appRoot;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _valueDate = valueDate;
         _baseContracts = baseContracts.ToArray();
         _fundQueryModel = appRoot.GetModel<FundQueryModel>();
@@ -133,7 +136,14 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public OrderActionType OrderActionType
     {
         get => _orderActionType;
-        set => SetProperty(ref _orderActionType, value);
+        set
+        {
+            if (SetProperty(ref _orderActionType, value))
+            {
+                OnPropertyChanged(nameof(CanSubmitOrder));
+                OnPropertyChanged(nameof(CanUseLiveFeed));
+            }
+        }
     }
 
     /// <summary>Gets the active correlation identifier.</summary>
@@ -185,8 +195,33 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public bool CanRemoveTrade => CanCompleteOrder && SelectedFundOrderTrade is not null;
     public bool CanChangeTradeState => CanCompleteOrder && SelectedFundOrderTrade is not null;
     public bool CanEndOfDay => CanCompleteOrder && SelectedFundOrderTrade is not null;
-    public bool CanSubmitOrder => CanCompleteOrder && SelectedFundOrderTrade?.TradeState == TradeState.NewTrade;
+    public bool CanSubmitOrder => CanCompleteOrder
+        && SelectedFundOrderTrade?.TradeState == TradeState.NewTrade
+        && CanSubmitOrderAction(OrderActionType);
     public bool CanUseLiveFeed => CanSubmitOrder;
+
+    /// <summary>
+    /// Gets whether the requested order action is permitted now. Closing positions is always
+    /// permitted; opening is limited to the weekday 03:00–16:00 Eastern entry window.
+    /// </summary>
+    public bool CanSubmitOrderAction(OrderActionType orderActionType)
+        => orderActionType == OrderActionType.Close
+            || PositionEntryWindow.IsOpen(_timeProvider.GetUtcNow());
+
+    /// <summary>Validates the time-sensitive entry policy without using exceptions for normal control flow.</summary>
+    public bool ValidateOrderSubmission(OrderActionType orderActionType)
+    {
+        if (CanSubmitOrderAction(orderActionType))
+            return true;
+
+        LastError = new PresentationError(
+            Interlocked.Increment(ref _errorSequence),
+            0,
+            "New positions can only be opened between 03:00 and 16:00 Eastern, Monday through Friday. "
+                + "Existing positions may still be closed.",
+            "Position Entry Closed");
+        return false;
+    }
 
     /// <summary>Safely gets a fund by index.</summary>
     public FundReadModel? GetFund(int index) => GetAt(Funds, index);

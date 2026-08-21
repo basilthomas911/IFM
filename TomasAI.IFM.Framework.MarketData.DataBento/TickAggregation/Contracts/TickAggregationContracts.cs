@@ -51,7 +51,11 @@ public readonly record struct TickAggregationContractStatus(
     AssetTypeId AssetTypeId,
     bool ServiceRunning,
     bool ContractConfigured,
-    bool ContractRunning);
+    bool ContractRunning,
+    bool StreamActive = false,
+    DateTimeOffset? LastSourceRecordObservedAtUtc = null,
+    DateTimeOffset? LastMarketPricePublishedAtUtc = null,
+    DateTimeOffset? LastDurableTickPublishedAtUtc = null);
 
 public readonly record struct TickAggregationTickerStatus(
     string FuturesContractId,
@@ -76,6 +80,7 @@ public readonly record struct TickAggregationMetricsSnapshot(
     long OutOfOrderSourceSequences,
     long SourceSequenceGaps,
     long PublicationFailures,
+    long ProcessingFailures,
     int ActiveTickers,
     int ServiceOwnedQuoteBuffers);
 

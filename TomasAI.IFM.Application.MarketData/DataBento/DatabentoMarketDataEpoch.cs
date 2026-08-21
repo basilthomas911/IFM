@@ -335,16 +335,22 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     {
         var aggregations = Volatile.Read(ref _aggregationsByDataset).Values;
         var metrics = aggregations.Select(static aggregation => aggregation.GetMetrics()).ToArray();
+        var statuses = Volatile.Read(ref _aggregationByContractId).Keys
+            .Order(StringComparer.Ordinal)
+            .Select(GetAggregationStatus)
+            .ToArray();
         return new DatabentoMarketDataEpochHealth(
             ValueDate,
             Volatile.Read(ref _started) != 0,
-            aggregations.Any() && aggregations.All(static aggregation => aggregation.IsRunning),
+            statuses.Length != 0 && statuses.All(static status => status.ContractRunning),
             _catalog?.ResolvedContracts.Count ?? 0,
             _lastPrices?.Count ?? 0,
             _lastPrices?.IsActive == true,
             metrics.Sum(static metric => metric.SourceQuoteRecords),
             metrics.Sum(static metric => metric.SourceTradeRecords),
-            metrics.Sum(static metric => metric.PublicationFailures));
+            metrics.Sum(static metric => metric.PublicationFailures),
+            metrics.Sum(static metric => metric.ProcessingFailures),
+            statuses);
     }
 
     public bool StartFuturesRoute(

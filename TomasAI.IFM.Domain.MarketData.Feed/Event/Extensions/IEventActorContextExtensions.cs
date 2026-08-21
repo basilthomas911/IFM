@@ -87,7 +87,11 @@ public static class IEventActorContextExtensions
             MarketDataFeedResetCompleteEvent o => (o.ValueDate, true),
             _ => throw new InvalidOperationException($"Unsupported event type: {e.GetType().FullName}")
         };
-        _ = await commandApi.StartFuturesTickDataStreamingAsync(futuresContract, valueDate, resetStream, entityId);
+        var result = await commandApi.StartFuturesTickDataStreamingAsync(
+            futuresContract, valueDate, resetStream, entityId);
+        if (!result.Success)
+            throw new InvalidOperationException(
+                $"Futures tick streaming was not accepted for '{futuresContract.ContractId}': {result.ErrorMessage}");
     }
 
     /// <summary>
@@ -106,7 +110,11 @@ public static class IEventActorContextExtensions
             MarketDataFeedResetCompleteEvent o => (o.FuturesContracts!, o.ValueDate),
             _ => throw new InvalidOperationException($"Unsupported event type: {e.GetType().FullName}")
         };
-        _ = await commandApi.StartFuturesBarDataStreamingAsync(futuresContracts, valueDate, entityId);
+        var result = await commandApi.StartFuturesBarDataStreamingAsync(
+            futuresContracts, valueDate, entityId);
+        if (!result.Success)
+            throw new InvalidOperationException(
+                $"Futures bar streaming was not accepted for value date '{valueDate:yyyy-MM-dd}': {result.ErrorMessage}");
     }
 
     /// <summary>

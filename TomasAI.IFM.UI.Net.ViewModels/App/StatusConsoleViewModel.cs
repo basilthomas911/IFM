@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -25,6 +26,7 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
     readonly ReferenceQueryModel _referenceQueryModel;
     readonly MarketDataAnalyticsEventModel _eventModel;
     readonly AsyncLifecycleCoordinator _lifecycle;
+    readonly Guid _siteId = Guid.NewGuid();
     List<FuturesItiSignalV2ReadModel> _tradeSignals = [];
     FuturesTradeSignalV2ReadModel? _futuresTradeSignal;
     IReadOnlyList<FuturesItiSignalV2ReadModel> _publishedTradeSignals = [];
@@ -182,8 +184,8 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
         {
             await _eventModel.ExecuteAsync(
                 async model => await model.StartFuturesItiSignalEventListenersAsync(
-                    OnTrendDirectionChanged,
-                    OnTrendExtremeChanged,
+                    _siteId,
+                    OnFuturesItiSignal,
                     OnFuturesTradeSignal),
                 cancellationToken);
         }
@@ -201,12 +203,26 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
         try
         {
             await _eventModel.ExecuteAsync(
-                async model => await model.StopFuturesItiSignalEventListenersAsync(),
+                async model => await model.StopFuturesItiSignalEventListenersAsync(_siteId),
                 cancellationToken);
         }
         finally
         {
             _eventModel.OnError(null!);
+        }
+    }
+
+    void OnFuturesItiSignal(FuturesItiSignalUpdatedNotifyEvent notification)
+    {
+        var signal = notification.FuturesItiSignal;
+        switch (signal.IntrinsicTimeMode)
+        {
+            case IntrinsicTimeModeType.TrendDirectionChanged:
+                OnTrendDirectionChanged(signal);
+                break;
+            case IntrinsicTimeModeType.TrendExtremeChanged:
+                OnTrendExtremeChanged(signal);
+                break;
         }
     }
 
@@ -232,8 +248,9 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
         }
     }
 
-    void OnFuturesTradeSignal(FuturesTradeSignalV2ReadModel signal)
+    void OnFuturesTradeSignal(FuturesTradeSignalUpdatedNotifyEvent notification)
     {
+        var signal = notification.FuturesTradeSignal;
         if (Volatile.Read(ref _acceptEvents) == 0 || signal is null)
             return;
 

@@ -34,6 +34,7 @@ internal static class FuturesItiSignalGeneratedComplete
     {
         try
         {
+            await source.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
             await source.PublishAsync(context).ConfigureAwait(false);
             if (!FuturesTradeSignalPrerequisites.ShouldGenerate(source))
                 return true;

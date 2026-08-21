@@ -60,6 +60,7 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
 
         var generated = new ConcurrentDictionary<TimeFrameType, FuturesItiSignalGeneratedEvent>();
         var completed = new ConcurrentDictionary<TimeFrameType, FuturesItiSignalGeneratedCompleteEvent>();
+        var notifications = new ConcurrentDictionary<TimeFrameType, FuturesItiSignalUpdatedNotifyEvent>();
         var pipelineCompleted = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var listener = new NatsActorEventListener(
@@ -77,7 +78,9 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
                         FuturesItiSignalGeneratedEvent.Verb,
                         FuturesItiSignalGeneratedCompleteEvent.Verb,
                         FuturesItiSignalGeneratedFailEvent.Verb
-                    ]
+                    ],
+                    [new ActorMailboxId(ActorType.Notify, FuturesItiSignalUpdatedNotifyEvent.Actor)] =
+                    [FuturesItiSignalUpdatedNotifyEvent.Verb]
                 },
                 HandleEventAsync);
 
@@ -96,8 +99,13 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
 
             generated.Keys.Should().Equal(TimeFrameType.Daily);
             completed.Keys.Should().Equal(TimeFrameType.Daily);
+            notifications.Keys.Should().Equal(TimeFrameType.Daily);
             generated[TimeFrameType.Daily].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
             completed[TimeFrameType.Daily].VixFuturesPrice.Should().Be(SampleData.VixFuturesPrice);
+            notifications[TimeFrameType.Daily].FuturesItiSignal.Should()
+                .BeEquivalentTo(completed[TimeFrameType.Daily].FuturesItiSignal);
+            notifications[TimeFrameType.Daily].SourceEventId.Should()
+                .Be(completed[TimeFrameType.Daily].Id);
             generated[TimeFrameType.Daily].FuturesItiSignal!.TradingDays.Should().Be(1);
 
             foreach (var period in expectedPeriods)
@@ -129,8 +137,16 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
                 if (Matches(@event.EntityId))
                 {
                     completed[@event.EntityId.TimePeriod] = @event;
-                    if (completed.ContainsKey(TimeFrameType.Daily))
-                        pipelineCompleted.TrySetResult(true);
+                    TryComplete();
+                }
+            }
+            else if (eventVerb == FuturesItiSignalUpdatedNotifyEvent.Verb)
+            {
+                var @event = message.AsEvent<FuturesItiSignalUpdatedNotifyEvent>()!;
+                if (Matches(@event.EntityId))
+                {
+                    notifications[@event.EntityId.TimePeriod] = @event;
+                    TryComplete();
                 }
             }
             else if (eventVerb == FuturesItiSignalGeneratedFailEvent.Verb)
@@ -141,6 +157,15 @@ public sealed class FuturesItiSignalDailyPipelineIntegrationTests(
             }
 
             return ValueTask.CompletedTask;
+
+            void TryComplete()
+            {
+                if (completed.ContainsKey(TimeFrameType.Daily)
+                    && notifications.ContainsKey(TimeFrameType.Daily))
+                {
+                    pipelineCompleted.TrySetResult(true);
+                }
+            }
         }
 
         bool Matches(FuturesItiSignalEntityId entityId) =>

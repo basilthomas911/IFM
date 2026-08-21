@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MessagePack;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
@@ -267,6 +268,92 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
 
         await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
             default!, default, default, default, default, default, default);
+    }
+
+    [Fact]
+    public async Task DurableCompletion_PublishesSerializableItiNotification()
+    {
+        var source = CreateCompletion(TimeFrameType.Weekly);
+        var context = Substitute.For<IEventActorContext>();
+        FuturesItiSignalUpdatedNotifyEvent? published = null;
+        context.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
+                Arg.Do<FuturesItiSignalUpdatedNotifyEvent>(value => published = value))
+            .Returns(ValueTask.CompletedTask);
+
+        var result = await source.ExecuteAsync(
+            context,
+            Substitute.For<IActorMarketDataAnalyticsCommandApi>(),
+            Substitute.For<IStatusConsoleWriter>(),
+            Substitute.For<ILogger>());
+
+        result.Should().BeTrue();
+        published.Should().NotBeNull();
+        published!.Subject.Is(
+            ActorType.Notify,
+            FuturesItiSignalUpdatedNotifyEvent.Actor,
+            FuturesItiSignalUpdatedNotifyEvent.Verb).Should().BeTrue();
+        published.SourceEventId.Should().Be(source.Id);
+        published.CommandId.Should().Be(source.CommandId);
+        published.EntityId.Should().Be(source.EntityId);
+        published.FuturesItiSignal.Should().Be(source.FuturesItiSignal);
+        published.IsValid.Should().BeTrue();
+
+        var roundTrip = MessagePackSerializer.Deserialize<FuturesItiSignalUpdatedNotifyEvent>(
+            MessagePackSerializer.Serialize(published));
+        roundTrip.Should().BeEquivalentTo(published);
+    }
+
+    [Fact]
+    public async Task RealtimeCompletion_PublishesItiNotificationForLongerPeriod()
+    {
+        var source = CreateCompletion(TimeFrameType.Monthly);
+        var context = Substitute.For<IEventActorContext>();
+
+        var result = await TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime
+            .FuturesItiSignalGeneratedComplete.ExecuteRealtimeAsync(
+                source,
+                context,
+                Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>(),
+                Substitute.For<IStatusConsoleWriter>(),
+                Substitute.For<ILogger>());
+
+        result.Should().BeTrue();
+        await context.Received(1)
+            .SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
+                Arg.Is<FuturesItiSignalUpdatedNotifyEvent>(notification =>
+                    notification.FuturesItiSignal.TimePeriod == TimeFrameType.Monthly
+                    && notification.SourceEventId == source.Id
+                    && notification.IsValid));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Completion_NotificationFailureDoesNotFailPersistedSignal(bool realtime)
+    {
+        var source = CreateCompletion(TimeFrameType.Weekly);
+        var context = Substitute.For<IEventActorContext>();
+        context.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
+                Arg.Any<FuturesItiSignalUpdatedNotifyEvent>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("Core NATS unavailable"));
+
+        Func<Task> act = realtime
+            ? () => TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime
+                .FuturesItiSignalGeneratedComplete.ExecuteRealtimeAsync(
+                    source,
+                    context,
+                    Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>(),
+                    Substitute.For<IStatusConsoleWriter>(),
+                    Substitute.For<ILogger>())
+                .AsTask()
+            : () => source.ExecuteAsync(
+                    context,
+                    Substitute.For<IActorMarketDataAnalyticsCommandApi>(),
+                    Substitute.For<IStatusConsoleWriter>(),
+                    Substitute.For<ILogger>())
+                .AsTask();
+
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]

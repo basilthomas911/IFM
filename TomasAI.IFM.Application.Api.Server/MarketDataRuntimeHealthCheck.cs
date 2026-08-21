@@ -7,8 +7,12 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// Exposes the live market-data epoch state and source-record counters through
 /// the API readiness response.
 /// </summary>
-public sealed class MarketDataRuntimeHealthCheck(DatabentoMarketDataApi marketDataApi) : IHealthCheck
+public sealed class MarketDataRuntimeHealthCheck(
+    DatabentoMarketDataApi marketDataApi,
+    TimeProvider timeProvider) : IHealthCheck
 {
+    static readonly TimeSpan MaximumCurrentContractSilence = TimeSpan.FromSeconds(30);
+
     public Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
@@ -24,34 +28,56 @@ public sealed class MarketDataRuntimeHealthCheck(DatabentoMarketDataApi marketDa
             ["lastPriceStoreActive"] = epoch?.LastPriceStoreActive ?? false,
             ["sourceQuoteRecords"] = epoch?.SourceQuoteRecords ?? 0,
             ["sourceTradeRecords"] = epoch?.SourceTradeRecords ?? 0,
-            ["publicationFailures"] = epoch?.PublicationFailures ?? 0
+            ["publicationFailures"] = epoch?.PublicationFailures ?? 0,
+            ["processingFailures"] = epoch?.ProcessingFailures ?? 0
         };
-        var ready = health.Running
+        var infrastructureReady = health.Running
             && epoch is { Running: true, AggregationRunning: true, LastPriceStoreActive: true }
             && epoch.Value.ConfiguredContracts > 0;
 
-        AddRoute("ES");
-        AddRoute("VX");
+        var currentContractsLive = AddRoute("ES") & AddRoute("VX");
+        data["currentContractsLive"] = currentContractsLive;
 
-        return Task.FromResult(ready
-            ? HealthCheckResult.Healthy("Market-data feeds and aggregation are running.", data)
-            : HealthCheckResult.Unhealthy(
+        return Task.FromResult(!infrastructureReady
+            ? HealthCheckResult.Unhealthy(
                 "Market-data feeds or aggregation are not ready.",
-                data: data));
+                data: data)
+            : currentContractsLive
+                ? HealthCheckResult.Healthy(
+                    "Current futures contracts are feeding downstream notifications.", data)
+                : HealthCheckResult.Degraded(
+                    "Current futures contracts have not produced recent downstream notifications.",
+                    data: data));
 
-        void AddRoute(string symbol)
+        bool AddRoute(string symbol)
         {
             var key = symbol.ToLowerInvariant();
             if (!marketDataApi.TryGetCurrentlyTradedFuturesContract(symbol, out var contract))
             {
                 data[$"{key}ContractId"] = string.Empty;
                 data[$"{key}RouteActive"] = false;
-                return;
+                return false;
             }
 
             data[$"{key}ContractId"] = contract.ContractId;
-            data[$"{key}RouteActive"] =
-                marketDataApi.IsTickDataStreamActive(contract.ContractId);
+            var status = epoch?.ContractStatuses?.SingleOrDefault(item =>
+                StringComparer.Ordinal.Equals(item.ContractId, contract.ContractId));
+            var routeActive = marketDataApi.IsTickDataStreamActive(contract.ContractId);
+            var now = timeProvider.GetUtcNow();
+            var sourceFresh = status?.LastSourceRecordObservedAtUtc is { } sourceObserved
+                && now - sourceObserved <= MaximumCurrentContractSilence;
+            var notificationFresh = status?.LastMarketPricePublishedAtUtc is { } notificationPublished
+                && now - notificationPublished <= MaximumCurrentContractSilence;
+            data[$"{key}RouteActive"] = routeActive;
+            data[$"{key}AggregationRunning"] = status?.ContractRunning ?? false;
+            data[$"{key}LastSourceRecordUtc"] =
+                status?.LastSourceRecordObservedAtUtc?.ToString("O") ?? string.Empty;
+            data[$"{key}LastNotificationUtc"] =
+                status?.LastMarketPricePublishedAtUtc?.ToString("O") ?? string.Empty;
+            data[$"{key}LastDurableTickUtc"] =
+                status?.LastDurableTickPublishedAtUtc?.ToString("O") ?? string.Empty;
+            data[$"{key}SourceFresh"] = sourceFresh;
+            data[$"{key}NotificationFresh"] = notificationFresh;
             if (marketDataApi.TryGetFuturesSessionStatistics(contract.ContractId, out var statistics))
             {
                 data[$"{key}SessionStatisticsComplete"] = statistics.IsComplete;
@@ -64,6 +90,13 @@ public sealed class MarketDataRuntimeHealthCheck(DatabentoMarketDataApi marketDa
             {
                 data[$"{key}SessionStatisticsComplete"] = false;
             }
+
+            // Route ownership is established by the application workflows after the API
+            // becomes ready, so it is diagnostic rather than a server-start prerequisite.
+            // Successful market-price publication is the end-to-end startup evidence here.
+            return status is { ContractConfigured: true, ContractRunning: true }
+                && sourceFresh
+                && notificationFresh;
         }
     }
 }

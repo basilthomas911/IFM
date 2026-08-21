@@ -21,6 +21,7 @@
     <Compile Update="App\MarketDataView.cs"><SubType>UserControl</SubType></Compile>
     <Compile Update="App\MarketEconomicCalendarView.cs"><SubType>UserControl</SubType></Compile>
     <Compile Update="App\MarketOutlookView.cs"><SubType>UserControl</SubType></Compile>
+    <Compile Update="App\OperationsView.cs"><SubType>UserControl</SubType></Compile>
     <Compile Update="App\StatusConsoleView.cs"><SubType>UserControl</SubType></Compile>
     <Compile Update="Fund\AdjustFundTransactionEditor.cs"><SubType>Form</SubType></Compile>
     <Compile Update="Fund\FundTransactionEditor.cs"><SubType>Form</SubType></Compile>

@@ -40,6 +40,7 @@ public static class FuturesItiSignalGeneratedComplete
         var source = $"FuturesItiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
+            await e.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
             await e.PublishAsync(context).ConfigureAwait(false);
             if (!FuturesTradeSignalPrerequisites.ShouldGenerate(e))
                 return true;

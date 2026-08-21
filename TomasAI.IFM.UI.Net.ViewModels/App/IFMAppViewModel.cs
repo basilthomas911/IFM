@@ -97,6 +97,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly TimeSpan _startupReferenceDataImportTimeout;
     readonly TimeSpan _marketDataFeedTerminalTimeout;
     readonly TerminalEventCorrelation _marketDataFeedTerminalCorrelation = new();
+    readonly MarketDataFeedHealthMonitor _marketDataFeedHealthMonitor = new();
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly Guid _siteId;
     readonly Version _appVersion;
@@ -122,9 +123,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     StartupReferenceDataImportStatus? _yieldCurveStartupImport;
     StartupReferenceDataImportStatus? _economicCalendarStartupImport;
     IntradaySignalLifecycleResult? _intradaySignalStartup;
-    StatusConsoleViewModel? _statusConsole;
+    OperationsViewModel? _operations;
     long _errorSequence;
-    int _resetTicks;
+    MarketDataFeedHealthState _marketDataFeedHealthState = MarketDataFeedHealthState.Inactive;
     long _marketOutlookRevision;
     FuturesEodDataUIViewModel? _marketOutlook;
     FuturesTradeSignalUIViewModel? _futuresTradeSignal;
@@ -250,6 +251,17 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
+    /// <summary>Gets the downstream health of all currently traded futures feeds.</summary>
+    public MarketDataFeedHealthState MarketDataFeedHealthState
+    {
+        get => _marketDataFeedHealthState;
+        private set
+        {
+            if (SetProperty(ref _marketDataFeedHealthState, value))
+                OnPropertyChanged(nameof(MarketDataFeedStateText));
+        }
+    }
+
     /// <summary>Gets whether a shell-initiated market-data feed transition is in progress.</summary>
     public bool IsMarketDataFeedOperationInProgress
     {
@@ -275,7 +287,20 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     public string MarketDataFeedStateText
         => IsMarketDataFeedOperationInProgress
             ? "Market Feed: Changing"
-            : IsMarketDataFeedActive ? "Market Feed: Active" : "Market Feed: Inactive";
+            : MarketDataFeedHealthState switch
+            {
+                MarketDataFeedHealthState.Healthy
+                    => "Market Feed: Healthy — current contracts updated within 1 minute",
+                MarketDataFeedHealthState.Intermittent
+                    => "Market Feed: Intermittent — a current contract update is overdue",
+                MarketDataFeedHealthState.Failed
+                    => "Market Feed: Failed — current contract updates have remained intermittent for 5 minutes",
+                MarketDataFeedHealthState.Critical
+                    => "Market Feed: Critical — stop and restart the market feed",
+                MarketDataFeedHealthState.OutsidePositionEntryWindow
+                    => "Market Feed: Active — monitoring paused outside 03:00–16:00 Eastern; exits only",
+                _ => "Market Feed: Inactive"
+            };
 
     /// <summary>Gets whether a backend application event requested desktop shutdown.</summary>
     public bool IsCloseRequested
@@ -312,11 +337,11 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         private set => SetProperty(ref _intradaySignalStartup, value);
     }
 
-    /// <summary>Gets the configured status-console ViewModel after live startup succeeds.</summary>
-    public StatusConsoleViewModel? StatusConsole
+    /// <summary>Gets the lifecycle-owned Operations region, with Strategy selected by default.</summary>
+    public OperationsViewModel? Operations
     {
-        get => _statusConsole;
-        private set => SetProperty(ref _statusConsole, value);
+        get => _operations;
+        private set => SetProperty(ref _operations, value);
     }
 
     /// <summary>Gets the newest Market Outlook display snapshot.</summary>
@@ -468,8 +493,11 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     async Task StopCoreAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (StatusConsole is not null)
-            await StatusConsole.DisposeAsync();
+        if (Operations is not null)
+        {
+            Operations.PropertyChanged -= OperationsPropertyChanged;
+            await Operations.DisposeAsync();
+        }
         await StopMarketOutlookEventConsumer();
         await StopFuturesBarDataEventConsumer();
         await StopTradePlacementEventConsumer();
@@ -520,31 +548,37 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             }
 
             ValueDate = valueDate;
+            var strategyContractId = BaseContracts
+                .Where(contract => contract.Symbol == MarketOutlookSymbol)
+                .Select(contract => contract.ContractId)
+                .FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(strategyContractId))
+            {
+                Operations = new OperationsViewModel(
+                    _appRoot,
+                    strategyContractId,
+                    ValueDate.Value);
+                Operations.PropertyChanged += OperationsPropertyChanged;
+                await Operations.InitializeAsync(cancellationToken);
+            }
+
             await GetLastFuturesBarData(valueDate.Value);
             await StartMarketOutlookEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
             await EnableMarketDataFeedResetListener(cancellationToken);
             await EnableTradeLiveFeed(cancellationToken);
-            _lifecycle.RunAsync(ResetLiveFeedAsync);
+            _lifecycle.RunAsync(MonitorMarketDataFeedHealthAsync);
             await StartFuturesIntradaySignalServices(cancellationToken);
             await WriteStatusConsoleAsync(
                 $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete");
-            var statusContractId = BaseContracts
-                .Where(contract => contract.Symbol == "ES")
-                .Select(contract => contract.ContractId)
-                .FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(statusContractId))
-            {
-                StatusConsole = new StatusConsoleViewModel(_appRoot, statusContractId, ValueDate.Value);
-                await StatusConsole.InitializeAsync(cancellationToken);
-                await LoadStatusConsoleSnapshotsAsync(StatusConsole, cancellationToken);
-            }
-
             IsMenuEnabled = true;
             StartupOperation.NotifyCanExecuteChanged();
             ShutdownOperation.NotifyCanExecuteChanged();
         });
+
+    void OperationsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+        => OnPropertyChanged(nameof(Operations));
 
 
     /// <summary>
@@ -651,7 +685,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 if (notification?.MarketOutlook is { } snapshot
                     && IsMarketOutlookUpdate(expectedContractId, snapshot.ContractId))
                 {
-                    Interlocked.Exchange(ref _resetTicks, 0);
                     channel.TryWrite(snapshot);
                 }
             });
@@ -892,14 +925,16 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
-    ValueTask QueueFuturesBarRefreshAsync(FuturesBarDataInsertedCompleteEvent e)
+    async ValueTask QueueFuturesBarRefreshAsync(FuturesBarDataInsertedCompleteEvent e)
     {
         var symbol = e.FuturesBarData.Symbol;
         if (string.IsNullOrWhiteSpace(symbol))
-            return ValueTask.CompletedTask;
+            return;
 
+        await ApplyMarketDataFeedHealthAsync(_marketDataFeedHealthMonitor.RecordUpdate(
+            e.FuturesBarData.ContractId,
+            _timeProvider.GetUtcNow()));
         _futuresBarChannels?.TryWrite(symbol, e);
-        return ValueTask.CompletedTask;
     }
 
     async ValueTask ProcessFuturesBarRefreshAsync(
@@ -1193,6 +1228,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     async Task<Guid> EnableTradeLiveFeed(CancellationToken cancellationToken = default)
     {
         var commandId = Guid.Empty;
+        ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Activate(
+            _baseContracts.Select(contract => contract.ContractId),
+            _timeProvider.GetUtcNow()));
         _marketDataFeedTerminalCorrelation.BeginAttempt();
         try
         {
@@ -1214,6 +1252,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
         finally
         {
+            if (!IsMarketDataFeedActive)
+                ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Deactivate());
             _marketDataFeedTerminalCorrelation.EndAttempt();
         }
     }
@@ -1248,7 +1288,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     commandId,
                     "Disable Trade Live Feed Error",
                     cancellationToken))
+            {
                 IsMarketDataFeedActive = false;
+                ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Deactivate());
+            }
             return commandId;
         }
         finally
@@ -1327,54 +1370,38 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         });
 
     /// <summary>
-    /// Runs the market-data watchdog until the application lifetime is cancelled.
+    /// Evaluates downstream updates for the current futures contracts until shutdown.
     /// </summary>
-    async Task ResetLiveFeedAsync(CancellationToken cancellationToken)
+    async Task MonitorMarketDataFeedHealthAsync(CancellationToken cancellationToken)
     {
-        const int resetMaxTicks = 900;
         while (true)
         {
             await Task.Delay(TimeSpan.FromSeconds(1), _timeProvider, cancellationToken).ConfigureAwait(false);
-            if (Interlocked.Increment(ref _resetTicks) <= resetMaxTicks)
-                continue;
-
-            Interlocked.Exchange(ref _resetTicks, 0);
-            DateOnly? valueDate = null;
-            await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async marketDataModel =>
-                await marketDataModel.GetValueDateAsync(value => valueDate = value));
-
-            if (!valueDate.HasValue)
-                continue;
-
-            await WriteStatusConsoleAsync("Reseting Live Feed...Market Data Feed Failing To Respond");
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
-            {
-                await model.ResetDataFeedAsync([.. _baseContracts], valueDate.Value);
-                foreach (var contract in _baseContracts)
-                    await model.DeleteFuturesBarDataAsync(
-                        new FuturesBarDataId(contract.ContractId, contract.Symbol, valueDate.Value));
-            });
+            await ApplyMarketDataFeedHealthAsync(
+                _marketDataFeedHealthMonitor.Evaluate(_timeProvider.GetUtcNow()));
         }
+    }
+
+    void ApplyMarketDataFeedHealth(MarketDataFeedHealthSnapshot snapshot)
+        => MarketDataFeedHealthState = snapshot.State;
+
+    async Task ApplyMarketDataFeedHealthAsync(MarketDataFeedHealthSnapshot snapshot)
+    {
+        ApplyMarketDataFeedHealth(snapshot);
+        if (!snapshot.EnteredCritical)
+            return;
+
+        var contracts = snapshot.StaleContractIds.Count == 0
+            ? "currently traded contracts"
+            : string.Join(", ", snapshot.StaleContractIds);
+        var message = $"Currently traded market-data feeds have failed ({contracts}). "
+            + "Select Stop Market Feed, then Start Market Feed to reconnect.";
+        PublishError(0, message, "Market Data Feed Problem");
+        await WriteStatusConsoleAsync(message);
     }
 
     Task DelayStartupAsync(CancellationToken cancellationToken)
         => Task.Delay(TimeSpan.FromSeconds(1), _timeProvider, cancellationToken);
-
-    async Task LoadStatusConsoleSnapshotsAsync(
-        StatusConsoleViewModel statusConsole,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.WhenAll(
-                statusConsole.LoadTradeStatusOperation.ExecuteAsync(cancellationToken),
-                statusConsole.LoadMDIForwardLossRatiosOperation.ExecuteAsync(cancellationToken));
-        }
-        catch (ModelOperationException)
-        {
-            // The child ViewModel publishes the coded failure for the view while shell startup remains available.
-        }
-    }
 
     internal void PublishMarketOutlook(FuturesEodDataV2ReadModel futuresEodData)
         => MarketOutlook = new FuturesEodDataUIViewModel(futuresEodData);

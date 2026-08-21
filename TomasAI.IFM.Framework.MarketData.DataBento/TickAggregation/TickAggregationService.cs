@@ -48,6 +48,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private long _outOfOrderSourceSequences;
     private long _sourceSequenceGaps;
     private long _publicationFailures;
+    private long _processingFailures;
     private int _activeTickers;
     private int _outstandingQuoteBuffers;
 
@@ -108,12 +109,29 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             && Volatile.Read(ref _stopping) == 0
             && worker is { IsCompleted: false };
 
+        var streamActive = false;
+        if (state is not null)
+        {
+            lock (state.StreamSync)
+                streamActive = state.StreamOwners.Count != 0;
+        }
+
         return new TickAggregationContractStatus(
             contractId,
             configured ? state!.Mapping.AssetTypeId : AssetTypeId.Unknown,
             serviceRunning,
             configured,
-            serviceRunning && configured);
+            serviceRunning && configured,
+            serviceRunning && streamActive,
+            ReadTimestamp(configured
+                ? Interlocked.Read(ref state!.LastSourceRecordObservedUtcTicks)
+                : 0),
+            ReadTimestamp(configured
+                ? Interlocked.Read(ref state!.LastMarketPricePublishedUtcTicks)
+                : 0),
+            ReadTimestamp(configured
+                ? Interlocked.Read(ref state!.LastDurableTickPublishedUtcTicks)
+                : 0));
     }
 
     /// <summary>
@@ -410,7 +428,17 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 for (var index = 0; index < leased.Batch.Count; index++)
                 {
                     var record = leased.Batch.Records[index];
-                    await ProcessRecordAsync(state, record).ConfigureAwait(false);
+                    try
+                    {
+                        await ProcessRecordAsync(state, record).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // A transient publication or malformed observation must not terminate the
+                        // dataset worker. Pending quote/trade state remains owned by this ticker and
+                        // is retried by the next observation or the bounded shutdown flush.
+                        Interlocked.Increment(ref _processingFailures);
+                    }
                 }
             }
         }
@@ -456,6 +484,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             case MarketRecordKind.Quote:
                 Interlocked.Increment(ref _sourceQuoteRecords);
+                MarkObserved(state);
                 if (UpdateLastQuote(state, record.Quote, out var quoteMarketPrice)
                     && IsVxFutures(state.Mapping))
                 {
@@ -485,6 +514,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     out _);
                 if (isReplay)
                     break;
+                MarkObserved(state);
                 if (UpdateLastTrade(state, record.Trade, out var marketPrice))
                 {
                     await PublishMarketPriceAsync(
@@ -662,6 +692,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         try
         {
             await _publisher.PublishAsync(@event).ConfigureAwait(false);
+            MarkPublished(ref state.LastMarketPricePublishedUtcTicks);
         }
         catch
         {
@@ -759,6 +790,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         try
         {
             await _publisher.PublishAsync(evt, lease).ConfigureAwait(false);
+            MarkPublished(ref state.LastDurableTickPublishedUtcTicks);
         }
         catch
         {
@@ -785,6 +817,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         try
         {
             await _publisher.PublishAsync(pending.Event).ConfigureAwait(false);
+            MarkPublished(ref state.LastDurableTickPublishedUtcTicks);
         }
         catch
         {
@@ -887,8 +920,20 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         Interlocked.Read(ref _outOfOrderSourceSequences),
         Interlocked.Read(ref _sourceSequenceGaps),
         Interlocked.Read(ref _publicationFailures),
+        Interlocked.Read(ref _processingFailures),
         Volatile.Read(ref _activeTickers),
         Volatile.Read(ref _outstandingQuoteBuffers));
+
+    private void MarkObserved(TickerState state) =>
+        MarkPublished(ref state.LastSourceRecordObservedUtcTicks);
+
+    private void MarkPublished(ref long target) =>
+        Interlocked.Exchange(ref target, _timeProvider.GetUtcNow().UtcTicks);
+
+    private static DateTimeOffset? ReadTimestamp(long utcTicks) =>
+        utcTicks == 0
+            ? null
+            : new DateTimeOffset(utcTicks, TimeSpan.Zero);
 
     private static void ValidateOptions(TickAggregationOptions options)
     {
@@ -935,6 +980,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         public PendingQuotePublication? PendingQuote;
         public PendingTradePublication? PendingTrade;
         public Dictionary<ushort, uint> HighestSourceSequenceByPublisher { get; } = [];
+        public long LastSourceRecordObservedUtcTicks;
+        public long LastMarketPricePublishedUtcTicks;
+        public long LastDurableTickPublishedUtcTicks;
     }
 
     /// <summary>

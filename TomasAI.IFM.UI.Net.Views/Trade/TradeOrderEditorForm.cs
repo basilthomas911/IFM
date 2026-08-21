@@ -535,6 +535,8 @@ public partial class TradeOrderEditorForm
     async void btnSubmitOrder_Click(object sender, EventArgs e)
     {
         var orderActionType = (OrderActionType)Enum.Parse(typeof(OrderActionType), ddlOrderActionType.SelectedItem!.ToString()!);
+        if (!_viewModel.ValidateOrderSubmission(orderActionType))
+            return;
         var tradeOrderControl = pnlTradeControl.Controls[0] as ITradeOrderControl;
         var orderConfirmation = new WinFormsTradeOrderConfirmationService(this);
         await ObserveAsync(async () =>

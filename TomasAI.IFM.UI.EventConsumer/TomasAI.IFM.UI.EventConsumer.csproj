@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TomasAI.IFM.UI.Net.Presentation.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Domain.Fund.Shared\TomasAI.IFM.Domain.Fund.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Shared\TomasAI.IFM.Shared.csproj" />

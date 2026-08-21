@@ -37,6 +37,18 @@ queue, outbox, checkpoint, retry, or recovery worker. Each storage projection is
 Failure is published and logged; the next Databento observation is the next opportunity to update
 current state.
 
+A rejected per-observation publication is isolated inside the dataset reader loop. It increments
+both the publication and processing-failure counters but cannot terminate the ES/GLBX worker;
+pending pooled state is retained for the next observation or the bounded shutdown flush. Epoch
+health derives aggregation readiness from the actual worker tasks rather than their lifecycle flags,
+so a completed or faulted dataset reader can no longer appear healthy.
+
+The API health payload exposes current-contract evidence independently for ES and VX: resolved
+contract ID, aggregation-worker state, stream-route ownership, last source observation, last
+successful market-price notification, last durable tick publication, and 30-second freshness flags.
+The result is degraded when workers remain available but current contracts have not recently fed
+downstream notifications, and unhealthy when mapping or aggregation itself is unavailable.
+
 The Core producer is owned and started by the primary `TickAggregationRealtimeActor`. The external
 publisher resolves that producer after actor registration and neither starts nor stops it. This
 avoids a synthetic backend actor and preserves a single lifecycle owner.

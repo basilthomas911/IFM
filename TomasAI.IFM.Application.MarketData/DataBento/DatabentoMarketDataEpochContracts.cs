@@ -60,7 +60,9 @@ public readonly record struct DatabentoMarketDataEpochHealth(
     bool LastPriceStoreActive,
     long SourceQuoteRecords,
     long SourceTradeRecords,
-    long PublicationFailures);
+    long PublicationFailures,
+    long ProcessingFailures = 0,
+    IReadOnlyList<TickAggregationContractStatus>? ContractStatuses = null);
 
 public readonly record struct DatabentoMarketDataApiHealth(
     bool Running,

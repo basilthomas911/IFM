@@ -32,7 +32,10 @@ namespace TomasAI.IFM.UI.Net.Views.App
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(IFMAppView));
             statusBar = new StatusStrip();
             lblStatus = new ToolStripStatusLabel();
-            tradeSplitter = new SplitContainer();
+            operationViewSplitter = new SplitContainer();
+            pnlOperationView = new Panel();
+            operationsView1 = new OperationsView();
+            marketViewSplitter = new SplitContainer();
             tabTradeBlotter = new TabControl();
             pnlAppView = new Panel();
             pnlStatusConsole = new Panel();
@@ -54,10 +57,15 @@ namespace TomasAI.IFM.UI.Net.Views.App
             systemAdminButton = new ToolStripButton();
             statusConsoleLogViewModelBindingSource = new BindingSource(components);
             statusBar.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)tradeSplitter).BeginInit();
-            tradeSplitter.Panel1.SuspendLayout();
-            tradeSplitter.Panel2.SuspendLayout();
-            tradeSplitter.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)operationViewSplitter).BeginInit();
+            operationViewSplitter.Panel1.SuspendLayout();
+            operationViewSplitter.Panel2.SuspendLayout();
+            operationViewSplitter.SuspendLayout();
+            pnlOperationView.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)marketViewSplitter).BeginInit();
+            marketViewSplitter.Panel1.SuspendLayout();
+            marketViewSplitter.Panel2.SuspendLayout();
+            marketViewSplitter.SuspendLayout();
             pnlAppView.SuspendLayout();
             pnlStatusConsole.SuspendLayout();
             pnlEconomicCalendar.SuspendLayout();
@@ -88,39 +96,87 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblStatus.Size = new Size(46, 19);
             lblStatus.Text = "Ready";
             // 
-            // tradeSplitter
+            // operationViewSplitter
             // 
-            tradeSplitter.BackColor = SystemColors.ControlDarkDark;
-            tradeSplitter.Dock = DockStyle.Fill;
-            tradeSplitter.Location = new Point(0, 27);
-            tradeSplitter.Margin = new Padding(2);
-            tradeSplitter.Name = "tradeSplitter";
+            operationViewSplitter.BackColor = SystemColors.ControlDarkDark;
+            operationViewSplitter.Dock = DockStyle.Fill;
+            operationViewSplitter.Location = new Point(0, 27);
+            operationViewSplitter.Margin = new Padding(2);
+            operationViewSplitter.Name = "operationViewSplitter";
+            operationViewSplitter.Panel1MinSize = 200;
+            operationViewSplitter.Panel2MinSize = 400;
             // 
-            // tradeSplitter.Panel1
+            // operationViewSplitter.Panel1
             // 
-            tradeSplitter.Panel1.BackColor = Color.FromArgb(64, 64, 64);
-            tradeSplitter.Panel1.Controls.Add(tabTradeBlotter);
+            operationViewSplitter.Panel1.BackColor = Color.Black;
+            operationViewSplitter.Panel1.Controls.Add(pnlOperationView);
             // 
-            // tradeSplitter.Panel2
+            // operationViewSplitter.Panel2
             // 
-            tradeSplitter.Panel2.Controls.Add(pnlAppView);
-            tradeSplitter.Size = new Size(2637, 821);
-            tradeSplitter.SplitterDistance = 2161;
-            tradeSplitter.SplitterIncrement = 2;
-            tradeSplitter.SplitterWidth = 5;
-            tradeSplitter.TabIndex = 4;
-            tradeSplitter.SplitterMoved += tradeSplitter_SplitterMoved;
+            operationViewSplitter.Panel2.Controls.Add(marketViewSplitter);
+            operationViewSplitter.Size = new Size(2637, 821);
+            operationViewSplitter.SplitterDistance = 527;
+            operationViewSplitter.SplitterIncrement = 2;
+            operationViewSplitter.SplitterWidth = 5;
+            operationViewSplitter.TabIndex = 4;
+            operationViewSplitter.SplitterMoved += operationViewSplitter_SplitterMoved;
+            //
+            // pnlOperationView
+            //
+            pnlOperationView.BackColor = Color.Black;
+            pnlOperationView.Controls.Add(operationsView1);
+            pnlOperationView.Dock = DockStyle.Fill;
+            pnlOperationView.Location = new Point(0, 0);
+            pnlOperationView.Name = "pnlOperationView";
+            pnlOperationView.Size = new Size(527, 821);
+            pnlOperationView.TabIndex = 0;
+            //
+            // operationsView1
+            //
+            operationsView1.BackColor = Color.Black;
+            operationsView1.Dock = DockStyle.Fill;
+            operationsView1.Location = new Point(0, 0);
+            operationsView1.Name = "operationsView1";
+            operationsView1.Size = new Size(527, 821);
+            operationsView1.TabIndex = 0;
+            //
+            // marketViewSplitter
+            //
+            marketViewSplitter.BackColor = SystemColors.ControlDarkDark;
+            marketViewSplitter.Dock = DockStyle.Fill;
+            marketViewSplitter.Location = new Point(0, 0);
+            marketViewSplitter.Margin = new Padding(2);
+            marketViewSplitter.Name = "marketViewSplitter";
+            marketViewSplitter.Panel1MinSize = 400;
+            marketViewSplitter.Panel2MinSize = 200;
+            //
+            // marketViewSplitter.Panel1
+            //
+            marketViewSplitter.Panel1.BackColor = Color.Black;
+            marketViewSplitter.Panel1.Controls.Add(tabTradeBlotter);
+            //
+            // marketViewSplitter.Panel2
+            //
+            marketViewSplitter.Panel2.Controls.Add(pnlAppView);
+            marketViewSplitter.Size = new Size(2105, 821);
+            marketViewSplitter.SplitterDistance = 1573;
+            marketViewSplitter.SplitterIncrement = 2;
+            marketViewSplitter.SplitterWidth = 5;
+            marketViewSplitter.TabIndex = 0;
+            marketViewSplitter.SplitterMoved += marketViewSplitter_SplitterMoved;
             // 
             // tabTradeBlotter
             // 
+            tabTradeBlotter.BackColor = Color.Black;
             tabTradeBlotter.Dock = DockStyle.Fill;
             tabTradeBlotter.Font = new Font("Microsoft Sans Serif", 10.2F, FontStyle.Regular, GraphicsUnit.Point, 0);
             tabTradeBlotter.Location = new Point(0, 0);
             tabTradeBlotter.Margin = new Padding(0);
             tabTradeBlotter.Name = "tabTradeBlotter";
             tabTradeBlotter.SelectedIndex = 0;
-            tabTradeBlotter.Size = new Size(2161, 821);
+            tabTradeBlotter.Size = new Size(1573, 821);
             tabTradeBlotter.TabIndex = 4;
+            tabTradeBlotter.Visible = false;
             tabTradeBlotter.SelectedIndexChanged += tabTradeBlotter_SelectedIndexChanged;
             // 
             // pnlAppView
@@ -135,16 +191,17 @@ namespace TomasAI.IFM.UI.Net.Views.App
             pnlAppView.Location = new Point(0, 0);
             pnlAppView.Margin = new Padding(2);
             pnlAppView.Name = "pnlAppView";
-            pnlAppView.Size = new Size(471, 821);
+            pnlAppView.Size = new Size(527, 821);
             pnlAppView.TabIndex = 2;
             // 
             // pnlStatusConsole
             // 
+            pnlStatusConsole.BackColor = Color.Black;
             pnlStatusConsole.Controls.Add(statusConsoleView1);
             pnlStatusConsole.Dock = DockStyle.Fill;
-            pnlStatusConsole.Location = new Point(0, 767);
+            pnlStatusConsole.Location = new Point(0, 741);
             pnlStatusConsole.Name = "pnlStatusConsole";
-            pnlStatusConsole.Size = new Size(471, 54);
+            pnlStatusConsole.Size = new Size(527, 80);
             pnlStatusConsole.TabIndex = 1;
             // 
             // statusConsoleView1
@@ -153,25 +210,27 @@ namespace TomasAI.IFM.UI.Net.Views.App
             statusConsoleView1.Location = new Point(0, 0);
             statusConsoleView1.Margin = new Padding(4);
             statusConsoleView1.Name = "statusConsoleView1";
-            statusConsoleView1.Size = new Size(471, 54);
+            statusConsoleView1.Size = new Size(527, 80);
             statusConsoleView1.TabIndex = 0;
             // 
             // pnlEconomicCalendar
             // 
+            pnlEconomicCalendar.BackColor = Color.Black;
             pnlEconomicCalendar.Controls.Add(economicCalendarView1);
             pnlEconomicCalendar.Dock = DockStyle.Top;
             pnlEconomicCalendar.Location = new Point(0, 496);
             pnlEconomicCalendar.Name = "pnlEconomicCalendar";
-            pnlEconomicCalendar.Size = new Size(471, 271);
+            pnlEconomicCalendar.Size = new Size(527, 245);
             pnlEconomicCalendar.TabIndex = 5;
             // 
             // economicCalendarView1
             // 
+            economicCalendarView1.BackColor = Color.Black;
             economicCalendarView1.Dock = DockStyle.Fill;
             economicCalendarView1.Location = new Point(0, 0);
             economicCalendarView1.Margin = new Padding(4);
             economicCalendarView1.Name = "economicCalendarView1";
-            economicCalendarView1.Size = new Size(471, 271);
+            economicCalendarView1.Size = new Size(527, 245);
             economicCalendarView1.TabIndex = 0;
             economicCalendarView1.Load += economicCalendarView1_Load;
             // 
@@ -181,7 +240,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             pnlMarketData.Dock = DockStyle.Top;
             pnlMarketData.Location = new Point(0, 300);
             pnlMarketData.Name = "pnlMarketData";
-            pnlMarketData.Size = new Size(471, 196);
+            pnlMarketData.Size = new Size(527, 196);
             pnlMarketData.TabIndex = 3;
             // 
             // marketDataView1
@@ -191,7 +250,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             marketDataView1.Location = new Point(0, 0);
             marketDataView1.Margin = new Padding(4);
             marketDataView1.Name = "marketDataView1";
-            marketDataView1.Size = new Size(471, 196);
+            marketDataView1.Size = new Size(527, 196);
             marketDataView1.TabIndex = 0;
             marketDataView1.Load += marketDataView1_Load;
             // 
@@ -201,7 +260,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             pnlMarketOutlook.Dock = DockStyle.Top;
             pnlMarketOutlook.Location = new Point(0, 0);
             pnlMarketOutlook.Name = "pnlMarketOutlook";
-            pnlMarketOutlook.Size = new Size(471, 300);
+            pnlMarketOutlook.Size = new Size(527, 300);
             pnlMarketOutlook.TabIndex = 1;
             // 
             // marketOutlookView1
@@ -211,7 +270,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             marketOutlookView1.Location = new Point(0, 0);
             marketOutlookView1.Margin = new Padding(4);
             marketOutlookView1.Name = "marketOutlookView1";
-            marketOutlookView1.Size = new Size(471, 300);
+            marketOutlookView1.Size = new Size(527, 300);
             marketOutlookView1.TabIndex = 0;
             // 
             // tradeButton
@@ -325,7 +384,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             AutoScaleMode = AutoScaleMode.Dpi;
             BackColor = Color.FromArgb(64, 64, 64);
             ClientSize = new Size(2637, 872);
-            Controls.Add(tradeSplitter);
+            Controls.Add(operationViewSplitter);
             Controls.Add(statusBar);
             Controls.Add(toolStrip1);
             Font = new Font("Microsoft Sans Serif", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -339,11 +398,16 @@ namespace TomasAI.IFM.UI.Net.Views.App
             Resize += IFMApp_Resize;
             statusBar.ResumeLayout(false);
             statusBar.PerformLayout();
-            tradeSplitter.Panel1.ResumeLayout(false);
-            tradeSplitter.Panel2.ResumeLayout(false);
-            tradeSplitter.Panel2.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)tradeSplitter).EndInit();
-            tradeSplitter.ResumeLayout(false);
+            operationViewSplitter.Panel1.ResumeLayout(false);
+            operationViewSplitter.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)operationViewSplitter).EndInit();
+            operationViewSplitter.ResumeLayout(false);
+            pnlOperationView.ResumeLayout(false);
+            marketViewSplitter.Panel1.ResumeLayout(false);
+            marketViewSplitter.Panel2.ResumeLayout(false);
+            marketViewSplitter.Panel2.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)marketViewSplitter).EndInit();
+            marketViewSplitter.ResumeLayout(false);
             pnlAppView.ResumeLayout(false);
             pnlStatusConsole.ResumeLayout(false);
             pnlEconomicCalendar.ResumeLayout(false);
@@ -360,7 +424,10 @@ namespace TomasAI.IFM.UI.Net.Views.App
         #endregion
         private System.Windows.Forms.StatusStrip statusBar;
         private System.Windows.Forms.ToolStripStatusLabel lblStatus;
-        private System.Windows.Forms.SplitContainer tradeSplitter;
+        private System.Windows.Forms.SplitContainer operationViewSplitter;
+        private System.Windows.Forms.Panel pnlOperationView;
+        private OperationsView operationsView1;
+        private System.Windows.Forms.SplitContainer marketViewSplitter;
         private System.Windows.Forms.TabControl tabTradeBlotter;
         private System.Windows.Forms.BindingSource statusConsoleLogViewModelBindingSource;
         private System.Windows.Forms.Panel pnlAppView;

@@ -15,6 +15,7 @@ using TomasAI.IFM.Service.StatusConsole;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Presentation.UnitTests.TestDoubles;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 
@@ -22,6 +23,9 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
 public class TradeOrderEditorViewModelTests
 {
+    static readonly DateTimeOffset EntryWindowUtc =
+        new(2026, 8, 11, 14, 0, 0, TimeSpan.Zero);
+
     [Fact]
     public async Task LoadOperation_PublishesNestedSelectionAndDateFilteredState()
     {
@@ -54,6 +58,25 @@ public class TradeOrderEditorViewModelTests
 
         subject.ViewModel.Funds.Should().ContainSingle(fund => fund.Name == "Paper");
         subject.ViewModel.SelectedFund!.FundId.Should().Be(17);
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task PositionEntryWindow_BlocksOpenWithoutExceptionButAlwaysAllowsClose()
+    {
+        var afterHours = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 11, 22, 0, 0, TimeSpan.Zero));
+        var subject = CreateSubject(afterHours);
+        await subject.ViewModel.LoadOperation.ExecuteAsync();
+
+        subject.ViewModel.OrderActionType = OrderActionType.Open;
+        subject.ViewModel.CanSubmitOrder.Should().BeFalse();
+        subject.ViewModel.ValidateOrderSubmission(OrderActionType.Open).Should().BeFalse();
+        subject.ViewModel.LastError!.Caption.Should().Be("Position Entry Closed");
+
+        subject.ViewModel.OrderActionType = OrderActionType.Close;
+        subject.ViewModel.CanSubmitOrder.Should().BeTrue();
+        subject.ViewModel.ValidateOrderSubmission(OrderActionType.Close).Should().BeTrue();
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -224,7 +247,7 @@ public class TradeOrderEditorViewModelTests
         await subject.ViewModel.DisposeAsync();
     }
 
-    static Subject CreateSubject()
+    static Subject CreateSubject(TimeProvider? timeProvider = null)
     {
         var queryApi = Substitute.For<IFundQueryApi>();
         queryApi.GetFundsAsync().Returns(new ServiceOk<FundReadModel[]>([Fund()]));
@@ -246,7 +269,11 @@ public class TradeOrderEditorViewModelTests
         appRoot.GetModel<StatusConsoleModel>().Returns(new StatusConsoleModel(
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<IStatusConsoleEventConsumer>()));
-        var viewModel = new TradeOrderEditorViewModel(appRoot, new DateOnly(2026, 8, 11), [Contract()]);
+        var viewModel = new TradeOrderEditorViewModel(
+            appRoot,
+            new DateOnly(2026, 8, 11),
+            [Contract()],
+            timeProvider ?? new ManualTimeProvider(EntryWindowUtc));
         return new Subject(viewModel, queryApi, commandApi, eventConsumers);
     }
 
