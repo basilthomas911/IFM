@@ -1,4 +1,4 @@
-# Actor Implementation Conventions
+gh# Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; durable and realtime EventActor conventions documented, CommandActor and QueryActor conventions reserved for later review
@@ -357,7 +357,7 @@ A default complete or fail handler must not:
 - publish another copy of the same lifecycle event; or
 - create a complete/fail processing loop.
 
-Specialized lifecycle behavior is allowed, such as the existing VX completion workflow, but it must remain in the same main-event extension class and be explicitly tested.
+Specialized lifecycle behavior is allowed, such as the existing VIX completion workflow, but it must remain in the same main-event extension class and be explicitly tested.
 
 ### 7.5 Transactional external-data imports
 
@@ -376,7 +376,7 @@ The command and main event carry only acquisition parameters, correlation metada
 
 The complete event is sent only after storage succeeds and may carry the canonical rows required by UI or downstream consumers. A valid zero-row provider response is a successful import: storage receives an empty array and the handler sends a complete event with zero records. An acquisition, mapping, validation, or storage exception sends a correlated fail event and must never send complete for the same attempt.
 
-Import main events are operation markers. Command state projectors must not use their row data to rebuild durable state, and state repositories post them to the event workflow rather than treating them as completed storage projections. The complete/fail pair is the authoritative terminal result for a given command. Interactive terminal tracking is currently approved for UI consumers through the [UI Terminal-Operation Tracking and Rollout](UI-Terminal-Operation-Tracking-and-Rollout.md) convention. Legacy scheduled tasks have not been reviewed and must not be treated as compliant with that UI rollout. A failed attempt is terminal; obtaining current data requires a new import command and command ID rather than replaying the old import event.
+Import main events are operation markers. Command state projectors must not use their row data to rebuild durable state, and state repositories post them to the event workflow rather than treating them as completed storage projections. The complete/fail pair is the authoritative terminal result exposed to UI and scheduled-task consumers. A failed attempt is terminal; obtaining current data requires a new import command and command ID rather than replaying the old import event.
 
 Tests for every external import family must cover parameter propagation, provider-to-domain mapping, the 0-row and N-row cases, one bulk storage invocation, storage-before-complete ordering where observable, acquisition failure, storage failure, and MessagePack round trips for request, complete, and fail schemas.
 
@@ -399,7 +399,7 @@ For example, a replay-durable inserted-event projection handler may:
 
 Moving this logic into an extension class must not change whether an exception propagates. Refactoring dispatch is not authorization to weaken durability, acknowledgement, or retry behavior.
 
-Transactional external-data import events follow section 7.5 instead: their typed fail event terminates that attempt, and an authorized caller starts any retry by submitting a new command. Scheduled-task retry policy remains deferred until the legacy scheduler design is reviewed.
+Transactional external-data import events follow section 7.5 instead: their typed fail event terminates that attempt, and a caller or scheduler starts any retry by submitting a new command.
 
 ### 8.3 Context use
 
@@ -409,84 +409,43 @@ At least `IEventActorContext` is passed to every extension handler. Context oper
 
 ### 9.1 Tick Aggregation
 
-Phase 1 replaces the replay-durable `TickAggregationEventActor`,
-`TickAggregationCommandActor`, command state/repository, and durable projector with
-`TickAggregation/Realtime/Actor/TickAggregationRealtimeActor` and
-`TickAggregation/Realtime/Projector/TickAggregationRealtimeProjector`.
+`TickAggregationEventActor` uses four extension classes:
 
-`TickAggregationService` publishes normalized trade and quote changed events through Core NATS to
-the primary `Realtime.TickAggregationRealtime` mailbox. The realtime actor converts each accepted
-changed event to its existing typed inserted contract and gives it to the realtime projector. The
-projector publishes inserted source, writes the normalized Scylla row once, and publishes the typed
-complete or fail result. None of these messages enters the event-source log, JetStream process
-queue, replay queue, outbox, checkpoint, or recovery worker.
+| Extension class | Event contracts handled |
+| --- | --- |
+| `FuturesTickTradeDataChanged` | `FuturesTickTradeDataChangedEvent` |
+| `FuturesTickQuoteDataChanged` | `FuturesTickQuoteDataChangedEvent` |
+| `FuturesTickTradeDataInserted` | Trade inserted, trade inserted complete, and trade inserted fail |
+| `FuturesTickQuoteDataInserted` | Quote inserted, quote inserted complete, and quote inserted fail |
 
-Production code for this family resides under `TickAggregation/Realtime`; the obsolete
-`TickAggregation/Event` implementation is removed. The shared legacy insert-command contracts may
-remain only as event-store compatibility types for historical storage tests and are not registered
-or consumed by a production actor.
+The changed handlers create and send the appropriate insert commands. The inserted handlers perform the ScyllaDB projection and publish typed complete or fail events. Every overload receives the actor logger. Changed and inserted handlers log caught exceptions before preserving the established propagation behavior; fail overloads log the failed lifecycle event; complete overloads remain quiet terminal handlers by default.
 
 ### 9.2 Futures EOD data
 
-Manual/API-initiated EOD commands retain the established durable Event path:
+The existing EOD pattern is to be aligned with this convention:
 
 | Extension class | Event contracts handled |
 | --- | --- |
 | `FuturesEodDataInserted` | Futures EOD inserted, complete, and fail |
-| `VixFuturesEodDataInserted` | VX futures EOD inserted, complete, and fail; the type name is retained for wire compatibility |
+| `VixFuturesEodDataInserted` | VIX futures EOD inserted, complete, and fail |
 
-The live feed path is separate. `FuturesEodDataRealtimeActor` routes realtime TickAggregation trade
-insertions, computes the rolling futures or VX EOD model, and passes it to
-`FuturesEodDataRealtimeProjector`. The projector uses the same EOD source/complete/fail payload
-schemas with `ActorType.Realtime`, writes storage once, and never replays. Its query helpers live in
-`FuturesEodData/Realtime/Extensions`; they do not remain under the durable `FuturesTickData/Event`
-folder.
+The specialized VIX complete behavior remains part of `VixFuturesEodDataInserted`. When this family is migrated, every overload will receive the actor logger and follow the same exception-only default logging convention unless its existing domain behavior explicitly requires informational output.
 
-`FuturesEodDataInsertedCompleteEvent` is the documented exception to the otherwise terminal
-complete-handler default. The actor that owns the active projection path—durable for an explicit
-command, realtime for a live tick—publishes the distinct best-effort
-`FuturesEodDataUpdatedNotifyEvent` after storage succeeds. The notification carries the stored
-`FuturesEodDataV2ReadModel`, preserves command correlation, uses a new message identity, and is sent
-on `ActorType.Notify`. Publication failure does not reverse or retry the completed storage write.
-No backend actor subscribes to this Notify contract.
+### 9.3 Durable tick consumers and stream ownership
 
-The main-shell Market Outlook queries the currently traded ES contract for its startup snapshot and accepts live notifications only when both the symbol and full contract ID match that same ES contract. A single UI notification consumer fans out to registrations keyed by `siteId`; secondary EOD screens cannot replace or stop the main-shell registration.
-
-`FuturesTradeSignalUpdatedCompleteEvent` is the corresponding exception for the lower Market
-Outlook fields. During Phase 1, a realtime ITI completion queries the required EOD, daily RSI-14,
-15-second TDI, timeframe-specific ITI, and VX close inputs, computes the retained legacy trade
-signal, and passes its update event to the same ITI realtime projector. Storage and
-source/complete/fail publication remain one-attempt realtime operations. Only completion publishes
-`FuturesTradeSignalUpdatedNotifyEvent`; the Notify remains best effort and cannot change the stored
-result. This compatibility branch remains until UI optimization replaces Futures Trade Signal.
-
-The Futures Trade Signal UI consumer listens only on `ActorType.Notify`, fans out by `siteId`, and accepts live values only for the exact currently traded ES contract selected during startup. Backend actors do not subscribe to this notification.
-
-### 9.3 Realtime tick consumers and durable stream ownership
-
-`TickAggregationRealtimeProjector` is the one-attempt persistence boundary for normalized futures
-and futures-option feed ticks. Downstream actors do not create tick insert commands. They consume
-the realtime `FuturesTickTradeDataInsertedEvent` source publication. Its delivery is deliberately
-independent of storage completion; consumers needing a confirmed row must consume the matching
-complete contract instead.
+`TickAggregationEventActor` is the sole persistence boundary for raw futures and futures-option feed ticks. Downstream domain actors do not create `InsertFuturesTickData` or `InsertFuturesOptionTickData` commands from feed events. They consume the durable `FuturesTickTradeDataInsertedEvent` emitted only after TickAggregation persistence succeeds.
 
 The downstream routing convention is:
 
-| Source event | FuturesEodDataRealtimeActor | FuturesOptionTickDataRealtimeActor |
+| Source event | FuturesTickDataEventActor | FuturesOptionTickDataEventActor |
 | --- | --- | --- |
-| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.Futures` | Process when `IsTickDataStreamActive` confirms runtime activity; compute and project rolling EOD. | Ignore. |
-| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.FuturesOption` | Ignore. | Process when `IsTickDataStreamActive` confirms runtime activity; combine the exact trade with the hot quote and publish the UI Notify contract. |
+| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.Futures` | Process only when the actor has recorded the contract as started and `IsTickDataStreamActive` confirms runtime activity. | Ignore. |
+| `FuturesTickTradeDataInsertedEvent` with `AssetTypeId.FuturesOption` | Ignore. | Process only when the actor has recorded the contract as started and `IsTickDataStreamActive` confirms runtime activity. |
 | `FuturesTickQuoteDataInsertedEvent` | Do not consume downstream. | Do not consume downstream. |
 
-Quote insertion events remain inside the realtime TickAggregation projection lifecycle. A later UI
-notification contract must copy only explicitly approved fields and must not expose the pooled
-quote buffer. Realtime UI and limit-order-book contracts remain a separate future design.
+Quote insertion events contain a pooled buffer and remain inside the persistence lifecycle. A later UI notification contract must copy only the explicitly approved fields; it must not expose the pooled quote buffer. Real-time UI and limit-order-book contracts remain a separate future design.
 
-The downstream realtime actors register an explicit actor-supervisor route for the TickAggregation
-trade-inserted verb during startup and remove it during shutdown. Core fan-out gives each actor an
-independent bounded mailbox branch without republishing or dual-writing the event. The durable
-`FuturesTickDataEventActor` and `FuturesOptionTickDataEventActor` retain only start/stop command
-lifecycle responsibilities and do not register live-tick routes.
+The downstream event actors register an explicit actor-supervisor route for the TickAggregation trade-inserted verb during startup and remove it during shutdown. The supervisor may therefore deliver one durable TickAggregation event to each interested actor mailbox without republishing or dual-writing that event. Each actor still filters by `AssetTypeId`, contract ID, actor-owned started/stopped state, and current runtime stream activity before executing domain behavior.
 
 Streaming start handlers register a stable `TickerStreamOwner` through the asset-specific `IMarketDataApi.StartStreaming...` method and store the contract carried by the started event in actor-local state. Streaming stop handlers call the matching stop method and remove that state. `ITickerDataReader`, reader leases, lease IDs, and stream generations are not part of the application contract.
 
@@ -501,11 +460,7 @@ TickAggregation owns the canonical per-contract state:
 
 Registration is idempotent for the tuple `(contract ID, workflow type, workflow ID, leg ID)`. Distinct owners may overlap on the same contract. The first owner activates transient routing once, intermediate owner removals leave it active, and the final owner removal deactivates it. The owner set, rather than a raw counter, prevents duplicate event delivery from inflating ownership.
 
-The futures handler derives the rolling EOD workflow input from the exact realtime trade payload and
-the provider-neutral contract API. The futures-option handler combines that exact realtime trade
-with the latest lease-independent option hot-cache quote and optional Greeks, then publishes the
-established option trade-price Notify event. Raw DataBento integer-scaled values remain limited to
-ingestion and tick storage; actor-domain ticker snapshots use decimal prices.
+The futures handler derives the existing EOD workflow input from the exact durable trade payload and uses the contract saved from its streaming-started event. The futures-option handler combines that exact durable trade with the latest lease-independent option hot-cache quote and optional Greeks, then publishes the established option trade-price update. Raw DataBento integer-scaled values remain limited to ingestion and persistence; actor-domain ticker snapshots use decimal prices.
 
 ### 9.4 Futures market-price realtime actor
 
@@ -523,24 +478,15 @@ The primary actor has exactly one parse-map entry and one receive-map entry, bot
 
 The primary actor does not register a route to itself. Signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
 
-`FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns
-`Realtime.FuturesItiSignal`, accepts the routed market-price update plus its own ITI and temporary
-trade-signal source/complete/fail contracts, and uses the same explicit parse-map and receive-map
-structure. Its market-price handler:
+`FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns `Realtime.FuturesItiSignal`, accepts only the routed `Updated` verb, and uses the same explicit parse-map and receive-map structure. Its handler:
 
 1. accepts only the startup-validated current ES contract;
 2. lazily acquires explicit ES and VX stream registrations owned by `FuturesItiSignal/CurrentContracts/ES` and `FuturesItiSignal/CurrentContracts/VX`;
 3. requires both owned workflow streams to be active;
 4. obtains a fresh VX price through the hot-cache-backed market-data API; and
-5. evaluates independent Daily, Weekly, and Monthly hot states; and
-6. passes a `FuturesItiSignalGeneratedEvent` to its realtime projector only for each timeframe that
-   has a publishable transition.
+5. sends a Daily `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
 
-Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress
-projection without treating the realtime message as a failure. Contract-identity mismatches and
-missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent`
-trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation
-workflow from being triggered by both EOD and realtime paths.
+Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress command creation without treating the realtime message as a durable failure. Contract-identity mismatches and missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent` trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation workflow from being triggered by both EOD and realtime paths.
 
 Actor construction deliberately precedes hosted market-data startup, so stream acquisition cannot occur in `OnStartup`. The first eligible routed update after rollover and market-data initialization performs idempotent acquisition. Subsequent updates reuse the registrations without incrementing ownership. A rollover replacement acquires the new ES/VX contracts before releasing retired contracts. Actor shutdown removes the realtime route first and then releases both registrations; a stopped or replaced market-data epoch is already clean and is treated as successful release.
 
@@ -548,30 +494,14 @@ The ITI period contract is:
 
 ```text
 Core Realtime ES update
-  -> evaluate Daily hot state
-  -> evaluate Weekly hot state
-  -> evaluate Monthly hot state
-  -> for each publishable transition only:
-       realtime Generated source
-       -> canonical/query and current-timeframe storage update
-       -> realtime Generated complete/fail
-       -> temporary legacy Futures Trade Signal realtime projection
-       -> UI Notify after trade-signal completion
+  -> Generate Daily ITI command
+  -> durable Daily Generated event and projection
+  -> Daily GeneratedComplete handler
+       -> Generate Weekly ITI command
+       -> Generate Monthly ITI command
 ```
 
-Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. Each period owns its own actor entity identified by contract, period, and first observed trading value date in the timeframe. Daily resets on each new feed value date. Weekly and Monthly reset on the first observed value date in a new ISO-week bucket or calendar month, so a Monday holiday naturally makes Tuesday the weekly frame start. On restart, `futures_iti_timeframe_state` restores the persisted frame start and last durable signal; bounded legacy history is only a migration fallback.
-
-Direction changes remain immediate comparisons against `UpTrendTrigger` and `DownTrendTrigger`, and
-only direction changes increment `IntrinsicTimeGroupId`. Start-of-timeframe is group zero.
-Trending, extreme, and reversal changes are projected only after price moves at least 10% of the
-calculated ITI threshold from the last successfully stored anchor. Ticks inside the band update
-actor-owned hot observation state but create no source event, completion, or storage row.
-
-The generated and completed contracts retain the source VX price. Their existing
-`DeriveLongerPeriods` field remains at MessagePack key 12 for wire compatibility but is deprecated
-and always `false` for new generated events. No generated-complete handler creates another ITI
-period. In Phase 1, completion may create the retained legacy Futures Trade Signal as a second
-one-attempt realtime projection for Market Outlook compatibility.
+Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. `FuturesItiSignalGeneratedEvent` and its completed event carry the exact source VX futures price and an explicit derivation marker as additive MessagePack fields. The marker is set only by a Daily Generate command; hold-set and hold-clear mutations reuse the event family but must not derive periods. This makes durable period derivation deterministic and replay-safe without rereading a mutable hot cache or substituting an EOD VX observation. Derived command identifiers are stable hashes of the source completion identity and target period, so redelivery addresses the same command identity. Only a marked Daily completion may derive longer periods; Weekly and Monthly completions never generate ITI commands, preventing recursive fan-out. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
 
 #### 9.4.1 Normalized last-price cache
 
@@ -588,37 +518,6 @@ Every accepted quote atomically replaces the quote portion of the contract's cac
 The hot-cache read returns `false` when the contract is unknown or no quote or trade has yet been observed. Per-contract stream stop does not erase the cache, so an inactive contract can still return its last observation; clients requiring live data must first check `IsTickDataStreamActive` and should also inspect the snapshot timestamps. Stream activity becoming true does not imply that the first price has arrived. A value-date transition discards the previous combined snapshot before accepting data for the new date. Core publication failure increments TickAggregation publication-failure metrics but does not stop ingestion or invalidate the newer cached value; loss and recovery remain consistent with the explicitly non-durable realtime contract.
 
 Realtime ITI processing consumes the snapshot carried by `FuturesMarketPriceUpdatedRealtimeEvent`. Timer-derived RSI, ATR, ADX, and MACD processing checks stream activity and samples `TryGetLastTickPrice` only when its time event fires, then sends a durable generation command. TDI and trade-signal workflows consume their upstream durable signal events rather than reading the raw feed or subscribing directly to market-price updates.
-
-### 9.5 Realtime read-model projection
-
-No-replay domain projectors reside in `Application.EventProjector/Realtime` and derive from
-`BaseRealtimeProjector<TActor>`, where `TActor` is the `ActorType.Realtime` actor that owns and
-starts the projector. This deliberately mirrors the descriptor-driven semantics of
-`BaseEventProjector<TActor>` without sharing its durability machinery.
-
-Each immutable `RealtimeProjectionDescriptor` binds one typed source event to one update action and
-its conventional complete/fail conversions. `ProcessRealtimeEventAsync` performs exactly one
-ordered attempt:
-
-1. publish the source event through Core NATS as `ActorType.Realtime`;
-2. await the descriptor's storage or cache update;
-3. publish the typed complete event through Core NATS when the update succeeds; or
-4. publish the typed fail event through Core NATS when source publication, update, conversion, or
-   completion publication fails.
-
-All three lifecycle contracts retain their domain actor name, verb, entity, payload, and command
-correlation; only their actor type is normalized to `Realtime`. A failure-event publication that is
-itself impossible is logged. Cancellation from the owning actor propagates normally. Every other
-failure returns `false`, is logged, and does not prevent the next realtime observation.
-
-The realtime projector contract exposes no event store, JetStream process/replay queue, outbox,
-checkpoint, retry, recovery worker, operator retry/skip control, or startup replay. The owning
-actor mailbox remains the bounded admission, ordering, and backpressure boundary. Writing to a
-storage read model does not make the realtime message replay durable.
-
-The legacy `UpdateReadModelAsync` helpers on `BaseDenormalizerActor` and
-`BaseEventSourceActorRepository` are not this contract. The former is an older Event workflow; the
-latter runs after event-source persistence. Neither may be used for no-replay realtime projection.
 
 ## 10. EventActor testing convention
 
@@ -723,17 +622,11 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 - [Actor Message Types and Delivery Conventions](Actor-Message-Types-and-Delivery-Conventions.md)
 - [Actor Event Streaming and Paged Query Contracts](Actor-Event-Streaming-and-Paged-Query-Contracts.md)
 - [Event Sourcing Projection Split-Brain Controls](Event-Sourcing-Projection-Split-Brain-Controls.md)
-- [UI Terminal-Operation Tracking and Rollout](UI-Terminal-Operation-Tracking-and-Rollout.md)
 
 ## 15. Revision history
 
 | Date | Revision |
 | --- | --- |
-| 2026-08-17 | Completed Phase 1 realtime cutover: removed the production TickAggregation command/Event chain, moved normalized tick, rolling EOD, futures-option display, ITI, and temporary Futures Trade Signal work under Realtime actors/projectors, retained durable actors only for explicit start/stop or manual command flows, and documented Event-to-Realtime folder ownership. |
-| 2026-08-17 | Added the descriptor-driven `Application.EventProjector/Realtime/BaseRealtimeProjector` convention: Core NATS source/complete/fail publication, realtime-only ownership, single-attempt failure continuation, and an explicitly replay-free contract separated from legacy denormalizer and durable repository helpers. |
-| 2026-08-17 | Added the ITI-to-Futures Trade Signal orchestration and durable-complete-to-Notify Market Outlook path, comprehensive semantic change detection, canonical stored sequence/time precision, exact active-ES filtering, and UI site-keyed fan-out. |
-| 2026-08-17 | Added the Futures EOD complete-to-Notify Market Outlook boundary, active-ES filtering, UI site-keyed listener fan-out, and actor-owned Core publication for Notify contracts without a backend Notify actor. |
-| 2026-08-16 | Scoped interactive terminal-operation tracking to the approved UI convention and explicitly deferred legacy scheduled-task retry and rollout decisions. |
 | 2026-08-14 | Created the initial system-wide event actor implementation convention. Recorded derived-actor parse/receive maps, event-family extension naming, main/complete/fail co-location, default lifecycle logging, responsibility boundaries, and initial Tick Aggregation and Futures EOD application. |
 | 2026-08-14 | Promoted the document to the system-wide Actor Implementation Conventions guide. Retained EventActor as the only currently defined convention and reserved CommandActor, QueryActor, and cross-actor sections for later implementation review. |
 | 2026-08-14 | Required every EventActor handler to receive the typed actor logger, added a main-event `LogSourceType` and shared family `ServiceId` convention, and limited default logging to caught exceptions and fail lifecycle events. |
@@ -742,4 +635,3 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |
 | 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |
 | 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |
-| 2026-08-16 | Replaced Daily completion fan-out with independent Daily/Weekly/Monthly realtime evaluators, 10%-of-ITI-threshold durable publication bands, timeframe-start entity identity, group-zero frame resets, holiday-safe first-observed weekly starts, and versioned restart state projection. The legacy derivation field remains wire-compatible but is no longer active. |
