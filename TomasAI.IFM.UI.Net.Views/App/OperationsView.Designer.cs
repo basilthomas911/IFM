@@ -85,7 +85,7 @@ partial class OperationsView
         //
         // strategySplitter
         //
-        strategySplitter.BackColor = Color.FromArgb(64, 64, 64);
+        strategySplitter.BackColor = Color.Black;
         strategySplitter.Dock = DockStyle.Fill;
         strategySplitter.Location = new Point(3, 30);
         strategySplitter.Name = "strategySplitter";

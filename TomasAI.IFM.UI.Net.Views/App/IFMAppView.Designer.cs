@@ -98,7 +98,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // 
             // operationViewSplitter
             // 
-            operationViewSplitter.BackColor = SystemColors.ControlDarkDark;
+            operationViewSplitter.BackColor = Color.Black;
             operationViewSplitter.Dock = DockStyle.Fill;
             operationViewSplitter.Location = new Point(0, 27);
             operationViewSplitter.Margin = new Padding(2);
@@ -142,7 +142,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             //
             // marketViewSplitter
             //
-            marketViewSplitter.BackColor = SystemColors.ControlDarkDark;
+            marketViewSplitter.BackColor = Color.Black;
             marketViewSplitter.Dock = DockStyle.Fill;
             marketViewSplitter.Location = new Point(0, 0);
             marketViewSplitter.Margin = new Padding(2);

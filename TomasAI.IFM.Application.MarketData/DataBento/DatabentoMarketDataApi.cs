@@ -173,7 +173,24 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             && !string.IsNullOrWhiteSpace(existing.ContractId)
             && existing.NextRolloverDate is { } currentRolloverDate
             && valueDate < currentRolloverDate)
-            return false;
+        {
+            var persisted = await store.GetPersistedFuturesContractAsync(
+                existing.ContractId,
+                cancellationToken).ConfigureAwait(false);
+            if (persisted is not null
+                && persisted.CurrentlyTraded
+                && string.Equals(
+                    persisted.ContractId,
+                    existing.ContractId,
+                    StringComparison.Ordinal)
+                && string.Equals(
+                    persisted.Symbol,
+                    normalizedSymbol,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
 
         var resolved = await resolver.ResolveAsync(
             normalizedSymbol, valueDate, cancellationToken).ConfigureAwait(false);

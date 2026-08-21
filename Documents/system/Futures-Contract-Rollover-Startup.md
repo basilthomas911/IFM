@@ -33,6 +33,10 @@ queries DataBento only when:
 Startup uses the same incomplete-or-due rule. A valid persisted ES or VX
 assignment is reused until its rollover date, so an unnecessary historical
 provider request cannot prevent an otherwise healthy live feed from restarting.
+Before taking that reuse path, the API verifies that the referenced contract row
+still exists, matches the root symbol and contract ID, and remains marked as
+currently traded. A stale rollover reference is reconciled through the provider
+and atomically repaired even when its rollover date has not yet arrived.
 Missing and due assignments still block startup until DataBento resolves and
 persists a valid current contract. An operator workflow may explicitly request
 `forceProviderRefresh: true` when provider identity must be revalidated early.
