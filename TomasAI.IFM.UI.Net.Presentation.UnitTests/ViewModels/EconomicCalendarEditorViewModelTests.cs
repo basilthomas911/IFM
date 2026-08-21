@@ -17,7 +17,8 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 public class EconomicCalendarEditorViewModelTests
 {
     static readonly DateTime ImportDate = new(2026, 8, 11);
-    static readonly DateTime ImportDateUtc = new(2026, 8, 11, 4, 0, 0, DateTimeKind.Utc);
+    static readonly DateTime CalendarQueryStartUtc = new(2026, 8, 11, 4, 0, 0, DateTimeKind.Utc);
+    static readonly DateTime ImportCommandDateUtc = new(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public async Task LoadCountryCodes_StartsListenerBeforeImportCanExecute()
@@ -127,7 +128,7 @@ public class EconomicCalendarEditorViewModelTests
         subject.ViewModel.EconomicCalendars.Should().BeEmpty();
         subject.ViewModel.LastStatusMessage.Should().Contain("Removed");
         await subject.QueryApi.Received(1).GetEconomicCalendarsAsync(
-            ImportDateUtc,
+            CalendarQueryStartUtc,
             EconomicCalendarViewType.Today,
             "US");
         subject.ViewModel.CommandId.Should().BeEmpty();
@@ -141,7 +142,7 @@ public class EconomicCalendarEditorViewModelTests
         var imported = Calendar(ImportDate.AddHours(8), "US", "CPI");
         var subject = CreateSubject([imported]);
         subject.CommandApi.ImportEconomicCalendarsAsync(
-                ImportDateUtc,
+                ImportCommandDateUtc,
                 Arg.Is<string[]>(codes => codes.Length == 1 && codes[0] == "US"))
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadCountryCodes();
@@ -170,7 +171,7 @@ public class EconomicCalendarEditorViewModelTests
         subject.ViewModel.LastStatusMessage.Should().Contain("2026-08-11").And.Contain("US");
         subject.ViewModel.ImportOperation.CanExecute.Should().BeFalse();
         await subject.QueryApi.Received(1).GetEconomicCalendarsAsync(
-            ImportDateUtc,
+            CalendarQueryStartUtc,
             EconomicCalendarViewType.Today,
             "US");
         await subject.ViewModel.StopAsync(CancellationToken.None);
@@ -181,7 +182,7 @@ public class EconomicCalendarEditorViewModelTests
     {
         var commandId = Guid.NewGuid();
         var subject = CreateSubject();
-        subject.CommandApi.ImportEconomicCalendarsAsync(ImportDateUtc, Arg.Any<string[]>())
+        subject.CommandApi.ImportEconomicCalendarsAsync(ImportCommandDateUtc, Arg.Any<string[]>())
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadCountryCodes();
         subject.ViewModel.PrepareImport(ImportDate, "US");
@@ -215,7 +216,7 @@ public class EconomicCalendarEditorViewModelTests
     {
         var commandId = Guid.NewGuid();
         var subject = CreateSubject();
-        subject.CommandApi.ImportEconomicCalendarsAsync(ImportDateUtc, Arg.Any<string[]>())
+        subject.CommandApi.ImportEconomicCalendarsAsync(ImportCommandDateUtc, Arg.Any<string[]>())
             .Returns(_ => PublishEarlyCompletionAsync());
         await subject.ViewModel.LoadCountryCodes();
         subject.ViewModel.PrepareImport(ImportDate, "US");
@@ -245,7 +246,7 @@ public class EconomicCalendarEditorViewModelTests
     public async Task EmptyCommandIdentifier_IsRejectedWithoutWaitingForAnEvent()
     {
         var subject = CreateSubject();
-        subject.CommandApi.ImportEconomicCalendarsAsync(ImportDateUtc, Arg.Any<string[]>())
+        subject.CommandApi.ImportEconomicCalendarsAsync(ImportCommandDateUtc, Arg.Any<string[]>())
             .Returns(new ServiceOk<Guid>(Guid.Empty));
         await subject.ViewModel.LoadCountryCodes();
         subject.ViewModel.PrepareImport(ImportDate, "US");
@@ -264,7 +265,7 @@ public class EconomicCalendarEditorViewModelTests
     {
         var commandId = Guid.NewGuid();
         var subject = CreateSubject();
-        subject.CommandApi.ImportEconomicCalendarsAsync(ImportDateUtc, Arg.Any<string[]>())
+        subject.CommandApi.ImportEconomicCalendarsAsync(ImportCommandDateUtc, Arg.Any<string[]>())
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadCountryCodes();
         subject.ViewModel.PrepareImport(ImportDate, "US");
@@ -284,7 +285,7 @@ public class EconomicCalendarEditorViewModelTests
         var firstCommandId = Guid.NewGuid();
         var secondCommandId = Guid.NewGuid();
         var subject = CreateSubject();
-        subject.CommandApi.ImportEconomicCalendarsAsync(ImportDateUtc, Arg.Any<string[]>()).Returns(
+        subject.CommandApi.ImportEconomicCalendarsAsync(ImportCommandDateUtc, Arg.Any<string[]>()).Returns(
             new ServiceOk<Guid>(firstCommandId),
             new ServiceOk<Guid>(secondCommandId));
         await subject.ViewModel.LoadCountryCodes();
@@ -314,7 +315,7 @@ public class EconomicCalendarEditorViewModelTests
         await second;
 
         await subject.CommandApi.Received(2).ImportEconomicCalendarsAsync(
-            ImportDateUtc,
+            ImportCommandDateUtc,
             Arg.Is<string[]>(codes => codes.Length == 1 && codes[0] == "US"));
         await subject.ViewModel.StopAsync(CancellationToken.None);
     }

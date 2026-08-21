@@ -50,6 +50,27 @@ public sealed class ManagedProcessSupervisorTests
     }
 
     [Fact]
+    public async Task Passes_configured_environment_variables_to_the_child_process()
+    {
+        var logs = new ConcurrentQueue<ManagedProcessLogEntry>();
+        var definition = CreateDefinition(
+            "environment",
+            ProcessShutdownMode.None,
+            "--print-environment", "IFM_SERVER_MANAGER_ENVIRONMENT_TEST");
+        definition.EnvironmentVariables["IFM_SERVER_MANAGER_ENVIRONMENT_TEST"] = "configured-value";
+        await using var supervisor = new ManagedProcessSupervisor(
+            [definition],
+            TimeSpan.FromSeconds(2),
+            logs.Enqueue);
+
+        await supervisor.StartAllAsync();
+        await supervisor.WaitForExitAsync("environment").WaitAsync(TimeSpan.FromSeconds(15));
+
+        logs.Should().Contain(entry => entry.Stream == ManagedProcessLogStream.StandardOutput
+            && entry.Message == "environment:IFM_SERVER_MANAGER_ENVIRONMENT_TEST=configured-value");
+    }
+
+    [Fact]
     public async Task Records_forced_fallback_when_no_graceful_channel_exists()
     {
         var logs = new ConcurrentQueue<ManagedProcessLogEntry>();

@@ -207,9 +207,9 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
     {
         var startInfo = new ProcessStartInfo
         {
-            CreateNoWindow = true,
+            CreateNoWindow = definition.WindowStyle == ProcessWindowStyle.Hidden,
             UseShellExecute = false,
-            WindowStyle = ProcessWindowStyle.Hidden,
+            WindowStyle = definition.WindowStyle,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             RedirectStandardInput = definition.ShutdownMode == ProcessShutdownMode.StandardInput,
@@ -220,6 +220,11 @@ public sealed class ManagedProcessSupervisor : IAsyncDisposable
         foreach (var argument in definition.Arguments)
         {
             startInfo.ArgumentList.Add(argument);
+        }
+
+        foreach (var variable in definition.EnvironmentVariables)
+        {
+            startInfo.Environment[variable.Key] = variable.Value;
         }
 
         return startInfo;

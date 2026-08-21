@@ -43,10 +43,11 @@ public static class GetEconomicCalendar
     {
         if (calendarViewType is EconomicCalendarViewType.ThisWeek or EconomicCalendarViewType.NextWeek)
         {
-            var startDate = calendarViewType == EconomicCalendarViewType.ThisWeek
+            var startDay = calendarViewType == EconomicCalendarViewType.ThisWeek
                 ? GetThisWeekStartingDate(todaysDate)
                 : GetNextWeekStartingDate(todaysDate);
-            var endDate = startDate.AddDays(7).AddMilliseconds(-1);
+            var startDate = startDay.Add(todaysDate.TimeOfDay);
+            var endDate = startDate.AddDays(7).AddTicks(-1);
             return cancellationToken.CanBeCanceled
                 ? await db.GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken)
                 : await db.GetEconomicCalendarsAsync(startDate, endDate, countryCode);
@@ -55,15 +56,18 @@ public static class GetEconomicCalendar
         return calendarViewType switch
         {
             EconomicCalendarViewType.Today => await ReadDateAsync(todaysDate),
-            EconomicCalendarViewType.Tomorrow => await ReadDateAsync(todaysDate.AddDays(1).Date),
-            EconomicCalendarViewType.Yesterday => await ReadDateAsync(todaysDate.AddDays(-1).Date),
+            EconomicCalendarViewType.Tomorrow => await ReadDateAsync(todaysDate.AddDays(1)),
+            EconomicCalendarViewType.Yesterday => await ReadDateAsync(todaysDate.AddDays(-1)),
             _ => throw new NotImplementedException($"Invalid CalendarViewType: {calendarViewType}")
         };
 
-        Task<ICollection<EconomicCalendarReadModel>> ReadDateAsync(DateTime eventDate)
-            => cancellationToken.CanBeCanceled
-                ? db.GetEconomicCalendarsAsync(eventDate, countryCode, cancellationToken)
-                : db.GetEconomicCalendarsAsync(eventDate, countryCode);
+        Task<ICollection<EconomicCalendarReadModel>> ReadDateAsync(DateTime startDate)
+        {
+            var endDate = startDate.AddDays(1).AddTicks(-1);
+            return cancellationToken.CanBeCanceled
+                ? db.GetEconomicCalendarsAsync(startDate, endDate, countryCode, cancellationToken)
+                : db.GetEconomicCalendarsAsync(startDate, endDate, countryCode);
+        }
     }
 
     internal static DateTime GetThisWeekStartingDate(this DateTime todaysDate)

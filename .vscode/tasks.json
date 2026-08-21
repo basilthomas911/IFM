@@ -1,0 +1,91 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "IFM: Build API Server (Debug)",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/TomasAI.IFM.Application.Api.Server/TomasAI.IFM.Application.Api.Server.csproj",
+        "--configuration",
+        "Debug",
+        "--nologo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "IFM: Build UI.Net (Debug)",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/TomasAI.IFM.UI.Net/TomasAI.IFM.UI.Net.csproj",
+        "--configuration",
+        "Debug",
+        "--nologo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile",
+      "group": "build"
+    },
+    {
+      "label": "IFM: Build API + UI (Debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Build API Server (Debug)",
+        "IFM: Build UI.Net (Debug)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM: Wait for Development API",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/Wait-IFMDevelopmentApi.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM: Prepare UI.Net (Development)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "IFM: Build UI.Net (Debug)",
+        "IFM: Wait for Development API"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "IFM: Stop API + UI (Development)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/.vscode/Stop-IFMDevelopment.ps1"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

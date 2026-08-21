@@ -48,8 +48,7 @@ public sealed class FuturesContractRolloverStartupCheck(
                 await marketDataApi.UpdateCurrentlyTradedFuturesContractAsync(
                     symbol,
                     valueDate,
-                    cancellationToken,
-                    forceProviderRefresh: true).ConfigureAwait(false);
+                    cancellationToken).ConfigureAwait(false);
             }
         }
         else

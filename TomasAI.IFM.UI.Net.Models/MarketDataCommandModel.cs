@@ -38,7 +38,7 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
 
     public Task<Guid> ImportEconomicCalendarsAsync(DateTime importDate, string[]? countryCodes = null)
         => ExecuteCommandAsync(() => _commandApi.ImportEconomicCalendarsAsync(
-            EasternTime.ToUtc(importDate),
+            EasternTime.DateToUtc(importDate),
             countryCodes));
 
     /// <summary>
@@ -152,6 +152,6 @@ public class MarketDataCommandModel(IMarketDataCommandApi commandApi)
     /// <param name="importDate"></param>
     /// <returns>A task containing the command identifier used to correlate the terminal event.</returns>
     public Task<Guid> ImportYieldCurveRatesAsync(DateTime importDate)
-        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(EasternTime.ToUtc(importDate)));
+        => ExecuteCommandAsync(() => _commandApi.ImportYieldCurveRatesAsync(EasternTime.DateToUtc(importDate)));
 
 }

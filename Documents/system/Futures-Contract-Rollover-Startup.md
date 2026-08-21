@@ -30,11 +30,12 @@ queries DataBento only when:
 - `nextRolloverDate` is empty; or
 - `valueDate >= nextRolloverDate`.
 
-The startup reconciliation passes `forceProviderRefresh: true`, so every host
-start also revalidates the current ES and VX assignments against DataBento.
-This repairs a stale provider identity or a changed nearest eligible contract
-before the market-data epoch is admitted. Ordinary callers retain the
-incomplete-or-due behavior above.
+Startup uses the same incomplete-or-due rule. A valid persisted ES or VX
+assignment is reused until its rollover date, so an unnecessary historical
+provider request cannot prevent an otherwise healthy live feed from restarting.
+Missing and due assignments still block startup until DataBento resolves and
+persists a valid current contract. An operator workflow may explicitly request
+`forceProviderRefresh: true` when provider identity must be revalidated early.
 
 The argument is a futures root symbol, not a contract ID, because an incomplete
 bootstrap row has no contract ID yet. The resolver queries `<symbol>.FUT`, keeps
@@ -73,6 +74,12 @@ empty table, unresolved DataBento symbol, missing provider configuration, or a
 rollover/contract mismatch is therefore a startup error rather than a degraded
 trading state.
 
+The API readiness response includes `market_data_runtime`. It remains unhealthy
+until the epoch, all configured aggregation partitions, and the last-price store
+are running. Its data includes configured-contract and source quote/trade record
+counters, so operators can distinguish a connected idle feed from one actively
+receiving records.
+
 ## Runtime contract registry and datasets
 
 `DatabentoContractRegistrationRegistry` is the runtime source of truth for new
@@ -107,5 +114,5 @@ longer authoritative for those current contracts.
 The market-data unit suite verifies nearest-maturity selection, ES and VX
 dataset routing, and the typed no-contract failure. The Scylla integration suite
 verifies bootstrap insertion, DataBento-resolution substitution, atomic
-persistence, startup provider revalidation, return values, and cleanup of its
+persistence, valid startup assignment reuse, due refresh, return values, and cleanup of its
 ES/VX fixture rows after each test.

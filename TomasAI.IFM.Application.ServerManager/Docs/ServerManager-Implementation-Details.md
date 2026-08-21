@@ -1,8 +1,8 @@
 # IFM Server Manager Implementation Details
 
-**Status:** SM-S3 implemented; SM-S4 software modernized; SM-S5 deployment-ready
+**Status:** Implementation available; operator acceptance validation pending; Production inactive
 
-**Version:** 4.0
+**Version:** 4.4
 
 **Date:** 2026-08-20
 
@@ -99,6 +99,9 @@ as graceful shutdown.
 `Key`, `DisplayName`, `WorkingDirectory`, and `ExecutablePath` are required. Keys are unique without regard to case.
 Positive log and shutdown limits are mandatory. `StandardInput` requires a non-empty `ShutdownInput` value. When
 configured, `ReadinessUri` must be an absolute HTTP(S) address and its timeout/polling values must be positive.
+Each definition may set child `EnvironmentVariables` and a `WindowStyle`. Development and Production explicitly pass
+their selected .NET/ASP.NET Core environment to API Server; UI.Net is launched maximized while console services remain
+hidden.
 
 Relative executable paths resolve beneath their configured working directory. Arguments are passed through
 `ProcessStartInfo.ArgumentList`; they are not concatenated into a shell command.
@@ -163,16 +166,36 @@ Release Development acceptance on 2026-08-20 exercised two complete API/UI cycle
 API reached HTTP readiness before each UI launch, UI.Net displayed its main window, both applications exited with
 code 0 through their graceful paths, and no managed child process remained after final shutdown.
 
+This is engineering smoke-test evidence only. It does not constitute final Server Manager operator acceptance or
+Production approval. Final acceptance remains an explicit future gate after the UI has reached the required level of
+functional completeness.
+
 ## 9. Remaining staged work
 
-SM-S3 is complete. SM-S4 real-task enablement still requires approved Development/paper-trading execution and
-calendar/idempotency review. SM-S5 still requires target-machine reboot/sign-out/outage/backup/soak evidence and named
+SM-S3 implementation is complete, but the Server Manager as a whole remains **not accepted**. SM-S4 real-task
+enablement still requires approved Development/paper-trading execution and calendar/idempotency review. SM-S5 still
+requires target-machine reboot/sign-out/outage/backup/soak evidence, final API/UI supervision acceptance, and named
 operator approval. Production-grade topology and observability remain part of the later Aspire transition.
 
-## 10. Revision history
+## 10. Publishing the application set
+
+`Operations/Publish-IFMApplications.ps1` and the configured `C:\TomasAI\IFMAppDir` layout are reserved for a future
+Production deployment. Production is currently inactive because no Production database environment has been
+provisioned or approved. Development UI work must run through the Development configuration and must not use a
+successful launch from the published layout as evidence of Production readiness.
+
+When Production is authorized, the script will build/test the live Databento adapter and publish API Server, UI.Net,
+Scheduler Host, the four approved scheduled-task executables, and Server Manager. Server Manager is published last.
+The script requires managed applications and the Scheduler Host service to be stopped; installing/starting the
+service and enabling schedules remain separate, explicitly approved actions.
+
+## 11. Revision history
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 4.4 | 2026-08-20 | Reserved the published layout for future Production use, recorded that Production infrastructure is not provisioned, and marked final Server Manager operator acceptance as pending. |
+| 4.3 | 2026-08-20 | Made child environments deterministic, launched UI.Net maximized, and kept tray console recovery available. |
+| 4.2 | 2026-08-20 | Added the repeatable full application-set publishing script. |
 | 4.1 | 2026-08-20 | Added API readiness gating and recorded successful two-cycle real API/UI lifecycle acceptance. |
 | 4.0 | 2026-08-20 | Added SM-S3 operations/UI, SM-S4 .NET 10 task modernization and disabled templates, and SM-S5 Windows Service/ACL/health/backup acceptance tooling. |
 | 3.0 | 2026-08-20 | Added the implemented SM-S2 Scheduler Host, PostgreSQL/Quartz authority, local pipe client, and read-only scheduler dashboard boundary. |

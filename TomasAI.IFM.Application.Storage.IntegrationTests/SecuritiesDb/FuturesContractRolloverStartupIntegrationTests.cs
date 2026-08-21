@@ -26,7 +26,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         _originalAssignments = [];
 
     [Fact]
-    public async Task StartupSeedsResolvesPersistsAndRefreshesCurrentRows()
+    public async Task StartupSeedsResolvesPersistsAndReusesValidCurrentRows()
     {
         await ResetAsync();
         var resolver = new FakeResolver();
@@ -71,8 +71,8 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             && row.NextRolloverDate == new DateOnly(2026, 9, 16));
         second.Should().Contain(row => row.Symbol == "ES" && row.ContractId == "ES20260918");
         synthetic.Should().Contain(row => row.Symbol == "VX" && row.ContractId == "VX20260916");
-        resolver.CallCount.Should().Be(4,
-            "live startup revalidates both provider identities while synthetic startup reuses the stored contracts without another provider call");
+        resolver.CallCount.Should().Be(2,
+            "startup reuses valid persisted assignments until their rollover date is due");
 
         var es = await fixture.Db.GetFuturesContractAsync("ES20260918");
         var vx = await fixture.Db.GetFuturesContractAsync("VX20260916");

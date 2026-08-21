@@ -1,4 +1,5 @@
 using FluentAssertions;
+using System.Diagnostics;
 
 namespace TomasAI.IFM.Application.ServerManager.UnitTests;
 
@@ -43,6 +44,7 @@ public sealed class ServerManagerOptionsTests
             WorkingDirectory = "C:\\apps\\ui",
             ExecutablePath = "ui.exe",
             StartOrder = 20,
+            WindowStyle = ProcessWindowStyle.Maximized,
             ShutdownMode = ProcessShutdownMode.CloseMainWindow
         });
 
@@ -58,6 +60,16 @@ public sealed class ServerManagerOptionsTests
         options.Processes[0].ReadinessPollIntervalMilliseconds = 500;
 
         options.Invoking(value => value.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_rejects_invalid_environment_variable_names()
+    {
+        var options = ValidOptions();
+        options.Processes[0].EnvironmentVariables["INVALID=NAME"] = "value";
+
+        options.Invoking(value => value.Validate()).Should().Throw<InvalidOperationException>()
+            .WithMessage("*invalid environment-variable name*");
     }
 
     [Theory]

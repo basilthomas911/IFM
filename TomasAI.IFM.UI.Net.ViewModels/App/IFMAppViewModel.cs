@@ -506,8 +506,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             ICollection<FuturesContractV2ReadModel>? futuresContracts = null;
             await model.GetCurrentlyTradedFuturesContractsAsync(values => futuresContracts = values);
             BaseContracts = futuresContracts?.ToArray() ?? [];
-            await GetLastFuturesEodData();
-            await GetLastFuturesTradeSignal();
             await ImportReferenceDataAtStartupAsync(cancellationToken);
 
             DateOnly? valueDate = null;
@@ -522,6 +520,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             }
 
             ValueDate = valueDate;
+            await GetLastFuturesEodData(valueDate.Value);
+            await GetLastFuturesTradeSignal(valueDate.Value);
             await GetLastFuturesBarData(valueDate.Value);
             await StartFuturesEodDataEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
@@ -627,7 +627,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     }
 
-    Task GetLastFuturesEodData()
+    Task GetLastFuturesEodData(DateOnly valueDate)
         => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
@@ -638,7 +638,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 return;
             await model.GetLastFuturesEodDataAsync(
                 contract.ContractId,
-                contract.LastTradeDate,
+                valueDate,
                 futuresEodData =>
                 {
                     if (IsMarketOutlookUpdate(contract.ContractId, futuresEodData))
@@ -646,7 +646,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 });
         });
 
-    Task GetLastFuturesTradeSignal()
+    Task GetLastFuturesTradeSignal(DateOnly valueDate)
         => _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
@@ -657,7 +657,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 return;
             await model.GetFuturesTradeSignalAsync(
                 contract.ContractId,
-                contract.LastTradeDate,
+                valueDate,
                 futuresTradeSignal =>
                 {
                     if (futuresTradeSignal is not null

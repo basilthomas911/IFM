@@ -1,0 +1,89 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "IFM: API Server (Development)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "IFM: Build API Server (Debug)",
+      "program": "${workspaceFolder}/TomasAI.IFM.Application.Api.Server/bin/Debug/net10.0/TomasAI.IFM.Application.Api.Server.dll",
+      "cwd": "${workspaceFolder}/TomasAI.IFM.Application.Api.Server",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "IFM: UI.Net (Development; wait for API)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "IFM: Prepare UI.Net (Development)",
+      "program": "${workspaceFolder}/TomasAI.IFM.UI.Net/bin/Debug/net10.0-windows10.0.17763.0/TomasAI.IFM.UI.Net.dll",
+      "cwd": "${workspaceFolder}/TomasAI.IFM.UI.Net",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "IFM_UI_START_MAXIMIZED": "true"
+      },
+      "presentation": {
+        "group": "IFM Development",
+        "order": 2
+      }
+    },
+    {
+      "name": "_IFM: API Server (compound)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/TomasAI.IFM.Application.Api.Server/bin/Debug/net10.0/TomasAI.IFM.Application.Api.Server.dll",
+      "cwd": "${workspaceFolder}/TomasAI.IFM.Application.Api.Server",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
+      "name": "_IFM: UI.Net (compound)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "IFM: Wait for Development API",
+      "program": "${workspaceFolder}/TomasAI.IFM.UI.Net/bin/Debug/net10.0-windows10.0.17763.0/TomasAI.IFM.UI.Net.dll",
+      "cwd": "${workspaceFolder}/TomasAI.IFM.UI.Net",
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "justMyCode": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development",
+        "IFM_UI_START_MAXIMIZED": "true"
+      },
+      "presentation": {
+        "hidden": true
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "IFM: API + UI (Development)",
+      "configurations": [
+        "_IFM: API Server (compound)",
+        "_IFM: UI.Net (compound)"
+      ],
+      "preLaunchTask": "IFM: Build API + UI (Debug)",
+      "stopAll": true,
+      "presentation": {
+        "group": "IFM Development",
+        "order": 1
+      }
+    }
+  ]
+}

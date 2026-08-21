@@ -199,7 +199,8 @@ public static class Startup
             services.AddIfmMetrics(config, "TomasAI.IFM.Application.Api.Server");
             services.AddHealthChecks()
                 .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"])
-                .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["ready"]);
+                .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["ready"])
+                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["ready"]);
             var dataProtectionKeyPath = config.GetValue<string>("DataProtection:KeyPath");
             if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
             {

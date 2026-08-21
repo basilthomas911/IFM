@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -88,6 +89,11 @@ public sealed class ManagedProcessDefinition
 
     public List<string> Arguments { get; set; } = [];
 
+    public Dictionary<string, string> EnvironmentVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public ProcessWindowStyle WindowStyle { get; set; } = ProcessWindowStyle.Hidden;
+
     public int StartOrder { get; set; }
 
     public bool Enabled { get; set; } = true;
@@ -132,6 +138,15 @@ public sealed class ManagedProcessDefinition
         if (string.IsNullOrWhiteSpace(ExecutablePath))
         {
             throw new InvalidOperationException($"ServerManager process '{Key}' requires an executable path.");
+        }
+
+        foreach (var variable in EnvironmentVariables)
+        {
+            if (string.IsNullOrWhiteSpace(variable.Key) || variable.Key.Contains('='))
+            {
+                throw new InvalidOperationException(
+                    $"ServerManager process '{Key}' contains an invalid environment-variable name.");
+            }
         }
 
         if (ShutdownMode == ProcessShutdownMode.StandardInput && string.IsNullOrWhiteSpace(ShutdownInput))

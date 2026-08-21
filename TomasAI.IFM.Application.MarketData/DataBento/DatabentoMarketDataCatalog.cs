@@ -74,26 +74,12 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                     $"No DataBento operation runner is configured for dataset '{group.Dataset}'.");
             var entries = group.Entries;
             var names = entries.Select(item => item.Registration.ProviderContractName).ToArray();
-            var details = await operations.RunAsync(
-                queries =>
-                {
-                    var batch = queries.GetContractDetails(names, options.ProviderQueryTimeout);
-                    for (var index = 0; index < batch.Count; index++)
-                    {
-                        var detail = batch[index];
-                        if (detail is null) continue;
-                        var reverse = queries.InstrumentIdToContractId(
-                            detail.Instrument.InstrumentId, options.ProviderQueryTimeout);
-                        var forward = queries.ContractIdToInstrumentId(
-                            reverse, options.ProviderQueryTimeout);
-                        if (forward != detail.Instrument.InstrumentId)
-                            throw new MarketDataContractMappingException(
-                                entries[index].Registration.DomainContractId,
-                                "the forward instrument mapping did not match contract metadata");
-                    }
-                    return batch;
-                },
-                cancellationToken).ConfigureAwait(false);
+            var details = await QueryCatalogDefinitionsAsync(
+                    operations,
+                    names,
+                    options,
+                    cancellationToken)
+                .ConfigureAwait(false);
             if (details.Count != entries.Length)
                 throw new MarketDataContractMappingException(
                     "epoch", $"the provider batch result count did not match the request for dataset '{group.Dataset}'");
@@ -133,6 +119,54 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
 
         return new DatabentoMarketDataCatalog(resolved, operationsByDataset, options);
     }
+
+    private static async Task<IReadOnlyList<ContractDetail?>> QueryCatalogDefinitionsAsync(
+        IDatabentoOperationRunner operations,
+        string[] names,
+        DatabentoMarketDataRuntimeOptions options,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await operations.RunAsync(
+                        queries =>
+                        {
+                            // This batch is the authoritative provider definition snapshot
+                            // for the epoch. Native feed startup independently validates its
+                            // copied symbol/instrument mappings before consumer readiness.
+                            return queries.GetContractDetails(
+                                names,
+                                options.ProviderQueryTimeout);
+                        },
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception) when (
+                attempt < options.CatalogQueryAttempts
+                && IsTransientCatalogFailure(exception))
+            {
+                var delay = TimeSpan.FromTicks(checked(
+                    options.CatalogQueryRetryDelay.Ticks * attempt));
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsTransientCatalogFailure(Exception exception) => exception switch
+    {
+        DatabentoFeedTimeoutException => true,
+        DatabentoFeedException feedException => feedException.Status is
+            DatabentoFeedStatus.DatabentoError
+            or DatabentoFeedStatus.OsError
+            or DatabentoFeedStatus.Timeout
+            or DatabentoFeedStatus.ConnectionLimit
+            or DatabentoFeedStatus.RateLimit
+            or DatabentoFeedStatus.IncompleteDefinitions
+            or DatabentoFeedStatus.ConnectionHung,
+        _ => false
+    };
 
     private static DatabentoMarketDataCatalog CreateSyntheticFuturesCatalog(
         IReadOnlyList<DatabentoContractRegistration> registrations,
@@ -353,6 +387,12 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         if (options.Contracts.Select(item => item.DomainContractId)
             .Distinct(StringComparer.Ordinal).Count() != options.Contracts.Count)
             throw new ArgumentException("Domain contract IDs must be unique.", nameof(options));
+        if (options.CatalogQueryAttempts <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(options), "Catalog query attempts must be positive.");
+        if (options.CatalogQueryRetryDelay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(
+                nameof(options), "Catalog query retry delay cannot be negative.");
     }
 
     internal sealed record ResolvedContract(

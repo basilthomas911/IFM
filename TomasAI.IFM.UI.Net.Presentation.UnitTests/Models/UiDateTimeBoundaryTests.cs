@@ -21,20 +21,22 @@ public class UiDateTimeBoundaryTests
     static readonly DateOnly ValueDate = new(2026, 7, 15);
 
     [Fact]
-    public async Task MarketDataCommands_ConvertEasternImportDatesToUtc()
+    public async Task MarketDataCommands_PreserveEasternImportCalendarDateInUtcEncoding()
     {
         var api = Substitute.For<IMarketDataCommandApi>();
-        api.ImportYieldCurveRatesAsync(UtcStart).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
-        api.ImportEconomicCalendarsAsync(UtcStart, Arg.Any<string[]?>())
+        var easternEvening = new DateTime(2026, 7, 15, 21, 30, 0);
+        var utcDate = new DateTime(2026, 7, 15, 0, 0, 0, DateTimeKind.Utc);
+        api.ImportYieldCurveRatesAsync(utcDate).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
+        api.ImportEconomicCalendarsAsync(utcDate, Arg.Any<string[]?>())
             .Returns(new ServiceOk<Guid>(Guid.NewGuid()));
         var model = new MarketDataCommandModel(api);
 
-        await model.ImportYieldCurveRatesAsync(EasternStart);
-        await model.ImportEconomicCalendarsAsync(EasternStart, ["US"]);
+        await model.ImportYieldCurveRatesAsync(easternEvening);
+        await model.ImportEconomicCalendarsAsync(easternEvening, ["US"]);
 
-        await api.Received(1).ImportYieldCurveRatesAsync(UtcStart);
+        await api.Received(1).ImportYieldCurveRatesAsync(utcDate);
         await api.Received(1).ImportEconomicCalendarsAsync(
-            UtcStart,
+            utcDate,
             Arg.Is<string[]>(values => values.SequenceEqual(new[] { "US" })));
     }
 

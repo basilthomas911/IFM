@@ -878,7 +878,7 @@ Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
     bool forceProviderRefresh = false);
 ```
 
-Startup reconciliation populates one atomic runtime state containing both DataBento registrations and the full persisted current-contract models. The synchronous `TryGet` operation is a case-insensitive in-memory symbol lookup with no provider or storage access; per-tick domain handlers use it to validate current ES/VX identity. Ordinary update calls consult DataBento and persist a replacement only when the master rollover row is incomplete or due. Startup sets `forceProviderRefresh` so stale provider identities and nearest-contract assignments are revalidated before epoch admission. See `Documents/system/Futures-Contract-Rollover-Startup.md` for the startup admission and persistence rules.
+Startup reconciliation populates one atomic runtime state containing both DataBento registrations and the full persisted current-contract models. The synchronous `TryGet` operation is a case-insensitive in-memory symbol lookup with no provider or storage access; per-tick domain handlers use it to validate current ES/VX identity. Update calls, including startup, consult DataBento and persist a replacement only when the master rollover row is incomplete or due. This allows a healthy live feed to restart from a valid persisted assignment when the historical provider is temporarily unavailable. Explicit operator workflows may set `forceProviderRefresh` for early provider revalidation. See `Documents/system/Futures-Contract-Rollover-Startup.md` for the startup admission and persistence rules.
 
 The epoch builds tick mappings from the runtime feed mode. Live feeds use the
 publisher/instrument identities returned by DataBento definitions. Synthetic

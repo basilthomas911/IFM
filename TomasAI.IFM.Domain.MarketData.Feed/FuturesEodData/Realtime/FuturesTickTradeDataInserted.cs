@@ -117,8 +117,6 @@ internal static class FuturesTickTradeDataInserted
         eodDataToday ??= await context.GetLastFuturesEodDataAsync(
             contract.ContractId,
             valueDate).ConfigureAwait(false);
-        if (eodDataToday is null)
-            return null;
 
         var hasStatistics = marketDataApi.TryGetFuturesSessionStatistics(
                 contract.ContractId,
@@ -127,6 +125,13 @@ internal static class FuturesTickTradeDataInserted
             && statistics.ValueDate == valueDate
             && tickData.Price >= statistics.LowPrice
             && tickData.Price <= statistics.HighPrice;
+        eodDataToday ??= CreateSessionBaseline(
+            contract,
+            tickData,
+            hasStatistics,
+            statistics);
+        if (eodDataToday is null)
+            return null;
         if (!hasCurrentSessionRow && !hasStatistics)
             return null;
         if (hasStatistics)
@@ -212,6 +217,32 @@ internal static class FuturesTickTradeDataInserted
             CreatedOn = DateTime.UtcNow,
             CreatedBy = source.UserName
         };
+    }
+
+    internal static FuturesEodDataV2ReadModel? CreateSessionBaseline(
+        FuturesContractV2ReadModel contract,
+        FuturesTickDataV2ReadModel tickData,
+        bool hasStatistics,
+        FuturesSessionStatisticsSnapshot statistics)
+    {
+        if (!hasStatistics)
+            return null;
+
+        return new FuturesEodDataV2ReadModel(
+            contract.ContractId,
+            tickData.ValueDate,
+            contract.Symbol,
+            statistics.OpenPrice,
+            statistics.HighPrice,
+            statistics.LowPrice,
+            tickData.Price,
+            statistics.HasVolume ? statistics.Volume : tickData.Size,
+            FuturesSessionStatisticsUpdated.CalculateDailyPercentChange(
+                tickData.Price,
+                statistics.OpenPrice),
+            priceDirection: FuturesSessionStatisticsUpdated.CalculatePriceDirection(
+                tickData.Price,
+                statistics.OpenPrice));
     }
 
     internal static FuturesTickDataV2ReadModel ToFuturesTickData(

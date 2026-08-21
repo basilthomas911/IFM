@@ -35,7 +35,9 @@ The `command_log` table remains in PostgreSQL beside the event-source tables. Th
 5. acknowledges a duplicate with its original `CommandId` without validation, state loading, execution, or persistence; and
 6. allows only the PostgreSQL insert winner to continue through ordinary actor processing.
 
-Existing actor audit calls use the same atomic compatibility method. After ingress has admitted an ID, those calls are completed by the L1 cache without another database operation.
+Legacy command actors begin their durable audit while parsing and later reach the shared ingress guard. Those two calls must represent one admission attempt, not two independent attempts. The PostgreSQL context therefore keeps the parse-time reservation in a short-lived handoff table keyed by `CommandId`; the shared guard consumes that exact reservation result once. Only a later delivery creates a new attempt and receives the duplicate result from the L1 cache or PostgreSQL.
+
+This ordering is a correctness invariant. If parsing inserts the row and the shared guard independently checks the same ID, the first delivery is falsely classified as a duplicate: the row remains `InProgress`, no domain handler runs, and no terminal event is emitted. The integration suite exercises the complete legacy-audit-to-central-guard handoff and verifies that its first result is accepted while a repeated command is rejected.
 
 The PostgreSQL row retains the current JSON payload. MessagePack/blob storage remains confined to the ScyllaDB benchmark candidate.
 
@@ -225,6 +227,7 @@ Creating one new local reservation plus the remaining same-ID local duplicates c
 7. Added the bounded L1/in-flight accelerator to the production PostgreSQL context and registered its shared ingress contract in both actor hosts.
 8. Added actor short-circuit, cache, eviction, cancellation, failure recovery, and independent-process PostgreSQL tests.
 9. Added and ran the L1 BenchmarkDotNet suite.
+10. Added a compatibility handoff for actors that start command auditing during parsing, plus a real-PostgreSQL regression test proving the first reservation is consumed once and a later delivery is rejected.
 
 No shadow writer or ScyllaDB migration is authorized. If materially different multi-node hardware, latency, or workload distribution warrants another experiment, rerun the isolated benchmark first. Lease recovery, terminal status, and automatic reconciliation of admitted-but-unfinished commands remain future work.
 

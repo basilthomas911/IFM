@@ -38,6 +38,7 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
     readonly ConcurrentDictionary<string, EventNameIdReadModel> _eventNameIdCache = new();
+    readonly ConcurrentDictionary<Guid, Lazy<Task<bool>>> _legacyCommandReservations = new();
     readonly Lazy<CommandDuplicateCoordinator> _commandDuplicates = new(
         static () => new CommandDuplicateCoordinator(
             CommandDuplicateCoordinator.ReadConfiguredCapacity()),
@@ -352,20 +353,29 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
     /// <param name="commandTimestamp">The date and time, in UTC, when the command was issued.</param>
     /// <param name="commandData">A serialized representation of the command's data to be stored in the log. Cannot be null or empty.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData)
-        => await InsertCommandLogAsync(command, commandTimestamp, commandData, CancellationToken.None).ConfigureAwait(false);
+    public Task InsertCommandLogAsync(ICommand command, DateTime commandTimestamp, string commandData)
+        => InsertCommandLogAsync(command, commandTimestamp, commandData, CancellationToken.None);
 
-    public async Task InsertCommandLogAsync(
+    public Task InsertCommandLogAsync(
         ICommand command,
         DateTime commandTimestamp,
         string commandData,
         CancellationToken cancellationToken)
-        => _ = await TryInsertCommandLogAsync(
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandData);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var candidate = new Lazy<Task<bool>>(
+            () => TryInsertCommandLogAsync(
                 command,
                 commandTimestamp,
                 commandData,
-                cancellationToken)
-            .ConfigureAwait(false);
+                cancellationToken),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        var reservation = _legacyCommandReservations.GetOrAdd(command.CommandId, candidate);
+        return ObserveLegacyReservationAsync(command.CommandId, reservation);
+    }
 
     public async Task<bool> TryInsertCommandLogAsync(
         ICommand command,
@@ -399,6 +409,9 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (_legacyCommandReservations.TryRemove(command.CommandId, out var legacyReservation))
+            return AwaitLegacyReservationAsync(legacyReservation.Value, cancellationToken);
+
         return _commandDuplicates.Value.TryAcceptAsync(
             command.CommandId,
             token => InsertCommandLogCoreAsync(
@@ -407,6 +420,27 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 JsonConvert.SerializeObject(command),
                 token),
             cancellationToken);
+    }
+
+    static async ValueTask<bool> AwaitLegacyReservationAsync(
+        Task<bool> reservation,
+        CancellationToken cancellationToken)
+        => await reservation.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+    async Task ObserveLegacyReservationAsync(
+        Guid commandId,
+        Lazy<Task<bool>> reservation)
+    {
+        try
+        {
+            _ = await reservation.Value.ConfigureAwait(false);
+        }
+        catch
+        {
+            _legacyCommandReservations.TryRemove(
+                new KeyValuePair<Guid, Lazy<Task<bool>>>(commandId, reservation));
+            throw;
+        }
     }
 
     Task<bool> InsertCommandLogCoreAsync(

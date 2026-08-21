@@ -26,6 +26,12 @@ internal static class Program
             }
         }
 
+        if (options.TryGetValue("print-environment", out var environmentVariable))
+        {
+            Console.Out.WriteLine(
+                $"environment:{environmentVariable}={Environment.GetEnvironmentVariable(environmentVariable)}");
+        }
+
         if (options.TryGetValue("wait-for-shutdown", out var expectedInput))
         {
             var input = await Console.In.ReadLineAsync();

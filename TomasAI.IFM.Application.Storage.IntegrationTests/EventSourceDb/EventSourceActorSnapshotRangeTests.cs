@@ -218,6 +218,34 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task Legacy_parse_audit_hands_its_new_reservation_to_the_central_guard_once()
+    {
+        var entity = new TickDataEntityId("ESU6", new DateOnly(2026, 8, 7), AssetTypeId.Futures);
+        var command = new InsertFuturesTickTradeDataCommand
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, InsertFuturesTickTradeDataCommand.Actor,
+                InsertFuturesTickTradeDataCommand.Verb, entity.Format()),
+            EntityId = entity
+        };
+        var guard = (ICommandDuplicateGuard)fixture.ActorEventDb;
+
+        var legacyAudit = fixture.ActorEventDb.InsertCommandLogAsync(
+            command,
+            DateTime.UtcNow,
+            "payload");
+        (await guard.TryAcceptAsync(command)).Should().BeTrue();
+        await legacyAudit;
+
+        var duplicateAudit = fixture.ActorEventDb.InsertCommandLogAsync(
+            command,
+            DateTime.UtcNow,
+            "payload");
+        (await guard.TryAcceptAsync(command)).Should().BeFalse();
+        await duplicateAudit;
+    }
+
+    [Fact]
     public async Task Independent_process_caches_still_have_one_postgres_winner()
     {
         var entity = new TickDataEntityId("ESU6", new DateOnly(2026, 8, 7), AssetTypeId.Futures);

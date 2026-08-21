@@ -68,6 +68,25 @@ public static class EasternTime
         return TimeZoneInfo.ConvertTimeToUtc(easternClock, Zone);
     }
 
+    /// <summary>
+    /// Encodes an Eastern calendar date as a UTC date without applying an offset.
+    /// Use this only for APIs whose <see cref="DateTime"/> parameter represents a
+    /// date label rather than an instant.
+    /// </summary>
+    public static DateTime DateToUtc(DateTime easternDate)
+        => easternDate is { Year: 1, Month: 1, Day: 1 }
+            ? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
+            : easternDate is { Year: 9999, Month: 12, Day: 31 }
+                ? DateTime.SpecifyKind(DateTime.MaxValue.Date, DateTimeKind.Utc)
+                : new DateTime(
+                    easternDate.Year,
+                    easternDate.Month,
+                    easternDate.Day,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc);
+
     /// <summary>Converts an optional Eastern UI clock value to UTC.</summary>
     public static DateTime? ToUtc(DateTime? uiLocalTime)
         => uiLocalTime.HasValue ? ToUtc(uiLocalTime.Value) : null;

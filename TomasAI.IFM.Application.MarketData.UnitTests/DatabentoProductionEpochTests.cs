@@ -25,6 +25,7 @@ public sealed class DatabentoProductionEpochTests
             "ESU6 C6500", "ES", new InstrumentKey(7, 43), ContractKind.CallOption,
             maturity, 6_500_123_456_789, "ESU6");
         var provider = new FakeFeedFactory([future, option]);
+        provider.CatalogQueries.FailuresRemaining = 1;
         var runtimeOptions = new DatabentoMarketDataRuntimeOptions
         {
             FeedOptions = DatabentoFeedOptions.ForProfile(
@@ -46,7 +47,8 @@ public sealed class DatabentoProductionEpochTests
             ],
             QueryConcurrency = 1,
             QueryQueueCapacity = 4,
-            LastPriceCapacity = 2
+            LastPriceCapacity = 2,
+            CatalogQueryRetryDelay = TimeSpan.Zero
         };
         var publisher = new NoOpPublisher();
         var epochFactory = new DatabentoMarketDataEpochFactory(
@@ -85,6 +87,7 @@ public sealed class DatabentoProductionEpochTests
         Assert.Equal(1, provider.Feed.StopCount);
         Assert.Equal(TimeSpan.FromSeconds(5), provider.Feed.StopTimeout);
         Assert.True(provider.Feed.Disposed);
+        Assert.Equal(2, provider.CatalogQueries.Attempts);
     }
 
     [Fact]
@@ -202,6 +205,7 @@ public sealed class DatabentoProductionEpochTests
         internal Dictionary<string, DatabentoFeedOptions> FeedOptions { get; } =
             new(StringComparer.Ordinal);
         internal List<string> FeedStartOrder { get; } = [];
+        internal CatalogQueryState CatalogQueries { get; } = new();
         internal FakeTickerFeed Feed => Feeds.Values.Single();
         public IDatabentoTickerFeed CreateTickerFeed(DatabentoFeedOptions options)
         {
@@ -218,7 +222,8 @@ public sealed class DatabentoProductionEpochTests
             DatabentoFeedOptions options) => new FakeQueries(
                 details.Where(detail => detail.Dataset == options.Dataset)
                     .ToDictionary(item => item.RawSymbol, StringComparer.Ordinal),
-                CatalogQueryBarrier);
+                CatalogQueryBarrier,
+                CatalogQueries);
         public IDatabentoOptionChainFeed CreateOptionChainFeed(
             DatabentoFeedOptions options) => throw new NotSupportedException();
         public IDatabentoLatestPriceClient CreateLatestPriceClient(
@@ -227,7 +232,8 @@ public sealed class DatabentoProductionEpochTests
 
     private sealed class FakeQueries(
         Dictionary<string, ContractDetail> details,
-        CountdownEvent? catalogQueryBarrier = null)
+        CountdownEvent? catalogQueryBarrier,
+        CatalogQueryState catalogQueries)
         : IDatabentoMarketDataQueries
     {
         public OptionChainDefinitions GetChainDefinitions(
@@ -243,9 +249,11 @@ public sealed class DatabentoProductionEpochTests
         };
 
         public uint ContractIdToInstrumentId(string contractId, TimeSpan? timeout = null) =>
-            details[contractId].Instrument.InstrumentId;
+            throw new InvalidOperationException(
+                "Epoch catalog startup must use its batch definition snapshot.");
         public string InstrumentIdToContractId(uint instrumentId, TimeSpan? timeout = null) =>
-            details.Values.Single(item => item.Instrument.InstrumentId == instrumentId).RawSymbol;
+            throw new InvalidOperationException(
+                "Epoch catalog startup must use its batch definition snapshot.");
         public ContractDetail? GetContractDetail(string contractName, TimeSpan? timeout = null) =>
             details.GetValueOrDefault(contractName);
         public IReadOnlyList<ContractDetail> GetContractDetails(
@@ -256,6 +264,14 @@ public sealed class DatabentoProductionEpochTests
             string[] contractNames,
             TimeSpan? timeout = null)
         {
+            catalogQueries.Attempts++;
+            if (catalogQueries.FailuresRemaining > 0)
+            {
+                catalogQueries.FailuresRemaining--;
+                throw new DatabentoFeedException(
+                    DatabentoFeedStatus.DatabentoError,
+                    "Transient catalog read failure.");
+            }
             if (catalogQueryBarrier is not null)
             {
                 catalogQueryBarrier.Signal();
@@ -264,6 +280,12 @@ public sealed class DatabentoProductionEpochTests
             }
             return contractNames.Select(name => details.GetValueOrDefault(name)).ToArray();
         }
+    }
+
+    internal sealed class CatalogQueryState
+    {
+        internal int Attempts { get; set; }
+        internal int FailuresRemaining { get; set; }
     }
 
     private sealed class FakeTickerFeed(

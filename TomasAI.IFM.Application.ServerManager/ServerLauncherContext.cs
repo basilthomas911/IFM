@@ -86,16 +86,15 @@ public sealed class ServerLauncherContext : IAsyncDisposable
 
     private void ViewConsole()
     {
-        _notifyIcon.ContextMenuStrip!.Items["ViewConsole"]!.Enabled = false;
         _viewModel.ConsoleVisibility = Visibility.Visible;
         _viewModel.ConsoleWindowState = WindowState.Maximized;
         _console.Show();
+        _console.WindowState = WindowState.Maximized;
         _console.Activate();
     }
 
     private void MinimizeConsole()
     {
-        _notifyIcon.ContextMenuStrip!.Items["ViewConsole"]!.Enabled = true;
         _viewModel.ConsoleVisibility = Visibility.Hidden;
         _viewModel.ConsoleWindowState = WindowState.Minimized;
         _console.Hide();

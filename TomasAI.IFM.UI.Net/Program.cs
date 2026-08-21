@@ -136,6 +136,8 @@ namespace TomasAI.IFM.UI.Net
                     {
                         _phase = LifecyclePhase.Running;
                         _lifecycleTimer.Stop();
+                        if (ShouldStartMaximized())
+                            _mainForm.WindowState = WinForms.FormWindowState.Maximized;
                         _mainForm.Show();
                         return;
                     }
@@ -169,6 +171,13 @@ namespace TomasAI.IFM.UI.Net
             }
 
             void MainForm_FormClosed(object? sender, WinForms.FormClosedEventArgs e) => BeginShutdown();
+
+            static bool ShouldStartMaximized()
+            {
+                var value = Environment.GetEnvironmentVariable("IFM_UI_START_MAXIMIZED");
+                return string.Equals(value, "1", StringComparison.Ordinal)
+                    || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+            }
 
             void BeginShutdown()
             {
