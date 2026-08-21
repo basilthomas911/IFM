@@ -1,8 +1,8 @@
 # IFM AWS Cloud Database Backup and Restore Architecture
 
-Status: Draft for architecture review; Section 29 decisions approved; paper-trading deployment amendment approved
-Version: 0.5
-Date: 2026-08-12
+Status: Architecture aligned to the implemented LocalWorkstation contract and storage baseline; AWS adapters remain planned
+Version: 0.6
+Date: 2026-08-21
 Scope: AWS reference architecture for PostgreSQL and ScyllaDB backup, restore, retention, and disaster recovery
 Parent architecture: Database-Backup-Architecture-Overview.md version 0.9
 
@@ -20,14 +20,17 @@ The design answers the AWS-specific questions intentionally deferred by the over
 - AWS Identity and Access Management roles and separation of duties;
 - AWS Key Management Service encryption and recovery-key controls;
 - network and credential boundaries;
-- PostgreSQL WAL and base-backup movement to AWS;
+- PostgreSQL WAL and full/incremental physical-backup movement to AWS;
 - ScyllaDB cluster-backup movement to AWS;
 - destination-resident catalog, manifest, verification, and break-glass recovery;
 - lifecycle, retention, legal hold, audit, observability, cost, and failure behavior; and
 - the production acceptance evidence required before AWS becomes a trusted recovery destination.
 
-This remains an architecture and design document. It does not prescribe C# classes, Terraform or CloudFormation modules,
-AWS resource names, command-line scripts, or a delivery task breakdown.
+This remains an architecture and design document. It does not prescribe Terraform or CloudFormation modules, AWS
+resource names, command-line scripts, or a delivery task breakdown. Where the LocalWorkstation implementation has now
+established shared C# message, manifest, projection, and journal schemas, those schemas are the AWS implementation
+baseline and are named explicitly. The AWS implementation adds destination adapters and AWS evidence; it does not fork
+the shared contracts.
 
 ## 2. Relationship to the shared architecture
 
@@ -64,6 +67,21 @@ This document inherits the following non-negotiable rules from the overview:
     processor never writes that context directly.
 17. The Database Backup Host owns an external durable execution journal, while immutable S3 manifests and run evidence
     remain independently usable when Core, the journal, or the workload account is unavailable.
+18. The implemented MessagePack contracts are append-only. Existing numeric keys are not reordered or reused. AWS uses
+    `RequestDatabaseBackupCommand.RequestedBackupMode` at key 31 and `DatabaseBackupEventContract.BackupLineage` at key
+    31 exactly as LocalWorkstation does.
+19. The shared backup modes are `None`, `Automatic`, `Full`, and `Incremental`; accepted new backup requests resolve
+    `None` as the legacy/default full behavior. AWS must not introduce destination-specific backup-mode enums.
+20. Signed IFM engine manifests use `DatabaseBackupManifest` schema version 2. Schema version 1 remains readable as a
+    legacy full backup. AWS-specific object-version, KMS, Object Lock, account, and Region evidence belongs in signed
+    AWS publication records, not new actor-message fields.
+21. `DatabaseBackupLineage` has the same meaning in commands, service/domain events, manifests, catalogs, projections,
+    Console, ScheduledTask, and UI state for both sources.
+22. PostgreSQL incremental manifests declare exactly their direct parent in `Dependencies`. Scylla Manager snapshots
+    are logically complete restore points: deduplicated Scylla lineage is recorded, but IFM does not invent an SSTable
+    dependency graph.
+23. AWS reuses the implemented `SystemAdminDbContext` projection schema. Source discrimination is the existing
+    `BackupSource.AwsCloud`; there are no parallel AWS projection tables.
 
 If this document conflicts with the approved overview, the overview controls until both documents are deliberately
 revised and reviewed.
@@ -88,8 +106,10 @@ The AWS design adopts these decisions for production:
 | Artifact publication | Unique immutable object keys, manifest, commit record, then append-only catalog entry |
 | Catalog | Destination-resident and reconstructable from immutable manifests; no database dependency |
 | Restore source | Explicit replica selection after independent validation; no automatic opaque failover |
-| PostgreSQL | Periodic physical base backup plus continuous WAL archiving for PITR |
-| ScyllaDB | Scylla Manager coordinates cluster-native capture; AWS movement remains controlled by the Backup Service |
+| PostgreSQL | Periodic physical full or incremental backup plus continuous WAL archiving for PITR |
+| Incremental request policy | Shared `Full | Automatic | Incremental`; `Automatic` may fall back to full, explicit `Incremental` fails when ineligible |
+| PostgreSQL incremental | PostgreSQL 17-or-later native incremental capture and dependency-complete `pg_combinebackup` restore, plus continuous WAL for PITR |
+| ScyllaDB | Scylla Manager coordinates logically complete snapshots and native physical deduplication; AWS movement remains controlled by the Backup Service |
 | Native AWS access | Database and Scylla agents do not receive AWS credentials under this architecture |
 | BackupSource | Shared enum is `None`, `LocalWorkstation`, and `AwsCloud`; this processor accepts `AwsCloud`; `AwsPrimary` and `AwsRecovery` remain physical replica identities within that source |
 | AWS Backup service | Optional tertiary protection only; it does not replace native capture or the IFM catalog |
@@ -98,6 +118,7 @@ The AWS design adopts these decisions for production:
 | Deletion | A revision-matched retention plan and a separate deletion role; never an unbounded bucket sweep |
 | SystemAdmin projections | `SystemAdminDbContext` in Core PostgreSQL; rebuildable and never an execution authority |
 | Execution journal | Common execution-journal capability; production AWS profile uses conditional, encrypted durable storage in the workload trust boundary, while immutable recovery evidence remains in the backup/recovery accounts |
+| Shared schema baseline | Existing MessagePack key layout, manifest schema v2, SystemAdmin projection tables, and seven logical journal record families from LocalWorkstation |
 
 Production uses three AWS trust domains:
 
@@ -339,27 +360,33 @@ Every published object key is unique and immutable. The service never overwrites
 Human-readable database names, credentials, host paths, account numbers, and sensitive strategy identifiers are not
 placed in object keys.
 
-The normative logical layout is:
+The normative logical layout preserves the implemented LocalWorkstation namespace so a catalog can be interpreted by
+the same recovery model. AWS adds immutable object-version evidence but does not rename the shared logical paths:
 
-    schema-v1/
+    vault/schema-v1/
       environments/{EnvironmentId}/
         protection-sets/{ProtectionSetId}/
           operations/{OperationId}/
             engines/{EngineId}/
-              artifacts/{ArtifactId}/{PartName}
-              native-manifest/{NativeManifestId}
-              ifm-engine-manifest/{ManifestId}
-              verification/{VerificationId}
-              run-evidence/{StatisticsRevision}
-            backup-set/{BackupSetId}/manifest/{ManifestId}
-            publication/{PublicationId}/commit
-          catalog/entries/{UtcDate}/{BackupSetId}/{CatalogEntryId}
-          recovery-records/{RecoveryOperationId}/{RecordId}
+              artifacts/{ManifestId}/{NativeRelativePath}
+              ifm-engine-manifest/{ManifestId}.json[.sig]
+            publication/{ManifestId}/commit.json[.sig]
+        catalog/entries/{yyyyMMdd}/{RestorePointId}/{ManifestId}-{ReplicaId}.json[.sig]
+        drill-evidence/{RecoveryOperationId}/final.json[.sig]
+        recovery-records/{RecoveryOperationId}/final.json[.sig]
+        retention/plans/{RetentionPlanId}/{Revision}.json[.sig]
+
+AWS-only signed evidence may extend an operation with exact object-version, verification, run-evidence, replication,
+and coordinated-backup-set records. Those additions reference the common manifest/catalog identities above and cannot
+replace or rename them. Database-native manifests remain inside the artifact tree at their native relative paths.
 
 Identifiers are opaque and stable. The manifest contains the bounded descriptive metadata needed to interpret them.
-Run evidence contains the final structured `DatabaseRecoveryRunStats` summary for successful, failed, or cancelled work
+Run evidence contains the final structured `DatabaseRecoveryRunStatistics` summary for successful, failed, or cancelled work
 when enough evidence exists to publish it safely. Only eligible completed recovery points are referenced by catalog
 entries.
+
+The `schema-v1` path segment versions the object namespace, not the IFM engine-manifest payload. A manifest stored
+beneath this namespace is currently `DatabaseBackupManifest.SchemaVersion = 2`; the two version numbers are independent.
 
 ### 8.2 Object identity
 
@@ -429,6 +456,42 @@ verification does not require a live call to the failed Core environment.
 
 Signing authorization is separate from artifact upload. The signing role signs a digest only after policy validation
 confirms artifact identity, checksum evidence, retention, and encryption.
+
+### 8.6 Implemented manifest schema v2 baseline
+
+The AWS engine manifest is the shared `DatabaseBackupManifest` schema version 2 with `Source = AwsCloud`. Its portable,
+signed fields remain identical to LocalWorkstation:
+
+| Field group | Required meaning |
+| --- | --- |
+| Identity | `ManifestId`, `OperationId`, `RestorePointId`, `Source`, `Engine`, and `ProtectionSetId` |
+| Boundary | bounded `SafeBoundaryReference`, UTC `CreatedUtc`, and positive `Revision` |
+| Restore graph | `Dependencies` containing only the direct PostgreSQL incremental parent when applicable |
+| Portable artifacts | relative path, byte length, and SHA-256 digest for every native artifact |
+| Publication | logical `DatabaseArtifactReplicaId` values and bounded run statistics |
+| Lineage | requested/resolved mode, native kind, base restore point, parent restore point, chain depth, and bounded native identity |
+
+Version-2 validation is source-neutral except for the concrete source value:
+
+- a full manifest identifies itself as `BaseRestorePointId`, has no parent, has depth zero, and has no restore
+  dependency;
+- a PostgreSQL incremental uses `PostgreSqlIncremental`, has a base and direct parent, has positive depth, and lists
+  exactly that direct parent in `Dependencies`;
+- a Scylla full uses `ScyllaManagerSnapshot`;
+- a Scylla incremental request resolved by Manager uses `ScyllaManagerDeduplicatedSnapshot`, records base/parent/depth
+  lineage for selection and audit, and keeps `Dependencies` empty because the selected Manager restore point is
+  logically complete; and
+- a version-1 manifest is normalized as a legacy full backup when read.
+
+AWS destination binding is a signed, destination-specific publication layer around this common manifest. The AWS
+commit/catalog evidence records bucket, key, S3 version ID, account/Region, length, checksums, KMS key, Object Lock,
+legal hold, storage class, and replication status. These values are deliberately not placed in
+`DatabaseBackupLineage`, actor messages, or `SystemAdminDbContext`; bounded `DatabaseArtifactReplicaDescriptor` events
+carry only the logical replica, state, safe destination reference, engine, artifact identity, and optional byte count.
+
+The current `LocalBackupManifestStore` is a LocalWorkstation adapter and correctly rejects a non-local source. The AWS
+adapter must implement the same shared schema-v2 invariants while requiring `AwsCloud`; it must not weaken the validator
+or serialize the local-source restriction into the common contract.
 
 ## 9. IAM and separation of duties
 
@@ -589,7 +652,7 @@ identity, and repeating the security review.
 
 ## 12. PostgreSQL AWS backup design
 
-The AwsCloud processor consumes the shared typed PostgreSQL capability for preflight, base backup, status,
+The AwsCloud processor consumes the shared typed PostgreSQL capability for preflight, physical backup, status,
 verification, WAL recovery-range management, fresh-target restore, validation, cancellation, and reconciliation.
 PostgreSQL has no general backup REST API: the adapter privately uses the PostgreSQL replication protocol and supported
 native utilities such as `pg_basebackup` and `pg_verifybackup`. Actor messages cannot select tools, arguments,
@@ -599,31 +662,50 @@ credentials, or host paths.
 
 PostgreSQL protection consists of:
 
-- periodic physical base backups of the complete PostgreSQL cluster;
+- periodic physical full or incremental backups of the complete PostgreSQL cluster;
 - continuous WAL archiving;
 - immutable native and IFM manifests;
 - checksum and native backup verification;
 - cross-account and cross-Region replication; and
 - recurring fresh-target PITR drills.
 
-Incremental base backups may be enabled only for a compatible PostgreSQL version after measured restore-time and
-retention-chain benefits justify their additional dependency complexity.
+The shared request modes and implemented planner rules are binding:
 
-### 12.2 Base-backup workflow
+- `Full` always begins a new chain;
+- `Automatic` selects the newest verified, content-equivalent parent present on every required logical replica and
+  falls back to full when no eligible common parent exists;
+- explicit `Incremental` uses the same eligibility checks but fails rather than silently changing mode;
+- chain depth and base age are bounded by source configuration; the initial AWS defaults match the validated local
+  defaults of six incremental descendants and a seven-day maximum base age; and
+- the requested and resolved mode are both retained in lineage, events, manifest v2, catalog interpretation, and
+  projections.
+
+PostgreSQL incremental capture requires source PostgreSQL 17 or later, matching PostgreSQL 17-or-later native tools,
+`summarize_wal=on`, retained WAL summaries, a parent from the same database system identifier, the parent native
+manifest, and `pg_combinebackup`. Failure of any precondition applies the `Automatic` fallback/explicit
+`Incremental` failure rule above.
+
+### 12.2 Full or incremental backup workflow
 
 1. SystemAdmin commits **DatabaseBackupExecutionRequestedEvent** for **CorePostgresCluster**.
 2. The Database Backup Service admits and journals the operation.
-3. The service validates the replication identity, PostgreSQL version, destination readiness, staging capacity, policy
-   revision, active lease, and WAL archive health.
-4. The service runs the approved physical base-backup tool through the PostgreSQL replication/backup interface.
-5. Output is streamed through bounded encrypted staging or directly into bounded service-owned upload buffers.
-6. The service preserves PostgreSQL's native backup manifest and calculates IFM artifact digests.
-7. Artifacts are uploaded under unique immutable S3 keys.
-8. Native verification validates the base backup.
-9. The IFM engine manifest records cluster identity, system identifier, engine version, timeline, start and end LSN,
+3. The service reads the requested mode carried in the execution event's `BackupLineage` (originating from command
+   `RequestedBackupMode`), enumerates verified catalog entries on every required replica, and resolves one
+   `DatabaseBackupLineage` before native capture.
+4. The service validates the replication identity, database system identifier, PostgreSQL/tool versions, incremental
+   prerequisites where selected, destination readiness, staging capacity, policy revision, active lease, and WAL
+   archive health.
+5. Full capture uses the approved physical base-backup command. Incremental capture invokes
+   `pg_basebackup --incremental=<direct-parent-backup_manifest>` through the allowlisted native adapter.
+6. Output is streamed through bounded encrypted staging or directly into bounded service-owned upload buffers.
+7. The service preserves PostgreSQL's native backup manifest and calculates IFM artifact digests.
+8. Artifacts are uploaded under unique immutable S3 keys.
+9. Native verification validates the selected full or incremental backup.
+10. The IFM engine manifest records cluster identity, system identifier, engine version, timeline, start and end LSN,
    start and end time, native tool version, tablespace mapping, artifact versions, checksums, and WAL dependency.
-10. The service publishes the engine commit and catalog evidence only after policy-required verification.
-11. Replication state is tracked per object version and reported as replica lifecycle events.
+   It also stores the exact shared lineage and, for PostgreSQL incrementals, the direct parent in `Dependencies`.
+11. The service publishes the engine commit and catalog evidence only after policy-required verification.
+12. Replication state is tracked per object version and reported as replica lifecycle events.
 
 The actor never starts or waits for the native utility. Process output remains service telemetry and a bounded artifact
 log.
@@ -682,7 +764,8 @@ The service restores to a fresh encrypted volume and compatible PostgreSQL runti
 3. Select and validate a primary or recovery replica explicitly.
 4. Retrieve or rehydrate archived S3 objects into controlled encrypted staging.
 5. Verify every downloaded object's S3 and IFM checksums.
-6. Combine incremental backups where applicable.
+6. For an incremental target, stage the complete chain oldest-first, verify every signed manifest and native artifact,
+   and use the matching `pg_combinebackup` to produce a synthetic full backup. Verify that combined backup before boot.
 7. Restore the cluster files with correct ownership, permissions, and tablespace mapping.
 8. Configure recovery to read the verified WAL staging path.
 9. Start PostgreSQL in isolated recovery networking.
@@ -707,7 +790,7 @@ ScyllaDB protection consists of:
 - Scylla Manager coordination for multi-node production capture;
 - complete declared-node and token-range coverage;
 - schema capture;
-- snapshot/SSTable artifact capture and dependency tracking;
+- logically complete snapshot/SSTable artifact capture with Manager/object-store physical deduplication;
 - preservation of Scylla native manifests;
 - IFM cluster manifest and application checkpoint;
 - immutable AWS replicas; and
@@ -715,6 +798,13 @@ ScyllaDB protection consists of:
 
 A cluster backup is incomplete when any required live node, keyspace, table, token range, schema artifact, or native
 manifest required by the policy is missing.
+
+Scylla uses the same `Full | Automatic | Incremental` request surface as PostgreSQL, but its restore graph is different.
+`Full` resolves to `ScyllaManagerSnapshot`. An eligible `Automatic` or explicit `Incremental` resolves to
+`ScyllaManagerDeduplicatedSnapshot`; base, parent, and depth are retained as lineage, while manifest `Dependencies`
+remains empty. Scylla Manager restore points are logically complete and Manager/object storage owns their physical
+deduplication. An AWS adapter must not manufacture a client-side SSTable dependency chain or copy unchanged SSTables
+merely to make an IFM "full" directory.
 
 ### 13.2 Credential-preserving transfer model
 
@@ -747,13 +837,14 @@ architecture decision, not an implementation detail.
 7. The service uploads artifacts with bounded multipart concurrency.
 8. The service writes an IFM Scylla engine manifest containing cluster ID, topology, datacenters, nodes, token coverage,
    keyspaces, tables, schema identity, native snapshot tag, Scylla and Manager versions, artifact identities, checksums,
-   and application checkpoint.
+   application checkpoint, and the common lineage fields. Its `Dependencies` array is empty.
 9. Verification validates the native and IFM manifests and object versions.
 10. The service publishes the commit and append-only catalog entry.
 11. Staging cleanup occurs only after the required AWS replica state and diagnostic policy allow it.
 
-Scylla Manager automatic retention against the AWS source of truth is disabled or subordinated to the IFM approved
-retention plan. Native tooling must not independently purge a retained chain.
+Scylla Manager automatic retention against the AWS source of truth is subordinated to the IFM approved retention plan.
+The initial retention setting matches the validated LocalWorkstation default of 30 Manager snapshots. Native tooling
+must not purge a restore point still protected by IFM retention, legal hold, active work, or replica policy.
 
 ### 13.4 Scylla restore eligibility
 
@@ -761,7 +852,8 @@ A Scylla restore point is eligible only when:
 
 - schema and data manifests are complete;
 - every required node and token range is accounted for;
-- the full SSTable and incremental dependency set exists;
+- the selected Manager restore point is logically complete and all native objects referenced by that restore point
+  exist on the selected replica;
 - destination topology mapping is explicit;
 - the target Scylla version is compatible;
 - the selected backup set's application checkpoint is compatible with PostgreSQL where coordinated recovery is needed;
@@ -772,7 +864,8 @@ A Scylla restore point is eligible only when:
 
 The service restores to a fresh compatible cluster:
 
-1. Resolve and validate the complete signed manifest chain.
+1. Resolve and validate the selected signed IFM manifest, its Scylla native manifest, and the logically complete Manager
+   restore point. Lineage is audit/selection evidence, not an IFM artifact dependency chain.
 2. Select the primary or recovery replica explicitly.
 3. Rehydrate archived objects when needed.
 4. Download exact S3 versions into fresh encrypted service-controlled staging.
@@ -790,8 +883,10 @@ No restore copies files blindly into active ScyllaDB node directories.
 
 ## 14. Coordinated PostgreSQL and ScyllaDB backup sets
 
-The preferred consistency mode is **ApplicationCheckpoint**. SystemAdmin records a checkpoint that can be correlated
-with both engine operations without pausing the entire application unless testing proves quiescence necessary.
+The shared `DatabaseConsistencyMode` values are `EngineConsistent` and `CoordinatedProtectionSet`. AWS does not add an
+`ApplicationCheckpoint` enum value. For a multi-engine set, the request uses `CoordinatedProtectionSet`; SystemAdmin
+records an application checkpoint as the bounded consistency reference correlated with both engine operations without
+pausing the entire application unless testing proves quiescence necessary.
 
 A coordinated set manifest contains:
 
@@ -910,7 +1005,8 @@ No permanent AWS access key is stored as an emergency credential.
 4. Enumerate immutable catalog entries.
 5. Validate signatures and reconstruct the catalog from manifests if the index is suspect.
 6. Select an exact coordinated backup set and recovery target.
-7. Resolve all PostgreSQL and Scylla dependencies.
+7. Resolve the PostgreSQL dependency/WAL closure and every native object referenced by the selected logically complete
+   Scylla Manager restore point.
 8. Retrieve or rehydrate exact object versions.
 9. Validate checksums before native tools consume the artifacts.
 10. Provision fresh isolated database targets.
@@ -970,7 +1066,8 @@ Retention planning protects:
 
 - every base backup referenced by a retained incremental or PITR point;
 - every required PostgreSQL WAL segment;
-- every Scylla schema, snapshot, SSTable, and native manifest dependency;
+- every Scylla schema, snapshot, SSTable, and native object referenced by a retained logically complete Manager restore
+  point; Scylla lineage alone does not create transitive IFM dependencies;
 - every object referenced by an active backup, restore, verification, or drill;
 - every legal-held object version;
 - the latest successful restore-tested set;
@@ -1092,6 +1189,28 @@ RequestOrigin records which caller path initiated the contract; it does not sele
 BackupSource **None** is allowed only for unselected/default state or an explicit all-sources query and is rejected for
 accepted operations and source-bound events.
 
+The implemented wire-schema baseline is normative for AwsCloud:
+
+| Contract | Existing field/key used by AWS | Rule |
+| --- | --- | --- |
+| `DatabaseRequestEnvelope` | keys 0-9, contract version 1 | Reuse unchanged; caller identity, authorization, origin, correlation/causation, environment, and UTC creation time remain mandatory |
+| `RequestDatabaseBackupCommand` through `DatabaseBackupCommand` | `RequestedBackupMode`, MessagePack key 31 | `None` is normalized to the legacy full request before execution; no AWS mode field is added |
+| `DatabaseBackupExecutionRequestedEvent` through `DatabaseBackupEventContract` | `BackupLineage`, MessagePack key 31 | Initially carries requested mode; AWS host returns the resolved lineage on bounded service events |
+| Service and domain events | the same `BackupLineage`, source envelope, replica descriptor, statistics, manifest revision, and restore-point fields | Event type names and MessagePack keys remain source-neutral |
+| `DatabaseBackupOperationReadModel` | `BackupLineage`, key 12 | UI/Console see requested and resolved mode without AWS-specific models |
+| `DatabaseRestorePointReadModel` | `BackupLineage`, key 11 | Catalog lineage is projected through domain events, never read directly from S3 by clients |
+
+`DatabaseBackupLineage` itself retains the implemented key layout: requested mode 0, resolved mode 1, native kind 2,
+base restore point 3, parent restore point 4, chain depth 5, and bounded native identity 6. Enum numeric values are
+also stable: modes `Automatic=1`, `Full=2`, `Incremental=3`; native kinds `PostgreSqlBase=1`,
+`PostgreSqlIncremental=2`, `ScyllaManagerSnapshot=3`, and `ScyllaManagerDeduplicatedSnapshot=4`.
+
+The transport route and durable acknowledgement boundaries are identical to LocalWorkstation: public Core NATS
+request/reply to actors; Command Actor execution intent through JetStream; host journal admission before acknowledgement;
+host outbox service events through JetStream; Event Actor translation; Command Actor durable append; then public domain
+events to projections and authorized UI/Console listeners. AWS multipart parts, S3 objects, WAL segments, and Scylla
+components remain private journal/telemetry details rather than messages.
+
 ### 21.2 AWS-related service observations
 
 The service uses existing event families to report AWS state:
@@ -1130,7 +1249,7 @@ High-cardinality details stay in service metrics, traces, logs, journal records,
 ### 21.4 SystemAdmin projections and AWS evidence reconciliation
 
 `SystemAdminDbContext` stores the shared operation, phase, restore-point, replica, structured error, health, and
-`DatabaseRecoveryRunStats` projections in `CorePostgresCluster`. The AwsCloud processor never receives its connection
+`DatabaseRecoveryRunStatsReadModel` projections in `CorePostgresCluster`. The AwsCloud processor never receives its connection
 and never writes it directly. Statistics enter Core only through the common service event, Event Actor translation,
 Command Actor domain event, and idempotent projector path.
 
@@ -1138,6 +1257,15 @@ After Core recovery, restored event streams rebuild the projection tables. The r
 newer S3 manifests, catalog entries, immutable run-evidence objects, verification records, and break-glass recovery
 records. Accepted facts are submitted as authenticated reconciliation commands and recorded as new domain events before
 projection. S3 objects, DynamoDB journal items, Inventory, and CloudTrail never update `SystemAdminDbContext` directly.
+
+No AWS projection migration is required beyond the implemented shared schema. In particular,
+`system_admin.database_recovery_operation.backup_lineage_json` and
+`system_admin.database_restore_point.backup_lineage_json` store the common lineage JSON for either source. The
+remaining shared tables are `database_recovery_phase`, `database_recovery_run_stats`, `database_artifact_replica`,
+`database_recovery_error`, `database_backup_policy`, `database_backup_service_health`, `database_retention_state`,
+`database_backup_projection_checkpoint`, and `database_backup_projection_receipt`. Their existing source, revision,
+last-event, and last-source-event columns preserve source separation and replay/idempotency. AWS-specific object
+metadata stays in immutable S3 evidence and the private host journal instead of widening these projections.
 
 ### 21.5 Operator clients
 
@@ -1256,6 +1384,31 @@ The Database Backup Service journal is outside the protected application databas
 The journal belongs to the independent Database Backup Host and survives host restarts. Core and the service reconcile
 after either side or NATS restarts without duplicating native work.
 
+The AwsCloud journal must implement the same seven logical record families as the completed SQLite journal. DynamoDB
+may use one physical table or reviewed companion tables, but it cannot collapse or omit these durability boundaries:
+
+| Local logical schema | Required AwsCloud logical data and identity |
+| --- | --- |
+| `journal_operation` | operation ID; source; operation kind; protection set; immutable definition hash; intent event ID/type/payload; phase; terminal flag; lease host/expiry; fencing token; last service sequence; admitted/updated UTC |
+| `journal_inbox` | source event ID as unique identity; operation ID; content hash; admitted UTC |
+| `journal_checkpoint` | operation ID + fencing token + phase identity; terminal flag; safe diagnostic reference; observed UTC |
+| `journal_artifact_replica` | operation ID + logical artifact-replica ID; state; safe destination reference; fencing token; updated UTC; AWS-private multipart and exact object-version state may be attached below this family |
+| `journal_outbox` | event ID plus unique operation/service-sequence constraint; allowlisted event type; canonical payload and content hash; publish state/attempts; created/published UTC |
+| `journal_run_stats` | operation ID + statistics revision; bounded statistics payload; publication state |
+| `journal_reconciliation` | operation ID; acknowledged Core domain revision; acknowledged UTC |
+
+The journal serializes the same allowlisted `DatabaseBackupEventContract` types and computes the same immutable
+operation-definition identity from operation ID, source, operation kind, protection set, and backup-set identity. The
+requested mode is therefore retained in the admitted execution event's `BackupLineage`; no separate AWS-only request
+shape is needed. A duplicate event ID with a different content hash or an operation ID with a different definition is a
+conflict, not a retry.
+
+Conditional-write behavior must preserve the SQLite transaction semantics: inbox admission and operation creation are
+atomic; lease mutation compares the current fencing token/revision; checkpoints and replica updates require the current
+fence; service sequence is unique and monotonic per operation; an outbox item is durable before JetStream publish and
+is marked published only after server acknowledgement; and terminal compaction cannot remove unacknowledged outbox or
+statistics records.
+
 Production AWS-hosted deployments use a DynamoDB execution-journal adapter in the workload account. The adapter uses
 conditional writes for lease/fencing and revision checks, encrypted storage, strongly consistent reads where admission
 or ownership requires them, and point-in-time recovery. Terminal-item expiry or compaction is allowed only after the
@@ -1283,6 +1436,8 @@ entries, and run evidence, then uses the common reconciliation flow rather than 
 | Reordered or missing service observation | Detect service-sequence gap, stop unsafe state advancement, and reconcile before acknowledgement |
 | Native database unavailable | Fail preflight or stop at a native safe boundary; preserve structured diagnostics and do not publish |
 | PostgreSQL base capture interrupted | Mark capture unusable unless the native tool proves resumability; retain bounded diagnostic evidence |
+| PostgreSQL incremental parent missing or differs across required replicas | `Automatic` resolves full; explicit `Incremental` rejects before capture |
+| PostgreSQL incremental chain/tool prerequisite fails | Apply the same fallback/failure rule before capture; never publish partial lineage |
 | Scylla native task interrupted | Reconcile Scylla Manager state and required-node coverage; never infer cluster completeness |
 | Credential expiry | Refresh temporary role session; pause safely if refresh fails |
 | Primary S3 unavailable | Retry within budget, preserve staging, expose WAL/backpressure risk, and do not claim AWS completion |
@@ -1294,7 +1449,7 @@ entries, and run evidence, then uses the common reconciliation flow rather than 
 | Recovery Region unavailable | Preserve primary; alert on degraded regional recovery |
 | Primary Region unavailable | Restore from independently validated recovery replica |
 | Manifest or signature invalid | Restore point is ineligible regardless of object presence |
-| Base, WAL, SSTable, schema, or manifest dependency missing | Mark the affected restore point ineligible and prevent dependent retention changes |
+| PostgreSQL parent/base/WAL dependency or Scylla selected-snapshot object missing | Mark the affected restore point ineligible and prevent dependent retention changes; do not infer a Scylla lineage dependency |
 | PostgreSQL WAL gap | PITR targets beyond the gap are ineligible; retain surrounding evidence for diagnosis |
 | Scylla node/token omission | Cluster restore point is incomplete and unpublished |
 | Staging exhausted | Reject new work or pause safely; protect WAL and active operation reserves |
@@ -1313,7 +1468,8 @@ The service never silently:
 - changes Compliance mode to Governance mode;
 - uses SSE-S3 instead of the approved KMS key;
 - publishes without a recovery replica when policy requires it;
-- omits WAL or Scylla dependencies;
+- omits PostgreSQL parent/WAL dependencies or objects referenced by a selected Scylla Manager restore point;
+- changes an explicit `Incremental` request to full;
 - selects a warmer or colder storage class than policy allows;
 - acknowledges an unprotected PostgreSQL WAL segment;
 - uses an unsigned manifest;
@@ -1416,7 +1572,7 @@ recovery point into a storage class that violates RTO. Policy changes go through
 
 Forecasting uses:
 
-- PostgreSQL base-backup size and WAL generation percentiles;
+- PostgreSQL full/incremental backup size and WAL generation percentiles;
 - Scylla snapshot growth and SSTable churn;
 - retention-chain dependencies;
 - replication lag;
@@ -1459,6 +1615,8 @@ The Database Backup Service owns validated bootstrap configuration:
 - inventory and audit integration;
 - archive retrieval policy;
 - native database endpoint or agent configuration; and
+- incremental enablement, maximum chain depth, maximum base age, and PostgreSQL/Scylla native prerequisites using the
+  same fallback and failure semantics as the shared planner;
 - break-glass capability configuration.
 
 Startup fails closed when a mandatory production control is absent or weaker than policy.
@@ -1497,6 +1655,12 @@ An isolated AWS integration environment validates:
 - object-version identity;
 - Object Lock Governance mode;
 - signed manifest publication;
+- shared `Full | Automatic | Incremental` selection, common-parent replica checks, explicit-incremental failure, and
+  automatic full fallback;
+- PostgreSQL 17 full-to-incremental capture, complete-chain `pg_combinebackup`, native verification, and fresh-target
+  boot/query validation;
+- Scylla Manager deduplicated-snapshot lineage with an empty IFM dependency array and fresh-target restore;
+- manifest-v1 legacy-full reads and manifest-v2 lineage validation;
 - DynamoDB conditional lease/fencing, duplicate admission, unacknowledged event/statistics replay, PITR configuration,
   schema compatibility, and safe terminal compaction;
 - idempotent `SystemAdminDbContext` projections and projection rebuild from domain events;
@@ -1532,7 +1696,7 @@ The AWS design is accepted only when evidence demonstrates:
 5. A recovery replica is encrypted under a recovery-account key and owned by the recovery account.
 6. No Core actor, PostgreSQL node, Scylla node, or Scylla Manager agent holds AWS destination credentials.
 7. All application AWS access uses temporary role credentials.
-8. PostgreSQL base backup and continuous WAL provide tested PITR.
+8. PostgreSQL full/incremental physical backup and continuous WAL provide tested PITR.
 9. PostgreSQL does not acknowledge AWS protection for a WAL segment before the declared durable boundary.
 10. Scylla Manager capture proves complete required-node and token coverage.
 11. Scylla staging preserves native manifests and is not treated as a durable recovery destination.
@@ -1574,6 +1738,21 @@ The AWS design is accepted only when evidence demonstrates:
     recovery points without Core or the workload-account journal.
 38. After restore, newer AWS evidence enters SystemAdmin only through authenticated reconciliation commands and domain
     events before projection.
+39. AwsCloud uses the implemented MessagePack key layout, including command key 31 for requested mode and event key 31
+    for lineage, without introducing AWS-specific command/event/read-model types.
+40. Every new AWS engine manifest is shared schema version 2 with `Source=AwsCloud`; legacy schema version 1 is read only
+    as a normalized full backup.
+41. `Full`, `Automatic`, and explicit `Incremental` pass the same planner semantics as LocalWorkstation, including a
+    verified equivalent parent on every required replica, bounded depth/base age, automatic fallback, and explicit
+    failure.
+42. A PostgreSQL 17 full-to-incremental chain is reconstructed oldest-first with `pg_combinebackup`, natively verified,
+    and restored to a fresh queried target from each required AWS replica class.
+43. A Scylla Manager deduplicated snapshot records base/parent/depth lineage but no IFM manifest dependency; fresh
+    restore proves the selected Manager restore point is logically complete.
+44. AwsCloud reuses the existing SystemAdmin projection tables and `backup_lineage_json` columns with source
+    discrimination; no direct AWS projection tables or S3-to-projection writes exist.
+45. The DynamoDB journal preserves all seven implemented logical journal record families, admission/content-conflict
+    behavior, fenced checkpoints, monotonic service sequence, and durable outbox/statistics replay.
 
 ## 29. Approved architecture decisions and proposed amendments
 
@@ -1601,34 +1780,55 @@ implementation-level substitution:
 | Cutover | Separate approval after fresh-target validation |
 | Operator clients — v0.3 proposal | UI and Console use the same DatabaseBackup actor commands, queries, and authorized bounded domain events; no direct execution path and no raw service/execution event subscription |
 | Deployment — v0.5 | Standalone Database Backup Host for functional paper-trading development; Ubuntu 24.04 Docker qualification later; Aspire deferred to the full-system Linux production migration |
-| SystemAdmin persistence — v0.4 proposal | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` in Core PostgreSQL; no direct AwsCloud writes |
+| SystemAdmin persistence — v0.4 proposal | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStatsReadModel` in Core PostgreSQL; no direct AwsCloud writes |
 | Production execution journal — v0.4 proposal | Encrypted workload-account DynamoDB adapter using conditional lease/revision writes and PITR; development/single-host profile may use the encrypted embedded journal |
 | Recovery evidence — v0.4 proposal | Immutable S3 manifest/run-evidence objects carry the bounded final summary and remain usable without Core or the execution journal |
 | Post-restore reconciliation — v0.4 proposal | Replay restored events, validate newer AWS evidence, append accepted reconciliation events, then update projections |
+| Shared contract/storage baseline — v0.6 | Reuse implemented MessagePack keys, manifest schema v2, SystemAdmin lineage projections, seven logical journal record families, and source-neutral incremental semantics |
+| Incremental defaults — v0.6 | Initial AWS depth/base-age defaults match validated local values (six descendants/seven days) and remain policy-configurable |
+| Scylla incremental meaning — v0.6 | Manager restore points are logically complete and physically deduplicated; record lineage but no IFM SSTable dependency chain |
 
-## 30. Follow-on relationship to the local design
+## 30. Alignment with the completed local implementation
 
-The **Local-Backup-Restore-Architecture.md** preserves:
+The LocalWorkstation implementation is now the executable baseline for shared behavior. AwsCloud reuses without schema
+forks:
 
 - operation, backup-set, artifact, and replica identities;
+- `BackupSource`, `DatabaseBackupMode`, `DatabaseNativeBackupKind`, command/event/read-model MessagePack keys, and NATS
+  routes;
+- `DatabaseBackupLineage` selection, validation, propagation, and legacy normalization;
+- signed `DatabaseBackupManifest` schema version 2 and schema-version-1 legacy-full reads;
 - signed manifest and commit semantics;
 - checksum requirements;
 - catalog reconstruction;
 - SystemAdmin and Database Backup Service event flow;
+- existing SystemAdmin projection tables and `backup_lineage_json` fields;
+- the seven logical journal record families, content-conflict rules, fencing, outbox, statistics, and reconciliation;
 - verification and restore-test terminology;
-- exact dependency-safe retention planning;
+- PostgreSQL direct-parent dependency closure and Scylla logically complete deduplicated-snapshot semantics;
+- `Full | Automatic | Incremental` fallback/failure behavior and bounded chain planning;
 - fresh-target restore and separate cutover; and
 - break-glass recovery evidence.
 
-It replaces AWS account, Region, S3, IAM, KMS, Object Lock, CRR, and archive-class mechanisms with explicit local
-filesystem, device, encryption, capacity, media-rotation, and offline-copy controls. It must state clearly where local
-infrastructure provides a weaker failure boundary than this AWS reference.
+AwsCloud supplies only the destination-specific implementation delta: temporary-role identity, DynamoDB persistence,
+S3 exact object versions, KMS/signing, Object Lock, cross-account/cross-Region replication, archive retrieval, AWS
+audit, and AWS-specific break-glass access. Those details are bound by signed publication/catalog evidence and private
+journal state; they do not widen public actor messages or create a second SystemAdmin schema.
+
+Implementation must therefore start by reusing the existing shared/domain/application projects and extracting only
+source-neutral validators currently housed in the LocalWorkstation adapter where necessary. It then adds an AwsCloud
+processor, S3 publication/catalog/restore-source adapters, a DynamoDB execution-journal adapter, AWS signing and
+identity adapters, and AWS integration tests. Copying the LocalWorkstation project and changing paths is prohibited
+because it would fork contract and lineage behavior.
 
 ## 31. References
 
 ### Shared IFM architecture
 
 - [IFM database backup and restore architecture overview](Database-Backup-Architecture-Overview.md)
+- [AWS cloud code implementation specification](AWS-Cloud-Backup-Restore-Code-Implementation-Specification.md)
+- [Local workstation code implementation specification](Local-Workstation-Backup-Restore-Code-Implementation-Specification.md)
+- [Local workstation incremental validation report](Local-Workstation-Backup-Restore-Incremental-Validation-Report.md)
 - [IFM Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md)
 
 ### Amazon S3
@@ -1680,3 +1880,4 @@ infrastructure provides a weaker failure boundary than this AWS reference.
 | 0.3 | 2026-08-11 | Proposed alignment with overview 0.7: direct Docker/Aspire host deployment, shared three-value BackupSource semantics, the common UI/Console/ScheduledTask actor API, and typed PostgreSQL/Scylla native capability adapters. |
 | 0.4 | 2026-08-11 | Proposed the shared four-store persistence model for AwsCloud: `SystemAdminDbContext` projections/run statistics, a conditional durable production execution journal, immutable S3 run evidence, and event-gated post-restore reconciliation. |
 | 0.5 | 2026-08-12 | Aligned deployment sequencing with paper trading: standalone Worker development, later Ubuntu 24.04 Docker qualification, and Aspire deferred to the full-system Linux production migration. |
+| 0.6 | 2026-08-21 | Aligned AwsCloud with the completed LocalWorkstation message and storage baseline: stable MessagePack keys, manifest schema v2, shared SystemAdmin lineage projections, seven logical journal families, Full/Automatic/Incremental planning, PostgreSQL 17 chain reconstruction, and Scylla Manager logically complete deduplicated-snapshot semantics. AWS adapters remain unimplemented. |

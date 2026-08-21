@@ -1,11 +1,11 @@
 # IFM Local Workstation Database Backup and Restore Architecture
 
 Status: Approved architecture with implemented incremental-backup amendment
-Version: 0.5
-Date: 2026-08-18
+Version: 0.6
+Date: 2026-08-21
 Scope: Local workstation protection for PostgreSQL and ScyllaDB using encrypted online and rotated offline storage
 Parent architecture: Database-Backup-Architecture-Overview.md version 0.9
-Reference architecture: AWS-Cloud-Backup-Restore-Architecture.md version 0.4
+Reference architecture: AWS-Cloud-Backup-Restore-Architecture.md version 0.6
 BackupSource: LocalWorkstation
 
 ## 1. Purpose
@@ -391,14 +391,14 @@ Every vault is self-describing:
             protection-sets/{ProtectionSetId}/
               operations/{OperationId}/
                 engines/{EngineId}/
-                  artifacts/{ArtifactId}/{ArtifactVersionId}/{PartName}
-                  native-manifest/{NativeManifestId}
-                  ifm-engine-manifest/{ManifestId}
-                  verification/{VerificationId}
-                backup-set/{BackupSetId}/manifest/{ManifestId}
-                publication/{PublicationId}/commit
-              catalog/entries/{UtcDate}/{BackupSetId}/{CatalogEntryId}
-              recovery-records/{RecoveryOperationId}/{RecordId}
+                  artifacts/{ManifestId}/{NativeRelativePath}
+                  ifm-engine-manifest/{ManifestId}.json[.sig]
+                publication/{ManifestId}/commit.json[.sig]
+            catalog/entries/{yyyyMMdd}/{RestorePointId}/{ManifestId}-{ReplicaId}.json[.sig]
+            drill-evidence/{RecoveryOperationId}/final.json[.sig]
+            recovery-records/{RecoveryOperationId}/final.json[.sig]
+            retention/plans/{RetentionPlanId}/{Revision}.json[.sig]
+            media-seals/{ManifestId}/1.json[.sig]
       incoming/{OperationId}/
       diagnostics/{OperationId}/
 
@@ -700,14 +700,15 @@ Scylla Manager output is never cataloged in place merely because its native task
 6. writes commit and catalog evidence; and
 7. cleans native staging only after policy permits.
 
-Scylla Manager retention cannot independently delete IFM-cataloged dependencies.
+Scylla Manager retention cannot independently delete IFM-cataloged restore points or native objects referenced by a
+retained logically complete restore point. Recorded Scylla lineage does not create an IFM artifact dependency chain.
 
 ### 15.3 Offline Scylla set
 
 Every advertised offline Scylla restore point contains:
 
 - schema artifacts;
-- complete required SSTable and incremental dependencies;
+- a logically complete selected Manager restore point with every referenced schema, SSTable, and native-manifest object;
 - native manifests;
 - topology and datacenter mapping evidence;
 - all IFM manifests, commits, and catalog records; and
@@ -720,7 +721,7 @@ advertise the restore point as eligible.
 
 Restore:
 
-1. validates media and complete manifest graph;
+1. validates media, the selected IFM/native manifests, and the logically complete Manager restore point;
 2. copies exact artifacts into the encrypted restore workspace;
 3. reconstructs the Scylla Manager-compatible layout;
 4. verifies every digest;
@@ -734,8 +735,8 @@ Restore:
 
 ## 16. Coordinated backup sets
 
-A coordinated PostgreSQL and Scylla backup set retains the same ApplicationCheckpoint model as AWS. For
-LocalWorkstation:
+A coordinated PostgreSQL and Scylla backup set uses the shared `CoordinatedProtectionSet` consistency mode. An
+application checkpoint is its bounded consistency reference, not a separate enum value. For LocalWorkstation:
 
 - each engine operation carries BackupSource **LocalWorkstation**;
 - one BackupSetId links the engine operations;
@@ -891,7 +892,7 @@ Local manifests contain every common field plus:
 - replica fault-boundary grade;
 - online or offline availability;
 - last full media verification;
-- bounded final `DatabaseRecoveryRunStats` summary and statistics schema revision;
+- bounded final `DatabaseRecoveryRunStatistics` summary and statistics schema revision;
 - storage and retrieval compatibility; and
 - local capability limitations.
 
@@ -938,7 +939,8 @@ SystemAdmin authorizes retention through the common source-scoped commands. The 
 exact plan that protects:
 
 - PostgreSQL base, incremental, and WAL chains;
-- Scylla schema, snapshot, SSTable, and incremental dependencies;
+- every Scylla schema, snapshot, SSTable, and native object referenced by a retained logically complete Manager restore
+  point; Scylla lineage alone does not create transitive IFM dependencies;
 - active backup, restore, drill, and verification inputs;
 - coordinated backup sets;
 - legal hold;
@@ -1074,7 +1076,7 @@ operation.
 ### 23.4 SystemAdmin projections and local evidence reconciliation
 
 `SystemAdminDbContext` stores the shared operation, phase, restore-point, replica, structured error, health, and
-`DatabaseRecoveryRunStats` projections in `CorePostgresCluster`. The LocalWorkstation processor has no connection to
+`DatabaseRecoveryRunStatsReadModel` projections in `CorePostgresCluster`. The LocalWorkstation processor has no connection to
 that context. A bounded statistics summary reaches it only through the shared service event, Event Actor translation,
 Command Actor domain event, and idempotent projector path.
 
@@ -1525,7 +1527,8 @@ The local design is accepted only when:
 21. Online and offline RPO ages are reported separately.
 22. Offline rotation lateness creates a policy violation even when online backup succeeds.
 23. Retention uses an exact approved path list and separate execution identity.
-24. Retention cannot break a PostgreSQL, Scylla, coordinated, active, held, or restore-tested chain.
+24. Retention cannot break a PostgreSQL chain, a retained Scylla Manager restore point, or a coordinated, active, held,
+    or restore-tested set.
 25. Offline retention remains pending until the exact medium is validated.
 26. Restore reads from a validated source into a separate encrypted workspace.
 27. Production restore uses fresh targets and stops at ReadyForCutover.
@@ -1580,7 +1583,7 @@ The local design is accepted only when:
 | ScheduledTask | Same DatabaseBackup commands and queries; raw service events remain isolated |
 | Console | Same actor commands, queries, and bounded events as UI; no direct native or host execution path |
 | Deployment | Dedicated standalone Database Backup Host Worker during functional development; Ubuntu 24.04 Docker qualification before paper-trading deployment; Aspire deferred |
-| SystemAdmin persistence | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStats` in Core PostgreSQL; no direct processor writes |
+| SystemAdmin persistence | Rebuildable `SystemAdminDbContext` projections and `DatabaseRecoveryRunStatsReadModel` in Core PostgreSQL; no direct processor writes |
 | Local execution journal | Transactional embedded database, preferably durable SQLite, on an encrypted persistent Docker/bind-mounted volume separate from protected databases and backup media |
 | Recovery reconciliation | Replay restored events, validate newer signed local evidence, append accepted reconciliation events, then update projections |
 | Cutover | Separate approval after fresh-target validation |
@@ -1628,3 +1631,4 @@ The local design is accepted only when:
 | 0.3 | 2026-08-11 | Proposed the shared four-store persistence model for LocalWorkstation: `SystemAdminDbContext` projections/run statistics, a durable embedded execution journal on an encrypted persistent volume, immutable local manifest run evidence, and event-gated post-restore reconciliation. |
 | 0.4 | 2026-08-12 | Approved standalone Worker development for paper trading, Ubuntu 24.04/.NET 10 Docker qualification after functional gates, and deferral of Aspire to the later full-system Linux production migration. |
 | 0.5 | 2026-08-18 | Added the implemented Full/Automatic/Incremental contract, common-replica chain planning and fallback rules, PostgreSQL 17 manifest-chain capture and `pg_combinebackup` restore, Scylla Manager deduplicated-snapshot semantics, lineage persistence, dependency-safe retention, and common UI/Console/ScheduledTask selection. |
+| 0.6 | 2026-08-21 | Updated the cross-reference after the AWS architecture adopted this completed message, manifest, projection, journal, and incremental-backup baseline. |
