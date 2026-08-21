@@ -18,7 +18,7 @@ public sealed class StrategyOperationsViewModelTests
     static readonly DateOnly ValueDate = new(2026, 8, 21);
 
     [Fact]
-    public async Task Initialize_SubscribesBeforeSnapshotsAndMergesOverlap()
+    public async Task Initialize_SubscribesBeforeSnapshotsAndPublishesSelectedTimeFrame()
     {
         var daily = Signal(TimeFrameType.Daily, 1, IntrinsicTimeModeType.Trending);
         var weekly = Signal(TimeFrameType.Weekly, 2, IntrinsicTimeModeType.TrendDirectionChanged);
@@ -41,12 +41,24 @@ public sealed class StrategyOperationsViewModelTests
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
 
         subject.ViewModel.IsListening.Should().BeTrue();
-        subject.ViewModel.Events.Should().HaveCount(3);
-        subject.ViewModel.Events.Select(row => row.TimePeriod)
-            .Should().BeEquivalentTo(
-                [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly]);
-        subject.ViewModel.Events.Single(row => row.TimePeriod == TimeFrameType.Daily)
+        subject.ViewModel.TimeFrames.Should().Equal(
+            TimeFrameType.Daily,
+            TimeFrameType.Weekly,
+            TimeFrameType.Monthly);
+        subject.ViewModel.SelectedTimeFrame.Should().Be(TimeFrameType.Daily);
+        subject.ViewModel.StatusText.Should().StartWith("Intrinsic Time Daily:");
+        subject.ViewModel.Events.Should().ContainSingle()
+            .Which.TimePeriod.Should().Be(TimeFrameType.Daily);
+        subject.ViewModel.Events.Single()
             .IsInitialSnapshot.Should().BeFalse("the live overlap arrived after subscription and won deduplication");
+
+        subject.ViewModel.SelectedTimeFrame = TimeFrameType.Weekly;
+        subject.ViewModel.StatusText.Should().StartWith("Intrinsic Time Weekly:");
+        subject.ViewModel.Events.Should().ContainSingle()
+            .Which.TimePeriod.Should().Be(TimeFrameType.Weekly);
+        subject.ViewModel.SelectedTimeFrame = TimeFrameType.Monthly;
+        subject.ViewModel.Events.Should().ContainSingle()
+            .Which.TimePeriod.Should().Be(TimeFrameType.Monthly);
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -65,16 +77,26 @@ public sealed class StrategyOperationsViewModelTests
                 modes[index]));
         }
 
-        subject.ViewModel.Events.Select(row => row.Mode)
-            .Should().BeEquivalentTo(modes);
+        foreach (var timeFrame in subject.ViewModel.TimeFrames)
+        {
+            subject.ViewModel.SelectedTimeFrame = timeFrame;
+            var expectedModes = modes
+                .Where((_, index) =>
+                    (TimeFrameType)((index % 3) + (int)TimeFrameType.Daily) == timeFrame);
+            subject.ViewModel.Events.Select(row => row.Mode)
+                .Should().BeEquivalentTo(expectedModes);
+            subject.ViewModel.Events.Should().OnlyContain(row => row.TimePeriod == timeFrame);
+        }
 
+        subject.ViewModel.SelectedTimeFrame = TimeFrameType.Daily;
+        var retainedDailyCount = subject.ViewModel.Events.Count;
         await subject.ViewModel.StopAsync(CancellationToken.None);
         subject.EventSource.Publish(Signal(
             TimeFrameType.Daily,
             100,
             IntrinsicTimeModeType.TrendDirectionChanged));
 
-        subject.ViewModel.Events.Should().HaveCount(modes.Length);
+        subject.ViewModel.Events.Should().HaveCount(retainedDailyCount);
         subject.ViewModel.IsListening.Should().BeFalse();
         subject.EventSource.IsStarted.Should().BeFalse();
         await subject.ViewModel.DisposeAsync();

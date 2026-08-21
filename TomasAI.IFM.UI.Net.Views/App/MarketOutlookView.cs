@@ -19,6 +19,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             try
             {
                 InitializeComponent();
+                ConfigureMarketDataRowSpacing();
                 txtRSI.Text = "No";
                 txtRSI.BackColor = Color.Red;
                 ConfigureAccessibility();
@@ -26,6 +27,18 @@ namespace TomasAI.IFM.UI.Net.Views.App
                 //txt200DMA.BackColor = Color.Black;
             }
             catch { }
+        }
+
+        void ConfigureMarketDataRowSpacing()
+        {
+            foreach (var valueControl in tlpMarketData.Controls.OfType<TextBox>())
+            {
+                valueControl.Margin = new Padding(
+                    valueControl.Margin.Left,
+                    2,
+                    valueControl.Margin.Right,
+                    2);
+            }
         }
 
         public void RefreshView(FuturesEodDataUIViewModel e)
@@ -132,9 +145,26 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketOutlook.Controls[1].Width = parentControl.Width / 4;
             tlpMarketOutlook.Controls[2].Width = parentControl.Width / 4;
             tlpMarketOutlook.Controls[3].Width = parentControl.Width / 4;
-            tlpMarketData.Height = 130;
-            tlpMarketTrendData.Height = 55;
-            parentControl.Height = tlpMarketOutlook.Height + tlpMarketData.Height + tlpMarketTrendData.Height + 10;
+            const int rowBreathingRoom = 1;
+            var marketDataRowHeight = tlpMarketData.Controls
+                .Cast<Control>()
+                .Max(control => control.PreferredSize.Height + control.Margin.Vertical) + rowBreathingRoom;
+            foreach (RowStyle rowStyle in tlpMarketData.RowStyles)
+            {
+                rowStyle.SizeType = SizeType.Absolute;
+                rowStyle.Height = marketDataRowHeight;
+            }
+            tlpMarketData.Height = marketDataRowHeight * tlpMarketData.RowCount;
+            var marketTrendRowHeight = tlpMarketTrendData.Controls
+                .Cast<Control>()
+                .Max(control => control.PreferredSize.Height + control.Margin.Vertical) + rowBreathingRoom;
+            foreach (RowStyle rowStyle in tlpMarketTrendData.RowStyles)
+            {
+                rowStyle.SizeType = SizeType.Absolute;
+                rowStyle.Height = marketTrendRowHeight;
+            }
+            tlpMarketTrendData.Height = marketTrendRowHeight * tlpMarketTrendData.RowCount;
+            parentControl.Height = tlpMarketOutlook.Height + tlpMarketData.Height + tlpMarketTrendData.Height + 12;
         }
 
         private void lblRiskPosition_Click(object sender, EventArgs e)

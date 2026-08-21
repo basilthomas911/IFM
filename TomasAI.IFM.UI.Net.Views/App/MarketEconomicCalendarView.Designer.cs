@@ -32,7 +32,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lblCountryCodes = new Label();
             ddlCountryCodes = new ComboBox();
             lblTitle = new Label();
-            tabCalendarPeriod = new TabControl();
+            tabCalendarPeriod = new DarkTabControl();
             tabToday = new TabPage();
             tabYesterday = new TabPage();
             tabTomorrow = new TabPage();
@@ -131,6 +131,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // 
             // tabToday
             // 
+            tabToday.BackColor = Color.Black;
             tabToday.Location = new Point(4, 27);
             tabToday.Margin = new Padding(4, 3, 4, 3);
             tabToday.Name = "tabToday";
@@ -138,10 +139,11 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tabToday.Size = new Size(624, 0);
             tabToday.TabIndex = 1;
             tabToday.Text = "Today";
-            tabToday.UseVisualStyleBackColor = true;
+            tabToday.UseVisualStyleBackColor = false;
             // 
             // tabYesterday
             // 
+            tabYesterday.BackColor = Color.Black;
             tabYesterday.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Regular, GraphicsUnit.Point, 0);
             tabYesterday.Location = new Point(4, 27);
             tabYesterday.Margin = new Padding(4, 3, 4, 3);
@@ -150,27 +152,29 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tabYesterday.Size = new Size(624, 0);
             tabYesterday.TabIndex = 0;
             tabYesterday.Text = "Yesterday";
-            tabYesterday.UseVisualStyleBackColor = true;
+            tabYesterday.UseVisualStyleBackColor = false;
             // 
             // tabTomorrow
             // 
+            tabTomorrow.BackColor = Color.Black;
             tabTomorrow.Location = new Point(4, 27);
             tabTomorrow.Margin = new Padding(4, 3, 4, 3);
             tabTomorrow.Name = "tabTomorrow";
             tabTomorrow.Size = new Size(624, 0);
             tabTomorrow.TabIndex = 2;
             tabTomorrow.Text = "Tomorrow";
-            tabTomorrow.UseVisualStyleBackColor = true;
+            tabTomorrow.UseVisualStyleBackColor = false;
             // 
             // tabThisWeek
             // 
+            tabThisWeek.BackColor = Color.Black;
             tabThisWeek.Location = new Point(4, 27);
             tabThisWeek.Margin = new Padding(4, 3, 4, 3);
             tabThisWeek.Name = "tabThisWeek";
             tabThisWeek.Size = new Size(624, 0);
             tabThisWeek.TabIndex = 3;
             tabThisWeek.Text = "This Week";
-            tabThisWeek.UseVisualStyleBackColor = true;
+            tabThisWeek.UseVisualStyleBackColor = false;
             // 
             // tabNextWeek
             // 
@@ -181,7 +185,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tabNextWeek.Size = new Size(624, 0);
             tabNextWeek.TabIndex = 4;
             tabNextWeek.Text = "Next Week";
-            tabNextWeek.UseVisualStyleBackColor = true;
+            tabNextWeek.UseVisualStyleBackColor = false;
             // 
             // pnlCalendarDate
             // 

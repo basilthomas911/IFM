@@ -14,8 +14,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Operations;
 public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
     public const int EventCapacity = 500;
-    static readonly TimeFrameType[] SupportedPeriods =
-        [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly];
+    static readonly IReadOnlyList<TimeFrameType> SupportedPeriods = Array.AsReadOnly(
+        new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly });
     readonly object _stateGate = new();
     readonly StrategyOperationsModel _model;
     readonly string _contractId;
@@ -25,8 +25,9 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     readonly List<FuturesItiSignalEventRow> _eventBuffer = [];
     readonly HashSet<string> _eventIdentities = new(StringComparer.Ordinal);
     IReadOnlyList<FuturesItiSignalEventRow> _events = [];
+    TimeFrameType _selectedTimeFrame = TimeFrameType.Daily;
     bool _isListening;
-    string _statusText = "ITI: Not started";
+    string _statusText = "Intrinsic Time Daily: Not started";
     PresentationError? _lastError;
     long _errorSequence;
     int _acceptEvents;
@@ -58,7 +59,24 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     public string ContractId => _contractId;
     public DateOnly ValueDate => _valueDate;
 
-    /// <summary>Gets every retained ITI change, newest first.</summary>
+    public IReadOnlyList<TimeFrameType> TimeFrames => SupportedPeriods;
+
+    public TimeFrameType SelectedTimeFrame
+    {
+        get => _selectedTimeFrame;
+        set
+        {
+            if (!SupportedPeriods.Contains(value))
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Unsupported ITI time frame.");
+            if (!SetProperty(ref _selectedTimeFrame, value))
+                return;
+
+            PublishSelectedEvents();
+            PublishStatus();
+        }
+    }
+
+    /// <summary>Gets retained ITI changes for the selected time frame, newest first.</summary>
     public IReadOnlyList<FuturesItiSignalEventRow> Events
     {
         get => _events;
@@ -111,7 +129,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         {
             Interlocked.Exchange(ref _acceptEvents, 0);
             IsListening = false;
-            StatusText = "ITI: Listener unavailable";
+            StatusText = "Intrinsic Time: Listener unavailable";
             throw;
         }
     }
@@ -202,8 +220,22 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             published = [.. _eventBuffer];
         }
 
-        Events = published;
+        if (row.TimePeriod == SelectedTimeFrame)
+            Events = published.Where(item => item.TimePeriod == SelectedTimeFrame).ToArray();
         PublishStatus();
+    }
+
+    void PublishSelectedEvents()
+    {
+        FuturesItiSignalEventRow[] selected;
+        lock (_stateGate)
+        {
+            selected = _eventBuffer
+                .Where(row => row.TimePeriod == SelectedTimeFrame)
+                .ToArray();
+        }
+
+        Events = selected;
     }
 
     bool IsRelevant(FuturesItiSignalEventRow row)
@@ -216,11 +248,11 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     void PublishStatus()
         => StatusText = IsListening
             ? Events.Count == 0
-                ? $"ITI: Listening for {_contractId}"
-                : $"ITI: Live — {Events.Count} changes"
+                ? $"Intrinsic Time {SelectedTimeFrame}: Listening for {_contractId}"
+                : $"Intrinsic Time {SelectedTimeFrame}: Live — {Events.Count} changes"
             : Events.Count == 0
-                ? "ITI: Stopped"
-                : $"ITI: Stopped — {Events.Count} retained";
+                ? $"Intrinsic Time {SelectedTimeFrame}: Stopped"
+                : $"Intrinsic Time {SelectedTimeFrame}: Stopped — {Events.Count} retained";
 
     void PublishError(int errorCode, string message, string caption)
         => LastError = new PresentationError(

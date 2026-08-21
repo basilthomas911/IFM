@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -19,8 +20,15 @@ public sealed class MarketDataRuntimeHealthCheck(
     {
         var health = marketDataApi.GetHealth();
         var epoch = health.Epoch;
+        var now = timeProvider.GetUtcNow();
+        var easternNow = TimeZoneInfo.ConvertTime(
+            now,
+            FuturesTradingValueDate.MarketTimeZone);
+        var feedExpected = MarketDataFeedMonitoringWindow.IsOpen(now);
         var data = new Dictionary<string, object>
         {
+            ["feedExpected"] = feedExpected,
+            ["marketTimeEastern"] = easternNow.ToString("O"),
             ["running"] = health.Running,
             ["valueDate"] = health.ValueDate?.ToString("yyyy-MM-dd") ?? string.Empty,
             ["aggregationRunning"] = epoch?.AggregationRunning ?? false,
@@ -38,11 +46,15 @@ public sealed class MarketDataRuntimeHealthCheck(
         var currentContractsLive = AddRoute("ES") & AddRoute("VX");
         data["currentContractsLive"] = currentContractsLive;
 
-        return Task.FromResult(!infrastructureReady
-            ? HealthCheckResult.Unhealthy(
-                "Market-data feeds or aggregation are not ready.",
+        return Task.FromResult(!feedExpected
+            ? HealthCheckResult.Healthy(
+                "Market-data monitoring is paused outside 03:00-16:00 Eastern; core application services remain ready.",
                 data: data)
-            : currentContractsLive
+            : !infrastructureReady
+                ? HealthCheckResult.Degraded(
+                    "Market-data feeds or aggregation are not ready; market-data features are unavailable but core application services remain ready.",
+                    data: data)
+                : currentContractsLive
                 ? HealthCheckResult.Healthy(
                     "Current futures contracts are feeding downstream notifications.", data)
                 : HealthCheckResult.Degraded(
@@ -63,7 +75,6 @@ public sealed class MarketDataRuntimeHealthCheck(
             var status = epoch?.ContractStatuses?.SingleOrDefault(item =>
                 StringComparer.Ordinal.Equals(item.ContractId, contract.ContractId));
             var routeActive = marketDataApi.IsTickDataStreamActive(contract.ContractId);
-            var now = timeProvider.GetUtcNow();
             var sourceFresh = status?.LastSourceRecordObservedAtUtc is { } sourceObserved
                 && now - sourceObserved <= MaximumCurrentContractSilence;
             var notificationFresh = status?.LastMarketPricePublishedAtUtc is { } notificationPublished

@@ -2,10 +2,11 @@
 
 ## Purpose
 
-The application must not start actor and trading workflows without persisted,
-currently traded futures contracts. Startup therefore treats
+Market-data workflows must not start without persisted, currently traded futures
+contracts. Market-data initialization therefore treats
 `futures_contract_rollover` as the master assignment table and validates the
-corresponding `futures_contract` rows before later hosted services start.
+corresponding `futures_contract` rows. Core API, actor, and UI workflows remain
+available when that optional initialization is deferred or unavailable.
 
 ## Master table
 
@@ -37,8 +38,8 @@ Before taking that reuse path, the API verifies that the referenced contract row
 still exists, matches the root symbol and contract ID, and remains marked as
 currently traded. A stale rollover reference is reconciled through the provider
 and atomically repaired even when its rollover date has not yet arrived.
-Missing and due assignments still block startup until DataBento resolves and
-persists a valid current contract. An operator workflow may explicitly request
+Missing and due assignments still block market-data initialization until DataBento
+resolves and persists a valid current contract. An operator workflow may explicitly request
 `forceProviderRefresh: true` when provider identity must be revalidated early.
 
 The argument is a futures root symbol, not a contract ID, because an incomplete
@@ -60,8 +61,8 @@ can override the dataset per root symbol.
 
 ## Startup admission
 
-`FuturesContractRolloverStartupService` runs before the existing trading hosted
-services. It:
+`FuturesContractRolloverStartupService` runs the following market-data admission
+work in the background:
 
 1. creates `futures_contract_rollover` if it does not exist;
 2. ensures the ES and VX bootstrap rows exist;
@@ -73,16 +74,27 @@ services. It:
    registry; and
 7. starts the value-date market-data epoch from that registry snapshot.
 
-Any failure propagates from `StartAsync` and prevents application startup. An
-empty table, unresolved DataBento symbol, missing provider configuration, or a
-rollover/contract mismatch is therefore a startup error rather than a degraded
-trading state.
+An empty table, unresolved DataBento symbol, missing provider configuration, or a
+rollover/contract mismatch prevents market-data admission, but does not prevent
+the core application from starting. During monitoring hours the service reports
+the first failure and retries; outside monitoring hours it defers admission until
+the next opening without contacting the provider.
 
-The API readiness response includes `market_data_runtime`. It remains unhealthy
-until the epoch, all configured aggregation partitions, and the last-price store
-are running. Its data includes configured-contract and source quote/trade record
-counters, so operators can distinguish a connected idle feed from one actively
-receiving records.
+The API readiness response includes `market_data_runtime`, but market data is an
+optional capability rather than a prerequisite for the rest of the application.
+Outside the weekday 03:00-16:00 Eastern monitoring window the entry is healthy
+even when feeds are inactive. During that window a missing runtime or stale
+current-contract route is degraded, not unhealthy, so readiness remains HTTP 200
+and Server Manager can keep the API and UI available. Its data includes the
+Eastern market time, whether feeds are expected, configured-contract state, and
+source quote/trade counters so operators can distinguish an expected closed-market
+state from an in-hours feed incident.
+
+The rollover and Databento runtime initialize as an optional background service.
+Starting the application outside the monitoring window does not contact the feed;
+initialization waits until the next weekday opening. An in-hours initialization
+failure is reported once and retried every minute without terminating the API or
+UI.
 
 ## Runtime contract registry and datasets
 

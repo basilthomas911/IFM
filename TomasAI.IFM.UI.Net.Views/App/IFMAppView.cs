@@ -32,6 +32,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 {
     static readonly TimeSpan PresentationShutdownTimeout = TimeSpan.FromSeconds(10);
     const double DefaultSidePanelWidthRatio = 0.22;
+    const int DwmUseImmersiveDarkMode = 20;
+    const int DwmUseImmersiveDarkModeBefore20H1 = 19;
+    const int DwmCaptionColor = 35;
+    const int DwmTextColor = 36;
     private IAppRoot _appRoot;
     private readonly IViewNavigator _navigator;
     private Control? _tradeBlotter;
@@ -47,9 +51,55 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         _appRoot = appRoot;
         _navigator = navigator;
         InitializeComponent();
+        operationViewSplitter.Paint += DashboardSplitter_Paint;
+        marketViewSplitter.Paint += DashboardSplitter_Paint;
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
         this.Text += $" - v{_appVersion} - {appRoot.AppEnvironment}";
     }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyDarkTitleBar();
+    }
+
+    private void ApplyDarkTitleBar()
+    {
+        var enabled = 1;
+        if (DwmSetWindowAttribute(
+                Handle,
+                DwmUseImmersiveDarkMode,
+                ref enabled,
+                sizeof(int)) < 0)
+        {
+            _ = DwmSetWindowAttribute(
+                Handle,
+                DwmUseImmersiveDarkModeBefore20H1,
+                ref enabled,
+                sizeof(int));
+        }
+
+        var black = ColorTranslator.ToWin32(Color.Black);
+        _ = DwmSetWindowAttribute(
+            Handle,
+            DwmCaptionColor,
+            ref black,
+            sizeof(int));
+
+        var white = ColorTranslator.ToWin32(Color.White);
+        _ = DwmSetWindowAttribute(
+            Handle,
+            DwmTextColor,
+            ref white,
+            sizeof(int));
+    }
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref int attributeValue,
+        int attributeSize);
 
     private async void IFMApp_Load(object sender, EventArgs e)
     {
@@ -191,16 +241,21 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         marketDataFeedButton.AccessibleDescription = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.ToolTipText = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.Enabled = _viewModel.CanToggleMarketDataFeed;
-        (marketDataFeedButton.BackColor, marketDataFeedButton.ForeColor) = _viewModel.MarketDataFeedHealthState switch
-        {
-            MarketDataFeedHealthState.Healthy => (Color.LimeGreen, Color.Black),
-            MarketDataFeedHealthState.Intermittent => (Color.Yellow, Color.Black),
-            MarketDataFeedHealthState.Failed => (Color.Orange, Color.Black),
-            MarketDataFeedHealthState.Critical => (Color.Red, Color.White),
-            MarketDataFeedHealthState.OutsidePositionEntryWindow => (Color.DimGray, Color.White),
-            _ => (SystemColors.Control, Color.DarkRed)
-        };
+        (marketDataFeedButton.BackColor, marketDataFeedButton.ForeColor) =
+            MarketDataFeedColors(_viewModel.MarketDataFeedHealthState);
     }
+
+    internal static (Color Background, Color Foreground) MarketDataFeedColors(
+        MarketDataFeedHealthState state)
+        => state switch
+        {
+            MarketDataFeedHealthState.Healthy => (Color.Black, Color.LimeGreen),
+            MarketDataFeedHealthState.Intermittent => (Color.Black, Color.Yellow),
+            MarketDataFeedHealthState.Failed => (Color.Black, Color.Orange),
+            MarketDataFeedHealthState.Critical => (Color.Black, Color.Red),
+            MarketDataFeedHealthState.OutsidePositionEntryWindow => (Color.Black, Color.Gray),
+            _ => (Color.Black, Color.DarkRed)
+        };
 
     private void RenderStatusLine()
     {
@@ -388,10 +443,44 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     }
 
     private void operationViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)
-        => ResizeTabPages();
+    {
+        operationViewSplitter.Invalidate();
+        ResizeTabPages();
+    }
 
     private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)
-        => ResizeTabPages();
+    {
+        marketViewSplitter.Invalidate();
+        ResizeTabPages();
+    }
+
+    private static void DashboardSplitter_Paint(object? sender, PaintEventArgs e)
+    {
+        if (sender is not SplitContainer splitter)
+            return;
+
+        var splitterBounds = splitter.SplitterRectangle;
+        using var separatorPen = new Pen(Color.Gray, 1F);
+        if (splitter.Orientation == Orientation.Vertical)
+        {
+            var separatorX = splitterBounds.Left + (splitterBounds.Width / 2);
+            e.Graphics.DrawLine(
+                separatorPen,
+                separatorX,
+                splitterBounds.Top,
+                separatorX,
+                splitterBounds.Bottom - 1);
+            return;
+        }
+
+        var separatorY = splitterBounds.Top + (splitterBounds.Height / 2);
+        e.Graphics.DrawLine(
+            separatorPen,
+            splitterBounds.Left,
+            separatorY,
+            splitterBounds.Right - 1,
+            separatorY);
+    }
 
     private void InitializeDashboardSplitters()
     {

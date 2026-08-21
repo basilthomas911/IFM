@@ -30,13 +30,13 @@ namespace TomasAI.IFM.UI.Net.Views.App
         {
             components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(IFMAppView));
-            statusBar = new StatusStrip();
+            statusBar = new DashboardStatusStrip();
             lblStatus = new ToolStripStatusLabel();
             operationViewSplitter = new SplitContainer();
             pnlOperationView = new Panel();
             operationsView1 = new OperationsView();
             marketViewSplitter = new SplitContainer();
-            tabTradeBlotter = new TabControl();
+            tabTradeBlotter = new DarkTabControl();
             pnlAppView = new Panel();
             pnlStatusConsole = new Panel();
             statusConsoleView1 = new StatusConsoleView();
@@ -52,6 +52,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             toolStripSeparator = new ToolStripSeparator();
             btnCloseOrder = new ToolStripButton();
             toolStrip1 = new ToolStrip();
+            menuBarSeparator = new Panel();
             fundButton = new ToolStripButton();
             referenceButton = new ToolStripButton();
             systemAdminButton = new ToolStripButton();
@@ -299,9 +300,11 @@ namespace TomasAI.IFM.UI.Net.Views.App
             //
             // marketDataFeedButton
             //
+            marketDataFeedButton.BackColor = Color.Black;
             marketDataFeedButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
             marketDataFeedButton.Enabled = false;
             marketDataFeedButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            marketDataFeedButton.ForeColor = Color.DarkRed;
             marketDataFeedButton.Name = "marketDataFeedButton";
             marketDataFeedButton.Size = new Size(126, 24);
             marketDataFeedButton.Text = "Start Market Feed";
@@ -329,13 +332,30 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // 
             // toolStrip1
             // 
+            toolStrip1.BackColor = Color.Black;
+            toolStrip1.ForeColor = Color.White;
+            toolStrip1.GripStyle = ToolStripGripStyle.Hidden;
             toolStrip1.ImageScalingSize = new Size(24, 24);
             toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, btnCloseOrder });
             toolStrip1.Location = new Point(0, 0);
             toolStrip1.Name = "toolStrip1";
+            toolStrip1.Renderer = new DashboardMenuRenderer()
+            {
+                RoundedEdges = false
+            };
             toolStrip1.Size = new Size(2637, 27);
             toolStrip1.TabIndex = 0;
             toolStrip1.Text = "toolStrip1";
+            //
+            // menuBarSeparator
+            //
+            menuBarSeparator.BackColor = Color.Gray;
+            menuBarSeparator.Dock = DockStyle.Top;
+            menuBarSeparator.Location = new Point(0, 27);
+            menuBarSeparator.Margin = new Padding(0);
+            menuBarSeparator.Name = "menuBarSeparator";
+            menuBarSeparator.Size = new Size(2637, 1);
+            menuBarSeparator.TabIndex = 5;
             // 
             // fundButton
             // 
@@ -386,6 +406,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             ClientSize = new Size(2637, 872);
             Controls.Add(operationViewSplitter);
             Controls.Add(statusBar);
+            Controls.Add(menuBarSeparator);
             Controls.Add(toolStrip1);
             Font = new Font("Microsoft Sans Serif", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             Icon = (Icon)resources.GetObject("$this.Icon");
@@ -437,6 +458,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator;
         private System.Windows.Forms.ToolStripButton btnCloseOrder;
         private System.Windows.Forms.ToolStrip toolStrip1;
+        private System.Windows.Forms.Panel menuBarSeparator;
         private System.Windows.Forms.ToolStripButton fundButton;
         private System.Windows.Forms.ToolStripButton systemAdminButton;
         private System.Windows.Forms.ToolStripButton referenceButton;

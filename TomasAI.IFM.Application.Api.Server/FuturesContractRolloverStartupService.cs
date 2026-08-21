@@ -6,25 +6,71 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.Api.Server;
 
 /// <summary>
-/// Creates the additive rollover schema and blocks application startup until
-/// the required currently traded futures contracts are valid and persisted.
+/// Starts the optional market-data runtime without making it a prerequisite for
+/// the core API or UI. Startup is deferred while feed monitoring is out of hours.
 /// </summary>
 internal sealed class FuturesContractRolloverStartupService(
     SecuritiesSchemaDb schema,
     FuturesContractRolloverStartupCheck check,
     IMarketDataApi marketDataApi,
     TimeProvider timeProvider,
-    ILogger<FuturesContractRolloverStartupService> logger) : IHostedService
+    ILogger<FuturesContractRolloverStartupService> logger) : BackgroundService
 {
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(1);
     private DateOnly? _activeValueDate;
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var failureReported = false;
+        while (!stoppingToken.IsCancellationRequested && _activeValueDate is null)
+        {
+            var now = timeProvider.GetUtcNow();
+            if (!MarketDataFeedMonitoringWindow.IsOpen(now))
+            {
+                failureReported = false;
+                var nextStart = MarketDataFeedMonitoringWindow.GetNextStartUtc(now);
+                logger.LogInformation(
+                    "Market-data startup is paused outside 03:00-16:00 Eastern; the core API and UI remain available. Next attempt: {NextAttemptUtc}.",
+                    nextStart);
+                await Task.Delay(nextStart - now, timeProvider, stoppingToken)
+                    .ConfigureAwait(false);
+                continue;
+            }
+
+            try
+            {
+                await StartMarketDataAsync(now, stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                if (!failureReported)
+                {
+                    logger.LogWarning(
+                        "Market-data startup is unavailable ({ExceptionType}: {ExceptionMessage}). The core API and UI remain available; retrying while the monitoring window is open.",
+                        exception.GetType().Name,
+                        exception.Message);
+                    failureReported = true;
+                }
+
+                await Task.Delay(RetryDelay, timeProvider, stoppingToken)
+                    .ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task StartMarketDataAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         logger.LogInformation("Creating or validating the futures rollover schema.");
         await schema.CreateAsync(["futures_contract_rollover"], cancellationToken)
             .ConfigureAwait(false);
         logger.LogInformation("Futures rollover schema is ready.");
-        var valueDate = FuturesTradingValueDate.GetOperational(timeProvider.GetUtcNow());
+        var valueDate = FuturesTradingValueDate.GetOperational(now);
         logger.LogInformation(
             "Resolving required futures rollover contracts for value date {ValueDate}.",
             valueDate);
@@ -42,8 +88,9 @@ internal sealed class FuturesContractRolloverStartupService(
             valueDate);
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
         if (_activeValueDate is not { } valueDate)
             return;
         await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);

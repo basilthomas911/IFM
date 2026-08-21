@@ -113,8 +113,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketOutlook.Margin = new Padding(0);
             tlpMarketOutlook.Name = "tlpMarketOutlook";
             tlpMarketOutlook.RowCount = 2;
-            tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
-            tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
+            tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tlpMarketOutlook.Size = new Size(621, 54);
             tlpMarketOutlook.TabIndex = 0;
             // 
@@ -286,12 +286,12 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketData.Margin = new Padding(4, 3, 4, 3);
             tlpMarketData.Name = "tlpMarketData";
             tlpMarketData.RowCount = 6;
-            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66556F));
-            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66889F));
-            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66889F));
-            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66556F));
-            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66556F));
-            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66556F));
+            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
+            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
+            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
+            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
+            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
+            tlpMarketData.RowStyles.Add(new RowStyle(SizeType.Percent, 16.66667F));
             tlpMarketData.Size = new Size(621, 200);
             tlpMarketData.TabIndex = 1;
             // 
@@ -802,8 +802,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tlpMarketTrendData.Margin = new Padding(0);
             tlpMarketTrendData.Name = "tlpMarketTrendData";
             tlpMarketTrendData.RowCount = 2;
-            tlpMarketTrendData.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
-            tlpMarketTrendData.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
+            tlpMarketTrendData.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tlpMarketTrendData.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tlpMarketTrendData.Size = new Size(621, 54);
             tlpMarketTrendData.TabIndex = 2;
             // 

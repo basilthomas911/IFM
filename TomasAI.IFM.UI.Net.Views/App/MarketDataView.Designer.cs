@@ -37,7 +37,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea2 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
             System.Windows.Forms.DataVisualization.Charting.Legend legend2 = new System.Windows.Forms.DataVisualization.Charting.Legend();
             System.Windows.Forms.DataVisualization.Charting.Series series4 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            this.tabMarketData = new System.Windows.Forms.TabControl();
+            this.tabMarketData = new DarkTabControl();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.graphES = new System.Windows.Forms.DataVisualization.Charting.Chart();
             this.tabPage2 = new System.Windows.Forms.TabPage();
@@ -57,7 +57,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // 
             this.tabMarketData.Controls.Add(this.tabPage1);
             this.tabMarketData.Controls.Add(this.tabPage2);
+            this.tabMarketData.BackColor = System.Drawing.Color.Black;
             this.tabMarketData.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tabMarketData.ForeColor = System.Drawing.Color.White;
             this.tabMarketData.Location = new System.Drawing.Point(0, 0);
             this.tabMarketData.Name = "tabMarketData";
             this.tabMarketData.SelectedIndex = 0;
@@ -74,7 +76,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             this.tabPage1.Size = new System.Drawing.Size(352, 274);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "ES";
-            this.tabPage1.UseVisualStyleBackColor = true;
+            this.tabPage1.UseVisualStyleBackColor = false;
             // 
             // graphES
             // 
@@ -141,7 +143,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             this.tabPage2.Size = new System.Drawing.Size(352, 274);
             this.tabPage2.TabIndex = 1;
             this.tabPage2.Text = "VX";
-            this.tabPage2.UseVisualStyleBackColor = true;
+            this.tabPage2.UseVisualStyleBackColor = false;
             // 
             // graphVIX
             // 

@@ -11,14 +11,19 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 public partial class OperationsView : UserControl
 {
     const double StrategyDetailHeightRatio = 0.33;
+    const int MinimumTimeColumnWidth = 185;
     OperationsViewModel? _viewModel;
     IReadOnlyList<FuturesItiSignalEventRow>? _renderedEvents;
     bool _synchronizingSelection;
+    bool _synchronizingTimeFrame;
 
     public OperationsView()
     {
         InitializeComponent();
         lstItiEvents.SetDoubleBuffered(true);
+        ddlTimeFrame.Items.AddRange(
+            [TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly]);
+        ddlTimeFrame.SelectedItem = TimeFrameType.Daily;
         operationsTabs.SelectedIndex = (int)OperationsViewType.Strategy;
         ResizeStrategyPanels();
     }
@@ -46,6 +51,17 @@ public partial class OperationsView : UserControl
         }
 
         var strategy = viewModel.Strategy;
+        _synchronizingTimeFrame = true;
+        try
+        {
+            if (!Equals(ddlTimeFrame.SelectedItem, strategy.SelectedTimeFrame))
+                ddlTimeFrame.SelectedItem = strategy.SelectedTimeFrame;
+        }
+        finally
+        {
+            _synchronizingTimeFrame = false;
+        }
+
         lblItiStatus.Text = strategy.LastError is null
             ? strategy.StatusText
             : $"{strategy.StatusText} | {strategy.LastError.Caption}";
@@ -72,13 +88,10 @@ public partial class OperationsView : UserControl
             lstItiEvents.Items.Clear();
             foreach (var row in events)
             {
-                var item = new ListViewItem(
-                    EasternTime.FromUtc(row.OccurredOn)
-                        .ToString("hh:mm:ss.fff tt", CultureInfo.InvariantCulture))
+                var item = new ListViewItem(FormatListTime(row.OccurredOn, row.TimePeriod))
                 {
                     Tag = row
                 };
-                item.SubItems.Add(row.TimePeriod.ToStringFast());
                 item.SubItems.Add(row.Mode.ToStringFast());
                 item.SubItems.Add(row.Trend.ToStringFast());
                 item.SubItems.Add(row.IntrinsicPrice.ToString("N2", CultureInfo.InvariantCulture));
@@ -92,6 +105,7 @@ public partial class OperationsView : UserControl
             lstItiEvents.EndUpdate();
         }
 
+        ResizeTimeColumnToFit();
         if (lstItiEvents.SelectedItems.Count == 0 && lstItiEvents.Items.Count > 0)
             lstItiEvents.Items[0].Selected = true;
         RenderSelectedEvent();
@@ -111,6 +125,19 @@ public partial class OperationsView : UserControl
 
     void lstItiEvents_SelectedIndexChanged(object? sender, EventArgs e)
         => RenderSelectedEvent();
+
+    void ddlTimeFrame_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_synchronizingTimeFrame
+            || _viewModel is null
+            || ddlTimeFrame.SelectedItem is not TimeFrameType timeFrame)
+        {
+            return;
+        }
+
+        _viewModel.Strategy.SelectedTimeFrame = timeFrame;
+        RefreshView(_viewModel);
+    }
 
     void strategySplitter_Resize(object? sender, EventArgs e)
         => ResizeStrategyPanels();
@@ -140,6 +167,36 @@ public partial class OperationsView : UserControl
         }
 
         itiPropertyGrid.SelectedObject = new ItiSignalPropertyGridModel(row);
+    }
+
+    void ResizeTimeColumnToFit()
+    {
+        var requiredWidth = TextRenderer.MeasureText(
+            colTime.Text,
+            lstItiEvents.Font,
+            Size.Empty,
+            TextFormatFlags.NoPadding).Width;
+        foreach (ListViewItem item in lstItiEvents.Items)
+        {
+            requiredWidth = Math.Max(
+                requiredWidth,
+                TextRenderer.MeasureText(
+                    item.Text,
+                    lstItiEvents.Font,
+                    Size.Empty,
+                    TextFormatFlags.NoPadding).Width);
+        }
+
+        colTime.Width = Math.Max(MinimumTimeColumnWidth, requiredWidth + 16);
+    }
+
+    static string FormatListTime(DateTime occurredOn, TimeFrameType timeFrame)
+    {
+        var format = timeFrame == TimeFrameType.Daily
+            ? "hh:mm:ss.fff tt"
+            : "dd-MMM-yyyy hh:mm:ss.fff tt";
+        return EasternTime.FromUtc(occurredOn)
+            .ToString(format, CultureInfo.InvariantCulture);
     }
 }
 

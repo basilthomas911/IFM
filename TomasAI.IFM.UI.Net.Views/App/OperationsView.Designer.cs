@@ -15,17 +15,19 @@ partial class OperationsView
     {
         pnlTitle = new Panel();
         lblTitle = new Label();
-        operationsTabs = new TabControl();
+        operationsTabs = new DarkTabControl();
         tabStrategy = new TabPage();
+        pnlStrategyHeader = new TableLayoutPanel();
+        lblItiStatus = new Label();
+        lblTimeFrame = new Label();
+        ddlTimeFrame = new ComboBox();
         strategySplitter = new SplitContainer();
         lstItiEvents = new ListView();
         colTime = new ColumnHeader();
-        colPeriod = new ColumnHeader();
         colMode = new ColumnHeader();
         colTrend = new ColumnHeader();
         colPrice = new ColumnHeader();
         itiPropertyGrid = new PropertyGrid();
-        lblItiStatus = new Label();
         tabLatency = new TabPage();
         tabTraffic = new TabPage();
         tabErrors = new TabPage();
@@ -33,6 +35,7 @@ partial class OperationsView
         pnlTitle.SuspendLayout();
         operationsTabs.SuspendLayout();
         tabStrategy.SuspendLayout();
+        pnlStrategyHeader.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)strategySplitter).BeginInit();
         strategySplitter.Panel1.SuspendLayout();
         strategySplitter.Panel2.SuspendLayout();
@@ -65,7 +68,9 @@ partial class OperationsView
         operationsTabs.Controls.Add(tabTraffic);
         operationsTabs.Controls.Add(tabErrors);
         operationsTabs.Controls.Add(tabSaturation);
+        operationsTabs.BackColor = Color.Black;
         operationsTabs.Dock = DockStyle.Fill;
+        operationsTabs.ForeColor = Color.White;
         operationsTabs.Location = new Point(0, 25);
         operationsTabs.Name = "operationsTabs";
         operationsTabs.SelectedIndex = 0;
@@ -77,43 +82,87 @@ partial class OperationsView
         //
         tabStrategy.BackColor = Color.Black;
         tabStrategy.Controls.Add(strategySplitter);
-        tabStrategy.Controls.Add(lblItiStatus);
+        tabStrategy.Controls.Add(pnlStrategyHeader);
         tabStrategy.Location = new Point(4, 24);
         tabStrategy.Name = "tabStrategy";
         tabStrategy.Padding = new Padding(3);
         tabStrategy.Text = "Strategy";
         //
+        // pnlStrategyHeader
+        //
+        pnlStrategyHeader.BackColor = Color.Black;
+        pnlStrategyHeader.ColumnCount = 3;
+        pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125F));
+        pnlStrategyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100F));
+        pnlStrategyHeader.Controls.Add(lblItiStatus, 0, 0);
+        pnlStrategyHeader.Controls.Add(lblTimeFrame, 1, 0);
+        pnlStrategyHeader.Controls.Add(ddlTimeFrame, 2, 0);
+        pnlStrategyHeader.Dock = DockStyle.Top;
+        pnlStrategyHeader.Location = new Point(3, 3);
+        pnlStrategyHeader.Name = "pnlStrategyHeader";
+        pnlStrategyHeader.RowCount = 1;
+        pnlStrategyHeader.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        pnlStrategyHeader.Size = new Size(513, 29);
+        pnlStrategyHeader.TabIndex = 0;
+        //
+        // lblItiStatus
+        //
+        lblItiStatus.Dock = DockStyle.Fill;
+        lblItiStatus.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        lblItiStatus.ForeColor = Color.Silver;
+        lblItiStatus.Padding = new Padding(3, 4, 3, 0);
+        lblItiStatus.Text = "Intrinsic Time Daily: Not started";
+        //
+        // lblTimeFrame
+        //
+        lblTimeFrame.AutoSize = false;
+        lblTimeFrame.Dock = DockStyle.Fill;
+        lblTimeFrame.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+        lblTimeFrame.ForeColor = Color.LightGray;
+        lblTimeFrame.Margin = new Padding(3);
+        lblTimeFrame.Name = "lblTimeFrame";
+        lblTimeFrame.Padding = new Padding(0, 1, 3, 0);
+        lblTimeFrame.Text = "Time Frame:";
+        lblTimeFrame.TextAlign = ContentAlignment.MiddleRight;
+        lblTimeFrame.UseCompatibleTextRendering = false;
+        //
+        // ddlTimeFrame
+        //
+        ddlTimeFrame.BackColor = Color.Black;
+        ddlTimeFrame.Dock = DockStyle.Fill;
+        ddlTimeFrame.DropDownStyle = ComboBoxStyle.DropDownList;
+        ddlTimeFrame.FlatStyle = FlatStyle.Flat;
+        ddlTimeFrame.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+        ddlTimeFrame.ForeColor = Color.White;
+        ddlTimeFrame.FormattingEnabled = true;
+        ddlTimeFrame.Margin = new Padding(3);
+        ddlTimeFrame.Name = "ddlTimeFrame";
+        ddlTimeFrame.TabIndex = 1;
+        ddlTimeFrame.SelectedIndexChanged += ddlTimeFrame_SelectedIndexChanged;
+        //
         // strategySplitter
         //
         strategySplitter.BackColor = Color.Black;
         strategySplitter.Dock = DockStyle.Fill;
-        strategySplitter.Location = new Point(3, 30);
+        strategySplitter.Location = new Point(3, 32);
         strategySplitter.Name = "strategySplitter";
         strategySplitter.Orientation = Orientation.Horizontal;
         strategySplitter.Panel1.Controls.Add(lstItiEvents);
         strategySplitter.Panel1MinSize = 180;
         strategySplitter.Panel2.Controls.Add(itiPropertyGrid);
         strategySplitter.Panel2MinSize = 120;
-        strategySplitter.Size = new Size(513, 735);
+        strategySplitter.Size = new Size(513, 733);
         strategySplitter.SplitterDistance = 490;
         strategySplitter.SplitterWidth = 5;
         strategySplitter.TabIndex = 1;
         strategySplitter.Resize += strategySplitter_Resize;
         //
-        // lblItiStatus
-        //
-        lblItiStatus.Dock = DockStyle.Top;
-        lblItiStatus.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-        lblItiStatus.ForeColor = Color.Silver;
-        lblItiStatus.Padding = new Padding(3, 4, 3, 0);
-        lblItiStatus.Size = new Size(513, 27);
-        lblItiStatus.Text = "ITI: Not started";
-        //
         // lstItiEvents
         //
         lstItiEvents.BackColor = Color.Black;
         lstItiEvents.BorderStyle = BorderStyle.None;
-        lstItiEvents.Columns.AddRange([colTime, colPeriod, colMode, colTrend, colPrice]);
+        lstItiEvents.Columns.AddRange([colTime, colMode, colTrend, colPrice]);
         lstItiEvents.Dock = DockStyle.Fill;
         lstItiEvents.ForeColor = Color.White;
         lstItiEvents.FullRowSelect = true;
@@ -127,9 +176,7 @@ partial class OperationsView
         lstItiEvents.View = View.Details;
         lstItiEvents.SelectedIndexChanged += lstItiEvents_SelectedIndexChanged;
         colTime.Text = "Time";
-        colTime.Width = 125;
-        colPeriod.Text = "Period";
-        colPeriod.Width = 58;
+        colTime.Width = 185;
         colMode.Text = "Change";
         colMode.Width = 132;
         colTrend.Text = "Trend";
@@ -176,6 +223,7 @@ partial class OperationsView
         pnlTitle.ResumeLayout(false);
         pnlTitle.PerformLayout();
         operationsTabs.ResumeLayout(false);
+        pnlStrategyHeader.ResumeLayout(false);
         tabStrategy.ResumeLayout(false);
         strategySplitter.Panel1.ResumeLayout(false);
         strategySplitter.Panel2.ResumeLayout(false);
@@ -207,10 +255,12 @@ partial class OperationsView
     TabPage tabErrors = null!;
     TabPage tabSaturation = null!;
     Label lblItiStatus = null!;
+    Label lblTimeFrame = null!;
+    ComboBox ddlTimeFrame = null!;
+    TableLayoutPanel pnlStrategyHeader = null!;
     SplitContainer strategySplitter = null!;
     ListView lstItiEvents = null!;
     ColumnHeader colTime = null!;
-    ColumnHeader colPeriod = null!;
     ColumnHeader colMode = null!;
     ColumnHeader colTrend = null!;
     ColumnHeader colPrice = null!;
