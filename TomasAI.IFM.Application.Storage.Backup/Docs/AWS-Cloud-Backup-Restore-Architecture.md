@@ -1827,6 +1827,10 @@ because it would fork contract and lineage behavior.
 
 - [IFM database backup and restore architecture overview](Database-Backup-Architecture-Overview.md)
 - [AWS cloud code implementation specification](AWS-Cloud-Backup-Restore-Code-Implementation-Specification.md)
+- [AWS Gate 0 baseline](AWS-Cloud-Backup-Restore-Gate-0-Baseline.md)
+- [AWS Gate 0 decision record](AWS-Cloud-Backup-Restore-Gate-0-Decision-Record.md)
+- [AWS Gate 0 threat, cost, and deletion model](AWS-Cloud-Backup-Restore-Gate-0-Threat-Cost-Deletion-Model.md)
+- [AWS Gate 0 validation report](AWS-Cloud-Backup-Restore-Gate-0-Validation-Report.md)
 - [Local workstation code implementation specification](Local-Workstation-Backup-Restore-Code-Implementation-Specification.md)
 - [Local workstation incremental validation report](Local-Workstation-Backup-Restore-Incremental-Validation-Report.md)
 - [IFM Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md)

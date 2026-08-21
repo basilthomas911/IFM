@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "partition": "aws",
+  "environments": {
+    "Development": {
+      "accountIds": [ "000000000000" ],
+      "regions": [ "ca-central-1" ],
+      "awsMutationAuthorized": false
+    }
+  }
+}

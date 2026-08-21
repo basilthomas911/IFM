@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "partition": "aws",
+  "environments": {
+    "Development": {
+      "accountIds": [ "107651266250" ],
+      "regions": [ "ca-central-1", "ca-west-1" ],
+      "awsMutationAuthorized": false
+    },
+    "Staging": {
+      "accountIds": [],
+      "regions": [ "ca-central-1", "ca-west-1" ],
+      "awsMutationAuthorized": false
+    },
+    "Production": {
+      "accountIds": [],
+      "regions": [ "ca-central-1", "ca-west-1" ],
+      "awsMutationAuthorized": false
+    }
+  }
+}

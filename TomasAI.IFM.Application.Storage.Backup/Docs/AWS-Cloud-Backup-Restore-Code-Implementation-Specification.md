@@ -1,8 +1,8 @@
 # AWS Cloud Database Backup and Restore Code Implementation Specification
 
-**Status:** Planned; no AWS resources have been created or changed by this document
+**Status:** Gate 0 complete; Gate 1 ready to start; no AWS resources have been created or changed
 
-**Version:** 0.1
+**Version:** 0.3
 
 **Date:** 2026-08-21
 
@@ -156,6 +156,22 @@ The AWS framework project adds only the current compatible stable AWS SDK for .N
 
 Exact versions are centrally pinned or consistently pinned in project files, recorded in the dependency inventory,
 and validated by restore integration tests. Package upgrades are not combined with a production rollout.
+
+The NuGet.org package snapshot verified on 2026-08-21 is:
+
+| Direct package | Candidate stable version | First required gate | Purpose |
+| --- | ---: | ---: | --- |
+| `AWSSDK.S3` | `4.0.102.3` | Gate 1 | S3 artifact, evidence, catalog, Object Lock, checksum, and replication APIs |
+| `AWSSDK.DynamoDBv2` | `4.0.103.3` | Gate 1 | Conditional and transactional execution-journal persistence |
+| `AWSSDK.KeyManagementService` | `4.0.100.10` | Gate 1 | Manifest/publication signing, verification, and KMS metadata validation |
+| `AWSSDK.SecurityToken` | `4.0.100.10` | Gate 1 | STS caller-identity preflight and role-session support |
+
+`AWSSDK.Core` is expected as a compatible transitive dependency and is not added directly unless restore/build
+analysis proves a direct reference is required. `AWSSDK.CloudWatch` is deferred until Gate 15 establishes that direct
+metric publication is needed; OpenTelemetry or existing metrics infrastructure remains preferred. Before installing,
+Gate 1 must re-query NuGet.org, reject prerelease/deprecated/vulnerable versions, inspect the resolved dependency graph,
+and pin the four packages as one compatible AWS SDK v4 set. Package installation is a code change and does not use or
+validate AWS credentials.
 
 ### 5.3 Dependency direction
 
@@ -378,7 +394,44 @@ No later gate may be declared complete while an earlier gate has unresolved seve
 gate produces a dated validation report under this documentation directory with commands, test results, resource IDs,
 safe configuration, deviations, reviewer, and rollback result. Secrets and raw native output are redacted.
 
+### 11.1 Implementation status dashboard
+
+This table is the current implementation record. Update it in the same change that completes material gate work. A
+gate may move to **Complete** only when every listed exit-evidence item has a dated validation report. Existing local
+capabilities are baseline prerequisites and do not by themselves complete an AWS gate.
+
+| Gate | Status | Results/evidence recorded as of 2026-08-21 | Remaining work or completion blocker |
+| ---: | --- | --- | --- |
+| 0 | **Complete** | Baseline frozen; CloudFormation/Canada Region/account/recovery/retention/crypto/staging decisions accepted; threat, cost, and deletion controls recorded; AWS CLI/PowerShell installed; read-only STS preflight passed and rejected wrong account/Region/production; 77 tests passed, 8 intentionally skipped, 0 failed; credential-pattern scan passed. See the Gate 0 baseline, decision record, control model, and validation report. | None. Staging/production remain intentionally deny-all and no AWS mutation is authorized. Existing local host finding `G0-F1` is assigned to Gate 1 before any AWS processor enablement. |
+| 1 | **Not started** | Confirmed no AWS framework/test projects or AWS SDK package references currently exist; current AWS SDK v4 package candidates recorded in section 5.2. AWS operator tools are installed but are not application dependencies. | Scaffold projects, install/pin application NuGet packages, refactor host composition, close `G0-F1`, validate AWS-disabled startup and full local regression suite. |
+| 2 | **Not started** | Shared contracts, MessagePack key 31, manifest v2, lineage, and local chain behavior exist as the compatibility baseline. | Extract destination-neutral policy and add golden/mutation compatibility tests without changing persisted or wire schemas. |
+| 3 | **Not started** | Credential-handling rules and required standard environment-variable names are documented. | Implement safe options, SDK credential chain, STS/account/Region enforcement, client lifecycle, retries, error mapping, and redaction tests. |
+| 4 | **Not started** | Three-account/two-Region resource topology and controls are defined by architecture. No AWS resources have been created or changed. | Select IaC, review plans, deploy development resources, and prove IAM/KMS/S3/DynamoDB controls with positive and negative tests. |
+| 5 | **Not started** | SQLite journal and seven logical record families provide the contract baseline. | Implement and qualify DynamoDB transactions, conditions, leases/fencing, recovery, fault handling, and PITR. |
+| 6 | **Not started** | Local immutable publication/catalog semantics and AWS object/evidence schemas are documented. | Implement S3 upload/publication/catalog/rebuild, exact version handling, checksums, Object Lock, multipart recovery, and corruption tests. |
+| 7 | **Not started** | Required asymmetric KMS signing model and offline trust-bundle behavior are documented. | Implement canonical signing/verification, public trust bundle, key rollover, negative tests, and recovery verification. |
+| 8 | **Not started** | Existing processor registry and application capability ports are available; AWS adapter class responsibilities are specified. | Implement AWS processor, engine selector, state machine, outbox/reconciliation behavior, health isolation, and restart/fault tests. |
+| 9 | **Not started** | Local PostgreSQL 17 full/incremental capability, lineage rules, and chain policy form the native baseline. | Integrate AWS publication, continuous WAL, gaps/timelines/spooling, replication observations, load/failure tests, and eligibility rules. |
+| 10 | **Not started** | Fresh-target, dependency-complete, `pg_combinebackup`, and PITR requirements are specified. | Implement and qualify full/incremental/PITR restores from both vaults with native/application validation and measured RPO/RTO. |
+| 11 | **Not started** | Local Scylla Manager capability and logically complete deduplicated-snapshot semantics form the baseline. | Implement protection-set capture, AWS publication, Manager/topology evidence, reconciliation, and partial-failure tests. |
+| 12 | **Not started** | Fresh-cluster restore and validation requirements are specified. | Restore complete Scylla protection sets from both vaults; pass corruption/topology/KMS/recovery-only tests and measure RPO/RTO. |
+| 13 | **Not started** | Cross-account/cross-Region replication and exact-version qualification rules are documented. | Correlate/verify destination versions and pass recovery-only catalog rebuild plus PostgreSQL and Scylla restores with primary access blocked. |
+| 14 | **Not started** | Dependency-aware retention, legal-hold, exact-version plan, and constrained-deletion requirements are documented. | Implement dry-run/approval/execution/reconciliation and pass drift, hold, compliance, dependency, replica, and partial-failure tests. |
+| 15 | **Not started** | Source-neutral UI/Console contracts exist; required AWS metrics, health behavior, and runbooks are enumerated. | Add projected AWS status, dashboards, alarms, runbooks, health isolation, bounded retries, and exception-noise qualification. |
+| 16 | **Not started** | Security, resilience, performance, capacity, and cost test scope is documented. | Execute scans, fault injection, workload/restore tests, cost measurement, remediation, and formal risk acceptance. |
+| 17 | **Not started** | Staging topology, soak, game-day, ownership, and readiness criteria are documented. | Deploy production-shaped staging, complete soak/recovery game days, close findings, and obtain readiness approvals. |
+| 18 | **Not started** | Controlled rollout, overlap, canary, production-derived drill, and acceptance criteria are documented. | Obtain production authorization, roll out gradually, complete recovery-vault drills, prove RPO/RTO, and obtain final acceptance. |
+
+**Current overall result:** Gate 0 is complete and Gate 1 is ready to begin. Development identity is approved only for
+the committed read-only preflight. Staging and production have empty account allowlists and all AWS mutation remains
+denied until a later environment-specific approval deliberately changes that policy.
+
 ### Gate 0 - Baseline, decisions, and authorization boundary
+
+**Implementation result:** Complete on 2026-08-21. Evidence is recorded in
+`AWS-Cloud-Backup-Restore-Gate-0-Baseline.md`, `AWS-Cloud-Backup-Restore-Gate-0-Decision-Record.md`,
+`AWS-Cloud-Backup-Restore-Gate-0-Threat-Cost-Deletion-Model.md`, and
+`AWS-Cloud-Backup-Restore-Gate-0-Validation-Report.md`.
 
 **Steps**
 
@@ -917,6 +970,13 @@ engines. Retention execution must not be enabled before G13 proves independent r
 
 ## 18. Authoritative AWS references
 
+Gate 0 implementation evidence:
+
+- [Gate 0 baseline](AWS-Cloud-Backup-Restore-Gate-0-Baseline.md)
+- [Gate 0 decision record](AWS-Cloud-Backup-Restore-Gate-0-Decision-Record.md)
+- [Gate 0 threat, cost, and deletion model](AWS-Cloud-Backup-Restore-Gate-0-Threat-Cost-Deletion-Model.md)
+- [Gate 0 validation report](AWS-Cloud-Backup-Restore-Gate-0-Validation-Report.md)
+
 - AWS SDK for .NET v4 credential resolution:
   https://docs.aws.amazon.com/sdk-for-net/v4/developer-guide/creds-assign.html
 - AWS SDK shared credentials files:
@@ -939,3 +999,19 @@ engines. Retention execution must not be enabled before G13 proves independent r
   https://docs.aws.amazon.com/kms/latest/APIReference/API_Sign.html
 - AWS KMS asymmetric signing keys:
   https://docs.aws.amazon.com/kms/latest/developerguide/asymm-create-key.html
+- NuGet `AWSSDK.S3`:
+  https://www.nuget.org/packages/AWSSDK.S3
+- NuGet `AWSSDK.DynamoDBv2`:
+  https://www.nuget.org/packages/AWSSDK.DynamoDBv2
+- NuGet `AWSSDK.KeyManagementService`:
+  https://www.nuget.org/packages/AWSSDK.KeyManagementService
+- NuGet `AWSSDK.SecurityToken`:
+  https://www.nuget.org/packages/AWSSDK.SecurityToken
+
+## 19. Version history
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 0.1 | 2026-08-21 | Created the complete Gate 0 through Gate 18 AWS implementation, qualification, and production-acceptance plan. |
+| 0.2 | 2026-08-21 | Added the implementation status dashboard, current result/blocker for every gate, readiness boundary, and verified AWS SDK v4 NuGet package snapshot. |
+| 0.3 | 2026-08-21 | Completed Gate 0: froze the baseline, accepted the ADR/control set, installed and verified AWS operator tools, added and qualified the fail-closed STS preflight, passed the shared/native regression baseline, and retained deny-all staging/production plus no-mutation policy. |
