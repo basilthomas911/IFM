@@ -592,6 +592,21 @@ public static class MarketDataAnalyticsQueries
 {
     public static IEndpointRouteBuilder MapMarketDataAnalyticsQueries(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetMarketOutlookSnapshot, async (
+            IActorService e, string contractId, DateOnly valueDate) =>
+        {
+            var query = new GetMarketOutlookSnapshotQuery(contractId, valueDate);
+            query = query with
+            {
+                Subject = new ActorSubject(
+                    ActorType.Query,
+                    GetMarketOutlookSnapshotQuery.Actor,
+                    GetMarketOutlookSnapshotQuery.Verb,
+                    query.EntityId.Format())
+            };
+            return await e.RequestAsync<MarketOutlookSnapshotReadModel, GetMarketOutlookSnapshotQuery>(query);
+        });
+
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignal, async (
             IActorService e, string contractId, DateOnly valueDate) =>
         {

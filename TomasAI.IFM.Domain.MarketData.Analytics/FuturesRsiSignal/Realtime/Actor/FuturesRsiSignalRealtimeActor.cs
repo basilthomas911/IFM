@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 
@@ -62,8 +63,10 @@ public class FuturesRsiSignalRealtimeActor(
                     "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
                     failed.EventName, failed.EntityId, failed.ErrorMessage);
                 break;
+            case FuturesRsiSignalGeneratedCompleteEvent completed:
+                await completed.PublishAsync(context).ConfigureAwait(false);
+                break;
             case FuturesRsiSignalGeneratedEvent:
-            case FuturesRsiSignalGeneratedCompleteEvent:
             case FuturesRsiSignalsGeneratedEvent:
                 break;
             default:

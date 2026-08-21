@@ -14,6 +14,10 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbReadContext
 {
+    Task<MarketOutlookSnapshotReadModel?> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default);
     Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId);
     Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId, CancellationToken cancellationToken);
     Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode);

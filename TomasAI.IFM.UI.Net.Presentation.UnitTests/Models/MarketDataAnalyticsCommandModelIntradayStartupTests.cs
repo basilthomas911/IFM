@@ -66,8 +66,8 @@ public class MarketDataAnalyticsCommandModelIntradayStartupTests
     static MarketDataAnalyticsCommandModel CreateSubject(IMarketDataAnalyticsCommandApi commandApi)
         => new(
             commandApi,
-            Substitute.For<IFuturesTradeSignalUIEventConsumer>(),
-            Substitute.For<IFuturesRsiSignalUIEventConsumer>());
+            Substitute.For<IFuturesRsiSignalUIEventConsumer>(),
+            Substitute.For<IMarketOutlookUIEventConsumer>());
 
     static IMarketDataAnalyticsCommandApi CreateSuccessfulApi()
     {

@@ -12,6 +12,14 @@ public class MarketDataAnalyticsQueryModel(IMarketDataAnalyticsQueryApi queryApi
 {
     readonly IMarketDataAnalyticsQueryApi _queryApi = queryApi;
 
+    public async Task GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate,
+        Action<MarketOutlookSnapshotReadModel> onCompleted)
+        => await ExecuteAsync(
+            () => _queryApi.GetMarketOutlookSnapshotAsync(contractId, valueDate),
+            onCompleted);
+
     /// <summary>
     /// load futures trade signal
     /// </summary>

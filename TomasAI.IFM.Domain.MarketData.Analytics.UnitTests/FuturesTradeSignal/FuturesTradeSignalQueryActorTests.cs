@@ -205,6 +205,41 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
 
     // ReceiveAsync
 
+    [Fact]
+    public async Task ReceiveAsync_GetMarketOutlookSnapshotQuery_RepliesWithPersistedComposite()
+    {
+        var scenario = CreateScenario();
+        var entityId = new MarketOutlookEntityId(SampleData.ContractId, SampleData.ValueDate);
+        var query = new GetMarketOutlookSnapshotQuery(entityId.ContractId, entityId.ValueDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketOutlookSnapshotQuery.Actor,
+                GetMarketOutlookSnapshotQuery.Verb,
+                entityId.Format())
+        };
+        var expected = new MarketOutlookSnapshotReadModel(
+            entityId.ContractId,
+            entityId.ValueDate,
+            7,
+            DateTime.UtcNow,
+            SampleData.EodData,
+            SampleData.TradeSignalReadModelFor(TimeFrameType.Daily),
+            string.Empty);
+        scenario.Db.GetMarketOutlookSnapshotAsync(entityId.ContractId, entityId.ValueDate)
+            .Returns(expected);
+
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await scenario.Db.Received(1)
+            .GetMarketOutlookSnapshotAsync(entityId.ContractId, entityId.ValueDate);
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetMarketOutlookSnapshotQuery.Verb,
+            Arg.Is<ServiceResult<MarketOutlookSnapshotReadModel?>>(result =>
+                result.Success && result.Value == expected));
+    }
+
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
     public async Task ReceiveAsync_GetSignalQuery_ExistingSignalRepliesWithPeriodSpecificResult(

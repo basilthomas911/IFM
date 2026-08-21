@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
 
@@ -29,6 +30,7 @@ public static class FuturesTdiSignalGeneratedComplete
         var source = $"FuturesTdiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
+            await e.PublishAsync(context).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex)

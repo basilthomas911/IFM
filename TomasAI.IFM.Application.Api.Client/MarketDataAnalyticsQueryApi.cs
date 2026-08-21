@@ -19,6 +19,17 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
 {
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);
 
+    public async Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate)
+    {
+        var parameter = new GetMarketOutlookSnapshotParameter(contractId, valueDate);
+        return await _querySvc.ExecuteQueryAsync<MarketOutlookSnapshotReadModel>(
+            MarketDataAnalyticsQueryUriPath.GetMarketOutlookSnapshot,
+            parameter,
+            GetMarketOutlookSnapshotQuery.ErrorId);
+    }
+
     /// <summary>
     /// Gets the futures trade signal for a contract and value date.
     /// </summary>

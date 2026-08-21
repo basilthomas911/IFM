@@ -30,10 +30,10 @@ public class FuturesEodDataEventActor(
             var e = (evt as FuturesEodDataInsertedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, _, eventApi, eventParams) =>
+        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
-            return await e.ExecuteAsync(eventApi, eventParams);
+            return await e.ExecuteAsync(context, eventApi, eventParams);
         },
         [typeof(VixFuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, _, eventParams) =>
         {

@@ -31,6 +31,7 @@ public class FundQueryUriPath
 /// requests to the API.</remarks>
 public class MarketDataAnalyticsQueryUriPath
 {
+    public const string GetMarketOutlookSnapshot = "/api/market-data-analytics/market-outlook-snapshot";
     public const string GetFuturesTradeSignal = "/api/marketdata/analytics/futures/tradesignal";
     public const string GetLastFuturesTradeSignal = "/api/marketdata/analytics/futures/tradesignal/last";
     public const string GetFuturesTradeSignalBySymbol = "/api/marketdata/analytics/futures/tradesignal/bysymbol";

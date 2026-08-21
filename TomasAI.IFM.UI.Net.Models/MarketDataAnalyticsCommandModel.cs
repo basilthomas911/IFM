@@ -42,17 +42,17 @@ namespace TomasAI.IFM.UI.Net.Models
     public class MarketDataAnalyticsCommandModel : BaseModel<MarketDataAnalyticsCommandModel>
     {
         readonly IMarketDataAnalyticsCommandApi _commandApi;
-        readonly IFuturesTradeSignalUIEventConsumer _futuresTradeSignalEventConsumer;
+        readonly IMarketOutlookUIEventConsumer _marketOutlookEventConsumer;
         readonly IFuturesRsiSignalUIEventConsumer _futuresRsiSignalEventConsumer;
 
         public MarketDataAnalyticsCommandModel(
             IMarketDataAnalyticsCommandApi commandApi,
-            IFuturesTradeSignalUIEventConsumer futuresTradeSignalEventConsumer,
-            IFuturesRsiSignalUIEventConsumer futuresRsiSignalEventConsumer)
+            IFuturesRsiSignalUIEventConsumer futuresRsiSignalEventConsumer,
+            IMarketOutlookUIEventConsumer marketOutlookEventConsumer)
         {
             _commandApi = commandApi;
-            _futuresTradeSignalEventConsumer = futuresTradeSignalEventConsumer;
             _futuresRsiSignalEventConsumer = futuresRsiSignalEventConsumer;
+            _marketOutlookEventConsumer = marketOutlookEventConsumer;
         }
 
         /// <summary>
@@ -162,20 +162,13 @@ namespace TomasAI.IFM.UI.Net.Models
             }
         }
 
-        /// <summary>
-        /// start listening for futures trade signal updates
-        /// </summary>
-        /// <param name="siteId"></param>
-        /// <param name="listenerAction"></param>
-        public async Task StartFuturesTradeSignalEventConsumerAsync(Guid siteId, Action<FuturesTradeSignalUpdatedNotifyEvent> listenerAction)
-            => await _futuresTradeSignalEventConsumer.StartAsync(siteId, listenerAction);
+        public async Task StartMarketOutlookEventConsumerAsync(
+            Guid siteId,
+            Action<MarketOutlookUpdatedNotifyEvent> listenerAction)
+            => await _marketOutlookEventConsumer.StartAsync(siteId, listenerAction);
 
-        /// <summary>
-        /// stop listening for futures trade signal updates
-        /// </summary>
-        /// <param name="siteId"></param>
-        public async Task StopFuturesTradeSignalEventConsumerAsync(Guid siteId)
-            => await _futuresTradeSignalEventConsumer.StopAsync(siteId);
+        public async Task StopMarketOutlookEventConsumerAsync(Guid siteId)
+            => await _marketOutlookEventConsumer.StopAsync(siteId);
 
         /// <summary>
         /// start listening for generated futures rsi signals

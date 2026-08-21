@@ -13,6 +13,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
@@ -182,6 +184,16 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
                 && notification.EntityId == @event.EntityId
                 && notification.FuturesEodData == @event.FuturesEodData
                 && notification.IsValid));
+        await context.Received(1).SendAsync<MarketOutlookEodUpdatedRealtimeEvent, MarketOutlookEntityId>(
+            Arg.Is<MarketOutlookEodUpdatedRealtimeEvent>(clock =>
+                clock.Subject.Is(
+                    ActorType.Realtime,
+                    MarketOutlookEodUpdatedRealtimeEvent.Actor,
+                    MarketOutlookEodUpdatedRealtimeEvent.Verb)
+                && clock.CommandId == @event.CommandId
+                && clock.EntityId.ContractId == @event.EntityId.ContractId
+                && clock.EntityId.ValueDate == @event.EntityId.ValueDate
+                && clock.FuturesEodData == @event.FuturesEodData));
     }
 
     [Fact]

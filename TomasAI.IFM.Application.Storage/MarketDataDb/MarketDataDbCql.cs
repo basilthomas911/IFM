@@ -3170,4 +3170,25 @@ internal static class MarketDataDbCql
         AND valueDate = :valueDate
     """;
 
+    public const string UpsertMarketOutlookSnapshot = """
+        INSERT INTO market_outlook_snapshot
+            (contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs)
+        VALUES
+            (:contractId, :valueDate, :revision, :updatedOn, :eodData, :futuresTradeSignal, :missingInputs);
+    """;
+
+    public const string GetMarketOutlookSnapshot = """
+        SELECT contractId AS "ContractId",
+            valueDate AS "ValueDate",
+            revision AS "Revision",
+            updatedOn AS "UpdatedOn",
+            eodData AS "EodData",
+            futuresTradeSignal AS "FuturesTradeSignal",
+            missingInputs AS "MissingInputs"
+        FROM market_outlook_snapshot
+        WHERE contractId = :contractId
+        AND valueDate <= :valueDate
+        LIMIT 1;
+    """;
+
 }

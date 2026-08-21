@@ -11,6 +11,7 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("market_data_import_ownership", MarketDataSchemaCql.CreateMarketDataImportOwnershipTable, "DROP TABLE IF EXISTS market_data_import_ownership;"),
+        new("market_outlook_snapshot", MarketDataSchemaCql.CreateMarketOutlookSnapshotTable, "DROP TABLE IF EXISTS market_outlook_snapshot;"),
         new("economic_calendar_v2", MarketDataSchemaCql.CreateEconomicCalendarV2Table, "DROP TABLE IF EXISTS economic_calendar_v2;"),
         new("economic_calendar_country_code", MarketDataSchemaCql.CreateEconomicCalendarCountryCodeTable, "DROP TABLE IF EXISTS economic_calendar_country_code;"),
         new("economic_calendar_cutover_v2", MarketDataSchemaCql.CreateEconomicCalendarCutoverV2Table, "DROP TABLE IF EXISTS economic_calendar_cutover_v2;"),

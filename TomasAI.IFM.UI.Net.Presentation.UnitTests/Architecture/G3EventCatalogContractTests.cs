@@ -79,9 +79,9 @@ public sealed class G3EventCatalogContractTests
         var tdiConsumer = Read(
             "TomasAI.IFM.UI.EventConsumer/FuturesRsiSignalUIEventConsumer.cs");
         tdiConsumer.Should().Contain("FuturesTdiSignalGeneratedCompleteEvent");
-        var tradeSignalConsumer = Read(
-            "TomasAI.IFM.UI.EventConsumer/FuturesTradeSignalUIEventConsumer.cs");
-        tradeSignalConsumer.Should().Contain("FuturesTradeSignalUpdatedNotifyEvent");
+        var marketOutlookConsumer = Read(
+            "TomasAI.IFM.UI.EventConsumer/MarketOutlookUIEventConsumer.cs");
+        marketOutlookConsumer.Should().Contain("MarketOutlookUpdatedNotifyEvent");
     }
 
     [Fact]
@@ -90,9 +90,10 @@ public sealed class G3EventCatalogContractTests
         var shell = Read("TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs");
         shell.Should().Contain("OrderedBatchAsyncChannel<IEvent>");
         shell.Should().Contain("OrderedBatchAsyncChannel<StatusConsoleLogReadModel>");
-        shell.Should().Contain("LatestValueAsyncChannel<FuturesEodDataV2ReadModel>");
+        shell.Should().Contain("LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>");
         shell.Should().Contain("KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>");
-        shell.Should().Contain("LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>");
+        shell.Should().NotContain("LatestValueAsyncChannel<FuturesEodDataV2ReadModel>");
+        shell.Should().NotContain("LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>");
 
         var monitor = Read(
             "TomasAI.IFM.UI.Net.ViewModels/Trade/IronCondor/IronCondorViewModel.cs");

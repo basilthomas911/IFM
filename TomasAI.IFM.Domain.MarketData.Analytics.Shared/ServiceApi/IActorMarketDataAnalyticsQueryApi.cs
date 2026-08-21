@@ -9,6 +9,10 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 /// <remarks>Implementations must not use HTTP, NATS, or actor messaging.</remarks>
 public interface IActorMarketDataAnalyticsQueryApi : IMarketDataAnalyticsQueryApi
 {
+    Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken);
     Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(
         string contractId, DateOnly valueDate, CancellationToken cancellationToken);
     Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetLastFuturesTradeSignalAsync(

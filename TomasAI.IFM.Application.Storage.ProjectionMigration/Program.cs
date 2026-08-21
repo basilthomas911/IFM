@@ -62,6 +62,7 @@ internal static class Program
 
     static readonly string[] MarketProjectionObjects =
     [
+        "market_outlook_snapshot",
         "economic_calendar_v2",
         "economic_calendar_country_code",
         "economic_calendar_cutover_v2",

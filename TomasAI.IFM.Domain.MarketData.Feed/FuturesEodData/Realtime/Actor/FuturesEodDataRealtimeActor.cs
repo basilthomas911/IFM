@@ -155,7 +155,7 @@ public class FuturesEodDataRealtimeActor(
                     inserted.FuturesEodData);
                 break;
             case FuturesEodDataInsertedCompleteEvent completed:
-                _ = await completed.ExecuteAsync(GetEventApi(), _parameters)
+                _ = await completed.ExecuteAsync(context, GetEventApi(), _parameters)
                     .ConfigureAwait(false);
                 break;
             case VixFuturesEodDataInsertedCompleteEvent vixCompleted:

@@ -12,6 +12,9 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    Task UpsertMarketOutlookSnapshotAsync(
+        MarketOutlookSnapshotReadModel snapshot,
+        CancellationToken cancellationToken = default);
     Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
     Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
     Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars);

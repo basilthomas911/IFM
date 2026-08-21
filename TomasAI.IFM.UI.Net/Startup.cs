@@ -213,6 +213,7 @@ namespace TomasAI.IFM.UI.Net
         {
             _container!.RegisterSingleton<IFuturesEodDataUIEventConsumer, FuturesEodDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesTradeSignalUIEventConsumer, FuturesTradeSignalUIEventConsumer>();
+            _container!.RegisterSingleton<IMarketOutlookUIEventConsumer, MarketOutlookUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesRsiSignalUIEventConsumer, FuturesRsiSignalUIEventConsumer>();
             _container!.RegisterSingleton<IFundRiskMarginUIEventConsumer, FundRiskMarginUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesBarDataUIEventConsumer, FuturesBarDataUIEventConsumer>();

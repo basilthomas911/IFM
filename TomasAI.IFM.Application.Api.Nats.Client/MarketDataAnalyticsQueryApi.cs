@@ -20,6 +20,23 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     : NatsCommandApi(actorProducer), IMarketDataAnalyticsQueryApi
 {
+    public async Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate)
+    {
+        var entityId = new GetMarketOutlookSnapshotParameter(contractId, valueDate);
+        var query = new GetMarketOutlookSnapshotQuery(contractId, valueDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketOutlookSnapshotQuery.Actor,
+                GetMarketOutlookSnapshotQuery.Verb,
+                entityId.Format())
+        };
+        return await RequestAsync<GetMarketOutlookSnapshotQuery, MarketOutlookSnapshotReadModel>(
+            query.Subject, query);
+    }
+
     /// <summary>
     /// Gets the futures trade signal for a contract and value date.
     /// </summary>

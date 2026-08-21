@@ -862,3 +862,25 @@ internal readonly record struct UpdateVixFuturesEodData(string contractId, DateO
 {
     public object Bind() => new object?[] { openPrice, highPrice, lowPrice, closePrice, volume, contractId, valueDate };
 }
+
+internal readonly record struct UpsertMarketOutlookSnapshot(
+    string contractId,
+    DateOnly valueDate,
+    long revision,
+    DateTime updatedOn,
+    byte[] eodData,
+    byte[]? futuresTradeSignal,
+    string missingInputs) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs
+    };
+}
+
+internal readonly record struct GetMarketOutlookSnapshot(
+    string contractId,
+    DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate };
+}

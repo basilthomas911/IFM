@@ -2631,6 +2631,45 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.TradeExecuteState.Should().Be(expectedSignal.TradeExecuteState);
     }
 
+    [Fact]
+    public async Task MarketOutlookSnapshot_RoundTripsCompleteCompositeAndRevision()
+    {
+        var contractId = $"OUTLOOK{Guid.NewGuid():N}";
+        var valueDate = new DateOnly(2026, 8, 21);
+        var eod = SampleData.FuturesEodData with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate
+        };
+        var tradeSignal = SampleData.FuturesTradeSignal with
+        {
+            ContractId = contractId,
+            ValueDate = valueDate
+        };
+        var expected = new MarketOutlookSnapshotReadModel(
+            contractId,
+            valueDate,
+            3,
+            DateTime.UtcNow,
+            eod,
+            tradeSignal,
+            string.Empty);
+
+        await TestFixture.DevDatabase.UpsertMarketOutlookSnapshotAsync(expected);
+        var result = await TestFixture.DevDatabase.GetMarketOutlookSnapshotAsync(
+            contractId,
+            valueDate);
+
+        result.Should().NotBeNull();
+        result!.ContractId.Should().Be(contractId);
+        result.ValueDate.Should().Be(valueDate);
+        result.Revision.Should().Be(expected.Revision);
+        result.FuturesEodData.Should().BeEquivalentTo(eod);
+        result.FuturesTradeSignal.Should().BeEquivalentTo(tradeSignal);
+        result.MissingInputs.Should().BeEmpty();
+        result.IsComplete.Should().BeTrue();
+    }
+
     /// <summary>
     /// Unit test for GetLastFuturesTradeSignalBySymbolAsync method using sample data and asserting each expected value.
     /// </summary>

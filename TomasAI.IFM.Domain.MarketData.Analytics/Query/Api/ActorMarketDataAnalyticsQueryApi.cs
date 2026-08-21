@@ -21,6 +21,24 @@ public sealed partial class ActorMarketDataAnalyticsQueryApi(IDbContextFactory d
 {
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
 
+    public async Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate)
+    {
+        try
+        {
+            var result = await _dbFactory.MarketDataDb
+                .GetMarketOutlookSnapshotAsync(contractId, valueDate)
+                .ConfigureAwait(false);
+            return new ServiceOk<MarketOutlookSnapshotReadModel>(result!);
+        }
+        catch (Exception ex)
+        {
+            return new ServiceFailed<MarketOutlookSnapshotReadModel>(
+                GetMarketOutlookSnapshotQuery.ErrorId, ex.Message);
+        }
+    }
+
     /// <summary>
     /// Gets futures trade signal.
     /// </summary>

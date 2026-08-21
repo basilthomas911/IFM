@@ -8,6 +8,7 @@ using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 
@@ -39,6 +40,7 @@ public static class FuturesItiSignalGeneratedComplete
         var source = $"FuturesItiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
+            await e.PublishAsync(context).ConfigureAwait(false);
             if (!FuturesTradeSignalPrerequisites.ShouldGenerate(e))
                 return true;
 

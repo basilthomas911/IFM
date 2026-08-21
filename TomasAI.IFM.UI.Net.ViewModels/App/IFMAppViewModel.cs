@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -104,9 +105,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly List<PlaceTradeUIViewModel> _tradePlacementBuffer = [];
     readonly Dictionary<string, FuturesBarDataReadModel[]> _futuresBarSnapshots = [];
     readonly Dictionary<string, LatestValueChannelMetrics> _futuresBarMetrics = [];
-    LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _marketOutlookChannel;
     KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>? _futuresBarChannels;
-    LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>? _futuresTradeSignalChannel;
+    LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>? _compositeMarketOutlookChannel;
     OrderedBatchAsyncChannel<IEvent>? _tradePlacementChannel;
     OrderedBatchAsyncChannel<StatusConsoleLogReadModel>? _statusConsoleChannel;
     DateOnly? _valueDate;
@@ -125,6 +125,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     StatusConsoleViewModel? _statusConsole;
     long _errorSequence;
     int _resetTicks;
+    long _marketOutlookRevision;
     FuturesEodDataUIViewModel? _marketOutlook;
     FuturesTradeSignalUIViewModel? _futuresTradeSignal;
     PlaceTradeUIViewModel? _latestTradePlacement;
@@ -469,9 +470,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         cancellationToken.ThrowIfCancellationRequested();
         if (StatusConsole is not null)
             await StatusConsole.DisposeAsync();
-        await StopFuturesEodDataEventConsumer();
+        await StopMarketOutlookEventConsumer();
         await StopFuturesBarDataEventConsumer();
-        await StopFuturesTradeSignalEventConsumer();
         await StopTradePlacementEventConsumer();
         await StopFuturesIntradaySignalServices();
         await DisableMarketDataFeedResetListener();
@@ -520,12 +520,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             }
 
             ValueDate = valueDate;
-            await GetLastFuturesEodData(valueDate.Value);
-            await GetLastFuturesTradeSignal(valueDate.Value);
             await GetLastFuturesBarData(valueDate.Value);
-            await StartFuturesEodDataEventConsumer(cancellationToken);
+            await StartMarketOutlookEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
-            await StartFuturesTradeSignalEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
             await EnableMarketDataFeedResetListener(cancellationToken);
             await EnableTradeLiveFeed(cancellationToken);
@@ -627,44 +624,88 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     }
 
-    Task GetLastFuturesEodData(DateOnly valueDate)
-        => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model =>
+    /// <summary>
+    /// Subscribes before loading the persisted composite snapshot. Revision checks
+    /// make the subscription/query overlap deterministic.
+    /// </summary>
+    async Task StartMarketOutlookEventConsumer(CancellationToken cancellationToken)
+    {
+        if (_compositeMarketOutlookChannel is not null)
+            return;
+        var channel = new LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>(
+            ProcessMarketOutlookSnapshotAsync,
+            minimumInterval: TimeSpan.FromMilliseconds(50),
+            timeProvider: _timeProvider,
+            metricsChanged: PublishMarketOutlookMetrics);
+        _compositeMarketOutlookChannel = channel;
+        PublishMarketOutlookMetrics(channel.Metrics);
+
+        await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Loading Latest Futures Eod Data Error"));
-            await WriteStatusConsoleAsync("Loading Latest Futures Eod Data...");
-            var contract = GetMarketOutlookContract();
-            if (contract is null)
-                return;
-            await model.GetLastFuturesEodDataAsync(
-                contract.ContractId,
-                valueDate,
-                futuresEodData =>
+                PublishError(errorCode, errorMessage, "Starting Market Outlook Event Consumer Error"));
+            await WriteStatusConsoleAsync("Starting Market Outlook Event Consumer...");
+            await model.StartMarketOutlookEventConsumerAsync(_siteId, notification =>
+            {
+                var expectedContractId = GetMarketOutlookContract()?.ContractId;
+                if (notification?.MarketOutlook is { } snapshot
+                    && IsMarketOutlookUpdate(expectedContractId, snapshot.ContractId))
                 {
-                    if (IsMarketOutlookUpdate(contract.ContractId, futuresEodData))
-                        PublishMarketOutlook(futuresEodData);
-                });
+                    Interlocked.Exchange(ref _resetTicks, 0);
+                    channel.TryWrite(snapshot);
+                }
+            });
         });
 
-    Task GetLastFuturesTradeSignal(DateOnly valueDate)
-        => _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
+        var contract = GetMarketOutlookContract();
+        if (contract is null || !_valueDate.HasValue)
+            return;
+        await _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Loading Latest Futures Trade Signal Error"));
-            await WriteStatusConsoleAsync("Loading Latest Futures Trade Signal...");
-            var contract = GetMarketOutlookContract();
-            if (contract is null)
-                return;
-            await model.GetFuturesTradeSignalAsync(
+                PublishError(errorCode, errorMessage, "Loading Market Outlook Snapshot Error"));
+            await model.GetMarketOutlookSnapshotAsync(
                 contract.ContractId,
-                valueDate,
-                futuresTradeSignal =>
+                _valueDate.Value,
+                snapshot =>
                 {
-                    if (futuresTradeSignal is not null
-                        && IsMarketOutlookUpdate(contract.ContractId, futuresTradeSignal.ContractId))
-                        PublishFuturesTradeSignal(futuresTradeSignal);
+                    if (snapshot is not null
+                        && IsMarketOutlookUpdate(contract.ContractId, snapshot.ContractId))
+                        channel.TryWrite(snapshot);
                 });
         });
+    }
+
+    async ValueTask ProcessMarketOutlookSnapshotAsync(
+        MarketOutlookSnapshotReadModel snapshot,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (snapshot.Revision <= Interlocked.Read(ref _marketOutlookRevision))
+            return;
+        Interlocked.Exchange(ref _marketOutlookRevision, snapshot.Revision);
+        PublishMarketOutlook(snapshot.FuturesEodData);
+        if (snapshot.FuturesTradeSignal is { } tradeSignal)
+            PublishFuturesTradeSignal(tradeSignal);
+        await WriteStatusConsoleAsync(
+            $"{snapshot.ContractId} Market Outlook revision {snapshot.Revision}",
+            LogSourceType.MarketDataFeedEvent);
+    }
+
+    async Task StopMarketOutlookEventConsumer()
+    {
+        var channel = Interlocked.Exchange(ref _compositeMarketOutlookChannel, null);
+        try
+        {
+            await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(
+                async model => await model.StopMarketOutlookEventConsumerAsync(_siteId));
+        }
+        finally
+        {
+            if (channel is not null)
+                await channel.StopAsync();
+        }
+    }
 
         Task GetLastFuturesBarData(DateOnly valueDate)
             => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model =>
@@ -688,149 +729,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                         PublishFuturesBarSnapshot(contract.Symbol, bars);
                 }
             });
-
-    /// <summary>
-    /// start futures eod data event consumer
-    /// </summary>
-    async Task StartFuturesEodDataEventConsumer(CancellationToken cancellationToken)
-    {
-        if (_marketOutlookChannel is not null)
-            return;
-        _marketOutlookChannel = new LatestValueAsyncChannel<FuturesEodDataV2ReadModel>(
-            ProcessMarketOutlookAsync,
-            minimumInterval: TimeSpan.FromMilliseconds(50),
-            timeProvider: _timeProvider,
-            metricsChanged: PublishMarketOutlookMetrics);
-        PublishMarketOutlookMetrics(_marketOutlookChannel.Metrics);
-        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
-        {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Starting Futures Eod Data Event Consumer Error"));
-            await WriteStatusConsoleAsync("Starting Futures Eod Data Event Consumer...");
-            await DelayStartupAsync(cancellationToken);
-            var marketOutlookContractId = GetMarketOutlookContract()?.ContractId;
-            await model.StartFuturesEodDataEventConsumerAsync(
-                _siteId, e =>
-                {
-                    if (!IsMarketOutlookUpdate(marketOutlookContractId, e.FuturesEodData))
-                        return;
-                    Interlocked.Exchange(ref _resetTicks, 0);
-                    _marketOutlookChannel?.TryWrite(e.FuturesEodData);
-                });
-        });
-
-        async ValueTask ProcessMarketOutlookAsync(
-            FuturesEodDataV2ReadModel futuresEodData,
-            CancellationToken channelCancellationToken)
-        {
-            channelCancellationToken.ThrowIfCancellationRequested();
-            PublishMarketOutlook(futuresEodData);
-            await WriteStatusConsoleAsync(
-                $"{futuresEodData.ContractId}={futuresEodData.ClosePrice:F2}@{futuresEodData.DailyPercentChange:P} {futuresEodData.MarketDirection}:{futuresEodData.MarketVolatility}:{futuresEodData.PriceDirection}:{futuresEodData.PriceVolatility}",
-                LogSourceType.MarketDataFeedEvent);
-        }
-    }
-
-    /// <summary>
-    /// stop futures eod data consumer
-    /// </summary>
-    async Task StopFuturesEodDataEventConsumer()
-    {
-        var channel = Interlocked.Exchange(ref _marketOutlookChannel, null);
-        try
-        {
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
-                model.OnError((errorCode, errorMessage) =>
-                    PublishError(errorCode, errorMessage, "Stopping Futures Eod Data Error"));
-                await WriteStatusConsoleAsync("Stopping Futures Eod Data...");
-                await model.StopFuturesEodDataEventConsumerAsync(_siteId);
-            });
-        }
-        finally
-        {
-            if (channel is not null)
-                await channel.StopAsync();
-        }
-    }
-
-    /// <summary>
-    /// start futures trade signal event consumer
-    /// </summary>
-    async Task StartFuturesTradeSignalEventConsumer(CancellationToken cancellationToken)
-    {
-        if (_futuresTradeSignalChannel is not null)
-            return;
-
-        var channel = new LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>(
-            ProcessFuturesTradeSignalAsync,
-            minimumInterval: TimeSpan.FromMilliseconds(50),
-            timeProvider: _timeProvider,
-            metricsChanged: PublishFuturesTradeSignalMetrics);
-        _futuresTradeSignalChannel = channel;
-        PublishFuturesTradeSignalMetrics(channel.Metrics);
-        await _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
-        {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Starting Futures Trade Signal Event Consumer Error"));
-            await WriteStatusConsoleAsync("Loading Futures Trade Signal...");
-            await DelayStartupAsync(cancellationToken);
-            var contractId = GetMarketOutlookContract()?.ContractId;
-            if (contractId is not null)
-                await model.GetFuturesTradeSignalAsync(
-                    contractId, _valueDate ?? DateOnly.MinValue, futuresTradeSignal =>
-                    {
-                        if (futuresTradeSignal is not null
-                            && IsMarketOutlookUpdate(contractId, futuresTradeSignal.ContractId))
-                            channel.TryWrite(futuresTradeSignal);
-                    });
-        });
-        await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
-        {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Starting Futures Trade Signal Event Consumer Error"));
-            await WriteStatusConsoleAsync("Starting Futures Trade Signal Event Consumer...");
-            await model.StartFuturesTradeSignalEventConsumerAsync(
-                _siteId, e =>
-                {
-                    var contractId = GetMarketOutlookContract()?.ContractId;
-                    if (e is not null
-                        && e.FuturesTradeSignal is not null
-                        && IsMarketOutlookUpdate(contractId, e.FuturesTradeSignal.ContractId))
-                        channel.TryWrite(e.FuturesTradeSignal);
-                });
-        });
-
-        ValueTask ProcessFuturesTradeSignalAsync(
-            FuturesTradeSignalV2ReadModel signal,
-            CancellationToken channelCancellationToken)
-        {
-            channelCancellationToken.ThrowIfCancellationRequested();
-            PublishFuturesTradeSignal(signal);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    /// <summary>
-    /// stop futures trade signal consumer
-    /// </summary>
-    async Task StopFuturesTradeSignalEventConsumer()
-    {
-        var channel = Interlocked.Exchange(ref _futuresTradeSignalChannel, null);
-        try
-        {
-            await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model => {
-                model.OnError((errorCode, errorMessage) =>
-                    PublishError(errorCode, errorMessage, "Stopping Futures Trade Signal Error"));
-                await WriteStatusConsoleAsync("Stopping Futures Trade Signal...");
-                await model.StopFuturesTradeSignalEventConsumerAsync(_siteId);
-            });
-        }
-        finally
-        {
-            if (channel is not null)
-                await channel.StopAsync();
-        }
-    }
 
     /// <summary>
     /// start trade placement event consumer
@@ -1590,12 +1488,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 MarketDataStreamMetrics.MarketOutlook,
                 new Dictionary<string, LatestValueChannelMetrics>(_futuresBarMetrics));
         }
-    }
-
-    void PublishFuturesTradeSignalMetrics(LatestValueChannelMetrics metrics)
-    {
-        lock (_realtimeStreamGate)
-            RealtimeStreamMetrics = RealtimeStreamMetrics with { FuturesTradeSignals = metrics };
     }
 
     void PublishTradePlacementMetrics(OrderedBatchChannelMetrics metrics)

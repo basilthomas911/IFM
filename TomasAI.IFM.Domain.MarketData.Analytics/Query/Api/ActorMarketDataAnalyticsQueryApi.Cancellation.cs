@@ -7,6 +7,16 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Api;
 
 public sealed partial class ActorMarketDataAnalyticsQueryApi
 {
+    public Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            GetMarketOutlookSnapshotQuery.ErrorId,
+            cancellationToken,
+            async () => (await _dbFactory.MarketDataDb.GetMarketOutlookSnapshotAsync(
+                contractId, valueDate, cancellationToken).ConfigureAwait(false))!);
+
     public Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(
         string contractId,
         DateOnly valueDate,

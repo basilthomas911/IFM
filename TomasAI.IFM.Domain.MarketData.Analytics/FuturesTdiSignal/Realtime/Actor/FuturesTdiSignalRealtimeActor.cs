@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
 
@@ -64,8 +65,10 @@ public class FuturesTdiSignalRealtimeActor(
                 logger.LogError("{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
                     failed.EventName, failed.EntityId, failed.ErrorMessage);
                 break;
+            case FuturesTdiSignalGeneratedCompleteEvent completed:
+                await completed.PublishAsync(context).ConfigureAwait(false);
+                break;
             case FuturesTdiSignalGeneratedEvent:
-            case FuturesTdiSignalGeneratedCompleteEvent:
                 break;
             default:
                 throw new InvalidOperationException($"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");

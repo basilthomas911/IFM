@@ -2,6 +2,19 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateMarketOutlookSnapshotTable = """
+    CREATE TABLE IF NOT EXISTS market_outlook_snapshot (
+        contractId text,
+        valueDate date,
+        revision bigint,
+        updatedOn timestamp,
+        eodData blob,
+        futuresTradeSignal blob,
+        missingInputs text,
+        PRIMARY KEY ((contractId), valueDate)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC);
+    """;
+
     public const string CreateMarketDataImportOwnershipTable = """
     CREATE TABLE IF NOT EXISTS market_data_import_ownership (
     dataset text,

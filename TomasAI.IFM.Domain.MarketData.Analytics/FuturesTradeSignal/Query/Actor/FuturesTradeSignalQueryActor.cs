@@ -57,6 +57,7 @@ public class FuturesTradeSignalQueryActor(
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetFuturesTradeSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>()!,
+        [GetMarketOutlookSnapshotQuery.Verb] = msg => msg.AsQuery<GetMarketOutlookSnapshotQuery, MarketOutlookSnapshotReadModel>()!,
         [GetLastFuturesTradeSignalQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>()!,
         [GetFuturesTradeSignalIdsQuery.Verb] = msg => msg.AsQuery<GetFuturesTradeSignalIdsQuery, FuturesTradeSignalId[]>()!
     };
@@ -90,6 +91,15 @@ public class FuturesTradeSignalQueryActor(
     /// </summary>
     static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
+        [typeof(GetMarketOutlookSnapshotQuery).Name] = async (ctx, db, q, cancellationToken) =>
+        {
+            var query = (GetMarketOutlookSnapshotQuery)q;
+            var result = await db.MarketDataDb.GetMarketOutlookSnapshotAsync(
+                query.ContractId, query.ValueDate, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb,
+                new ServiceResult<MarketOutlookSnapshotReadModel?>(result)).ConfigureAwait(false);
+        },
         [typeof(GetFuturesTradeSignalQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesTradeSignalQuery)!;
@@ -138,6 +148,8 @@ public class FuturesTradeSignalQueryActor(
             {
                 _ when query is GetFuturesTradeSignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTradeSignalV2ReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetMarketOutlookSnapshotQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<MarketOutlookSnapshotReadModel?>(query.ErrorCode, ex!.Message)),
                 _ when query is GetLastFuturesTradeSignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTradeSignalV2ReadModel?>(query.ErrorCode, ex!.Message)),
                 _ when query is GetFuturesTradeSignalIdsQuery
