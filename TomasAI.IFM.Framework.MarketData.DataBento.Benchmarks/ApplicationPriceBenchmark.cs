@@ -35,7 +35,7 @@ internal static class ApplicationPriceBenchmark
         var stopwatch = Stopwatch.StartNew();
         decimal checksum = 0m;
         for (var index = 0; index < operations; index++)
-            checksum += api.GetFuturesPriceAsync("ESU6").GetAwaiter().GetResult();
+            checksum += api.GetFuturesPriceAsync("ESU6").GetAwaiter().GetResult() ?? 0m;
         stopwatch.Stop();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - allocationBefore;
         var rate = operations / stopwatch.Elapsed.TotalSeconds;

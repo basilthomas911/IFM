@@ -157,22 +157,20 @@ public sealed class DatabentoOptionChainSessionManager :
             var reader = session.Feed.Reader;
             while (true)
             {
-                MarketDataBatch64 batch;
-                try { batch = reader.Read(_pollTimeout); }
-                catch (TimeoutException)
+                if (!reader.TryRead(_pollTimeout, out var batch))
                 {
+                    if (reader.IsCompleted) break;
                     var status = _aggregation.GetTickerStatus(session.Key.FuturesContractId);
                     if (!status.ServiceRunning || !status.TickerRunning)
                         session.Feed.Stop(_stopTimeout);
                     continue;
                 }
-                catch (EndOfStreamException) { break; }
 
-                using (batch)
+                using var leased = batch!;
+                for (var index = 0; index < leased.Count; index++)
                 {
-                    for (var index = 0; index < batch.Count; index++)
-                        await ProcessRecordAsync(session, batch.Records[index])
-                            .ConfigureAwait(false);
+                    await ProcessRecordAsync(session, leased.Records[index])
+                        .ConfigureAwait(false);
                 }
             }
         }

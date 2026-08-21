@@ -398,17 +398,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     {
         while (true)
         {
-            InstrumentBatch64 leased;
-            try
+            if (!_reader!.TryRead(_options.ReaderPollTimeout, out var leased))
             {
-                leased = _reader!.Read(_options.ReaderPollTimeout);
-            }
-            catch (TimeoutException)
-            {
-                if (Volatile.Read(ref _stopping) != 0 && _reader!.IsCompleted) break;
+                if (_reader.IsCompleted) break;
                 continue;
             }
-            catch (EndOfStreamException) { break; }
 
             using (leased)
             {

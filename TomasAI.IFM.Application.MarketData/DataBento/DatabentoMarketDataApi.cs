@@ -399,28 +399,27 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// valid two-sided quote midpoint is the fallback.
     /// </summary>
     /// <param name="futuresContractId">Canonical domain futures contract identifier.</param>
-    /// <returns>The latest accepted trade price or quote midpoint fallback.</returns>
-    /// <exception cref="FuturesLastPriceUnavailableException">
-    /// Thrown when no correctly mapped, current trade or quote midpoint is
-    /// available within the configured freshness window.
-    /// </exception>
-    public Task<decimal> GetFuturesPriceAsync(string futuresContractId)
+    /// <returns>
+    /// The latest accepted trade price or quote midpoint fallback; otherwise
+    /// <see langword="null"/> when no current price is available.
+    /// </returns>
+    public Task<decimal?> GetFuturesPriceAsync(string futuresContractId)
     {
         var reader = GetFuturesLastPriceReader(futuresContractId);
         if (reader.TryGetLastTrade(out var trade)
             && trade.ContractId == futuresContractId
             && trade.ValueDate == reader.ValueDate
             && IsFresh(trade.EventTimestamp))
-            return Task.FromResult(trade.Price);
+            return Task.FromResult<decimal?>(trade.Price);
 
         if (reader.TryGetLastQuote(out var quote)
             && quote.ContractId == futuresContractId
             && quote.ValueDate == reader.ValueDate
             && IsFresh(quote.EventTimestamp)
             && quote.TryGetMidpoint(out var midpoint))
-            return Task.FromResult(midpoint);
+            return Task.FromResult<decimal?>(midpoint);
 
-        throw new FuturesLastPriceUnavailableException(futuresContractId);
+        return Task.FromResult<decimal?>(null);
     }
 
     /// <summary>

@@ -351,6 +351,12 @@ public sealed class DatabentoProductionEpochTests
             batch = default;
             return false;
         }
+        public bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch)
+        {
+            _completed.Wait(timeout);
+            batch = default;
+            return false;
+        }
         public InstrumentBatch64 Read(TimeSpan timeout)
         {
             if (_completed.Wait(timeout)) throw new EndOfStreamException();

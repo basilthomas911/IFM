@@ -149,8 +149,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 break;
             case "missing-vx-price":
                 marketDataApi.GetFuturesPriceAsync(VxContractId)
-                    .Returns(Task.FromException<decimal>(
-                        new FuturesLastPriceUnavailableException(VxContractId)));
+                    .Returns(Task.FromResult<decimal?>(null));
                 break;
             case "stopping-api":
                 marketDataApi.IsTickDataStreamActive(EsContractId).Returns(false);
@@ -218,8 +217,9 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 var result = await SendDurableItiCommandAsync(
                     period,
                     commandIds[period]);
-                result.Success.Should().BeFalse(
-                    "the durable actor must reject a repeated derived command ID");
+                result.Success.Should().BeTrue(
+                    "an idempotent duplicate must be acknowledged without being processed again");
+                result.Value!.Guid.Should().Be(commandIds[period]);
             }
             await Task.Delay(TimeSpan.FromSeconds(1));
 
@@ -356,7 +356,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
             });
         api.IsTickDataStreamActive(EsContractId).Returns(true);
         api.IsTickDataStreamActive(VxContractId).Returns(true);
-        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult((decimal)VxPrice));
+        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult<decimal?>((decimal)VxPrice));
         return api;
     }
 

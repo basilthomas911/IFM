@@ -248,7 +248,7 @@ public class AdoNetDataRecordTests
     {
         var expected = new DateTime(2024, 6, 15, 10, 30, 0);
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Returns(expected);
+        mockReader.GetValue(0).Returns(expected);
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateTime(0).Should().Be(expected);
     }
@@ -262,32 +262,39 @@ public class AdoNetDataRecordTests
     }
 
     [Fact]
-    public void GetDateTimeFallsBackToDateTimeOffsetOnException()
+    public void GetDateTimeReturnsValueFromDateTimeOffset()
     {
         var dto = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns(dto);
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateTime(0).Should().Be(dto.DateTime);
     }
 
     [Fact]
-    public void GetDateTimeFallsBackToLongTicksOnException()
+    public void GetDateTimeReturnsValueFromDateOnly()
+    {
+        var date = new DateOnly(2024, 6, 15);
+        var mockReader = CreateMockReader();
+        mockReader.GetValue(0).Returns(date);
+        var record = new AdoNetDataRecord().SetReader(mockReader);
+        record.GetDateTime(0).Should().Be(new DateTime(2024, 6, 15));
+    }
+
+    [Fact]
+    public void GetDateTimeReturnsValueFromLongTicks()
     {
         var ticks = new DateTime(2024, 1, 1).Ticks;
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns(ticks);
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateTime(0).Should().Be(new DateTime(ticks));
     }
 
     [Fact]
-    public void GetDateTimeFallsBackToStringOnException()
+    public void GetDateTimeReturnsValueFromString()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns("2024-06-15");
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateTime(0).Should().Be(new DateTime(2024, 6, 15));
@@ -297,7 +304,6 @@ public class AdoNetDataRecordTests
     public void GetDateTimeReturnsDefaultWhenAllFallbacksFail()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns("not-a-date");
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateTime(0).Should().Be(default(DateTime));
@@ -310,9 +316,21 @@ public class AdoNetDataRecordTests
     {
         var dt = new DateTime(2024, 6, 15);
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Returns(dt);
+        mockReader.GetValue(0).Returns(dt);
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateOnly(0).Should().Be(new DateOnly(2024, 6, 15));
+    }
+
+    [Fact]
+    public void GetDateOnlyReturnsNativeDateOnlyWithoutTypedDateTimeRead()
+    {
+        var expected = new DateOnly(2024, 6, 15);
+        var mockReader = CreateMockReader();
+        mockReader.GetValue(0).Returns(expected);
+        var record = new AdoNetDataRecord().SetReader(mockReader);
+
+        record.GetDateOnly(0).Should().Be(expected);
+        mockReader.DidNotReceive().GetDateTime(Arg.Any<int>());
     }
 
     [Fact]
@@ -324,10 +342,9 @@ public class AdoNetDataRecordTests
     }
 
     [Fact]
-    public void GetDateOnlyFallsBackToStringOnException()
+    public void GetDateOnlyReturnsValueFromString()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetDateTime(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns("2024-06-15");
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetDateOnly(0).Should().Be(new DateOnly(2024, 6, 15));
@@ -383,6 +400,17 @@ public class AdoNetDataRecordTests
     }
 
     [Fact]
+    public void GetTimeOnlyReturnsNativeTimeOnly()
+    {
+        var expected = new TimeOnly(14, 30, 0);
+        var mockReader = CreateMockReader();
+        mockReader.GetValue(0).Returns(expected);
+        var record = new AdoNetDataRecord().SetReader(mockReader);
+
+        record.GetTimeOnly(0).Should().Be(expected);
+    }
+
+    [Fact]
     public void GetTimeSpanReturnsValueWhenNotNull()
     {
         var expected = TimeSpan.FromMinutes(90);
@@ -398,7 +426,7 @@ public class AdoNetDataRecordTests
     public void GetEnumReturnsValueFromString()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetString(0).Returns("End");
+        mockReader.GetValue(0).Returns("End");
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetEnum<TestData.TestEnumValue>(0).Should().Be(TestData.TestEnumValue.End);
     }
@@ -412,20 +440,21 @@ public class AdoNetDataRecordTests
     }
 
     [Fact]
-    public void GetEnumFallsBackToIntValueOnStringException()
+    public void GetEnumReturnsValueFromIntWithoutTypedStringRead()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetString(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns(1);
         var record = new AdoNetDataRecord().SetReader(mockReader);
+
         record.GetEnum<TestData.TestEnumValue>(0).Should().Be(TestData.TestEnumValue.End);
+        mockReader.DidNotReceive().GetString(Arg.Any<int>());
     }
 
     [Fact]
     public void GetEnumReturnsDefaultWhenInvalidString()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetString(0).Returns("InvalidValue");
+        mockReader.GetValue(0).Returns("InvalidValue");
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetEnum<TestData.TestEnumValue>(0).Should().Be(default(TestData.TestEnumValue));
     }
@@ -436,7 +465,7 @@ public class AdoNetDataRecordTests
     public void GetStringReturnsValueWhenNotNull()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetString(0).Returns("hello");
+        mockReader.GetValue(0).Returns("hello");
         var record = new AdoNetDataRecord().SetReader(mockReader);
         record.GetString(0).Should().Be("hello");
     }
@@ -450,13 +479,14 @@ public class AdoNetDataRecordTests
     }
 
     [Fact]
-    public void GetStringConvertsTypedValueWhenDirectReadFails()
+    public void GetStringConvertsTypedValueWithoutTypedStringRead()
     {
         var mockReader = CreateMockReader();
-        mockReader.GetString(0).Throws(new InvalidCastException());
         mockReader.GetValue(0).Returns(42);
         var record = new AdoNetDataRecord().SetReader(mockReader);
+
         record.GetString(0).Should().Be("42");
+        mockReader.DidNotReceive().GetString(Arg.Any<int>());
     }
 
     // --- GetBytes ---

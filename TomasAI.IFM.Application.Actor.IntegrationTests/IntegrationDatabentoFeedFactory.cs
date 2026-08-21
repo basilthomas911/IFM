@@ -198,6 +198,12 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         private readonly ManualResetEventSlim _completed = new(false);
         public bool IsCompleted => _completed.IsSet;
         public bool TryRead(out InstrumentBatch64 batch) { batch = default; return false; }
+        public bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch)
+        {
+            _completed.Wait(timeout);
+            batch = default;
+            return false;
+        }
         public InstrumentBatch64 Read(TimeSpan timeout)
         {
             if (_completed.Wait(timeout)) throw new EndOfStreamException();
@@ -212,6 +218,12 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         private readonly ManualResetEventSlim _completed = new(false);
         public bool IsCompleted => _completed.IsSet;
         public bool TryRead(out MarketDataBatch64? batch) { batch = null; return false; }
+        public bool TryRead(TimeSpan timeout, out MarketDataBatch64? batch)
+        {
+            _completed.Wait(timeout);
+            batch = null;
+            return false;
+        }
         public MarketDataBatch64 Read(TimeSpan timeout)
         {
             if (_completed.Wait(timeout)) throw new EndOfStreamException();

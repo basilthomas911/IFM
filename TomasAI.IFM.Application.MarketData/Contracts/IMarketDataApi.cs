@@ -108,7 +108,7 @@ public interface IMarketDataApi
         string futuresContractId,
         DateOnly maturityDate);
 
-    Task<decimal> GetFuturesPriceAsync(
+    Task<decimal?> GetFuturesPriceAsync(
         string futuresContractId);
 
     Task<decimal?> GetFuturesOptionPriceAsync(

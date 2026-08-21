@@ -64,6 +64,46 @@ public sealed class BoundedBatchChannelTests
     }
 
     [Fact]
+    public void TimedTryReadReturnsFalseWithoutThrowingOrConsumingFutureBatch()
+    {
+        var channel = new BoundedBatchChannel(1, 1);
+
+        Assert.False(channel.TryRead(TimeSpan.FromMilliseconds(10), out var empty));
+        Assert.Null(empty);
+
+        PublishOne(channel);
+        Assert.True(channel.TryRead(TimeSpan.FromSeconds(1), out var batch));
+        batch!.Dispose();
+    }
+
+    [Fact]
+    public void MultiplexedTimedTryReadReturnsFalseWhenNoChannelIsReady()
+    {
+        using var ready = new SemaphoreSlim(0);
+        var channel = new BoundedBatchChannel(1, 1, () => ready.Release());
+        using var reader = new MultiplexedTickerBatchReader(
+            [(new InstrumentKey(7, 42), (ISynchronousBatchReader<MarketDataBatch64>)channel)],
+            static () => { },
+            ready);
+
+        Assert.False(reader.TryRead(TimeSpan.FromMilliseconds(10), out _));
+    }
+
+    [Fact]
+    public void TimedTryReadReturnsFalseForNormalCompletionButPreservesTerminalFailure()
+    {
+        var completed = new BoundedBatchChannel(1, 1);
+        completed.Complete();
+        Assert.False(completed.TryRead(TimeSpan.FromSeconds(1), out _));
+
+        var faulted = new BoundedBatchChannel(1, 1);
+        faulted.Complete(new InvalidOperationException("terminal failure"));
+        var exception = Assert.Throws<DatabentoFeedException>(() =>
+            faulted.TryRead(TimeSpan.FromSeconds(1), out _));
+        Assert.Contains("terminal failure", exception.Message);
+    }
+
+    [Fact]
     public async Task Multiplexed_reader_waits_for_channel_signal_and_wakes_on_publish()
     {
         using var ready = new SemaphoreSlim(0);
@@ -73,7 +113,11 @@ public sealed class BoundedBatchChannelTests
             static () => { },
             ready);
 
-        var read = Task.Run(() => reader.Read(TimeSpan.FromSeconds(2)));
+        var read = Task.Run(() =>
+        {
+            Assert.True(reader.TryRead(TimeSpan.FromSeconds(2), out var batch));
+            return batch;
+        });
         PublishOne(channel);
 
         using var batch = await read.WaitAsync(TimeSpan.FromSeconds(2));

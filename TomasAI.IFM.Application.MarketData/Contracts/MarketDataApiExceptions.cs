@@ -132,15 +132,6 @@ public sealed class MarketDataContractMappingException : MarketDataContractExcep
     }
 }
 
-public sealed class FuturesLastPriceUnavailableException : MarketDataContractException
-{
-    public FuturesLastPriceUnavailableException(string futuresContractId)
-        : base(futuresContractId,
-            $"No fresh last-trade price is available for futures contract '{futuresContractId}'.")
-    {
-    }
-}
-
 public sealed class InvalidFuturesOptionQuoteException : MarketDataContractException
 {
     public InvalidFuturesOptionQuoteException(string futuresOptionContractId, string reason)

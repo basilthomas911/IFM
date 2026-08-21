@@ -94,23 +94,17 @@ public static class FuturesMarketPriceUpdated
                 || !marketDataApi.IsTickDataStreamActive(vxContract.ContractId))
                 return true;
 
-            decimal vxPrice;
-            try
-            {
-                vxPrice = await marketDataApi.GetFuturesPriceAsync(vxContract.ContractId)
-                    .ConfigureAwait(false);
-            }
-            catch (FuturesLastPriceUnavailableException)
-            {
+            var vxPrice = await marketDataApi.GetFuturesPriceAsync(vxContract.ContractId)
+                .ConfigureAwait(false);
+            if (vxPrice is null)
                 return true;
-            }
 
             var evaluations = await realtimeState.EvaluateAsync(
                 esContract.ContractId,
                 @event.Price.ValueDate,
                 esTrade.EventTimestamp.UtcDateTime,
                 Convert.ToDouble(esTrade.LastPrice),
-                Convert.ToDouble(vxPrice)).ConfigureAwait(false);
+                Convert.ToDouble(vxPrice.Value)).ConfigureAwait(false);
             foreach (var evaluation in evaluations)
             {
                 var generated = CreateGeneratedEvent(@event, evaluation);

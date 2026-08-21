@@ -5,6 +5,13 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBatch64>
 {
+    private enum ReadResult : byte
+    {
+        Success,
+        TimedOut,
+        Completed
+    }
+
     private readonly object _gate = new();
     private readonly MarketDataBatch64?[] _slots;
     private readonly BatchPool _pool;
@@ -125,23 +132,25 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
         }
     }
 
-    public bool TryRead(out MarketDataBatch64? batch)
-    {
-        lock (_gate)
-        {
-            ThrowIfLeaseOutstanding();
-            if (_count == 0)
-            {
-                ThrowIfTerminalError();
-                batch = null;
-                return false;
-            }
-            batch = TakeBatch();
-            return true;
-        }
-    }
+    public bool TryRead(out MarketDataBatch64? batch) =>
+        TryReadCore(TimeSpan.Zero, out batch) == ReadResult.Success;
+
+    public bool TryRead(TimeSpan timeout, out MarketDataBatch64? batch) =>
+        TryReadCore(timeout, out batch) == ReadResult.Success;
 
     public MarketDataBatch64 Read(TimeSpan timeout)
+    {
+        return TryReadCore(timeout, out var batch) switch
+        {
+            ReadResult.Success => batch!,
+            ReadResult.Completed => throw new EndOfStreamException(
+                "The market-data feed completed."),
+            _ => throw new TimeoutException(
+                "No market-data batch was available before the deadline.")
+        };
+    }
+
+    private ReadResult TryReadCore(TimeSpan timeout, out MarketDataBatch64? batch)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -155,7 +164,8 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
             {
                 if (timeout == TimeSpan.Zero)
                 {
-                    throw new TimeoutException("No market-data batch was available before the deadline.");
+                    batch = null;
+                    return ReadResult.TimedOut;
                 }
                 if (timeout == Timeout.InfiniteTimeSpan)
                 {
@@ -165,15 +175,18 @@ internal sealed class BoundedBatchChannel : ISynchronousBatchReader<MarketDataBa
                 var remaining = timeout - Stopwatch.GetElapsedTime(started);
                 if (remaining <= TimeSpan.Zero || !Monitor.Wait(_gate, remaining))
                 {
-                    throw new TimeoutException("No market-data batch was available before the deadline.");
+                    batch = null;
+                    return ReadResult.TimedOut;
                 }
             }
             if (_count == 0)
             {
                 ThrowIfTerminalError();
-                throw new EndOfStreamException("The market-data feed completed.");
+                batch = null;
+                return ReadResult.Completed;
             }
-            return TakeBatch();
+            batch = TakeBatch();
+            return ReadResult.Success;
         }
     }
 

@@ -59,7 +59,6 @@ public sealed class MarketDataApiContractApprovalTests
     [InlineData(typeof(MarketDataContractKindMismatchException))]
     [InlineData(typeof(MarketDataBatchResolutionException))]
     [InlineData(typeof(MarketDataContractMappingException))]
-    [InlineData(typeof(FuturesLastPriceUnavailableException))]
     [InlineData(typeof(InvalidFuturesOptionQuoteException))]
     [InlineData(typeof(TickAggregationNotRunningException))]
     [InlineData(typeof(UnderlyingTickerNotRunningException))]

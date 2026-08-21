@@ -26,6 +26,7 @@ public interface ISynchronousBatchReader<TBatch>
     where TBatch : class, IDisposable
 {
     bool TryRead(out TBatch? batch);
+    bool TryRead(TimeSpan timeout, out TBatch? batch);
     TBatch Read(TimeSpan timeout);
     bool IsCompleted { get; }
 }
@@ -40,6 +41,7 @@ public readonly record struct InstrumentBatch64(
 public interface IMultiplexedTickerBatchReader : IDisposable
 {
     bool TryRead(out InstrumentBatch64 batch);
+    bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch);
     InstrumentBatch64 Read(TimeSpan timeout);
     bool IsCompleted { get; }
 }

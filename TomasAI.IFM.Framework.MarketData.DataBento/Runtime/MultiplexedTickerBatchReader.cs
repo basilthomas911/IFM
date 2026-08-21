@@ -7,6 +7,13 @@ internal sealed class MultiplexedTickerBatchReader(
     Action release,
     SemaphoreSlim? ready = null) : IMultiplexedTickerBatchReader
 {
+    private enum ReadResult : byte
+    {
+        Success,
+        TimedOut,
+        Completed
+    }
+
     private int _next;
     private int _disposed;
 
@@ -40,20 +47,44 @@ internal sealed class MultiplexedTickerBatchReader(
         return false;
     }
 
+    public bool TryRead(TimeSpan timeout, out InstrumentBatch64 batch) =>
+        TryReadCore(timeout, out batch) == ReadResult.Success;
+
     public InstrumentBatch64 Read(TimeSpan timeout)
+    {
+        return TryReadCore(timeout, out var batch) switch
+        {
+            ReadResult.Success => batch,
+            ReadResult.Completed => throw new EndOfStreamException(
+                "All ticker channels completed."),
+            _ => throw new TimeoutException(
+                "No ticker batch was available before the deadline.")
+        };
+    }
+
+    private ReadResult TryReadCore(TimeSpan timeout, out InstrumentBatch64 batch)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
             throw new ArgumentOutOfRangeException(nameof(timeout));
         var started = Stopwatch.GetTimestamp();
         while (true)
         {
-            if (TryRead(out var batch))
-                return batch;
+            if (TryRead(out var leased))
+            {
+                batch = leased;
+                return ReadResult.Success;
+            }
             if (IsCompleted)
-                throw new EndOfStreamException("All ticker channels completed.");
+            {
+                batch = default;
+                return ReadResult.Completed;
+            }
             if (timeout == TimeSpan.Zero ||
                 (timeout != Timeout.InfiniteTimeSpan && Stopwatch.GetElapsedTime(started) >= timeout))
-                throw new TimeoutException("No ticker batch was available before the deadline.");
+            {
+                batch = default;
+                return ReadResult.TimedOut;
+            }
             if (ready is null)
             {
                 Thread.Yield();
@@ -63,7 +94,10 @@ internal sealed class MultiplexedTickerBatchReader(
                 ? Timeout.InfiniteTimeSpan
                 : timeout - Stopwatch.GetElapsedTime(started);
             if (remaining <= TimeSpan.Zero || !ready.Wait(remaining))
-                throw new TimeoutException("No ticker batch was available before the deadline.");
+            {
+                batch = default;
+                return ReadResult.TimedOut;
+            }
         }
     }
 

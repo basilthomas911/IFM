@@ -289,8 +289,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     {
         var marketDataApi = CreateReadyMarketDataApi();
         marketDataApi.GetFuturesPriceAsync(VxContractId)
-            .Returns(Task.FromException<decimal>(
-                new FuturesLastPriceUnavailableException(VxContractId)));
+            .Returns(Task.FromResult<decimal?>(null));
         var projector = CreateProjector();
 
         var handled = await CreateEvent().ExecuteAsync(
@@ -427,7 +426,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
             });
         api.IsTickDataStreamActive(EsContractId).Returns(esActive);
         api.IsTickDataStreamActive(VxContractId).Returns(vxActive);
-        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult(22.75m));
+        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult<decimal?>(22.75m));
         return api;
     }
 

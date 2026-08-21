@@ -181,7 +181,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
             });
         api.IsTickDataStreamActive(EsContractId).Returns(true);
         api.IsTickDataStreamActive(VxContractId).Returns(true);
-        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult(22.75m));
+        api.GetFuturesPriceAsync(VxContractId).Returns(Task.FromResult<decimal?>(22.75m));
         return api;
     }
 

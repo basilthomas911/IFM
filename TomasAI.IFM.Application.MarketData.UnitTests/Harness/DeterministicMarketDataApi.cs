@@ -240,21 +240,21 @@ internal sealed class DeterministicMarketDataApi(
         return Task.FromResult(results);
     }
 
-    public Task<decimal> GetFuturesPriceAsync(string futuresContractId)
+    public Task<decimal?> GetFuturesPriceAsync(string futuresContractId)
     {
         var reader = GetFuturesLastPriceReader(futuresContractId);
         if (reader.TryGetLastTrade(out var trade)
             && trade.ContractId == futuresContractId
             && trade.ValueDate == reader.ValueDate
             && IsFresh(trade.EventTimestamp))
-            return Task.FromResult(trade.Price);
+            return Task.FromResult<decimal?>(trade.Price);
         if (reader.TryGetLastQuote(out var quote)
             && quote.ContractId == futuresContractId
             && quote.ValueDate == reader.ValueDate
             && IsFresh(quote.EventTimestamp)
             && quote.TryGetMidpoint(out var midpoint))
-            return Task.FromResult(midpoint);
-        throw new FuturesLastPriceUnavailableException(futuresContractId);
+            return Task.FromResult<decimal?>(midpoint);
+        return Task.FromResult<decimal?>(null);
     }
 
     public Task<decimal?> GetFuturesOptionPriceAsync(string futuresOptionContractId)

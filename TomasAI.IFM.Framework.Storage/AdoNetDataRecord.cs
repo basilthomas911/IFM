@@ -102,43 +102,39 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     public DateTime GetDateTime(int index)
     {
         if (_reader.IsDBNull(index)) return default;
-        try { return _reader.GetDateTime(index); }
-        catch
+        try
         {
-            try
+            var value = _reader.GetValue(index);
+            return value switch
             {
-                var value = _reader.GetValue(index);
-                return value switch
-                {
-                    DateTimeOffset dto => dto.DateTime,
-                    long l => new DateTime(l),
-                    string s when DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
-                    _ => default
-                };
-            }
-            catch { return default; }
+                DateTime dateTime => dateTime,
+                DateOnly date => date.ToDateTime(TimeOnly.MinValue),
+                DateTimeOffset dateTimeOffset => dateTimeOffset.DateTime,
+                long ticks when ticks >= DateTime.MinValue.Ticks && ticks <= DateTime.MaxValue.Ticks => new DateTime(ticks),
+                string text when DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+                _ => default
+            };
         }
+        catch { return default; }
     }
 
     /// <inheritdoc />
     public DateOnly GetDateOnly(int index)
     {
         if (_reader.IsDBNull(index)) return default;
-        try { return DateOnly.FromDateTime(_reader.GetDateTime(index)); }
-        catch
+        try
         {
-            try
+            var value = _reader.GetValue(index);
+            return value switch
             {
-                var value = _reader.GetValue(index);
-                return value switch
-                {
-                    DateTime dt => DateOnly.FromDateTime(dt),
-                    string s when DateOnly.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
-                    _ => default
-                };
-            }
-            catch { return default; }
+                DateOnly date => date,
+                DateTime dateTime => DateOnly.FromDateTime(dateTime),
+                DateTimeOffset dateTimeOffset => DateOnly.FromDateTime(dateTimeOffset.DateTime),
+                string text when DateOnly.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
+                _ => default
+            };
         }
+        catch { return default; }
     }
 
     /// <inheritdoc />
@@ -150,9 +146,10 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
             var value = _reader.GetValue(index);
             return value switch
             {
+                TimeOnly time => time,
                 TimeSpan ts => TimeOnly.FromTimeSpan(ts),
                 DateTime dt => TimeOnly.FromDateTime(dt),
-                long ticks => new TimeOnly(ticks),
+                long ticks when ticks >= TimeOnly.MinValue.Ticks && ticks <= TimeOnly.MaxValue.Ticks => new TimeOnly(ticks),
                 string s when TimeOnly.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) => parsed,
                 _ => default
             };
@@ -185,23 +182,22 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
         if (_reader.IsDBNull(index)) return default;
         try
         {
-            var s = _reader.GetString(index);
-            return Enum.TryParse<T>(s, true, out var parsed) ? parsed : default;
-        }
-        catch
-        {
-            try
+            var value = _reader.GetValue(index);
+            return value switch
             {
-                var value = _reader.GetValue(index);
-                return value switch
-                {
-                    T t => t,
-                    int i when Enum.IsDefined(typeof(T), i) => (T)Enum.ToObject(typeof(T), i),
-                    _ => default
-                };
-            }
-            catch { return default; }
+                T enumValue => enumValue,
+                string text when Enum.TryParse<T>(text, true, out var parsed) => parsed,
+                int numericValue => GetDefinedEnumValue<T>(numericValue),
+                _ => default
+            };
         }
+        catch { return default; }
+    }
+
+    static T GetDefinedEnumValue<T>(int value) where T : struct, Enum
+    {
+        var enumValue = (T)Enum.ToObject(typeof(T), value);
+        return Enum.IsDefined(enumValue) ? enumValue : default;
     }
 
     /// <inheritdoc />
@@ -215,12 +211,17 @@ public sealed class AdoNetDataRecord : IObjectDataRecord
     public string GetString(int index)
     {
         if (_reader.IsDBNull(index)) return string.Empty;
-        try { return _reader.GetString(index) ?? string.Empty; }
-        catch
+        try
         {
-            try { return Convert.ToString(_reader.GetValue(index), CultureInfo.InvariantCulture) ?? string.Empty; }
-            catch { return string.Empty; }
+            var value = _reader.GetValue(index);
+            return value switch
+            {
+                string text => text,
+                IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
+                _ => value.ToString() ?? string.Empty
+            };
         }
+        catch { return string.Empty; }
     }
 
     /// <inheritdoc />
