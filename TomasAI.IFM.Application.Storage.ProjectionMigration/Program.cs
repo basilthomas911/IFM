@@ -69,6 +69,10 @@ internal static class Program
         "yield_curve_rate_year",
         "futures_tick_data_by_time",
         "futures_eod_data_by_month",
+        "futures_eod_data_fifty_dma",
+        "futures_eod_data_two_hundred_dma",
+        "futures_eod_data_by_month_fifty_dma",
+        "futures_eod_data_by_month_two_hundred_dma",
         "vix_futures_contract_index",
         "futures_iti_signal_by_contract_day_v2",
         "futures_iti_signal_by_contract_month_v2",
@@ -77,7 +81,8 @@ internal static class Program
         "market_data_projection_state_v2",
         "market_data_projection_mutation",
         "market_data_projection_scope_state_v3",
-        "market_data_projection_scope_mutation_v3"
+        "market_data_projection_scope_mutation_v3",
+        "futures_trade_signal_quarantine"
     ];
 
     static async Task<int> Main(string[] args)
@@ -321,6 +326,14 @@ internal static class Program
             options.StaleOperationCutoffUtc).ConfigureAwait(false);
         var readiness = await context.GetQueryProjectionReadinessAsync(cancellationToken)
             .ConfigureAwait(false);
+        FuturesTradeSignalRepairResult? tradeSignalRepair = null;
+        if (options.RepairFuturesTradeSignals)
+        {
+            tradeSignalRepair = await context.RepairFuturesTradeSignalLookupAsync(
+                    options.BatchSize,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         Console.WriteLine(
             $"Market economic-calendar v2 cutover: source/target={calendarCutover.SourceRows}/{calendarCutover.TargetRows}, " +
@@ -349,6 +362,12 @@ internal static class Program
             $"Market readiness: tick={readiness.FuturesTickByTime}, eod={readiness.FuturesEodByMonth}, " +
             $"vix={readiness.VixFuturesContractIndex}, iti={readiness.FuturesItiSignalQueries}, " +
             $"cutoverCompleted={backfill.CutoverCompleted}.");
+        if (tradeSignalRepair is { } repair)
+        {
+            Console.WriteLine(
+                $"Market Futures Trade Signal repair: scanned/valid/quarantined={repair.RowsScanned}/{repair.ValidRows}/{repair.QuarantinedRows}, " +
+                $"lookupRows={repair.LookupRowsWritten}; malformed canonical rows were retained.");
+        }
 
         return Complete(calendarCutover.IsReconciled && fmpBackfill.IsReconciled && backfill.IsReconciled &&
             backfill.CutoverCompleted && readiness.IsReady);

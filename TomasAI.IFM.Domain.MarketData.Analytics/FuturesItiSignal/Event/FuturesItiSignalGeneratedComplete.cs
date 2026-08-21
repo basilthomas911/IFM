@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 
@@ -38,30 +39,28 @@ public static class FuturesItiSignalGeneratedComplete
         var source = $"FuturesItiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            var contractId = e.EntityId.ContractId;
-            var valueDate = e.FuturesItiSignal?.ValueDate ?? e.EntityId.ValueDate;
-            var futuresEodDataTask = context.GetFuturesEodDataAsync(contractId, valueDate).AsTask();
-            var futuresRsiSignalTask = context.GetFuturesRsiSignalAsync(contractId, valueDate, TimeFrameType.Daily, 14).AsTask();
-            var futuresTdiSignalTask = context.GetFuturesTdiSignalAsync(
-                contractId,
-                valueDate,
-                TimeFrameType.FifteenSeconds).AsTask();
-            var futuresItiSignalDataTask = context.GetFuturesItiSignalDataAsync(contractId, valueDate, e.EntityId.TimePeriod).AsTask();
-            var vixFuturesPriceTask = context.GetVixFuturesEodDataClosePriceAsync(valueDate).AsTask();
-            await Task.WhenAll(
-                futuresEodDataTask,
-                futuresRsiSignalTask,
-                futuresTdiSignalTask,
-                futuresItiSignalDataTask,
-                vixFuturesPriceTask);
-            var futuresEodData = await futuresEodDataTask;
-            var futuresRsiSignal = await futuresRsiSignalTask;
-            var futuresTdiSignal = await futuresTdiSignalTask;
-            var futuresItiSignalData = await futuresItiSignalDataTask;
-            var vixFuturesPrice = await vixFuturesPriceTask;
-            if (futuresEodData is null || futuresRsiSignal is null || futuresTdiSignal is null || futuresItiSignalData is null || vixFuturesPrice == 0)
-                return false;
-            await commandApi.UpdateFuturesTradeSignalAsync(futuresEodData!, futuresRsiSignal!, futuresTdiSignal!, futuresItiSignalData!, vixFuturesPrice, TimeFrameType.FifteenSeconds);
+            if (!FuturesTradeSignalPrerequisites.ShouldGenerate(e))
+                return true;
+
+            var prerequisites = await FuturesTradeSignalPrerequisites.LoadAsync(e, context)
+                .ConfigureAwait(false);
+            if (prerequisites.Inputs is not { } inputs)
+            {
+                logger.LogTrace(
+                    "Futures Trade Signal is not ready for {ContractId}/{ValueDate}: {MissingInputs}",
+                    e.EntityId.ContractId,
+                    e.EntityId.ValueDate,
+                    prerequisites.MissingInputs);
+                return true;
+            }
+
+            await commandApi.UpdateFuturesTradeSignalAsync(
+                inputs.FuturesEodData,
+                inputs.FuturesRsiSignal,
+                inputs.FuturesTdiSignal,
+                inputs.FuturesItiSignalData,
+                inputs.VixFuturesPrice,
+                FuturesTradeSignalPrerequisites.SignalTimePeriod);
             return true;
         }
         catch (Exception ex)

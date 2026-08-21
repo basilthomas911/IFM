@@ -231,7 +231,9 @@ public partial class MarketDataDbContext(
         hash = MarketDataProjectionHash.Add(hash, (int)row.PriceDirection);
         hash = MarketDataProjectionHash.Add(hash, (int)row.PriceVolatility);
         hash = MarketDataProjectionHash.Add(hash, row.MarketDirectionIndicator);
-        return MarketDataProjectionHash.Add(hash, row.WindowSize);
+        hash = MarketDataProjectionHash.Add(hash, row.WindowSize);
+        hash = MarketDataProjectionHash.Add(hash, row.FiftyDMA);
+        return MarketDataProjectionHash.Add(hash, row.TwoHundredDMA);
     }
 
     internal static void EnsureDistinctFuturesTickWrites(
@@ -995,7 +997,9 @@ public partial class MarketDataDbContext(
             priceDirection: e.GetEnum<PriceDirectionType>(16),
             priceVolatility: e.GetEnum<PriceVolatilityType>(17),
             marketDirectionIndicator: e.GetDouble(18),
-            windowSize: e.GetInt(19)
+            windowSize: e.GetInt(19),
+            fiftyDMA: e.IsNull(20) ? 0m : e.GetDecimal(20),
+            twoHundredDMA: e.IsNull(21) ? 0m : e.GetDecimal(21)
         );
 
     static FuturesIntraDayDataReadModel MapToFuturesIntraDayData<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -1338,7 +1342,9 @@ public partial class MarketDataDbContext(
             priceDirection: e.PriceDirection.ToStringFast(),
             priceVolatility: e.PriceVolatility.ToStringFast(),
             marketDirectionIndicator: e.MarketDirectionIndicator,
-            windowSize: e.WindowSize);
+            windowSize: e.WindowSize,
+            fiftyDMA: e.FiftyDMA,
+            twoHundredDMA: e.TwoHundredDMA);
 
     static InsertFuturesEodDataByMonth CreateFuturesEodDataByMonthParameters(FuturesEodDataV2ReadModel e, decimal openPrice)
         => new(
@@ -1362,7 +1368,9 @@ public partial class MarketDataDbContext(
             priceDirection: e.PriceDirection.ToStringFast(),
             priceVolatility: e.PriceVolatility.ToStringFast(),
             marketDirectionIndicator: e.MarketDirectionIndicator,
-            windowSize: e.WindowSize);
+            windowSize: e.WindowSize,
+            fiftyDMA: e.FiftyDMA,
+            twoHundredDMA: e.TwoHundredDMA);
 
     async Task UpsertFuturesEodProjectionAsync(FuturesEodDataV2ReadModel e, decimal openPrice)
     {
@@ -3528,7 +3536,9 @@ public partial class MarketDataDbContext(
                     priceDirection: e.PriceDirection.ToStringFast(),
                     priceVolatility: e.PriceVolatility.ToStringFast(),
                     marketDirectionIndicator: e.MarketDirectionIndicator,
-                    windowSize: e.WindowSize
+                    windowSize: e.WindowSize,
+                    fiftyDMA: e.FiftyDMA,
+                    twoHundredDMA: e.TwoHundredDMA
                 ))
                     .ExecuteCommandAsync();
 
@@ -3590,7 +3600,9 @@ public partial class MarketDataDbContext(
                     priceDirection: e.PriceDirection.ToStringFast(),
                     priceVolatility: e.PriceVolatility.ToStringFast(),
                     marketDirectionIndicator: e.MarketDirectionIndicator,
-                    windowSize: e.WindowSize
+                    windowSize: e.WindowSize,
+                    fiftyDMA: e.FiftyDMA,
+                    twoHundredDMA: e.TwoHundredDMA
                 ))
                     .ExecuteCommandAsync();
 

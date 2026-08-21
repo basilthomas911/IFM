@@ -1,8 +1,10 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
@@ -38,36 +40,12 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         var eod = SampleData.EodData;
         var rsi = SampleData.AtrRsiSignals[0] with
         {
-            TimePeriod = TimeFrameType.Daily,
-            PeriodLength = 14
+            TimePeriod = TimeFrameType.FifteenSeconds,
+            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
         };
         var tdi = SampleData.TdiReadModelFor(TimeFrameType.FifteenSeconds);
         var itiSignal = source.FuturesItiSignal!;
         var iti = new FuturesItiSignalDataReadModel(itiSignal, itiSignal, itiSignal);
-        const string vixContractId = "VX20260916";
-        const decimal vixClose = 20m;
-        FuturesContractV2ReadModel[] vixContracts =
-        [
-            new(
-                vixContractId,
-                "VIX Futures",
-                "VX",
-                "VXU6",
-                "FUT",
-                "USD",
-                "CFE",
-                "1000",
-                new DateOnly(2026, 9, 16),
-                true)
-        ];
-        var vixEod = new VixFuturesEodDataReadModel(
-            vixContractId,
-            source.EntityId.ValueDate,
-            19m,
-            21m,
-            18m,
-            vixClose,
-            100);
 
         context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
                 Arg.Any<GetLastFuturesEodDataQuery>())
@@ -85,14 +63,6 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
                 Arg.Any<GetFuturesItiSignalDataQuery>())
             .Returns(ValueTask.FromResult<ServiceResult<FuturesItiSignalDataReadModel>>(
                 new ServiceOk<FuturesItiSignalDataReadModel>(iti)));
-        context.RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(
-                Arg.Any<GetCurrentlyTradedFuturesContractsQuery>())
-            .Returns(ValueTask.FromResult<ServiceResult<FuturesContractV2ReadModel[]>>(
-                new ServiceOk<FuturesContractV2ReadModel[]>(vixContracts)));
-        context.RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(
-                Arg.Any<GetLastVixFuturesEodDataQuery>())
-            .Returns(ValueTask.FromResult<ServiceResult<VixFuturesEodDataReadModel>>(
-                new ServiceOk<VixFuturesEodDataReadModel>(vixEod)));
         commandApi.UpdateFuturesTradeSignalAsync(
                 Arg.Any<FuturesEodDataV2ReadModel>(),
                 Arg.Any<FuturesRsiSignalReadModel>(),
@@ -111,21 +81,117 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         result.Should().BeTrue(handlerError);
         await context.Received(1).RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(
             Arg.Is<GetFuturesRsiSignalQuery>(query =>
-                query.TimePeriod == TimeFrameType.Daily
-                && query.PeriodLength == 14));
+                query.TimePeriod == TimeFrameType.FifteenSeconds
+                && query.PeriodLength == FuturesIntradaySignalActivationProfile.RsiPeriodLength));
         await context.Received(1).RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(
             Arg.Is<GetFuturesTdiSignalQuery>(query =>
                 query.TimePeriod == TimeFrameType.FifteenSeconds));
         await context.Received(1).RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(
             Arg.Is<GetFuturesItiSignalDataQuery>(query =>
-                query.TimePeriod == source.EntityId.TimePeriod));
+                query.TimePeriod == TimeFrameType.Daily));
+        await context.DidNotReceiveWithAnyArgs()
+            .RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(default!);
+        await context.DidNotReceiveWithAnyArgs()
+            .RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(default!);
         await commandApi.Received(1).UpdateFuturesTradeSignalAsync(
             eod,
             rsi,
             tdi,
             iti,
-            vixClose,
+            Convert.ToDecimal(source.VixFuturesPrice),
             TimeFrameType.FifteenSeconds);
+    }
+
+    [Fact]
+    public async Task RealtimeCompletion_ProjectsPopulatedTradeSignalEvent()
+    {
+        var source = CreateCompletion(TimeFrameType.Daily);
+        var context = Substitute.For<IEventActorContext>();
+        var eod = SampleData.EodData;
+        var rsi = SampleData.AtrRsiSignals[0] with
+        {
+            TimePeriod = TimeFrameType.FifteenSeconds,
+            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+        };
+        var tdi = SampleData.TdiReadModelFor(TimeFrameType.FifteenSeconds);
+        var itiSignal = source.FuturesItiSignal!;
+        var iti = new FuturesItiSignalDataReadModel(itiSignal, itiSignal, itiSignal);
+
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
+                Arg.Any<GetLastFuturesEodDataQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesEodDataV2ReadModel>>(
+                new ServiceOk<FuturesEodDataV2ReadModel>(eod)));
+        context.RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(
+                Arg.Any<GetFuturesRsiSignalQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesRsiSignalReadModel>>(
+                new ServiceOk<FuturesRsiSignalReadModel>(rsi)));
+        context.RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(
+                Arg.Any<GetFuturesTdiSignalQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesTdiSignalReadModel>>(
+                new ServiceOk<FuturesTdiSignalReadModel>(tdi)));
+        context.RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(
+                Arg.Any<GetFuturesItiSignalDataQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesItiSignalDataReadModel>>(
+                new ServiceOk<FuturesItiSignalDataReadModel>(iti)));
+
+        var projector = Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>();
+        FuturesTradeSignalUpdatedEvent? projected = null;
+        projector.ProcessRealtimeEventAsync(
+                Arg.Do<IEvent>(value => projected = value as FuturesTradeSignalUpdatedEvent),
+                Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(true));
+
+        var result = await TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime
+            .FuturesItiSignalGeneratedComplete.ExecuteRealtimeAsync(
+                source,
+                context,
+                projector,
+                Substitute.For<IStatusConsoleWriter>(),
+                Substitute.For<ILogger>());
+
+        result.Should().BeTrue();
+        projected.Should().NotBeNull();
+        projected!.CommandId.Should().Be(source.CommandId);
+        projected.FuturesTradeSignal.Should().NotBeNull();
+        projected.FuturesTradeSignal!.TimePeriod.Should().Be(TimeFrameType.FifteenSeconds);
+        projected.FuturesTradeSignal.FiftyDMA.Should().Be(eod.FiftyDMA);
+        projected.FuturesTradeSignal.TwoHundredDMA.Should().Be(eod.TwoHundredDMA);
+    }
+
+    [Fact]
+    public async Task DailyCompletion_MissingPrerequisitesIsAcknowledgedWithoutExceptionOrCommand()
+    {
+        var source = CreateCompletion(TimeFrameType.Daily);
+        var context = Substitute.For<IEventActorContext>();
+        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var statusConsole = Substitute.For<IStatusConsoleWriter>();
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
+                Arg.Any<GetLastFuturesEodDataQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesEodDataV2ReadModel>>(
+                new ServiceFailed<FuturesEodDataV2ReadModel>(1, "not ready")));
+        context.RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(
+                Arg.Any<GetFuturesRsiSignalQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesRsiSignalReadModel>>(
+                new ServiceFailed<FuturesRsiSignalReadModel>(1, "not ready")));
+        context.RequestAsync<FuturesTdiSignalReadModel, GetFuturesTdiSignalQuery>(
+                Arg.Any<GetFuturesTdiSignalQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesTdiSignalReadModel>>(
+                new ServiceFailed<FuturesTdiSignalReadModel>(1, "not ready")));
+        context.RequestAsync<FuturesItiSignalDataReadModel, GetFuturesItiSignalDataQuery>(
+                Arg.Any<GetFuturesItiSignalDataQuery>())
+            .Returns(ValueTask.FromResult<ServiceResult<FuturesItiSignalDataReadModel>>(
+                new ServiceFailed<FuturesItiSignalDataReadModel>(1, "not ready")));
+
+        var result = await source.ExecuteAsync(
+            context,
+            commandApi,
+            statusConsole,
+            Substitute.For<ILogger>());
+
+        result.Should().BeTrue();
+        await commandApi.DidNotReceiveWithAnyArgs().UpdateFuturesTradeSignalAsync(
+            default!, default, default, default, default, default);
+        await statusConsole.DidNotReceiveWithAnyArgs().WriteConsoleAsync(default, default, default!);
     }
 
     [Fact]
@@ -159,6 +225,28 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
 
         await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesItiSignalAsync(
             default!, default, default, default, default, default, default);
+    }
+
+    [Theory]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public async Task LongerPeriodCompletion_DoesNotGenerateDuplicateTradeSignal(
+        TimeFrameType period)
+    {
+        var context = Substitute.For<IEventActorContext>();
+        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+
+        var result = await CreateCompletion(period).ExecuteAsync(
+            context,
+            commandApi,
+            Substitute.For<IStatusConsoleWriter>(),
+            Substitute.For<ILogger>());
+
+        result.Should().BeTrue();
+        await commandApi.DidNotReceiveWithAnyArgs().UpdateFuturesTradeSignalAsync(
+            default!, default, default, default, default, default);
+        await context.DidNotReceiveWithAnyArgs()
+            .RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(default!);
     }
 
     [Fact]

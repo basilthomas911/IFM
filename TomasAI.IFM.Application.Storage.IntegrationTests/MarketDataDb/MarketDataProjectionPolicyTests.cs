@@ -18,6 +18,33 @@ public sealed class MarketDataProjectionPolicyTests
         throwOnError: true)!;
 
     [Fact]
+    public void FuturesEodSchema_PersistsMovingAveragesAndSupportsAdditiveUpgrade()
+    {
+        GetSchemaCql("CreateFuturesEodDataTable").ShouldContain("fiftyDMA decimal");
+        GetSchemaCql("CreateFuturesEodDataTable").ShouldContain("twoHundredDMA decimal");
+        GetSchemaCql("CreateFuturesEodDataByMonthTable").ShouldContain("fiftyDMA decimal");
+        GetSchemaCql("CreateFuturesEodDataByMonthTable").ShouldContain("twoHundredDMA decimal");
+        GetSchemaCql("AddFuturesEodDataFiftyDmaColumn").ShouldContain("ALTER TABLE futures_eod_data");
+        GetSchemaCql("AddFuturesEodDataByMonthTwoHundredDmaColumn")
+            .ShouldContain("ALTER TABLE futures_eod_data_by_month");
+        GetCql("GetFuturesEodData").ShouldContain("fiftyDMA AS \"FiftyDMA\"");
+        GetCql("GetFuturesEodData").ShouldContain("twoHundredDMA AS \"TwoHundredDMA\"");
+    }
+
+    [Fact]
+    public void FuturesTradeSignalRepair_IsNonDestructiveAndHasQuarantineStorage()
+    {
+        GetSchemaCql("CreateFuturesTradeSignalQuarantineTable")
+            .ShouldContain("futures_trade_signal_quarantine");
+        GetCql("GetFuturesTradeSignalJsonAll").ShouldContain("SELECT JSON *");
+        GetCql("InsertFuturesTradeSignalQuarantine")
+            .ShouldContain("futures_trade_signal_quarantine");
+        Assert.Null(CqlType.GetField(
+            "DeleteMalformedFuturesTradeSignal",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+    }
+
+    [Fact]
     public void VixAsOfProjection_UsesContractIndexAndCanonicalContractRead()
     {
         GetCql("GetVixFuturesContractIds").ShouldContain("vix_futures_contract_index");

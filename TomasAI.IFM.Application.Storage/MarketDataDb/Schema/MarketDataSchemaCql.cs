@@ -160,6 +160,26 @@ internal static class MarketDataSchemaCql
         ADD sourceEventTimestamp TIMESTAMP;
         """;
 
+    public const string AddFuturesEodDataFiftyDmaColumn = """
+        ALTER TABLE futures_eod_data
+        ADD fiftyDMA DECIMAL;
+        """;
+
+    public const string AddFuturesEodDataTwoHundredDmaColumn = """
+        ALTER TABLE futures_eod_data
+        ADD twoHundredDMA DECIMAL;
+        """;
+
+    public const string AddFuturesEodDataByMonthFiftyDmaColumn = """
+        ALTER TABLE futures_eod_data_by_month
+        ADD fiftyDMA DECIMAL;
+        """;
+
+    public const string AddFuturesEodDataByMonthTwoHundredDmaColumn = """
+        ALTER TABLE futures_eod_data_by_month
+        ADD twoHundredDMA DECIMAL;
+        """;
+
     public const string CreateFuturesTdiSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_tdi_signal (
             contractId TEXT,
@@ -560,6 +580,8 @@ internal static class MarketDataSchemaCql
     priceVolatility text,
     marketDirectionIndicator double,
     windowSize int,
+    fiftyDMA decimal,
+    twoHundredDMA decimal,
     PRIMARY KEY (contractId, valueDate, symbol)
     ) WITH CLUSTERING ORDER BY (valueDate DESC, symbol ASC);
     """;
@@ -587,6 +609,8 @@ internal static class MarketDataSchemaCql
     priceVolatility text,
     marketDirectionIndicator double,
     windowSize int,
+    fiftyDMA decimal,
+    twoHundredDMA decimal,
     PRIMARY KEY ((yearMonth), valueDate, contractId, symbol)
     ) WITH CLUSTERING ORDER BY (valueDate DESC, contractId ASC, symbol ASC);
     """;
@@ -745,6 +769,16 @@ internal static class MarketDataSchemaCql
     valueDate date,
     timePeriod text,
     PRIMARY KEY (scope, entryId)
+    );
+    """;
+
+    public const string CreateFuturesTradeSignalQuarantineTable = """
+    CREATE TABLE IF NOT EXISTS futures_trade_signal_quarantine (
+    fingerprint text,
+    sourcePayload text,
+    reason text,
+    quarantinedOn timestamp,
+    PRIMARY KEY (fingerprint)
     );
     """;
 

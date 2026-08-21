@@ -753,7 +753,9 @@ internal static class MarketDataDbCql
             priceDirection, 
             priceVolatility, 
             marketDirectionIndicator, 
-            windowSize
+            windowSize,
+            fiftyDMA,
+            twoHundredDMA
         ) VALUES (
             :contractId, 
             :valueDate,
@@ -774,7 +776,9 @@ internal static class MarketDataDbCql
             :priceDirection, 
             :priceVolatility, 
             :marketDirectionIndicator, 
-            :windowSize
+            :windowSize,
+            :fiftyDMA,
+            :twoHundredDMA
         );
     """;
 
@@ -800,7 +804,9 @@ internal static class MarketDataDbCql
             priceDirection,
             priceVolatility,
             marketDirectionIndicator,
-            windowSize
+            windowSize,
+            fiftyDMA,
+            twoHundredDMA
         ) VALUES (
             :yearMonth,
             :contractId,
@@ -822,7 +828,9 @@ internal static class MarketDataDbCql
             :priceDirection,
             :priceVolatility,
             :marketDirectionIndicator,
-            :windowSize
+            :windowSize,
+            :fiftyDMA,
+            :twoHundredDMA
         );
     """;
 
@@ -922,7 +930,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize"
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data_by_month
         WHERE yearMonth = :yearMonth
         AND valueDate >= :startDate
@@ -950,7 +960,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize"
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data_by_month
         WHERE yearMonth = :yearMonth
         AND valueDate <= :valueDate
@@ -990,7 +1002,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize" 
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data
         WHERE contractId = :contractId 
         AND valueDate = :valueDate 
@@ -1047,7 +1061,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize" 
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data
         WHERE contractId = :contractId 
         AND valueDate < :valueDate 
@@ -1075,7 +1091,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize" 
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data
     """;
 
@@ -1099,7 +1117,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize"
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data_by_month;
     """;
 
@@ -1125,7 +1145,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize" 
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data
         WHERE contractId = :contractId
         AND valueDate >= :startDate AND valueDate <= :endDate
@@ -1161,7 +1183,9 @@ internal static class MarketDataDbCql
             priceDirection = :priceDirection,
             priceVolatility = :priceVolatility,
             marketDirectionIndicator = :marketDirectionIndicator,
-            windowSize = :windowSize
+            windowSize = :windowSize,
+            fiftyDMA = :fiftyDMA,
+            twoHundredDMA = :twoHundredDMA
         WHERE
             contractId = :contractId
             AND valueDate = :valueDate
@@ -1189,7 +1213,9 @@ internal static class MarketDataDbCql
             priceDirection AS "PriceDirection",
             priceVolatility AS "PriceVolatility",
             marketDirectionIndicator AS "MarketDirectionIndicator",
-            windowSize AS "WindowSize" 
+            windowSize AS "WindowSize",
+            fiftyDMA AS "FiftyDMA",
+            twoHundredDMA AS "TwoHundredDMA"
         FROM futures_eod_data
         WHERE contractId = :contractId
         AND valueDate < :valueDate
@@ -2467,6 +2493,24 @@ internal static class MarketDataDbCql
     public const string InsertVixFuturesEodData = """
         INSERT INTO vix_futures_eod_data (contractId, valueDate, openPrice, highPrice, lowPrice, closePrice, volume)
         VALUES (:contractId, :valueDate, :openPrice, :highPrice, :lowPrice, :closePrice, :volume);
+    """;
+
+    public const string GetFuturesTradeSignalJsonAll = """
+        SELECT JSON * FROM futures_trade_signal;
+    """;
+
+    public const string InsertFuturesTradeSignalQuarantine = """
+        INSERT INTO futures_trade_signal_quarantine (
+            fingerprint,
+            sourcePayload,
+            reason,
+            quarantinedOn
+        ) VALUES (
+            :fingerprint,
+            :sourcePayload,
+            :reason,
+            :quarantinedOn
+        );
     """;
 
     public const string GetLastFuturesItiSignalByTimePeriod = """

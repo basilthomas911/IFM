@@ -18,7 +18,8 @@ internal sealed record ProjectionMigrationOptions(
     DateOnly? StartDate,
     DateOnly? EndDate,
     DateTime? StaleOperationCutoffUtc,
-    bool WritersDrainedConfirmed)
+    bool WritersDrainedConfirmed,
+    bool RepairFuturesTradeSignals)
 {
     public string ConnectionEnvironmentVariable => Target switch
     {
@@ -49,6 +50,9 @@ internal static class ProjectionMigrationCommandLine
           --confirm-writers-drained
               Required with --stale-operation-cutoff-utc. Asserts affected writers are stopped
               and cannot resume. It is rejected when no cutoff is supplied.
+          --repair-futures-trade-signals
+              Market only. Quarantine malformed legacy rows and rebuild valid lookup entries.
+              Canonical source rows are retained.
           --help
 
         Fund-only options:
@@ -88,6 +92,7 @@ internal static class ProjectionMigrationCommandLine
         var seenOptions = new HashSet<string>(StringComparer.Ordinal);
         var applySchema = false;
         var confirmWritersDrained = false;
+        var repairFuturesTradeSignals = false;
         int? batchSize = null;
         int? fundId = null;
         DateOnly? startDate = null;
@@ -110,6 +115,9 @@ internal static class ProjectionMigrationCommandLine
                     break;
                 case "--confirm-writers-drained":
                     confirmWritersDrained = true;
+                    break;
+                case "--repair-futures-trade-signals":
+                    repairFuturesTradeSignals = true;
                     break;
                 case "--batch-size":
                     if (!TryReadValue(args, ref index, optionName, out var rawBatchSize, out error))
@@ -205,6 +213,11 @@ internal static class ProjectionMigrationCommandLine
             error = "--fund-id, --start-date, and --end-date are valid only for the fund command.";
             return false;
         }
+        if (repairFuturesTradeSignals && target != ProjectionMigrationTarget.Market)
+        {
+            error = "--repair-futures-trade-signals is valid only for the market command.";
+            return false;
+        }
 
         options = new ProjectionMigrationOptions(
             target,
@@ -214,7 +227,8 @@ internal static class ProjectionMigrationCommandLine
             startDate,
             endDate,
             staleOperationCutoffUtc,
-            confirmWritersDrained);
+            confirmWritersDrained,
+            repairFuturesTradeSignals);
         return true;
     }
 

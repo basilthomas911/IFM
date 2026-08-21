@@ -439,6 +439,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.HighPrice.Should().Be(futuresEodData.HighPrice);
         retrievedData.LowPrice.Should().Be(futuresEodData.LowPrice);
         retrievedData.ClosePrice.Should().Be(futuresEodData.ClosePrice);
+        retrievedData.FiftyDMA.Should().Be(futuresEodData.FiftyDMA);
+        retrievedData.TwoHundredDMA.Should().Be(futuresEodData.TwoHundredDMA);
     }
 
     [Fact]
@@ -475,6 +477,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         retrievedData.HighPrice.Should().Be(futuresEodData.HighPrice);
         retrievedData.LowPrice.Should().Be(futuresEodData.LowPrice);
         retrievedData.ClosePrice.Should().Be(53.2m);
+        retrievedData.FiftyDMA.Should().Be(futuresEodData.FiftyDMA);
+        retrievedData.TwoHundredDMA.Should().Be(futuresEodData.TwoHundredDMA);
     }
 
     [Fact]
