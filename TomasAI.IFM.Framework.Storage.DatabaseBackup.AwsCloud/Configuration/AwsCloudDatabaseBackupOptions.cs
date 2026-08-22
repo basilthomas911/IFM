@@ -36,6 +36,15 @@ public sealed class AwsCloudDatabaseBackupOptions
     public int DefaultRetentionDays { get; set; } = 35;
     public int MaximumIncrementalChainDepth { get; set; } = 6;
     public int MaximumBaseAgeDays { get; set; } = 7;
+    public string[] PostgreSqlProtectionSets { get; set; } = ["postgresql-core"];
+    public string[] ScyllaProtectionSets { get; set; } = ["scylla-core"];
+    public long MultipartThresholdBytes { get; set; } = 16L * 1024 * 1024;
+    public int MultipartPartSizeBytes { get; set; } = 8 * 1024 * 1024;
+    public int MaximumSignedDocumentBytes { get; set; } = 4 * 1024 * 1024;
+    public TimeSpan StaleMultipartUploadAge { get; set; } = TimeSpan.FromHours(24);
+    public string WalSpoolPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "data", "aws-backup", "wal-spool");
+    public long MaximumWalSpoolBytes { get; set; } = 8L * 1024 * 1024 * 1024;
+    public TimeSpan MaximumWalArchiveLag { get; set; } = TimeSpan.FromMinutes(5);
     public TimeSpan ApiTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public int MaximumSdkRetries { get; set; } = 2;
 
@@ -75,6 +84,16 @@ public sealed class AwsCloudDatabaseBackupOptions
             throw Invalid("Object Lock mode is invalid");
         if (DefaultRetentionDays <= 0 || MaximumIncrementalChainDepth <= 0 || MaximumBaseAgeDays <= 0)
             throw Invalid("retention and incremental-chain bounds must be positive");
+        if (PostgreSqlProtectionSets.Concat(ScyllaProtectionSets).Any(static value => string.IsNullOrWhiteSpace(value))
+            || PostgreSqlProtectionSets.Intersect(ScyllaProtectionSets, StringComparer.Ordinal).Any())
+            throw Invalid("database protection-set engine mappings are empty or ambiguous");
+        if (MultipartPartSizeBytes < 5L * 1024 * 1024 || MultipartPartSizeBytes > 512L * 1024 * 1024
+            || MultipartThresholdBytes < MultipartPartSizeBytes || MaximumSignedDocumentBytes is <= 0 or > 16 * 1024 * 1024
+            || StaleMultipartUploadAge < TimeSpan.FromHours(1))
+            throw Invalid("multipart upload and signed-document bounds are unsafe");
+        if (string.IsNullOrWhiteSpace(WalSpoolPath) || !Path.IsPathFullyQualified(WalSpoolPath)
+            || MaximumWalSpoolBytes < 64L * 1024 * 1024 || MaximumWalArchiveLag <= TimeSpan.Zero)
+            throw Invalid("PostgreSQL WAL spool and lag bounds are unsafe");
         if (ApiTimeout <= TimeSpan.Zero || ApiTimeout > TimeSpan.FromMinutes(5) || MaximumSdkRetries is < 0 or > 8)
             throw Invalid("AWS timeout or retry bounds are invalid");
         if (DestructiveTestsEnabled && !LiveAwsTestsEnabled)

@@ -16,7 +16,7 @@ Parameters:
   SecurityAuditPrincipalArn:
     Type: String
     AllowedPattern: '^arn:aws:iam::[0-9]{12}:(role|user)/.+$'
-  MonthlyBudgetCad:
+  MonthlyBudgetUsd:
     Type: Number
     Default: 100
     MinValue: 1
@@ -40,6 +40,16 @@ Resources:
             Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
             Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:DisableKeyRotation, kms:EnableKey, kms:EnableKeyRotation, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetParametersForImport, kms:GetPublicKey, kms:ImportKeyMaterial, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:ListRetirableGrants, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
             Resource: '*'
+          - Sid: AllowDynamoDbServiceUse
+            Effect: Allow
+            Principal: { AWS: '*' }
+            Action: [kms:CreateGrant, kms:Decrypt, kms:DescribeKey, kms:Encrypt, kms:GenerateDataKey, kms:GenerateDataKeyWithoutPlaintext, kms:ReEncryptFrom, kms:ReEncryptTo]
+            Resource: '*'
+            Condition:
+              StringEquals:
+                kms:CallerAccount: !Ref AWS::AccountId
+              StringLike:
+                kms:ViaService: dynamodb.*.amazonaws.com
       Tags:
         - { Key: Application, Value: IFM }
         - { Key: Component, Value: DatabaseBackup }
@@ -85,9 +95,17 @@ Resources:
       AttributeDefinitions:
         - { AttributeName: PK, AttributeType: S }
         - { AttributeName: SK, AttributeType: S }
+        - { AttributeName: GSI1PK, AttributeType: S }
+        - { AttributeName: GSI1SK, AttributeType: S }
       KeySchema:
         - { AttributeName: PK, KeyType: HASH }
         - { AttributeName: SK, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: WorkQueueIndex
+          KeySchema:
+            - { AttributeName: GSI1PK, KeyType: HASH }
+            - { AttributeName: GSI1SK, KeyType: RANGE }
+          Projection: { ProjectionType: KEYS_ONLY }
       PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
       SSESpecification:
         SSEEnabled: true
@@ -101,6 +119,7 @@ Resources:
   JournalThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
+      AlarmName: !Sub ifm-database-backup-journal-throttling-${EnvironmentName}
       AlarmDescription: IFM backup journal throttling detected
       Namespace: AWS/DynamoDB
       MetricName: ThrottledRequests
@@ -136,8 +155,8 @@ Resources:
                 Action: [s3:AbortMultipartUpload, s3:GetObject, s3:GetObjectRetention, s3:GetObjectVersion, s3:ListBucket, s3:ListBucketMultipartUploads, s3:ListMultipartUploadParts, s3:PutObject, s3:PutObjectRetention]
                 Resource: [!Ref PrimaryVaultBucketArn, !Sub '${PrimaryVaultBucketArn}/*']
               - Effect: Allow
-                Action: [dynamodb:BatchGetItem, dynamodb:ConditionCheckItem, dynamodb:DescribeTable, dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:TransactWriteItems, dynamodb:UpdateItem]
-                Resource: !GetAtt ExecutionJournal.Arn
+                Action: [dynamodb:BatchGetItem, dynamodb:ConditionCheckItem, dynamodb:DeleteItem, dynamodb:DescribeContinuousBackups, dynamodb:DescribeTable, dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:TransactWriteItems, dynamodb:UpdateItem]
+                Resource: [!GetAtt ExecutionJournal.Arn, !Sub '${ExecutionJournal.Arn}/index/*']
               - Effect: Allow
                 Action: [kms:GetPublicKey, kms:Sign, kms:Verify]
                 Resource: !GetAtt SigningKey.Arn
@@ -260,7 +279,7 @@ Resources:
     Properties:
       Budget:
         BudgetName: !Sub ifm-database-backup-${EnvironmentName}
-        BudgetLimit: { Amount: !Ref MonthlyBudgetCad, Unit: CAD }
+        BudgetLimit: { Amount: !Ref MonthlyBudgetUsd, Unit: USD }
         BudgetType: COST
         TimeUnit: MONTHLY
         CostFilters: { TagKeyValue: [user:Component$DatabaseBackup] }

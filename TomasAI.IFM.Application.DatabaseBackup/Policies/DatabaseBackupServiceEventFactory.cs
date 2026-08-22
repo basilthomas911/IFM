@@ -6,9 +6,9 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Service;
 using TomasAI.IFM.Shared.EventModelActor;
 
-namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
+namespace TomasAI.IFM.Application.DatabaseBackup.Policies;
 
-internal static class DatabaseBackupServiceEventFactory
+public static class DatabaseBackupServiceEventFactory
 {
     public static DatabaseBackupServiceEventContract Accepted(
         DatabaseExecutionIntent intent,

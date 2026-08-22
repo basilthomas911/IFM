@@ -313,6 +313,8 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
             ["--exit-on-error", targetData],
             EmptyEnvironment,
             _options.ProcessTimeout), cancellationToken).ConfigureAwait(false);
+        if (request.Recovery is not null)
+            await ConfigurePointInTimeRecoveryAsync(targetData, request.Recovery, cancellationToken).ConfigureAwait(false);
 
         var profile = _options.FreshTargetProfiles[request.FreshTarget.Profile];
         var startedServer = false;
@@ -372,6 +374,30 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         await PostgreSqlBackupEvidenceSerializer.WriteRestoreAsync(staging, evidence, cancellationToken).ConfigureAwait(false);
         Directory.Move(staging, final);
         return RestoreResult(evidence);
+    }
+
+    static async ValueTask ConfigurePointInTimeRecoveryAsync(
+        string targetData, PostgreSqlPreparedRecovery recovery, CancellationToken cancellationToken)
+    {
+        if (recovery.TargetUtc.Offset != TimeSpan.Zero || recovery.RequiredSegments.Length == 0
+            || !Directory.Exists(recovery.WalArchivePath) || recovery.WalArchivePath.Contains('\''))
+            throw new InvalidOperationException("The PostgreSQL PITR recovery preparation is incomplete or unsafe.");
+        foreach (var segment in recovery.RequiredSegments)
+            if (!File.Exists(Path.Combine(recovery.WalArchivePath, segment)))
+                throw new FileNotFoundException("A required PostgreSQL PITR WAL segment is missing.", segment);
+        var archive = recovery.WalArchivePath.Replace('\\', '/');
+        var restoreCommand = OperatingSystem.IsWindows()
+            ? $"copy /Y \"{archive}/%f\" \"%p\""
+            : $"cp -- \"{archive}/%f\" \"%p\"";
+        var settings = string.Join(Environment.NewLine,
+            $"restore_command = '{restoreCommand}'",
+            $"recovery_target_time = '{recovery.TargetUtc.UtcDateTime:O}'",
+            "recovery_target_action = 'pause'",
+            "recovery_target_inclusive = on") + Environment.NewLine;
+        await File.AppendAllTextAsync(Path.Combine(targetData, "postgresql.auto.conf"), settings, cancellationToken)
+            .ConfigureAwait(false);
+        await File.WriteAllBytesAsync(Path.Combine(targetData, "recovery.signal"), [], cancellationToken)
+            .ConfigureAwait(false);
     }
 
     async ValueTask EnsureValidatedAsync(CancellationToken cancellationToken)

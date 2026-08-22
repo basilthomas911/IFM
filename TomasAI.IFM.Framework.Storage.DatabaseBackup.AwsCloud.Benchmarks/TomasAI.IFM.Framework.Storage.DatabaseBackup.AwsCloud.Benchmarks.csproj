@@ -8,4 +8,5 @@
   </PropertyGroup>
   <ItemGroup><PackageReference Include="BenchmarkDotNet" Version="0.15.8" /></ItemGroup>
   <ItemGroup><ProjectReference Include="..\TomasAI.IFM.Application.DatabaseBackup\TomasAI.IFM.Application.DatabaseBackup.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="..\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.csproj" /></ItemGroup>
 </Project>

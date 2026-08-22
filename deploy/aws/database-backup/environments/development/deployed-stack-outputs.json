@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "environment": "Development",
+  "accountId": "107651266250",
+  "primaryRegion": "ca-central-1",
+  "recoveryRegion": "ca-west-1",
+  "capturedAtUtc": "2026-08-22T17:52:56.0834698Z",
+  "primary": {
+    "PrimaryBucketName": "ifm-db-backup-development-primary-107651266250",
+    "ReplicationRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-replication-development",
+    "PrimaryAuditBucketName": "ifm-db-backup-development-primary-audit-107651266250",
+    "PrimaryEncryptionKeyArn": "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df",
+    "PrimaryBucketArn": "arn:aws:s3:::ifm-db-backup-development-primary-107651266250",
+    "RetentionPlanRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-retention-plan-development",
+    "SigningKeyArn": "arn:aws:kms:ca-central-1:107651266250:key/2edd60e5-be19-483d-b4df-88df45aa2fb2",
+    "LegalHoldRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-legal-hold-development",
+    "JournalTableName": "ifm-database-backup-journal-development",
+    "VerificationRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-verification-development",
+    "AuditRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-audit-development",
+    "JournalKeyArn": "arn:aws:kms:ca-central-1:107651266250:key/148f8a7d-0e66-4524-9cdb-9378eb99069b",
+    "UploadRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-upload-development",
+    "RetentionExecutionRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-retention-execution-development",
+    "AuditBucketArn": "arn:aws:s3:::ifm-db-backup-development-audit-107651266250",
+    "AuditBucketName": "ifm-db-backup-development-audit-107651266250",
+    "AuditTrailArn": "arn:aws:cloudtrail:ca-central-1:107651266250:trail/ifm-database-backup-development",
+    "ConfigBucketArn": "arn:aws:s3:::ifm-db-backup-development-config-107651266250",
+    "ConfigBucketName": "ifm-db-backup-development-config-107651266250"
+  },
+  "recovery": {
+    "RecoveryReadRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-recovery-read-development",
+    "RecoveryEncryptionKeyArn": "arn:aws:kms:ca-west-1:107651266250:key/4277d9a7-5182-4299-a61a-19ca0c5cf404",
+    "RecoveryAuditBucketName": "ifm-db-backup-development-recovery-audit-107651266250",
+    "RecoveryBucketArn": "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250",
+    "RecoveryBucketName": "ifm-db-backup-development-recovery-107651266250"
+  }
+}

@@ -3,6 +3,7 @@ Description: IFM independent recovery vault with immutable S3 storage and region
 Parameters:
   EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
   RecoveryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  RecoveryAuditBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
   WorkloadAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
   ReplicationRoleArn: { Type: String, AllowedPattern: '^arn:aws:iam::[0-9]{12}:role/.+$' }
   RetentionDays: { Type: Number, Default: 35, MinValue: 35 }
@@ -27,10 +28,12 @@ Resources:
             Resource: '*'
           - Sid: ReplicationEncryption
             Effect: Allow
-            Principal: { AWS: !Ref ReplicationRoleArn }
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${WorkloadAccountId}:root' }
             Action: [kms:Encrypt, kms:GenerateDataKey, kms:ReEncryptTo]
             Resource: '*'
-            Condition: { StringEquals: { 'kms:ViaService': !Sub 's3.${AWS::Region}.amazonaws.com' } }
+            Condition:
+              StringEquals: { 'kms:ViaService': !Sub 's3.${AWS::Region}.amazonaws.com' }
+              ArnEquals: { 'aws:PrincipalArn': !Ref ReplicationRoleArn }
       Tags: [{ Key: Application, Value: IFM }, { Key: Component, Value: DatabaseBackup }, { Key: Environment, Value: !Ref EnvironmentName }]
   RecoveryKeyAlias:
     Type: AWS::KMS::Alias
@@ -40,12 +43,43 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      BucketName: !Ref RecoveryAuditBucketName
       BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
       OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
       PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
       VersioningConfiguration: { Status: Enabled }
+  RecoveryAuditBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RecoveryAuditBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PermitServerAccessLogs
+            Effect: Allow
+            Principal: { Service: logging.s3.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub '${RecoveryAuditBucket.Arn}/access/*'
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::${RecoveryBucketName}' }
+          - Sid: PermitInventoryDelivery
+            Effect: Allow
+            Principal: { Service: s3.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub '${RecoveryAuditBucket.Arn}/inventory/*'
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId', 's3:x-amz-acl': bucket-owner-full-control }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::${RecoveryBucketName}' }
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt RecoveryAuditBucket.Arn, !Sub '${RecoveryAuditBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
   RecoveryBucket:
     Type: AWS::S3::Bucket
+    DependsOn: RecoveryAuditBucketPolicy
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -91,9 +125,10 @@ Resources:
             Condition: { Bool: { 'aws:SecureTransport': false } }
           - Sid: PermitReplication
             Effect: Allow
-            Principal: { AWS: !Ref ReplicationRoleArn }
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${WorkloadAccountId}:root' }
             Action: [s3:ObjectOwnerOverrideToBucketOwner, s3:ReplicateDelete, s3:ReplicateObject, s3:ReplicateTags]
             Resource: !Sub '${RecoveryBucket.Arn}/*'
+            Condition: { ArnEquals: { 'aws:PrincipalArn': !Ref ReplicationRoleArn } }
           - Sid: DenyUnencryptedWrites
             Effect: Deny
             Principal: '*'
@@ -125,5 +160,6 @@ Resources:
 Outputs:
   RecoveryBucketArn: { Value: !GetAtt RecoveryBucket.Arn }
   RecoveryBucketName: { Value: !Ref RecoveryBucket }
+  RecoveryAuditBucketName: { Value: !Ref RecoveryAuditBucket }
   RecoveryEncryptionKeyArn: { Value: !GetAtt RecoveryKey.Arn }
   RecoveryReadRoleArn: { Value: !GetAtt RecoveryReadRole.Arn }

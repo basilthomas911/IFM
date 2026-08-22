@@ -1,10 +1,10 @@
 # AWS Cloud Database Backup and Restore Code Implementation Specification
 
-**Status:** Gates 0-3 complete; Gate 4 repository implementation complete and deployment qualification awaiting approval; no AWS resources have been created or changed
+**Status:** Gates 0-4 complete; Gates 5-10 implemented, live qualification pending
 
-**Version:** 0.4
+**Version:** 0.7
 
-**Date:** 2026-08-21
+**Date:** 2026-08-22
 
 **Implementation target:** `BackupSource.AwsCloud`
 
@@ -400,19 +400,19 @@ This table is the current implementation record. Update it in the same change th
 gate may move to **Complete** only when every listed exit-evidence item has a dated validation report. Existing local
 capabilities are baseline prerequisites and do not by themselves complete an AWS gate.
 
-| Gate | Status | Results/evidence recorded as of 2026-08-21 | Remaining work or completion blocker |
+| Gate | Status | Results/evidence recorded as of 2026-08-22 | Remaining work or completion blocker |
 | ---: | --- | --- | --- |
 | 0 | **Complete** | Baseline frozen; CloudFormation/Canada Region/account/recovery/retention/crypto/staging decisions accepted; threat, cost, and deletion controls recorded; AWS CLI/PowerShell installed; read-only STS preflight passed and rejected wrong account/Region/production; 77 tests passed, 8 intentionally skipped, 0 failed; credential-pattern scan passed. See the Gate 0 baseline, decision record, control model, and validation report. | None. Staging/production remain intentionally deny-all and no AWS mutation is authorized. Existing local host finding `G0-F1` is assigned to Gate 1 before any AWS processor enablement. |
 | 1 | **Complete** | AWS production/unit/integration projects and pinned SDK v4 dependencies added; source-neutral host controls, routing, health, independent source options, singleton composition, and bounded failed-operation deferral implemented. `G0-F1` is closed by a restart/noise regression test. Full solution builds with 0 warnings/errors and local regression tests pass. See Gate 1 validation report. | None. AWS admission remains disabled until Gate 8. |
 | 2 | **Complete** | Canonical JSON, v1/v2 manifest validation, and chain planning moved to shared application policy; local adapter delegates to it. A golden fingerprint locks all 120 DatabaseBackup actor-contract MessagePack shapes; canonical, duplicate/unknown JSON, lineage, cycle, time, and schema tests pass. See Gate 2 validation report. | None. Persisted and wire schemas are unchanged. |
 | 3 | **Complete** | Safe credential-free options, strict environment/account/Region/ARN/bucket validation, default SDK credential chain, temporary-session enforcement, singleton clients, bounded timeouts/retries, STS preflight, safe identity observation, failure classification, redaction tests, and source-specific degraded health implemented. Explicit live .NET STS test passed. See Gate 3 validation report. | None for Gate 3. Staging/production remain deny-all. |
-| 4 | **Implementation complete; deployment pending** | Four CloudFormation templates implement workload, primary vault, recovery vault, and immutable audit controls; `cfn-lint 1.55.1` and custom policy-as-code pass with no findings; change-set and safe-output tooling is fail-closed. Read-only STS passed. No AWS resources changed. See Gate 4 validation report. | Independent security/operations plan approval, development CloudFormation permissions, mutation allowlist, reviewed change sets, deployment/drift proof, negative live IAM tests, and disposable Object Lock/encryption/replication/audit test are required to close the gate. |
-| 5 | **Not started** | SQLite journal and seven logical record families provide the contract baseline. | Implement and qualify DynamoDB transactions, conditions, leases/fencing, recovery, fault handling, and PITR. |
-| 6 | **Not started** | Local immutable publication/catalog semantics and AWS object/evidence schemas are documented. | Implement S3 upload/publication/catalog/rebuild, exact version handling, checksums, Object Lock, multipart recovery, and corruption tests. |
-| 7 | **Not started** | Required asymmetric KMS signing model and offline trust-bundle behavior are documented. | Implement canonical signing/verification, public trust bundle, key rollover, negative tests, and recovery verification. |
-| 8 | **Not started** | Existing processor registry and application capability ports are available; AWS adapter class responsibilities are specified. | Implement AWS processor, engine selector, state machine, outbox/reconciliation behavior, health isolation, and restart/fault tests. |
-| 9 | **Not started** | Local PostgreSQL 17 full/incremental capability, lineage rules, and chain policy form the native baseline. | Integrate AWS publication, continuous WAL, gaps/timelines/spooling, replication observations, load/failure tests, and eligibility rules. |
-| 10 | **Not started** | Fresh-target, dependency-complete, `pg_combinebackup`, and PITR requirements are specified. | Implement and qualify full/incremental/PITR restores from both vaults with native/application validation and measured RPO/RTO. |
+| 4 | **Complete** | Four approved Development stacks are deployed across `ca-central-1`/`ca-west-1` and `IN_SYNC`; safe outputs are captured; nine live negative IAM checks passed; a retained canary proved versioning, SHA-256, independent regional KMS encryption, Governance Object Lock, replication, and immutable CloudTrail evidence. See the Gate 4 validation, approval, outputs, and machine-readable qualification evidence. | None. Canary retention expires no earlier than 2026-09-26; do not bypass it. Staging and Production remain deny-all. |
+| 5 | **Implemented; qualification pending** | DynamoDB implements all journal record families, transactional admission/outbox, inbox idempotency, conditional state versions, leases/fencing, checkpoints, work-queue GSI resolution through consistent reads, and multipart checkpoints. The Development workload stack is `UPDATE_COMPLETE` and `IN_SYNC`. | Run the live journal concurrency/restart/PITR restore-to-new-table qualification after attaching the bounded Development qualification policy. |
+| 6 | **Implemented; qualification pending** | S3 immutable publication implements generated keys, single/multipart upload and resume, bounded buffers, SHA-256/S3 checksums, SSE-KMS context, Object Lock, exact version IDs, read-back, ordered signed evidence, catalog enumeration/rebuild, and stale-upload reconciliation. | Run live boundary, interruption, replication, corruption, catalog-rebuild, and denied-mutation qualification against both Development vaults. |
+| 7 | **Implemented; qualification pending** | KMS document signing/verification, explicit ECDSA-SHA-256 envelopes, public trust bundles, validity/fingerprint checks, and offline verification are implemented; golden/tamper unit tests pass. | Run live KMS sign/verify, offline recovery, disabled/untrusted/wrong-Region, and rollover qualification. |
+| 8 | **Implemented; qualification pending** | The AWS processor uses the shared durable state machine and engine selector. Its independent host loop journals admission/execution/outbox work and isolates AWS degradation from the host and local processor. Full dependency-injection composition is tested. | Run live restart, ambiguity, cancellation, duplicate/reorder, reconciliation, and health-isolation qualification. |
+| 9 | **Implemented; qualification pending** | PostgreSQL publication carries WAL continuity; deterministic signed WAL records, identity/timeline validation, gap/lag detection, primary/recovery vault support, and a bounded non-dropping spool are implemented. | Run PostgreSQL native-tool qualification: one full plus six incrementals, concurrent WAL, failover/restart/slow-S3 cases, and measured recovery-replica lag. |
+| 10 | **Implemented; qualification pending** | Restore selection supports primary/recovery vaults, exact-version dependency staging, artifact/hash/length/signature validation, WAL staging through a UTC target, `restore_command`, `recovery_target_time`, `recovery.signal`, and the existing `pg_combinebackup` path. | Run isolated full/incremental/PITR restores from both vaults, negative cases, application validation, and record measured RPO/RTO. |
 | 11 | **Not started** | Local Scylla Manager capability and logically complete deduplicated-snapshot semantics form the baseline. | Implement protection-set capture, AWS publication, Manager/topology evidence, reconciliation, and partial-failure tests. |
 | 12 | **Not started** | Fresh-cluster restore and validation requirements are specified. | Restore complete Scylla protection sets from both vaults; pass corruption/topology/KMS/recovery-only tests and measure RPO/RTO. |
 | 13 | **Not started** | Cross-account/cross-Region replication and exact-version qualification rules are documented. | Correlate/verify destination versions and pass recovery-only catalog rebuild plus PostgreSQL and Scylla restores with primary access blocked. |
@@ -422,10 +422,10 @@ capabilities are baseline prerequisites and do not by themselves complete an AWS
 | 17 | **Not started** | Staging topology, soak, game-day, ownership, and readiness criteria are documented. | Deploy production-shaped staging, complete soak/recovery game days, close findings, and obtain readiness approvals. |
 | 18 | **Not started** | Controlled rollout, overlap, canary, production-derived drill, and acceptance criteria are documented. | Obtain production authorization, roll out gradually, complete recovery-vault drills, prove RPO/RTO, and obtain final acceptance. |
 
-**Current overall result:** Gates 0 through 3 are complete. Gate 4 code and infrastructure definitions are ready for
-independent review, but Gate 4 is not complete until its approved development deployment, drift check, live negative
-policy tests, and disposable immutable-replication test pass. Development identity remains read-only; staging and
-production have empty account allowlists and all AWS mutation remains denied.
+**Current overall result:** Gates 0 through 4 are complete. Gates 5 through 10 are code-complete but remain deliberately
+open until their live AWS and PostgreSQL qualification evidence is recorded. The post-Gate-5 Development workload stack
+is `UPDATE_COMPLETE` and `IN_SYNC` with zero drifted resources. See
+`AWS-Cloud-Backup-Restore-Gates-5-10-Validation-Report.md`. Staging and Production remain empty-account deny-all.
 
 ### Gate 0 - Baseline, decisions, and authorization boundary
 
@@ -525,8 +525,8 @@ production have empty account allowlists and all AWS mutation remains denied.
 
 ### Gate 4 - Reviewed infrastructure as code in development
 
-**Implementation result:** Repository implementation complete on 2026-08-21; deployment qualification pending.
-Evidence and the exact approval/IAM blockers are recorded in
+**Implementation result:** Complete on 2026-08-22. Development deployment, clean drift, safe output capture, live
+negative IAM tests, and immutable canary qualification passed under `IFM-GATE4-20260822`. Evidence is recorded in
 `AWS-Cloud-Backup-Restore-Gate-4-Validation-Report.md`.
 
 **Steps**
@@ -548,7 +548,8 @@ Evidence and the exact approval/IAM blockers are recorded in
 
 **Exit evidence**
 
-- Change set/plan has independent security and operations approval before deployment.
+- Change set/plan has the approval required for the environment. A sole-owner exception may satisfy Development only
+  when recorded with bounded scope and compensating controls; later environments retain independent approval.
 - Development deployment is idempotent and drift detection is clean.
 - Negative policy tests prove the normal workload role cannot delete versions, bypass retention, administer keys,
   modify replication, or access the recovery vault.
@@ -1030,3 +1031,5 @@ Gate 0 implementation evidence:
 | 0.2 | 2026-08-21 | Added the implementation status dashboard, current result/blocker for every gate, readiness boundary, and verified AWS SDK v4 NuGet package snapshot. |
 | 0.3 | 2026-08-21 | Completed Gate 0: froze the baseline, accepted the ADR/control set, installed and verified AWS operator tools, added and qualified the fail-closed STS preflight, passed the shared/native regression baseline, and retained deny-all staging/production plus no-mutation policy. |
 | 0.4 | 2026-08-21 | Completed Gates 1-3 and the repository-side Gate 4 implementation: added source-neutral/AWS composition, shared compatibility policy, safe identity/client lifecycle, tested CloudFormation/policy controls, benchmarks, validation evidence, and retained the mandatory no-mutation approval boundary. |
+| 0.5 | 2026-08-22 | Recorded the sole-owner Development approval exception, enabled and live-validated `ca-west-1`, prepared bounded CloudFormation execution/deployer policies and deterministic inputs, hardened deployment ordering and log/inventory delivery policies, and retained the fail-closed mutation boundary. |
+| 0.6 | 2026-08-22 | Completed Gate 4: deployed four Development stacks, separated AWS Config delivery from immutable CloudTrail retention, proved clean drift and bounded IAM denies, captured safe outputs, and qualified a retained KMS-encrypted cross-Region canary with immutable audit evidence. |

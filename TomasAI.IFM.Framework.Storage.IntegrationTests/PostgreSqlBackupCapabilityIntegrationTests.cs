@@ -78,6 +78,45 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Gate10Integration")]
+    public async Task Point_in_time_restore_writes_bounded_recovery_configuration_before_native_start()
+    {
+        var options = Options();
+        var native = new DeterministicPostgreSqlNativeRunner();
+        var capability = new PostgreSqlBackupCapability(
+            options, native, new SyntheticPostgreSqlTargetValidator("synthetic-gate10-pitr-row"));
+        var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        await capability.ValidateAsync(CancellationToken.None);
+        var boundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(backupOperation, new DatabaseProtectionSetId("core-postgresql")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(backupOperation, boundary.SafeBoundaryReference), CancellationToken.None);
+        var walRoot = Path.Combine(_root, "wal-restore");
+        Directory.CreateDirectory(walRoot);
+        const string segment = "000000010000000000000001";
+        await File.WriteAllBytesAsync(Path.Combine(walRoot, segment), new byte[16]);
+        var targetUtc = new DateTimeOffset(2026, 8, 22, 18, 30, 0, TimeSpan.Zero);
+        var restoreOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+
+        var restored = await capability.RestoreToFreshTargetAsync(
+            new PostgreSqlRestoreRequest(
+                restoreOperation,
+                new DatabaseRestorePointId(backupOperation.Format()),
+                new DatabaseFreshTargetDescriptor("disposable-validation", "gate6", targetUtc),
+                Recovery: new PostgreSqlPreparedRecovery(targetUtc, "00000001", walRoot, [segment])),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+
+        restored.Succeeded.Should().BeTrue();
+        var targetData = Path.Combine(options.ResolveRestoreRoot(), "disposable-validation", "gate6",
+            restoreOperation.Format(), "data");
+        File.Exists(Path.Combine(targetData, "recovery.signal")).Should().BeTrue();
+        var settings = await File.ReadAllTextAsync(Path.Combine(targetData, "postgresql.auto.conf"));
+        settings.Should().Contain("recovery_target_time").And.Contain(targetUtc.UtcDateTime.ToString("O"));
+        settings.Should().Contain("restore_command").And.Contain(walRoot.Replace('\\', '/'));
+    }
+
+    [Fact]
     [Trait("Category", "Gate6Integration")]
     public async Task Native_verification_rejects_a_tampered_base_backup_before_publication()
     {

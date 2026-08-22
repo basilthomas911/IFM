@@ -5,7 +5,7 @@
     "Development": {
       "accountIds": [ "107651266250" ],
       "regions": [ "ca-central-1", "ca-west-1" ],
-      "awsMutationAuthorized": false
+      "awsMutationAuthorized": true
     },
     "Staging": {
       "accountIds": [],

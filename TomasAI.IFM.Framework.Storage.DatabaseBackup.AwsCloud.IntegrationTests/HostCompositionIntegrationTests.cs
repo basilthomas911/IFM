@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Api.DatabaseBackup.Host;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Processing;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.IntegrationTests;
 
@@ -32,6 +33,25 @@ public sealed class HostCompositionIntegrationTests
 
         services.Where(descriptor => descriptor.ServiceType == typeof(IDatabaseRecoveryProcessor)).Should().HaveCount(2);
         services.Where(descriptor => descriptor.ServiceType == typeof(IAmazonS3)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Complete_aws_runtime_graph_resolves_without_replacing_local_journal_or_processor()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(ValidAwsConfiguration()).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDatabaseBackupHost(configuration);
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions
+        {
+            ValidateOnBuild = true,
+            ValidateScopes = true
+        });
+
+        provider.GetRequiredService<AwsCloudDatabaseRecoveryProcessor>().Source.Should().Be(BackupSource.AwsCloud);
+        provider.GetRequiredService<IEnumerable<IDatabaseRecoveryProcessor>>()
+            .Select(static processor => processor.Source).Should().BeEquivalentTo(
+                [BackupSource.LocalWorkstation, BackupSource.AwsCloud]);
     }
 
     [Fact]

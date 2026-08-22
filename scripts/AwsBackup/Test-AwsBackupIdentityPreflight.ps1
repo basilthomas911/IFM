@@ -6,8 +6,8 @@ $preflight = Join-Path $PSScriptRoot 'Invoke-AwsBackupIdentityPreflight.ps1'
 $wrongAccountPolicy = Join-Path $PSScriptRoot 'test-fixtures\gate0-wrong-account-allowlist.json'
 
 $positive = & $preflight -Environment Development -Region ca-central-1
-if ($positive.Result -ne 'Approved' -or $positive.AwsMutationAuthorized) {
-    throw 'The approved development identity preflight did not return the expected read-only result.'
+if ($positive.Result -ne 'Approved' -or -not $positive.AwsMutationAuthorized) {
+    throw 'The approved development identity preflight did not return the expected Gate 4 mutation authorization.'
 }
 
 $wrongAccountRejected = $false

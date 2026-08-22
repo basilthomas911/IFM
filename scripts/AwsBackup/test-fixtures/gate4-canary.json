@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "purpose": "IFM AWS backup Gate 4 disposable qualification canary",
+  "environment": "Development",
+  "approvalReference": "IFM-GATE4-20260822",
+  "containsProductionData": false
+}

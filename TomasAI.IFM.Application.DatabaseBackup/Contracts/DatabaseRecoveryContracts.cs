@@ -43,6 +43,12 @@ public interface IDatabaseRecoveryProcessorRouting
     bool CanProcess(DatabaseProtectionSetId protectionSetId);
 }
 
+public interface IDatabaseRecoveryEngineSelector
+{
+    DatabaseEngine Select(DatabaseProtectionSetId protectionSetId);
+    bool CanSelect(DatabaseProtectionSetId protectionSetId);
+}
+
 public interface IDatabaseRecoveryProcessorRegistry
 {
     IDatabaseRecoveryProcessor GetRequired(BackupSource source);

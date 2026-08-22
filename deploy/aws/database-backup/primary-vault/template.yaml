@@ -4,11 +4,14 @@ Parameters:
   EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
   WorkloadAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
   PrimaryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  PrimaryAuditBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
   RecoveryBucketArn: { Type: String, AllowedPattern: '^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
   RecoveryAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
   RecoveryEncryptionKeyArn: { Type: String, AllowedPattern: '^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/.+$' }
   RetentionDays: { Type: Number, Default: 35, MinValue: 35 }
   ObjectLockMode: { Type: String, AllowedValues: [GOVERNANCE, COMPLIANCE], Default: GOVERNANCE }
+Conditions:
+  IsCrossAccountReplication: !Not [!Equals [!Ref RecoveryAccountId, !Ref 'AWS::AccountId']]
 Resources:
   PrimaryKey:
     Type: AWS::KMS::Key
@@ -42,10 +45,40 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      BucketName: !Ref PrimaryAuditBucketName
       BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
       OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
       PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
       VersioningConfiguration: { Status: Enabled }
+  PrimaryAuditBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PrimaryAuditBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PermitServerAccessLogs
+            Effect: Allow
+            Principal: { Service: logging.s3.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub '${PrimaryAuditBucket.Arn}/access/*'
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::${PrimaryBucketName}' }
+          - Sid: PermitInventoryDelivery
+            Effect: Allow
+            Principal: { Service: s3.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub '${PrimaryAuditBucket.Arn}/inventory/*'
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId', 's3:x-amz-acl': bucket-owner-full-control }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:s3:::${PrimaryBucketName}' }
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt PrimaryAuditBucket.Arn, !Sub '${PrimaryAuditBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
   ReplicationRole:
     Type: AWS::IAM::Role
     Properties:
@@ -72,6 +105,7 @@ Resources:
                 Resource: !Ref RecoveryEncryptionKeyArn
   PrimaryBucket:
     Type: AWS::S3::Bucket
+    DependsOn: PrimaryAuditBucketPolicy
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -104,8 +138,8 @@ Resources:
             SourceSelectionCriteria: { SseKmsEncryptedObjects: { Status: Enabled } }
             Destination:
               Bucket: !Ref RecoveryBucketArn
-              Account: !Ref RecoveryAccountId
-              AccessControlTranslation: { Owner: Destination }
+              Account: !If [IsCrossAccountReplication, !Ref RecoveryAccountId, !Ref 'AWS::NoValue']
+              AccessControlTranslation: !If [IsCrossAccountReplication, { Owner: Destination }, !Ref 'AWS::NoValue']
               EncryptionConfiguration: { ReplicaKmsKeyID: !Ref RecoveryEncryptionKeyArn }
               Metrics: { EventThreshold: { Minutes: 15 }, Status: Enabled }
               ReplicationTime: { Status: Enabled, Time: { Minutes: 15 } }
@@ -136,6 +170,7 @@ Resources:
   ReplicationFailureAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
+      AlarmName: !Sub ifm-database-backup-replication-failure-${EnvironmentName}
       AlarmDescription: IFM backup replication operations failed
       Namespace: AWS/S3
       MetricName: OperationsFailedReplication
@@ -149,5 +184,6 @@ Resources:
 Outputs:
   PrimaryBucketArn: { Value: !GetAtt PrimaryBucket.Arn }
   PrimaryBucketName: { Value: !Ref PrimaryBucket }
+  PrimaryAuditBucketName: { Value: !Ref PrimaryAuditBucket }
   PrimaryEncryptionKeyArn: { Value: !GetAtt PrimaryKey.Arn }
   ReplicationRoleArn: { Value: !GetAtt ReplicationRole.Arn }

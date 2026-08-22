@@ -69,6 +69,11 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         services.AddSingleton(publicationOptions);
         services.AddSingleton(publicationOptions.Manifest);
         services.AddAwsCloudDatabaseBackup(awsOptions);
+        if (awsOptions.Enabled)
+        {
+            services.AddSingleton<IDatabaseNativeArtifactSource, LocalDatabaseNativeArtifactSource>();
+            services.AddSingleton<IDatabaseNativeRestoreArtifactSink, LocalDatabaseNativeRestoreArtifactSink>();
+        }
         services.AddSingleton<INatsJetStreamEventListenerOptions>(listenerOptions);
         services.AddSingleton<INatsJetStreamProducerOptions>(producerOptions);
         services.AddSingleton<NatsConnectionManager>();
@@ -180,6 +185,11 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupStartupReconciliationService>());
         services.AddSingleton<DatabaseBackupExecutionDispatcher>();
         services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupExecutionDispatcher>());
+        if (awsOptions.Enabled)
+        {
+            services.AddSingleton<AwsDatabaseBackupRuntimeService>();
+            services.AddHostedService(static provider => provider.GetRequiredService<AwsDatabaseBackupRuntimeService>());
+        }
         services.AddSingleton<DatabaseBackupInboundListener>();
         services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupInboundListener>());
 

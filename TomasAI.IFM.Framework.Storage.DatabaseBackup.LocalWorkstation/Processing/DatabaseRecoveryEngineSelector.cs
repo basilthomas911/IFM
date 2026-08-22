@@ -1,13 +1,8 @@
+using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
-
-public interface IDatabaseRecoveryEngineSelector
-{
-    DatabaseEngine Select(DatabaseProtectionSetId protectionSetId);
-    bool CanSelect(DatabaseProtectionSetId protectionSetId);
-}
 
 public sealed class LocalWorkstationDatabaseRecoveryEngineSelector : IDatabaseRecoveryEngineSelector
 {

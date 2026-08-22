@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "gate": 4,
+  "environment": "Development",
+  "accountId": "107651266250",
+  "approvalReference": "IFM-GATE4-20260822",
+  "completedAtUtc": "2026-08-22T18:08:47.7069624Z",
+  "result": "Passed",
+  "stackQualification": {
+    "allFourStacksTerminal": true,
+    "allFourStacksInSync": true,
+    "outputsFile": "deployed-stack-outputs.json"
+  },
+  "negativeIam": [
+    { "role": "ifm-database-backup-upload-development", "action": "s3:DeleteObjectVersion", "decision": "implicitDeny" },
+    { "role": "ifm-database-backup-upload-development", "action": "s3:BypassGovernanceRetention", "decision": "implicitDeny" },
+    { "role": "ifm-database-backup-upload-development", "action": "kms:ScheduleKeyDeletion", "decision": "implicitDeny" },
+    { "role": "ifm-database-backup-upload-development", "action": "s3:PutReplicationConfiguration", "decision": "implicitDeny" },
+    { "role": "ifm-database-backup-upload-development", "action": "s3:GetObject on recovery vault", "decision": "implicitDeny" },
+    { "role": "ifm-database-backup-retention-execution-development", "action": "s3:BypassGovernanceRetention", "decision": "explicitDeny" },
+    { "role": "ifm-database-backup-retention-execution-development", "action": "s3:PutReplicationConfiguration", "decision": "explicitDeny" },
+    { "role": "ifm-database-backup-retention-execution-development", "action": "kms:ScheduleKeyDeletion", "decision": "implicitDeny" },
+    { "role": "ifm-database-backup-retention-execution-development", "action": "s3:GetObject on recovery vault", "decision": "implicitDeny" }
+  ],
+  "canary": {
+    "key": "v1/environment/development/gate4/canary/20260822T180312800Z/gate4-canary.json",
+    "sourceBucket": "ifm-db-backup-development-primary-107651266250",
+    "destinationBucket": "ifm-db-backup-development-recovery-107651266250",
+    "sourceVersionId": "IsntMAVSrMbB7QGV5.hMiNMv.IwKwt8l",
+    "destinationVersionId": "IsntMAVSrMbB7QGV5.hMiNMv.IwKwt8l",
+    "sha256Hex": "90ae604f63235cc96046e84a53cee01807766ae944d8359774d0aef3342f561a",
+    "sha256Base64": "kK5gT2MjXMlgRuhKU87gGAd2aulE2DWXdNCu8zQvVho=",
+    "sizeBytes": 207,
+    "sourceKmsKeyArn": "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df",
+    "destinationKmsKeyArn": "arn:aws:kms:ca-west-1:107651266250:key/4277d9a7-5182-4299-a61a-19ca0c5cf404",
+    "sourceReplicationStatus": "COMPLETED",
+    "destinationReplicationStatus": "REPLICA",
+    "objectLockMode": "GOVERNANCE",
+    "retainUntilUtc": "2026-09-26T18:03:14.698000+00:00"
+  },
+  "auditEvidence": {
+    "eventTimeUtc": "2026-08-22T18:03:14Z",
+    "eventId": "0a34a39d-2ea2-4770-b00b-2d37006d1be0",
+    "eventSource": "s3.amazonaws.com",
+    "eventName": "PutObject",
+    "awsRegion": "ca-central-1",
+    "httpStatusCode": 200,
+    "signatureVersion": "SigV4",
+    "sseApplied": "SSE_KMS",
+    "versionId": "IsntMAVSrMbB7QGV5.hMiNMv.IwKwt8l"
+  }
+}

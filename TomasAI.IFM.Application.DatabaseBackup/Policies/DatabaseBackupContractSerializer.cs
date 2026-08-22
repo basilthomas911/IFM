@@ -3,9 +3,9 @@ using System.Text;
 using MessagePack;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 
-namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Journal;
+namespace TomasAI.IFM.Application.DatabaseBackup.Policies;
 
-internal static class DatabaseBackupContractSerializer
+public static class DatabaseBackupContractSerializer
 {
     static readonly IReadOnlyDictionary<string, Type> EventTypes = typeof(DatabaseBackupEventContract).Assembly
         .GetTypes()

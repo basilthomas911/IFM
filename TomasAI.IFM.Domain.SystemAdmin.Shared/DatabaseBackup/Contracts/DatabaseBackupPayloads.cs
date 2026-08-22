@@ -6,7 +6,11 @@ namespace TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 public sealed record DatabaseLogicalDestination([property: Key(0)] string Name, [property: Key(1)] bool Required);
 
 [MessagePackObject]
-public sealed record DatabaseFreshTargetDescriptor([property: Key(0)] string Profile, [property: Key(1)] string LogicalTarget);
+public sealed record DatabaseFreshTargetDescriptor(
+    [property: Key(0)] string Profile,
+    [property: Key(1)] string LogicalTarget,
+    [property: Key(2)] DateTimeOffset? RecoveryTargetUtc = null,
+    [property: Key(3)] DatabaseArtifactReplicaId? PreferredReplicaId = null);
 
 [MessagePackObject]
 public sealed record DatabaseRecoveryObjectives([property: Key(0)] TimeSpan RecoveryPointObjective, [property: Key(1)] TimeSpan RecoveryTimeObjective);

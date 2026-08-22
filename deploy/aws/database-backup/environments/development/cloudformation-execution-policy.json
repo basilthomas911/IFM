@@ -1,0 +1,250 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateTaggedBackupKeys",
+      "Effect": "Allow",
+      "Action": [
+        "kms:CreateKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": [
+            "ca-central-1",
+            "ca-west-1"
+          ],
+          "aws:RequestTag/Application": "IFM",
+          "aws:RequestTag/Component": "DatabaseBackup",
+          "aws:RequestTag/Environment": "development"
+        }
+      }
+    },
+    {
+      "Sid": "ManageTaggedBackupKeys",
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:EnableKeyRotation",
+        "kms:GetKeyPolicy",
+        "kms:GetKeyRotationStatus",
+        "kms:ListResourceTags",
+        "kms:PutKeyPolicy",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:UpdateKeyDescription"
+      ],
+      "Resource": [
+        "arn:aws:kms:ca-central-1:107651266250:key/*",
+        "arn:aws:kms:ca-west-1:107651266250:key/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Application": "IFM",
+          "aws:ResourceTag/Component": "DatabaseBackup",
+          "aws:ResourceTag/Environment": "development"
+        }
+      }
+    },
+    {
+      "Sid": "ManageBackupKeyAliases",
+      "Effect": "Allow",
+      "Action": [
+        "kms:CreateAlias",
+        "kms:DeleteAlias",
+        "kms:UpdateAlias"
+      ],
+      "Resource": [
+        "arn:aws:kms:ca-central-1:107651266250:alias/ifm/database-backup/development/*",
+        "arn:aws:kms:ca-central-1:107651266250:key/*",
+        "arn:aws:kms:ca-west-1:107651266250:alias/ifm/database-backup/development/*",
+        "arn:aws:kms:ca-west-1:107651266250:key/*"
+      ]
+    },
+    {
+      "Sid": "ManageDevelopmentBackupBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:DeleteBucketPolicy",
+        "s3:GetBucketAcl",
+        "s3:GetBucketLocation",
+        "s3:GetBucketLogging",
+        "s3:GetBucketObjectLockConfiguration",
+        "s3:GetBucketOwnershipControls",
+        "s3:GetBucketPolicy",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:GetBucketTagging",
+        "s3:GetBucketVersioning",
+        "s3:GetEncryptionConfiguration",
+        "s3:GetInventoryConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:GetReplicationConfiguration",
+        "s3:ListBucket",
+        "s3:PutBucketLogging",
+        "s3:PutBucketObjectLockConfiguration",
+        "s3:PutBucketOwnershipControls",
+        "s3:PutBucketPolicy",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutBucketTagging",
+        "s3:PutBucketVersioning",
+        "s3:PutEncryptionConfiguration",
+        "s3:PutInventoryConfiguration",
+        "s3:PutLifecycleConfiguration",
+        "s3:PutReplicationConfiguration"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/*",
+        "arn:aws:s3:::ifm-db-backup-development-primary-audit-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-primary-audit-107651266250/*",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250/*",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-audit-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-audit-107651266250/*",
+        "arn:aws:s3:::ifm-db-backup-development-audit-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-audit-107651266250/*",
+        "arn:aws:s3:::ifm-db-backup-development-config-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-config-107651266250/*"
+      ]
+    },
+    {
+      "Sid": "ManageDevelopmentBackupRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:DeleteRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:PutRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:UpdateRole"
+      ],
+      "Resource": "arn:aws:iam::107651266250:role/ifm-database-backup-*-development"
+    },
+    {
+      "Sid": "PassBackupServiceRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::107651266250:role/ifm-database-backup-*-development",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "config.amazonaws.com",
+            "s3.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ManageDevelopmentJournal",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable",
+        "dynamodb:DeleteTable",
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:ListTagsOfResource",
+        "dynamodb:TagResource",
+        "dynamodb:UntagResource",
+        "dynamodb:UpdateContinuousBackups",
+        "dynamodb:UpdateTable"
+      ],
+      "Resource": "arn:aws:dynamodb:ca-central-1:107651266250:table/ifm-database-backup-journal-development"
+    },
+    {
+      "Sid": "ManageDevelopmentAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DeleteAlarms",
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:ListTagsForResource",
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:TagResource",
+        "cloudwatch:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-journal-throttling-development",
+        "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-replication-failure-development"
+      ]
+    },
+    {
+      "Sid": "ManageDevelopmentBudget",
+      "Effect": "Allow",
+      "Action": [
+        "budgets:ListTagsForResource",
+        "budgets:ModifyBudget",
+        "budgets:TagResource",
+        "budgets:UntagResource",
+        "budgets:ViewBudget"
+      ],
+      "Resource": "arn:aws:budgets::107651266250:budget/ifm-database-backup-development"
+    },
+    {
+      "Sid": "PermitRequiredBillingApiForDevelopmentBudget",
+      "Effect": "Allow",
+      "Action": [
+        "aws-portal:ModifyBilling",
+        "aws-portal:ViewBilling",
+        "billing:GetBillingViewData"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageDevelopmentAuditTrail",
+      "Effect": "Allow",
+      "Action": [
+        "cloudtrail:AddTags",
+        "cloudtrail:CreateTrail",
+        "cloudtrail:DeleteTrail",
+        "cloudtrail:GetEventSelectors",
+        "cloudtrail:GetTrail",
+        "cloudtrail:GetTrailStatus",
+        "cloudtrail:ListTags",
+        "cloudtrail:PutEventSelectors",
+        "cloudtrail:RemoveTags",
+        "cloudtrail:StartLogging",
+        "cloudtrail:StopLogging",
+        "cloudtrail:UpdateTrail"
+      ],
+      "Resource": "arn:aws:cloudtrail:ca-central-1:107651266250:trail/ifm-database-backup-development"
+    },
+    {
+      "Sid": "ManageDevelopmentConfig",
+      "Effect": "Allow",
+      "Action": [
+        "config:DeleteConfigRule",
+        "config:DeleteConfigurationRecorder",
+        "config:DeleteDeliveryChannel",
+        "config:DescribeComplianceByConfigRule",
+        "config:DescribeConfigRules",
+        "config:DescribeConfigurationRecorders",
+        "config:DescribeConfigurationRecorderStatus",
+        "config:DescribeDeliveryChannels",
+        "config:DescribeDeliveryChannelStatus",
+        "config:PutConfigRule",
+        "config:PutConfigurationRecorder",
+        "config:PutDeliveryChannel",
+        "config:StartConfigurationRecorder",
+        "config:StopConfigurationRecorder",
+        "config:TagResource",
+        "config:UntagResource"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "ca-central-1"
+        }
+      }
+    }
+  ]
+}

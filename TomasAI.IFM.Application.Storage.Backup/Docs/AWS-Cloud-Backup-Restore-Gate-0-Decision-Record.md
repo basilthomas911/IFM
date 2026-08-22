@@ -63,6 +63,11 @@ requires a reviewed change with the named environment approvers.
 | Production cutover | Separate application/business approval after `ReadyForCutover` |
 | Legal-hold removal or retained-version deletion | Legal/security owner plus independent operations executor |
 
+For a sole-owner company, Development resource creation may use a documented owner self-approval exception when an
+independent reviewer does not exist. The exception must identify the exact account, Regions, stack prefix, templates,
+budget, and approval reference, retain separate change-set review/execution steps, and preserve all technical controls.
+It never extends to staging, production, legal-hold removal, retained-version deletion, production restore, or cutover.
+
 ## 4. ADR-003: Recovery objectives
 
 These are engineering design targets, not demonstrated promises. Gates 10, 12, 13, 17, and 18 must replace target

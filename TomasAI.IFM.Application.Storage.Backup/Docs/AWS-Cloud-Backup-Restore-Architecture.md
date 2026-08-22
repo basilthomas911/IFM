@@ -1835,6 +1835,7 @@ because it would fork contract and lineage behavior.
 - [AWS Gate 2 validation report](AWS-Cloud-Backup-Restore-Gate-2-Validation-Report.md)
 - [AWS Gate 3 validation report](AWS-Cloud-Backup-Restore-Gate-3-Validation-Report.md)
 - [AWS Gate 4 validation report](AWS-Cloud-Backup-Restore-Gate-4-Validation-Report.md)
+- [AWS Gate 4 development approval](AWS-Cloud-Backup-Restore-Gate-4-Development-Approval.md)
 - [Local workstation code implementation specification](Local-Workstation-Backup-Restore-Code-Implementation-Specification.md)
 - [Local workstation incremental validation report](Local-Workstation-Backup-Restore-Incremental-Validation-Report.md)
 - [IFM Aspire migration overview](../../Documents/system/Aspire%20migration%20overview.md)

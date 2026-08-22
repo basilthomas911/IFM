@@ -1,0 +1,188 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ValidateGate4Templates",
+      "Effect": "Allow",
+      "Action": "cloudformation:ValidateTemplate",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": [
+            "ca-central-1",
+            "ca-west-1"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "CreateGate4ChangeSetsWithApprovedRole",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:ca-central-1:107651266250:stack/ifm-database-backup-development-*/*",
+        "arn:aws:cloudformation:ca-west-1:107651266250:stack/ifm-database-backup-development-*/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "cloudformation:RoleArn": "arn:aws:iam::107651266250:role/IFM-Gate4-CloudFormationExecutionRole",
+          "aws:RequestedRegion": [
+            "ca-central-1",
+            "ca-west-1"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReviewAndExecuteGate4ChangeSets",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResourceDrifts",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DetectStackDrift",
+        "cloudformation:DetectStackResourceDrift",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListChangeSets",
+        "cloudformation:ListStackResources"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:ca-central-1:107651266250:stack/ifm-database-backup-development-*/*",
+        "arn:aws:cloudformation:ca-west-1:107651266250:stack/ifm-database-backup-development-*/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": [
+            "ca-central-1",
+            "ca-west-1"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadGate4StackListsAndDrift",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStackDriftDetectionStatus",
+        "cloudformation:ListStacks"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": [
+            "ca-central-1",
+            "ca-west-1"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadApprovedExecutionRole",
+      "Effect": "Allow",
+      "Action": "iam:GetRole",
+      "Resource": "arn:aws:iam::107651266250:role/IFM-Gate4-CloudFormationExecutionRole"
+    },
+    {
+      "Sid": "PassOnlyGate4ExecutionRoleToCloudFormation",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::107651266250:role/IFM-Gate4-CloudFormationExecutionRole",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "SimulateDevelopmentRuntimeRoles",
+      "Effect": "Allow",
+      "Action": "iam:SimulatePrincipalPolicy",
+      "Resource": [
+        "arn:aws:iam::107651266250:role/ifm-database-backup-upload-development",
+        "arn:aws:iam::107651266250:role/ifm-database-backup-retention-execution-development"
+      ]
+    },
+    {
+      "Sid": "PublishDevelopmentGate4Canary",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectAttributes",
+        "s3:GetObjectRetention",
+        "s3:GetObjectVersion",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/gate4/canary/*"
+    },
+    {
+      "Sid": "InspectDevelopmentGate4CanaryReplica",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectAttributes",
+        "s3:GetObjectRetention",
+        "s3:GetObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250/v1/environment/development/gate4/canary/*"
+    },
+    {
+      "Sid": "ListDevelopmentGate4CanaryVersions",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:ListBucketVersions"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250"
+      ],
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "v1/environment/development/gate4/canary/*"
+        }
+      }
+    },
+    {
+      "Sid": "EncryptDevelopmentGate4Canary",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df"
+    },
+    {
+      "Sid": "ReadDevelopmentGate4AuditEvidence",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::ifm-db-backup-development-audit-107651266250",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "AWSLogs/107651266250/CloudTrail/*"
+        }
+      }
+    },
+    {
+      "Sid": "ReadDevelopmentGate4AuditObjects",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::ifm-db-backup-development-audit-107651266250/AWSLogs/107651266250/CloudTrail/*"
+    },
+    {
+      "Sid": "DecryptDevelopmentGate4AuditEvidence",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:ca-central-1:107651266250:key/96ec6835-4ca9-44c2-8ae8-ecd59b694d5c"
+    }
+  ]
+}

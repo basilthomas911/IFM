@@ -51,7 +51,8 @@ public sealed record DatabaseBackupPublicationRequest(
     DatabaseLogicalDestination[] RequiredDestinations,
     DatabaseRecoveryRunStatistics? Statistics = null,
     DatabaseRestorePointId[]? Dependencies = null,
-    DatabaseBackupLineage? BackupLineage = null);
+    DatabaseBackupLineage? BackupLineage = null,
+    PostgreSqlWalContinuityEvidence? PostgreSqlWalContinuity = null);
 
 public sealed record DatabaseBackupPublicationPreflightRequest(
     DatabaseProtectionSetId ProtectionSetId,
@@ -68,7 +69,8 @@ public sealed record DatabaseRestoreSourceRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseRestorePointId RestorePointId,
     DatabaseEngine Engine,
-    DatabaseArtifactReplicaId? PreferredReplicaId = null);
+    DatabaseArtifactReplicaId? PreferredReplicaId = null,
+    DateTimeOffset? PostgreSqlRecoveryTargetUtc = null);
 
 public sealed record DatabasePreparedRestoreSource(
     DatabaseRestorePointId NativeRestorePointId,
@@ -77,7 +79,8 @@ public sealed record DatabasePreparedRestoreSource(
     long ManifestRevision,
     long VerifiedBytes,
     int VerifiedArtifactCount,
-    DatabaseRestorePointId[] DependencyChain);
+    DatabaseRestorePointId[] DependencyChain,
+    PostgreSqlPreparedRecovery? PostgreSqlRecovery = null);
 
 public sealed record DatabaseBackupPlanningRequest(
     DatabaseRecoveryOperationId OperationId,

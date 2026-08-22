@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "environment": "Development",
+  "accountId": "107651266250",
+  "approvalReference": "IFM-GATE4-20260822",
+  "cloudFormationExecutionRoleArn": "arn:aws:iam::107651266250:role/IFM-Gate4-CloudFormationExecutionRole",
+  "primaryRegion": "ca-central-1",
+  "recoveryRegion": "ca-west-1",
+  "securityAuditPrincipalArn": "arn:aws:iam::107651266250:user/basil.thomas@live.ca",
+  "budgetNotificationEmail": "basil.thomas@live.ca",
+  "monthlyBudgetUsd": 70,
+  "retentionDays": 35,
+  "objectLockMode": "GOVERNANCE",
+  "stackNames": {
+    "recoveryVault": "ifm-database-backup-development-recovery-vault",
+    "primaryVault": "ifm-database-backup-development-primary-vault",
+    "workload": "ifm-database-backup-development-workload",
+    "audit": "ifm-database-backup-development-audit"
+  },
+  "resourceNames": {
+    "primaryBucket": "ifm-db-backup-development-primary-107651266250",
+    "primaryAuditBucket": "ifm-db-backup-development-primary-audit-107651266250",
+    "recoveryBucket": "ifm-db-backup-development-recovery-107651266250",
+    "recoveryAuditBucket": "ifm-db-backup-development-recovery-audit-107651266250",
+    "auditBucket": "ifm-db-backup-development-audit-107651266250",
+    "configBucket": "ifm-db-backup-development-config-107651266250",
+    "replicationRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-replication-development"
+  }
+}

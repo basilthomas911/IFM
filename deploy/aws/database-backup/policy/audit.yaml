@@ -4,7 +4,15 @@ Parameters:
   EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
   PrimaryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
   RecoveryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  AuditBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  ConfigBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  SecurityAuditPrincipalArn: { Type: String, AllowedPattern: '^arn:aws:iam::[0-9]{12}:(user|role)/.+$' }
   ObjectLockMode: { Type: String, AllowedValues: [GOVERNANCE, COMPLIANCE], Default: GOVERNANCE }
+Rules:
+  ConfigDeliveryBucketMustBeSeparate:
+    Assertions:
+      - Assert: !Not [!Equals [!Ref ConfigBucketName, !Ref AuditBucketName]]
+        AssertDescription: AWS Config does not support delivery to a bucket with default Object Lock retention.
 Resources:
   AuditKey:
     Type: AWS::KMS::Key
@@ -26,11 +34,33 @@ Resources:
             Action: [kms:DescribeKey, kms:GenerateDataKey]
             Resource: '*'
             Condition: { StringEquals: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/ifm-database-backup-${EnvironmentName}' } }
+          - Sid: AWSConfigKmsDelivery
+            Effect: Allow
+            Principal: { Service: [config.amazonaws.com] }
+            Action: [kms:Decrypt, kms:GenerateDataKey]
+            Resource: '*'
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:config:${AWS::Region}:${AWS::AccountId}:*' }
+          - Sid: AWSConfigRoleKmsDelivery
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [kms:Decrypt, kms:GenerateDataKey]
+            Resource: '*'
+            Condition:
+              ArnEquals: { 'aws:PrincipalArn': !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ifm-database-backup-config-${EnvironmentName}' }
+          - Sid: SecurityAuditRead
+            Effect: Allow
+            Principal: { AWS: !Ref SecurityAuditPrincipalArn }
+            Action: [kms:Decrypt, kms:DescribeKey]
+            Resource: '*'
+      Tags: [{ Key: Application, Value: IFM }, { Key: Component, Value: DatabaseBackup }, { Key: Environment, Value: !Ref EnvironmentName }]
   AuditBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      BucketName: !Ref AuditBucketName
       ObjectLockEnabled: true
       ObjectLockConfiguration: { ObjectLockEnabled: Enabled, Rule: { DefaultRetention: { Days: 365, Mode: !Ref ObjectLockMode } } }
       BucketEncryption: { ServerSideEncryptionConfiguration: [{ BucketKeyEnabled: true, ServerSideEncryptionByDefault: { SSEAlgorithm: aws:kms, KMSMasterKeyID: !GetAtt AuditKey.Arn } }] }
@@ -56,12 +86,34 @@ Resources:
             Action: s3:PutObject
             Resource: !Sub '${AuditBucket.Arn}/AWSLogs/${AWS::AccountId}/*'
             Condition: { StringEquals: { 's3:x-amz-acl': bucket-owner-full-control, 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/ifm-database-backup-${EnvironmentName}' } }
+          - Sid: SecurityAuditList
+            Effect: Allow
+            Principal: { AWS: !Ref SecurityAuditPrincipalArn }
+            Action: s3:ListBucket
+            Resource: !GetAtt AuditBucket.Arn
+            Condition: { StringLike: { 's3:prefix': !Sub 'AWSLogs/${AWS::AccountId}/CloudTrail/*' } }
+          - Sid: SecurityAuditRead
+            Effect: Allow
+            Principal: { AWS: !Ref SecurityAuditPrincipalArn }
+            Action: s3:GetObject
+            Resource: !Sub '${AuditBucket.Arn}/AWSLogs/${AWS::AccountId}/CloudTrail/*'
           - Sid: DenyInsecureTransport
             Effect: Deny
             Principal: '*'
             Action: s3:*
             Resource: [!GetAtt AuditBucket.Arn, !Sub '${AuditBucket.Arn}/*']
             Condition: { Bool: { 'aws:SecureTransport': false } }
+  ConfigBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref ConfigBucketName
+      BucketEncryption: { ServerSideEncryptionConfiguration: [{ BucketKeyEnabled: true, ServerSideEncryptionByDefault: { SSEAlgorithm: aws:kms, KMSMasterKeyID: !GetAtt AuditKey.Arn } }] }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      VersioningConfiguration: { Status: Enabled }
+      Tags: [{ Key: Application, Value: IFM }, { Key: Component, Value: DatabaseBackupConfig }, { Key: Environment, Value: !Ref EnvironmentName }]
   AuditTrail:
     Type: AWS::CloudTrail::Trail
     DependsOn: AuditBucketPolicy
@@ -82,6 +134,7 @@ Resources:
   ConfigRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub ifm-database-backup-config-${EnvironmentName}
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement: [{ Effect: Allow, Principal: { Service: [config.amazonaws.com] }, Action: [sts:AssumeRole], Condition: { StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' } } }]
@@ -93,19 +146,74 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: [s3:GetBucketAcl, s3:ListBucket]
-                Resource: !GetAtt AuditBucket.Arn
+                Resource: !GetAtt ConfigBucket.Arn
               - Effect: Allow
                 Action: [s3:PutObject]
-                Resource: !Sub '${AuditBucket.Arn}/AWSLogs/${AWS::AccountId}/Config/*'
+                Resource: !Sub '${ConfigBucket.Arn}/AWSLogs/${AWS::AccountId}/Config/*'
+              - Effect: Allow
+                Action: [kms:Decrypt, kms:GenerateDataKey]
+                Resource: !GetAtt AuditKey.Arn
+  ConfigBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ConfigBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSConfigBucketPermissionsCheck
+            Effect: Allow
+            Principal: { Service: config.amazonaws.com }
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt ConfigBucket.Arn
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:config:${AWS::Region}:${AWS::AccountId}:*' }
+          - Sid: AWSConfigBucketExistenceCheck
+            Effect: Allow
+            Principal: { Service: config.amazonaws.com }
+            Action: s3:ListBucket
+            Resource: !GetAtt ConfigBucket.Arn
+            Condition:
+              StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' }
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:config:${AWS::Region}:${AWS::AccountId}:*' }
+          - Sid: AWSConfigBucketDelivery
+            Effect: Allow
+            Principal: { Service: config.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub '${ConfigBucket.Arn}/AWSLogs/${AWS::AccountId}/Config/*'
+            Condition:
+              StringEquals:
+                'aws:SourceAccount': !Ref 'AWS::AccountId'
+                's3:x-amz-acl': bucket-owner-full-control
+              ArnLike: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:config:${AWS::Region}:${AWS::AccountId}:*' }
+          - Sid: AWSConfigRoleBucketCheck
+            Effect: Allow
+            Principal: { AWS: !GetAtt ConfigRole.Arn }
+            Action: [s3:GetBucketAcl, s3:ListBucket]
+            Resource: !GetAtt ConfigBucket.Arn
+          - Sid: AWSConfigRoleBucketDelivery
+            Effect: Allow
+            Principal: { AWS: !GetAtt ConfigRole.Arn }
+            Action: s3:PutObject
+            Resource: !Sub '${ConfigBucket.Arn}/AWSLogs/${AWS::AccountId}/Config/*'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt ConfigBucket.Arn, !Sub '${ConfigBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
   ConfigurationRecorder:
     Type: AWS::Config::ConfigurationRecorder
+    DependsOn: ConfigBucketPolicy
     Properties:
       RoleARN: !GetAtt ConfigRole.Arn
       RecordingGroup: { AllSupported: true, IncludeGlobalResourceTypes: true }
   ConfigurationDeliveryChannel:
     Type: AWS::Config::DeliveryChannel
+    DependsOn: ConfigBucketPolicy
     Properties:
-      S3BucketName: !Ref AuditBucket
+      S3BucketName: !Ref ConfigBucket
+      S3KmsKeyArn: !GetAtt AuditKey.Arn
   S3ObjectLockRule:
     Type: AWS::Config::ConfigRule
     DependsOn: ConfigurationRecorder
@@ -120,4 +228,7 @@ Resources:
       Source: { Owner: AWS, SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED }
 Outputs:
   AuditBucketArn: { Value: !GetAtt AuditBucket.Arn }
+  AuditBucketName: { Value: !Ref AuditBucket }
+  ConfigBucketArn: { Value: !GetAtt ConfigBucket.Arn }
+  ConfigBucketName: { Value: !Ref ConfigBucket }
   AuditTrailArn: { Value: !GetAtt AuditTrail.Arn }

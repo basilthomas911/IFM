@@ -39,7 +39,14 @@ public sealed record PostgreSqlRestoreRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseRestorePointId RestorePointId,
     DatabaseFreshTargetDescriptor FreshTarget,
-    DatabaseRestorePointId[]? DependencyChain = null);
+    DatabaseRestorePointId[]? DependencyChain = null,
+    PostgreSqlPreparedRecovery? Recovery = null);
+
+public sealed record PostgreSqlPreparedRecovery(
+    DateTimeOffset TargetUtc,
+    string Timeline,
+    string WalArchivePath,
+    string[] RequiredSegments);
 
 public sealed record PostgreSqlRestoreResult(bool Succeeded, long ValidationRevision)
 {
@@ -52,6 +59,43 @@ public sealed record PostgreSqlRestoreResult(bool Succeeded, long ValidationRevi
 public interface IDatabaseNativeCapabilityValidation
 {
     ValueTask ValidateAsync(CancellationToken cancellationToken);
+}
+
+public sealed record DatabaseNativeArtifactDescriptor(string RelativePath, long Length);
+
+/// <summary>
+/// Destination-neutral, read-only access to an already verified native backup artifact set.
+/// Implementations must reject traversal, links, and files outside their approved native root.
+/// </summary>
+public interface IDatabaseNativeArtifactSource
+{
+    ValueTask<IReadOnlyList<DatabaseNativeArtifactDescriptor>> DescribeAsync(
+        DatabaseEngine engine,
+        DatabaseRecoveryOperationId operationId,
+        CancellationToken cancellationToken);
+
+    ValueTask<Stream> OpenReadAsync(
+        DatabaseEngine engine,
+        DatabaseRecoveryOperationId operationId,
+        string relativePath,
+        CancellationToken cancellationToken);
+}
+
+public interface IDatabaseNativeRestoreArtifactSink
+{
+    ValueTask PrepareFreshAsync(
+        DatabaseEngine engine,
+        DatabaseRestorePointId restorePointId,
+        CancellationToken cancellationToken);
+
+    ValueTask WriteAsync(
+        DatabaseEngine engine,
+        DatabaseRestorePointId restorePointId,
+        string relativePath,
+        Stream source,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken);
 }
 
 public interface IPostgreSqlBackupCapability

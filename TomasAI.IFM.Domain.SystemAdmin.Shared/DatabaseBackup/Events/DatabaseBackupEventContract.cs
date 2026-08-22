@@ -64,6 +64,8 @@ public abstract record DatabaseBackupEventContract : IEvent<DatabaseRecoveryOper
         DatabaseBackupEnumValidation.RequireOptionalDefined(RestoreClass, nameof(RestoreClass));
         if (EvaluationBoundaryUtc != default && EvaluationBoundaryUtc.Offset != TimeSpan.Zero)
             throw new ArgumentException("EvaluationBoundaryUtc must be UTC.", nameof(EvaluationBoundaryUtc));
+        if (FreshTarget?.RecoveryTargetUtc is { } recoveryTarget && recoveryTarget.Offset != TimeSpan.Zero)
+            throw new ArgumentException("A database recovery target must be UTC.", nameof(FreshTarget));
         if (ManifestRevision < 0) throw new ArgumentOutOfRangeException(nameof(ManifestRevision));
         BackupLineage?.Validate(resolvedRequired: false);
     }

@@ -1,0 +1,95 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "QualifyDevelopmentJournal",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:BatchGetItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTable",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:RestoreTableToPointInTime",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:ca-central-1:107651266250:table/ifm-database-backup-journal-development",
+        "arn:aws:dynamodb:ca-central-1:107651266250:table/ifm-database-backup-journal-development/index/*"
+      ]
+    },
+    {
+      "Sid": "QualifyDevelopmentJournalPitrTarget",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeTable",
+        "dynamodb:ListTagsOfResource",
+        "dynamodb:TagResource",
+        "dynamodb:UpdateContinuousBackups"
+      ],
+      "Resource": "arn:aws:dynamodb:ca-central-1:107651266250:table/ifm-database-backup-journal-development-pitr-*"
+    },
+    {
+      "Sid": "QualifyDevelopmentPrimaryVault",
+      "Effect": "Allow",
+      "Action": [
+        "s3:AbortMultipartUpload",
+        "s3:GetObject",
+        "s3:GetObjectRetention",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+        "s3:ListBucketMultipartUploads",
+        "s3:ListBucketVersions",
+        "s3:ListMultipartUploadParts",
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-primary-107651266250/v1/environment/development/*"
+      ]
+    },
+    {
+      "Sid": "QualifyDevelopmentRecoveryVaultRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectRetention",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+        "s3:ListBucketVersions"
+      ],
+      "Resource": [
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250",
+        "arn:aws:s3:::ifm-db-backup-development-recovery-107651266250/v1/environment/development/*"
+      ]
+    },
+    {
+      "Sid": "QualifyDevelopmentSigningAndPrimaryEncryption",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:GenerateDataKey",
+        "kms:GetPublicKey",
+        "kms:Sign",
+        "kms:Verify"
+      ],
+      "Resource": [
+        "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df",
+        "arn:aws:kms:ca-central-1:107651266250:key/2edd60e5-be19-483d-b4df-88df45aa2fb2"
+      ]
+    },
+    {
+      "Sid": "QualifyDevelopmentRecoveryDecryption",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:ca-west-1:107651266250:key/4277d9a7-5182-4299-a61a-19ca0c5cf404"
+    }
+  ]
+}
