@@ -252,7 +252,7 @@ public sealed class DatabaseBackupJournalIntegrationTests : IAsyncLifetime
         HostOptions(),
         NullLogger<SqliteDatabaseBackupExecutionJournal>.Instance);
 
-    static LocalWorkstationDatabaseBackupOptions HostOptions() => new()
+    static DatabaseBackupHostOptions HostOptions() => new()
     {
         HostId = "gate5-host",
         LeaseDuration = TimeSpan.FromMinutes(1),

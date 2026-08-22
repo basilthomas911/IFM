@@ -22,7 +22,7 @@ public sealed class SqliteDatabaseBackupExecutionJournal : IDatabaseBackupExecut
 
     public SqliteDatabaseBackupExecutionJournal(
         DatabaseBackupJournalOptions options,
-        LocalWorkstationDatabaseBackupOptions hostOptions,
+        DatabaseBackupHostOptions hostOptions,
         ILogger<SqliteDatabaseBackupExecutionJournal> logger)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));

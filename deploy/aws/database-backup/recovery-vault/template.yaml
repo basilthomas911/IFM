@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IFM independent recovery vault with immutable S3 storage and regional KMS key.
+Parameters:
+  EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
+  RecoveryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  WorkloadAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
+  ReplicationRoleArn: { Type: String, AllowedPattern: '^arn:aws:iam::[0-9]{12}:role/.+$' }
+  RetentionDays: { Type: Number, Default: 35, MinValue: 35 }
+  ObjectLockMode: { Type: String, AllowedValues: [GOVERNANCE, COMPLIANCE], Default: GOVERNANCE }
+Resources:
+  RecoveryKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub IFM recovery vault ${EnvironmentName}
+      EnableKeyRotation: true
+      MultiRegion: false
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RecoveryAdministration
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:DisableKeyRotation, kms:EnableKey, kms:EnableKeyRotation, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetParametersForImport, kms:ImportKeyMaterial, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:ListRetirableGrants, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
+            Resource: '*'
+          - Sid: ReplicationEncryption
+            Effect: Allow
+            Principal: { AWS: !Ref ReplicationRoleArn }
+            Action: [kms:Encrypt, kms:GenerateDataKey, kms:ReEncryptTo]
+            Resource: '*'
+            Condition: { StringEquals: { 'kms:ViaService': !Sub 's3.${AWS::Region}.amazonaws.com' } }
+      Tags: [{ Key: Application, Value: IFM }, { Key: Component, Value: DatabaseBackup }, { Key: Environment, Value: !Ref EnvironmentName }]
+  RecoveryKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties: { AliasName: !Sub 'alias/ifm/database-backup/${EnvironmentName}/recovery-vault', TargetKeyId: !Ref RecoveryKey }
+  RecoveryAuditBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      VersioningConfiguration: { Status: Enabled }
+  RecoveryBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref RecoveryBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault: { SSEAlgorithm: aws:kms, KMSMasterKeyID: !GetAtt RecoveryKey.Arn }
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule: { DefaultRetention: { Days: !Ref RetentionDays, Mode: !Ref ObjectLockMode } }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      VersioningConfiguration: { Status: Enabled }
+      LoggingConfiguration: { DestinationBucketName: !Ref RecoveryAuditBucket, LogFilePrefix: access/ }
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipart
+            Status: Enabled
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 }
+      InventoryConfigurations:
+        - Id: RecoveryVersions
+          Enabled: true
+          IncludedObjectVersions: All
+          ScheduleFrequency: Daily
+          Destination:
+            BucketArn: !GetAtt RecoveryAuditBucket.Arn
+            Format: CSV
+            Prefix: inventory
+  RecoveryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RecoveryBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt RecoveryBucket.Arn, !Sub '${RecoveryBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
+          - Sid: PermitReplication
+            Effect: Allow
+            Principal: { AWS: !Ref ReplicationRoleArn }
+            Action: [s3:ObjectOwnerOverrideToBucketOwner, s3:ReplicateDelete, s3:ReplicateObject, s3:ReplicateTags]
+            Resource: !Sub '${RecoveryBucket.Arn}/*'
+          - Sid: DenyUnencryptedWrites
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub '${RecoveryBucket.Arn}/*'
+            Condition: { StringNotEquals: { 's3:x-amz-server-side-encryption': aws:kms } }
+  RecoveryReadRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-recovery-read-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${WorkloadAccountId}:root' }
+            Action: [sts:AssumeRole]
+            Condition: { StringEquals: { 'sts:ExternalId': !Sub 'ifm-database-backup-${EnvironmentName}' } }
+      Policies:
+        - PolicyName: ReadExactRecoveryVersions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion, s3:ListBucket, s3:ListBucketVersions]
+                Resource: [!GetAtt RecoveryBucket.Arn, !Sub '${RecoveryBucket.Arn}/*']
+              - Effect: Allow
+                Action: [kms:Decrypt, kms:DescribeKey]
+                Resource: !GetAtt RecoveryKey.Arn
+Outputs:
+  RecoveryBucketArn: { Value: !GetAtt RecoveryBucket.Arn }
+  RecoveryBucketName: { Value: !Ref RecoveryBucket }
+  RecoveryEncryptionKeyArn: { Value: !GetAtt RecoveryKey.Arn }
+  RecoveryReadRoleArn: { Value: !GetAtt RecoveryReadRole.Arn }

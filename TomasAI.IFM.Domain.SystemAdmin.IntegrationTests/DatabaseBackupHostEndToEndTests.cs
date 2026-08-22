@@ -62,6 +62,7 @@ public sealed class DatabaseBackupHostEndToEndTests
         [
             typeof(DatabaseBackupJournalInitializationService),
             typeof(DatabaseBackupNativeCapabilityValidationService),
+            typeof(AwsCloudIdentityValidationService),
             typeof(DatabaseBackupOutboxPublisher),
             typeof(DatabaseBackupStartupReconciliationService),
             typeof(DatabaseBackupExecutionDispatcher),
@@ -98,7 +99,7 @@ public sealed class DatabaseBackupHostEndToEndTests
         var projection = new SystemAdminDbContext(dbSettings, storageLogger);
         const string projectorName = "Gate5EndToEnd";
 
-        var hostOptions = new LocalWorkstationDatabaseBackupOptions
+        var hostOptions = new DatabaseBackupHostOptions
         {
             HostId = "gate5-e2e-host",
             LeaseDuration = TimeSpan.FromSeconds(30),
@@ -240,12 +241,12 @@ public sealed class DatabaseBackupHostEndToEndTests
 
     static SqliteDatabaseBackupExecutionJournal Journal(
         DatabaseBackupJournalOptions journalOptions,
-        LocalWorkstationDatabaseBackupOptions hostOptions)
+        DatabaseBackupHostOptions hostOptions)
         => new(journalOptions, hostOptions, NullLogger<SqliteDatabaseBackupExecutionJournal>.Instance);
 
     static LocalWorkstationDatabaseRecoveryProcessor Processor(
         IDatabaseBackupExecutionJournal journal,
-        LocalWorkstationDatabaseBackupOptions options)
+        DatabaseBackupHostOptions options)
         => new(journal, new FakePostgreSqlBackupCapability(), options);
 
     static NatsJetStreamEventListener Listener(string url, string streamName, string durablePrefix) => new(

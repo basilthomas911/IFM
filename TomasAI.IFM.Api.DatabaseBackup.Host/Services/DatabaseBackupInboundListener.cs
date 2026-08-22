@@ -3,7 +3,6 @@ using NATS.Client.Core;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events.Execution;
-using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -44,8 +43,8 @@ public sealed class DatabaseBackupInboundListener(
             ?? throw new InvalidOperationException($"Unable to deserialize DatabaseBackup execution event '{verb}'.");
         executionEvent.Validate();
         var processor = processors.GetRequired(executionEvent.Source.Source);
-        if (processor is LocalWorkstationDatabaseRecoveryProcessor localProcessor
-            && !localProcessor.CanProcess(executionEvent.Source.ProtectionSetId))
+        if (processor is IDatabaseRecoveryProcessorRouting routing
+            && !routing.CanProcess(executionEvent.Source.ProtectionSetId))
             return;
         await processor.AdmitAsync(
             new DatabaseExecutionIntent { ExecutionEvent = executionEvent },

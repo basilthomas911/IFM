@@ -15,6 +15,7 @@
     <ProjectReference Include="..\TomasAI.IFM.Application.DatabaseBackup\TomasAI.IFM.Application.DatabaseBackup.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Messaging.Nats\TomasAI.IFM.Framework.Messaging.Nats.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation\TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.csproj" />
   </ItemGroup>
 
 </Project>

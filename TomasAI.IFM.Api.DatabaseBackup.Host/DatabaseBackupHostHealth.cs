@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Collections.Concurrent;
+using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 
 namespace TomasAI.IFM.Api.DatabaseBackup.Host;
 
@@ -37,4 +40,32 @@ public sealed class DatabaseBackupReadinessHealthCheck(DatabaseBackupHostHealthS
         => Task.FromResult(state.Ready && state.JournalReady && state.NativeCapabilitiesReady
             ? HealthCheckResult.Healthy("Database Backup Host is admitting durable work.")
             : HealthCheckResult.Unhealthy("Database Backup Host is not ready for admission."));
+}
+
+public sealed class DatabaseBackupSourceHealthRegistry(TimeProvider timeProvider) : IDatabaseBackupSourceHealthRegistry
+{
+    readonly ConcurrentDictionary<BackupSource, DatabaseBackupSourceHealth> _states = new();
+
+    public IReadOnlyCollection<DatabaseBackupSourceHealth> Snapshot() => _states.Values.OrderBy(static value => value.Source).ToArray();
+
+    public void Set(BackupSource source, bool enabled, bool ready, string status)
+    {
+        DatabaseBackupEnumValidation.RequireConcrete(source);
+        if (string.IsNullOrWhiteSpace(status) || status.Length > 256 || status.Any(char.IsControl))
+            throw new ArgumentException("A bounded safe source-health status is required.", nameof(status));
+        _states[source] = new(source, enabled, ready, status, timeProvider.GetUtcNow());
+    }
+}
+
+public sealed class DatabaseBackupSourcesHealthCheck(IDatabaseBackupSourceHealthRegistry sources) : IHealthCheck
+{
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        var enabled = sources.Snapshot().Where(static source => source.Enabled).ToArray();
+        var unavailable = enabled.Where(static source => !source.Ready).ToArray();
+        if (unavailable.Length == 0)
+            return Task.FromResult(HealthCheckResult.Healthy("All enabled DatabaseBackup sources are ready."));
+        var data = unavailable.ToDictionary(static source => source.Source.ToString(), static source => (object)source.Status);
+        return Task.FromResult(HealthCheckResult.Degraded("One or more DatabaseBackup sources are unavailable.", data: data));
+    }
 }

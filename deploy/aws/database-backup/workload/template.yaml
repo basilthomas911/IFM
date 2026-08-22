@@ -1,0 +1,279 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IFM database-backup workload journal, signing key, roles, alarms, and budget.
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues: [development, staging, production]
+  PrimaryVaultBucketArn:
+    Type: String
+    AllowedPattern: '^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  RecoveryVaultBucketArn:
+    Type: String
+    AllowedPattern: '^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  PrimaryEncryptionKeyArn:
+    Type: String
+    AllowedPattern: '^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/.+$'
+  SecurityAuditPrincipalArn:
+    Type: String
+    AllowedPattern: '^arn:aws:iam::[0-9]{12}:(role|user)/.+$'
+  MonthlyBudgetCad:
+    Type: Number
+    Default: 100
+    MinValue: 1
+  BudgetNotificationEmail:
+    Type: String
+    AllowedPattern: '^[^@ ]+@[^@ ]+$'
+Resources:
+  JournalKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub IFM database-backup journal ${EnvironmentName}
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AccountAdministration
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:DisableKeyRotation, kms:EnableKey, kms:EnableKeyRotation, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetParametersForImport, kms:GetPublicKey, kms:ImportKeyMaterial, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:ListRetirableGrants, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
+            Resource: '*'
+      Tags:
+        - { Key: Application, Value: IFM }
+        - { Key: Component, Value: DatabaseBackup }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+  JournalKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/ifm/database-backup/${EnvironmentName}/journal
+      TargetKeyId: !Ref JournalKey
+  SigningKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub IFM database-backup manifest signing ${EnvironmentName}
+      KeySpec: ECC_NIST_P256
+      KeyUsage: SIGN_VERIFY
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AccountAdministration
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:EnableKey, kms:GetKeyPolicy, kms:GetPublicKey, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
+            Resource: '*'
+      Tags:
+        - { Key: Application, Value: IFM }
+        - { Key: Component, Value: DatabaseBackup }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+  SigningKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/ifm/database-backup/${EnvironmentName}/signing
+      TargetKeyId: !Ref SigningKey
+  ExecutionJournal:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub ifm-database-backup-journal-${EnvironmentName}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: PK, AttributeType: S }
+        - { AttributeName: SK, AttributeType: S }
+      KeySchema:
+        - { AttributeName: PK, KeyType: HASH }
+        - { AttributeName: SK, KeyType: RANGE }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: !GetAtt JournalKey.Arn
+      DeletionProtectionEnabled: true
+      Tags:
+        - { Key: Application, Value: IFM }
+        - { Key: Component, Value: DatabaseBackup }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+  JournalThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: IFM backup journal throttling detected
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions: [{ Name: TableName, Value: !Ref ExecutionJournal }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  UploadRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W3037]
+    Properties:
+      RoleName: !Sub ifm-database-backup-upload-${EnvironmentName}
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: [ecs-tasks.amazonaws.com] }
+            Action: [sts:AssumeRole]
+            Condition: { StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' } }
+      Policies:
+        - PolicyName: PublishPrimaryVault
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:AbortMultipartUpload, s3:GetObject, s3:GetObjectRetention, s3:GetObjectVersion, s3:ListBucket, s3:ListBucketMultipartUploads, s3:ListMultipartUploadParts, s3:PutObject, s3:PutObjectRetention]
+                Resource: [!Ref PrimaryVaultBucketArn, !Sub '${PrimaryVaultBucketArn}/*']
+              - Effect: Allow
+                Action: [dynamodb:BatchGetItem, dynamodb:ConditionCheckItem, dynamodb:DescribeTable, dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query, dynamodb:TransactWriteItems, dynamodb:UpdateItem]
+                Resource: !GetAtt ExecutionJournal.Arn
+              - Effect: Allow
+                Action: [kms:GetPublicKey, kms:Sign, kms:Verify]
+                Resource: !GetAtt SigningKey.Arn
+              - Effect: Allow
+                Action: [kms:Encrypt, kms:GenerateDataKey]
+                Resource: !Ref PrimaryEncryptionKeyArn
+  VerificationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-verification-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !GetAtt UploadRole.Arn }
+            Action: [sts:AssumeRole]
+      Policies:
+        - PolicyName: VerifyVaults
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion, s3:ListBucket, s3:ListBucketVersions]
+                Resource: [!Ref PrimaryVaultBucketArn, !Sub '${PrimaryVaultBucketArn}/*']
+              - Effect: Allow
+                Action: [kms:GetPublicKey, kms:Verify]
+                Resource: !GetAtt SigningKey.Arn
+              - Effect: Allow
+                Action: [kms:Decrypt, kms:DescribeKey]
+                Resource: !Ref PrimaryEncryptionKeyArn
+  RetentionPlanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-retention-plan-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !GetAtt UploadRole.Arn }
+            Action: [sts:AssumeRole]
+      Policies:
+        - PolicyName: ReadRetentionEvidence
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion, s3:ListBucketVersions]
+                Resource: [!Ref PrimaryVaultBucketArn, !Sub '${PrimaryVaultBucketArn}/*']
+              - Effect: Allow
+                Action: [kms:Decrypt, kms:DescribeKey]
+                Resource: !Ref PrimaryEncryptionKeyArn
+  RetentionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-retention-execution-${EnvironmentName}
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [sts:AssumeRole]
+            Condition: { Bool: { 'aws:MultiFactorAuthPresent': true } }
+      Policies:
+        - PolicyName: ExactVersionDeletionOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:DeleteObjectVersion, s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion]
+                Resource: !Sub '${PrimaryVaultBucketArn}/v1/environment/${EnvironmentName}/*'
+              - Effect: Deny
+                Action: [s3:BypassGovernanceRetention, s3:DeleteBucket, s3:PutReplicationConfiguration]
+                Resource: [!Ref PrimaryVaultBucketArn, !Sub '${PrimaryVaultBucketArn}/*']
+  LegalHoldRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-legal-hold-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !Ref SecurityAuditPrincipalArn }
+            Action: [sts:AssumeRole]
+            Condition: { Bool: { 'aws:MultiFactorAuthPresent': true } }
+      Policies:
+        - PolicyName: ExactVersionLegalHold
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObjectLegalHold, s3:GetObjectVersion, s3:PutObjectLegalHold]
+                Resource: !Sub '${PrimaryVaultBucketArn}/v1/environment/${EnvironmentName}/*'
+  AuditRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-audit-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !Ref SecurityAuditPrincipalArn }
+            Action: [sts:AssumeRole]
+      Policies:
+        - PolicyName: ReadBackupControls
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:DescribeContinuousBackups, dynamodb:DescribeTable]
+                Resource: !GetAtt ExecutionJournal.Arn
+              - Effect: Allow
+                Action: [s3:GetBucketObjectLockConfiguration, s3:GetBucketPolicy, s3:GetBucketVersioning, s3:GetEncryptionConfiguration, s3:GetInventoryConfiguration, s3:GetReplicationConfiguration, s3:ListBucketVersions]
+                Resource: [!Ref PrimaryVaultBucketArn, !Ref RecoveryVaultBucketArn]
+              - Effect: Allow
+                Action: [kms:DescribeKey, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetPublicKey]
+                Resource: [!GetAtt JournalKey.Arn, !GetAtt SigningKey.Arn, !Ref PrimaryEncryptionKeyArn]
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub ifm-database-backup-${EnvironmentName}
+        BudgetLimit: { Amount: !Ref MonthlyBudgetCad, Unit: CAD }
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        CostFilters: { TagKeyValue: [user:Component$DatabaseBackup] }
+      NotificationsWithSubscribers:
+        - Notification: { ComparisonOperator: GREATER_THAN, NotificationType: FORECASTED, Threshold: 80, ThresholdType: PERCENTAGE }
+          Subscribers: [{ Address: !Ref BudgetNotificationEmail, SubscriptionType: EMAIL }]
+Outputs:
+  JournalTableName: { Value: !Ref ExecutionJournal }
+  JournalKeyArn: { Value: !GetAtt JournalKey.Arn }
+  SigningKeyArn: { Value: !GetAtt SigningKey.Arn }
+  UploadRoleArn: { Value: !GetAtt UploadRole.Arn }
+  VerificationRoleArn: { Value: !GetAtt VerificationRole.Arn }
+  RetentionPlanRoleArn: { Value: !GetAtt RetentionPlanRole.Arn }
+  RetentionExecutionRoleArn: { Value: !GetAtt RetentionExecutionRole.Arn }
+  LegalHoldRoleArn: { Value: !GetAtt LegalHoldRole.Arn }
+  AuditRoleArn: { Value: !GetAtt AuditRole.Arn }

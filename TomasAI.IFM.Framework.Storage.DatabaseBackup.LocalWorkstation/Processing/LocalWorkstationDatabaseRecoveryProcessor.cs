@@ -5,7 +5,7 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuratio
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
 
 public sealed class LocalWorkstationDatabaseRecoveryProcessor
-    : IDatabaseRecoveryProcessor, IDatabaseRecoveryOperationExecutor
+    : IDatabaseRecoveryProcessor, IDatabaseRecoveryOperationExecutor, IDatabaseRecoveryProcessorRouting
 {
     readonly IDatabaseBackupExecutionJournal _journal;
     readonly IPostgreSqlBackupCapability _postgreSql;
@@ -15,13 +15,13 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
     readonly IDatabaseRecoveryEvidenceStore _evidence;
     readonly IDatabaseBackupChainPlanner _chainPlanner;
     readonly IDatabaseRecoveryEngineSelector _engineSelector;
-    readonly LocalWorkstationDatabaseBackupOptions _options;
+    readonly DatabaseBackupHostOptions _options;
     readonly DatabaseBackupHostId _hostId;
 
     public LocalWorkstationDatabaseRecoveryProcessor(
         IDatabaseBackupExecutionJournal journal,
         IPostgreSqlBackupCapability postgreSql,
-        LocalWorkstationDatabaseBackupOptions options)
+        DatabaseBackupHostOptions options)
         : this(journal, postgreSql, new FakeScyllaBackupCapability(),
             new PostgreSqlOnlyDatabaseRecoveryEngineSelector(), options,
             new FakeDatabaseBackupPublicationCapability(),
@@ -35,7 +35,7 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         IPostgreSqlBackupCapability postgreSql,
         IScyllaBackupCapability scylla,
         IDatabaseRecoveryEngineSelector engineSelector,
-        LocalWorkstationDatabaseBackupOptions options)
+        DatabaseBackupHostOptions options)
         : this(journal, postgreSql, scylla, engineSelector, options,
             new FakeDatabaseBackupPublicationCapability(),
             new FakeDatabaseRestoreSourceCapability(),
@@ -48,7 +48,7 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         IPostgreSqlBackupCapability postgreSql,
         IScyllaBackupCapability scylla,
         IDatabaseRecoveryEngineSelector engineSelector,
-        LocalWorkstationDatabaseBackupOptions options,
+        DatabaseBackupHostOptions options,
         IDatabaseBackupPublicationCapability publication,
         IDatabaseRestoreSourceCapability restoreSources,
         IDatabaseRecoveryEvidenceStore evidence,
@@ -373,7 +373,7 @@ public sealed class LocalWorkstationDatabaseRecoveryProcessor
         }
     }
 
-    static LocalWorkstationDatabaseBackupOptions Validate(LocalWorkstationDatabaseBackupOptions options)
+    static DatabaseBackupHostOptions Validate(DatabaseBackupHostOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();

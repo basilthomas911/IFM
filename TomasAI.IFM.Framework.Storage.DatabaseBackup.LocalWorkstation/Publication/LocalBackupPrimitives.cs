@@ -1,9 +1,8 @@
 using System.Security.Cryptography;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
+using TomasAI.IFM.Application.DatabaseBackup.Policies;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Publication;
 
@@ -203,37 +202,12 @@ public sealed class LocalBackupCapacityReader : ILocalBackupCapacityReader
 
 internal static class LocalBackupJson
 {
-    public static readonly JsonSerializerOptions Options = CreateOptions();
+    public static System.Text.Json.JsonSerializerOptions Options => DatabaseBackupCanonicalJson.Options;
 
-    static JsonSerializerOptions CreateOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = false
-        };
-        options.Converters.Add(new StrongIdJsonConverter<DatabaseRecoveryOperationId>(
-            static value => new DatabaseRecoveryOperationId(Guid.ParseExact(value, "N")),
-            static value => value.Format()));
-        options.Converters.Add(new StrongIdJsonConverter<DatabaseRetentionPlanId>(
-            static value => new DatabaseRetentionPlanId(Guid.ParseExact(value, "N")),
-            static value => value.Value.ToString("N")));
-        options.Converters.Add(new StrongIdJsonConverter<DatabaseProtectionSetId>(
-            static value => new DatabaseProtectionSetId(value), static value => value.Value));
-        options.Converters.Add(new StrongIdJsonConverter<DatabaseRestorePointId>(
-            static value => new DatabaseRestorePointId(value), static value => value.Value));
-        options.Converters.Add(new StrongIdJsonConverter<DatabaseArtifactId>(
-            static value => new DatabaseArtifactId(value), static value => value.Value));
-        options.Converters.Add(new StrongIdJsonConverter<DatabaseArtifactReplicaId>(
-            static value => new DatabaseArtifactReplicaId(value), static value => value.Value));
-        return options;
-    }
-
-    public static byte[] Serialize<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value, Options);
+    public static byte[] Serialize<T>(T value) => DatabaseBackupCanonicalJson.Serialize(value);
 
     public static T Deserialize<T>(ReadOnlySpan<byte> value)
-        => JsonSerializer.Deserialize<T>(value, Options)
-            ?? throw new InvalidDataException($"The signed {typeof(T).Name} document is empty.");
+        => DatabaseBackupCanonicalJson.Deserialize<T>(value);
 
     public static async ValueTask WriteCreateNewAsync(
         string path,
@@ -274,15 +248,5 @@ internal static class LocalBackupJson
             await File.ReadAllBytesAsync(documentPath + ".sig", cancellationToken).ConfigureAwait(false));
         signatures.Verify(content, signature);
         return Deserialize<T>(content);
-    }
-
-    sealed class StrongIdJsonConverter<T>(Func<string, T> parse, Func<T, string> format)
-        : JsonConverter<T>
-    {
-        public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-            => parse(reader.GetString() ?? throw new JsonException("A strong identity cannot be null."));
-
-        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
-            => writer.WriteStringValue(format(value));
     }
 }

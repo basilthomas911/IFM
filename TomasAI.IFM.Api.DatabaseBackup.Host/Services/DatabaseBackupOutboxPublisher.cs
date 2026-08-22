@@ -1,14 +1,13 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
-using TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 
 namespace TomasAI.IFM.Api.DatabaseBackup.Host.Services;
 
 public sealed class DatabaseBackupOutboxPublisher(
     IDatabaseBackupExecutionJournal journal,
     IDatabaseBackupServiceEventTransport transport,
-    LocalWorkstationDatabaseBackupOptions options,
+    DatabaseBackupHostOptions options,
     ILogger<DatabaseBackupOutboxPublisher> logger) : BackgroundService
 {
     public override async Task StartAsync(CancellationToken cancellationToken)

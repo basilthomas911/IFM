@@ -3,7 +3,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Processing;
 
-public sealed class DatabaseRecoveryProcessorRegistry : IDatabaseRecoveryProcessorRegistry
+public sealed class DatabaseRecoveryProcessorRegistry : IDatabaseRecoveryProcessorRegistry, IDatabaseRecoveryOperationExecutor
 {
     readonly IReadOnlyDictionary<BackupSource, IDatabaseRecoveryProcessor> _processors;
 
@@ -22,4 +22,14 @@ public sealed class DatabaseRecoveryProcessorRegistry : IDatabaseRecoveryProcess
         => source != BackupSource.None && Enum.IsDefined(source) && _processors.TryGetValue(source, out var processor)
             ? processor
             : throw new UnsupportedDatabaseBackupSourceException(source);
+
+    public ValueTask ExecuteAsync(RecoverableJournalOperation operation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        var processor = GetRequired(operation.Intent.Source);
+        return processor is IDatabaseRecoveryOperationExecutor executor
+            ? executor.ExecuteAsync(operation, cancellationToken)
+            : ValueTask.FromException(new NotSupportedException(
+                $"The '{processor.Source}' processor has not enabled durable execution yet."));
+    }
 }

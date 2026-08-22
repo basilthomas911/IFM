@@ -1,3 +1,5 @@
+using TomasAI.IFM.Application.DatabaseBackup.Contracts;
+
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation.Configuration;
 
 public sealed class DatabaseBackupJournalOptions
@@ -39,22 +41,5 @@ public sealed class DatabaseBackupJournalOptions
     }
 }
 
-public sealed class LocalWorkstationDatabaseBackupOptions
-{
-    public const string SectionName = "DatabaseBackup:Host";
-
-    public string HostId { get; set; } = $"local-{Environment.MachineName}";
-    public int DispatcherCount { get; set; } = 1;
-    public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
-    public TimeSpan PollInterval { get; set; } = TimeSpan.FromMilliseconds(250);
-    public int OutboxBatchSize { get; set; } = 64;
-
-    public void Validate()
-    {
-        _ = new Domain.SystemAdmin.Shared.DatabaseBackup.Contracts.DatabaseBackupHostId(HostId);
-        if (DispatcherCount <= 0 || OutboxBatchSize <= 0)
-            throw new InvalidOperationException("DatabaseBackup dispatcher and outbox bounds must be positive.");
-        if (LeaseDuration <= TimeSpan.Zero || PollInterval <= TimeSpan.Zero)
-            throw new InvalidOperationException("DatabaseBackup lease and poll intervals must be positive.");
-    }
-}
+[Obsolete("Use source-neutral DatabaseBackupHostOptions.")]
+public sealed class LocalWorkstationDatabaseBackupOptions : DatabaseBackupHostOptions;

@@ -38,6 +38,11 @@ public interface IDatabaseRecoveryProcessor
         CancellationToken cancellationToken);
 }
 
+public interface IDatabaseRecoveryProcessorRouting
+{
+    bool CanProcess(DatabaseProtectionSetId protectionSetId);
+}
+
 public interface IDatabaseRecoveryProcessorRegistry
 {
     IDatabaseRecoveryProcessor GetRequired(BackupSource source);

@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IFM immutable primary vault with cross-Region/cross-account replication.
+Parameters:
+  EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
+  WorkloadAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
+  PrimaryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  RecoveryBucketArn: { Type: String, AllowedPattern: '^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  RecoveryAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
+  RecoveryEncryptionKeyArn: { Type: String, AllowedPattern: '^arn:aws:kms:[a-z0-9-]+:[0-9]{12}:key/.+$' }
+  RetentionDays: { Type: Number, Default: 35, MinValue: 35 }
+  ObjectLockMode: { Type: String, AllowedValues: [GOVERNANCE, COMPLIANCE], Default: GOVERNANCE }
+Resources:
+  PrimaryKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub IFM primary vault ${EnvironmentName}
+      EnableKeyRotation: true
+      MultiRegion: false
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PrimaryAdministration
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:DisableKeyRotation, kms:EnableKey, kms:EnableKeyRotation, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetParametersForImport, kms:ImportKeyMaterial, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:ListRetirableGrants, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
+            Resource: '*'
+          - Sid: WorkloadDataKeyUse
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${WorkloadAccountId}:root' }
+            Action: [kms:Decrypt, kms:DescribeKey, kms:Encrypt, kms:GenerateDataKey]
+            Resource: '*'
+            Condition: { StringEquals: { 'kms:ViaService': !Sub 's3.${AWS::Region}.amazonaws.com' } }
+      Tags: [{ Key: Application, Value: IFM }, { Key: Component, Value: DatabaseBackup }, { Key: Environment, Value: !Ref EnvironmentName }]
+  PrimaryKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties: { AliasName: !Sub 'alias/ifm/database-backup/${EnvironmentName}/primary-vault', TargetKeyId: !Ref PrimaryKey }
+  PrimaryAuditBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 } }] }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      VersioningConfiguration: { Status: Enabled }
+  ReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ifm-database-backup-replication-${EnvironmentName}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: [s3.amazonaws.com] }, Action: [sts:AssumeRole], Condition: { StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' } } }]
+      Policies:
+        - PolicyName: ReplicateImmutableVersions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion, s3:GetObjectVersionAcl, s3:GetObjectVersionForReplication, s3:GetObjectVersionTagging, s3:ListBucket, s3:ListBucketVersions]
+                Resource: [!Sub 'arn:${AWS::Partition}:s3:::${PrimaryBucketName}', !Sub 'arn:${AWS::Partition}:s3:::${PrimaryBucketName}/*']
+              - Effect: Allow
+                Action: [s3:ObjectOwnerOverrideToBucketOwner, s3:ReplicateDelete, s3:ReplicateObject, s3:ReplicateTags]
+                Resource: !Sub '${RecoveryBucketArn}/*'
+              - Effect: Allow
+                Action: [kms:Decrypt]
+                Resource: !GetAtt PrimaryKey.Arn
+              - Effect: Allow
+                Action: [kms:Encrypt, kms:GenerateDataKey, kms:ReEncryptTo]
+                Resource: !Ref RecoveryEncryptionKeyArn
+  PrimaryBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref PrimaryBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault: { SSEAlgorithm: aws:kms, KMSMasterKeyID: !GetAtt PrimaryKey.Arn }
+      ObjectLockEnabled: true
+      ObjectLockConfiguration: { ObjectLockEnabled: Enabled, Rule: { DefaultRetention: { Days: !Ref RetentionDays, Mode: !Ref ObjectLockMode } } }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      VersioningConfiguration: { Status: Enabled }
+      LoggingConfiguration: { DestinationBucketName: !Ref PrimaryAuditBucket, LogFilePrefix: access/ }
+      LifecycleConfiguration: { Rules: [{ Id: AbortIncompleteMultipart, Status: Enabled, AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 } }] }
+      InventoryConfigurations:
+        - Id: PrimaryVersions
+          Enabled: true
+          IncludedObjectVersions: All
+          ScheduleFrequency: Daily
+          Destination: { BucketArn: !GetAtt PrimaryAuditBucket.Arn, Format: CSV, Prefix: inventory }
+      ReplicationConfiguration:
+        Role: !GetAtt ReplicationRole.Arn
+        Rules:
+          - Id: ReplicateAllImmutableVersions
+            Status: Enabled
+            Priority: 1
+            DeleteMarkerReplication: { Status: Disabled }
+            Filter: { Prefix: v1/ }
+            SourceSelectionCriteria: { SseKmsEncryptedObjects: { Status: Enabled } }
+            Destination:
+              Bucket: !Ref RecoveryBucketArn
+              Account: !Ref RecoveryAccountId
+              AccessControlTranslation: { Owner: Destination }
+              EncryptionConfiguration: { ReplicaKmsKeyID: !Ref RecoveryEncryptionKeyArn }
+              Metrics: { EventThreshold: { Minutes: 15 }, Status: Enabled }
+              ReplicationTime: { Status: Enabled, Time: { Minutes: 15 } }
+  PrimaryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PrimaryBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt PrimaryBucket.Arn, !Sub '${PrimaryBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
+          - Sid: DenyUnencryptedWrites
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub '${PrimaryBucket.Arn}/*'
+            Condition: { StringNotEquals: { 's3:x-amz-server-side-encryption': aws:kms } }
+          - Sid: WorkloadVaultAccess
+            Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${WorkloadAccountId}:root' }
+            Action: [s3:AbortMultipartUpload, s3:GetObject, s3:GetObjectLegalHold, s3:GetObjectRetention, s3:GetObjectVersion, s3:ListBucket, s3:ListBucketMultipartUploads, s3:ListBucketVersions, s3:ListMultipartUploadParts, s3:PutObject, s3:PutObjectLegalHold, s3:PutObjectRetention]
+            Resource: [!GetAtt PrimaryBucket.Arn, !Sub '${PrimaryBucket.Arn}/*']
+  ReplicationFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: IFM backup replication operations failed
+      Namespace: AWS/S3
+      MetricName: OperationsFailedReplication
+      Dimensions: [{ Name: SourceBucket, Value: !Ref PrimaryBucket }, { Name: DestinationBucket, Value: !Select [5, !Split [':', !Ref RecoveryBucketArn]] }, { Name: RuleId, Value: ReplicateAllImmutableVersions }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+Outputs:
+  PrimaryBucketArn: { Value: !GetAtt PrimaryBucket.Arn }
+  PrimaryBucketName: { Value: !Ref PrimaryBucket }
+  PrimaryEncryptionKeyArn: { Value: !GetAtt PrimaryKey.Arn }
+  ReplicationRoleArn: { Value: !GetAtt ReplicationRole.Arn }

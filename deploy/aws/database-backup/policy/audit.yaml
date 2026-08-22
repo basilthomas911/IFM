@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IFM database-backup immutable audit trail and configuration compliance controls.
+Parameters:
+  EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
+  PrimaryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  RecoveryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  ObjectLockMode: { Type: String, AllowedValues: [GOVERNANCE, COMPLIANCE], Default: GOVERNANCE }
+Resources:
+  AuditKey:
+    Type: AWS::KMS::Key
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub IFM database-backup audit ${EnvironmentName}
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
+            Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:DisableKeyRotation, kms:EnableKey, kms:EnableKeyRotation, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetParametersForImport, kms:ImportKeyMaterial, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:ListRetirableGrants, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
+            Resource: '*'
+          - Effect: Allow
+            Principal: { Service: [cloudtrail.amazonaws.com] }
+            Action: [kms:DescribeKey, kms:GenerateDataKey]
+            Resource: '*'
+            Condition: { StringEquals: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/ifm-database-backup-${EnvironmentName}' } }
+  AuditBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ObjectLockEnabled: true
+      ObjectLockConfiguration: { ObjectLockEnabled: Enabled, Rule: { DefaultRetention: { Days: 365, Mode: !Ref ObjectLockMode } } }
+      BucketEncryption: { ServerSideEncryptionConfiguration: [{ BucketKeyEnabled: true, ServerSideEncryptionByDefault: { SSEAlgorithm: aws:kms, KMSMasterKeyID: !GetAtt AuditKey.Arn } }] }
+      OwnershipControls: { Rules: [{ ObjectOwnership: BucketOwnerEnforced }] }
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true }
+      VersioningConfiguration: { Status: Enabled }
+  AuditBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AuditBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CloudTrailAclCheck
+            Effect: Allow
+            Principal: { Service: cloudtrail.amazonaws.com }
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt AuditBucket.Arn
+            Condition: { StringEquals: { 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/ifm-database-backup-${EnvironmentName}' } }
+          - Sid: CloudTrailWrite
+            Effect: Allow
+            Principal: { Service: cloudtrail.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub '${AuditBucket.Arn}/AWSLogs/${AWS::AccountId}/*'
+            Condition: { StringEquals: { 's3:x-amz-acl': bucket-owner-full-control, 'aws:SourceArn': !Sub 'arn:${AWS::Partition}:cloudtrail:${AWS::Region}:${AWS::AccountId}:trail/ifm-database-backup-${EnvironmentName}' } }
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: [!GetAtt AuditBucket.Arn, !Sub '${AuditBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': false } }
+  AuditTrail:
+    Type: AWS::CloudTrail::Trail
+    DependsOn: AuditBucketPolicy
+    Properties:
+      TrailName: !Sub ifm-database-backup-${EnvironmentName}
+      IsLogging: true
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+      KMSKeyId: !GetAtt AuditKey.Arn
+      S3BucketName: !Ref AuditBucket
+      EventSelectors:
+        - IncludeManagementEvents: true
+          ReadWriteType: All
+          DataResources:
+            - Type: AWS::S3::Object
+              Values: [!Sub 'arn:${AWS::Partition}:s3:::${PrimaryBucketName}/', !Sub 'arn:${AWS::Partition}:s3:::${RecoveryBucketName}/']
+  ConfigRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{ Effect: Allow, Principal: { Service: [config.amazonaws.com] }, Action: [sts:AssumeRole], Condition: { StringEquals: { 'aws:SourceAccount': !Ref 'AWS::AccountId' } } }]
+      ManagedPolicyArns: [!Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWS_ConfigRole']
+      Policies:
+        - PolicyName: ConfigAuditDelivery
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetBucketAcl, s3:ListBucket]
+                Resource: !GetAtt AuditBucket.Arn
+              - Effect: Allow
+                Action: [s3:PutObject]
+                Resource: !Sub '${AuditBucket.Arn}/AWSLogs/${AWS::AccountId}/Config/*'
+  ConfigurationRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Properties:
+      RoleARN: !GetAtt ConfigRole.Arn
+      RecordingGroup: { AllSupported: true, IncludeGlobalResourceTypes: true }
+  ConfigurationDeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      S3BucketName: !Ref AuditBucket
+  S3ObjectLockRule:
+    Type: AWS::Config::ConfigRule
+    DependsOn: ConfigurationRecorder
+    Properties:
+      ConfigRuleName: !Sub ifm-backup-s3-object-lock-${EnvironmentName}
+      Source: { Owner: AWS, SourceIdentifier: S3_BUCKET_DEFAULT_LOCK_ENABLED }
+  S3PublicReadRule:
+    Type: AWS::Config::ConfigRule
+    DependsOn: ConfigurationRecorder
+    Properties:
+      ConfigRuleName: !Sub ifm-backup-s3-public-read-${EnvironmentName}
+      Source: { Owner: AWS, SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED }
+Outputs:
+  AuditBucketArn: { Value: !GetAtt AuditBucket.Arn }
+  AuditTrailArn: { Value: !GetAtt AuditTrail.Arn }
