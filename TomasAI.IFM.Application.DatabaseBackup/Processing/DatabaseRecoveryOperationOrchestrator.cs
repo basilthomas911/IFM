@@ -127,6 +127,8 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
         bool verificationSucceeded;
         DatabaseRecoveryRunStatistics? verificationStatistics;
         PostgreSqlWalContinuityEvidence? walContinuity = null;
+        ScyllaTopologyEvidence? scyllaTopology = null;
+        ScyllaSnapshotEvidence? scyllaSnapshot = null;
         if (engine == DatabaseEngine.PostgreSql)
         {
             var boundary = await WithLeaseHeartbeatAsync(lease, token => _postgreSql.CreateBaseBackupAsync(
@@ -149,6 +151,8 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
                 new ScyllaBackupRequest(intent.OperationId, intent.ExecutionEvent.Source.ProtectionSetId, lineage),
                 progress, token), cancellationToken).ConfigureAwait(false);
             lineage = boundary.BackupLineage ?? lineage;
+            scyllaTopology = boundary.Topology;
+            scyllaSnapshot = boundary.Snapshot;
             boundaryReference = boundary.SafeBoundaryReference;
             boundaryStatistics = boundary.Statistics;
             var verification = await WithLeaseHeartbeatAsync(lease, token => _scylla.VerifyAsync(
@@ -185,7 +189,9 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
                     ? [parent]
                     : [],
                 lineage,
-                walContinuity), token), cancellationToken).ConfigureAwait(false);
+                walContinuity,
+                scyllaTopology,
+                scyllaSnapshot), token), cancellationToken).ConfigureAwait(false);
         var sequence = 5L;
         foreach (var replica in publication.Replicas)
         {
@@ -247,7 +253,8 @@ public sealed class DatabaseRecoveryOperationOrchestrator : IDatabaseRecoveryOpe
         else
         {
             var result = await WithLeaseHeartbeatAsync(lease, token => _scylla.RestoreToFreshTargetAsync(
-                new ScyllaRestoreRequest(intent.OperationId, prepared.NativeRestorePointId, execution.FreshTarget),
+                new ScyllaRestoreRequest(
+                    intent.OperationId, prepared.NativeRestorePointId, execution.FreshTarget, prepared.ScyllaRecovery),
                 new Progress<DatabaseNativeProgress>(), token), cancellationToken).ConfigureAwait(false);
             succeeded = result.Succeeded;
             validationRevision = result.ValidationRevision;

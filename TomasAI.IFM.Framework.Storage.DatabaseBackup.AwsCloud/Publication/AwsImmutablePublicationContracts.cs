@@ -48,6 +48,8 @@ public sealed record AwsPublicationRecord
     public string? PostgreSqlTimeline { get; init; }
     public string? PostgreSqlStartLsn { get; init; }
     public string? PostgreSqlEndLsn { get; init; }
+    public ScyllaTopologyEvidence? ScyllaTopology { get; init; }
+    public ScyllaSnapshotEvidence? ScyllaSnapshot { get; init; }
     public required string ProducingHostId { get; init; }
     public required string BuildIdentity { get; init; }
     public required DateTimeOffset PublishedUtc { get; init; }
@@ -73,7 +75,8 @@ public sealed record AwsCatalogEntry
 public sealed record AwsResolvedCatalogRestorePoint(
     AwsCatalogEntry Entry,
     AwsPublicationRecord Publication,
-    DatabaseCatalogRestorePoint RestorePoint);
+    DatabaseCatalogRestorePoint RestorePoint,
+    AwsImmutableObjectVersion[]? ImmutableObjects = null);
 
 public readonly record struct AwsGeneratedObjectKey
 {

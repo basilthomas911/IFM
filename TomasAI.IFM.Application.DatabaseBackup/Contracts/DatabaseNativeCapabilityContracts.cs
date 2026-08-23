@@ -158,7 +158,12 @@ public sealed record ScyllaVerificationResult(DatabaseVerificationLevel Level, b
 public sealed record ScyllaRestoreRequest(
     DatabaseRecoveryOperationId OperationId,
     DatabaseRestorePointId RestorePointId,
-    DatabaseFreshTargetDescriptor FreshTarget);
+    DatabaseFreshTargetDescriptor FreshTarget,
+    ScyllaRecoveryExpectation? ExpectedRecovery = null);
+
+public sealed record ScyllaRecoveryExpectation(
+    ScyllaTopologyEvidence Topology,
+    ScyllaSnapshotEvidence Snapshot);
 
 public sealed record ScyllaRestoreResult(bool Succeeded, long ValidationRevision)
 {

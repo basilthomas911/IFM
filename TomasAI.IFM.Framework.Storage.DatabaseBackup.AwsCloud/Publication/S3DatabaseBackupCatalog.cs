@@ -34,16 +34,23 @@ public sealed class S3DatabaseBackupCatalog(
 
     public async ValueTask<IReadOnlyList<DatabaseCatalogRestorePoint>> EnumerateAsync(
         DatabaseArtifactReplicaId replicaId, CancellationToken cancellationToken)
+        => (await EnumerateAwsAsync(replicaId, cancellationToken).ConfigureAwait(false))
+            .Select(static value => value.RestorePoint).ToArray();
+
+    public async ValueTask<IReadOnlyList<AwsResolvedCatalogRestorePoint>> EnumerateAwsAsync(
+        DatabaseArtifactReplicaId replicaId, CancellationToken cancellationToken)
     {
-        var result = new List<DatabaseCatalogRestorePoint>();
+        var result = new List<AwsResolvedCatalogRestorePoint>();
         foreach (var version in await ListImmutableVersionsAsync(_catalogPrefix, "/catalog-entry-v1.json", cancellationToken).ConfigureAwait(false))
         {
             var bytes = await ReadVersionAsync(version.Key!, version.VersionId!, options.MaximumSignedDocumentBytes, cancellationToken).ConfigureAwait(false);
             var entry = MapEntry(DatabaseBackupCanonicalJson.Deserialize<AwsCatalogEntry>(bytes));
             if (entry.ReplicaId != replicaId) continue;
-            result.Add((await ResolveEntryAsync(entry, cancellationToken).ConfigureAwait(false)).RestorePoint);
+            var catalogObject = await DescribeVersionAsync(version.Key!, version.VersionId!, bytes, cancellationToken).ConfigureAwait(false);
+            result.Add(await ResolveEntryAsync(entry, cancellationToken, MapObject(catalogObject)).ConfigureAwait(false));
         }
-        return result.OrderBy(static value => value.Entry.PublishedUtc).ThenBy(static value => value.Entry.RestorePointId.Value, StringComparer.Ordinal).ToArray();
+        return result.OrderBy(static value => value.Entry.PublishedUtc)
+            .ThenBy(static value => value.Entry.RestorePointId.Value, StringComparer.Ordinal).ToArray();
     }
 
     /// <summary>Rebuilds logical catalog content solely from signed immutable publication records.</summary>
@@ -81,12 +88,18 @@ public sealed class S3DatabaseBackupCatalog(
             var bytes = await ReadVersionAsync(version.Key!, version.VersionId!, options.MaximumSignedDocumentBytes, cancellationToken).ConfigureAwait(false);
             var entry = MapEntry(DatabaseBackupCanonicalJson.Deserialize<AwsCatalogEntry>(bytes));
             if (entry.RestorePointId == restorePointId && entry.ReplicaId == replicaId)
-                return await ResolveEntryAsync(entry, cancellationToken).ConfigureAwait(false);
+            {
+                var catalogObject = await DescribeVersionAsync(version.Key!, version.VersionId!, bytes, cancellationToken).ConfigureAwait(false);
+                return await ResolveEntryAsync(entry, cancellationToken, MapObject(catalogObject)).ConfigureAwait(false);
+            }
         }
         throw new FileNotFoundException("The AWS restore point is not catalog-visible on the requested replica.");
     }
 
-    async ValueTask<AwsResolvedCatalogRestorePoint> ResolveEntryAsync(AwsCatalogEntry entry, CancellationToken cancellationToken)
+    async ValueTask<AwsResolvedCatalogRestorePoint> ResolveEntryAsync(
+        AwsCatalogEntry entry,
+        CancellationToken cancellationToken,
+        AwsImmutableObjectVersion? catalogObject = null)
     {
         entry = MapEntry(entry);
         var recordBytes = await objects.DownloadBoundedAsync(
@@ -101,7 +114,8 @@ public sealed class S3DatabaseBackupCatalog(
         var signatureKey = record.EngineManifest.ObjectKey.Replace(
             "manifests/engine-manifest-v2.json", $"publications/{record.ReplicaId.Value}/publication-v1.signature.json",
             StringComparison.Ordinal);
-        var signatureBytes = await ReadOnlyVersionForKeyAsync(signatureKey, cancellationToken).ConfigureAwait(false);
+        var publicationSignature = await ReadOnlyObjectForKeyAsync(signatureKey, cancellationToken).ConfigureAwait(false);
+        var signatureBytes = publicationSignature.Content;
         await signatures.VerifyAsync(recordBytes,
             DatabaseBackupCanonicalJson.Deserialize<AwsSignatureEnvelope>(signatureBytes), cancellationToken).ConfigureAwait(false);
         record = MapRecord(record);
@@ -112,6 +126,9 @@ public sealed class S3DatabaseBackupCatalog(
                 SHA256.HashData(manifestBytes), Convert.FromHexString(record.EngineManifestSha256)))
             throw new InvalidDataException("The AWS engine-manifest digest is invalid.");
         await signatures.VerifyAsync(manifestBytes, record.EngineManifestSignature, cancellationToken).ConfigureAwait(false);
+        var manifestSignatureKey = record.EngineManifest.ObjectKey.Replace(
+            "engine-manifest-v2.json", "engine-manifest-v2.signature.json", StringComparison.Ordinal);
+        var manifestSignature = await ReadOnlyObjectForKeyAsync(manifestSignatureKey, cancellationToken).ConfigureAwait(false);
         var manifest = DatabaseBackupCanonicalJson.Deserialize<DatabaseBackupManifest>(manifestBytes);
         DatabaseBackupManifestPolicy.Validate(manifest, BackupSource.AwsCloud);
         if (manifest.RestorePointId != entry.RestorePointId || manifest.Engine != entry.Engine)
@@ -119,13 +136,24 @@ public sealed class S3DatabaseBackupCatalog(
 
         foreach (var artifact in record.Artifacts)
             await objects.VerifyAsync(artifact.Object, cancellationToken).ConfigureAwait(false);
+        await objects.VerifyAsync(publicationSignature.Object, cancellationToken).ConfigureAwait(false);
+        await objects.VerifyAsync(manifestSignature.Object, cancellationToken).ConfigureAwait(false);
+        if (catalogObject is not null) await objects.VerifyAsync(catalogObject, cancellationToken).ConfigureAwait(false);
         var applicationEntry = new DatabaseCatalogEntry(
             entry.SchemaVersion, entry.RestorePointId,
             manifest.ManifestId, manifest.Revision, entry.Engine, entry.ProtectionSetId, entry.ReplicaId,
             record.EngineManifest.ObjectKey, entry.PublicationRecord.ObjectKey, entry.PublishedUtc);
         var restorePoint = new DatabaseCatalogRestorePoint(applicationEntry, manifest,
             record.Artifacts.Sum(static value => value.Object.Length), record.Artifacts.Length);
-        return new AwsResolvedCatalogRestorePoint(entry, record, restorePoint);
+        var immutableObjects = record.Artifacts.Select(static artifact => artifact.Object)
+            .Append(record.EngineManifest)
+            .Append(entry.PublicationRecord)
+            .Append(publicationSignature.Object)
+            .Append(manifestSignature.Object)
+            .Concat(catalogObject is null ? [] : [catalogObject])
+            .OrderBy(static value => value.ObjectKey, StringComparer.Ordinal)
+            .ToArray();
+        return new AwsResolvedCatalogRestorePoint(entry, record, restorePoint, immutableObjects);
     }
 
     async Task<List<S3ObjectVersion>> ListImmutableVersionsAsync(
@@ -153,11 +181,17 @@ public sealed class S3DatabaseBackupCatalog(
     }
 
     async Task<byte[]> ReadOnlyVersionForKeyAsync(string key, CancellationToken cancellationToken)
+        => (await ReadOnlyObjectForKeyAsync(key, cancellationToken).ConfigureAwait(false)).Content;
+
+    async Task<ImmutableDocument> ReadOnlyObjectForKeyAsync(string key, CancellationToken cancellationToken)
     {
         var versions = await ListImmutableVersionsAsync(key, key, cancellationToken).ConfigureAwait(false);
         var exact = versions.Where(value => StringComparer.Ordinal.Equals(value.Key, key)).ToArray();
         if (exact.Length != 1) throw new InvalidDataException("A signed AWS publication sidecar is missing or version-ambiguous.");
-        return await ReadVersionAsync(key, exact[0].VersionId!, options.MaximumSignedDocumentBytes, cancellationToken).ConfigureAwait(false);
+        var content = await ReadVersionAsync(key, exact[0].VersionId!, options.MaximumSignedDocumentBytes, cancellationToken).ConfigureAwait(false);
+        var descriptor = MapObject(await DescribeVersionAsync(
+            key, exact[0].VersionId!, content, cancellationToken).ConfigureAwait(false));
+        return new ImmutableDocument(content, descriptor);
     }
 
     async Task<byte[]> ReadVersionAsync(string key, string versionId, int maximumBytes, CancellationToken cancellationToken)
@@ -211,4 +245,6 @@ public sealed class S3DatabaseBackupCatalog(
         Region = _region,
         EncryptionKeyArn = _encryptionKeyArn
     };
+
+    sealed record ImmutableDocument(byte[] Content, AwsImmutableObjectVersion Object);
 }

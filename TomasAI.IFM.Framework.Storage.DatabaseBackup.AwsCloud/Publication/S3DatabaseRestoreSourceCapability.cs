@@ -53,7 +53,10 @@ public sealed class S3DatabaseRestoreSourceCapability(
             selected.RestorePoint.Entry.RestorePointId, replica,
             selected.RestorePoint.Manifest.ManifestId, selected.RestorePoint.Manifest.Revision,
             ordered.Sum(static point => point.RestorePoint.VerifiedBytes),
-            ordered.Sum(static point => point.RestorePoint.VerifiedArtifactCount), dependencies, recovery);
+            ordered.Sum(static point => point.RestorePoint.VerifiedArtifactCount), dependencies, recovery,
+            request.Engine == DatabaseEngine.ScyllaDb
+                ? AwsScyllaProtectionSetPolicy.CreateRecoveryExpectation(selected.Publication)
+                : null);
     }
 
     async ValueTask VisitAsync(

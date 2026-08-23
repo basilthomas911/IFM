@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Journal;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Processing;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Observability;
 
 namespace TomasAI.IFM.Api.DatabaseBackup.Host.Services;
 
@@ -19,6 +20,7 @@ public sealed class AwsDatabaseBackupRuntimeService(
     IDatabaseBackupSourceHealthRegistry health,
     DatabaseBackupHostOptions hostOptions,
     AwsCloudDatabaseBackupOptions awsOptions,
+    AwsDatabaseBackupTelemetry telemetry,
     ILogger<AwsDatabaseBackupRuntimeService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -58,6 +60,7 @@ public sealed class AwsDatabaseBackupRuntimeService(
             catch (Exception exception)
             {
                 initialized = false;
+                telemetry.RecordRuntimeFailure(AwsFailureCategory(exception));
                 health.Set(BackupSource.AwsCloud, enabled: true, ready: false,
                     $"degraded-{exception.GetType().Name}");
                 logger.LogWarning("AWS DatabaseBackup runtime is degraded and will retry. FailureType={FailureType}; Message={FailureMessage}",
@@ -66,4 +69,12 @@ public sealed class AwsDatabaseBackupRuntimeService(
             }
         }
     }
+
+    static string AwsFailureCategory(Exception exception) => exception switch
+    {
+        TimeoutException => "timeout",
+        UnauthorizedAccessException => "authorization",
+        InvalidDataException => "verification",
+        _ => "dependency"
+    };
 }

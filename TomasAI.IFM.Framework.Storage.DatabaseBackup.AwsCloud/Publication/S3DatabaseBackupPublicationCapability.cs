@@ -5,6 +5,8 @@ using TomasAI.IFM.Application.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Configuration;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Signing;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Observability;
+using System.Diagnostics;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Publication;
 
@@ -14,7 +16,8 @@ public sealed class S3DatabaseBackupPublicationCapability(
     IAwsDocumentSignatureService signatures,
     AwsCloudDatabaseBackupOptions options,
     DatabaseBackupHostOptions hostOptions,
-    TimeProvider timeProvider) : IDatabaseBackupPublicationCapability
+    TimeProvider timeProvider,
+    AwsDatabaseBackupTelemetry? telemetry = null) : IDatabaseBackupPublicationCapability
 {
     readonly AwsBackupObjectKeyFactory _keys = new(options.Environment.ToString().ToLowerInvariant());
     readonly DatabaseArtifactReplicaId _primaryReplica = new("aws-primary");
@@ -33,6 +36,7 @@ public sealed class S3DatabaseBackupPublicationCapability(
     public async ValueTask<DatabaseBackupPublicationResult> PublishAsync(
         DatabaseBackupPublicationRequest request, CancellationToken cancellationToken)
     {
+        var started = Stopwatch.GetTimestamp();
         ValidateRequest(request);
         var restorePoint = new DatabaseRestorePointId(request.OperationId.Format());
         var described = await nativeArtifacts.DescribeAsync(request.Engine, request.OperationId, cancellationToken).ConfigureAwait(false);
@@ -74,6 +78,8 @@ public sealed class S3DatabaseBackupPublicationCapability(
             PostgreSqlTimeline = request.PostgreSqlWalContinuity?.Timeline,
             PostgreSqlStartLsn = request.PostgreSqlWalContinuity?.StartLsn,
             PostgreSqlEndLsn = request.PostgreSqlWalContinuity?.EndLsn,
+            ScyllaTopology = request.ScyllaTopology,
+            ScyllaSnapshot = request.ScyllaSnapshot,
             ProducingHostId = hostOptions.HostId,
             BuildIdentity = typeof(S3DatabaseBackupPublicationCapability).Assembly.GetName().Version?.ToString() ?? "unknown",
             PublishedUtc = now, VerifiedUtc = now
@@ -100,6 +106,7 @@ public sealed class S3DatabaseBackupPublicationCapability(
             DatabaseBackupCanonicalJson.Serialize(catalog), retainUntil, context, cancellationToken).ConfigureAwait(false);
 
         var bytes = uploaded.Sum(static value => value.Object.Length);
+        telemetry?.RecordUpload(request.Engine, bytes, Stopwatch.GetElapsedTime(started));
         return new DatabaseBackupPublicationResult(restorePoint, manifest.ManifestId, manifest.Revision,
         [
             new DatabaseArtifactReplicaDescriptor
@@ -162,5 +169,14 @@ public sealed class S3DatabaseBackupPublicationCapability(
             || request.SafeBoundaryReference.Any(char.IsControl))
             throw new ArgumentException("AWS publication requires an operation and safe native boundary.", nameof(request));
         DatabaseBackupEnumValidation.RequireDefined(request.Engine, nameof(request.Engine));
+        if (request.Engine == DatabaseEngine.ScyllaDb)
+        {
+            AwsScyllaProtectionSetPolicy.ValidatePublication(
+                request.Dependencies ?? [], request.BackupLineage, request.ScyllaTopology, request.ScyllaSnapshot);
+        }
+        else if (request.ScyllaTopology is not null || request.ScyllaSnapshot is not null)
+        {
+            throw new ArgumentException("PostgreSQL publication cannot contain Scylla evidence.", nameof(request));
+        }
     }
 }

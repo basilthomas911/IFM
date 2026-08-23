@@ -14,6 +14,7 @@ using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Processing;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Publication;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Signing;
 using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.PostgreSql;
+using TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Observability;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Startup;
 
@@ -30,6 +31,7 @@ public static class AwsCloudServiceCollectionExtensions
         if (!options.Enabled) return services;
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<AwsDatabaseBackupTelemetry>();
         services.AddSingleton<AWSCredentials>(_ => CreateCredentials(options));
         services.AddSingleton<IAmazonSecurityTokenService>(provider => new AmazonSecurityTokenServiceClient(
             provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonSecurityTokenServiceConfig>(options.PrimaryRegion, options)));
@@ -64,6 +66,8 @@ public static class AwsCloudServiceCollectionExtensions
         services.AddSingleton<AwsPostgreSqlWalSpool>();
         services.AddSingleton<S3DatabaseBackupPublicationCapability>();
         services.AddSingleton<S3DatabaseRestoreSourceCapability>();
+        services.AddSingleton<AwsRecoverySourceQualificationService>();
+        services.AddSingleton<AwsRetentionPlanAuthorizationService>();
         services.AddSingleton<AwsRecoveryEvidenceStore>();
         services.AddSingleton<AwsDatabaseRecoveryEngineSelector>();
         services.AddSingleton<AwsCloudDatabaseRecoveryProcessor>();

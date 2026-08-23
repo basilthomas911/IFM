@@ -47,6 +47,10 @@ public sealed class AwsCloudDatabaseBackupOptions
     public TimeSpan MaximumWalArchiveLag { get; set; } = TimeSpan.FromMinutes(5);
     public TimeSpan ApiTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public int MaximumSdkRetries { get; set; } = 2;
+    public int MaximumConcurrentOperations { get; set; } = 1;
+    public long MinimumStagingFreeBytes { get; set; } = 4L * 1024 * 1024 * 1024;
+    public long MaximumScyllaProtectionSetBytes { get; set; } = 512L * 1024 * 1024 * 1024;
+    public decimal MonthlyCostBudgetUsd { get; set; } = 100m;
 
     public void Validate()
     {
@@ -96,6 +100,11 @@ public sealed class AwsCloudDatabaseBackupOptions
             throw Invalid("PostgreSQL WAL spool and lag bounds are unsafe");
         if (ApiTimeout <= TimeSpan.Zero || ApiTimeout > TimeSpan.FromMinutes(5) || MaximumSdkRetries is < 0 or > 8)
             throw Invalid("AWS timeout or retry bounds are invalid");
+        if (MaximumConcurrentOperations is < 1 or > 4
+            || MinimumStagingFreeBytes < 64L * 1024 * 1024
+            || MaximumScyllaProtectionSetBytes < MinimumStagingFreeBytes
+            || MonthlyCostBudgetUsd <= 0)
+            throw Invalid("AWS capacity, concurrency, or cost bounds are unsafe");
         if (DestructiveTestsEnabled && !LiveAwsTestsEnabled)
             throw Invalid("destructive tests require live AWS tests to be explicitly enabled");
         if (AcceptBackupRequests && !LiveAwsTestsEnabled && Environment == AwsBackupEnvironment.Development)

@@ -52,7 +52,9 @@ public sealed record DatabaseBackupPublicationRequest(
     DatabaseRecoveryRunStatistics? Statistics = null,
     DatabaseRestorePointId[]? Dependencies = null,
     DatabaseBackupLineage? BackupLineage = null,
-    PostgreSqlWalContinuityEvidence? PostgreSqlWalContinuity = null);
+    PostgreSqlWalContinuityEvidence? PostgreSqlWalContinuity = null,
+    ScyllaTopologyEvidence? ScyllaTopology = null,
+    ScyllaSnapshotEvidence? ScyllaSnapshot = null);
 
 public sealed record DatabaseBackupPublicationPreflightRequest(
     DatabaseProtectionSetId ProtectionSetId,
@@ -80,7 +82,8 @@ public sealed record DatabasePreparedRestoreSource(
     long VerifiedBytes,
     int VerifiedArtifactCount,
     DatabaseRestorePointId[] DependencyChain,
-    PostgreSqlPreparedRecovery? PostgreSqlRecovery = null);
+    PostgreSqlPreparedRecovery? PostgreSqlRecovery = null,
+    ScyllaRecoveryExpectation? ScyllaRecovery = null);
 
 public sealed record DatabaseBackupPlanningRequest(
     DatabaseRecoveryOperationId OperationId,

@@ -127,6 +127,8 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
         if (!_options.ProtectionSets.TryGetValue(sourceEvidence.ProtectionSetId, out var protectionSet))
             throw new InvalidOperationException("The Scylla restore point references a protection set not configured on this host.");
         var capture = Capture(sourceEvidence);
+        ValidateCapture(capture, protectionSet);
+        ValidateRecoveryExpectation(request.ExpectedRecovery, sourceEvidence);
         var verification = await _administration.VerifyAsync(
             protectionSet, capture, Path.Combine(sourceRoot, "native"), cancellationToken).ConfigureAwait(false);
         if (!verification.Succeeded)
@@ -293,5 +295,15 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
     {
         if (!string.Equals(actual, expected, StringComparison.Ordinal))
             throw new InvalidOperationException("The Scylla verification boundary does not match captured evidence.");
+    }
+
+    static void ValidateRecoveryExpectation(
+        ScyllaRecoveryExpectation? expected,
+        ScyllaBackupEvidence actual)
+    {
+        if (expected is null) return;
+        if (expected.Topology != actual.Topology || expected.Snapshot != actual.Snapshot)
+            throw new InvalidDataException(
+                "The staged Scylla protection set differs from the signed AWS topology or snapshot evidence.");
     }
 }
