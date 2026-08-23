@@ -27,9 +27,28 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
     public class TestableFundQueryActor : FundQueryActor
     {
         public TestableFundQueryActor(IDbContextFactory dbFactory, ILogger<FundQueryActor> logger)
-            : base(dbFactory,logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableFundQueryActor(IFundQueryContext context)
+            : base(context)
+        {
+            FundContext = context;
+        }
+
+        static IFundQueryContext CreateContext(
+            IDbContextFactory dbFactory,
+            ILogger<FundQueryActor> logger)
+        {
+            var context = Substitute.For<IFundQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, FundQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public IFundQueryContext FundContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -56,7 +75,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var dbFactory = Substitute.For<IDbContextFactory>();
         var actor = _fixture.CreateActor(dbFactory, logger);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         // ensure ReplyAsync doesn't throw when called
         context.ReplyAsync(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ServiceResult<object>>()).Returns(ValueTask.CompletedTask);
 
@@ -164,7 +183,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var dbFactory = Substitute.For<IDbContextFactory>();
         var actor = _fixture.CreateActor(dbFactory, logger);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         var q = new GetFundBalanceQuery(SampleData.Fund.FundId);
         var invalidThreadId = default(ActorThreadId);
         var ex = new Exception("boom");
@@ -180,7 +199,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var dbFactory = Substitute.For<IDbContextFactory>();
         var actor = _fixture.CreateActor(dbFactory, logger);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         var threadId = new ActorThreadId(ActorType.Query, FundQueryActor.ActorName, "1");
         var ex = new Exception("boom");
 
@@ -195,7 +214,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var dbFactory = Substitute.For<IDbContextFactory>();
         var actor = _fixture.CreateActor(dbFactory, logger);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         var q = new GetFundBalanceQuery(SampleData.Fund.FundId);
         var threadId = new ActorThreadId(ActorType.Query, FundQueryActor.ActorName, q.EntityId.Format());
         var ex = new Exception("boom");
@@ -246,7 +265,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var payload = (byte[])genericSerialize.Invoke(serializer, new object[] { queryObj })!;
         var natsMsg = new NatsMsg<byte[]>(subject.ToString(), string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
@@ -285,7 +304,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
 
         var invalidSubject = "Invalid.Subject.Format";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
 
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
         act.Should().Throw<ArgumentException>();
@@ -312,7 +331,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
                 GetFundBalanceQuery.Verb,
                 query.EntityId.Format())
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         using var cancellation = new CancellationTokenSource();
         fundDbContext.GetFundBalanceAsync(query.FundId, cancellation.Token)
             .Returns(_ => Task.FromCanceled<decimal>(cancellation.Token));
@@ -346,7 +365,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetClosingFundBalanceQuery(SampleData.Fund.FundId, valueDate);
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetClosingFundBalanceQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -372,7 +391,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetFundDrawdownBalancesQuery(SampleData.Fund.FundId, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)), DateOnly.FromDateTime(DateTime.UtcNow));
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundDrawdownBalancesQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -396,7 +415,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetFundIdFromOrderIdQuery(456);
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundIdFromOrderIdQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -422,7 +441,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetFundOrdersQuery();
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundOrdersQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -448,7 +467,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetFundOrderTradesQuery();
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundOrderTradesQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -486,7 +505,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetFundPnlReportQuery(SampleData.Fund.FundId, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)), DateOnly.FromDateTime(DateTime.UtcNow));
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundPnlReportQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -516,7 +535,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetFundWinLossRatioQuery(SampleData.Fund.FundId, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7)), DateOnly.FromDateTime(DateTime.UtcNow));
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundWinLossRatioQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -541,7 +560,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var q = new GetOpeningFundBalanceQuery(SampleData.Fund.FundId, DateOnly.FromDateTime(DateTime.UtcNow));
         q = q with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetOpeningFundBalanceQuery.Verb, q.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -579,7 +598,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var subjectProp = q.GetType().GetProperty("Subject");
         subjectProp?.SetValue(q, subject);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         await actor.InvokeReceiveAsync(context, q);
@@ -608,7 +627,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
 
         var query = new GetFundBalanceQuery(SampleData.Fund.FundId);
         query = query with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundBalanceQuery.Verb, query.EntityId.Format()) };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
@@ -639,7 +658,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var query = new GetFundsQuery();
         query = query with { Subject = new ActorSubject(ActorType.Query, FundQueryActor.ActorName, GetFundsQuery.Verb, query.EntityId.Format()) };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
@@ -682,7 +701,7 @@ public class FundQueryActorTests : IClassFixture<FundTestFixture>
         var dummy = Substitute.For<IQuery>();
         // substitute a fake type name by creating a local anonymous type implementing IQuery is not possible, instead use a mock and ensure its runtime type name is unsupported
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FundContext;
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, dummy);

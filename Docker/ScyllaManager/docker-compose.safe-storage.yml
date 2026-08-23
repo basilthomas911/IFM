@@ -1,0 +1,15 @@
+name: ifm-scylla-manager
+
+# Development fallback for a host backup disk that is unavailable or unhealthy.
+# Apply after docker-compose.yml. The volume key is merged by container target and
+# replaces only the MinIO /data bind mount; it does not modify or delete host files.
+services:
+  scylla-backup-s3:
+    volumes:
+      - type: volume
+        source: scylla-backup-safe-data
+        target: /data
+
+volumes:
+  scylla-backup-safe-data:
+    name: ifm_scylla_manager_safe_data

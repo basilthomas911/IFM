@@ -213,7 +213,6 @@ public sealed class EventProjectorTransientFlowTests
             durableQueue,
             eventSource,
             CreateBlackboard(),
-            Substitute.For<ILogger<FundEventProjector>>(),
             new EventProjectorReliabilityOptions { NonDurableQueueCapacity = 2 });
         var transientEvent = CreateEvent(1_010);
         var durableEvent = new OrderAddedToFundEvent
@@ -352,7 +351,6 @@ public sealed class EventProjectorTransientFlowTests
             queue,
             eventSource,
             CreateBlackboard(),
-            Substitute.For<ILogger<FundEventProjector>>(),
             new EventProjectorReliabilityOptions
             {
                 BoundedRecoveryEnabled = true,
@@ -389,14 +387,9 @@ public sealed class EventProjectorTransientFlowTests
             IDurableReplayQueue durableReplayQueue,
             IEventSourceActorDbContext dbEventSource,
             IBlackboardService blackboardService,
-            ILogger<FundEventProjector> logger,
             EventProjectorReliabilityOptions reliabilityOptions)
             : base(
-                dbFactory,
-                durableReplayQueue,
-                dbEventSource,
-                blackboardService,
-                logger,
+                CreateContext(dbFactory, durableReplayQueue, dbEventSource, blackboardService),
                 reliabilityOptions)
         {
             _transientDescriptors = [.. base.ProjectionDescriptors.Select(
@@ -416,14 +409,9 @@ public sealed class EventProjectorTransientFlowTests
             IDurableReplayQueue durableReplayQueue,
             IEventSourceActorDbContext dbEventSource,
             IBlackboardService blackboardService,
-            ILogger<FundEventProjector> logger,
             EventProjectorReliabilityOptions reliabilityOptions)
             : base(
-                dbFactory,
-                durableReplayQueue,
-                dbEventSource,
-                blackboardService,
-                logger,
+                CreateContext(dbFactory, durableReplayQueue, dbEventSource, blackboardService),
                 reliabilityOptions)
         {
             _mixedDescriptors = [.. base.ProjectionDescriptors.Select(
@@ -434,5 +422,24 @@ public sealed class EventProjectorTransientFlowTests
 
         public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors
             => _mixedDescriptors;
+    }
+
+    static ICommandActorContext<FundCommandActor> CreateContext(
+        IDbContextFactory dbFactory,
+        IDurableReplayQueue durableReplayQueue,
+        IEventSourceActorDbContext dbEventSource,
+        IBlackboardService blackboardService)
+    {
+        var context = Substitute.For<IFundCommandContext>();
+        var container = Substitute.For<IContainerInstance>();
+        context.Container.Returns(container);
+        context.DbFactory.Returns(dbFactory);
+        context.BlackboardService.Returns(blackboardService);
+        context.Logger.Returns(Substitute.For<ILogger<FundCommandActor>>());
+        context.DurableReplayQueue.Returns(durableReplayQueue);
+        context.DbEventSource.Returns(dbEventSource);
+        container.Resolve<IDurableReplayQueue>().Returns(durableReplayQueue);
+        container.Resolve<IEventSourceActorDbContext>().Returns(dbEventSource);
+        return context;
     }
 }

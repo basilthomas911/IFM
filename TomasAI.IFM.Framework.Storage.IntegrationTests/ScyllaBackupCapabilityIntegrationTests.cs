@@ -18,15 +18,16 @@ public sealed class ScyllaBackupCapabilityIntegrationTests : IDisposable
     {
         var options = Options();
         var native = new DeterministicScyllaAdministrationClient("synthetic-gate7-row");
+        var snapshotArtifacts = new RecordingSnapshotArtifactTransport();
         var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
-        var firstHost = new ScyllaBackupCapability(options, native);
+        var firstHost = new ScyllaBackupCapability(options, native, snapshotArtifacts);
 
         await firstHost.ValidateAsync(CancellationToken.None);
         var captured = await firstHost.CreateBackupAsync(
             new ScyllaBackupRequest(backupOperation, new DatabaseProtectionSetId("read-model-scylla")),
             new Progress<DatabaseNativeProgress>(), CancellationToken.None);
 
-        var restartedHost = new ScyllaBackupCapability(options, native);
+        var restartedHost = new ScyllaBackupCapability(options, native, snapshotArtifacts);
         await restartedHost.ValidateAsync(CancellationToken.None);
         var recovered = await restartedHost.CreateBackupAsync(
             new ScyllaBackupRequest(backupOperation, new DatabaseProtectionSetId("read-model-scylla")),
@@ -64,6 +65,8 @@ public sealed class ScyllaBackupCapabilityIntegrationTests : IDisposable
         native.CaptureCount.Should().Be(1);
         native.RestoreCount.Should().Be(1);
         native.RestoredPayload.Should().Be("synthetic-gate7-row");
+        snapshotArtifacts.ExportCount.Should().Be(1);
+        snapshotArtifacts.EnsureAvailableCount.Should().Be(1);
     }
 
     [Fact]
@@ -217,5 +220,35 @@ public sealed class ScyllaBackupCapabilityIntegrationTests : IDisposable
 
         static string Sha256(string value)
             => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+    }
+
+    sealed class RecordingSnapshotArtifactTransport : IScyllaSnapshotArtifactTransport
+    {
+        public int ExportCount { get; private set; }
+        public int EnsureAvailableCount { get; private set; }
+
+        public ValueTask<long> ExportAsync(
+            string backupLocation,
+            string snapshotTag,
+            IReadOnlyList<string> artifactReferences,
+            string destinationDirectory,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ExportCount++;
+            return ValueTask.FromResult(42L);
+        }
+
+        public ValueTask<long> EnsureAvailableAsync(
+            string sourceBackupLocation,
+            string destinationBackupLocation,
+            string snapshotTag,
+            string sourceDirectory,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            EnsureAvailableCount++;
+            return ValueTask.FromResult(42L);
+        }
     }
 }

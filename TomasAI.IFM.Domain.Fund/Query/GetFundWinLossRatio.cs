@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Fund.Query.Actor;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -10,14 +10,15 @@ internal static class GetFundWinLossRatio
     /// Calculate fund win/loss ratio and Kelly criteria based on the fund orders with profit and loss amounts within the specified date range, then reply with the calculation result.
     /// </summary>
     /// <param name="q">The query for retrieving fund win/loss ratio</param>
-    /// <param name="dbFactory">The database context factory</param>
+    /// <param name="context">The Fund-specific query context.</param>
+    /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns></returns>
     internal static async ValueTask<FundWinLossRatioReadModel> GetFundWinLossRatioAsync(
         this GetFundWinLossRatioQuery q,
-        IDbContextFactory dbFactory,
+        IFundQueryContext context,
         CancellationToken cancellationToken = default)
         => await FundQueryCalculations.GetWinLossRatioAsync(
-            dbFactory.FundDb,
+            context.DbFactory.FundDb,
             q.FundId,
             q.StartDate,
             q.EndDate,

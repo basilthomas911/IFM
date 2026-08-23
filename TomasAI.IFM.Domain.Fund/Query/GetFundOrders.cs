@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Fund.Query.Actor;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,13 +13,14 @@ internal static class GetFundOrders
     /// Handles the GetFundOrdersQuery by retrieving fund orders from the database and replying with the results.
     /// </summary>
     /// <param name="q">The query to handle.</param>
-    /// <param name="dbFactory">The database context factory.</param>
+    /// <param name="context">The Fund-specific query context.</param>
+    /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundOrderReadModel[]> GetFundOrdersAsync(
         this GetFundOrdersQuery q,
-        IDbContextFactory dbFactory,
+        IFundQueryContext context,
         CancellationToken cancellationToken = default)
         => cancellationToken.CanBeCanceled
-            ? [.. await dbFactory.FundDb.GetFundOrdersAsync(cancellationToken).ConfigureAwait(false)]
-            : [.. await dbFactory.FundDb.GetFundOrdersAsync().ConfigureAwait(false)];
+            ? [.. await context.DbFactory.FundDb.GetFundOrdersAsync(cancellationToken).ConfigureAwait(false)]
+            : [.. await context.DbFactory.FundDb.GetFundOrdersAsync().ConfigureAwait(false)];
 }

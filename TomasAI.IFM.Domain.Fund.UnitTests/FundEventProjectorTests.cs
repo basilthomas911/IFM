@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Domain.Fund.Command.Actor;
 using TomasAI.IFM.Domain.Fund.Command.EventProjector;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
@@ -795,12 +796,31 @@ public sealed class FundEventProjectorTests
         EventProjectorReliabilityOptions? reliabilityOptions = null,
         IDbContextFactory? dbFactory = null) =>
         new(
-            dbFactory ?? Substitute.For<IDbContextFactory>(),
-            durableReplayQueue,
-            dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
-            blackboardService ?? Substitute.For<IBlackboardService>(),
-            Substitute.For<ILogger<FundEventProjector>>(),
+            CreateContext(
+                dbFactory ?? Substitute.For<IDbContextFactory>(),
+                durableReplayQueue,
+                dbEventSource ?? Substitute.For<IEventSourceActorDbContext>(),
+                blackboardService ?? Substitute.For<IBlackboardService>()),
             reliabilityOptions);
+
+    static ICommandActorContext<FundCommandActor> CreateContext(
+        IDbContextFactory dbFactory,
+        IDurableReplayQueue durableReplayQueue,
+        IEventSourceActorDbContext dbEventSource,
+        IBlackboardService blackboardService)
+    {
+        var context = Substitute.For<IFundCommandContext>();
+        var container = Substitute.For<IContainerInstance>();
+        context.Container.Returns(container);
+        context.DbFactory.Returns(dbFactory);
+        context.BlackboardService.Returns(blackboardService);
+        context.Logger.Returns(Substitute.For<ILogger<FundCommandActor>>());
+        context.DurableReplayQueue.Returns(durableReplayQueue);
+        context.DbEventSource.Returns(dbEventSource);
+        container.Resolve<IDurableReplayQueue>().Returns(durableReplayQueue);
+        container.Resolve<IEventSourceActorDbContext>().Returns(dbEventSource);
+        return context;
+    }
 
     static EventProjectorRecoveryItemReadModel RecoveryItem(long eventId, long streamId)
     {

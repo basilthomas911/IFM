@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Fund.Query.Actor;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -10,13 +10,14 @@ internal static class GetFunds
     /// Handles the GetFundsQuery by retrieving all funds from the database and replying with the results.
     /// </summary>
     /// <param name="q">The GetFundsQuery instance.</param>
-    /// <param name="dbFactory">The database context factory.</param>
+    /// <param name="context">The Fund-specific query context.</param>
+    /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundReadModel[]> GetFundsAsync(
         this GetFundsQuery q,
-        IDbContextFactory dbFactory,
+        IFundQueryContext context,
         CancellationToken cancellationToken = default)
         => cancellationToken.CanBeCanceled
-            ? [.. await dbFactory.FundDb.GetFundsAsync(cancellationToken).ConfigureAwait(false)]
-            : [.. await dbFactory.FundDb.GetFundsAsync().ConfigureAwait(false)];
+            ? [.. await context.DbFactory.FundDb.GetFundsAsync(cancellationToken).ConfigureAwait(false)]
+            : [.. await context.DbFactory.FundDb.GetFundsAsync().ConfigureAwait(false)];
 }

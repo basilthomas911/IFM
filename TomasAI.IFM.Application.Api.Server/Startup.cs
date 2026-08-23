@@ -360,7 +360,6 @@ public static class Startup
         void RegisterEventApiServices()
         {
             logger.LogInformationEvent("ApiServer", "registering actor event api services...");
-            services.AddSingleton<IActorFundEventApiFactory, TomasAI.IFM.Domain.Fund.Event.Api.ActorFundEventApiFactory>();
             services.AddSingleton<IActorMarketDataFeedEventApiFactory, TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory>();
         }
 
@@ -370,7 +369,6 @@ public static class Startup
             services.AddSingleton<IQueryServiceApiOptions>(_ => new QueryServiceApiOptions(config.GetValue<string>("AppSettings:QueryServerBaseUri")!));
             services.AddSingleton<IQueryServiceApi, QueryServiceApiClient>();
             services.AddSingleton<IFundQueryApi, FundQueryApi>();
-            services.AddSingleton<IActorFundQueryApi, TomasAI.IFM.Domain.Fund.Query.Api.ActorFundQueryApi>();
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             services.AddSingleton<IActorMarketDataAnalyticsQueryApi, TomasAI.IFM.Domain.MarketData.Analytics.Query.Api.ActorMarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
@@ -585,6 +583,10 @@ public static class Startup
         _siContainer.AddRegistration<ISystemAdminDbContext>(systemAdminRegistration);
         _siContainer.AddRegistration<IObjectRepository<SystemAdminDbContext>>(systemAdminRegistration);
         _siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
+        _siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        _siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        _siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        _siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
         _siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);

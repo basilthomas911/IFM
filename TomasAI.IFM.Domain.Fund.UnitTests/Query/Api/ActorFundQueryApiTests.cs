@@ -2,36 +2,32 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.FundDb;
-using TomasAI.IFM.Domain.Fund.Query.Api;
+using TomasAI.IFM.Domain.Fund.Query.Actor;
+using TomasAI.IFM.Domain.Fund.Query.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
-using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Fund.UnitTests.Query.Api;
+namespace TomasAI.IFM.Domain.Fund.UnitTests.Query.Extensions;
 
-public class ActorFundQueryApiTests
+public class FundQueryExtensionsTests
 {
     static readonly DateOnly StartDate = new(2026, 1, 1);
     static readonly DateOnly EndDate = new(2026, 1, 31);
 
     [Fact]
-    public void ImplementsTheActorQueryContractSeparatelyFromTheExternalAdapter()
+    public void DirectQueriesAreExposedByTheFundQueryContext()
     {
-        var (api, _) = CreateApi();
+        var (context, _) = CreateContext();
 
-        api.Should().BeAssignableTo<IActorFundQueryApi>();
-        typeof(ActorFundQueryApi).Namespace.Should().Be("TomasAI.IFM.Domain.Fund.Query.Api");
-        typeof(IActorFundQueryApi).GetMethod(nameof(IActorFundQueryApi.GetFundMaxProfitGeneratedAsync))
-            .Should().NotBeNull();
-        typeof(IFundQueryApi).GetMethod(nameof(IActorFundQueryApi.GetFundMaxProfitGeneratedAsync))
-            .Should().BeNull();
+        context.Should().BeAssignableTo<IFundQueryContext>();
+        context.DbFactory.Should().NotBeNull();
     }
 
     [Fact]
     public async Task DirectQueriesReturnTypedSuccessResults()
     {
-        var (api, db) = CreateApi();
+        var (api, db) = CreateContext();
         var fund = SampleData.Fund;
         var order = SampleData.FundOrder;
         var trade = SampleData.FundOrderTrade;
@@ -121,7 +117,7 @@ public class ActorFundQueryApiTests
         var fundId = SampleData.Fund.FundId;
         var orderId = SampleData.FundOrder.OrderId;
 
-        var cases = new (Action<IFundDbContext> Arrange, Func<ActorFundQueryApi, Task<ServiceResult>> Act, int ErrorId)[]
+        var cases = new (Action<IFundDbContext> Arrange, Func<IFundQueryContext, Task<ServiceResult>> Act, int ErrorId)[]
         {
             (db => db.GetFundsAsync().Returns(_ => Task.FromException<ICollection<FundReadModel>>(exception)),
                 async api => await api.GetFundsAsync(), GetFundsQuery.ErrorId),
@@ -158,7 +154,7 @@ public class ActorFundQueryApiTests
 
         foreach (var (arrange, act, errorId) in cases)
         {
-            var (api, db) = CreateApi();
+            var (api, db) = CreateContext();
             arrange(db);
 
             var result = await act(api);
@@ -169,11 +165,13 @@ public class ActorFundQueryApiTests
         }
     }
 
-    static (ActorFundQueryApi Api, IFundDbContext Db) CreateApi()
+    static (IFundQueryContext Context, IFundDbContext Db) CreateContext()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IFundDbContext>();
         dbFactory.FundDb.Returns(db);
-        return (new ActorFundQueryApi(dbFactory), db);
+        var context = Substitute.For<IFundQueryContext>();
+        context.DbFactory.Returns(dbFactory);
+        return (context, db);
     }
 }

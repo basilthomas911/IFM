@@ -25,3 +25,12 @@ public interface IQueryActorContext
     ValueTask ReplyAsync<TResult>(ActorThreadId threadId, string verb, ServiceResult<TResult> replyResult);
 
 }
+
+/// <summary>
+/// Provides a query actor context associated with a specific actor type.
+/// </summary>
+/// <typeparam name="TActor">The query actor type associated with the context.</typeparam>
+public interface IQueryActorContext<TActor> : IQueryActorContext
+    where TActor : IActor
+{
+}

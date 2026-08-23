@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
-using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Fund.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.Fund.Event.Actor;
 
@@ -14,34 +14,31 @@ namespace TomasAI.IFM.Domain.Fund.Event.Actor;
 /// mechanisms for parsing incoming messages, handling event execution, managing actor state, and reporting errors
 /// specific to fund events.
 /// </summary>
-/// <param name="supervisor">The actor supervisor that manages actor lifecycle and coordinates event processing within the system. Cannot be
-/// null.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the fund event actor. Cannot be null.</param>
+/// <param name="actorContext">The Fund event context resolved through the open-generic context registration.</param>
 public class FundEventActor(
-    IActorSupervisor supervisor,
-    IActorFundEventApiFactory eventApiFactory,
-    ILogger<FundEventActor> logger)
-    : BaseEventActor<FundEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<FundEventActor> actorContext)
+    : BaseEventActor<FundEventActor>(
+        actorContext.Supervisor,
+        actorContext.Logger,
+        actorContext.ActorId)
 {
     public const string Actor = "FundEvent";
-    IActorFundEventApi? _eventApi;
-    readonly Dictionary<Type, Func<IEvent, IEventActorContext, IActorFundEventApi, ILogger, ValueTask<bool>>> _receiveMap = new()
+    /// <summary>
+    /// Gets the Fund-specific event context supplied when this actor is constructed.
+    /// </summary>
+    protected IFundEventContext FundEventContext { get; } = IsArgumentNull.Set(
+        actorContext as IFundEventContext,
+        nameof(actorContext))!;
+
+    readonly ILogger<FundEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly Dictionary<Type, Func<IEvent, IFundEventContext, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FundMaxProfitGeneratedEvent)] = async (evt, context, eventApi, logger) =>
+        [typeof(FundMaxProfitGeneratedEvent)] = async (evt, context, logger) =>
         {
             var e = (evt as FundMaxProfitGeneratedEvent)!;
-            return await e.ExecuteAsync(context, eventApi, logger);
+            return await e.ExecuteAsync(context, logger);
         }
     };
-
-    protected override ValueTask OnStartup(IEventActorContext context)
-    {
-        _ = GetEventApi(context);
-        return ValueTask.CompletedTask;
-    }
-
-    IActorFundEventApi GetEventApi(IEventActorContext context)
-        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -89,7 +86,7 @@ public class FundEventActor(
         IsArgumentNull.Check(@event);
         if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetEventApi(context), logger).ConfigureAwait(false);
+        _ = await receiveFunc.Invoke(@event, FundEventContext, _logger).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -115,7 +112,7 @@ public class FundEventActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

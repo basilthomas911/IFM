@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Fund.Query.Actor;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -12,14 +12,15 @@ internal static class GetFundOrderTrades
     /// Handles the GetFundOrderTradesQuery by retrieving fund order trade data from the database and replying with the results.
     /// </summary>
     /// <param name="q">The query to handle.</param>
-    /// <param name="dbFactory">The database context factory.</param>
+    /// <param name="context">The Fund-specific query context.</param>
+    /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundOrderTradeReadModel[]> GetFundOrderTradesAsync(
         this GetFundOrderTradesQuery q,
-        IDbContextFactory dbFactory,
+        IFundQueryContext context,
         CancellationToken cancellationToken = default)
         => cancellationToken.CanBeCanceled
-            ? [.. await dbFactory.FundDb.GetFundOrderTradesAsync(cancellationToken).ConfigureAwait(false)]
-            : [.. await dbFactory.FundDb.GetFundOrderTradesAsync().ConfigureAwait(false)];
+            ? [.. await context.DbFactory.FundDb.GetFundOrderTradesAsync(cancellationToken).ConfigureAwait(false)]
+            : [.. await context.DbFactory.FundDb.GetFundOrderTradesAsync().ConfigureAwait(false)];
     
 }

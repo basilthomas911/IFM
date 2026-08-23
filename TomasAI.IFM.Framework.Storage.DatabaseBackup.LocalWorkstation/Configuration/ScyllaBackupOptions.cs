@@ -27,6 +27,7 @@ public sealed partial class ScyllaBackupOptions
     public TimeSpan OperationTimeout { get; set; } = TimeSpan.FromHours(8);
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
     public bool RequirePersistentBackupRoot { get; set; } = true;
+    public ScyllaPortableSnapshotOptions PortableSnapshot { get; set; } = new();
 
     public void Validate()
     {
@@ -75,6 +76,7 @@ public sealed partial class ScyllaBackupOptions
                 || PostgreSqlBackupOptions.IsWithin(restoreRoot, protectedRoot))
                 throw new InvalidOperationException("Scylla backup and restore roots cannot reside in protected data roots.");
         }
+        PortableSnapshot.Validate();
     }
 
     public string ResolveBackupRoot() => ResolveRoot(BackupRoot, nameof(BackupRoot));
@@ -106,10 +108,39 @@ public sealed partial class ScyllaBackupOptions
     private static partial Regex BackupLocationPattern();
 }
 
+public sealed partial class ScyllaPortableSnapshotOptions
+{
+    public bool Enabled { get; set; }
+    public string ServiceUrl { get; set; } = string.Empty;
+    public string AccessKeyIdEnvironmentVariable { get; set; } = "MINIO_ROOT_USER";
+    public string SecretAccessKeyEnvironmentVariable { get; set; } = "MINIO_ROOT_PASSWORD";
+    public int MaximumObjectCount { get; set; } = 1_000_000;
+    public long MaximumTotalBytes { get; set; } = 512L * 1024 * 1024 * 1024;
+
+    public void Validate()
+    {
+        if (!Enabled) return;
+        if (!Uri.TryCreate(ServiceUrl, UriKind.Absolute, out var endpoint)
+            || (endpoint.Scheme != Uri.UriSchemeHttp && endpoint.Scheme != Uri.UriSchemeHttps)
+            || !string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query)
+            || !string.IsNullOrEmpty(endpoint.Fragment))
+            throw new InvalidOperationException("The Scylla portable-snapshot object-store endpoint is invalid.");
+        if (!EnvironmentNamePattern().IsMatch(AccessKeyIdEnvironmentVariable)
+            || !EnvironmentNamePattern().IsMatch(SecretAccessKeyEnvironmentVariable))
+            throw new InvalidOperationException("Scylla portable-snapshot credentials must be environment-variable references.");
+        if (MaximumObjectCount <= 0 || MaximumObjectCount > 1_000_000 || MaximumTotalBytes <= 0)
+            throw new InvalidOperationException("The Scylla portable-snapshot bounds are invalid.");
+    }
+
+    [GeneratedRegex("^[A-Z][A-Z0-9_]{0,127}$", RegexOptions.CultureInvariant)]
+    private static partial Regex EnvironmentNamePattern();
+}
+
 public sealed class ScyllaProtectionSetOptions
 {
     public string ManagerCluster { get; set; } = string.Empty;
     public string BackupLocation { get; set; } = string.Empty;
+    public string RestoreLocation { get; set; } = string.Empty;
     public string[] Keyspaces { get; set; } = [];
     public int RequiredLiveNodes { get; set; } = 1;
     public int ManagerRetentionCount { get; set; } = 30;
@@ -118,6 +149,7 @@ public sealed class ScyllaProtectionSetOptions
     {
         ScyllaBackupOptions.ValidateManagerIdentifier(ManagerCluster, "Manager cluster");
         ScyllaBackupOptions.ValidateLocation(BackupLocation);
+        if (!string.IsNullOrWhiteSpace(RestoreLocation)) ScyllaBackupOptions.ValidateLocation(RestoreLocation);
         if (Keyspaces.Length == 0)
             throw new InvalidOperationException("At least one Scylla keyspace selection is required.");
         foreach (var keyspace in Keyspaces)

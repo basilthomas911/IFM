@@ -9,6 +9,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
+using TomasAI.IFM.Domain.Fund.Command.Extensions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Validation;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -23,17 +24,18 @@ namespace TomasAI.IFM.Domain.Fund.Command.Actor;
 /// <remarks>This actor handles commands such as adding, changing, or removing futures contracts associated with a
 /// fund. It coordinates command validation, state loading and saving, and command execution in a thread-safe,
 /// event-sourced manner. The actor is typically resolved and managed by the actor system infrastructure.</remarks>
-/// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
+/// <param name="actorContext">The Fund command context resolved through the open-generic context registration.</param>
 /// <param name="eventProjector">The Fund event projector whose durable queue follows the actor lifecycle.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class FundCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<FundCommandActor> eventProjector,
-    ILogger<FundCommandActor> logger)
-    : BaseEventSourceCommandActor<FundCommandActor>(logger, new ActorMailboxId(ActorType.Command, Actor))
+    ICommandActorContext<FundCommandActor> actorContext,
+    IEventProjector<FundCommandActor> eventProjector)
+    : BaseEventSourceCommandActor<FundCommandActor>(
+        actorContext.Logger,
+        actorContext.ActorId)
 {
     public const string Actor = "FundCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly ILogger<FundCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
     readonly IEventProjector<FundCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository <FundCommandState> _repo = default!;
 
@@ -313,7 +315,7 @@ public class FundCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor,threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor,threadId, ex.Message);
             return CommandFailed(innerEx, command);
         }
     }

@@ -286,13 +286,13 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     }
 
     // Explicit interface implementations forwarding to protected hooks
-    ValueTask ICommandActor<TActor>.OnStartup(ICommandActorContext context) => OnStartup(context);
-    ValueTask ICommandActor<TActor>.OnShutdown(ICommandActorContext context) => OnShutdown(context);
-    ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command) => ReceiveAsync(context, state, command);
-    ValueTask ICommandActor<TActor>.OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command);
-    ValueTask<IActorState> ICommandActor<TActor>.OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(context, threadId, command);
-    ValueTask ICommandActor<TActor>.OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(context, threadId, state, command);
-    ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(context, threadId, command, ex);
+    ValueTask ICommandActor.OnStartup(ICommandActorContext context) => OnStartup(context);
+    ValueTask ICommandActor.OnShutdown(ICommandActorContext context) => OnShutdown(context);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor.ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command) => ReceiveAsync(context, state, command);
+    ValueTask ICommandActor.OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command);
+    ValueTask<IActorState> ICommandActor.OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(context, threadId, command);
+    ValueTask ICommandActor.OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(context, threadId, state, command);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor.OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(context, threadId, command, ex);
 
     // Protected hooks for derived classes
     protected abstract ICommand ParseMessage(ICommandActorContext context, IActorMessage message);

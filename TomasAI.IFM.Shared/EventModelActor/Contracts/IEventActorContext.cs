@@ -39,3 +39,12 @@ public interface IEventActorContext
     public void RemoveRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
 
 }
+
+/// <summary>
+/// Provides an event actor context associated with a specific actor type.
+/// </summary>
+/// <typeparam name="TActor">The event actor type associated with the context.</typeparam>
+public interface IEventActorContext<TActor> : IEventActorContext
+    where TActor : IActor
+{
+}

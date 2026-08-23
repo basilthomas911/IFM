@@ -6,6 +6,8 @@ services:
     build:
       context: ../..
       dockerfile: TomasAI.IFM.Api.DatabaseBackup.Host/Dockerfile
+    env_file:
+      - ${IFM_SCYLLA_MINIO_ENV:-E:/IFM/DatabaseBackup/secrets/scylla-manager-minio.env}
     environment:
       DOTNET_ENVIRONMENT: Container
       ASPNETCORE_URLS: http://+:8080
@@ -20,6 +22,8 @@ services:
       DatabaseBackup__Sources__LocalWorkstation__PostgreSqlEnabled: ${IFM_POSTGRES_BACKUP_ENABLED:-true}
       DatabaseBackup__Sources__LocalWorkstation__ScyllaEnabled: ${IFM_SCYLLA_BACKUP_ENABLED:-false}
       DatabaseBackup__Scylla__ManagerApiUrl: ${IFM_SCYLLA_MANAGER_API_URL:-http://host.docker.internal:5080/api/v1}
+      DatabaseBackup__Scylla__PortableSnapshot__Enabled: ${IFM_SCYLLA_PORTABLE_SNAPSHOT_ENABLED:-true}
+      DatabaseBackup__Scylla__PortableSnapshot__ServiceUrl: ${IFM_SCYLLA_MINIO_URL:-http://host.docker.internal:19000}
       IFM_POSTGRES_BACKUP_CONNECTION: ${IFM_POSTGRES_BACKUP_CONNECTION:?Set IFM_POSTGRES_BACKUP_CONNECTION before starting the native development host}
     extra_hosts:
       - host.docker.internal:host-gateway

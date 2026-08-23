@@ -1,33 +1,32 @@
-using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
-using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.Fund.Command.State;
 
 /// <summary>
 /// Provides a repository for managing the state of funds using event sourcing and actor-based persistence.
 /// </summary>
-/// <param name="stateFactory">The factory used to create actor state instances for event sourcing operations.</param>
-/// <param name="dbEventSource">The database context for accessing event source data.</param>
-/// <param name="actorService">The actor service responsible for managing actor lifecycles and communication.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information.</param>
+/// <param name="actorContext">
+/// Provides the state factory, event-source database context, actor service, logger, and Fund event projector.
+/// </param>
 public sealed class FundStateRepository(
-    IEventSourceActorStateFactory stateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IActorService actorService,
-    IEventProjector<FundCommandActor> fundEventProjector,
-    ILogger<FundStateRepository> logger) 
-    : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FundCommandState>
+    ICommandActorContext<FundCommandActor> actorContext)
+    : BaseEventSourceActorRepository(
+        actorContext.StateFactory,
+        actorContext.DbEventSource,
+        actorContext.ActorService,
+        actorContext.Logger),
+      IEventSourceActorStateRepository<FundCommandState>
 {
+    readonly IEventProjector<FundCommandActor> _fundEventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
+
     /// <summary>
     /// load fund state from snapshot event
     /// </summary>
@@ -59,6 +58,6 @@ public sealed class FundStateRepository(
     /// <param name="domainEvents"></param>
     /// <returns></returns>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => fundEventProjector.DomainEventsProjectionAsync(domainEvents);
+        => _fundEventProjector.DomainEventsProjectionAsync(domainEvents);
 }
 

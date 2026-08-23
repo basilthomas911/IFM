@@ -47,13 +47,19 @@ public sealed class S3ImmutableObjectStore(
             BucketName = expected.BucketName, Key = expected.ObjectKey, VersionId = expected.VersionId,
             ChecksumMode = ChecksumMode.ENABLED
         }, cancellationToken).ConfigureAwait(false);
-        if (metadata.ContentLength != expected.Length || metadata.VersionId != expected.VersionId
-            || metadata.ServerSideEncryptionMethod != ServerSideEncryptionMethod.AWSKMS
-            || metadata.ServerSideEncryptionKeyManagementServiceKeyId != expected.EncryptionKeyArn
-            || !StringComparer.Ordinal.Equals(metadata.ChecksumSHA256, expected.S3ChecksumSha256)
-            || !StringComparer.OrdinalIgnoreCase.Equals(metadata.ObjectLockMode?.Value, expected.ObjectLockMode)
-            || metadata.ObjectLockRetainUntilDate?.ToUniversalTime() < expected.RetainUntilUtc.AddSeconds(-1))
-            throw new InvalidDataException("The S3 immutable object metadata does not match its publication evidence.");
+        var mismatches = new List<string>(7);
+        if (metadata.ContentLength != expected.Length) mismatches.Add("length");
+        if (metadata.VersionId != expected.VersionId) mismatches.Add("version");
+        if (metadata.ServerSideEncryptionMethod != ServerSideEncryptionMethod.AWSKMS) mismatches.Add("encryption");
+        if (metadata.ServerSideEncryptionKeyManagementServiceKeyId != expected.EncryptionKeyArn) mismatches.Add("kms-key");
+        if (!StringComparer.Ordinal.Equals(metadata.ChecksumSHA256, expected.S3ChecksumSha256)) mismatches.Add("s3-checksum");
+        if (!StringComparer.OrdinalIgnoreCase.Equals(metadata.ObjectLockMode?.Value, expected.ObjectLockMode))
+            mismatches.Add("object-lock-mode");
+        if (metadata.ObjectLockRetainUntilDate?.ToUniversalTime() < expected.RetainUntilUtc.AddSeconds(-1))
+            mismatches.Add("retain-until");
+        if (mismatches.Count > 0)
+            throw new InvalidDataException(
+                $"The S3 immutable object metadata does not match its publication evidence: {string.Join(',', mismatches)}.");
 
         using var response = await s3.GetObjectAsync(new GetObjectRequest
         {

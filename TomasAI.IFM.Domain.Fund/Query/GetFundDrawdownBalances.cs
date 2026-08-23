@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.Fund.Query.Actor;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -11,14 +11,15 @@ internal static class GetFundDrawdownBalances
     /// then replies with the results encapsulated in a ServiceResult.
     /// </summary>
     /// <param name="q">The query.</param>
-    /// <param name="dbFactory">The database context factory.</param>
+    /// <param name="context">The Fund-specific query context.</param>
+    /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     internal static async ValueTask<FundDrawdownBalancesReadModel> GetFundDrawdownBalancesAsync(
         this GetFundDrawdownBalancesQuery q,
-        IDbContextFactory dbFactory,
+        IFundQueryContext context,
         CancellationToken cancellationToken = default)
         => await FundQueryCalculations.GetDrawdownBalancesAsync(
-            dbFactory.FundDb,
+            context.DbFactory.FundDb,
             q.FundId,
             q.StartDate,
             q.EndDate,

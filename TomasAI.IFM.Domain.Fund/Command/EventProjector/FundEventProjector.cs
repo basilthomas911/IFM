@@ -1,14 +1,12 @@
-﻿using Microsoft.Extensions.Logging;
-using System.Collections.Immutable;
-using TomasAI.IFM.Application.Blackboard;
+﻿using System.Collections.Immutable;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
-using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Command.Extensions;
 using TomasAI.IFM.Shared.EventProjector;
 
 namespace TomasAI.IFM.Domain.Fund.Command.EventProjector;
@@ -17,19 +15,10 @@ namespace TomasAI.IFM.Domain.Fund.Command.EventProjector;
 /// Projects events emitted by <see cref="FundCommandActor"/> into the Fund read model and publishes the
 /// corresponding completion or failure events.
 /// </summary>
-/// <param name="dbFactory">
-/// Provides the Fund database context used to insert, update, and delete projection records.
+/// <param name="actorContext">
+/// Provides the Fund persistence services, event-source context, durable replay queue, blackboard, and logger used by
+/// the projector.
 /// </param>
-/// <param name="durableReplayQueue">
-/// Provides the durable process and replay queues used to recover incomplete projections.
-/// </param>
-/// <param name="dbEventSource">
-/// Provides event-source records and persistent projector execution state.
-/// </param>
-/// <param name="blackboardService">
-/// Provides the in-memory projector-state cache shared with the owning command actor.
-/// </param>
-/// <param name="logger">Provides operational and diagnostic logging.</param>
 /// <param name="reliabilityOptions">
 /// Configures recovery, fencing, outbox, retry, and queue behavior. When omitted, the validated default options are
 /// used.
@@ -43,13 +32,13 @@ namespace TomasAI.IFM.Domain.Fund.Command.EventProjector;
 /// process-local queue, but it is not recovered or replayed after process loss.
 /// </remarks>
 public class FundEventProjector(
-    IDbContextFactory dbFactory,
-    IDurableReplayQueue durableReplayQueue,
-    IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService,
-    ILogger<FundEventProjector> logger,
+    ICommandActorContext<FundCommandActor> actorContext,
     EventProjectorReliabilityOptions? reliabilityOptions = null) : BaseEventProjector<FundCommandActor>(
-       durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
+       actorContext.DurableReplayQueue,
+       actorContext.DbEventSource,
+       actorContext.BlackboardService,
+       actorContext.Logger,
+       reliabilityOptions)
 {
     /// <summary>
     /// Contains the complete, immutable set of domain-event types accepted by this projector.
@@ -73,20 +62,20 @@ public class FundEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _projectionDescriptors =
     [
         ProjectionFor<FundCreatedEvent, FundCreatedCompleteEvent, FundCreatedFailEvent>(
-            e => dbFactory.FundDb.InsertFundAsync(e.NewFund)),
+            e => actorContext.DbFactory.FundDb.InsertFundAsync(e.NewFund)),
         ProjectionFor<OrderAddedToFundEvent, OrderAddedToFundCompleteEvent, OrderAddedToFundFailEvent>(
-            e => dbFactory.FundDb.InsertFundOrderAsync(e.FundOrder)),
+            e => actorContext.DbFactory.FundDb.InsertFundOrderAsync(e.FundOrder)),
         ProjectionFor<TradeAddedToFundOrderEvent, TradeAddedToFundOrderCompleteEvent, TradeAddedToFundOrderFailEvent>(
-            e => dbFactory.FundDb.InsertFundOrderTradeAsync(e.FundOrderTrade)),
+            e => actorContext.DbFactory.FundDb.InsertFundOrderTradeAsync(e.FundOrderTrade)),
         ProjectionFor<OrderRemovedFromFundEvent, OrderRemovedFromFundCompleteEvent, OrderRemovedFromFundFailEvent>(
-            e => dbFactory.FundDb.DeleteFundOrderAsync(e.FundOrderId.FundId, e.FundOrderId.OrderId)),
+            e => actorContext.DbFactory.FundDb.DeleteFundOrderAsync(e.FundOrderId.FundId, e.FundOrderId.OrderId)),
         ProjectionFor<TradeRemovedFromFundOrderEvent, TradeRemovedFromFundOrderCompleteEvent, TradeRemovedFromFundOrderFailEvent>(
-            e => dbFactory.FundDb.DeleteFundOrderTradeAsync(
+            e => actorContext.DbFactory.FundDb.DeleteFundOrderTradeAsync(
                 e.FundOrderTradeId.FundId,
                 e.FundOrderTradeId.OrderId,
                 e.FundOrderTradeId.TradeId)),
         ProjectionFor<FundOrderTradeStateChangedEvent, FundOrderTradeStateChangedCompleteEvent, FundOrderTradeStateChangedFailEvent>(
-            e => dbFactory.FundDb.UpdateFundOrderTradeStateAsync(
+            e => actorContext.DbFactory.FundDb.UpdateFundOrderTradeStateAsync(
                 e.FundOrderTradeId.FundId,
                 e.FundOrderTradeId.OrderId,
                 e.FundOrderTradeId.TradeId,
@@ -94,7 +83,7 @@ public class FundEventProjector(
                 e.UpdatedOn,
                 e.UpdatedBy)),
         ProjectionFor<FundOrderClosedEvent, FundOrderClosedCompleteEvent, FundOrderClosedFailEvent>(
-            e => dbFactory.FundDb.UpdateFundOrderStatusAsync(
+            e => actorContext.DbFactory.FundDb.UpdateFundOrderStatusAsync(
                 e.FundOrderId.FundId,
                 e.FundOrderId.OrderId,
                 OrderStatus.Closed)),

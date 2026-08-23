@@ -10,19 +10,27 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
     readonly ScyllaBackupOptions _options;
     readonly ScyllaBackupPathResolver _paths;
     readonly IScyllaAdministrationClient _administration;
+    readonly IScyllaSnapshotArtifactTransport _snapshotArtifacts;
     int _validated;
 
     public ScyllaBackupCapability(ScyllaBackupOptions options)
-        : this(options, new ScyllaManagerCliAdministrationClient(options)) { }
+        : this(options, new ScyllaManagerCliAdministrationClient(options), null) { }
+
+    public ScyllaBackupCapability(
+        ScyllaBackupOptions options,
+        IScyllaSnapshotArtifactTransport snapshotArtifacts)
+        : this(options, new ScyllaManagerCliAdministrationClient(options), snapshotArtifacts) { }
 
     internal ScyllaBackupCapability(
         ScyllaBackupOptions options,
-        IScyllaAdministrationClient administration)
+        IScyllaAdministrationClient administration,
+        IScyllaSnapshotArtifactTransport? snapshotArtifacts = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
         _paths = new ScyllaBackupPathResolver(options);
         _administration = administration ?? throw new ArgumentNullException(nameof(administration));
+        _snapshotArtifacts = snapshotArtifacts ?? new ReferenceOnlyScyllaSnapshotArtifactTransport();
     }
 
     public async ValueTask ValidateAsync(CancellationToken cancellationToken)
@@ -62,8 +70,15 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
         var capture = await _administration.CaptureAsync(
             request.OperationId, protectionSet, nativeDirectory, progress, cancellationToken).ConfigureAwait(false);
         ValidateCapture(capture, protectionSet);
+        var portableBytes = await _snapshotArtifacts.ExportAsync(
+            protectionSet.BackupLocation,
+            capture.SnapshotTag,
+            capture.ArtifactReferences,
+            nativeDirectory,
+            cancellationToken).ConfigureAwait(false);
         var statistics = Statistics(
-            DatabaseRecoveryPhase.Capturing, capture.SourceBytes, null, capture.ArtifactReferences.Length, capture.Elapsed);
+            DatabaseRecoveryPhase.Capturing, Math.Max(capture.SourceBytes, portableBytes), null,
+            capture.ArtifactReferences.Length, capture.Elapsed);
         var evidence = new ScyllaBackupEvidence(
             request.OperationId,
             request.ProtectionSetId.Value,
@@ -73,7 +88,8 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
             capture.ArtifactReferences,
             statistics,
             DateTimeOffset.UtcNow,
-            lineage);
+            lineage,
+            protectionSet.BackupLocation);
         await ScyllaEvidenceSerializer.WriteBackupAsync(staging, evidence, cancellationToken).ConfigureAwait(false);
         return Boundary(evidence);
     }
@@ -129,8 +145,15 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
         var capture = Capture(sourceEvidence);
         ValidateCapture(capture, protectionSet);
         ValidateRecoveryExpectation(request.ExpectedRecovery, sourceEvidence);
+        var restoreProtectionSet = RestoreProtectionSet(protectionSet);
+        _ = await _snapshotArtifacts.EnsureAvailableAsync(
+            sourceEvidence.BackupLocation ?? protectionSet.BackupLocation,
+            restoreProtectionSet.BackupLocation,
+            capture.SnapshotTag,
+            Path.Combine(sourceRoot, "native"),
+            cancellationToken).ConfigureAwait(false);
         var verification = await _administration.VerifyAsync(
-            protectionSet, capture, Path.Combine(sourceRoot, "native"), cancellationToken).ConfigureAwait(false);
+            restoreProtectionSet, capture, Path.Combine(sourceRoot, "native"), cancellationToken).ConfigureAwait(false);
         if (!verification.Succeeded)
             throw new InvalidDataException("The Scylla restore point failed native verification.");
 
@@ -140,7 +163,7 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
         Directory.CreateDirectory(staging);
         var validation = await _administration.RestoreAsync(
             request.OperationId,
-            protectionSet,
+            restoreProtectionSet,
             target,
             capture,
             Path.Combine(sourceRoot, "native"),
@@ -306,4 +329,17 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
             throw new InvalidDataException(
                 "The staged Scylla protection set differs from the signed AWS topology or snapshot evidence.");
     }
+
+    static ScyllaProtectionSetOptions RestoreProtectionSet(ScyllaProtectionSetOptions source)
+        => string.IsNullOrWhiteSpace(source.RestoreLocation)
+            ? source
+            : new ScyllaProtectionSetOptions
+            {
+                ManagerCluster = source.ManagerCluster,
+                BackupLocation = source.RestoreLocation,
+                RestoreLocation = source.RestoreLocation,
+                Keyspaces = source.Keyspaces,
+                RequiredLiveNodes = source.RequiredLiveNodes,
+                ManagerRetentionCount = source.ManagerRetentionCount
+            };
 }

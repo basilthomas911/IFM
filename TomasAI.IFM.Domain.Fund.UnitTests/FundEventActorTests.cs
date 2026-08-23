@@ -32,7 +32,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var fundOrder = SampleData.FundOrder;
         var maxProfit = new FundMaxProfitReadModel(fundOrder.Id, 1000m, 0.05);
         var @event = new FundMaxProfitGeneratedEvent
@@ -73,7 +73,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var invalidSubject = $"Event.WrongActor.{FundMaxProfitGeneratedEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -109,7 +109,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var subject = $"Event.{FundEventActor.Actor}.UnknownVerb.123";
         var message = new NatsMsg<byte[]>
         {
@@ -125,12 +125,28 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
     public class TestableFundEventActor : FundEventActor
     {
         public TestableFundEventActor(IActorSupervisor supervisor, ILogger<FundEventActor> logger)
-            : base(
-                supervisor,
-                new global::TomasAI.IFM.Domain.Fund.Event.Api.ActorFundEventApiFactory(),
-                logger)
+            : this(CreateContext(supervisor, logger))
         {
         }
+
+        TestableFundEventActor(IFundEventContext context)
+            : base(context)
+        {
+            FundContext = context;
+        }
+
+        static IFundEventContext CreateContext(
+            IActorSupervisor supervisor,
+            ILogger<FundEventActor> logger)
+        {
+            var context = Substitute.For<IFundEventContext>();
+            context.Supervisor.Returns(supervisor);
+            context.Logger.Returns(logger);
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Event, FundEventActor.Actor));
+            return context;
+        }
+
+        public IFundEventContext FundContext { get; }
 
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -183,7 +199,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var maxProfitData = CreateMaxProfitData(SampleData.FundOrder.FundId);
         mockContext.RequestAsync<FundMaxProfitGeneratedReadModel, GetFundMaxProfitGeneratedQuery>(Arg.Any<GetFundMaxProfitGeneratedQuery>())
             .Returns(new ServiceResult<FundMaxProfitGeneratedReadModel>(maxProfitData));
@@ -208,7 +224,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         mockContext.RequestAsync<FundMaxProfitGeneratedReadModel, GetFundMaxProfitGeneratedQuery>(Arg.Any<GetFundMaxProfitGeneratedQuery>())
             .Returns(new ServiceResult<FundMaxProfitGeneratedReadModel>(9999, "boom"));
         mockContext.SendAsync<FundMaxProfitGeneratedFailEvent, FundId>(Arg.Any<FundMaxProfitGeneratedFailEvent>())
@@ -240,7 +256,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
 
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, null!);
         await act.Should().ThrowAsync<ArgumentNullException>();
@@ -252,7 +268,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
 
         var unknownEvent = Substitute.For<IEvent>();
         unknownEvent.Subject.Returns(new ActorSubject(ActorType.Event, FundEventActor.Actor, "UnknownVerb", "123"));
@@ -274,7 +290,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var threadId = new ActorThreadId(ActorType.Event, FundEventActor.Actor, "1");
         var @event = SampleData.FundMaxProfitGeneratedEvent;
         var exception = new InvalidOperationException("Test exception message");
@@ -298,7 +314,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var threadId = new ActorThreadId(ActorType.Event, FundEventActor.Actor, "1");
         var @event = SampleData.FundMaxProfitGeneratedEvent;
         var exception = new ArgumentNullException("paramName", "Parameter cannot be null");
@@ -321,7 +337,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
         var actor = _fixture.CreateActor(mockSupervisor, mockLogger);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = actor.FundContext;
         var threadId = new ActorThreadId(ActorType.Event, FundEventActor.Actor, "1");
         var @event = SampleData.FundMaxProfitGeneratedEvent;
         var exception = new InvalidOperationException("Test exception message");

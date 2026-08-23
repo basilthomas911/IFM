@@ -10,7 +10,8 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.QueryParameters;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
-using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Fund.Event.Extensions;
+using TomasAI.IFM.Domain.Fund.Event.Actor;
 
 namespace TomasAI.IFM.Domain.Fund.Event;
 
@@ -29,8 +30,7 @@ public static class FundMaxProfitGeneratedEventHandler
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     public static async ValueTask<bool> ExecuteAsync(
         this FundMaxProfitGeneratedEvent e,
-        IEventActorContext context,
-        IActorFundEventApi eventApi,
+        IFundEventContext context,
         ILogger logger)
     {
         try
@@ -92,13 +92,13 @@ public static class FundMaxProfitGeneratedEventHandler
                 fundMaxProfit: fundMaxProfit,
                 fundRiskPercent: fundRiskPercent);
 
-            await eventApi.SendFundMaxProfitGeneratedCompleteAsync(e).ConfigureAwait(false);
+            await context.SendFundMaxProfitGeneratedCompleteAsync(e).ConfigureAwait(false);
             logger.LogInformationEvent(ServiceId, "Processed FundMaxProfitGeneratedEvent for FundOrderId: {FundOrderId}, FundMaxProfit: {FundMaxProfit}, FundRiskPercent: {FundRiskPercent}", e.FundOrder.Id, fundMaxProfit, fundRiskPercent);
             return true;
         }
         catch (Exception ex)
         {
-            await eventApi.SendFundMaxProfitGeneratedFailAsync(e, ex).ConfigureAwait(false);
+            await context.SendFundMaxProfitGeneratedFailAsync(e, ex).ConfigureAwait(false);
             logger.LogErrorEvent(ServiceId, ex, "Error processing FundMaxProfitGeneratedEvent for FundOrderId: {FundOrderId}", e.FundOrder.Id);
             return false;
         }
@@ -113,7 +113,7 @@ public static class FundMaxProfitGeneratedEventHandler
     /// <returns>The fund maximum profit generated read model.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the query fails.</exception>
     static async ValueTask<FundMaxProfitGeneratedReadModel> GetFundMaxProfitGeneratedAsync(
-        this IEventActorContext context,
+        this IFundEventContext context,
         int fundId,
         DateOnly tradeDate)
     {
@@ -137,7 +137,7 @@ public static class FundMaxProfitGeneratedEventHandler
     /// <returns>The futures trade signal read model.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the query fails.</exception>
     static async ValueTask<FuturesTradeSignalV2ReadModel?> GetFuturesTradeSignalAsync(
-        this IEventActorContext context,
+        this IFundEventContext context,
         string baseContractId,
         DateOnly tradeDate)
     {

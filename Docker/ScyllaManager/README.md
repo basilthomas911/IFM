@@ -48,6 +48,19 @@ docker compose -f Docker/ScyllaManager/docker-compose.yml up --detach --wait
 docker compose -f Docker/ScyllaDb/docker-compose.yml up --detach --wait
 ```
 
+If the E-drive is unavailable or Windows reports that it needs repair, do not keep writing through the bind mount and
+do not run a filesystem repair while database services are active. Preserve the E-drive contents and use the explicit
+Docker-managed Development fallback until a maintenance window:
+
+```powershell
+docker compose -f Docker/ScyllaManager/docker-compose.yml `
+  -f Docker/ScyllaManager/docker-compose.safe-storage.yml `
+  up --detach --wait scylla-backup-s3 scylla-backup-s3-init
+```
+
+The fallback replaces only MinIO's `/data` mount and does not modify or delete the E-drive directory. It is suitable
+for Development qualification, not as the sole long-term backup location.
+
 The restore target is intentionally opt-in. Start it only for a restore drill, and stop it afterward without deleting
 its volume so its Manager registration and host identity remain stable:
 

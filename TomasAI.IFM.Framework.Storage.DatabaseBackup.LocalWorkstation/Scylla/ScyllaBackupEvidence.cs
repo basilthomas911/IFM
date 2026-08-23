@@ -16,7 +16,8 @@ internal sealed record ScyllaBackupEvidence(
     string[] ArtifactReferences,
     DatabaseRecoveryRunStatistics Statistics,
     DateTimeOffset CapturedUtc,
-    DatabaseBackupLineage? BackupLineage = null);
+    DatabaseBackupLineage? BackupLineage = null,
+    string? BackupLocation = null);
 
 internal sealed record ScyllaRestoreEvidence(
     DatabaseRecoveryOperationId OperationId,

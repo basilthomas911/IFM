@@ -101,6 +101,8 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         }
         if (useNativeScylla)
         {
+            if (scyllaOptions.PortableSnapshot.Enabled)
+                services.AddSingleton<IScyllaSnapshotArtifactTransport, S3ScyllaSnapshotArtifactTransport>();
             services.AddSingleton<ScyllaBackupCapability>();
             services.AddSingleton<IScyllaBackupCapability>(static provider =>
                 provider.GetRequiredService<ScyllaBackupCapability>());

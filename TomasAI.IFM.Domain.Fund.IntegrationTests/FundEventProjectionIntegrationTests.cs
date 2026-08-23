@@ -66,7 +66,6 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
             queue,
             database.ActorEventSourceDb,
             database.BlackboardService,
-            Substitute.For<ILogger<FundEventProjector>>(),
             new EventProjectorReliabilityOptions
             {
                 BoundedRecoveryEnabled = true,
@@ -121,11 +120,11 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         var queue = new NatsJSDurableReplayQueue(CreateNatsOptions());
         await using var queueScope = queue;
         var projector = new FundEventProjector(
-            database.DbFactory,
-            queue,
-            database.ActorEventSourceDb,
-            database.BlackboardService,
-            Substitute.For<ILogger<FundEventProjector>>(),
+            CreateActorContext(
+                database.DbFactory,
+                queue,
+                database.ActorEventSourceDb,
+                database.BlackboardService),
             new EventProjectorReliabilityOptions
             {
                 BoundedRecoveryEnabled = true,
@@ -169,7 +168,6 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
             durableQueue,
             database.ActorEventSourceDb,
             database.BlackboardService,
-            Substitute.For<ILogger<FundEventProjector>>(),
             new EventProjectorReliabilityOptions
             {
                 BoundedRecoveryEnabled = true,
@@ -218,7 +216,6 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
             queue,
             database.ActorEventSourceDb,
             database.BlackboardService,
-            Substitute.For<ILogger<FundEventProjector>>(),
             new EventProjectorReliabilityOptions
             {
                 BoundedRecoveryEnabled = true,
@@ -446,19 +443,45 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         }
     }
 
-    FundStateRepository CreateRepository(IEventProjector<FundCommandActor> projector) => new(
-        Substitute.For<IEventSourceActorStateFactory>(),
-        database.ActorEventSourceDb,
-        Substitute.For<IActorService>(),
-        projector,
-        Substitute.For<ILogger<FundStateRepository>>());
+    FundStateRepository CreateRepository(IEventProjector<FundCommandActor> projector)
+    {
+        var context = CreateActorContext(
+            database.DbFactory,
+            Substitute.For<IDurableReplayQueue>(),
+            database.ActorEventSourceDb,
+            database.BlackboardService);
+        var fundContext = (IFundCommandContext)context;
+        fundContext.StateFactory.Returns(Substitute.For<IEventSourceActorStateFactory>());
+        fundContext.ActorService.Returns(Substitute.For<IActorService>());
+        fundContext.EventProjector.Returns(projector);
+        return new FundStateRepository(context);
+    }
 
     FundEventProjector CreateProjector(IDurableReplayQueue queue) => new(
-        database.DbFactory,
-        queue,
-        database.ActorEventSourceDb,
-        database.BlackboardService,
-        Substitute.For<ILogger<FundEventProjector>>());
+        CreateActorContext(
+            database.DbFactory,
+            queue,
+            database.ActorEventSourceDb,
+            database.BlackboardService));
+
+    static ICommandActorContext<FundCommandActor> CreateActorContext(
+        IDbContextFactory dbFactory,
+        IDurableReplayQueue durableReplayQueue,
+        IEventSourceActorDbContext dbEventSource,
+        IBlackboardService blackboardService)
+    {
+        var context = Substitute.For<IFundCommandContext>();
+        var container = Substitute.For<IContainerInstance>();
+        context.Container.Returns(container);
+        context.DbFactory.Returns(dbFactory);
+        context.BlackboardService.Returns(blackboardService);
+        context.Logger.Returns(Substitute.For<ILogger<FundCommandActor>>());
+        context.DurableReplayQueue.Returns(durableReplayQueue);
+        context.DbEventSource.Returns(dbEventSource);
+        container.Resolve<IDurableReplayQueue>().Returns(durableReplayQueue);
+        container.Resolve<IEventSourceActorDbContext>().Returns(dbEventSource);
+        return context;
+    }
 
     NatsJetStreamConsumerOptions CreateNatsOptions() => new()
     {
@@ -605,14 +628,9 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext dbEventSource,
         IBlackboardService blackboardService,
-        ILogger<FundEventProjector> logger,
         EventProjectorReliabilityOptions? reliabilityOptions = null)
         : FundEventProjector(
-            dbFactory,
-            durableReplayQueue,
-            dbEventSource,
-            blackboardService,
-            logger,
+            CreateActorContext(dbFactory, durableReplayQueue, dbEventSource, blackboardService),
             reliabilityOptions)
     {
         readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -637,14 +655,9 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
             IDurableReplayQueue durableReplayQueue,
             IEventSourceActorDbContext dbEventSource,
             IBlackboardService blackboardService,
-            ILogger<FundEventProjector> logger,
             EventProjectorReliabilityOptions reliabilityOptions)
             : base(
-                dbFactory,
-                durableReplayQueue,
-                dbEventSource,
-                blackboardService,
-                logger,
+                CreateActorContext(dbFactory, durableReplayQueue, dbEventSource, blackboardService),
                 reliabilityOptions)
         {
             _transientDescriptors = [.. base.ProjectionDescriptors.Select(
@@ -660,14 +673,9 @@ public sealed class FundEventProjectionIntegrationTests(FundDatabaseFixture data
         IDurableReplayQueue durableReplayQueue,
         IEventSourceActorDbContext dbEventSource,
         IBlackboardService blackboardService,
-        ILogger<FundEventProjector> logger,
         EventProjectorReliabilityOptions reliabilityOptions)
         : FundEventProjector(
-            dbFactory,
-            durableReplayQueue,
-            dbEventSource,
-            blackboardService,
-            logger,
+            CreateActorContext(dbFactory, durableReplayQueue, dbEventSource, blackboardService),
             reliabilityOptions)
     {
         readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
