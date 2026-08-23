@@ -8,7 +8,7 @@
 
 **Regions:** `ca-central-1` primary, `ca-west-1` recovery
 
-**Result:** Gates 5-8 and 10 complete; Gate 9 awaits deployment and live exercise of the recovery-region replication-lag alarm
+**Result:** Gates 5-10 complete in Development
 
 ## Scope and status
 
@@ -22,7 +22,7 @@ Passing unit and adapter tests is implementation evidence, not a substitute for 
 | 6 | Immutable S3 object store, bounded single/multipart upload/resume, checksums, SSE-KMS context, Object Lock, exact version IDs, ordered publication records, catalog enumeration/rebuild, and stale-upload cleanup. | **Complete.** Live single/multipart resume, exact read-back, duplicate/corruption rejection, catalog rebuild, recovery replication, recovery-role write/delete denial, and isolated stale-upload cleanup pass. Lost single/multipart completion responses resolve only one exact verified immutable version. |
 | 7 | KMS ECDSA-SHA-256 signing/verification and offline public trust-bundle verification with key identity, algorithm, validity, and fingerprint checks. | **Complete.** Live online/offline verification, wrong Region/account/key-use denial, recovery-role signing denial, direct primary-key-use denial, and two-key rollover overlap pass; disabled/untrusted signing fails closed in deterministic tests. |
 | 8 | AWS recovery processor and engine selector over the shared durable state machine; independent AWS admission/execution/outbox runtime with source-scoped degraded health. | **Complete.** Exact duplicate, lease split-brain, reordered replay, publication failure, cancellation, and AWS/local isolation drills pass. A scoped live host restart returned healthy while NATS remained uninterrupted. |
-| 9 | PostgreSQL artifact publication with WAL continuity plus signed deterministic WAL catalog records, identity/timeline validation, gap/lag detection, recovery-vault support, and bounded non-dropping spool behavior. | Full plus six native and signed AWS chains, WAL gap/fill/replay, recovery failover, persistent spool restart/full-pressure, and measured replication pass. The destination-Region `ReplicationLatency` alarm is AWS-validated but not yet deployed/exercised; this is the sole remaining blocker. |
+| 9 | PostgreSQL artifact publication with WAL continuity plus signed deterministic WAL catalog records, identity/timeline validation, gap/lag detection, recovery-vault support, and bounded non-dropping spool behavior. | **Complete.** Full plus six native and signed AWS chains, WAL gap/fill/replay, recovery failover, persistent spool restart/full-pressure, measured replication, and both failure/lag alarms pass. The recovery-region lag alarm completed a controlled `ALARM` to `OK` transition and its stack is drift-clean. |
 | 10 | Exact-version dependency restoration from explicit primary/recovery vaults, artifact validation, WAL staging through a UTC PITR target, and PostgreSQL recovery configuration integrated with `pg_combinebackup`. | **Complete.** A signed full-plus-six chain from each vault feeds the native restore capability; real PostgreSQL 17 full, six-incremental, and UTC PITR targets boot and validate. Corrupt, missing-parent/WAL, wrong-timeline/version, KMS/credential-denial, and nonfresh-target cases pass. |
 
 ## Automated evidence recorded
@@ -70,14 +70,10 @@ data-plane action set onto only the approved Development PITR target prefix, per
 the target-specific throttling alarm prefix. After the complete documented dependent-action set was made effective, the
 sixth restore passed and retained the target table and alarm described below.
 
-## Remaining qualification sequence
+## Post-qualification action
 
-1. Promote the reviewed `IFM-Gate4-CloudFormationExecution` managed-policy document so CloudFormation may manage only
-   `ifm-database-backup-replication-lag-development` in `ca-west-1`.
-2. Promote the reviewed `IFM-Gates5-10-LiveQualification` document so the qualification identity may describe and
-   temporarily set only the two Development replication alarms.
-3. Deploy the reviewed recovery-vault update, exercise alarm/OK transitions, record the alarm ARN and stack drift, and
-   restore the alarm to metric evaluation. Gate 9 may then be marked complete.
+Detach `IFM-Gates5-10-LiveQualification` from the interactive Development identity. The service continues through its
+least-privilege workload roles; no temporary qualification permission is required after this report is committed.
 
 ## Qualification activity log
 
@@ -199,9 +195,18 @@ sixth restore passed and retained the target table and alarm described below.
   altered replay is rejected by SHA-256. A fresh live full-plus-six chain staged from both vaults: protection set
   `postgresql-gate9-ad372e7f3f61462595e29c3fceaa8a15`, base
   `2b1bc8234fe84f3c89daed8c98203545`, final `4fd5e67b3aac49dcbe9c49437f66e024`, recovery replication 23.662 seconds.
-- A recovery-region `ReplicationLatency` maximum alarm at the 900-second policy boundary was added to the recovery
-  CloudFormation stack. The repository policy and all four templates pass local checks and live AWS `ValidateTemplate`.
-  Deployment and alarm-state exercise await the two managed-policy promotions listed above.
+- Recovery-vault change set `ifm-backup-development-20260823104148`, ARN
+  `arn:aws:cloudformation:ca-west-1:107651266250:changeSet/ifm-backup-development-20260823104148/838c387d-4a94-4414-b504-359eca12fadd`,
+  contained exactly one addition: `AWS::CloudWatch::Alarm` logical resource `ReplicationLatencyAlarm`; no retained
+  bucket, KMS key, role, or data resource was modified or replaced. The stack reached `UPDATE_COMPLETE` at
+  `2026-08-23T14:42:18.937Z`.
+- Alarm `arn:aws:cloudwatch:ca-west-1:107651266250:alarm:ifm-database-backup-replication-lag-development` uses
+  `AWS/S3` `ReplicationLatency`, `Maximum`, 60 seconds, threshold 900 seconds, and exact source bucket, destination
+  bucket, and `ReplicateAllImmutableVersions` rule dimensions. Its controlled qualification reached `ALARM` at
+  `2026-08-23T14:43:08.025Z` and returned to `OK` at `2026-08-23T14:43:12.802Z`. The primary-region
+  `OperationsFailedReplication` alarm also remained `OK`.
+- Recovery-vault drift detection `060c0230-9f01-11f1-a562-0a740a834f0b` completed `IN_SYNC` with zero drifted
+  resources. These results close Gate 9.
 - Gate 10 passed six deterministic negative cases, two AWS object/WAL negative cases, and five live negative cases:
   corrupt/truncated evidence, missing signed parent, missing WAL, wrong timeline, incompatible PostgreSQL tools,
   direct KMS denial, invalid/expired session credentials, and nonfresh target rejection. No protected source was changed.
@@ -211,5 +216,4 @@ sixth restore passed and retained the target table and alarm described below.
   PITR, and Scylla regression restores passed in 5.67 minutes. The PostgreSQL full-plus-six case took 2 minutes 32
   seconds; selected-UTC PITR took 34 seconds and returned only the pre-target row.
 
-These results close Gates 6, 7, 8, and 10. Gate 9 remains open only for the reviewed replication-lag alarm deployment
-and live alarm-state qualification; no production cutover or retained-version deletion was performed.
+These results close Gates 6-10. No production cutover or retained-version deletion was performed.

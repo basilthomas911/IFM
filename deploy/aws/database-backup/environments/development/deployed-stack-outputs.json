@@ -4,7 +4,7 @@
   "accountId": "107651266250",
   "primaryRegion": "ca-central-1",
   "recoveryRegion": "ca-west-1",
-  "capturedAtUtc": "2026-08-22T17:52:56.0834698Z",
+  "capturedAtUtc": "2026-08-23T14:43:12.802Z",
   "primary": {
     "PrimaryBucketName": "ifm-db-backup-development-primary-107651266250",
     "ReplicationRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-replication-development",
@@ -27,6 +27,7 @@
     "ConfigBucketName": "ifm-db-backup-development-config-107651266250"
   },
   "recovery": {
+    "ReplicationLatencyAlarmArn": "arn:aws:cloudwatch:ca-west-1:107651266250:alarm:ifm-database-backup-replication-lag-development",
     "RecoveryReadRoleArn": "arn:aws:iam::107651266250:role/ifm-database-backup-recovery-read-development",
     "RecoveryEncryptionKeyArn": "arn:aws:kms:ca-west-1:107651266250:key/4277d9a7-5182-4299-a61a-19ca0c5cf404",
     "RecoveryAuditBucketName": "ifm-db-backup-development-recovery-audit-107651266250",
