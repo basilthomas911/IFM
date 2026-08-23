@@ -4,12 +4,14 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage.FundDb;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Transaction.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 
@@ -20,19 +22,19 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 /// <remarks>This repository enables loading and saving of fund transaction command states by leveraging event
 /// sourcing patterns. It is intended for use in distributed systems where reliable state management and event replay
 /// are required.</remarks>
-/// <param name="stateFactory">The factory used to create actor state instances for event sourcing operations.</param>
-/// <param name="dbEventSource">The database context for accessing event source data related to fund transactions.</param>
-/// <param name="actorService">The actor service responsible for managing actor lifecycles and communication.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the repository.</param>
+/// <param name="actorContext">The typed command context that supplies repository and projector services.</param>
 public sealed class FundTransactionStateRepository(
-    IEventSourceActorStateFactory stateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
-    IActorService actorService,
-    IEventProjector<FundTransactionCommandActor> eventProjector,
-    ILogger<FundTransactionStateRepository> logger) 
-    : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FundTransactionCommandState>
+    ICommandActorContext<FundTransactionCommandActor> actorContext)
+    : BaseEventSourceActorRepository(
+        actorContext.StateFactory,
+        actorContext.DbEventSource,
+        actorContext.ActorService,
+        actorContext.Logger),
+      IEventSourceActorStateRepository<FundTransactionCommandState>
 {
+    readonly IEventProjector<FundTransactionCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
+
     /// <summary>
     /// Asynchronously loads the persisted state for the specified fund transaction command.
     /// </summary>
@@ -40,7 +42,13 @@ public sealed class FundTransactionStateRepository(
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded state for the specified
     /// fund transaction command.</returns>
     public async ValueTask<FundTransactionCommandState> LoadStateAsync(ICommand command)
-        => await LoadStateAsync<FundTransactionCommandState>(command);
+        => await LoadStateAsync(command, CancellationToken.None).ConfigureAwait(false);
+
+    /// <summary>Loads the persisted Fund transaction state with cancellation support.</summary>
+    public async ValueTask<FundTransactionCommandState> LoadStateAsync(
+        ICommand command,
+        CancellationToken cancellationToken)
+        => await LoadStateAsync<FundTransactionCommandState>(command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously saves the specified fund transaction command state using the provided command.
@@ -50,7 +58,15 @@ public sealed class FundTransactionStateRepository(
     /// <param name="command">The command associated with the state to be saved. Cannot be null.</param>
     /// <returns>A value task that represents the asynchronous save operation.</returns>
     public async ValueTask SaveStateAsync(ICommandActorContext context, FundTransactionCommandState state, ICommand command)
-       => await SaveStateAndDenormalizeEventsAsync(context, state, command);
+       => await SaveStateAsync(context, state, command, CancellationToken.None).ConfigureAwait(false);
+
+    /// <summary>Saves Fund transaction state and projects its events with cancellation support.</summary>
+    public async ValueTask SaveStateAsync(
+        ICommandActorContext context,
+        FundTransactionCommandState state,
+        ICommand command,
+        CancellationToken cancellationToken)
+       => await SaveStateAndDenormalizeEventsAsync(context, state, command, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Updates the read model state by applying a collection of domain events to the fund transaction query state
@@ -60,7 +76,7 @@ public sealed class FundTransactionStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => eventProjector.DomainEventsProjectionAsync(domainEvents);
+        => _eventProjector.DomainEventsProjectionAsync(domainEvents);
 
 }
 

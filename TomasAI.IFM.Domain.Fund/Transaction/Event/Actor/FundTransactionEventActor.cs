@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
+using TomasAI.IFM.Domain.Fund.Transaction.Event.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,12 +14,27 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Event.Actor;
 /// This actor processes incoming events, maps them to corresponding event handlers, 
 /// and manages the actor's state in response to those events.
 /// </summary>
-/// <param name="supervisor"></param>
-/// <param name="logger"></param>
-public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<FundTransactionEventActor> logger)
-    : BaseEventActor<FundTransactionEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+/// <param name="actorContext">The typed Fund transaction event context.</param>
+public class FundTransactionEventActor(IEventActorContext<FundTransactionEventActor> actorContext)
+    : BaseEventActor<FundTransactionEventActor>(
+        actorContext.Supervisor,
+        actorContext.Logger,
+        actorContext.ActorId)
 {
     public const string Actor = "FundTransactionEvent";
+
+    /// <summary>Gets the Fund transaction event context supplied to this actor.</summary>
+    protected IFundTransactionEventContext FundTransactionEventContext { get; } =
+        IsArgumentNull.Set(actorContext as IFundTransactionEventContext, nameof(actorContext))!;
+
+    readonly ILogger<FundTransactionEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+
+    readonly Dictionary<Type, Func<IEvent, IFundTransactionEventContext, ValueTask>> _receiveMap = new()
+    {
+        [typeof(FundTransactionEvent)] = static (_, _) => ValueTask.CompletedTask,
+        [typeof(FundTransactionsEvent)] = static (_, _) => ValueTask.CompletedTask,
+        [typeof(EndOfDayFundTransactionProcessedEvent)] = static (_, _) => ValueTask.CompletedTask
+    };
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -55,13 +71,13 @@ public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<Fund
     /// <param name="event">The event to be processed.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (@event is not FundTransactionEvent and not FundTransactionsEvent and not EndOfDayFundTransactionProcessedEvent)
+        if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        return ValueTask.CompletedTask;
+        await receiveFunc(@event, FundTransactionEventContext).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -81,7 +97,7 @@ public class FundTransactionEventActor(IActorSupervisor supervisor, ILogger<Fund
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

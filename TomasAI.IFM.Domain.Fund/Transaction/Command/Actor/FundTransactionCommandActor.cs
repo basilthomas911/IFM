@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Exceptions;
+using TomasAI.IFM.Domain.Fund.Transaction.Command.Extensions;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Validation;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.State;
 using TomasAI.IFM.Application.Storage;
@@ -25,16 +26,16 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
 /// <remarks>This actor handles commands such as adding, changing, or removing futures contracts associated with a
 /// fund. It coordinates command validation, state loading and saving, and command execution in a thread-safe,
 /// event-sourced manner. The actor is typically resolved and managed by the actor system infrastructure.</remarks>
-/// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
+/// <param name="actorContext">The typed Fund transaction command context.</param>
+/// <param name="eventProjector">The Fund transaction projector whose lifetime follows this actor.</param>
 public class FundTransactionCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<FundTransactionCommandActor> eventProjector,
-    ILogger<FundTransactionCommandActor> logger)
-    : BaseEventSourceCommandActor<FundTransactionCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<FundTransactionCommandActor> actorContext,
+    IEventProjector<FundTransactionCommandActor> eventProjector)
+    : BaseEventSourceCommandActor<FundTransactionCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FundTransactionCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly ILogger<FundTransactionCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
     readonly IEventProjector<FundTransactionCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FundTransactionCommandState> _repo = default!;
 
@@ -47,14 +48,36 @@ public class FundTransactionCommandActor(
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext context)
+        => await StartProjectorAsync(context, CancellationToken.None).ConfigureAwait(false);
+
+    protected override async ValueTask OnStartup(
+        ICommandActorContext context,
+        CancellationToken cancellationToken)
+        => await StartProjectorAsync(context, cancellationToken).ConfigureAwait(false);
+
+    async ValueTask StartProjectorAsync(
+        ICommandActorContext context,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
-        _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        _repo = IsArgumentNull.Set(
+            context.Container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>());
+        try
+        {
+            await _eventProjector.StartAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await _eventProjector.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     protected override async ValueTask OnShutdown(ICommandActorContext context)
-        => await _eventProjector.StopAsync().ConfigureAwait(false);
+    {
+        IsArgumentNull.Check(context);
+        await _eventProjector.StopAsync().ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -257,7 +280,7 @@ public class FundTransactionCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             return CommandFailed(innerEx, command);
         }
     }

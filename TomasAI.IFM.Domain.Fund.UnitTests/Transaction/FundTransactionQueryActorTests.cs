@@ -31,9 +31,31 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
     public class TestableFundTransactionQueryActor : FundTransactionQueryActor
     {
         public TestableFundTransactionQueryActor(IDbContextFactory dbFactory, ILogger<FundTransactionQueryActor> logger)
-            : base(dbFactory, logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableFundTransactionQueryActor(IFundTransactionQueryContext context)
+            : base(context)
+        {
+            FundTransactionContext = context;
+        }
+
+        static IFundTransactionQueryContext CreateContext(
+            IDbContextFactory dbFactory,
+            ILogger<FundTransactionQueryActor> logger)
+        {
+            var context = Substitute.For<IFundTransactionQueryContext>();
+            context.ActorId.Returns(
+                new ActorMailboxId(ActorType.Query, FundTransactionQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
+                .Returns(true);
+            return context;
+        }
+
+        public IFundTransactionQueryContext FundTransactionContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -59,13 +81,6 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         return (dbFactory, fundDb);
     }
 
-    static IQueryActorContext CreateContext()
-    {
-        var context = Substitute.For<IQueryActorContext>();
-        context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
-        return context;
-    }
-
     static GetFundTransactionsQuery CreateQuery(string verb = GetFundTransactionsQuery.Verb)
     {
         var q = new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, SampleData.FundTransaction.ValueDate, SampleData.FundTransaction.ValueDate.AddDays(1));
@@ -84,7 +99,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var query = CreateQuery();
         var payload = ActorExtensions.DataSerializer.Serialize(query);
         var natsMsg = new NatsMsg<byte[]>(query.Subject.ToString(), string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -123,7 +138,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
         var subject = new ActorSubject(ActorType.Query, "SomeOtherActor", GetFundTransactionsQuery.Verb, "1");
         var natsMsg = new NatsMsg<byte[]>(subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -141,7 +156,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
         var subject = new ActorSubject(ActorType.Query, FundTransactionQueryActor.ActorName, "UnknownVerb", "1");
         var natsMsg = new NatsMsg<byte[]>(subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -159,7 +174,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
     {
         var (dbFactory, fundDb) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         var query = CreateQuery();
         using var cancellation = new CancellationTokenSource();
         fundDb.GetFundTransactionsAsync(
@@ -196,7 +211,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         ICollection<FundTransactionReadModel> transactions = [SampleData.FundTransaction];
         fundDb.GetFundTransactionsAsync(SampleData.FundTransaction.FundId, startDate, endDate).Returns(Task.FromResult(transactions));
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         var query = CreateQuery();
 
         // Act
@@ -220,7 +235,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         ICollection<FundTransactionReadModel> transactions = [];
         fundDb.GetFundTransactionsAsync(SampleData.FundTransaction.FundId, startDate, endDate).Returns(Task.FromResult(transactions));
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         var query = CreateQuery();
 
         // Act
@@ -239,7 +254,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         // Arrange
         var (dbFactory, _) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         var unsupportedQuery = Substitute.For<IQuery>();
 
         // Act
@@ -270,7 +285,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         // Arrange
         var (dbFactory, _) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
@@ -289,7 +304,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         // Arrange
         var (dbFactory, _) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         context.ReplyAsync(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ServiceResult<FundTransactionReadModel[]>>())
             .Returns(ValueTask.CompletedTask);
         var query = CreateQuery();
@@ -311,7 +326,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         // Arrange
         var (dbFactory, _) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         context.ReplyAsync(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ServiceFailed<ActorEntityId>>())
             .Returns(ValueTask.CompletedTask);
         var unsupportedQuery = Substitute.For<IQuery>();
@@ -335,7 +350,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var (dbFactory, _) = CreateDbFactory();
         var logger = Substitute.For<ILogger<FundTransactionQueryActor>>();
         var actor = _fixture.CreateActor(dbFactory, logger);
-        var context = CreateContext();
+        var context = actor.FundTransactionContext;
         context.ReplyAsync(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ServiceResult<FundTransactionReadModel[]>>())
             .Returns(ValueTask.FromException(new InvalidOperationException("inner failure")));
         var query = CreateQuery();

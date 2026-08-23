@@ -7,28 +7,34 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Transaction.Command.Actor;
+using TomasAI.IFM.Domain.Fund.Transaction.Command.Extensions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Command.EventProjector;
 
+/// <summary>
+/// Projects Fund transaction domain events into the Fund read model.
+/// </summary>
+/// <param name="actorContext">The typed command context that supplies projector services.</param>
+/// <param name="reliabilityOptions">Optional reliability behavior overrides.</param>
 public sealed class FundTransactionEventProjector(
-    IDbContextFactory dbFactory,
-    IDurableReplayQueue durableReplayQueue,
-    IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService,
-    ILogger<FundTransactionEventProjector> logger,
+    ICommandActorContext<FundTransactionCommandActor> actorContext,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<FundTransactionCommandActor>(
-        durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
+        actorContext.DurableReplayQueue,
+        actorContext.DbEventSource,
+        actorContext.BlackboardService,
+        actorContext.Logger,
+        reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FundTransactionEvent, FundTransactionCreatedCompleteEvent, FundTransactionCreatedFailEvent, FundTransactionEntityId>(
-            e => dbFactory.FundDb.InsertFundTransactionAsync(e.FundTransaction)),
+            e => actorContext.DbFactory.FundDb.InsertFundTransactionAsync(e.FundTransaction)),
         Describe<FundTransactionsEvent, FundTransactionsCompleteEvent, FundTransactionsFailEvent, FundTransactionEntityId>(
-            e => dbFactory.FundDb.InsertFundTransactionsAsync(e.FundTransactions)),
+            e => actorContext.DbFactory.FundDb.InsertFundTransactionsAsync(e.FundTransactions)),
         Describe<EndOfDayFundTransactionProcessedEvent, EndOfDayFundTransactionProcessedCompleteEvent, EndOfDayFundTransactionProcessedFailEvent, FundTransactionEntityId>(
-            e => dbFactory.FundDb.InsertFundTransactionAsync(e.FundTransaction))
+            e => actorContext.DbFactory.FundDb.InsertFundTransactionAsync(e.FundTransaction))
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

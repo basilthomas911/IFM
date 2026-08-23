@@ -22,9 +22,37 @@ namespace TomasAI.IFM.Domain.Fund.BDDTests.Transaction;
 public class FundTransactionQueryTests
 {
     // Test helper to expose the protected ReceiveAsync method for BDD-style testing.
-    class TestableFundTransactionQueryActor(IDbContextFactory dbFactory, ILogger<FundTransactionQueryActor> logger)
-        : FundTransactionQueryActor(dbFactory, logger)
+    class TestableFundTransactionQueryActor : FundTransactionQueryActor
     {
+        public TestableFundTransactionQueryActor(
+            IDbContextFactory dbFactory,
+            ILogger<FundTransactionQueryActor> logger)
+            : this(CreateTypedContext(dbFactory, logger))
+        {
+        }
+
+        TestableFundTransactionQueryActor(IFundTransactionQueryContext context)
+            : base(context)
+        {
+            Context = context;
+        }
+
+        static IFundTransactionQueryContext CreateTypedContext(
+            IDbContextFactory dbFactory,
+            ILogger<FundTransactionQueryActor> logger)
+        {
+            var context = Substitute.For<IFundTransactionQueryContext>();
+            context.ActorId.Returns(
+                new ActorMailboxId(ActorType.Query, FundTransactionQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
+                .Returns(true);
+            return context;
+        }
+
+        public IFundTransactionQueryContext Context { get; }
+
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);
     }
@@ -38,13 +66,6 @@ public class FundTransactionQueryTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.FundDb.Returns(fundDb);
         return (dbFactory, fundDb);
-    }
-
-    static IQueryActorContext CreateContext()
-    {
-        var context = Substitute.For<IQueryActorContext>();
-        context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
-        return context;
     }
 
     static TQuery WithSubject<TQuery>(TQuery query, string verb) where TQuery : IQuery
@@ -68,7 +89,7 @@ public class FundTransactionQueryTests
         ICollection<FundTransactionReadModel> transactions = [SampleData.FundTransaction];
         fundDb.GetFundTransactionsAsync(SampleData.FundTransaction.FundId, startDate, endDate).Returns(Task.FromResult(transactions));
         var actor = CreateActor(dbFactory);
-        var context = CreateContext();
+        var context = actor.Context;
         var query = WithSubject(new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, startDate, endDate), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
@@ -96,7 +117,7 @@ public class FundTransactionQueryTests
         ];
         fundDb.GetFundTransactionsAsync(SampleData.FundTransaction.FundId, startDate, endDate).Returns(Task.FromResult(transactions));
         var actor = CreateActor(dbFactory);
-        var context = CreateContext();
+        var context = actor.Context;
         var query = WithSubject(new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, startDate, endDate), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
@@ -121,7 +142,7 @@ public class FundTransactionQueryTests
         fundDb.GetFundTransactionsAsync(Arg.Any<int>(), Arg.Any<DateOnly>(), Arg.Any<DateOnly>())
             .Returns(Task.FromResult<ICollection<FundTransactionReadModel>>([]));
         var actor = CreateActor(dbFactory);
-        var context = CreateContext();
+        var context = actor.Context;
         var query = WithSubject(new GetFundTransactionsQuery(9999, DateOnly.MinValue, DateOnly.MaxValue), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
@@ -143,7 +164,7 @@ public class FundTransactionQueryTests
         ICollection<FundTransactionReadModel> transactions = [SampleData.FundTransaction];
         fundDb.GetFundTransactionsAsync(SampleData.FundTransaction.FundId, singleDate, singleDate).Returns(Task.FromResult(transactions));
         var actor = CreateActor(dbFactory);
-        var context = CreateContext();
+        var context = actor.Context;
         var query = WithSubject(new GetFundTransactionsQuery(SampleData.FundTransaction.FundId, singleDate, singleDate), GetFundTransactionsQuery.Verb);
 
         // Act - When the query is executed
@@ -164,7 +185,7 @@ public class FundTransactionQueryTests
         fundDb.GetFundTransactionsAsync(Arg.Any<int>(), Arg.Any<DateOnly>(), Arg.Any<DateOnly>())
             .Returns(Task.FromResult<ICollection<FundTransactionReadModel>>([]));
         var actor = CreateActor(dbFactory);
-        var context = CreateContext();
+        var context = actor.Context;
         var query = WithSubject(
             new GetFundTransactionsQuery(9999, SampleData.FundTransaction.ValueDate, SampleData.FundTransaction.ValueDate.AddDays(1)),
             GetFundTransactionsQuery.Verb);

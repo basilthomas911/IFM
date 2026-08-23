@@ -2,6 +2,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
+using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Transaction.Event;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -16,9 +18,8 @@ namespace TomasAI.IFM.Domain.Fund.UnitTests.Transaction;
 /// OnExceptionAsync behaviors, including happy paths and edge cases.
 /// </summary>
 /// <remarks>
-/// The actor's internal parse/dispatch maps currently have no registered handlers, so ParseMessage always
-/// ignores messages (returns null) and ReceiveAsync always throws for any resolved event. Both behaviors are
-/// exercised here as the actor's current, correct contract.
+/// The actor accepts the three Fund transaction domain-event types and ignores messages for other actors or unknown
+/// verbs.
 /// </remarks>
 public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
 {
@@ -33,8 +34,20 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     public class TestableFundTransactionEventActor : FundTransactionEventActor
     {
         public TestableFundTransactionEventActor(IActorSupervisor supervisor, ILogger<FundTransactionEventActor> logger)
-            : base(supervisor, logger)
+            : base(CreateContext(supervisor, logger))
         {
+        }
+
+        static IFundTransactionEventContext CreateContext(
+            IActorSupervisor supervisor,
+            ILogger<FundTransactionEventActor> logger)
+        {
+            var context = Substitute.For<IFundTransactionEventContext>();
+            context.Supervisor.Returns(supervisor);
+            context.Logger.Returns(logger);
+            context.ActorId.Returns(
+                new ActorMailboxId(ActorType.Event, FundTransactionEventActor.Actor));
+            return context;
         }
 
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
@@ -89,7 +102,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     [Fact]
     public void ParseMessage_GivenMessageWithMatchingActorButUnregisteredVerb_WhenParsed_ThenReturnsNull()
     {
-        // Arrange - the actor currently registers no parse handlers, so any verb is unresolved.
+        // Arrange - an unknown verb is not part of the transaction event contract.
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
         var context = Substitute.For<IEventActorContext>();
         var message = new NatsMsg<byte[]>($"Event.{FundTransactionEventActor.Actor}.AnyVerb.1", string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
@@ -119,6 +132,32 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     #endregion
 
     #region ReceiveAsync
+
+    [Fact]
+    public async Task ReceiveAsync_GivenRegisteredFundTransactionEvent_WhenExecuted_ThenCompletes()
+    {
+        var actor = _fixture.CreateActor(
+            Substitute.For<IActorSupervisor>(),
+            Substitute.For<ILogger<FundTransactionEventActor>>());
+        var context = Substitute.For<IEventActorContext>();
+        var transaction = SampleData.FundTransaction;
+        var entityId = new FundTransactionEntityId(transaction.FundId, transaction.OrderId);
+        var @event = new FundTransactionEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FundTransactionEventActor.Actor,
+                FundTransactionEvent.Verb,
+                entityId.Format()),
+            CommandId = Guid.NewGuid(),
+            EntityId = entityId,
+            FundTransaction = transaction
+        };
+
+        Func<Task> act = async () => await actor.InvokeReceiveAsync(context, @event);
+
+        await act.Should().NotThrowAsync();
+    }
 
     [Fact]
     public async Task ReceiveAsync_GivenNullContext_WhenExecuted_ThenThrowsArgumentNullException()
@@ -151,7 +190,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     [Fact]
     public async Task ReceiveAsync_GivenAnyEvent_WhenExecuted_ThenThrowsInvalidOperationException()
     {
-        // Arrange - the actor currently registers no receive handlers, so all events are unresolved.
+        // Arrange - an unrelated event type is not registered in the receive map.
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
         var context = Substitute.For<IEventActorContext>();
         var @event = CreateSampleEvent();

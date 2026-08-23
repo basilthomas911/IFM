@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Fund.Shared.Queries;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.Fund.Transaction.Query.Extensions;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Query.Actor;
 
@@ -17,13 +18,17 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Query.Actor;
 /// related to futures contracts. It processes commands such as adding, changing, and removing futures contracts,
 /// validates the commands, and manages the actor's state. This actor relies on an event-sourced repository for state
 /// persistence and uses dependency injection to resolve required services.</remarks>
-/// <param name="logger"></param>
-public class FundTransactionQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FundTransactionQueryActor> logger)
-    : BaseQueryActor<FundTransactionQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+/// <param name="actorContext">The typed Fund transaction query context.</param>
+public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryActor> actorContext)
+    : BaseQueryActor<FundTransactionQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FundTransactionQuery";
+
+    readonly ILogger<FundTransactionQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+
+    /// <summary>Gets the Fund transaction query context supplied to this actor.</summary>
+    protected IFundTransactionQueryContext FundTransactionQueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IFundTransactionQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -88,7 +93,11 @@ public class FundTransactionQueryActor(
         var queryType = query.GetType();
         if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken).ConfigureAwait(false);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            FundTransactionQueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(query, FundTransactionQueryContext, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -98,12 +107,12 @@ public class FundTransactionQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of fund transaction-related queries by associating each query
     /// type name with a function that processes the query against a FundTransactionQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<Type, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQuery, IFundTransactionQueryContext, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFundTransactionsQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFundTransactionsQuery)] = async (q, ctx, cancellationToken) =>
         {
             var query = (q as GetFundTransactionsQuery)!;
-            var result = await query.GetFundTransactionsAsync(dbFactory, cancellationToken);
+            var result = await ctx.GetFundTransactionsAsync(query, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFundTransactionsQuery.Verb,
                 new ServiceResult<FundTransactionReadModel[]>(result));
@@ -140,7 +149,7 @@ public class FundTransactionQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

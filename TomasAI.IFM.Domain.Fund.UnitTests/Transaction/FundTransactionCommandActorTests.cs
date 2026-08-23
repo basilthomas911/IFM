@@ -35,8 +35,23 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
     public class TestableFundTransactionCommandActor : FundTransactionCommandActor
     {
         public TestableFundTransactionCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FundTransactionCommandActor> logger)
-            : base(dbEventSource, Substitute.For<IEventProjector<FundTransactionCommandActor>>(), logger)
+            : base(CreateContext(dbEventSource, logger), Substitute.For<IEventProjector<FundTransactionCommandActor>>())
         {
+        }
+
+        static ICommandActorContext<FundTransactionCommandActor> CreateContext(
+            IEventSourceActorDbContext dbEventSource,
+            ILogger<FundTransactionCommandActor> logger)
+        {
+            var context = Substitute.For<IFundTransactionCommandContext>();
+            var container = Substitute.For<IContainerInstance>();
+            context.ActorId.Returns(
+                new ActorMailboxId(ActorType.Command, FundTransactionCommandActor.ActorName));
+            context.Container.Returns(container);
+            context.Logger.Returns(logger);
+            context.DbEventSource.Returns(dbEventSource);
+            container.Resolve<IEventSourceActorDbContext>().Returns(dbEventSource);
+            return context;
         }
 
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
