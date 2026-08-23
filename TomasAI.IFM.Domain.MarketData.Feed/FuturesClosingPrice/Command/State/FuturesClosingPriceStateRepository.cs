@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -11,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 
@@ -28,14 +30,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 /// <param name="db"></param>
 /// <param name="logger"></param>
 public class FuturesClosingPriceStateRepository(
-    IEventSourceActorStateFactory aggregateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IActorService actorService,
-    IDbContextFactory dbFactory,
-    IEventProjector<FuturesClosingPriceCommandActor> eventProjector,
-    ILogger<FuturesClosingPriceStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesClosingPriceCommandState>
+    ICommandActorContext<FuturesClosingPriceCommandActor> actorContext)
+    : BaseEventSourceActorRepository(
+        actorContext.StateFactory,
+        actorContext.DbEventSource,
+        actorContext.ActorService,
+        actorContext.Logger),
+      IEventSourceActorStateRepository<FuturesClosingPriceCommandState>
 {
+    readonly IEventProjector<FuturesClosingPriceCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
     /// <summary>
     /// Asynchronously loads the state associated with the specified command.
     /// </summary>
@@ -67,5 +71,5 @@ public class FuturesClosingPriceStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
+        => await _eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

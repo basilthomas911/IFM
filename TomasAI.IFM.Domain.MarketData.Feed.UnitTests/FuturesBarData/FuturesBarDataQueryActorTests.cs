@@ -20,11 +20,12 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
 
     public FuturesBarDataQueryActorTests(MarketDataFeedTestFixture fixture) => _fixture = fixture;
 
-    public class TestableFuturesBarDataQueryActor(
-        IDbContextFactory dbFactory,
-        ILogger<FuturesBarDataQueryActor> logger)
-        : FuturesBarDataQueryActor(dbFactory, logger)
+    public class TestableFuturesBarDataQueryActor : FuturesBarDataQueryActor
     {
+        public IFuturesBarDataQueryContext Context { get; }
+        public TestableFuturesBarDataQueryActor(IDbContextFactory dbFactory, ILogger<FuturesBarDataQueryActor> logger)
+            : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+        TestableFuturesBarDataQueryActor(IFuturesBarDataQueryContext context) : base(context) => Context = context;
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
@@ -43,7 +44,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var dbFactory = Substitute.For<IDbContextFactory>();
         var logger = Substitute.For<ILogger<FuturesBarDataQueryActor>>();
         var actor = _fixture.CreateActor(dbFactory, logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
 
         var result = actor.InvokeParseMessage(context, CreateMessage(query));
 
@@ -140,7 +141,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
                 SampleData.FuturesBarWindowEnd)
             .Returns(expected);
         var actor = _fixture.CreateActor(dbFactory, logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateRangeQuery();
 
         await actor.InvokeReceiveAsync(context, query);
@@ -165,7 +166,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             .Returns(Array.Empty<FuturesBarDataReadModel>());
         var actor = _fixture.CreateActor(
             dbFactory, Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateRangeQuery();
 
         await actor.InvokeReceiveAsync(context, query);
@@ -190,7 +191,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             .Returns(SampleData.FuturesBarData1);
         var actor = _fixture.CreateActor(
             dbFactory, Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateLastQuery();
 
         await actor.InvokeReceiveAsync(context, query);
@@ -233,7 +234,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = _fixture.CreateActor(
             Substitute.For<IDbContextFactory>(),
             Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateRangeQuery();
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -264,7 +265,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = _fixture.CreateActor(
             Substitute.For<IDbContextFactory>(),
             Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateRangeQuery();
 
         await actor.InvokeOnExceptionAsync(
@@ -285,7 +286,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = _fixture.CreateActor(
             Substitute.For<IDbContextFactory>(),
             Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateLastQuery();
 
         await actor.InvokeOnExceptionAsync(
@@ -306,7 +307,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = _fixture.CreateActor(
             Substitute.For<IDbContextFactory>(),
             Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesBarDataQueryActor.ActorName, "Unknown", "entity"));
@@ -327,7 +328,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = _fixture.CreateActor(
             Substitute.For<IDbContextFactory>(),
             Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateRangeQuery();
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -347,7 +348,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = _fixture.CreateActor(
             Substitute.For<IDbContextFactory>(),
             Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateLastQuery();
         var exception = new Exception("failure");
 

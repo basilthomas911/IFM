@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -17,7 +19,7 @@ public static class FuturesEodDataInsertedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesEodDataInsertedCompleteEvent @event,
         IEventActorContext context,
-        IActorMarketDataFeedEventApi eventApi,
+        IEventActorContext eventApi,
         FuturesEodDataEventParameters parameters)
     {
         ArgumentNullException.ThrowIfNull(@event);

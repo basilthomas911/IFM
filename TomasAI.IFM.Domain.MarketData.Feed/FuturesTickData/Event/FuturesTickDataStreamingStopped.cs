@@ -1,4 +1,6 @@
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -18,7 +20,7 @@ public static class FuturesTickDataStreamingStopped
 public static async ValueTask<bool> ExecuteAsync(
     this FuturesTickDataStreamingStoppedEvent e,
     IEventActorContext context,
-    IActorMarketDataFeedEventApi eventApi,
+    IEventActorContext eventApi,
     FuturesTickDataEventParameters p)
     {
         var source = $"FuturesTickDataStreamingStoppedEvent for EntityId: {e.EntityId}";

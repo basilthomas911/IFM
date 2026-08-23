@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using Microsoft.Extensions.Logging;
@@ -13,12 +15,9 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
 
 public class EconomicCalendarStateRepository(
-    IEventSourceActorStateFactory stateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
-    IActorService actorService,
-    ILogger<EconomicCalendarStateRepository> logger)
-    : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<EconomicCalendarCommandState>
+    ICommandActorContext<EconomicCalendarCommandActor> actorContext)
+    : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
+        actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<EconomicCalendarCommandState>
 {
     /// <summary>
     /// Asynchronously loads the current state of the economic calendar actor associated with the specified command.
@@ -65,7 +64,7 @@ public class EconomicCalendarStateRepository(
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context,  DomainEventCollection domainEvents)
     {
-        var db = dbFactory.MarketDataDb;
+        var db = actorContext.DbFactory.MarketDataDb;
         foreach (var domainEvent in domainEvents)
         {
             _ = domainEvent switch

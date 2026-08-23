@@ -6,6 +6,8 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.EventProjector;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests;
@@ -19,10 +21,23 @@ public sealed class SecuritiesEventProjectorTests
         var queue = Substitute.For<IDurableReplayQueue>();
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
         var blackboard = Substitute.For<IBlackboardService>();
+        var futuresContext = Substitute.For<IFuturesContractCommandContext>();
+        futuresContext.DbFactory.Returns(dbFactory);
+        futuresContext.DurableReplayQueue.Returns(queue);
+        futuresContext.DbEventSource.Returns(eventSource);
+        futuresContext.BlackboardService.Returns(blackboard);
+        futuresContext.Logger.Returns(Substitute.For<ILogger<FuturesContractCommandActor>>());
+        var optionContext = Substitute.For<IFuturesOptionContractCommandContext>();
+        optionContext.DbFactory.Returns(dbFactory);
+        optionContext.ActorService.Returns(Substitute.For<IActorService>());
+        optionContext.DurableReplayQueue.Returns(queue);
+        optionContext.DbEventSource.Returns(eventSource);
+        optionContext.BlackboardService.Returns(blackboard);
+        optionContext.Logger.Returns(Substitute.For<ILogger<FuturesOptionContractCommandActor>>());
         IEventProjector[] projectors =
         [
-            new FuturesContractEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesContractEventProjector>>()),
-            new FuturesOptionContractEventProjector(dbFactory, Substitute.For<IActorService>(), queue, eventSource, blackboard, Substitute.For<ILogger<FuturesOptionContractEventProjector>>())
+            new FuturesContractEventProjector(futuresContext),
+            new FuturesOptionContractEventProjector(optionContext)
         ];
 
         projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(7);

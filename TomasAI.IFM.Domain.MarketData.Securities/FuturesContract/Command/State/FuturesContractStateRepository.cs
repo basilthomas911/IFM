@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Extensions;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
@@ -22,14 +23,12 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.State;
 
 public class FuturesContractStateRepository(
-    IEventSourceActorStateFactory aggregateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
-    IActorService actorService,
-    IEventProjector<FuturesContractCommandActor> eventProjector,
-    ILogger<FuturesContractStateRepository> logger) 
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesContractCommandState>
+    ICommandActorContext<FuturesContractCommandActor> actorContext)
+    : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
+        actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<FuturesContractCommandState>
 {
+    readonly IEventProjector<FuturesContractCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
     /// <summary>
     /// load futures contract state from snapshot event
     /// </summary>
@@ -65,5 +64,5 @@ public class FuturesContractStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => eventProjector.DomainEventsProjectionAsync(domainEvents);
+        => _eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

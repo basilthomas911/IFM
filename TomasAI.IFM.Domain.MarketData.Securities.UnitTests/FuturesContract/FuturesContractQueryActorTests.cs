@@ -29,9 +29,23 @@ public class FuturesContractQueryActorTests : IClassFixture<SecuritiesFixture>
     public class TestableFuturesContractQueryActor : FuturesContractQueryActor
     {
         public TestableFuturesContractQueryActor(IDbContextFactory dbFactory, ILogger<FuturesContractQueryActor> logger)
-            : base(dbFactory,logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableFuturesContractQueryActor(IFuturesContractQueryContext context) : base(context)
+            => FuturesContext = context;
+
+        static IFuturesContractQueryContext CreateContext(IDbContextFactory dbFactory, ILogger<FuturesContractQueryActor> logger)
+        {
+            var context = Substitute.For<IFuturesContractQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, FuturesContractQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public IFuturesContractQueryContext FuturesContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -68,7 +82,7 @@ public class FuturesContractQueryActorTests : IClassFixture<SecuritiesFixture>
                 GetFuturesContractQuery.Verb,
                 SampleData.FuturesContract1.ContractId)
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.FuturesContext;
         using var cancellation = new CancellationTokenSource();
         securitiesDb.GetFuturesContractAsync(query.ContractId, cancellation.Token)
             .Returns(_ => Task.FromCanceled<FuturesContractV2ReadModel?>(cancellation.Token));

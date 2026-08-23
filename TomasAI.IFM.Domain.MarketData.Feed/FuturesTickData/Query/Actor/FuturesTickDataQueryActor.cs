@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -18,12 +19,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Query.Actor;
 /// or by contract/tick date.
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
-public class FuturesTickDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesTickDataQueryActor> logger)
-    : BaseQueryActor<FuturesTickDataQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class FuturesTickDataQueryActor(IQueryActorContext<FuturesTickDataQueryActor> actorContext)
+    : BaseQueryActor<FuturesTickDataQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesTickDataQuery";
+
+    /// <summary>Gets the typed query context supplied at construction.</summary>
+    protected IFuturesTickDataQueryContext QueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesTickDataQueryContext, nameof(actorContext))!;
+
+    readonly ILogger<FuturesTickDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -72,26 +77,30 @@ public class FuturesTickDataQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            QueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(QueryContext, query).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures tick data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IFuturesTickDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLastFuturesTickDataQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetLastFuturesTickDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesTickDataQuery)!;
-            var result = await query.GetLastFuturesTickDataAsync(dbf);
+            var result = await query.GetLastFuturesTickDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataQuery.Verb,
                 new ServiceResult<FuturesTickDataV2ReadModel?>(result));
         },
-        [typeof(GetLastFuturesTickDataByTickDateQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetLastFuturesTickDataByTickDateQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesTickDataByTickDateQuery)!;
-            var result = await query.GetLastFuturesTickDataByTickDateAsync(dbf);
+            var result = await query.GetLastFuturesTickDataByTickDateAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTickDataByTickDateQuery.Verb,
                 new ServiceResult<FuturesTickDataV2ReadModel?>(result));
         }
@@ -127,7 +136,7 @@ public class FuturesTickDataQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

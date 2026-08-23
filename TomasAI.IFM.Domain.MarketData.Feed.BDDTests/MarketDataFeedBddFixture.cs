@@ -139,7 +139,7 @@ public sealed class TestableMarketDataFeedCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IEventProjector<MarketDataFeedCommandActor> eventProjector,
     ILogger<MarketDataFeedCommandActor> logger)
-    : MarketDataFeedCommandActor(dbEventSource, eventProjector, logger)
+    : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
     public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
@@ -156,13 +156,20 @@ public sealed class TestableMarketDataFeedCommandActor(
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
-public sealed class TestableMarketDataFeedQueryActor(
-    ApplicationMarketDataApi marketDataApi,
-    ISequenceIdGenerator sequenceIdGenerator,
-    IDbContextFactory dbFactory,
-    ILogger<MarketDataFeedQueryActor> logger)
-    : MarketDataFeedQueryActor(marketDataApi, sequenceIdGenerator, dbFactory, logger)
+public sealed class TestableMarketDataFeedQueryActor : MarketDataFeedQueryActor
 {
+    public IMarketDataFeedQueryContext Context { get; }
+
+    public TestableMarketDataFeedQueryActor(
+        ApplicationMarketDataApi marketDataApi,
+        ISequenceIdGenerator sequenceIdGenerator,
+        IDbContextFactory dbFactory,
+        ILogger<MarketDataFeedQueryActor> logger)
+        : this(TypedActorContextFactory.Query(marketDataApi, sequenceIdGenerator, dbFactory, logger)) { }
+
+    TestableMarketDataFeedQueryActor(IMarketDataFeedQueryContext context)
+        : base(context) => Context = context;
+
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
     public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);
     public ValueTask InvokeOnExceptionAsync(
@@ -174,7 +181,7 @@ public sealed class TestableFuturesBarDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IEventProjector<FuturesBarDataCommandActor> eventProjector,
     ILogger<FuturesBarDataCommandActor> logger)
-    : FuturesBarDataCommandActor(dbEventSource, eventProjector, logger)
+    : FuturesBarDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -202,11 +209,18 @@ public sealed class TestableFuturesBarDataCommandActor(
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
-public sealed class TestableFuturesBarDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesBarDataQueryActor> logger)
-    : FuturesBarDataQueryActor(dbFactory, logger)
+public sealed class TestableFuturesBarDataQueryActor : FuturesBarDataQueryActor
 {
+    public IFuturesBarDataQueryContext Context { get; }
+
+    public TestableFuturesBarDataQueryActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesBarDataQueryActor> logger)
+        : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+
+    TestableFuturesBarDataQueryActor(IFuturesBarDataQueryContext context)
+        : base(context) => Context = context;
+
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
@@ -222,7 +236,7 @@ public sealed class TestableFuturesClosingPriceCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IEventProjector<FuturesClosingPriceCommandActor> eventProjector,
     ILogger<FuturesClosingPriceCommandActor> logger)
-    : FuturesClosingPriceCommandActor(dbEventSource, eventProjector, logger)
+    : FuturesClosingPriceCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -254,7 +268,7 @@ public sealed class TestableFuturesEodDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IEventProjector<FuturesEodDataCommandActor> eventProjector,
     ILogger<FuturesEodDataCommandActor> logger)
-    : FuturesEodDataCommandActor(dbEventSource, eventProjector, logger)
+    : FuturesEodDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -282,11 +296,18 @@ public sealed class TestableFuturesEodDataCommandActor(
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
-public sealed class TestableFuturesEodDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesEodDataQueryActor> logger)
-    : FuturesEodDataQueryActor(dbFactory, logger)
+public sealed class TestableFuturesEodDataQueryActor : FuturesEodDataQueryActor
 {
+    public IFuturesEodDataQueryContext Context { get; }
+
+    public TestableFuturesEodDataQueryActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesEodDataQueryActor> logger)
+        : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+
+    TestableFuturesEodDataQueryActor(IFuturesEodDataQueryContext context)
+        : base(context) => Context = context;
+
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
@@ -302,7 +323,7 @@ public sealed class TestableFuturesOptionTickDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IEventProjector<FuturesOptionTickDataCommandActor> eventProjector,
     ILogger<FuturesOptionTickDataCommandActor> logger)
-    : FuturesOptionTickDataCommandActor(dbEventSource, eventProjector, logger)
+    : FuturesOptionTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -330,11 +351,18 @@ public sealed class TestableFuturesOptionTickDataCommandActor(
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
-public sealed class TestableFuturesOptionTickDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesOptionTickDataQueryActor> logger)
-    : FuturesOptionTickDataQueryActor(dbFactory, logger)
+public sealed class TestableFuturesOptionTickDataQueryActor : FuturesOptionTickDataQueryActor
 {
+    public IFuturesOptionTickDataQueryContext Context { get; }
+
+    public TestableFuturesOptionTickDataQueryActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesOptionTickDataQueryActor> logger)
+        : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+
+    TestableFuturesOptionTickDataQueryActor(IFuturesOptionTickDataQueryContext context)
+        : base(context) => Context = context;
+
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
@@ -350,7 +378,7 @@ public sealed class TestableFuturesTickDataCommandActor(
     IEventSourceActorDbContext dbEventSource,
     IEventProjector<FuturesTickDataCommandActor> eventProjector,
     ILogger<FuturesTickDataCommandActor> logger)
-    : FuturesTickDataCommandActor(dbEventSource, eventProjector, logger)
+    : FuturesTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
     public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
 
@@ -378,11 +406,18 @@ public sealed class TestableFuturesTickDataCommandActor(
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
-public sealed class TestableFuturesTickDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesTickDataQueryActor> logger)
-    : FuturesTickDataQueryActor(dbFactory, logger)
+public sealed class TestableFuturesTickDataQueryActor : FuturesTickDataQueryActor
 {
+    public IFuturesTickDataQueryContext Context { get; }
+
+    public TestableFuturesTickDataQueryActor(
+        IDbContextFactory dbFactory,
+        ILogger<FuturesTickDataQueryActor> logger)
+        : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+
+    TestableFuturesTickDataQueryActor(IFuturesTickDataQueryContext context)
+        : base(context) => Context = context;
+
     public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 

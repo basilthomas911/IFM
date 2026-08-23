@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -66,45 +68,7 @@ internal static class FuturesOptionTickDataEventExtensions
         return streamingRequestId;
     }
 
-    /// <summary>
-    /// Sends a command to insert futures-option tick price data for the specified
-    /// underlying contract and option tick data.
-    /// </summary>
-    /// <remarks>If the command fails, an <see cref="InvalidOperationException"/> is thrown
-    /// containing the error message from the service result.</remarks>
-    /// <param name="context">The event actor context used to send the command.</param>
-    /// <param name="underlyingContract">The underlying futures contract associated with
-    /// the option tick data.</param>
-    /// <param name="optionContract">The option tick data to insert, including contract
-    /// identifier, value date, and pricing information.</param>
-    /// <returns>A value task that completes when the command has been processed
-    /// successfully.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the command execution
-    /// fails.</exception>
-    internal static async ValueTask InsertFuturesOptionTickPriceDataAsync(this IActorMarketDataFeedCommandApi commandApi, FuturesContractV2ReadModel underlyingContract, FuturesOptionTickDataV2ReadModel optionContract)
-    {
-        _ = await commandApi.InsertFuturesOptionTickPriceDataAsync(underlyingContract, optionContract);
-    }
 
-    /// <summary>
-    /// Sends a command to insert a futures-option tick data record for the specified
-    /// underlying contract and option tick data.
-    /// </summary>
-    /// <remarks>If the command fails, an <see cref="InvalidOperationException"/> is thrown
-    /// containing the error message from the service result.</remarks>
-    /// <param name="context">The event actor context used to send the command.</param>
-    /// <param name="underlyingContract">The underlying futures contract associated with
-    /// the option tick data.</param>
-    /// <param name="optionContract">The option tick data to insert, including contract
-    /// identifier, value date, and computed option greeks.</param>
-    /// <returns>A value task that completes when the command has been processed
-    /// successfully.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the command execution
-    /// fails.</exception>
-    public static async ValueTask InsertFuturesOptionTickDataAsync(this IActorMarketDataFeedCommandApi commandApi, FuturesContractV2ReadModel underlyingContract, FuturesOptionTickDataV2ReadModel optionContract)
-    {
-        _ = await commandApi.InsertFuturesOptionTickDataAsync(underlyingContract, optionContract);
-    }
 
    /// <summary>
    /// Updates the option leg data for futures option trades based on the latest tick data and risk-free rate.

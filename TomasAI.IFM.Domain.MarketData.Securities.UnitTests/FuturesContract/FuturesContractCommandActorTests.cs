@@ -18,6 +18,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests.FuturesContract;
 
@@ -32,8 +33,18 @@ public class FuturesContractCommandActorTests : IClassFixture<SecuritiesFixture>
 
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableFuturesContractCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesContractCommandActor> logger)
-        : FuturesContractCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesContractCommandActor>>(), logger)
+        : FuturesContractCommandActor(CreateContext(dbEventSource, logger), Substitute.For<IEventProjector<FuturesContractCommandActor>>())
     {
+        static ICommandActorContext<FuturesContractCommandActor> CreateContext(
+            IEventSourceActorDbContext dbEventSource, ILogger<FuturesContractCommandActor> logger)
+        {
+            var context = Substitute.For<IFuturesContractCommandContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Command, FuturesContractCommandActor.ActorName));
+            context.Logger.Returns(logger);
+            context.DbEventSource.Returns(dbEventSource);
+            context.ReferenceLookupService.Returns(Substitute.For<IReferenceLookupService>());
+            return context;
+        }
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 

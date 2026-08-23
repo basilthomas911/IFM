@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -19,7 +21,7 @@ internal static class FuturesTickTradeDataInserted
 
     internal static async ValueTask<bool> ExecuteAsync(
         this FuturesTickTradeDataInsertedEvent source,
-        IActorMarketDataFeedEventApi eventApi,
+        IEventActorContext eventApi,
         IMarketDataApi marketDataApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)

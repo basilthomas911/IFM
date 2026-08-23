@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Extensions;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
@@ -14,16 +15,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 /// Receives normalized Databento ticks over Core NATS and applies their storage
 /// projections without event sourcing or replay.
 /// </summary>
-public sealed class TickAggregationRealtimeActor(
-    IActorSupervisor supervisor,
-    IRealtimeProjector<TickAggregationRealtimeActor> projector,
-    ILogger<TickAggregationRealtimeActor> logger)
-    : BaseEventActor<TickAggregationRealtimeActor>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Realtime, ActorName))
+public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggregationRealtimeActor> actorContext)
+    : BaseEventActor<TickAggregationRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "TickAggregationRealtime";
+
+    /// <summary>Gets the typed realtime context supplied at construction.</summary>
+    ITickAggregationRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as ITickAggregationRealtimeContext, nameof(actorContext))!;
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> ParseMap = new()
     {
@@ -48,10 +46,10 @@ public sealed class TickAggregationRealtimeActor(
     };
 
     protected override async ValueTask OnStartup(IEventActorContext context) =>
-        await projector.StartAsync(context).ConfigureAwait(false);
+        await ((ITickAggregationRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
 
     protected override async ValueTask OnShutdown(IEventActorContext context) =>
-        await projector.StopAsync().ConfigureAwait(false);
+        await ((ITickAggregationRealtimeContext)actorContext).Projector.StopAsync().ConfigureAwait(false);
 
     protected override IEvent ParseMessage(
         IEventActorContext context,
@@ -80,15 +78,15 @@ public sealed class TickAggregationRealtimeActor(
         switch (domainEvent)
         {
             case FuturesTickTradeDataChangedEvent trade:
-                _ = await projector.ProcessRealtimeEventAsync(trade.ToInsertedEvent())
+                _ = await ((ITickAggregationRealtimeContext)actorContext).Projector.ProcessRealtimeEventAsync(trade.ToInsertedEvent())
                     .ConfigureAwait(false);
                 break;
             case FuturesTickQuoteDataChangedEvent quote:
-                _ = await projector.ProcessRealtimeEventAsync(quote.ToInsertedEvent())
+                _ = await ((ITickAggregationRealtimeContext)actorContext).Projector.ProcessRealtimeEventAsync(quote.ToInsertedEvent())
                     .ConfigureAwait(false);
                 break;
             case TickAggregationFailEvent failed:
-                logger.LogErrorEvent(
+                actorContext.Logger.LogErrorEvent(
                     ActorName,
                     "{EventName} for {EntityId}: {ErrorMessage}",
                     failed.EventName,

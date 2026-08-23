@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Blackboard;
 using global::TomasAI.IFM.Shared.EventModelActor;
@@ -15,27 +17,20 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Actor;
 
-public class MarketDataFeedEventActor(
-    IActorSupervisor supervisor,
-    IActorMarketDataFeedCommandApiFactory commandApiFactory,
-    IActorMarketDataFeedEventApiFactory eventApiFactory,
-    ApplicationMarketDataApi marketDataApi,
-    IOptionTradeLiveFeedMap optionTradeLiveFeedMap, 
-    IBlackboardService blackboardService,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<MarketDataFeedEventActor> logger)
-    : BaseEventActor<MarketDataFeedEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActor> actorContext)
+    : BaseEventActor<MarketDataFeedEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "MarketDataFeedEvent";
-    IActorMarketDataFeedCommandApi? _commandApi;
-    IActorMarketDataFeedEventApi? _eventApi;
+
+    /// <summary>Gets the typed event context supplied at construction.</summary>
+    protected IMarketDataFeedEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IMarketDataFeedEventContext, nameof(actorContext))!;
+    readonly ILogger<MarketDataFeedEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     MarketDataFeedEventParameters _eventParameters = new(
-        marketDataApi,
-        optionTradeLiveFeedMap,
-        blackboardService,
-        statusConsoleWriter,
-        logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorMarketDataFeedEventApi, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new()
+        ((IMarketDataFeedEventContext)actorContext).MarketDataApi,
+        ((IMarketDataFeedEventContext)actorContext).OptionTradeLiveFeedMap,
+        ((IMarketDataFeedEventContext)actorContext).BlackboardService,
+        ((IMarketDataFeedEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
+    readonly Dictionary<string, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(MarketDataFeedStartedEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
         {
@@ -71,16 +66,12 @@ public class MarketDataFeedEventActor(
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetCommandApi(context);
-        _ = GetEventApi(context);
+        _ = EventContext;
+        _ = EventContext;
         return ValueTask.CompletedTask;
     }
 
-    IActorMarketDataFeedCommandApi GetCommandApi(IEventActorContext context)
-        => _commandApi ??= commandApiFactory.Create(context);
 
-    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
-        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -132,7 +123,7 @@ public class MarketDataFeedEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), GetEventApi(context), _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters);
     }
 
     /// <summary>
@@ -158,7 +149,7 @@ public class MarketDataFeedEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 

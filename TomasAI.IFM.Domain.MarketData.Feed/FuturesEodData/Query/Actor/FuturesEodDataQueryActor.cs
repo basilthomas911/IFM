@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -21,12 +22,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Query.Actor;
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="dbFactory">The database context factory used to access market data.</param>
 /// <param name="logger"></param>
-public class FuturesEodDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesEodDataQueryActor> logger)
-    : BaseQueryActor<FuturesEodDataQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActor> actorContext)
+    : BaseQueryActor<FuturesEodDataQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesEodDataQuery";
+
+    /// <summary>Gets the typed query context supplied at construction.</summary>
+    protected IFuturesEodDataQueryContext QueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesEodDataQueryContext, nameof(actorContext))!;
+
+    readonly ILogger<FuturesEodDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -80,61 +85,65 @@ public class FuturesEodDataQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            QueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(QueryContext, query).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures EOD data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IFuturesEodDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesEodDataByDateRangeQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataByDateRangeQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataByDateRangeQuery)!;
-            var result = await query.GetFuturesEodDataByDateRangeAsync(dbf);
+            var result = await query.GetFuturesEodDataByDateRangeAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataByDateRangeQuery.Verb,
                 new ServiceResult<FuturesEodDataV2ReadModel[]>(result));
         },
-        [typeof(GetFuturesEodDataParametersQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataParametersQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataParametersQuery)!;
-            var result = await query.GetFuturesEodDataParametersAsync(dbf);
+            var result = await query.GetFuturesEodDataParametersAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataParametersQuery.Verb,
                 new ServiceResult<FuturesEodDataParametersReadModel>(result));
         },
-        [typeof(GetFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataQuery)!;
-            var result = await query.GetFuturesEodDataAsync(dbf);
+            var result = await query.GetFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataQuery.Verb,
                 new ServiceResult<FuturesEodDataV2ReadModel>(result));
         },
-        [typeof(GetLastFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetLastFuturesEodDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesEodDataQuery)!;
-            var result = await query.GetLastFuturesEodDataAsync(dbf);
+            var result = await query.GetLastFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesEodDataQuery.Verb,
                 new ServiceResult<FuturesEodDataV2ReadModel>(result));
         },
-        [typeof(GetFuturesEodDataMovingAveragesQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetFuturesEodDataMovingAveragesQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataMovingAveragesQuery)!;
-            var result = await query.GetFuturesEodMovingAveragesAsync(dbf);
+            var result = await query.GetFuturesEodMovingAveragesAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataMovingAveragesQuery.Verb,
                 new ServiceResult<FuturesEodDataMovingAveragesReadModel>(result));
         },
-        [typeof(GetLastVixFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetLastVixFuturesEodDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetLastVixFuturesEodDataQuery)!;
-            var result = await query.GetLastVixFuturesEodDataAsync(dbf);
+            var result = await query.GetLastVixFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastVixFuturesEodDataQuery.Verb,
                 new ServiceResult<VixFuturesEodDataReadModel?>(result));
         },
-        [typeof(GetVixFuturesEodDataQuery).Name] = async (ctx, dbf, q) =>
+        [typeof(GetVixFuturesEodDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetVixFuturesEodDataQuery)!;
-            var result = await query.GetVixFuturesEodDataAsync(dbf);
+            var result = await query.GetVixFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetVixFuturesEodDataQuery.Verb,
                 new ServiceResult<VixFuturesEodDataReadModel[]>(result));
         }
@@ -180,7 +189,7 @@ public class FuturesEodDataQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

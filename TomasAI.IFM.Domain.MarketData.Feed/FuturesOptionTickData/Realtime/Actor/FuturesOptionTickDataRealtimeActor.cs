@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
@@ -11,29 +14,21 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.Actor;
 
 /// <summary>Consumes the futures-option branch of normalized live trades over Core NATS.</summary>
-public class FuturesOptionTickDataRealtimeActor(
-    IActorSupervisor supervisor,
-    IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IMarketDataApi marketDataApi,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesOptionTickDataRealtimeActor> logger)
-    : BaseEventActor<FuturesOptionTickDataRealtimeActor>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Realtime, ActorName))
+public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOptionTickDataRealtimeActor> actorContext)
+    : BaseEventActor<FuturesOptionTickDataRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesOptionTickDataRealtime";
+
+    /// <summary>Gets the typed realtime context supplied at construction.</summary>
+    protected IFuturesOptionTickDataRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as IFuturesOptionTickDataRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId TickTradeRoute = new(
         ActorType.Realtime,
         FuturesTickTradeDataInsertedEvent.Actor,
         FuturesTickTradeDataInsertedEvent.Verb);
 
-    IActorMarketDataFeedEventApi? _eventApi;
-
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _eventApi = eventApiFactory.Create(context);
         context.AddRealtimeRouter(TickTradeRoute, Id);
         return ValueTask.CompletedTask;
     }
@@ -75,10 +70,10 @@ public class FuturesOptionTickDataRealtimeActor(
         }
 
         _ = await trade.ExecuteAsync(
-                _eventApi ?? throw new InvalidOperationException($"{ActorName} has not started."),
-                marketDataApi,
-                statusConsoleWriter,
-                logger)
+                RealtimeContext,
+                ((IFuturesOptionTickDataRealtimeContext)actorContext).MarketDataApi,
+                ((IFuturesOptionTickDataRealtimeContext)actorContext).StatusConsoleWriter,
+                actorContext.Logger)
             .ConfigureAwait(false);
     }
 

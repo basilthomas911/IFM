@@ -21,6 +21,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor;
 
@@ -31,15 +32,16 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Actor
 /// related to futures contracts. It processes commands such as adding, changing, and removing futures contracts,
 /// validates the commands, and manages the actor's state. This actor relies on an event-sourced repository for state
 /// persistence and uses dependency injection to resolve required services.</remarks>
-/// <param name="logger"></param>
+/// <param name="actorContext">The typed futures-contract command context.</param>
+/// <param name="eventProjector">The event projector whose lifetime follows this actor.</param>
 public class FuturesContractCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<FuturesContractCommandActor> eventProjector,
-    ILogger<FuturesContractCommandActor> logger)
-    : BaseEventSourceCommandActor<FuturesContractCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<FuturesContractCommandActor> actorContext,
+    IEventProjector<FuturesContractCommandActor> eventProjector)
+    : BaseEventSourceCommandActor<FuturesContractCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesContractCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly ILogger<FuturesContractCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<FuturesContractCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesContractCommandState> _repo = default!;
 
@@ -156,7 +158,7 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
         await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
-        var refLookupService = IsArgumentNull.Set(context.Container.Resolve<IReferenceLookupService>());
+        var refLookupService = actorContext.ReferenceLookupService;
         await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
@@ -281,7 +283,7 @@ public class FuturesContractCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

@@ -8,25 +8,25 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Event.Actor;
 
 public class EconomicCalendarEventActor(
-    IActorSupervisor supervisor,
-    IReferenceDataApi referenceDataApi,
-    IDbContextFactory dbFactory,
-    ILogger<EconomicCalendarEventActor> logger)
-    : BaseEventActor<EconomicCalendarEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<EconomicCalendarEventActor> actorContext)
+    : BaseEventActor<EconomicCalendarEventActor>(actorContext.EconomicCalendarContext.Supervisor,
+        actorContext.EconomicCalendarContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "EconomicCalendarEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+    readonly IEconomicCalendarEventContext _context = actorContext.EconomicCalendarContext;
+    readonly Dictionary<string, Func<IEvent, IEconomicCalendarEventContext, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(EconomicCalendarsImportedEvent).Name] = (@event, context) =>
-            ((EconomicCalendarsImportedEvent)@event).ExecuteAsync(context, referenceDataApi, dbFactory, logger),
+            ((EconomicCalendarsImportedEvent)@event).ExecuteAsync(context, context.ReferenceDataApi, context.DbFactory, context.Logger),
         [typeof(EconomicCalendarsImportedCompleteEvent).Name] = (@event, context) =>
-            ((EconomicCalendarsImportedCompleteEvent)@event).ExecuteAsync(context, logger),
+            ((EconomicCalendarsImportedCompleteEvent)@event).ExecuteAsync(context, context.Logger),
         [typeof(EconomicCalendarsImportedFailEvent).Name] = (@event, context) =>
-            ((EconomicCalendarsImportedFailEvent)@event).ExecuteAsync(context, logger)
+            ((EconomicCalendarsImportedFailEvent)@event).ExecuteAsync(context, context.Logger)
     };
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
@@ -72,7 +72,7 @@ public class EconomicCalendarEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context).ConfigureAwait(false);
+        _ = await receiveFunc.Invoke(@event, _context).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public class EconomicCalendarEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using NATS.Client.Core;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -12,19 +15,17 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 
-public class FuturesOptionTickDataEventActor(
-    IActorSupervisor supervisor,
-    IActorMarketDataFeedEventApiFactory eventApiFactory,
-    ApplicationMarketDataApi marketDataApi,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesOptionTickDataEventActor> logger)
-    : BaseEventActor<FuturesOptionTickDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTickDataEventActor> actorContext)
+    : BaseEventActor<FuturesOptionTickDataEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "FuturesOptionTickDataEvent";
-    IActorMarketDataFeedEventApi? _eventApi;
+
+    /// <summary>Gets the typed event context supplied at construction.</summary>
+    protected IFuturesOptionTickDataEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IFuturesOptionTickDataEventContext, nameof(actorContext))!;
+    readonly ILogger<FuturesOptionTickDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesOptionTickDataEventParameters _eventParameters = new(
-        marketDataApi, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedEventApi, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+        ((IFuturesOptionTickDataEventContext)actorContext).MarketDataApi, ((IFuturesOptionTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
+    readonly Dictionary<string, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesOptionTickDataStreamingStartedEvent).Name] = async (evt, context, eventApi, eventParams) =>
         {
@@ -40,7 +41,7 @@ public class FuturesOptionTickDataEventActor(
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetEventApi(context);
+        _ = EventContext;
         return ValueTask.CompletedTask;
     }
 
@@ -62,8 +63,6 @@ public class FuturesOptionTickDataEventActor(
         }
     }
 
-    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
-        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -113,8 +112,8 @@ public class FuturesOptionTickDataEventActor(
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
         _ = await receiveFunc.Invoke(
             @event,
-            context,
-            GetEventApi(context),
+            EventContext,
+            EventContext,
             _eventParameters);
     }
 
@@ -141,7 +140,7 @@ public class FuturesOptionTickDataEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogErrorEvent(Actor, innerEx, "Failed to send EventExceptionEvent for: {ThreadId}", threadId);
+            _logger.LogErrorEvent(Actor, innerEx, "Failed to send EventExceptionEvent for: {ThreadId}", threadId);
         }
     }
 }

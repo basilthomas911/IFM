@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Actor;
 
@@ -27,14 +28,14 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Actor;
 /// <param name="dbEventSource">The database context for event source operations.</param>
 /// <param name="logger">The logger instance for logging operations.</param>
 public class YieldCurveRateCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    ILogger<YieldCurveRateCommandActor> logger)
-    : BaseEventSourceCommandActor<YieldCurveRateCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<YieldCurveRateCommandActor> actorContext)
+    : BaseEventSourceCommandActor<YieldCurveRateCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "YieldCurveRateCommand";
+    readonly ILogger<YieldCurveRateCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     static readonly IValidationRules<YieldCurveRateReadModel> ValidationRules =
         new YieldCurveRateValidationRules();
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
     IEventSourceActorStateRepository<YieldCurveRateCommandState> _repo = default!;
 
     /// <summary>
@@ -268,7 +269,7 @@ public class YieldCurveRateCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

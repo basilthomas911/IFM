@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -27,7 +28,7 @@ public static class MarketDataFeedStartedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this MarketDataFeedStartedCompleteEvent e,
         IEventActorContext context,
-        IActorMarketDataFeedCommandApi commandApi,
+        IEventActorContext commandApi,
         MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedStartedCompleteEvent for EntityId: {e.EntityId}";

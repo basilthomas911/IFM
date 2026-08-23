@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -18,12 +19,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query.Actor;
 /// and retrieving the most recent futures bar data.
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
-public class FuturesBarDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesBarDataQueryActor> logger)
-    : BaseQueryActor<FuturesBarDataQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActor> actorContext)
+    : BaseQueryActor<FuturesBarDataQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesBarDataQuery";
+
+    /// <summary>Gets the typed query context supplied at construction.</summary>
+    protected IFuturesBarDataQueryContext QueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesBarDataQueryContext, nameof(actorContext))!;
+
+    readonly ILogger<FuturesBarDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -72,26 +77,30 @@ public class FuturesBarDataQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            QueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(QueryContext, query).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures bar data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IFuturesBarDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesBarDataQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetFuturesBarDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetFuturesBarDataQuery)!;
-            var result = await query.GetFuturesBarDataAsync(dbFactory);
+            var result = await query.GetFuturesBarDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesBarDataQuery.Verb,
                 new ServiceResult<FuturesBarDataReadModel[]>(result));
         },
-        [typeof(GetLastFuturesBarDataQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLastFuturesBarDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesBarDataQuery)!;
-            var result = await query.GetLastFuturesBarDataAsync(dbFactory);
+            var result = await query.GetLastFuturesBarDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesBarDataQuery.Verb,
                 new ServiceResult<FuturesBarDataReadModel>(result));
         }
@@ -127,7 +136,7 @@ public class FuturesBarDataQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

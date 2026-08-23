@@ -1,4 +1,6 @@
 using System;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using System.Collections.Generic;
 using System.Text;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
@@ -25,7 +27,7 @@ public static class FuturesTickDataStreamingStarted
 public static async ValueTask<bool> ExecuteAsync(
     this FuturesTickDataStreamingStartedEvent e,
     IEventActorContext context,
-    IActorMarketDataFeedEventApi eventApi,
+    IEventActorContext eventApi,
     FuturesTickDataEventParameters p)
     {
         var source = $"FuturesTickDataStreamingStartedEvent for EntityId: {e.EntityId}";

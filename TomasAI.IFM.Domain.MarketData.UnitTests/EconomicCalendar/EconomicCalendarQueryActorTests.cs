@@ -29,9 +29,23 @@ public class EconomicCalendarQueryActorTests : IClassFixture<EconomicCalendarTes
         public TestableEconomicCalendarQueryActor(
             IDbContextFactory dbFactory,
             ILogger<EconomicCalendarQueryActor> logger)
-            : base(dbFactory, logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableEconomicCalendarQueryActor(IEconomicCalendarQueryContext context) : base(context)
+            => Context = context;
+
+        static IEconomicCalendarQueryContext CreateContext(IDbContextFactory dbFactory, ILogger<EconomicCalendarQueryActor> logger)
+        {
+            var context = Substitute.For<IEconomicCalendarQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, EconomicCalendarQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public IEconomicCalendarQueryContext Context { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

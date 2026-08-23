@@ -28,7 +28,7 @@ public class FuturesOptionTickDataCommandActorTests : IClassFixture<MarketDataFe
     }
 
     public class TestableFuturesOptionTickDataCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesOptionTickDataCommandActor> logger)
-        : FuturesOptionTickDataCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesOptionTickDataCommandActor>>(), logger)
+        : FuturesOptionTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesOptionTickDataCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

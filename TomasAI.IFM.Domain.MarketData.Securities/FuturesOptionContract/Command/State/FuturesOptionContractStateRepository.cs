@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 
@@ -25,14 +26,12 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 /// <param name="actorService"></param>
 /// <param name="logger"></param>
 public class FuturesOptionContractStateRepository(
-    IEventSourceActorStateFactory aggregateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
-    IActorService actorService,
-    IEventProjector<FuturesOptionContractCommandActor> eventProjector,
-    ILogger<FuturesOptionContractStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesOptionContractCommandState>
+    ICommandActorContext<FuturesOptionContractCommandActor> actorContext)
+    : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
+        actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<FuturesOptionContractCommandState>
 {
+    readonly IEventProjector<FuturesOptionContractCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
     /// <summary>
     /// Asynchronously loads the state of a futures option contract based on the specified command.
     /// </summary>
@@ -71,5 +70,5 @@ public class FuturesOptionContractStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => eventProjector.DomainEventsProjectionAsync(domainEvents);
+        => _eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

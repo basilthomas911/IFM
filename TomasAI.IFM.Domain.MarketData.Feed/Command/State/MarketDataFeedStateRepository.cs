@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -9,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 
@@ -25,14 +27,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 /// <param name="actorService"></param>
 /// <param name="logger"></param>
 public class MarketDataFeedStateRepository(
-    IEventSourceActorStateFactory aggregateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IMarketDataDbContext db,
-    IActorService actorService,
-    IEventProjector<MarketDataFeedCommandActor> eventProjector,
-    ILogger<MarketDataFeedStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<MarketDataFeedCommandState>
+    ICommandActorContext<MarketDataFeedCommandActor> actorContext)
+    : BaseEventSourceActorRepository(
+        actorContext.StateFactory,
+        actorContext.DbEventSource,
+        actorContext.ActorService,
+        actorContext.Logger),
+      IEventSourceActorStateRepository<MarketDataFeedCommandState>
 {
+    readonly IEventProjector<MarketDataFeedCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
     /// <summary>
     /// load market data feed state from snapshot event
     /// </summary>
@@ -70,5 +74,5 @@ public class MarketDataFeedStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
+        => await _eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
 }

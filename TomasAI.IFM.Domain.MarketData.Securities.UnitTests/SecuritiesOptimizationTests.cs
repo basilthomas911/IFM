@@ -140,13 +140,13 @@ public class SecuritiesOptimizationTests
             .Returns(new FuturesOptionContractCommandState());
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
         eventSource.GetEventStreamIdAsync(Arg.Any<string>()).Returns(42L);
-        var repository = new FuturesOptionContractStateRepository(
-            stateFactory,
-            eventSource,
-            Substitute.For<IDbContextFactory>(),
-            Substitute.For<IActorService>(),
-            Substitute.For<IEventProjector<FuturesOptionContractCommandActor>>(),
-            Substitute.For<ILogger<FuturesOptionContractStateRepository>>());
+        var context = Substitute.For<IFuturesOptionContractCommandContext>();
+        context.StateFactory.Returns(stateFactory);
+        context.DbEventSource.Returns(eventSource);
+        context.ActorService.Returns(Substitute.For<IActorService>());
+        context.EventProjector.Returns(Substitute.For<IEventProjector<FuturesOptionContractCommandActor>>());
+        context.Logger.Returns(Substitute.For<ILogger<FuturesOptionContractCommandActor>>());
+        var repository = new FuturesOptionContractStateRepository(context);
         var command = new AddFuturesOptionContractsCommand(
             [SampleData.FuturesOptionContract1, SampleData.FuturesOptionContract2])
         {

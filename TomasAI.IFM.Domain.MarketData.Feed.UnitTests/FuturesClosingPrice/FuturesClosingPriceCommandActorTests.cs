@@ -31,7 +31,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
     }
 
     public class TestableFuturesClosingPriceCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesClosingPriceCommandActor> logger)
-        : FuturesClosingPriceCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>(), logger)
+        : FuturesClosingPriceCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

@@ -1,6 +1,6 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Domain.MarketData.Feed.Command.Api;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -21,9 +21,7 @@ public class ActorMarketDataFeedCommandApiTests
         context.RequestAsync<DeleteStreamingRequestIdCommand, FeedId>(
                 Arg.Any<DeleteStreamingRequestIdCommand>())
             .Returns(expected);
-        var api = new ActorMarketDataFeedCommandApiFactory().Create(context);
-
-        var result = await api.DeleteStreamingRequestIdAsync(feedId);
+        var result = await context.DeleteStreamingRequestIdAsync(feedId);
 
         result.Should().BeSameAs(expected);
         await context.Received(1).RequestAsync<DeleteStreamingRequestIdCommand, FeedId>(
@@ -45,9 +43,7 @@ public class ActorMarketDataFeedCommandApiTests
         context.RequestAsync<DeleteStreamingRequestIdCommand, FeedId>(
                 Arg.Any<DeleteStreamingRequestIdCommand>())
             .Returns(new ServiceFailed<GuidResult>(DeleteStreamingRequestIdCommand.ErrorId, "delete failed"));
-        var api = new ActorMarketDataFeedCommandApi(context);
-
-        Func<Task> act = async () => await api.DeleteStreamingRequestIdAsync(feedId);
+        Func<Task> act = async () => await context.DeleteStreamingRequestIdAsync(feedId);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("delete failed");
@@ -74,16 +70,15 @@ public class ActorMarketDataFeedCommandApiTests
                 barCommand = callInfo.Arg<StartFuturesBarDataStreamingCommand>();
                 return expected;
             });
-        var api = new ActorMarketDataFeedCommandApi(context);
         var contract = SampleData.EsContract;
         var valueDate = SampleData.ValueDate;
 
-        await api.StartFuturesTickDataStreamingAsync(
+        await context.StartFuturesTickDataStreamingAsync(
             contract,
             valueDate,
             resetStream: false,
             new FuturesDataId(contract.ContractId, valueDate));
-        await api.StartFuturesBarDataStreamingAsync(
+        await context.StartFuturesBarDataStreamingAsync(
             [contract],
             valueDate,
             new FuturesBarDataStreamingId(valueDate));

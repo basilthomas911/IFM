@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -22,8 +23,8 @@ public static class TradeLiveFeedRemoved
     public static async ValueTask<bool> ExecuteAsync(
         this TradeLiveFeedRemovedEvent e,
         IEventActorContext context,
-        IActorMarketDataFeedCommandApi commandApi,
-        IActorMarketDataFeedEventApi eventApi,
+        IEventActorContext commandApi,
+        IEventActorContext eventApi,
         MarketDataFeedEventParameters p)
     {
         var source = $"TradeLiveFeedRemovedEvent for EntityId: {e.EntityId}";

@@ -13,6 +13,7 @@ using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Validation;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
 
@@ -26,12 +27,12 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Actor;
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class EconomicCalendarCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    ILogger<EconomicCalendarCommandActor> logger)
-    : BaseEventSourceCommandActor<EconomicCalendarCommandActor>(logger, new ActorMailboxId(ActorType.Command, Actor))
+    ICommandActorContext<EconomicCalendarCommandActor> actorContext)
+    : BaseEventSourceCommandActor<EconomicCalendarCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "EconomicCalendarCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly ILogger<EconomicCalendarCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     EconomicCalendarStateRepository _repo = default!;
 
     /// <summary>
@@ -283,7 +284,7 @@ public class EconomicCalendarCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(

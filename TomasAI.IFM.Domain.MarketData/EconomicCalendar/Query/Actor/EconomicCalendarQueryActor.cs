@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query.Extensions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
@@ -19,12 +20,13 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query.Actor;
 /// view type, and country, and validates the queries. This actor relies on a query state for data
 /// retrieval and uses dependency injection to resolve required services.</remarks>
 /// <param name="logger"></param>
-public class EconomicCalendarQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<EconomicCalendarQueryActor> logger)
-    : BaseQueryActor<EconomicCalendarQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQueryActor> actorContext)
+    : BaseQueryActor<EconomicCalendarQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "EconomicCalendarQuery";
+    readonly ILogger<EconomicCalendarQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected IEconomicCalendarQueryContext EconomicCalendarContext { get; } =
+        IsArgumentNull.Set(actorContext as IEconomicCalendarQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -90,7 +92,8 @@ public class EconomicCalendarQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        using var messageInfoScope = context.MirrorMessageInfoTo(EconomicCalendarContext, query.Subject.ThreadId, query.Subject.Verb);
+        await receiveFunc.Invoke(EconomicCalendarContext, query, cancellationToken);
     }
 
     /// <summary>
@@ -100,33 +103,33 @@ public class EconomicCalendarQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of economic calendar-related queries by associating each query
     /// type name with a function that processes the query against an EconomicCalendarQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IEconomicCalendarQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetEconomicCalendarPageQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarPageQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = (GetEconomicCalendarPageQuery)q;
-            var result = await query.GetEconomicCalendarPageAsync(dbFactory, cancellationToken);
+            var result = await query.GetEconomicCalendarPageAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarPageQuery.Verb,
                 new ServiceResult<EconomicCalendarPageReadModel>(result));
         },
-        [typeof(GetEconomicCalendarAllQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarAllQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarAllQuery;
-            var result = await query.GetEconomicCalendarAllAsync(dbFactory, cancellationToken);
+            var result = await query.GetEconomicCalendarAllAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb,
                 new ServiceResult<EconomicCalendarReadModel[]>(result));
         },
-        [typeof(GetEconomicCalendarQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarQuery;
-            var result = await query.GetEconomicCalendarAsync(dbFactory, cancellationToken);
+            var result = await query.GetEconomicCalendarAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb,
                 new ServiceResult<EconomicCalendarReadModel[]>(result));
         },
-        [typeof(GetEconomicCalendarDateQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarDateQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarDateQuery;
             var result = await query.GetEconomicCalendarDateAsync(cancellationToken);
@@ -134,10 +137,10 @@ public class EconomicCalendarQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarDateQuery.Verb,
                 new ServiceResult<string>(result));
         },
-        [typeof(GetEconomicCalendarCountryCodesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarCountryCodesQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarCountryCodesQuery;
-            var result = await query.GetEconomicCalendarCountryCodesAsync(dbFactory, cancellationToken);
+            var result = await query.GetEconomicCalendarCountryCodesAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarCountryCodesQuery.Verb,
                 new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(result));
@@ -186,7 +189,7 @@ public class EconomicCalendarQueryActor(
         {
             try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); }
             catch { /* Swallow secondary exceptions during exception handling */ }
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

@@ -4,14 +4,18 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Event.Actor;
 
-public class FuturesOptionContractEventActor(IActorSupervisor supervisor, ILogger<FuturesOptionContractEventActor> logger)
-    : BaseEventActor<FuturesOptionContractEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+public class FuturesOptionContractEventActor(IEventActorContext<FuturesOptionContractEventActor> actorContext)
+    : BaseEventActor<FuturesOptionContractEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "FuturesOptionContractEvent";
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
+    readonly ILogger<FuturesOptionContractEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected IFuturesOptionContractEventContext FuturesOptionContractContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesOptionContractEventContext, nameof(actorContext))!;
+    static readonly Dictionary<string, Func<IEvent, IFuturesOptionContractEventContext, ILogger, ValueTask<bool>>> _receiveMap = [];
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
@@ -50,7 +54,7 @@ public class FuturesOptionContractEventActor(IActorSupervisor supervisor, ILogge
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, FuturesOptionContractContext, _logger);
     }
 
     /// <summary>
@@ -73,7 +77,7 @@ public class FuturesOptionContractEventActor(IActorSupervisor supervisor, ILogge
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

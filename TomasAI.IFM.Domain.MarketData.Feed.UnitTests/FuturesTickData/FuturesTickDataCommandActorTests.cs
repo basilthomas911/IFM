@@ -29,7 +29,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
     }
 
     public class TestableFuturesTickDataCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesTickDataCommandActor> logger)
-        : FuturesTickDataCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesTickDataCommandActor>>(), logger)
+        : FuturesTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesTickDataCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

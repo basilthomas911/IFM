@@ -305,7 +305,6 @@ public static class Startup
             services.AddSingleton<ITradePlanCommandApi, TradePlanCommandApi>();
             services.AddSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();
             services.AddSingleton<IActorMarketDataAnalyticsCommandApiFactory, TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory>();
-            services.AddSingleton<IActorMarketDataFeedCommandApiFactory, TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory>();
             services.AddSingleton<IActorOptionPricerCommandApiFactory, TomasAI.IFM.Domain.OptionPricer.Command.Api.ActorOptionPricerCommandApiFactory>();
             services.AddSingleton<IActorTradeCommandApiFactory, TomasAI.IFM.Domain.Trade.Command.Api.ActorTradeCommandApiFactory>();
         }
@@ -313,7 +312,6 @@ public static class Startup
         void RegisterEventApiServices()
         {
             logger.LogInformationEvent("ApiServer", "registering actor event api services...");
-            services.AddSingleton<IActorMarketDataFeedEventApiFactory, TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory>();
         }
 
         void RegisterQueryApiServices()
@@ -325,16 +323,13 @@ public static class Startup
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             services.AddSingleton<IActorMarketDataAnalyticsQueryApi, TomasAI.IFM.Domain.MarketData.Analytics.Query.Api.ActorMarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
-            services.AddSingleton<IActorMarketDataFeedQueryApi, TomasAI.IFM.Domain.MarketData.Feed.Query.Api.ActorMarketDataFeedQueryApi>();
             services.AddSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
-            services.AddSingleton<IActorMarketDataQueryApi, TomasAI.IFM.Domain.MarketData.Query.Api.ActorMarketDataQueryApi>();
             services.AddSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             services.AddSingleton<IActorOptionPricerQueryApi, TomasAI.IFM.Domain.OptionPricer.Query.Api.ActorOptionPricerQueryApi>();
             services.AddSingleton<ITradePlanQueryApi, TradePlanQueryApi>();
             services.AddSingleton<ITradeQueryApi, OptionTradeQueryApi>();
             services.AddSingleton<IActorTradeQueryApi, TomasAI.IFM.Domain.Trade.Query.Api.ActorTradeQueryApi>();
             services.AddSingleton<IReferenceQueryApi, ReferenceQueryApi>();
-            services.AddSingleton<IActorReferenceQueryApi, TomasAI.IFM.Domain.Reference.Query.Api.ActorReferenceQueryApi>();
         }
 
         void RegisterStorageServices()

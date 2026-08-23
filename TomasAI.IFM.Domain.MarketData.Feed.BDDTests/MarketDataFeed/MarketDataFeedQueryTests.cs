@@ -37,7 +37,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public void Given_AValidMarketDataFeedQueryMessage_When_Parsed_Then_TheQueryAndMessageInfoArePreserved(string kind)
     {
         var actor = _fixture.CreateMarketDataFeedQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery(kind);
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
@@ -85,7 +85,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var contract = SampleData.FuturesOptionContracts[0];
         marketDataApi.GetFuturesOptionContractAsync(contract.ContractId).Returns(contract);
         var actor = _fixture.CreateMarketDataFeedQueryActor(marketDataApi);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetFuturesOptionContractQuery)CreateQuery("OptionContract");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -110,7 +110,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         marketDataApi.GetFuturesOptionLastPriceReader(longContract.ContractId)
             .Returns(longReader);
         var actor = _fixture.CreateMarketDataFeedQueryActor(marketDataApi);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetFuturesOptionSpreadDataQuery)CreateQuery("OptionSpread");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -141,7 +141,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var (factory, database) = CreateDatabase();
         database.GetCurrentFuturesEodDataAsync(SampleData.ValueDate).Returns(SampleData.EodDataToday);
         var actor = _fixture.CreateMarketDataFeedQueryActor(dbFactory: factory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = Route(new GetFuturesRiskPositionTypeQuery(SampleData.ValueDate, tradeType));
 
         await actor.InvokeReceiveAsync(context, query);
@@ -157,7 +157,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         database.GetLastFuturesTickDataAsync(Arg.Any<string>(), SampleData.ValueDate).Returns(SampleData.EsTickData);
         database.GetLastFuturesOptionTickDataAsync(Arg.Any<string>(), SampleData.ValueDate).Returns(SampleData.EsOptionTickData);
         var actor = _fixture.CreateMarketDataFeedQueryActor(dbFactory: factory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetIronCondorMarketDataFeedQuery)CreateQuery("IronCondor");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -173,7 +173,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var (factory, database) = CreateDatabase();
         database.GetNormalCurveTableAsync().Returns(SampleData.NormCurveData);
         var actor = _fixture.CreateMarketDataFeedQueryActor(dbFactory: factory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetNormalCurveTableQuery)CreateQuery("NormalCurve");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -192,7 +192,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
             .Returns(new ValueTask<long>(nextId));
         var actor = _fixture.CreateMarketDataFeedQueryActor(
             sequenceIdGenerator: sequenceIdGenerator);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery(kind);
 
         await actor.InvokeReceiveAsync(context, query);
@@ -205,7 +205,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingOrUnsupportedReceiveInputs_When_Queried_Then_TheyAreRejected()
     {
         var actor = _fixture.CreateMarketDataFeedQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery("NormalCurve");
         var unsupported = Substitute.For<IQuery>();
 
@@ -219,7 +219,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AKnownQueryFailure_When_Handled_Then_OneTypedFailureReplyIsSent(string kind)
     {
         var actor = _fixture.CreateMarketDataFeedQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery(kind);
 
         await actor.InvokeOnExceptionAsync(context, query.Subject.ThreadId, query, query.Subject.Verb, new TimeoutException("timed out"));
@@ -231,7 +231,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AnUnknownQueryFailure_When_Handled_Then_AFallbackFailureIsSent()
     {
         var actor = _fixture.CreateMarketDataFeedQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(ActorType.Query, MarketDataFeedQueryActor.ActorName, "Unknown", "entity"));
 

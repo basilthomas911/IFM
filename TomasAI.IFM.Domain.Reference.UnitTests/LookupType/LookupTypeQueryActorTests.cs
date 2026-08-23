@@ -29,9 +29,28 @@ public class LookupTypeQueryActorTests : IClassFixture<ReferenceTestFixture>
     public class TestableLookupTypeQueryActor : LookupTypeQueryActor
     {
         public TestableLookupTypeQueryActor(IDbContextFactory dbFactory, ILogger<LookupTypeQueryActor> logger)
-            : base(dbFactory, logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableLookupTypeQueryActor(ILookupTypeQueryContext context)
+            : base(context)
+        {
+            LookupTypeContext = context;
+        }
+
+        static ILookupTypeQueryContext CreateContext(
+            IDbContextFactory dbFactory,
+            ILogger<LookupTypeQueryActor> logger)
+        {
+            var context = Substitute.For<ILookupTypeQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, LookupTypeQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public ILookupTypeQueryContext LookupTypeContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -68,7 +87,7 @@ public class LookupTypeQueryActorTests : IClassFixture<ReferenceTestFixture>
                 GetLookupTypesQuery.Verb,
                 "all")
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.LookupTypeContext;
         using var cancellation = new CancellationTokenSource();
         referenceDb.GetLookupTypesAsync(cancellation.Token)
             .Returns(_ => Task.FromCanceled<ICollection<LookupTypeReadModel>>(cancellation.Token));

@@ -23,21 +23,17 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
 
     public FuturesBarDataEventActorTests(MarketDataFeedTestFixture fixture) => _fixture = fixture;
 
-    public class TestableFuturesBarDataEventActor(
+    public class TestableFuturesBarDataEventActor : FuturesBarDataEventActor
+    {
+        public IFuturesBarDataEventContext Context { get; }
+        public TestableFuturesBarDataEventActor(
         IActorSupervisor supervisor,
         IFuturesBarDataTimer futuresBarTimer,
         ApplicationMarketDataApi marketDataApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesBarDataEventActor> logger)
-        : FuturesBarDataEventActor(
-            supervisor,
-            new global::TomasAI.IFM.Domain.MarketData.Feed.Command.Api.ActorMarketDataFeedCommandApiFactory(),
-            new global::TomasAI.IFM.Domain.MarketData.Feed.Event.Api.ActorMarketDataFeedEventApiFactory(),
-            futuresBarTimer,
-            marketDataApi,
-            statusConsoleWriter,
-            logger)
-    {
+            : this(TypedActorContextFactory.Event(supervisor, futuresBarTimer, marketDataApi, statusConsoleWriter, logger)) { }
+        TestableFuturesBarDataEventActor(IFuturesBarDataEventContext context) : base(context) => Context = context;
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
@@ -58,7 +54,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var timer = Substitute.For<IFuturesBarDataTimer>();
         var actor = CreateActor(timer: timer);
 
-        await actor.InvokeOnShutdown(Substitute.For<IEventActorContext>());
+        await actor.InvokeOnShutdown(actor.Context);
 
         await timer.Received(1).StopAllAsync();
     }
@@ -70,7 +66,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = CreateActor();
 
         var result = actor.InvokeParseMessage(
-            Substitute.For<IEventActorContext>(), CreateMessage(@event));
+            actor.Context, CreateMessage(@event));
 
         result.GetType().Should().Be(@event.GetType());
         result.CommandId.Should().Be(@event.CommandId);
@@ -84,7 +80,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var @event = CreateInsertedEvent();
 
         var result = actor.InvokeParseMessage(
-            Substitute.For<IEventActorContext>(), CreateMessage(@event));
+            actor.Context, CreateMessage(@event));
 
         var parsed = result.Should().BeOfType<FuturesBarDataInsertedEvent>().Which;
         parsed.FuturesBarData.Should().BeEquivalentTo(SampleData.FuturesBarData1);
@@ -103,7 +99,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var subject = new ActorSubject(actorType, actorName, verb, @event.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(@event) };
 
-        var result = actor.InvokeParseMessage(Substitute.For<IEventActorContext>(), message);
+        var result = actor.InvokeParseMessage(actor.Context, message);
 
         result.Should().BeNull();
     }
@@ -131,7 +127,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             Data = useEmptyPayload ? [] : [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IEventActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(actor.Context, message);
 
         act.Should().Throw<Exception>();
     }
@@ -143,7 +139,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var @event = CreateInsertedEvent(Guid.Empty);
 
         Action act = () => actor.InvokeParseMessage(
-            Substitute.For<IEventActorContext>(), CreateMessage(@event));
+            actor.Context, CreateMessage(@event));
 
         act.Should().Throw<Exception>();
     }
@@ -156,7 +152,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = CreateActor(timer: timer);
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IEventActorContext>(), @event).AsTask();
+            actor.Context, @event).AsTask();
 
         await act.Should().NotThrowAsync();
         timer.DidNotReceive().Start(
@@ -170,7 +166,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var timer = Substitute.For<IFuturesBarDataTimer>();
         var actor = CreateActor(timer: timer);
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateStreamingStartedEvent();
         context.SendAsync<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(
                 Arg.Any<FuturesBarDataStreamingStartedCompleteEvent>())
@@ -205,7 +201,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         ConfigurePrice(marketDataApi, es.ContractId, 6_475.25m, 101);
         ConfigurePrice(marketDataApi, vx.ContractId, 19.85m, 202);
         var actor = CreateActor(timer: timer, marketDataApi: marketDataApi);
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         context.SendAsync<FuturesBarDataStreamingStartedCompleteEvent, FuturesBarDataStreamingId>(
                 Arg.Any<FuturesBarDataStreamingStartedCompleteEvent>())
             .Returns(ValueTask.CompletedTask);
@@ -236,7 +232,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var timer = Substitute.For<IFuturesBarDataTimer>();
         var actor = CreateActor(timer: timer);
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateStreamingStoppedEvent();
         context.SendAsync<FuturesBarDataStreamingStoppedCompleteEvent, FuturesBarDataStreamingId>(
                 Arg.Any<FuturesBarDataStreamingStoppedCompleteEvent>())
@@ -260,7 +256,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
                 Arg.Any<Func<ValueTask>>()))
             .Do(_ => throw new InvalidOperationException("timer start failed"));
         var actor = CreateActor(timer: timer);
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateStreamingStartedEvent();
         context.SendAsync<FuturesBarDataStreamingStartedFailEvent, FuturesBarDataStreamingId>(
                 Arg.Any<FuturesBarDataStreamingStartedFailEvent>())
@@ -281,7 +277,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         timer.StopAsync(Arg.Any<FuturesBarDataStreamingId>())
             .Returns<ValueTask<bool>>(_ => throw new InvalidOperationException("timer stop failed"));
         var actor = CreateActor(timer: timer);
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateStreamingStoppedEvent();
         context.SendAsync<FuturesBarDataStreamingStoppedFailEvent, FuturesBarDataStreamingId>(
                 Arg.Any<FuturesBarDataStreamingStoppedFailEvent>())
@@ -299,7 +295,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_NullInputs_ThrowArgumentNullException()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateInsertedEvent();
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, @event).AsTask()))
@@ -317,7 +313,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
             ActorType.Event, FuturesBarDataEventActor.Actor, "Unknown", "entity"));
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IEventActorContext>(), @event).AsTask();
+            actor.Context, @event).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -326,7 +322,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_ValidInputs_SendsEventExceptionEvent()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateInsertedEvent();
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
@@ -345,7 +341,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_FirstPublishFails_RetriesWithSecondaryException()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateDeletedEvent();
         var callCount = 0;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
@@ -370,7 +366,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_BothPublishesFail_DoesNotLeakPublishingFailure()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateDeletedEvent();
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
@@ -386,7 +382,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_NullInputs_ThrowArgumentNullException()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = actor.Context;
         var @event = CreateInsertedEvent();
         var exception = new Exception("failure");
 

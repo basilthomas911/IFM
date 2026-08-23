@@ -171,24 +171,38 @@ public partial class MarketDataDbContext
         var now = DateTime.UtcNow;
         var start = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-107);
         var end = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(13).AddTicks(-1);
-        var request = new EconomicCalendarPageRequest
-        {
-            StartDateUtc = start,
-            EndDateUtc = end,
-            CountryCodes = [.. countries
-                .Take(EconomicCalendarQueryLimits.MaximumPartitions / EconomicCalendarQueryLimits.MaximumRangeMonths)
-                .Select(static row => row.CountryCode)],
-            PageSize = EconomicCalendarQueryLimits.MaximumPageSize
-        };
         var rows = new List<EconomicCalendarReadModel>();
-        do
+        var maximumCountriesPerBatch = Math.Max(
+            1,
+            EconomicCalendarQueryLimits.MaximumPartitions
+            / EconomicCalendarQueryLimits.MaximumRangeMonths);
+        var countryCodes = countries
+            .Select(static row => row.CountryCode)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal);
+        foreach (var countryBatch in countryCodes.Chunk(maximumCountriesPerBatch))
         {
-            var page = await GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
-            rows.AddRange(page.Items);
-            if (!page.HasMore || rows.Count >= EconomicCalendarMaximumRows) break;
-            request = request with { ContinuationToken = page.ContinuationToken };
-        } while (true);
-        return [.. rows.Take(EconomicCalendarMaximumRows)];
+            var request = new EconomicCalendarPageRequest
+            {
+                StartDateUtc = start,
+                EndDateUtc = end,
+                CountryCodes = countryBatch,
+                PageSize = EconomicCalendarQueryLimits.MaximumPageSize
+            };
+            do
+            {
+                var page = await GetEconomicCalendarPageAsync(request, cancellationToken).ConfigureAwait(false);
+                rows.AddRange(page.Items);
+                if (!page.HasMore || rows.Count >= EconomicCalendarMaximumRows) break;
+                request = request with { ContinuationToken = page.ContinuationToken };
+            } while (true);
+            if (rows.Count >= EconomicCalendarMaximumRows) break;
+        }
+        return [.. rows
+            .OrderByDescending(static row => row.EventDate)
+            .ThenBy(static row => row.CountryCode, StringComparer.Ordinal)
+            .ThenBy(static row => row.EventName, StringComparer.Ordinal)
+            .Take(EconomicCalendarMaximumRows)];
     }
 
     public Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync()

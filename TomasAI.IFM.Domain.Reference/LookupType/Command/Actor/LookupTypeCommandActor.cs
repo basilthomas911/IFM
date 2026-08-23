@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
+using TomasAI.IFM.Domain.Reference.LookupType.Command.Extensions;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Validation;
 using TomasAI.IFM.Application.Storage;
@@ -25,16 +26,16 @@ namespace TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
 /// <remarks>This actor handles commands such as adding, changing, and removing lookup types.
 /// It coordinates command validation, state loading and saving, and command execution in a thread-safe,
 /// event-sourced manner. The actor is typically resolved and managed by the actor system infrastructure.</remarks>
-/// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
+/// <param name="actorContext">The typed lookup-type command context.</param>
+/// <param name="eventProjector">The lookup-type projector whose lifetime follows this actor.</param>
 public class LookupTypeCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<LookupTypeCommandActor> eventProjector,
-    ILogger<LookupTypeCommandActor> logger)
-    : BaseEventSourceCommandActor<LookupTypeCommandActor>(logger, new ActorMailboxId(ActorType.Command, Actor))
+    ICommandActorContext<LookupTypeCommandActor> actorContext,
+    IEventProjector<LookupTypeCommandActor> eventProjector)
+    : BaseEventSourceCommandActor<LookupTypeCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "LookupTypeCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly ILogger<LookupTypeCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<LookupTypeCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<LookupTypeCommandState> _repo = default!;
 
@@ -47,14 +48,32 @@ public class LookupTypeCommandActor(
     /// <param name="context">The <see cref="ICommandActorContext"/> providing access to the actor's dependencies and runtime context.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
     protected override async ValueTask OnStartup(ICommandActorContext context)
+        => await StartProjectorAsync(context, CancellationToken.None).ConfigureAwait(false);
+
+    protected override async ValueTask OnStartup(ICommandActorContext context, CancellationToken cancellationToken)
+        => await StartProjectorAsync(context, cancellationToken).ConfigureAwait(false);
+
+    async ValueTask StartProjectorAsync(ICommandActorContext context, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
-        _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<LookupTypeCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        _repo = IsArgumentNull.Set(
+            context.Container.Resolve<IEventSourceActorStateRepository<LookupTypeCommandState>>());
+        try
+        {
+            await _eventProjector.StartAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await _eventProjector.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
     }
 
     protected override async ValueTask OnShutdown(ICommandActorContext context)
-        => await _eventProjector.StopAsync().ConfigureAwait(false);
+    {
+        IsArgumentNull.Check(context);
+        await _eventProjector.StopAsync().ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -278,7 +297,7 @@ public class LookupTypeCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", Actor, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(

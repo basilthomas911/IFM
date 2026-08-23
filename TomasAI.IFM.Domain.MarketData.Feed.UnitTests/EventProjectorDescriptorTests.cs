@@ -6,6 +6,12 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.EventProjector;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.EventProjector;
@@ -30,12 +36,12 @@ public sealed class EventProjectorDescriptorTests
         var blackboard = Substitute.For<IBlackboardService>();
         IEventProjector[] projectors =
         [
-            new MarketDataFeedEventProjector(Substitute.For<IMarketDataDbContext>(), queue, eventSource, blackboard, Substitute.For<ILogger<MarketDataFeedEventProjector>>()),
-            new FuturesBarDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesBarDataEventProjector>>()),
-            new FuturesTickDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTickDataEventProjector>>()),
-            new FuturesOptionTickDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>()),
-            new FuturesClosingPriceEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesClosingPriceEventProjector>>()),
-            new FuturesEodDataEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesEodDataEventProjector>>())
+            new MarketDataFeedEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<MarketDataFeedCommandActor>>()), Substitute.For<ILogger<MarketDataFeedEventProjector>>()),
+            new FuturesBarDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesBarDataCommandActor>>()), Substitute.For<ILogger<FuturesBarDataEventProjector>>()),
+            new FuturesTickDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesTickDataCommandActor>>()), Substitute.For<ILogger<FuturesTickDataEventProjector>>()),
+            new FuturesOptionTickDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>()), Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>()),
+            new FuturesClosingPriceEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesClosingPriceCommandActor>>()), Substitute.For<ILogger<FuturesClosingPriceEventProjector>>()),
+            new FuturesEodDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesEodDataCommandActor>>()), Substitute.For<ILogger<FuturesEodDataEventProjector>>())
         ];
 
         projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(22);
@@ -108,11 +114,11 @@ public sealed class EventProjectorDescriptorTests
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        return new FuturesTickDataEventProjector(
-            dbFactory,
-            Substitute.For<IDurableReplayQueue>(),
-            Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
+        var actorContext = TypedActorContextFactory.Command(Substitute.For<IEventSourceActorDbContext>(), Substitute.For<ILogger<FuturesTickDataCommandActor>>());
+        actorContext.DbFactory.Returns(dbFactory);
+        actorContext.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
+        actorContext.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+        return new FuturesTickDataEventProjector(actorContext,
             Substitute.For<ILogger<FuturesTickDataEventProjector>>());
     }
 
@@ -120,11 +126,11 @@ public sealed class EventProjectorDescriptorTests
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        return new FuturesOptionTickDataEventProjector(
-            dbFactory,
-            Substitute.For<IDurableReplayQueue>(),
-            Substitute.For<IEventSourceActorDbContext>(),
-            Substitute.For<IBlackboardService>(),
+        var actorContext = TypedActorContextFactory.Command(Substitute.For<IEventSourceActorDbContext>(), Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>());
+        actorContext.DbFactory.Returns(dbFactory);
+        actorContext.DurableReplayQueue.Returns(Substitute.For<IDurableReplayQueue>());
+        actorContext.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+        return new FuturesOptionTickDataEventProjector(actorContext,
             Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>());
     }
 

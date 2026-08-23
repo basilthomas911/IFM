@@ -59,8 +59,17 @@ public class EconomicCalendarCommandActorTests : IClassFixture<EconomicCalendarT
 
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableEconomicCalendarCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<EconomicCalendarCommandActor> logger)
-        : EconomicCalendarCommandActor(dbEventSource, logger)
+        : EconomicCalendarCommandActor(CreateContext(dbEventSource, logger))
     {
+        static ICommandActorContext<EconomicCalendarCommandActor> CreateContext(
+            IEventSourceActorDbContext dbEventSource, ILogger<EconomicCalendarCommandActor> logger)
+        {
+            var context = Substitute.For<IEconomicCalendarCommandContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Command, EconomicCalendarCommandActor.Actor));
+            context.DbEventSource.Returns(dbEventSource);
+            context.Logger.Returns(logger);
+            return context;
+        }
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 

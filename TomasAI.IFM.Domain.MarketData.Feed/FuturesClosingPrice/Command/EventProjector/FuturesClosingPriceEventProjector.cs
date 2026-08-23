@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -14,15 +15,14 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.EventProjector;
 
 public sealed class FuturesClosingPriceEventProjector(
-    IDbContextFactory dbFactory, IDurableReplayQueue durableReplayQueue,
-    IEventSourceActorDbContext dbEventSource, IBlackboardService blackboardService,
+    ICommandActorContext<FuturesClosingPriceCommandActor> actorContext,
     ILogger<FuturesClosingPriceEventProjector> logger, EventProjectorReliabilityOptions? reliabilityOptions = null)
-    : ConventionalEventProjector<FuturesClosingPriceCommandActor>(durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
+    : ConventionalEventProjector<FuturesClosingPriceCommandActor>(actorContext.DurableReplayQueue, actorContext.DbEventSource, actorContext.BlackboardService, logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesClosingPriceInsertedEvent, FuturesClosingPriceInsertedCompleteEvent, FuturesClosingPriceInsertedFailEvent, FuturesDataId>(
-            e => dbFactory.MarketDataDb.InsertFuturesClosingPriceAsync(new FuturesClosingPriceReadModel(
+            e => actorContext.DbFactory.MarketDataDb.InsertFuturesClosingPriceAsync(new FuturesClosingPriceReadModel(
                 e.FuturesClosingPriceId.ContractId, e.FuturesClosingPriceId.ValueDate,
                 e.ClosingPrice, e.CreatedOn, e.CreatedBy)))
     ];

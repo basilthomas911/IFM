@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -464,7 +465,7 @@ public sealed class TickerStreamActorWorkflowTests
                 new DateOnly(2026, 9, 18), 6500d, "Call"));
         var changed = await publisher.Trade.Task.WaitAsync(TimeSpan.FromSeconds(2));
         var inserted = ToInserted(changed);
-        var eventApi = Substitute.For<IActorMarketDataFeedEventApi>();
+        var eventApi = Substitute.For<IEventActorContext>();
 
         var handled = await OptionTradeHandler.ExecuteAsync(
             inserted,
@@ -475,10 +476,9 @@ public sealed class TickerStreamActorWorkflowTests
 
         handled.Should().BeTrue();
         var emitted = eventApi.ReceivedCalls()
-            .Single(call => call.GetMethodInfo().Name == nameof(IActorMarketDataFeedEventApi.SendOptionTradeTickPriceDataUpdatedEventAsync)
-                && call.GetArguments().Length == 2)
-            .GetArguments()[1]
-            .Should().BeOfType<FuturesOptionTickDataV2ReadModel>().Which;
+            .SelectMany(call => call.GetArguments())
+            .OfType<OptionTradeTickPriceDataUpdatedEvent>()
+            .Should().ContainSingle().Which.OptionTickData;
         emitted.ContractId.Should().Be(contractId);
         emitted.OptionPrice.Should().Be(12.50d);
         emitted.BidPrice.Should().Be(12.25d);

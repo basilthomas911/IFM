@@ -2,6 +2,8 @@ using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Actor;
+using TomasAI.IFM.Domain.Reference.LookupType.Command.Extensions;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Domain.Reference.Services;
 using TomasAI.IFM.Domain.Reference.Shared;
@@ -16,15 +18,16 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 
 public class LookupTypeStateRepository(
-    IEventSourceActorStateFactory stateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
-    IBlackboardService blackboardService,
-    IActorService actorService,
-    IEventProjector<LookupTypeCommandActor> eventProjector,
-    ILogger<LookupTypeStateRepository> logger)
-    : BaseEventSourceActorRepository(stateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<LookupTypeCommandState>
+    ICommandActorContext<LookupTypeCommandActor> actorContext)
+    : BaseEventSourceActorRepository(
+        actorContext.StateFactory,
+        actorContext.DbEventSource,
+        actorContext.ActorService,
+        actorContext.Logger),
+      IEventSourceActorStateRepository<LookupTypeCommandState>
 {
+    readonly IEventProjector<LookupTypeCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
     /// <summary>
     /// Asynchronously loads the current state of the lookup type actor associated with the specified command.
     /// </summary>
@@ -62,5 +65,5 @@ public class LookupTypeStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => eventProjector.DomainEventsProjectionAsync(domainEvents);
+        => _eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

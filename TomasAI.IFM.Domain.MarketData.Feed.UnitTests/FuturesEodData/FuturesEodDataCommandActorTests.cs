@@ -30,7 +30,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     public class TestableFuturesEodDataCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesEodDataCommandActor> logger)
-        : FuturesEodDataCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesEodDataCommandActor>>(), logger)
+        : FuturesEodDataCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesEodDataCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

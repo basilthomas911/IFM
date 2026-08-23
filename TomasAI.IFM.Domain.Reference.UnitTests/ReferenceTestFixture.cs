@@ -59,7 +59,7 @@ public class ReferenceTestFixture : IDisposable
         IDbContextFactory dbFactory = null,
         ILogger<ReferenceQueryActor>? logger = null)
     {
-        var dbFact = Substitute.For<IDbContextFactory>();
+        var dbFact = dbFactory ?? Substitute.For<IDbContextFactory>();
         var lg = logger ?? Substitute.For<ILogger<ReferenceQueryActor>>();
         return new TestableReferenceQueryActor(dbFact, lg);
     }

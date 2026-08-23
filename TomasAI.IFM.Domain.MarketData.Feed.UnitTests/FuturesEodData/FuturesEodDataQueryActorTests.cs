@@ -21,11 +21,12 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
 
     public FuturesEodDataQueryActorTests(MarketDataFeedTestFixture fixture) => _fixture = fixture;
 
-    public class TestableFuturesEodDataQueryActor(
-        IDbContextFactory dbFactory,
-        ILogger<FuturesEodDataQueryActor> logger)
-        : FuturesEodDataQueryActor(dbFactory, logger)
+    public class TestableFuturesEodDataQueryActor : FuturesEodDataQueryActor
     {
+        public IFuturesEodDataQueryContext Context { get; }
+        public TestableFuturesEodDataQueryActor(IDbContextFactory dbFactory, ILogger<FuturesEodDataQueryActor> logger)
+            : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+        TestableFuturesEodDataQueryActor(IFuturesEodDataQueryContext context) : base(context) => Context = context;
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
@@ -55,7 +56,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         IQuery query, string verb)
     {
         var actor = CreateActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
 
@@ -119,7 +120,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var (dbFactory, _) = CreateDatabaseWithResults();
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
 
         await actor.InvokeReceiveAsync(context, query);
 
@@ -131,7 +132,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var (dbFactory, db) = CreateDatabaseWithResults();
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = (GetFuturesEodDataQuery)CreateQuery("Current");
         var expected = SampleData.EodClosingPrices.Average(value => value.ClosingPrice);
 
@@ -154,7 +155,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var (dbFactory, db) = CreateDatabaseWithResults();
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateVixQuery(string.Empty);
 
         await actor.InvokeReceiveAsync(context, query);
@@ -178,7 +179,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         db.GetVixFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
             .Returns((VixFuturesEodDataReadModel?)null);
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateVixQuery("VX-MISSING");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -200,7 +201,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         db.GetFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
             .Returns((FuturesEodDataV2ReadModel?)null);
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = (GetFuturesEodDataQuery)CreateQuery("Current");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -224,7 +225,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<int>())
             .Returns(Array.Empty<FuturesEodClosingPriceReadModel>());
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = (GetFuturesEodDataMovingAveragesQuery)CreateQuery("MovingAverages");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -258,7 +259,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_NullInputs_ThrowArgumentNullException()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateQuery("Current");
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -287,7 +288,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         IQuery query, string verb)
     {
         var actor = CreateActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
 
         await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, verb, new TimeoutException("query timed out"));
@@ -299,7 +300,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_UnknownQuery_RepliesWithFallbackFailure()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesEodDataQueryActor.ActorName, "Unknown", "entity"));
@@ -319,7 +320,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var logger = Substitute.For<ILogger<FuturesEodDataQueryActor>>();
         var actor = CreateActor(logger: logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = (GetFuturesEodDataByDateRangeQuery)CreateQuery("Range");
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -337,7 +338,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_NullInputs_ThrowArgumentNullException()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = CreateQuery("Current");
         var exception = new Exception("failure");
 

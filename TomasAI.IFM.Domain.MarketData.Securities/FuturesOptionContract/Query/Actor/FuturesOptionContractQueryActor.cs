@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.Actor;
 
@@ -17,12 +18,13 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.A
 /// related to futures option contracts. It processes queries such as retrieving specific contracts by ID,
 /// contracts by symbol, and checking for existing contract IDs. This actor uses dependency injection to resolve required services.</remarks>
 /// <param name="logger">The logger instance for tracking actor operations.</param>
-public class FuturesOptionContractQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesOptionContractQueryActor> logger)
-    : BaseQueryActor<FuturesOptionContractQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionContractQueryActor> actorContext)
+    : BaseQueryActor<FuturesOptionContractQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesOptionContractQuery";
+    readonly ILogger<FuturesOptionContractQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected IFuturesOptionContractQueryContext FuturesOptionContractContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesOptionContractQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -79,7 +81,7 @@ public class FuturesOptionContractQueryActor(
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override ValueTask ReceiveAsync(
+    protected override async ValueTask ReceiveAsync(
         IQueryActorContext context,
         IQuery query,
         CancellationToken cancellationToken)
@@ -89,7 +91,9 @@ public class FuturesOptionContractQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            FuturesOptionContractContext, query.Subject.ThreadId, query.Subject.Verb);
+        await receiveFunc.Invoke(FuturesOptionContractContext, query, cancellationToken);
     }
 
     /// <summary>
@@ -99,28 +103,28 @@ public class FuturesOptionContractQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of futures option contract-related queries by associating each query
     /// type name with a function that processes the query against a FuturesOptionContractQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IFuturesOptionContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
-            var result = await query.GetFuturesOptionContractAsync(dbFactory, cancellationToken);
+            var result = await query.GetFuturesOptionContractAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel?>(result));
         },
-        [typeof(GetFuturesOptionContractsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesOptionContractsQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractsQuery)!;
-            var result = await query.GetFuturesOptionContractsAsync(dbFactory, cancellationToken);
+            var result = await query.GetFuturesOptionContractsAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel[]>(result));
         },
-        [typeof(GetFuturesOptionContractIdsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesOptionContractIdsQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractIdsQuery)!;
-            var result = await query.GetFuturesOptionContractIdsAsync(dbFactory, cancellationToken);
+            var result = await query.GetFuturesOptionContractIdsAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractIdsQuery.Verb,
                 new ServiceResult<string[]>(result));
@@ -162,7 +166,7 @@ public class FuturesOptionContractQueryActor(
         catch (Exception innerEx)
         {
             try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

@@ -9,30 +9,27 @@ using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Mod
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.EventProjector;
 
 public sealed class FuturesOptionContractEventProjector(
-    IDbContextFactory dbFactory,
-    IActorService actorService,
-    IDurableReplayQueue durableReplayQueue,
-    IEventSourceActorDbContext dbEventSource,
-    IBlackboardService blackboardService,
-    ILogger<FuturesOptionContractEventProjector> logger,
+    ICommandActorContext<FuturesOptionContractCommandActor> actorContext,
     EventProjectorReliabilityOptions? reliabilityOptions = null)
     : ConventionalEventProjector<FuturesOptionContractCommandActor>(
-        durableReplayQueue, dbEventSource, blackboardService, logger, reliabilityOptions)
+        actorContext.DurableReplayQueue, actorContext.DbEventSource,
+        actorContext.BlackboardService, actorContext.Logger, reliabilityOptions)
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesOptionContractAddedEvent, FuturesOptionContractAddedCompleteEvent, FuturesOptionContractAddedFailEvent, FuturesOptionContractEntityId>(
-            e => dbFactory.InsertFuturesOptionContractAsync(e.Contract, actorService)),
+            e => actorContext.DbFactory.InsertFuturesOptionContractAsync(e.Contract, actorContext.ActorService)),
         Describe<FuturesOptionContractsAddedEvent, FuturesOptionContractsAddedCompleteEvent, FuturesOptionContractsAddedFailEvent, FuturesOptionContractsEntityId>(
-            e => dbFactory.InsertFuturesOptionContractsAsync(e.Contracts, actorService)),
+            e => actorContext.DbFactory.InsertFuturesOptionContractsAsync(e.Contracts, actorContext.ActorService)),
         Describe<FuturesOptionContractChangedEvent, FuturesOptionContractChangedCompleteEvent, FuturesOptionContractChangedFailEvent, FuturesOptionContractEntityId>(
-            e => dbFactory.UpdateFuturesOptionContractAsync(e.OriginalContractId, e.Contract, actorService)),
+            e => actorContext.DbFactory.UpdateFuturesOptionContractAsync(e.OriginalContractId, e.Contract, actorContext.ActorService)),
         Describe<FuturesOptionContractRemovedEvent, FuturesOptionContractRemovedCompleteEvent, FuturesOptionContractRemovedFailEvent, FuturesOptionContractEntityId>(
-            e => dbFactory.DeleteFuturesOptionContractAsync(e.ContractId))
+            e => actorContext.DbFactory.DeleteFuturesOptionContractAsync(e.ContractId))
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

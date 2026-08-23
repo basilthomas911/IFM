@@ -38,7 +38,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         IQuery query, string verb)
     {
         var actor = _fixture.CreateEodQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
 
@@ -100,7 +100,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (dbFactory, _) = CreateDatabaseWithResults();
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
 
         await actor.InvokeReceiveAsync(context, query);
 
@@ -112,7 +112,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (dbFactory, db) = CreateDatabaseWithResults();
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateVixQuery(string.Empty);
 
         await actor.InvokeReceiveAsync(context, query);
@@ -135,7 +135,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         db.GetFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
             .Returns((FuturesEodDataV2ReadModel?)null);
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetFuturesEodDataQuery)CreateQuery("Current");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -153,7 +153,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (dbFactory, db) = CreateDatabaseWithResults();
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetFuturesEodDataMovingAveragesQuery)CreateQuery("MovingAverages");
         var expected = SampleData.EodClosingPrices.Average(value => value.ClosingPrice);
 
@@ -191,7 +191,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingReceiveInputs_When_AnEodQueryIsReceived_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateEodQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery("Current");
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -220,7 +220,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         IQuery query, string verb)
     {
         var actor = _fixture.CreateEodQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
 
         await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, verb, new TimeoutException("query timed out"));
@@ -232,7 +232,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AnUnknownQueryFailure_When_ItIsHandled_Then_TheFallbackFailureIsReplied()
     {
         var actor = _fixture.CreateEodQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesEodDataQueryActor.ActorName, "Unknown", "entity"));
@@ -251,7 +251,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_ReplyingToAnEodFailureAlsoFails_When_ItIsHandled_Then_TheSecondaryFailureIsSwallowed()
     {
         var actor = _fixture.CreateEodQueryActor(logger: Substitute.For<ILogger<FuturesEodDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = (GetFuturesEodDataByDateRangeQuery)CreateQuery("Range");
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -269,7 +269,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingExceptionInputs_When_AnEodFailureIsHandled_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateEodQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery("Current");
         var exception = new Exception("failure");
 

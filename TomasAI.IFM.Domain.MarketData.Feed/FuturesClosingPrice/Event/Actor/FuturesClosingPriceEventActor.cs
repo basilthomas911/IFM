@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Event.Extensions;
 using NATS.Client.Core;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -13,12 +14,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Event.Actor;
 /// and manages the actor's state in response to those events.
 /// </summary>
 /// <param name="supervisor"></param>
-/// <param name="logger"></param>
-public class FuturesClosingPriceEventActor(IActorSupervisor supervisor, ILogger<FuturesClosingPriceEventActor> logger)
-    : BaseEventActor<FuturesClosingPriceEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+/// <param name="_logger"></param>
+public class FuturesClosingPriceEventActor(IEventActorContext<FuturesClosingPriceEventActor> actorContext)
+    : BaseEventActor<FuturesClosingPriceEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "FuturesClosingPriceEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
+
+    /// <summary>Gets the typed event context supplied at construction.</summary>
+    protected IFuturesClosingPriceEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IFuturesClosingPriceEventContext, nameof(actorContext))!;
+    readonly ILogger<FuturesClosingPriceEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly Dictionary<string, Func<IEvent, IFuturesClosingPriceEventContext, ILogger, ValueTask<bool>>> _receiveMap = [];
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
@@ -57,7 +62,7 @@ public class FuturesClosingPriceEventActor(IActorSupervisor supervisor, ILogger<
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, EventContext, _logger);
     }
 
     /// <summary>
@@ -80,7 +85,7 @@ public class FuturesClosingPriceEventActor(IActorSupervisor supervisor, ILogger<
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -1,4 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
@@ -23,10 +25,6 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 
 public static class IEventActorContextExtensions
 {
-    internal static async ValueTask StopFuturesBarDataStreamingAsync(this IActorMarketDataFeedCommandApi commandApi, DateOnly valueDate)
-    {
-        _ = await commandApi.StopFuturesBarDataStreamingAsync(valueDate);
-    }
 
     internal static async ValueTask<YieldCurveRateReadModel> GetLastYieldCurveRateAsync(this IEventActorContext context)
     {
@@ -60,15 +58,7 @@ public static class IEventActorContextExtensions
             : new()!;
     }
 
-    internal static async ValueTask TurnTradeLiveFeedOffAsync(this IActorMarketDataFeedCommandApi commandApi, Guid commandId, int orderId, int tradeId, DateOnly valueDate)
-    {
-        _ = await commandApi.TurnTradeLiveFeedOffAsync(commandId, orderId, tradeId, valueDate);
-    }
 
-    internal static async ValueTask StopFuturesOptionTickDataStreamingAsync(this IActorMarketDataFeedCommandApi commandApi, Guid commandId, FuturesOptionTickEntityId entityId, string contractId)
-    {
-        _ = await commandApi.StopFuturesOptionTickDataStreamingAsync(commandId, entityId, contractId);
-    }
 
     /// <summary>
     /// 
@@ -79,7 +69,7 @@ public static class IEventActorContextExtensions
     /// <param name="entityId"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    public static async ValueTask StartFuturesTickDataStreamingAsync(this IActorMarketDataFeedCommandApi commandApi, IEvent e, FuturesContractV2ReadModel futuresContract, FuturesDataId entityId)
+    public static async ValueTask StartFuturesTickDataStreamingAsync(this IEventActorContext commandApi, IEvent e, FuturesContractV2ReadModel futuresContract, FuturesDataId entityId)
     {
         var (valueDate, resetStream) = e switch
         {
@@ -102,7 +92,7 @@ public static class IEventActorContextExtensions
     /// <param name="entityId"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    public static async ValueTask StartFuturesBarDataStreamingAsync(this IActorMarketDataFeedCommandApi commandApi, IEvent e, FuturesBarDataStreamingId entityId)
+    public static async ValueTask StartFuturesBarDataStreamingAsync(this IEventActorContext commandApi, IEvent e, FuturesBarDataStreamingId entityId)
     {
         var (futuresContracts, valueDate) = e switch
         {
@@ -117,19 +107,6 @@ public static class IEventActorContextExtensions
                 $"Futures bar streaming was not accepted for value date '{valueDate:yyyy-MM-dd}': {result.ErrorMessage}");
     }
 
-    /// <summary>
-    /// Turns on the live feed for a specific trade identified by the provided order and trade IDs.
-    /// </summary>
-    /// <param name="context">The event actor context used to process the command and interact with the event system.</param>
-    /// <param name="commandId">The unique identifier for the command, used for tracking and correlation.</param>
-    /// <param name="orderId">The identifier of the order associated with the trade. Must be a valid positive integer.</param>
-    /// <param name="tradeId">The identifier of the trade for which to activate the live feed. Must be a valid positive integer.</param>
-    /// <returns>A task that represents the asynchronous operation to enable the trade live feed.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the service request to turn on the live feed fails.</exception>
-    internal static async ValueTask TurnTradeLiveFeedOnAsync(this IActorMarketDataFeedCommandApi commandApi, Guid commandId, int orderId, int tradeId, DateOnly valueDate)
-    {
-        _ = await commandApi.TurnTradeLiveFeedOnAsync(commandId, orderId, tradeId, valueDate);
-    }
 
     internal static async ValueTask<OptionTradeReadModel> GetOptionTradeQueryAsync(this IEventActorContext context, int orderId, int tradeId)
     {
@@ -178,17 +155,6 @@ public static class IEventActorContextExtensions
             : new();
     }
 
-    internal static async ValueTask StartFuturesOptionTickDataStreamingAsync(this IActorMarketDataFeedCommandApi commandApi, Guid commandId, FuturesOptionTickEntityId entityId, FuturesOptionContractReadModel contract, FuturesContractV2ReadModel baseContract, DateOnly valueDate, DateOnly maturityDate, double riskFreeRate)
-    {
-        _ = await commandApi.StartFuturesOptionTickDataStreamingAsync(
-            commandId,
-            entityId,
-            contract,
-            baseContract,
-            valueDate,
-            maturityDate,
-            riskFreeRate);
-    }
 
 
 }

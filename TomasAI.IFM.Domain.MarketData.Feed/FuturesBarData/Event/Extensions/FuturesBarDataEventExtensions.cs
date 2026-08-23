@@ -1,4 +1,6 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.QueryParameters;
@@ -63,16 +65,5 @@ internal static class FuturesBarDataEventExtensions
         return futuresTradeSignal;
     }
 
-    /// <summary>
-    /// Sends a command to insert a futures bar data record.
-    /// </summary>
-    /// <param name="context">The event actor context used to dispatch the command.</param>
-    /// <param name="futuresBarData">The futures bar data view model to insert.</param>
-    /// <exception cref="InvalidOperationException">Thrown when the command request fails.</exception>
-    internal static async ValueTask InsertFuturesBarDataAsync(
-        this IActorMarketDataFeedCommandApi commandApi, FuturesBarDataReadModel futuresBarData)
-    {
-        _ = await commandApi.InsertFuturesBarDataAsync(futuresBarData);
-    }
 
 }

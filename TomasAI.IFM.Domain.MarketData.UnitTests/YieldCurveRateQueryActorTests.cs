@@ -30,7 +30,7 @@ public class YieldCurveRateQueryActorTests
                 GetLastYieldCurveRateQuery.Verb,
                 query.EntityId.Format())
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         using var cancellation = new CancellationTokenSource();
         db.GetLastYieldCurveRateAsync(cancellation.Token)
             .Returns(_ => Task.FromCanceled<YieldCurveRateReadModel?>(cancellation.Token));
@@ -65,7 +65,7 @@ public class YieldCurveRateQueryActorTests
                 ActorType.Query, GetLastYieldCurveRateQuery.Actor,
                 GetLastYieldCurveRateQuery.Verb, query.EntityId.Format())
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
 
         await actor.InvokeReceiveAsync(context, query);
 
@@ -76,11 +76,24 @@ public class YieldCurveRateQueryActorTests
                 result.Success && result.Value == null));
     }
 
-    sealed class TestableYieldCurveRateQueryActor(
-        IDbContextFactory dbFactory,
-        ILogger<YieldCurveRateQueryActor> logger)
-        : YieldCurveRateQueryActor(dbFactory, logger)
+    sealed class TestableYieldCurveRateQueryActor : YieldCurveRateQueryActor
     {
+        public TestableYieldCurveRateQueryActor(IDbContextFactory dbFactory, ILogger<YieldCurveRateQueryActor> logger)
+            : this(CreateContext(dbFactory, logger)) { }
+
+        TestableYieldCurveRateQueryActor(IYieldCurveRateQueryContext context) : base(context)
+            => Context = context;
+
+        static IYieldCurveRateQueryContext CreateContext(IDbContextFactory dbFactory, ILogger<YieldCurveRateQueryActor> logger)
+        {
+            var context = Substitute.For<IYieldCurveRateQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, YieldCurveRateQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public IYieldCurveRateQueryContext Context { get; }
         public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => base.ReceiveAsync(context, query);
 

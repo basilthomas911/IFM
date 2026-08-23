@@ -2,9 +2,9 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
-using TomasAI.IFM.Domain.Reference.Query.Api;
+using TomasAI.IFM.Domain.Reference.Query.Actor;
+using TomasAI.IFM.Domain.Reference.Query.Extensions;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
-using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.UnitTests.Query.Api;
@@ -14,12 +14,11 @@ public class ActorReferenceQueryApiTests
     [Fact]
     public async Task NextSeedIdUsesDirectStorageAndReturnsTypedSuccess()
     {
-        var (api, db) = CreateApi();
+        var (context, db) = CreateContext();
         db.GetNextSeedIdAsync("Trade").Returns(42);
 
-        var result = await api.GetNextSeedIdAsync("Trade");
+        var result = await context.GetNextSeedIdAsync("Trade");
 
-        api.Should().BeAssignableTo<IActorReferenceQueryApi>();
         result.Success.Should().BeTrue();
         result.Value!.Value.Should().Be(42);
         await db.Received(1).GetNextSeedIdAsync("Trade");
@@ -28,12 +27,12 @@ public class ActorReferenceQueryApiTests
     [Fact]
     public async Task StorageFailureReturnsTheQueryErrorId()
     {
-        var (api, db) = CreateApi();
+        var (context, db) = CreateContext();
         var exception = new InvalidOperationException("reference unavailable");
         db.GetNextSeedIdAsync(Arg.Any<string>())
             .Returns(_ => Task.FromException<int>(exception));
 
-        var result = await api.GetNextSeedIdAsync("Trade");
+        var result = await context.GetNextSeedIdAsync("Trade");
 
         result.Success.Should().BeFalse();
         result.ErrorCode.Should().Be(GetNextSeedIdQuery.ErrorId);
@@ -43,12 +42,12 @@ public class ActorReferenceQueryApiTests
     [Fact]
     public async Task DefaultDefinitions_StartAllIndependentReadsBeforeAwaitingCompletion()
     {
-        var (api, db) = CreateApi();
+        var (context, db) = CreateContext();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var started = 0;
         db.GetLookupTypeAsync(Arg.Any<string>()).Returns(call => CompleteAsync(call.Arg<string>()));
 
-        var result = await api.GetDefaultFuturesContractDefinitionsAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await context.GetDefaultFuturesContractDefinitionsAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         result.Success.Should().BeTrue();
         started.Should().Be(6);
@@ -65,10 +64,10 @@ public class ActorReferenceQueryApiTests
     [Fact]
     public async Task LookupExistence_UsesCentralizedStoragePath()
     {
-        var (api, db) = CreateApi();
+        var (context, db) = CreateContext();
         db.LookupTypeShortCodeExistsAsync("Currency", "USD").Returns(true);
 
-        var result = await api.LookupTypeShortCodeExistsAsync("Currency", "USD");
+        var result = await context.LookupTypeShortCodeExistsAsync("Currency", "USD");
 
         result.Success.Should().BeTrue();
         result.Value!.Value.Should().BeTrue();
@@ -79,7 +78,7 @@ public class ActorReferenceQueryApiTests
     [Fact]
     public async Task CancellationUsesTokenAwareStorageAndIsNotConvertedToFailure()
     {
-        var (api, db) = CreateApi();
+        var (context, db) = CreateContext();
         using var cancellation = new CancellationTokenSource();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         db.GetCurrentSeedIdAsync("Trade", cancellation.Token)
@@ -90,7 +89,7 @@ public class ActorReferenceQueryApiTests
                 return 0;
             });
 
-        var operation = api.GetCurrentSeedIdAsync("Trade", cancellation.Token);
+        var operation = context.GetCurrentSeedIdAsync("Trade", cancellation.Token);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(1));
         cancellation.Cancel();
 
@@ -100,11 +99,13 @@ public class ActorReferenceQueryApiTests
         await db.Received(1).GetCurrentSeedIdAsync("Trade", cancellation.Token);
     }
 
-    static (ActorReferenceQueryApi Api, IReferenceDbContext Db) CreateApi()
+    static (IReferenceQueryContext Context, IReferenceDbContext Db) CreateContext()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IReferenceDbContext>();
         dbFactory.ReferenceDb.Returns(db);
-        return (new ActorReferenceQueryApi(dbFactory), db);
+        var context = Substitute.For<IReferenceQueryContext>();
+        context.DbFactory.Returns(dbFactory);
+        return (context, db);
     }
 }

@@ -26,7 +26,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public void Given_AValidLastOptionTickMessage_When_ItIsParsed_Then_TheQueryAndMessageInfoArePreserved()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery();
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
@@ -92,7 +92,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     {
         var (factory, database) = CreateDatabase(SampleData.EsOptionTickData);
         var actor = _fixture.CreateOptionTickQueryActor(factory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery();
 
         await actor.InvokeReceiveAsync(context, query);
@@ -110,7 +110,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     {
         var (factory, database) = CreateDatabase(null);
         var actor = _fixture.CreateOptionTickQueryActor(factory);
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery("MISSING");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -142,7 +142,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_MissingReceiveInputs_When_AnOptionTickQueryIsReceived_Then_EachIsRejected()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery();
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -169,7 +169,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_AKnownOptionTickQueryFailure_When_ItIsHandled_Then_TheTypedFailureIsReplied()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery();
 
         await actor.InvokeOnExceptionAsync(
@@ -187,7 +187,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_AnUnknownQueryFailure_When_ItIsHandled_Then_TheFallbackFailureIsReplied()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "Unknown", "entity"));
@@ -206,7 +206,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_ReplyingToAnOptionTickFailureAlsoFails_When_ItIsHandled_Then_TheSecondaryFailureIsSwallowed()
     {
         var actor = _fixture.CreateOptionTickQueryActor(logger: Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery();
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -224,7 +224,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_MissingExceptionInputs_When_AnOptionTickFailureIsHandled_Then_EachIsRejected()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        IQueryActorContext context = actor.Context;
         var query = CreateQuery();
         var exception = new Exception("failure");
 

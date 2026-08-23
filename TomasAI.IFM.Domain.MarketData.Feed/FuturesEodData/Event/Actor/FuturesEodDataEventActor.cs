@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Blackboard;
 using global::TomasAI.IFM.Shared.EventModelActor;
@@ -11,19 +14,17 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Actor;
 
-public class FuturesEodDataEventActor(
-    IActorSupervisor supervisor, 
-    IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IBlackboardService blackboardService,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesEodDataEventActor> logger)
-    : BaseEventActor<FuturesEodDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActor> actorContext)
+    : BaseEventActor<FuturesEodDataEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "FuturesEodDataEvent";
-    IActorMarketDataFeedEventApi? _eventApi;
+
+    /// <summary>Gets the typed event context supplied at construction.</summary>
+    protected IFuturesEodDataEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IFuturesEodDataEventContext, nameof(actorContext))!;
+    readonly ILogger<FuturesEodDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesEodDataEventParameters _eventParameters = new(
-        blackboardService, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedEventApi, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+        ((IFuturesEodDataEventContext)actorContext).BlackboardService, ((IFuturesEodDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
+    readonly Dictionary<string, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesEodDataInsertedEvent).Name] = async (evt, context, eventApi, eventParams) =>
         {
@@ -44,12 +45,10 @@ public class FuturesEodDataEventActor(
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetEventApi(context);
+        _ = EventContext;
         return ValueTask.CompletedTask;
     }
 
-    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
-        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -98,7 +97,7 @@ public class FuturesEodDataEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetEventApi(context), _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters);
     }
 
     /// <summary>
@@ -124,7 +123,7 @@ public class FuturesEodDataEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -14,6 +14,8 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
 
 /// <summary>
@@ -26,13 +28,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class FuturesBarDataCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<FuturesBarDataCommandActor> eventProjector,
-    ILogger<FuturesBarDataCommandActor> logger)
-    : BaseEventSourceCommandActor<FuturesBarDataCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<FuturesBarDataCommandActor> actorContext,
+    IEventProjector<FuturesBarDataCommandActor> eventProjector)
+    : BaseEventSourceCommandActor<FuturesBarDataCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesBarDataCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
+    readonly ILogger<FuturesBarDataCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<FuturesBarDataCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesBarDataCommandState> _repo = default!;
 
@@ -220,7 +222,7 @@ public class FuturesBarDataCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context, command, ActorEntityId.Default, ActorName, global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent.CommandFail);

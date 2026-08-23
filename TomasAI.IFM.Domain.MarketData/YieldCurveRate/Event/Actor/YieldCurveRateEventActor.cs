@@ -8,25 +8,25 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Event.Actor;
 
 public class YieldCurveRateEventActor(
-    IActorSupervisor supervisor,
-    IReferenceDataApi referenceDataApi,
-    IDbContextFactory dbFactory,
-    ILogger<YieldCurveRateEventActor> logger)
-    : BaseEventActor<YieldCurveRateEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<YieldCurveRateEventActor> actorContext)
+    : BaseEventActor<YieldCurveRateEventActor>(actorContext.YieldCurveRateContext.Supervisor,
+        actorContext.YieldCurveRateContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "YieldCurveRateEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+    readonly IYieldCurveRateEventContext _context = actorContext.YieldCurveRateContext;
+    readonly Dictionary<string, Func<IEvent, IYieldCurveRateEventContext, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(YieldCurveRatesImportedEvent).Name] = (@event, context) =>
-            ((YieldCurveRatesImportedEvent)@event).ExecuteAsync(context, referenceDataApi, dbFactory, logger),
+            ((YieldCurveRatesImportedEvent)@event).ExecuteAsync(context, context.ReferenceDataApi, context.DbFactory, context.Logger),
         [typeof(YieldCurveRatesImportedCompleteEvent).Name] = (@event, context) =>
-            ((YieldCurveRatesImportedCompleteEvent)@event).ExecuteAsync(context, logger),
+            ((YieldCurveRatesImportedCompleteEvent)@event).ExecuteAsync(context, context.Logger),
         [typeof(YieldCurveRatesImportedFailEvent).Name] = (@event, context) =>
-            ((YieldCurveRatesImportedFailEvent)@event).ExecuteAsync(context, logger)
+            ((YieldCurveRatesImportedFailEvent)@event).ExecuteAsync(context, context.Logger)
     };
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
@@ -72,7 +72,7 @@ public class YieldCurveRateEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context).ConfigureAwait(false);
+        _ = await receiveFunc.Invoke(@event, _context).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public class YieldCurveRateEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

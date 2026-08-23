@@ -3,10 +3,10 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
-using TomasAI.IFM.Domain.MarketData.Query.Api;
+using TomasAI.IFM.Domain.MarketData.Query.Actor;
+using TomasAI.IFM.Domain.MarketData.Query.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests.Query.Api;
@@ -25,7 +25,6 @@ public class ActorMarketDataQueryApiTests
         var result = await api.GetTradingDaysAsync(
             startDate, endDate, MarketType.Futures, CurrencyType.USD);
 
-        api.Should().BeAssignableTo<IActorMarketDataQueryApi>();
         result.Success.Should().BeTrue();
         result.Value!.Value.Should().Be(2);
     }
@@ -60,7 +59,7 @@ public class ActorMarketDataQueryApiTests
                 new FuturesOptionContractReadModel { ContractId = "A" },
                 new FuturesOptionContractReadModel { ContractId = "C" }
             ]);
-        var api = new ActorMarketDataQueryApi(dbFactory);
+        var api = CreateContext(dbFactory);
 
         var result = await api.GetFuturesOptionContractIdsAsync(["C", "B", "A", "C"]);
 
@@ -97,7 +96,7 @@ public class ActorMarketDataQueryApiTests
                 Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
                 Arg.Any<MarketType>(), Arg.Any<CurrencyType>())
             .Returns(tradingDaysSource.Task);
-        var api = new ActorMarketDataQueryApi(dbFactory);
+        var api = CreateContext(dbFactory);
 
         var pendingResult = api.GetIronCondorMarketDataAsync(
             "U", "SP", "LP", "SC", "LC",
@@ -156,7 +155,7 @@ public class ActorMarketDataQueryApiTests
                 Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
                 Arg.Any<MarketType>(), Arg.Any<CurrencyType>(), cancellation.Token)
             .Returns(tradingDaysSource.Task);
-        var api = new ActorMarketDataQueryApi(dbFactory);
+        var api = CreateContext(dbFactory);
 
         var pendingResult = api.GetIronCondorMarketDataAsync(
             "U", "SP", "LP", "SC", "LC",
@@ -187,12 +186,19 @@ public class ActorMarketDataQueryApiTests
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
-    static (ActorMarketDataQueryApi Api, IMarketDataDbContext Db) CreateApi()
+    static (IMarketDataQueryContext Api, IMarketDataDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
         dbFactory.SecuritiesDb.Returns(Substitute.For<ISecuritiesDbContext>());
-        return (new ActorMarketDataQueryApi(dbFactory), db);
+        return (CreateContext(dbFactory), db);
+    }
+
+    static IMarketDataQueryContext CreateContext(IDbContextFactory dbFactory)
+    {
+        var context = Substitute.For<IMarketDataQueryContext>();
+        context.DbFactory.Returns(dbFactory);
+        return context;
     }
 }

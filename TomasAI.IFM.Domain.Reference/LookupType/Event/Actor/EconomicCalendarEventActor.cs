@@ -4,14 +4,21 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.Reference.LookupType.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.Reference.LookupType.Event.Actor;
 
-public class LookupTypeEventActor(IActorSupervisor supervisor, ILogger<LookupTypeEventActor> logger)
-    : BaseEventActor<LookupTypeEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+public class LookupTypeEventActor(IEventActorContext<LookupTypeEventActor> actorContext)
+    : BaseEventActor<LookupTypeEventActor>(
+        actorContext.Supervisor,
+        actorContext.Logger,
+        actorContext.ActorId)
 {
     public const string Actor = "LookupTypeEvent";
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
+    readonly ILogger<LookupTypeEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected ILookupTypeEventContext LookupTypeEventContext { get; } =
+        IsArgumentNull.Set(actorContext as ILookupTypeEventContext, nameof(actorContext))!;
+    static readonly Dictionary<string, Func<IEvent, ILookupTypeEventContext, ILogger, ValueTask<bool>>> _receiveMap = [];
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
@@ -50,7 +57,7 @@ public class LookupTypeEventActor(IActorSupervisor supervisor, ILogger<LookupTyp
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, LookupTypeEventContext, _logger);
     }
 
     /// <summary>
@@ -73,7 +80,7 @@ public class LookupTypeEventActor(IActorSupervisor supervisor, ILogger<LookupTyp
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.Actor;
@@ -11,6 +11,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,12 +32,8 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         IMarketDataApi marketDataApi,
         IStatusConsoleWriter status,
         ILogger<FuturesOptionTickDataEventActor> logger)
-        : FuturesOptionTickDataEventActor(
-            supervisor,
-            new ActorMarketDataFeedEventApiFactory(),
-            marketDataApi,
-            status,
-            logger)
+        : FuturesOptionTickDataEventActor(new FuturesOptionTickDataEventContext(
+            supervisor, logger, marketDataApi, status))
     {
         public ValueTask Start(IEventActorContext context) => OnStartup(context);
         public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
@@ -46,12 +44,8 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         IMarketDataApi marketDataApi,
         IStatusConsoleWriter status,
         ILogger<FuturesOptionTickDataRealtimeActor> logger)
-        : FuturesOptionTickDataRealtimeActor(
-            supervisor,
-            new ActorMarketDataFeedEventApiFactory(),
-            marketDataApi,
-            status,
-            logger)
+        : FuturesOptionTickDataRealtimeActor(new FuturesOptionTickDataRealtimeContext(
+            supervisor, logger, marketDataApi, status))
     {
         public IEvent Parse(IEventActorContext context, IActorMessage message) =>
             ParseMessage(context, message);
@@ -127,7 +121,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
     public async Task Active_option_trade_combines_exact_trade_with_hot_quote_and_notifies_ui()
     {
         var source = CreateTrade();
-        var eventApi = Substitute.For<IActorMarketDataFeedEventApi>();
+        var eventApi = Substitute.For<IEventActorContext>();
         var marketDataApi = Substitute.For<IMarketDataApi>();
         marketDataApi.IsTickDataStreamActive(ContractId).Returns(true);
         marketDataApi.GetFuturesOptionContractAsync(ContractId)
@@ -149,16 +143,15 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
             Substitute.For<ILogger<FuturesOptionTickDataRealtimeActor>>());
 
         result.Should().BeTrue();
-        await eventApi.Received(1).SendOptionTradeTickPriceDataUpdatedEventAsync(
-            source,
-            Arg.Is<FuturesOptionTickDataV2ReadModel>(updated =>
-                updated.ContractId == ContractId
-                && updated.ValueDate == ValueDate
-                && updated.OptionPrice == 13.125d
-                && updated.BidPrice == 12.25d
-                && updated.AskPrice == 12.75d
-                && updated.BidSize == 100
-                && updated.AskSize == 150));
+        await eventApi.Received(1).SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(
+            Arg.Is<OptionTradeTickPriceDataUpdatedEvent>(sent =>
+                sent.OptionTickData.ContractId == ContractId
+                && sent.OptionTickData.ValueDate == ValueDate
+                && sent.OptionTickData.OptionPrice == 13.125d
+                && sent.OptionTickData.BidPrice == 12.25d
+                && sent.OptionTickData.AskPrice == 12.75d
+                && sent.OptionTickData.BidSize == 100
+                && sent.OptionTickData.AskSize == 150));
     }
 
     [Theory]
@@ -170,7 +163,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
     {
         var source = CreateTrade(
             optionAsset ? AssetTypeId.FuturesOption : AssetTypeId.Futures);
-        var eventApi = Substitute.For<IActorMarketDataFeedEventApi>();
+        var eventApi = Substitute.For<IEventActorContext>();
         var marketDataApi = Substitute.For<IMarketDataApi>();
         marketDataApi.IsTickDataStreamActive(ContractId).Returns(active);
 
@@ -182,7 +175,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
 
         result.Should().BeTrue();
         await eventApi.DidNotReceiveWithAnyArgs()
-            .SendOptionTradeTickPriceDataUpdatedEventAsync(default!, default!);
+            .SendAsync<OptionTradeTickPriceDataUpdatedEvent, FuturesOptionTickEntityId>(default!);
     }
 
     static TestableRealtimeActor CreateRealtimeActor() => new(

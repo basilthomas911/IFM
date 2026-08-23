@@ -5,7 +5,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -36,34 +36,30 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         IBlackboardService blackboard,
         IStatusConsoleWriter status,
         ILogger<FuturesTickDataEventActor> logger)
-        : FuturesTickDataEventActor(
-            supervisor,
-            new ActorMarketDataFeedEventApiFactory(),
-            marketDataApi,
-            blackboard,
-            status,
-            logger)
+        : FuturesTickDataEventActor(new FuturesTickDataEventContext(
+            supervisor, logger, marketDataApi, blackboard, status))
     {
         public ValueTask Start(IEventActorContext context) => OnStartup(context);
         public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
     }
 
-    public sealed class TestableRealtimeActor(
-        IActorSupervisor supervisor,
-        IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
-        IMarketDataApi marketDataApi,
-        IBlackboardService blackboard,
-        IStatusConsoleWriter status,
-        ILogger<FuturesEodDataRealtimeActor> logger)
-        : FuturesEodDataRealtimeActor(
-            supervisor,
-            new ActorMarketDataFeedEventApiFactory(),
-            projector,
-            marketDataApi,
-            blackboard,
-            status,
-            logger)
+    public sealed class TestableRealtimeActor : FuturesEodDataRealtimeActor
     {
+        public IFuturesEodDataRealtimeContext Context { get; }
+
+        public TestableRealtimeActor(
+            IActorSupervisor supervisor,
+            IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
+            IMarketDataApi marketDataApi,
+            IBlackboardService blackboard,
+            IStatusConsoleWriter status,
+            ILogger<FuturesEodDataRealtimeActor> logger)
+            : this(TypedActorContextFactory.Realtime(
+                supervisor, projector, marketDataApi, blackboard, status, logger)) { }
+
+        TestableRealtimeActor(IFuturesEodDataRealtimeContext context)
+            : base(context) => Context = context;
+
         public IEvent Parse(IEventActorContext context, IActorMessage message) =>
             ParseMessage(context, message);
         public ValueTask Receive(IEventActorContext context, IEvent domainEvent) =>
@@ -215,7 +211,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         };
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out _);
-        var context = Substitute.For<IEventActorContext>();
+        IEventActorContext context = actor.Context;
         var current = new FuturesEodDataV2ReadModel(
             contractId, ValueDate, "ES", 5390m, 5460m, 5370m, 5425m, 1000,
             0.1, 0.01, 54.25, 5500, 5425, 5350,
@@ -272,7 +268,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         };
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out _);
-        var context = Substitute.For<IEventActorContext>();
+        IEventActorContext context = actor.Context;
         context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
                 Arg.Any<GetFuturesEodDataQuery>())
             .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(null!));

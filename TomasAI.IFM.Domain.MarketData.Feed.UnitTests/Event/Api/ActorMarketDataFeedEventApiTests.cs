@@ -1,10 +1,9 @@
 using FluentAssertions;
 using MessagePack;
 using NSubstitute;
-using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -17,11 +16,7 @@ public class ActorMarketDataFeedEventApiTests
     {
         var context = Substitute.For<IEventActorContext>();
         var source = CreateResetEvent();
-        var api = new ActorMarketDataFeedEventApiFactory().Create(context);
-
-        await api.MarketDataFeedResetCompleteAsync(source);
-
-        api.Should().BeAssignableTo<IActorMarketDataFeedEventApi>();
+        await context.MarketDataFeedResetCompleteAsync(source);
         await context.Received(1).SendAsync<MarketDataFeedResetCompleteEvent, MarketDataFeedId>(
             Arg.Is<MarketDataFeedResetCompleteEvent>(sent =>
                 sent.EntityId == source.EntityId &&
@@ -37,9 +32,7 @@ public class ActorMarketDataFeedEventApiTests
     {
         var context = Substitute.For<IEventActorContext>();
         var source = CreateResetEvent();
-        var api = new ActorMarketDataFeedEventApi(context);
-
-        await api.MarketDataFeedResetFailAsync(source, new InvalidOperationException("reset failed"));
+        await context.MarketDataFeedResetFailAsync(source, new InvalidOperationException("reset failed"));
 
         await context.Received(1).SendAsync<MarketDataFeedResetFailEvent, MarketDataFeedId>(
             Arg.Is<MarketDataFeedResetFailEvent>(sent =>
@@ -55,9 +48,7 @@ public class ActorMarketDataFeedEventApiTests
         var source = CreateResetEvent()
             .ToCompleteEvent<MarketDataFeedResetCompleteEvent, MarketDataFeedId>()
             as MarketDataFeedResetCompleteEvent;
-        var api = new ActorMarketDataFeedEventApi(context);
-
-        await api.SendResetStreamingEventAsync(source!);
+        await context.SendResetStreamingEventAsync(source!);
 
         await context.Received(1).SendAsync<MarketDataFeedResetStreamingEvent, MarketDataFeedId>(
             Arg.Is<MarketDataFeedResetStreamingEvent>(sent =>
@@ -91,9 +82,7 @@ public class ActorMarketDataFeedEventApiTests
         };
         var completed = (FuturesEodDataInsertedCompleteEvent)source
             .ToCompleteEvent<FuturesEodDataInsertedCompleteEvent, FuturesEodDataId>();
-        var api = new ActorMarketDataFeedEventApi(context);
-
-        await api.SendFuturesEodDataUpdatedNotifyEventAsync(completed);
+        await context.SendFuturesEodDataUpdatedNotifyEventAsync(completed);
 
         await context.Received(1).SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
             Arg.Is<FuturesEodDataUpdatedNotifyEvent>(sent =>

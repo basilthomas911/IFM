@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -11,18 +12,21 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 
 public class FuturesTickDataStateRepository(
-    IEventSourceActorStateFactory aggregateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IDbContextFactory dbFactory,
-    IEventProjector<FuturesTickDataCommandActor> eventProjector,
-    IActorService actorService,
-    ILogger<FuturesTickDataStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<FuturesTickDataCommandState>
+    ICommandActorContext<FuturesTickDataCommandActor> actorContext)
+    : BaseEventSourceActorRepository(
+        actorContext.StateFactory,
+        actorContext.DbEventSource,
+        actorContext.ActorService,
+        actorContext.Logger),
+      IEventSourceActorStateRepository<FuturesTickDataCommandState>
 {
+    readonly IEventProjector<FuturesTickDataCommandActor> _eventProjector =
+        IsArgumentNull.Set(actorContext.EventProjector);
     /// <summary>
     /// load futures tick data state from snapshot event
     /// </summary>
@@ -55,6 +59,6 @@ public class FuturesTickDataStateRepository(
     /// <param name="domainEvents">A collection of domain events to be denormalized and applied to the read model state.</param>
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
-        => await eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
+        => await _eventProjector.DomainEventsProjectionAsync(domainEvents).ConfigureAwait(false);
     
 }

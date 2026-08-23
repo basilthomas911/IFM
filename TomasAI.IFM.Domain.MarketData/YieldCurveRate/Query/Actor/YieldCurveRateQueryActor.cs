@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 
@@ -17,12 +18,13 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 /// related to yield curve rates. It processes queries such as retrieving yield curve rates by date range, checking existence,
 /// and retrieving persisted yield curve data. This actor uses dependency injection to resolve required services.</remarks>
 /// <param name="logger">The logger instance for tracking actor operations.</param>
-public class YieldCurveRateQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<YieldCurveRateQueryActor> logger)
-    : BaseQueryActor<YieldCurveRateQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActor> actorContext)
+    : BaseQueryActor<YieldCurveRateQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "YieldCurveRateQuery";
+    readonly ILogger<YieldCurveRateQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected IYieldCurveRateQueryContext YieldCurveRateContext { get; } =
+        IsArgumentNull.Set(actorContext as IYieldCurveRateQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -68,22 +70,23 @@ public class YieldCurveRateQueryActor(
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override ValueTask ReceiveAsync(
+    protected override async ValueTask ReceiveAsync(
         IQueryActorContext context,
         IQuery query,
         CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        return query switch
+        using var messageInfoScope = context.MirrorMessageInfoTo(YieldCurveRateContext, query.Subject.ThreadId, query.Subject.Verb);
+        await (query switch
         {
-            GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetYieldCurveRatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
+            GetYieldCurveRatesQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
+            GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
+            GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}")
-        };
+        });
     }
 
     async ValueTask ReceiveAsync(
@@ -91,7 +94,7 @@ public class YieldCurveRateQueryActor(
         GetLastYieldCurveRateQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetLastYieldCurveRateAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetLastYieldCurveRateAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetLastYieldCurveRateQuery.Verb,
             new ServiceResult<YieldCurveRateReadModel?>(result)).ConfigureAwait(false);
@@ -102,7 +105,7 @@ public class YieldCurveRateQueryActor(
         GetYieldCurveRatesQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRatesAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetYieldCurveRatesAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRatesQuery.Verb,
             new ServiceResult<YieldCurveRateReadModel[]>(result)).ConfigureAwait(false);
@@ -113,7 +116,7 @@ public class YieldCurveRateQueryActor(
         GetYieldCurveRateExistsQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRateExistsAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetYieldCurveRateExistsAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateExistsQuery.Verb,
             new ServiceResult<ScalarReadModel<bool>>(result)).ConfigureAwait(false);
@@ -124,7 +127,7 @@ public class YieldCurveRateQueryActor(
         GetYieldCurveRateYearsQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetYieldCurveRateYearsAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetYieldCurveRateYearsAsync(YieldCurveRateContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetYieldCurveRateYearsQuery.Verb,
             new ServiceResult<YieldCurveRateYearsReadModel>(result)).ConfigureAwait(false);
@@ -167,7 +170,7 @@ public class YieldCurveRateQueryActor(
         catch (Exception innerEx)
         {
             try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
    

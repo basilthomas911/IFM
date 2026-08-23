@@ -35,8 +35,9 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
         supervisor.CreateMailbox(Arg.Any<ActorMailboxId>()).Returns(mailbox);
         supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
         var actor = new FuturesMarketPriceRealtimeActor(
-            supervisor,
-            Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
+            new FuturesMarketPriceRealtimeContext(
+                supervisor,
+                Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>()));
         supervisor.ActorExists(actor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
             .Returns(System.Collections.Immutable.ImmutableHashSet<ActorMailboxId>.Empty);

@@ -17,7 +17,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
     public sealed class TestableFuturesMarketPriceRealtimeActor(
         IActorSupervisor supervisor,
         ILogger<FuturesMarketPriceRealtimeActor> logger)
-        : FuturesMarketPriceRealtimeActor(supervisor, logger)
+        : FuturesMarketPriceRealtimeActor(new FuturesMarketPriceRealtimeContext(supervisor, logger))
     {
         public IEvent Parse(IEventActorContext context, IActorMessage message) =>
             ParseMessage(context, message);

@@ -29,7 +29,7 @@ public class MarketDataFeedCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     public class TestableMarketDataFeedCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<MarketDataFeedCommandActor> logger)
-        : MarketDataFeedCommandActor(dbEventSource, Substitute.For<IEventProjector<MarketDataFeedCommandActor>>(), logger)
+        : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<MarketDataFeedCommandActor>>())
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

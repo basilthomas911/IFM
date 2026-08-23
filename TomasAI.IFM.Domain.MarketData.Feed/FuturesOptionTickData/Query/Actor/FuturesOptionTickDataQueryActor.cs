@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -19,12 +20,16 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Query.Actor;
 /// related to futures option tick data lookups such as retrieving the most recent tick data for a contract and date.
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
-public class FuturesOptionTickDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesOptionTickDataQueryActor> logger)
-    : BaseQueryActor<FuturesOptionTickDataQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class FuturesOptionTickDataQueryActor(IQueryActorContext<FuturesOptionTickDataQueryActor> actorContext)
+    : BaseQueryActor<FuturesOptionTickDataQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "FuturesOptionTickDataQuery";
+
+    /// <summary>Gets the typed query context supplied at construction.</summary>
+    protected IFuturesOptionTickDataQueryContext QueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesOptionTickDataQueryContext, nameof(actorContext))!;
+
+    readonly ILogger<FuturesOptionTickDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -72,19 +77,23 @@ public class FuturesOptionTickDataQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            QueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(QueryContext, query).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures option tick data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IFuturesOptionTickDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLastFuturesOptionTickDataQuery).Name] = async (ctx, dbFactory, q) =>
+        [typeof(GetLastFuturesOptionTickDataQuery).Name] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesOptionTickDataQuery)!;
-            var result = await query.GetLastFuturesOptionTickDataAsync(dbFactory);
+            var result = await query.GetLastFuturesOptionTickDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesOptionTickDataQuery.Verb,
                 new ServiceResult<FuturesOptionTickDataV2ReadModel?>(result));
         }
@@ -118,7 +127,7 @@ public class FuturesOptionTickDataQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

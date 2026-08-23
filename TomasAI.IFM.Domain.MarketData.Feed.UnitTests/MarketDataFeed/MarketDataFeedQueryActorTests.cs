@@ -38,7 +38,7 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
             ISequenceIdGenerator sequenceIdGenerator,
             IDbContextFactory dbFactory,
             ILogger<MarketDataFeedQueryActor> logger)
-            : base(marketDataApi, sequenceIdGenerator, dbFactory, logger)
+            : base(TypedActorContextFactory.Query(dbFactory, logger))
         {
         }
 

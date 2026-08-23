@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.LookupType.Query.Extensions;
 using TomasAI.IFM.Domain.Reference.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
@@ -12,12 +13,13 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.Reference.LookupType.Query.Actor;
 
-public class LookupTypeQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<LookupTypeQueryActor> logger)
-    : BaseQueryActor<LookupTypeQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actorContext)
+    : BaseQueryActor<LookupTypeQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "LookupTypeQuery";
+    readonly ILogger<LookupTypeQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected ILookupTypeQueryContext LookupTypeQueryContext { get; } =
+        IsArgumentNull.Set(actorContext as ILookupTypeQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -83,7 +85,11 @@ public class LookupTypeQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            LookupTypeQueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(LookupTypeQueryContext, query, cancellationToken);
     }
 
     /// <summary>
@@ -93,44 +99,44 @@ public class LookupTypeQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of lookup type-related queries by associating each query
     /// type name with a function that processes the query against a LookupTypeQueryActorState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLookupTypesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetLookupTypesQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypesQuery);
-            var result = await query.GetLookupTypesAsync(dbFactory, cancellationToken);
+            var result = await query.GetLookupTypesAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypesQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
         },
-        [typeof(GetLookupTypeNamesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetLookupTypeNamesQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeNamesQuery);
-            var result = await query.GetLookupTypeNamesAsync(dbFactory, cancellationToken);
+            var result = await query.GetLookupTypeNamesAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeNamesQuery.Verb,
                 new ServiceResult<string[]>(result));
         },
-        [typeof(GetLookupTypeQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetLookupTypeQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeQuery);
-            var result = await query.GetLookupTypeAsync(dbFactory, cancellationToken);
+            var result = await query.GetLookupTypeAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
         },
-        [typeof(GetLookupTypeShortCodesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetLookupTypeShortCodesQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodesQuery);
-            var result = await query.GetLookupTypeShortCodesAsync(dbFactory, cancellationToken);
+            var result = await query.GetLookupTypeShortCodesAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodesQuery.Verb,
                 new ServiceResult<LookupTypeShortCodeReadModel[]>(result));
         },
-        [typeof(GetLookupTypeShortCodeExistsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetLookupTypeShortCodeExistsQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodeExistsQuery);
-            var result = await query.GetLookupTypeShortCodeExistsAsync(dbFactory, cancellationToken);
+            var result = await query.GetLookupTypeShortCodeExistsAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodeExistsQuery.Verb,
                 new ServiceResult<ScalarReadModel<bool>>(result));
@@ -176,7 +182,7 @@ public class LookupTypeQueryActor(
         catch (Exception innerEx)
         {
             try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

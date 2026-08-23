@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Query.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Query.Actor;
 
@@ -17,12 +18,13 @@ namespace TomasAI.IFM.Domain.MarketData.Query.Actor;
 /// related to market data lookups such as rates of return, trading days/dates and value dates.
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
-public class MarketDataQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<MarketDataQueryActor> logger)
-    : BaseQueryActor<MarketDataQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actorContext)
+    : BaseQueryActor<MarketDataQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "MarketDataQuery";
+    readonly ILogger<MarketDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected IMarketDataQueryContext MarketDataContext { get; } =
+        IsArgumentNull.Set(actorContext as IMarketDataQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -66,22 +68,23 @@ public class MarketDataQueryActor(
     protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override ValueTask ReceiveAsync(
+    protected override async ValueTask ReceiveAsync(
         IQueryActorContext context,
         IQuery query,
         CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        return query switch
+        using var messageInfoScope = context.MirrorMessageInfoTo(MarketDataContext, query.Subject.ThreadId, query.Subject.Verb);
+        await (query switch
         {
-            GetLastRateOfReturnQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetTradingDaysQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetTradingDatesQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
-            GetValueDateQuery typedQuery => ReceiveAsync(context, typedQuery, cancellationToken),
+            GetLastRateOfReturnQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
+            GetTradingDaysQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
+            GetTradingDatesQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
+            GetValueDateQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}")
-        };
+        });
     }
 
     async ValueTask ReceiveAsync(
@@ -89,7 +92,7 @@ public class MarketDataQueryActor(
         GetLastRateOfReturnQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetLastRateOfReturnAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetLastRateOfReturnAsync(MarketDataContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
             new ServiceResult<RateOfReturnReadModel>(result)).ConfigureAwait(false);
@@ -100,7 +103,7 @@ public class MarketDataQueryActor(
         GetTradingDaysQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetTradingDaysAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetTradingDaysAsync(MarketDataContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetTradingDaysQuery.Verb,
             new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
@@ -111,7 +114,7 @@ public class MarketDataQueryActor(
         GetTradingDatesQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetTradingDatesAsync(dbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetTradingDatesAsync(MarketDataContext.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetTradingDatesQuery.Verb,
             new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
@@ -163,7 +166,7 @@ public class MarketDataQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 

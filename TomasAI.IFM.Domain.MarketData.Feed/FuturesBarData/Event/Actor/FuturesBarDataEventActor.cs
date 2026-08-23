@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
@@ -20,23 +23,18 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Event.Actor;
 /// </summary>
 /// <param name="supervisor">The actor supervisor that manages actor lifecycle and coordinates event processing within the system. Cannot be
 /// null.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the futures bar data event actor. Cannot be null.</param>
-public class FuturesBarDataEventActor(
-    IActorSupervisor supervisor, 
-    IActorMarketDataFeedCommandApiFactory commandApiFactory,
-    IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IFuturesBarDataTimer futuresBarTimer,
-    ApplicationMarketDataApi marketDataApi,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesBarDataEventActor> logger)
-    : BaseEventActor<FuturesBarDataEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+/// <param name="_logger">The _logger used to record diagnostic and operational information for the futures bar data event actor. Cannot be null.</param>
+public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActor> actorContext)
+    : BaseEventActor<FuturesBarDataEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string Actor = "FuturesBarDataEvent";
-    IActorMarketDataFeedCommandApi? _commandApi;
-    IActorMarketDataFeedEventApi? _eventApi;
+
+    /// <summary>Gets the typed event context supplied at construction.</summary>
+    protected IFuturesBarDataEventContext EventContext { get; } = IsArgumentNull.Set(actorContext as IFuturesBarDataEventContext, nameof(actorContext))!;
+    readonly ILogger<FuturesBarDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesBarDataEventParameters _eventParameters = new(
-        futuresBarTimer, marketDataApi, statusConsoleWriter, logger);
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataFeedCommandApi, IActorMarketDataFeedEventApi, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+        ((IFuturesBarDataEventContext)actorContext).FuturesBarDataTimer, ((IFuturesBarDataEventContext)actorContext).MarketDataApi, ((IFuturesBarDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
+    readonly Dictionary<string, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesBarDataStreamingStartedEvent).Name] = async (evt, context, commandApi, eventApi, eventParams) =>
         {
@@ -55,19 +53,15 @@ public class FuturesBarDataEventActor(
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetCommandApi(context);
-        _ = GetEventApi(context);
+        _ = EventContext;
+        _ = EventContext;
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask OnShutdown(IEventActorContext context)
         => _eventParameters.FuturesBarDataTimer.StopAllAsync();
 
-    IActorMarketDataFeedCommandApi GetCommandApi(IEventActorContext context)
-        => _commandApi ??= commandApiFactory.Create(context);
 
-    IActorMarketDataFeedEventApi GetEventApi(IEventActorContext context)
-        => _eventApi ??= eventApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -117,7 +111,7 @@ public class FuturesBarDataEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), GetEventApi(context), _eventParameters);
+        _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters);
     }
 
     /// <summary>
@@ -143,7 +137,7 @@ public class FuturesBarDataEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            _logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

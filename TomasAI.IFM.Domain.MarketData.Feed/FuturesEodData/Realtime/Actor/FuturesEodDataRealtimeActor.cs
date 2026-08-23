@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Feed.Event.Api;
+using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -23,20 +25,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 /// TickAggregation observations and publishes source/complete/fail over Core
 /// NATS without durable replay.
 /// </summary>
-public class FuturesEodDataRealtimeActor(
-    IActorSupervisor supervisor,
-    IActorMarketDataFeedEventApiFactory eventApiFactory,
-    IRealtimeProjector<FuturesEodDataRealtimeActor> projector,
-    IMarketDataApi marketDataApi,
-    IBlackboardService blackboardService,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesEodDataRealtimeActor> logger)
-    : BaseEventActor<FuturesEodDataRealtimeActor>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Realtime, ActorName))
+public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRealtimeActor> actorContext)
+    : BaseEventActor<FuturesEodDataRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = FuturesEodDataInsertedEvent.Actor;
+
+    /// <summary>Gets the typed realtime context supplied at construction.</summary>
+    protected IFuturesEodDataRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as IFuturesEodDataRealtimeContext, nameof(actorContext))!;
 
     static readonly ActorTypeId TickTradeRoute = new(
         ActorType.Realtime,
@@ -78,15 +73,13 @@ public class FuturesEodDataRealtimeActor(
     };
 
     readonly FuturesEodDataEventParameters _parameters = new(
-        blackboardService,
-        statusConsoleWriter,
-        logger);
-    IActorMarketDataFeedEventApi? _eventApi;
+        ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService,
+        ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
+        actorContext.Logger);
 
     protected override async ValueTask OnStartup(IEventActorContext context)
     {
-        _eventApi = eventApiFactory.Create(context);
-        await projector.StartAsync(context).ConfigureAwait(false);
+        await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(TickTradeRoute, Id);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
         context.AddRealtimeRouter(SessionStatisticsRoute, Id);
@@ -97,7 +90,7 @@ public class FuturesEodDataRealtimeActor(
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
         context.RemoveRealtimeRouter(SessionStatisticsRoute, Id);
-        await projector.StopAsync().ConfigureAwait(false);
+        await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StopAsync().ConfigureAwait(false);
     }
 
     protected override IEvent ParseMessage(
@@ -128,38 +121,38 @@ public class FuturesEodDataRealtimeActor(
         {
             case FuturesTickTradeDataInsertedEvent trade:
                 _ = await trade.ExecuteAsync(
-                        context,
-                        marketDataApi,
-                        blackboardService,
-                        statusConsoleWriter,
-                        projector,
-                        logger)
+                        RealtimeContext,
+                        ((IFuturesEodDataRealtimeContext)actorContext).MarketDataApi,
+                        ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService,
+                        ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
+                        ((IFuturesEodDataRealtimeContext)actorContext).Projector,
+                        actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesMarketPriceUpdatedRealtimeEvent priceUpdated:
                 _ = await priceUpdated.ExecuteVxQuoteAsync(
-                        marketDataApi,
-                        projector,
-                        statusConsoleWriter,
-                        logger)
+                        ((IFuturesEodDataRealtimeContext)actorContext).MarketDataApi,
+                        ((IFuturesEodDataRealtimeContext)actorContext).Projector,
+                        ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
+                        actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesSessionStatisticsUpdatedRealtimeEvent statisticsUpdated:
-                _ = await statisticsUpdated.ExecuteAsync(context, projector, logger)
+                _ = await statisticsUpdated.ExecuteAsync(RealtimeContext, ((IFuturesEodDataRealtimeContext)actorContext).Projector, actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesEodDataInsertedEvent inserted:
-                blackboardService.MarketDataFeed.FuturesEodData.Set(
+                ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService.MarketDataFeed.FuturesEodData.Set(
                     inserted.FuturesEodData.ContractId,
                     inserted.FuturesEodData.ValueDate,
                     inserted.FuturesEodData);
                 break;
             case FuturesEodDataInsertedCompleteEvent completed:
-                _ = await completed.ExecuteAsync(context, GetEventApi(), _parameters)
+                _ = await completed.ExecuteAsync(RealtimeContext, RealtimeContext, _parameters)
                     .ConfigureAwait(false);
                 break;
             case VixFuturesEodDataInsertedCompleteEvent vixCompleted:
-                _ = await vixCompleted.ExecuteAsync(context, _parameters)
+                _ = await vixCompleted.ExecuteAsync(RealtimeContext, _parameters)
                     .ConfigureAwait(false);
                 break;
             case FuturesEodDataInsertedFailEvent failed:
@@ -177,10 +170,7 @@ public class FuturesEodDataRealtimeActor(
         }
     }
 
-    IActorMarketDataFeedEventApi GetEventApi() => _eventApi
-        ?? throw new InvalidOperationException($"{ActorName} has not started.");
-
-    void LogProjectionFailure(IErrorEvent failed) => logger.LogErrorEvent(
+    void LogProjectionFailure(IErrorEvent failed) => actorContext.Logger.LogErrorEvent(
         ActorName,
         "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
         failed.EventName,

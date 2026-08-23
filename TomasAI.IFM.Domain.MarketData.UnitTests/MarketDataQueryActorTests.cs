@@ -28,9 +28,23 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
     public class TestableMarketDataQueryActor : MarketDataQueryActor
     {
         public TestableMarketDataQueryActor(IDbContextFactory dbFactory, ILogger<MarketDataQueryActor> logger)
-            : base(dbFactory, logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableMarketDataQueryActor(IMarketDataQueryContext context) : base(context)
+            => Context = context;
+
+        static IMarketDataQueryContext CreateContext(IDbContextFactory dbFactory, ILogger<MarketDataQueryActor> logger)
+        {
+            var context = Substitute.For<IMarketDataQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, MarketDataQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public IMarketDataQueryContext Context { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -57,7 +71,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = new GetLastRateOfReturnQuery
         {
             Subject = new ActorSubject(ActorType.Query, GetLastRateOfReturnQuery.Actor, GetLastRateOfReturnQuery.Verb, $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}"),
@@ -90,7 +104,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityId = new GetTradingDaysParameter(SampleData.StartDate, SampleData.EndDate, SampleData.Market, SampleData.Currency);
         var query = new GetTradingDaysQuery
         {
@@ -122,7 +136,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityId = new GetTradingDatesParameter(SampleData.StartDate, SampleData.EndDate, SampleData.Market, SampleData.Currency);
         var query = new GetTradingDatesQuery
         {
@@ -154,7 +168,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var query = new GetValueDateQuery
         {
             Subject = new ActorSubject(ActorType.Query, GetValueDateQuery.Actor, GetValueDateQuery.Verb, new GetValueDateParameter().Format()),
@@ -213,7 +227,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var invalidSubject = new ActorSubject(ActorType.Command, GetLastRateOfReturnQuery.Actor, GetLastRateOfReturnQuery.Verb, $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}");
         var message = new NatsMsg<byte[]>
         {
@@ -233,7 +247,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var invalidSubject = new ActorSubject(ActorType.Query, "WrongActor", GetLastRateOfReturnQuery.Verb, $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}");
         var message = new NatsMsg<byte[]>
         {
@@ -253,7 +267,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var invalidSubject = new ActorSubject(ActorType.Query, GetLastRateOfReturnQuery.Actor, "UnknownVerb", $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}");
         var message = new NatsMsg<byte[]>
         {
@@ -273,7 +287,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var validSubject = new ActorSubject(ActorType.Query, GetLastRateOfReturnQuery.Actor, GetLastRateOfReturnQuery.Verb, $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}");
         var message = new NatsMsg<byte[]>
         {
@@ -292,7 +306,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var subjectWithEmptyEntityId = new ActorSubject(ActorType.Query, GetValueDateQuery.Actor, GetValueDateQuery.Verb, string.Empty);
         var query = new GetValueDateQuery
         {
@@ -320,7 +334,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var query = new GetLastRateOfReturnQuery
         {
@@ -351,7 +365,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var query = new GetLastRateOfReturnQuery
         {
@@ -403,7 +417,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             ValueDate = SampleData.ValueDate
         };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
         // Act
         await actor.InvokeReceiveAsync(context, query);
@@ -444,7 +458,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             CurrencyType = SampleData.Currency
         };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
         // Act
         await actor.InvokeReceiveAsync(context, query);
@@ -484,7 +498,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             CurrencyType = SampleData.Currency
         };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
 
         // Act
@@ -516,7 +530,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
         var expected = GetValueDate.CalculateValueDate(DateTime.Now);
 
@@ -565,7 +579,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             MarketType = SampleData.Market,
             CurrencyType = SampleData.Currency
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         using var cancellation = new CancellationTokenSource();
         marketDataDbContext.GetTradingDatesAsync(
                 query.StartDate,
@@ -619,7 +633,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var db = Substitute.For<IMarketDataDbContext>();
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
 
@@ -636,7 +650,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var db = Substitute.For<IMarketDataDbContext>();
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
 
@@ -660,7 +674,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityFormat);
         var query = new GetLastRateOfReturnQuery
@@ -690,7 +704,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityId = new GetTradingDaysParameter(SampleData.StartDate, SampleData.EndDate, SampleData.Market, SampleData.Currency);
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityId.Format());
         var query = new GetTradingDaysQuery
@@ -720,7 +734,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityId = new GetTradingDatesParameter(SampleData.StartDate, SampleData.EndDate, SampleData.Market, SampleData.Currency);
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityId.Format());
         var query = new GetTradingDatesQuery
@@ -750,7 +764,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityId = new GetValueDateParameter();
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityId.Format());
         var query = new GetValueDateQuery
@@ -805,7 +819,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var query = new GetLastRateOfReturnQuery
         {
@@ -826,7 +840,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityFormat);
 
@@ -841,7 +855,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityFormat);
         var query = new GetLastRateOfReturnQuery
@@ -863,7 +877,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityFormat);
 
@@ -893,7 +907,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityFormat);
         var query = new GetLastRateOfReturnQuery
@@ -924,7 +938,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         // Arrange
         var logger = Substitute.For<ILogger<MarketDataQueryActor>>();
         var actor = _fixture.CreateActor(logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = actor.Context;
         var entityFormat = $"{SampleData.Symbol}.{SampleData.ValueDate:yyyy-MM-dd}";
         var threadId = new ActorThreadId(ActorType.Query, MarketDataQueryActor.ActorName, entityFormat);
         var query = new GetLastRateOfReturnQuery

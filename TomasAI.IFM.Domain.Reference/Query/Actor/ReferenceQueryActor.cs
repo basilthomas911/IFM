@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Query.Extensions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
@@ -19,12 +20,13 @@ namespace TomasAI.IFM.Domain.Reference.Query.Actor;
 /// This actor relies on the reference database for data retrieval and uses dependency injection to resolve
 /// required services.</remarks>
 /// <param name="logger">Logger for recording actor operations and errors.</param>
-public class ReferenceQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<ReferenceQueryActor> logger)
-    : BaseQueryActor<ReferenceQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorContext)
+    : BaseQueryActor<ReferenceQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "ReferenceQuery";
+    readonly ILogger<ReferenceQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    protected IReferenceQueryContext ReferenceQueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IReferenceQueryContext, nameof(actorContext))!;
 
     /// <summary>
     /// Parses the specified actor message and extracts the query associated with the message.
@@ -90,7 +92,11 @@ public class ReferenceQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            ReferenceQueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(ReferenceQueryContext, query, cancellationToken);
     }
 
     /// <summary>
@@ -100,43 +106,43 @@ public class ReferenceQueryActor(
     /// <remarks>This dictionary enables dynamic dispatch of reference-related queries by associating each query
     /// type name with a function that processes the query against a ReferenceQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetCurrentSeedIdQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetCurrentSeedIdQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetCurrentSeedIdQuery);
-            var result = await query.GetCurrentSeedIdAsync(dbFactory, cancellationToken);
+            var result = await query.GetCurrentSeedIdAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetCurrentSeedIdQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetNextSeedIdQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetNextSeedIdQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetNextSeedIdQuery);
-            var result = await query.GetNextSeedIdAsync(dbFactory, cancellationToken);
+            var result = await query.GetNextSeedIdAsync(ctx.DbFactory, cancellationToken);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetNextSeedIdQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetDefaultFuturesContractDefinitionsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetDefaultFuturesContractDefinitionsQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetDefaultFuturesContractDefinitionsQuery);
-            var result = await query.GetDefaultFuturesContractDefinitionsAsync(dbFactory, cancellationToken);
+            var result = await query.GetDefaultFuturesContractDefinitionsAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetDefaultFuturesContractDefinitionsQuery.Verb,
                 new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result));
         },
-        [typeof(GetFuturesOptionStrikePriceDefinitionsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesOptionStrikePriceDefinitionsQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetFuturesOptionStrikePriceDefinitionsQuery);
-            var result = await query.GetFuturesOptionStrikePriceDefinitionsAsync(dbFactory, cancellationToken);
+            var result = await query.GetFuturesOptionStrikePriceDefinitionsAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionStrikePriceDefinitionsQuery.Verb,
                 new ServiceResult<FuturesOptionStrikePriceReadModel>(result));
         },
-        [typeof(GetMDIForwardLossRatiosQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetMDIForwardLossRatiosQuery).Name] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetMDIForwardLossRatiosQuery);
-            var result = await query.GetMDIForwardLossRatiosAsync(dbFactory, cancellationToken);
+            var result = await query.GetMDIForwardLossRatiosAsync(ctx.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetMDIForwardLossRatiosQuery.Verb,
                 new ServiceResult<MDIForwardLossRatioReadModel[]>(result));
@@ -182,7 +188,7 @@ public class ReferenceQueryActor(
         catch (Exception innerEx)
         {
             try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

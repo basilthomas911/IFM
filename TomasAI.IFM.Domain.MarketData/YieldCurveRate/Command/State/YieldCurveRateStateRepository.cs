@@ -7,16 +7,15 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
 
 public class YieldCurveRateStateRepository(
-    IDbContextFactory dbFactory,
-    IEventSourceActorStateFactory aggregateFactory,
-    IEventSourceActorDbContext dbEventSource,
-    IActorService actorService,
-    ILogger<YieldCurveRateStateRepository> logger)
-    : BaseEventSourceActorRepository(aggregateFactory, dbEventSource, actorService, logger), IEventSourceActorStateRepository<YieldCurveRateCommandState>
+    ICommandActorContext<YieldCurveRateCommandActor> actorContext)
+    : BaseEventSourceActorRepository(actorContext.StateFactory, actorContext.DbEventSource,
+        actorContext.ActorService, actorContext.Logger), IEventSourceActorStateRepository<YieldCurveRateCommandState>
 {
     /// <summary>
     /// Loads the yield curve rate state from a snapshot event.
@@ -54,7 +53,7 @@ public class YieldCurveRateStateRepository(
     /// <returns>A task that represents the asynchronous denormalization operation.</returns>
     protected override async ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection domainEvents)
     {
-        var db = dbFactory.MarketDataDb;
+        var db = actorContext.DbFactory.MarketDataDb;
         foreach (var domainEvent in domainEvents)
         {
             _ = domainEvent switch

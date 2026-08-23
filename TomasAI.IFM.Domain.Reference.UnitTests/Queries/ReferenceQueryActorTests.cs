@@ -28,9 +28,28 @@ public class ReferenceQueryActorTests : IClassFixture<ReferenceTestFixture>
     public class TestableReferenceQueryActor : ReferenceQueryActor
     {
         public TestableReferenceQueryActor(IDbContextFactory dbFactory,ILogger<ReferenceQueryActor> logger)
-            : base(dbFactory,logger)
+            : this(CreateContext(dbFactory, logger))
         {
         }
+
+        TestableReferenceQueryActor(IReferenceQueryContext context)
+            : base(context)
+        {
+            ReferenceContext = context;
+        }
+
+        static IReferenceQueryContext CreateContext(
+            IDbContextFactory dbFactory,
+            ILogger<ReferenceQueryActor> logger)
+        {
+            var context = Substitute.For<IReferenceQueryContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Query, ReferenceQueryActor.ActorName));
+            context.DbFactory.Returns(dbFactory);
+            context.Logger.Returns(logger);
+            return context;
+        }
+
+        public IReferenceQueryContext ReferenceContext { get; }
 
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

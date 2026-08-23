@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Domain.MarketData.Feed.Query.Extensions;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Framework.SequenceId;
@@ -14,16 +15,18 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.Query.Actor;
 
-public class MarketDataFeedQueryActor(
-    ApplicationMarketDataApi marketDataApi,
-    ISequenceIdGenerator sequenceIdGenerator,
-    IDbContextFactory dbFactory,
-    ILogger<MarketDataFeedQueryActor> logger)
-    : BaseQueryActor<MarketDataFeedQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActor> actorContext)
+    : BaseQueryActor<MarketDataFeedQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
     public const string ActorName = "MarketDataFeedQuery";
+
+    /// <summary>Gets the typed query context supplied at construction.</summary>
+    protected IMarketDataFeedQueryContext QueryContext { get; } =
+        IsArgumentNull.Set(actorContext as IMarketDataFeedQueryContext, nameof(actorContext))!;
+
+    readonly ILogger<MarketDataFeedQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly MarketDataFeedQueryParameters _qryParameters = new(
-        marketDataApi, sequenceIdGenerator, dbFactory);
+        ((IMarketDataFeedQueryContext)actorContext).MarketDataApi, ((IMarketDataFeedQueryContext)actorContext).SequenceIdGenerator, ((IMarketDataFeedQueryContext)actorContext).DbFactory);
 
     /// <summary>
     /// Parses the specified actor message and extracts the thread identifier associated with the message.
@@ -76,14 +79,18 @@ public class MarketDataFeedQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, _qryParameters, query);
+        using var messageInfoScope = context.MirrorMessageInfoTo(
+            QueryContext,
+            query.Subject.ThreadId,
+            query.Subject.Verb);
+        await receiveFunc.Invoke(QueryContext, _qryParameters, query).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding market data feed query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap = new()
     {
         [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, qryParams, q) =>
         {
@@ -167,7 +174,7 @@ public class MarketDataFeedQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

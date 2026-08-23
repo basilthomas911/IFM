@@ -34,8 +34,19 @@ public class LookupTypeCommandActorTests : IClassFixture<ReferenceTestFixture>
 
     // Test helper to expose protected ParseMessage and ReceiveAsync for unit testing.
     public class TestableLookupTypeCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<LookupTypeCommandActor> logger) 
-        : LookupTypeCommandActor(dbEventSource, Substitute.For<IEventProjector<LookupTypeCommandActor>>(), logger)
+        : LookupTypeCommandActor(CreateContext(dbEventSource, logger), Substitute.For<IEventProjector<LookupTypeCommandActor>>())
     {
+        static ICommandActorContext<LookupTypeCommandActor> CreateContext(
+            IEventSourceActorDbContext dbEventSource,
+            ILogger<LookupTypeCommandActor> logger)
+        {
+            var context = Substitute.For<ILookupTypeCommandContext>();
+            context.ActorId.Returns(new ActorMailboxId(ActorType.Command, LookupTypeCommandActor.Actor));
+            context.Logger.Returns(logger);
+            context.DbEventSource.Returns(dbEventSource);
+            return context;
+        }
+
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 

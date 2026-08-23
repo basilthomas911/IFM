@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -26,7 +27,7 @@ public static class MarketDataFeedReset
     public static async ValueTask<bool> ExecuteAsync(
         this MarketDataFeedResetEvent e,
         IEventActorContext context,
-        IActorMarketDataFeedEventApi eventApi,
+        IEventActorContext eventApi,
         MarketDataFeedEventParameters p)
     {
         var source = $"MarketDataFeedResetEvent for EntityId: {e.EntityId}";
