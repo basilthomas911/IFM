@@ -4,6 +4,7 @@ Parameters:
   EnvironmentName: { Type: String, AllowedValues: [development, staging, production] }
   RecoveryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
   RecoveryAuditBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
+  PrimaryBucketName: { Type: String, AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$' }
   WorkloadAccountId: { Type: String, AllowedPattern: '^[0-9]{12}$' }
   ReplicationRoleArn: { Type: String, AllowedPattern: '^arn:aws:iam::[0-9]{12}:role/.+$' }
   RetentionDays: { Type: Number, Default: 35, MinValue: 35 }
@@ -165,9 +166,24 @@ Resources:
               - Effect: Allow
                 Action: [kms:Decrypt, kms:DescribeKey]
                 Resource: !GetAtt RecoveryKey.Arn
+  ReplicationLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-replication-lag-${EnvironmentName}
+      AlarmDescription: IFM recovery vault is more than 15 minutes behind the primary vault
+      Namespace: AWS/S3
+      MetricName: ReplicationLatency
+      Dimensions: [{ Name: SourceBucket, Value: !Ref PrimaryBucketName }, { Name: DestinationBucket, Value: !Ref RecoveryBucket }, { Name: RuleId, Value: ReplicateAllImmutableVersions }]
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 900
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: ignore
 Outputs:
   RecoveryBucketArn: { Value: !GetAtt RecoveryBucket.Arn }
   RecoveryBucketName: { Value: !Ref RecoveryBucket }
   RecoveryAuditBucketName: { Value: !Ref RecoveryAuditBucket }
   RecoveryEncryptionKeyArn: { Value: !GetAtt RecoveryKey.Arn }
   RecoveryReadRoleArn: { Value: !GetAtt RecoveryReadRole.Arn }
+  ReplicationLatencyAlarmArn: { Value: !GetAtt ReplicationLatencyAlarm.Arn }

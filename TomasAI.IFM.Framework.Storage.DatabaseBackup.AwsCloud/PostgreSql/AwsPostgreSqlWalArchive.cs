@@ -251,11 +251,19 @@ public sealed class AwsPostgreSqlWalSpool(AwsCloudDatabaseBackupOptions options)
         var target = Path.Combine(root, segmentName);
         if (File.Exists(target))
         {
-            if (new FileInfo(target).Length != length)
+            if (new FileInfo(target).Length != length || !FilesMatch(sourcePath, target))
                 throw new InvalidDataException("A PostgreSQL WAL spool identity was replayed with different content.");
             return target;
         }
         File.Copy(sourcePath, target, overwrite: false);
         return target;
+    }
+
+    static bool FilesMatch(string firstPath, string secondPath)
+    {
+        using var first = File.OpenRead(firstPath);
+        using var second = File.OpenRead(secondPath);
+        return CryptographicOperations.FixedTimeEquals(
+            SHA256.HashData(first), SHA256.HashData(second));
     }
 }

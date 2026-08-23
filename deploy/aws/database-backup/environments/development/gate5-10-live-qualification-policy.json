@@ -126,6 +126,18 @@
         "kms:DescribeKey"
       ],
       "Resource": "arn:aws:kms:ca-west-1:107651266250:key/4277d9a7-5182-4299-a61a-19ca0c5cf404"
+    },
+    {
+      "Sid": "QualifyDevelopmentReplicationAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:SetAlarmState"
+      ],
+      "Resource": [
+        "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-replication-failure-development",
+        "arn:aws:cloudwatch:ca-west-1:107651266250:alarm:ifm-database-backup-replication-lag-development"
+      ]
     }
   ]
 }

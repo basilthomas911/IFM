@@ -25,7 +25,26 @@ public sealed class DispatcherResilienceIntegrationTests
         executor.Attempts.Should().Be(1);
     }
 
-    static RecoverableJournalOperation Operation()
+    [Fact]
+    [Trait("Category", "Gate8Integration")]
+    public async Task Aws_failure_is_deferred_while_local_operation_continues_in_the_same_dispatch_cycle()
+    {
+        var aws = Operation(BackupSource.AwsCloud);
+        var local = Operation(BackupSource.LocalWorkstation);
+        var journal = new RecoverableJournal([aws, local]);
+        var executor = new SourceIsolatedExecutor();
+        var dispatcher = new DatabaseBackupExecutionDispatcher(journal, executor, new DatabaseBackupHostOptions
+        {
+            FailedOperationRetryDelay = TimeSpan.FromMinutes(5)
+        }, NullLogger<DatabaseBackupExecutionDispatcher>.Instance);
+
+        (await dispatcher.DispatchOnceAsync(CancellationToken.None)).Should().Be(1);
+
+        executor.AwsAttempts.Should().Be(1);
+        executor.LocalAttempts.Should().Be(1);
+    }
+
+    static RecoverableJournalOperation Operation(BackupSource source = BackupSource.LocalWorkstation)
     {
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
         var eventId = Guid.NewGuid();
@@ -45,7 +64,7 @@ public sealed class DispatcherResilienceIntegrationTests
                 {
                     SourceEventId = eventId,
                     OperationId = operationId,
-                    Source = BackupSource.LocalWorkstation,
+                    Source = source,
                     ProtectionSetId = new("core-postgresql"),
                     PolicyRevision = 1,
                     OperationKind = DatabaseRecoveryOperationKind.Backup,
@@ -69,12 +88,35 @@ public sealed class DispatcherResilienceIntegrationTests
         }
     }
 
-    sealed class RecoverableJournal(RecoverableJournalOperation operation) : IDatabaseBackupExecutionJournal
+    sealed class SourceIsolatedExecutor : IDatabaseRecoveryOperationExecutor
     {
+        public int AwsAttempts { get; private set; }
+        public int LocalAttempts { get; private set; }
+
+        public ValueTask ExecuteAsync(RecoverableJournalOperation operation, CancellationToken cancellationToken)
+        {
+            if (operation.Intent.Source == BackupSource.AwsCloud)
+            {
+                AwsAttempts++;
+                throw new IOException("simulated AWS source degradation");
+            }
+            LocalAttempts++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    sealed class RecoverableJournal : IDatabaseBackupExecutionJournal
+    {
+        readonly RecoverableJournalOperation[] _operations;
+
+        public RecoverableJournal(RecoverableJournalOperation operation) : this([operation]) { }
+
+        public RecoverableJournal(RecoverableJournalOperation[] operations) => _operations = operations;
+
         public async IAsyncEnumerable<RecoverableJournalOperation> ReadRecoverableOperationsAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await Task.Yield();
-            yield return operation;
+            foreach (var operation in _operations) yield return operation;
         }
         public ValueTask InitializeAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public ValueTask VerifyIntegrityAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;

@@ -120,6 +120,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
 
     [Fact]
     [Trait("Category", "Gate6Integration")]
+    [Trait("Category", "Gate10Negative")]
     public async Task Native_verification_rejects_a_tampered_base_backup_before_publication()
     {
         var options = Options();
@@ -209,6 +210,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
 
     [Fact]
     [Trait("Category", "Gate6Integration")]
+    [Trait("Category", "Gate10Negative")]
     public async Task Non_allowlisted_protection_sets_and_fresh_targets_are_rejected_before_native_execution()
     {
         var options = Options();
@@ -227,6 +229,112 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
         await backup.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not allowlisted*");
         await restore.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not allowlisted*");
         native.Invocations.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("Category", "Gate10Negative")]
+    public async Task Missing_incremental_parent_is_rejected_before_native_capture()
+    {
+        var options = Options(nativeMajorVersion: 17);
+        var native = new DeterministicPostgreSqlNativeRunner(nativeMajorVersion: 17);
+        var capability = new PostgreSqlBackupCapability(
+            options, native, new SyntheticPostgreSqlTargetValidator("unused"),
+            new SyntheticPostgreSqlSourceMetadataReader("7543210987654321000", 17, true));
+        var operation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var missingParent = new DatabaseRestorePointId("missing-parent");
+        var lineage = new DatabaseBackupLineage
+        {
+            RequestedMode = DatabaseBackupMode.Incremental,
+            ResolvedMode = DatabaseBackupMode.Incremental,
+            NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+            BaseRestorePointId = missingParent,
+            ParentRestorePointId = missingParent,
+            ChainDepth = 1
+        };
+
+        var action = () => capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(operation, new DatabaseProtectionSetId("core-postgresql"), lineage),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*parent evidence*unavailable*");
+        native.Invocations.Should().NotContain(value => value.Tool == PostgreSqlNativeTool.BaseBackup
+            && !value.Arguments.SequenceEqual(new[] { "--version" }));
+    }
+
+    [Fact]
+    [Trait("Category", "Gate10Negative")]
+    public async Task Missing_required_wal_is_rejected_before_fresh_target_start()
+    {
+        var options = Options();
+        var native = new DeterministicPostgreSqlNativeRunner();
+        var capability = new PostgreSqlBackupCapability(
+            options, native, new SyntheticPostgreSqlTargetValidator("unused"));
+        var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var boundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(backupOperation, new DatabaseProtectionSetId("core-postgresql")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(backupOperation, boundary.SafeBoundaryReference), CancellationToken.None);
+        var walRoot = Directory.CreateDirectory(Path.Combine(_root, "missing-wal")).FullName;
+        var target = new DateTimeOffset(2026, 8, 22, 18, 30, 0, TimeSpan.Zero);
+
+        var action = () => capability.RestoreToFreshTargetAsync(
+            new PostgreSqlRestoreRequest(
+                new DatabaseRecoveryOperationId(Guid.NewGuid()),
+                new DatabaseRestorePointId(backupOperation.Format()),
+                new DatabaseFreshTargetDescriptor("disposable-validation", "gate6", target),
+                Recovery: new PostgreSqlPreparedRecovery(
+                    target, "00000001", walRoot, ["000000010000000000000099"])),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<FileNotFoundException>().WithMessage("*required*WAL*");
+        native.Invocations.Should().NotContain(value => value.Tool == PostgreSqlNativeTool.Control
+            && value.Arguments.FirstOrDefault() == "start");
+    }
+
+    [Fact]
+    [Trait("Category", "Gate10Negative")]
+    public async Task Incompatible_native_tool_version_is_rejected_during_preflight()
+    {
+        var options = Options(nativeMajorVersion: 17);
+        var native = new DeterministicPostgreSqlNativeRunner(nativeMajorVersion: 16);
+        var capability = new PostgreSqlBackupCapability(
+            options, native, new SyntheticPostgreSqlTargetValidator("unused"));
+
+        var action = () => capability.ValidateAsync(CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*compatibility range*");
+    }
+
+    [Fact]
+    [Trait("Category", "Gate10Negative")]
+    public async Task Nonfresh_restore_staging_target_is_rejected_before_native_start()
+    {
+        var options = Options();
+        var native = new DeterministicPostgreSqlNativeRunner();
+        var capability = new PostgreSqlBackupCapability(
+            options, native, new SyntheticPostgreSqlTargetValidator("unused"));
+        var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var boundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(backupOperation, new DatabaseProtectionSetId("core-postgresql")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(backupOperation, boundary.SafeBoundaryReference), CancellationToken.None);
+        var restoreOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var staging = Path.Combine(options.ResolveRestoreRoot(), "disposable-validation", "gate6",
+            restoreOperation.Format() + ".inprogress");
+        Directory.CreateDirectory(staging);
+        await File.WriteAllTextAsync(Path.Combine(staging, "foreign.txt"), "not fresh");
+
+        var action = () => capability.RestoreToFreshTargetAsync(
+            new PostgreSqlRestoreRequest(
+                restoreOperation, new DatabaseRestorePointId(backupOperation.Format()),
+                new DatabaseFreshTargetDescriptor("disposable-validation", "gate6")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<InvalidOperationException>().WithMessage("*explicit reconciliation*");
+        native.Invocations.Should().NotContain(value => value.Tool == PostgreSqlNativeTool.Control
+            && value.Arguments.FirstOrDefault() == "start");
     }
 
     PostgreSqlBackupOptions Options(int nativeMajorVersion = 15) => new()
@@ -259,7 +367,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    sealed class SyntheticPostgreSqlTargetValidator(string expectedValue) : IPostgreSqlFreshTargetValidator
+    internal sealed class SyntheticPostgreSqlTargetValidator(string expectedValue) : IPostgreSqlFreshTargetValidator
     {
         public ValueTask<PostgreSqlFreshTargetValidation> ValidateAsync(
             PostgreSqlFreshTargetProfileOptions profile,
@@ -272,7 +380,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
         }
     }
 
-    sealed class SyntheticPostgreSqlSourceMetadataReader(
+    internal sealed class SyntheticPostgreSqlSourceMetadataReader(
         string systemIdentifier,
         int majorVersion,
         bool walSummariesEnabled) : IPostgreSqlSourceMetadataReader
@@ -287,7 +395,7 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
         }
     }
 
-    sealed class DeterministicPostgreSqlNativeRunner(int nativeMajorVersion = 15) : IPostgreSqlNativeProcessRunner
+    internal sealed class DeterministicPostgreSqlNativeRunner(int nativeMajorVersion = 15) : IPostgreSqlNativeProcessRunner
     {
         public List<PostgreSqlNativeInvocation> Invocations { get; } = [];
 

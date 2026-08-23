@@ -1,6 +1,6 @@
 # AWS Cloud Backup and Restore Gates 5-10 Validation Report
 
-**Date:** 2026-08-22
+**Date:** 2026-08-23
 
 **Account:** `107651266250`
 
@@ -8,7 +8,7 @@
 
 **Regions:** `ca-central-1` primary, `ca-west-1` recovery
 
-**Result:** Gate 5 complete; Gates 6-10 live fault/negative qualification remains in progress
+**Result:** Gates 5-8 and 10 complete; Gate 9 awaits deployment and live exercise of the recovery-region replication-lag alarm
 
 ## Scope and status
 
@@ -19,22 +19,22 @@ Passing unit and adapter tests is implementation evidence, not a substitute for 
 | Gate | Implemented result | Current qualification state |
 | ---: | --- | --- |
 | 5 | DynamoDB journal, seven record families, transactions, idempotent inbox/outbox, leases/fencing, checkpoints, `WorkQueueIndex`, consistent authoritative reads, and multipart checkpoints. | **Complete.** Live contract/concurrency and crash/restart flows pass; ambiguous admission response resolution is regression-tested; retained PITR target is active with schema/index parity, tags, PITR, TTL/stream parity, and its throttling alarm. |
-| 6 | Immutable S3 object store, bounded single/multipart upload/resume, checksums, SSE-KMS context, Object Lock, exact version IDs, ordered publication records, catalog enumeration/rebuild, and stale-upload cleanup. | Live single/multipart resume, duplicate/corruption rejection, exact read-back, catalog rebuild, and recovery replication pass. Remaining role-denial and dropped-response drills are pending. |
-| 7 | KMS ECDSA-SHA-256 signing/verification and offline public trust-bundle verification with key identity, algorithm, validity, and fingerprint checks. | Live online/offline verification and tamper rejection pass. Controlled denial and rollover-overlap drills remain pending. |
-| 8 | AWS recovery processor and engine selector over the shared durable state machine; independent AWS admission/execution/outbox runtime with source-scoped degraded health. | Rebuilt host is healthy; explicit restart returned healthy with NATS uninterrupted. Live AWS fault/reconciliation and health-isolation drill remains pending. |
-| 9 | PostgreSQL artifact publication with WAL continuity plus signed deterministic WAL catalog records, identity/timeline validation, gap/lag detection, recovery-vault support, and bounded non-dropping spool behavior. | Physical full plus six incrementals and live signed AWS full-plus-six/WAL gap/recovery replication pass. Slow-S3, source-failover, and alarm qualification remain pending. |
-| 10 | Exact-version dependency restoration from explicit primary/recovery vaults, artifact validation, WAL staging through a UTC PITR target, and PostgreSQL recovery configuration integrated with `pg_combinebackup`. | Exact dependency staging passes from both vaults; native chain boot and a real UTC-target PostgreSQL 17 PITR boot pass. End-to-end AWS-to-fresh-target, negative matrix, and component RPO/RTO remain pending. |
+| 6 | Immutable S3 object store, bounded single/multipart upload/resume, checksums, SSE-KMS context, Object Lock, exact version IDs, ordered publication records, catalog enumeration/rebuild, and stale-upload cleanup. | **Complete.** Live single/multipart resume, exact read-back, duplicate/corruption rejection, catalog rebuild, recovery replication, recovery-role write/delete denial, and isolated stale-upload cleanup pass. Lost single/multipart completion responses resolve only one exact verified immutable version. |
+| 7 | KMS ECDSA-SHA-256 signing/verification and offline public trust-bundle verification with key identity, algorithm, validity, and fingerprint checks. | **Complete.** Live online/offline verification, wrong Region/account/key-use denial, recovery-role signing denial, direct primary-key-use denial, and two-key rollover overlap pass; disabled/untrusted signing fails closed in deterministic tests. |
+| 8 | AWS recovery processor and engine selector over the shared durable state machine; independent AWS admission/execution/outbox runtime with source-scoped degraded health. | **Complete.** Exact duplicate, lease split-brain, reordered replay, publication failure, cancellation, and AWS/local isolation drills pass. A scoped live host restart returned healthy while NATS remained uninterrupted. |
+| 9 | PostgreSQL artifact publication with WAL continuity plus signed deterministic WAL catalog records, identity/timeline validation, gap/lag detection, recovery-vault support, and bounded non-dropping spool behavior. | Full plus six native and signed AWS chains, WAL gap/fill/replay, recovery failover, persistent spool restart/full-pressure, and measured replication pass. The destination-Region `ReplicationLatency` alarm is AWS-validated but not yet deployed/exercised; this is the sole remaining blocker. |
+| 10 | Exact-version dependency restoration from explicit primary/recovery vaults, artifact validation, WAL staging through a UTC PITR target, and PostgreSQL recovery configuration integrated with `pg_combinebackup`. | **Complete.** A signed full-plus-six chain from each vault feeds the native restore capability; real PostgreSQL 17 full, six-incremental, and UTC PITR targets boot and validate. Corrupt, missing-parent/WAL, wrong-timeline/version, KMS/credential-denial, and nonfresh-target cases pass. |
 
 ## Automated evidence recorded
 
-- AWS cloud unit tests: 35 passed, including journal contention/idempotency, ambiguous-response resolution, and
-  immutable-publication/signature tests.
+- AWS cloud unit tests: 43 passed, including journal contention/idempotency, ambiguous-response resolution,
+  immutable-publication/signature tests, signing rollover/disable failures, and bounded WAL spool pressure/restart.
 - Gate 5 live DynamoDB selection: 2 passed, including durable checkpoint/outbox recovery across a reconstructed journal
   instance and fencing-token advancement from 1 to 2.
 - Shared SQLite journal integration selection: 9 passed, including crash-after-outbox-write recovery, canonical
   idempotent sequencing, lease fencing, and restart recovery.
-- AWS cloud integration tests: 7 passed with live mutation disabled, including the opt-in live harness and complete host
-  dependency-injection graph.
+- AWS cloud integration tests: 27 passed with live mutation disabled, including the opt-in live harness, complete host
+  dependency-injection graph, and Gate 8 replay/failure/source-isolation state-machine tests.
 - SQLite journal and PostgreSQL native-capability regression selection: 5 passed.
 - Shared DatabaseBackup contract selection: 33 passed.
 - Full `TomasAI.IFM.sln` build: succeeded with zero warnings and zero errors.
@@ -72,18 +72,12 @@ sixth restore passed and retained the target table and alarm described below.
 
 ## Remaining qualification sequence
 
-1. Run S3 single/multipart boundary tests, interruption/resume, immutable denial, checksum/corruption failures, exact
-   version read-back, replication observation, and catalog deletion/rebuild.
-2. Run live KMS online/offline verification, wrong-key/Region/account and disabled-key failures, then a controlled key
-   rollover overlap test.
-3. Run AWS processor duplicate/reorder/cancellation/restart/fault tests and prove that AWS degradation does not stop the
-   host, UI, actors, or local processor.
-4. Publish a PostgreSQL full backup plus at least six direct-parent incrementals while archiving WAL. Inject a gap,
-   restart, slow-S3, and source-failover conditions and verify eligibility/lag behavior.
-5. Restore full, incremental, and selected PITR points from both primary and recovery vaults to fresh isolated targets;
-   run native, schema, extension, privilege, row/application-invariant, and read/write checks; record component RPO/RTO.
-
-No Gate 6-10 completion claim is permitted until these results are added to this report with immutable evidence IDs.
+1. Promote the reviewed `IFM-Gate4-CloudFormationExecution` managed-policy document so CloudFormation may manage only
+   `ifm-database-backup-replication-lag-development` in `ca-west-1`.
+2. Promote the reviewed `IFM-Gates5-10-LiveQualification` document so the qualification identity may describe and
+   temporarily set only the two Development replication alarms.
+3. Deploy the reviewed recovery-vault update, exercise alarm/OK transitions, record the alarm ARN and stack drift, and
+   restore the alarm to metric evaluation. Gate 9 may then be marked complete.
 
 ## Qualification activity log
 
@@ -180,5 +174,42 @@ No Gate 6-10 completion claim is permitted until these results are added to this
 - Gate 5 is complete. The restored table and alarm are retained as Development qualification evidence; no cleanup or
   production cutover was performed.
 
-These results close Gate 5. Gates 6-10 remain open wherever explicit negative, fault-injection, alarm, rollover, or
-end-to-end recovery evidence is still listed above.
+### 2026-08-23 Gates 6-10 fault and recovery continuation
+
+- Gate 6 live qualification passed all five selected tests. Fresh evidence included single-part operation
+  `809ab93f58b34b27b64b276776624c5d`/version `vtsBbA2jsNJCCNPWcHNbLBtti2Vm5Ob8`, multipart operation
+  `13178b60b8bd419688eb81134dab705c`/version `eH0x5n8tl9fZ5ZCj6Y0z_Epd8RtAR1hr`, catalog operation
+  `c6c01b50e93c49aaa74d11b5146f13d6`, and recovery replication operation
+  `db6f7367a29a4d66bede9a8d8808a5f1`. The recovery role was denied both deletion and overwrite. Cleanup aborted exactly
+  one isolated stale multipart upload and first proved that no unrelated in-flight upload existed.
+- Lost successful S3 single/multipart completion responses now resolve the one exact durable version and then perform
+  full length, checksum, encryption-key, retention, and content verification. Wrong-key/short-retention and truncated
+  reads fail closed.
+- Gate 7 live qualification passed four selected tests. Online/offline evidence operation
+  `fe1b9bc5bd524d1bb127e6dfabdb9dc1` used signing key
+  `arn:aws:kms:ca-central-1:107651266250:key/2edd60e5-be19-483d-b4df-88df45aa2fb2`, fingerprint
+  `705F75DDB510986F565B97B9329996EF6B9786E27CBE21E0FE796301908107CB`. Wrong Region/account/key usage and recovery-role
+  signing were denied. A revision-2 two-key overlap bundle kept pre-rollover evidence valid; disabled/untrusted keys fail
+  closed in unit coverage.
+- Gate 8 state-machine qualification passed five tests covering exact duplicate admission, unavailable lease,
+  last-sequence replay ordering, publication failure without terminal success, cancellation, and same-cycle AWS/local
+  source isolation. The live backup host restarted from `2026-08-23T03:33:51.85873218Z` and returned healthy; NATS kept
+  its original `2026-08-23T02:51:16.0660615Z` start time and zero restarts.
+- Gate 9 spool pressure/restart tests prove required WAL remains on disk when the bound is reached and that same-length
+  altered replay is rejected by SHA-256. A fresh live full-plus-six chain staged from both vaults: protection set
+  `postgresql-gate9-ad372e7f3f61462595e29c3fceaa8a15`, base
+  `2b1bc8234fe84f3c89daed8c98203545`, final `4fd5e67b3aac49dcbe9c49437f66e024`, recovery replication 23.662 seconds.
+- A recovery-region `ReplicationLatency` maximum alarm at the 900-second policy boundary was added to the recovery
+  CloudFormation stack. The repository policy and all four templates pass local checks and live AWS `ValidateTemplate`.
+  Deployment and alarm-state exercise await the two managed-policy promotions listed above.
+- Gate 10 passed six deterministic negative cases, two AWS object/WAL negative cases, and five live negative cases:
+  corrupt/truncated evidence, missing signed parent, missing WAL, wrong timeline, incompatible PostgreSQL tools,
+  direct KMS denial, invalid/expired session credentials, and nonfresh target rejection. No protected source was changed.
+- The connected qualification published a full plus six direct-parent chain, downloaded every exact signed dependency
+  from each of `aws-primary` and `aws-recovery` into fresh native roots, and invoked verification plus one actual combine
+  operation per vault; it passed in 49 seconds. Separately, five real Docker-native full, incremental, full-plus-six,
+  PITR, and Scylla regression restores passed in 5.67 minutes. The PostgreSQL full-plus-six case took 2 minutes 32
+  seconds; selected-UTC PITR took 34 seconds and returned only the pre-target row.
+
+These results close Gates 6, 7, 8, and 10. Gate 9 remains open only for the reviewed replication-lag alarm deployment
+and live alarm-state qualification; no production cutover or retained-version deletion was performed.

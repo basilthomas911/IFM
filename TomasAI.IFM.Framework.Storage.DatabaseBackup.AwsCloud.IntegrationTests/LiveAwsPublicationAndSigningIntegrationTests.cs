@@ -4,6 +4,7 @@ using System.Text.Json;
 using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.KeyManagementService;
+using Amazon.KeyManagementService.Model;
 using Amazon.Runtime;
 using Amazon.Runtime.Credentials;
 using Amazon.S3;
@@ -26,6 +27,7 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
 {
     [Fact]
     [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate6LiveQualification")]
     public async Task Development_vault_produces_exact_immutable_read_back_verified_evidence()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -69,6 +71,8 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
 
     [Fact]
     [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate6LiveQualification")]
+    [Trait("Category", "Gate10NegativeLiveQualification")]
     public async Task Development_vault_resumes_multipart_upload_and_rejects_duplicate_and_corrupt_evidence()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -169,6 +173,65 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
 
     [Fact]
     [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate6LiveQualification")]
+    public async Task Development_reconciliation_aborts_only_the_isolated_stale_multipart_upload()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
+            return;
+
+        var options = LiveOptions();
+        using var s3 = new AmazonS3Client(RegionEndpoint.CACentral1);
+        var prefix = $"v1/environment/development/evidence/operation/{Guid.NewGuid():N}/";
+        var before = await s3.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
+        {
+            BucketName = options.PrimaryBucketName,
+            Prefix = "v1/environment/development/"
+        });
+        (before.MultipartUploads ?? []).Should().BeEmpty(
+            "stale reconciliation must not run while unrelated Development uploads are in flight");
+        var key = new AwsGeneratedObjectKey(prefix + "gate6-stale-multipart.bin");
+        var initiated = await s3.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest
+        {
+            BucketName = options.PrimaryBucketName,
+            Key = key.Value,
+            ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
+            ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
+            ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
+            ObjectLockMode = ObjectLockMode.Governance,
+            ObjectLockRetainUntilDate = DateTime.UtcNow.AddDays(options.DefaultRetentionDays + 1)
+        });
+        var uploadId = initiated.UploadId ?? throw new InvalidOperationException("S3 returned no multipart upload ID.");
+        var aborted = false;
+        try
+        {
+            var future = new FixedTimeProvider(DateTimeOffset.UtcNow.Add(options.StaleMultipartUploadAge).AddHours(1));
+            var store = new S3ImmutableObjectStore(s3, options, future);
+            (await store.AbortStaleMultipartUploadsAsync(CancellationToken.None)).Should().Be(1);
+            aborted = true;
+            var after = await s3.ListMultipartUploadsAsync(new ListMultipartUploadsRequest
+            {
+                BucketName = options.PrimaryBucketName,
+                Prefix = key.Value
+            });
+            (after.MultipartUploads ?? []).Should().BeEmpty();
+            output.WriteLine("AbortedStaleUploadId={0}", uploadId);
+            output.WriteLine("AbortedStaleObjectKey={0}", key.Value);
+        }
+        finally
+        {
+            if (!aborted)
+                await s3.AbortMultipartUploadAsync(new AbortMultipartUploadRequest
+                {
+                    BucketName = options.PrimaryBucketName,
+                    Key = key.Value,
+                    UploadId = uploadId
+                });
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate6LiveQualification")]
     public async Task Development_publication_catalog_rebuilds_from_signed_immutable_records()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -224,6 +287,7 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
 
     [Fact]
     [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate6LiveQualification")]
     public async Task Development_publication_replicates_and_verifies_through_recovery_role()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -321,6 +385,17 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
         await delete.Should().ThrowAsync<AmazonS3Exception>()
             .Where(exception => exception.ErrorCode == "AccessDenied"
                 || exception.ErrorCode == "AccessDeniedException");
+        var deniedPut = () => recoveryS3.PutObjectAsync(new PutObjectRequest
+        {
+            BucketName = options.RecoveryBucketName,
+            Key = $"v1/environment/development/evidence/denied/gate6-{Guid.NewGuid():N}.json",
+            ContentBody = "denied",
+            ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
+            ServerSideEncryptionKeyManagementServiceKeyId = options.RecoveryEncryptionKeyArn
+        });
+        await deniedPut.Should().ThrowAsync<AmazonS3Exception>()
+            .Where(exception => exception.ErrorCode == "AccessDenied"
+                || exception.ErrorCode == "AccessDeniedException");
         output.WriteLine("OperationId={0}", operationId.Format());
         output.WriteLine("RestorePointId={0}", published.RestorePointId.Value);
         output.WriteLine("RecoveryReplicaId={0}", recovered.Entry.ReplicaId.Value);
@@ -330,6 +405,7 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
 
     [Fact]
     [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate7LiveQualification")]
     public async Task Development_signing_key_produces_online_and_offline_verifiable_evidence()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -368,6 +444,97 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
         output.WriteLine("OperationId={0}", operationId.Format());
         output.WriteLine("SigningKeyArn={0}", signature.KeyArn);
         output.WriteLine("PublicKeySha256={0}", trustedKey.PublicKeySha256);
+    }
+
+    [Fact]
+    [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate7LiveQualification")]
+    public async Task Development_signing_fails_closed_for_wrong_region_account_and_key_usage()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
+            return;
+
+        var options = LiveOptions();
+        var document = DatabaseBackupCanonicalJson.Serialize(new
+        {
+            schemaVersion = 1,
+            qualification = "gate-7-negative-matrix",
+            operationId = Guid.NewGuid().ToString("N")
+        });
+
+        using var wrongRegionKms = new AmazonKeyManagementServiceClient(RegionEndpoint.CAWest1);
+        var wrongRegion = new KmsDocumentSignatureService(wrongRegionKms, options, TimeProvider.System);
+        var wrongRegionAction = () => wrongRegion.SignAsync(document, CancellationToken.None).AsTask();
+        var wrongRegionFailure = await wrongRegionAction.Should()
+            .ThrowAsync<AmazonKeyManagementServiceException>();
+
+        using var primaryKms = new AmazonKeyManagementServiceClient(RegionEndpoint.CACentral1);
+        var wrongAccountOptions = LiveOptions();
+        wrongAccountOptions.SigningKeyArn =
+            "arn:aws:kms:ca-central-1:000000000000:key/2edd60e5-be19-483d-b4df-88df45aa2fb2";
+        var wrongAccount = new KmsDocumentSignatureService(primaryKms, wrongAccountOptions, TimeProvider.System);
+        var wrongAccountAction = () => wrongAccount.SignAsync(document, CancellationToken.None).AsTask();
+        var wrongAccountFailure = await wrongAccountAction.Should()
+            .ThrowAsync<AmazonKeyManagementServiceException>();
+
+        var wrongUsageOptions = LiveOptions();
+        wrongUsageOptions.SigningKeyArn = options.PrimaryEncryptionKeyArn;
+        var wrongUsage = new KmsDocumentSignatureService(primaryKms, wrongUsageOptions, TimeProvider.System);
+        var wrongUsageAction = () => wrongUsage.SignAsync(document, CancellationToken.None).AsTask();
+        var wrongUsageFailure = await wrongUsageAction.Should()
+            .ThrowAsync<AmazonKeyManagementServiceException>();
+
+        output.WriteLine("WrongRegionErrorCode={0}", wrongRegionFailure.Which.ErrorCode);
+        output.WriteLine("WrongAccountErrorCode={0}", wrongAccountFailure.Which.ErrorCode);
+        output.WriteLine("WrongKeyUsageErrorCode={0}", wrongUsageFailure.Which.ErrorCode);
+    }
+
+    [Fact]
+    [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate7LiveQualification")]
+    public async Task Development_pre_rollover_kms_evidence_remains_valid_in_an_overlap_bundle()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
+            return;
+
+        var options = LiveOptions();
+        using var kms = new AmazonKeyManagementServiceClient(RegionEndpoint.CACentral1);
+        var signer = new KmsDocumentSignatureService(kms, options, TimeProvider.System);
+        var document = DatabaseBackupCanonicalJson.Serialize(new
+        {
+            schemaVersion = 1,
+            qualification = "gate-7-rollover-overlap",
+            operationId = Guid.NewGuid().ToString("N")
+        });
+        var signature = await signer.SignAsync(document, CancellationToken.None);
+        var oldTrustedKey = await signer.ExportTrustedPublicKeyAsync(
+            signature.SignedUtc.AddDays(-1), signature.SignedUtc.AddDays(options.DefaultRetentionDays + 1),
+            CancellationToken.None);
+        using var nextKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var nextPublicKey = nextKey.ExportSubjectPublicKeyInfo();
+        var bundle = new AwsRecoveryTrustBundle
+        {
+            Environment = "development",
+            Revision = 2,
+            CreatedUtc = DateTimeOffset.UtcNow,
+            Keys =
+            [
+                oldTrustedKey,
+                new AwsRecoveryTrustedKey(
+                    "arn:aws:kms:ca-central-1:107651266250:key/controlled-rollover-successor",
+                    "ECC_NIST_P256", "SIGN_VERIFY", "ECDSA_SHA_256",
+                    Convert.ToBase64String(nextPublicKey), Convert.ToHexString(SHA256.HashData(nextPublicKey)),
+                    signature.SignedUtc.AddSeconds(1), signature.SignedUtc.AddDays(options.DefaultRetentionDays + 1))
+            ]
+        };
+
+        AwsOfflineSignatureVerifier.Verify(
+            document, signature, bundle, signature.SignedUtc.AddMinutes(1));
+
+        output.WriteLine("PreRolloverKeyArn={0}", oldTrustedKey.KeyArn);
+        output.WriteLine("PreRolloverPublicKeySha256={0}", oldTrustedKey.PublicKeySha256);
+        output.WriteLine("OverlapBundleRevision={0}", bundle.Revision);
+        output.WriteLine("OverlapKeyCount={0}", bundle.Keys.Length);
     }
 
     [Fact]
@@ -521,6 +688,7 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
     [Fact]
     [Trait("Category", "LiveAwsMutation")]
     [Trait("Category", "Gate9LiveQualification")]
+    [Trait("Category", "Gate10NegativeLiveQualification")]
     public async Task Development_signed_wal_archive_detects_gap_then_replication_verifies_continuity()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -617,6 +785,106 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
         output.WriteLine("RecoveryReplicationSeconds={0:F3}", (DateTimeOffset.UtcNow - recoveryStarted).TotalSeconds);
     }
 
+    [Fact]
+    [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate10NegativeLiveQualification")]
+    public async Task Development_restore_rejects_a_missing_signed_parent_before_staging()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
+            return;
+
+        var options = LiveOptions();
+        using var primaryS3 = new AmazonS3Client(RegionEndpoint.CACentral1);
+        using var primaryKms = new AmazonKeyManagementServiceClient(RegionEndpoint.CACentral1);
+        using var recoveryS3 = new AmazonS3Client(RegionEndpoint.CAWest1);
+        var store = new S3ImmutableObjectStore(primaryS3, options, TimeProvider.System);
+        var signer = new KmsDocumentSignatureService(primaryKms, options, TimeProvider.System);
+        var catalog = new S3DatabaseBackupCatalog(primaryS3, store, signer, options);
+        var walArchive = new AwsPostgreSqlWalArchive(primaryS3, store, signer, options, TimeProvider.System);
+        var operation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var restorePoint = new DatabaseRestorePointId(operation.Format());
+        var missingParent = new DatabaseRestorePointId($"missing-{Guid.NewGuid():N}");
+        var protectionSet = new DatabaseProtectionSetId($"postgresql-gate10-negative-{Guid.NewGuid():N}");
+        var content = Encoding.UTF8.GetBytes($"gate10-missing-parent-{operation.Format()}");
+        var publisher = new S3DatabaseBackupPublicationCapability(
+            new InMemoryNativeArtifactSource("data/probe.bin", content), store, signer, options,
+            new DatabaseBackupHostOptions { HostId = "gate10-negative-live" }, TimeProvider.System);
+        await publisher.PublishAsync(new DatabaseBackupPublicationRequest(
+            operation, protectionSet, DatabaseEngine.PostgreSql, "gate10-missing-parent-boundary",
+            [new DatabaseLogicalDestination("aws-primary", true)],
+            Dependencies: [missingParent],
+            BackupLineage: new DatabaseBackupLineage
+            {
+                RequestedMode = DatabaseBackupMode.Incremental,
+                ResolvedMode = DatabaseBackupMode.Incremental,
+                NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+                BaseRestorePointId = missingParent,
+                ParentRestorePointId = missingParent,
+                ChainDepth = 1
+            }), CancellationToken.None);
+        using var recoveryVault = new AwsRecoveryVaultClient(recoveryS3);
+        var source = new S3DatabaseRestoreSourceCapability(
+            primaryS3, catalog, new InMemoryRestoreArtifactSink(), walArchive,
+            options, recoveryVault, signer, TimeProvider.System);
+
+        var action = () => source.PrepareAsync(new DatabaseRestoreSourceRequest(
+            new DatabaseRecoveryOperationId(Guid.NewGuid()), restorePoint, DatabaseEngine.PostgreSql,
+            new DatabaseArtifactReplicaId("aws-primary")), CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<FileNotFoundException>().WithMessage("*not catalog-visible*");
+        output.WriteLine("RestorePointId={0}", restorePoint.Value);
+        output.WriteLine("MissingParentRestorePointId={0}", missingParent.Value);
+    }
+
+    [Fact]
+    [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate10NegativeLiveQualification")]
+    public async Task Development_interactive_identity_is_denied_direct_primary_kms_use()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
+            return;
+
+        var options = LiveOptions();
+        var sourceCredentials = DefaultAWSCredentialsIdentityResolver.GetCredentials(
+            new AmazonSecurityTokenServiceConfig { RegionEndpoint = RegionEndpoint.CACentral1 });
+        using var primaryKms = new AmazonKeyManagementServiceClient(sourceCredentials, RegionEndpoint.CACentral1);
+        var action = () => primaryKms.EncryptAsync(new EncryptRequest
+        {
+            KeyId = options.PrimaryEncryptionKeyArn,
+            Plaintext = new MemoryStream("gate10-primary-kms-denial"u8.ToArray(), writable: false),
+            EncryptionAlgorithm = EncryptionAlgorithmSpec.SYMMETRIC_DEFAULT
+        }, CancellationToken.None);
+
+        await action.Should().ThrowAsync<AmazonKeyManagementServiceException>()
+            .Where(exception => exception.ErrorCode == "AccessDenied"
+                || exception.ErrorCode == "AccessDeniedException");
+    }
+
+    [Fact]
+    [Trait("Category", "LiveAwsMutation")]
+    [Trait("Category", "Gate10NegativeLiveQualification")]
+    public async Task Development_vault_rejects_invalid_or_expired_session_credentials()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal))
+            return;
+
+        var options = LiveOptions();
+        var expired = new SessionAWSCredentials(
+            "ASIAEXPIREDSESSION000", "expired-session-secret", "expired-session-token");
+        using var s3 = new AmazonS3Client(expired, RegionEndpoint.CACentral1);
+
+        var action = () => s3.ListVersionsAsync(new ListVersionsRequest
+        {
+            BucketName = options.PrimaryBucketName,
+            Prefix = "v1/environment/development/"
+        }, CancellationToken.None);
+
+        await action.Should().ThrowAsync<AmazonServiceException>()
+            .Where(exception => exception.ErrorCode == "ExpiredToken"
+                || exception.ErrorCode == "InvalidToken"
+                || exception.ErrorCode == "InvalidAccessKeyId");
+    }
+
     static void AssertPreparedChain(
         DatabasePreparedRestoreSource prepared,
         DatabaseRestorePointId expectedFinal,
@@ -698,5 +966,10 @@ public sealed class LiveAwsPublicationAndSigningIntegrationTests(ITestOutputHelp
             Convert.ToHexString(SHA256.HashData(bytes)).Should().BeEquivalentTo(expectedSha256);
             Artifacts[restorePointId].Add(relativePath, bytes);
         }
+    }
+
+    sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

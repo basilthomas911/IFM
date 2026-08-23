@@ -83,17 +83,27 @@ public sealed class S3ImmutableObjectStore(
         AwsGeneratedObjectKey key, Stream source, long length, byte[] sha256,
         DateTimeOffset retainUntilUtc, string context, CancellationToken cancellationToken)
     {
-        var response = await s3.PutObjectAsync(new PutObjectRequest
+        var checksum = Convert.ToBase64String(sha256);
+        try
         {
-            BucketName = options.PrimaryBucketName, Key = key.Value, InputStream = source,
-            AutoCloseStream = false,
-            ChecksumSHA256 = Convert.ToBase64String(sha256),
-            ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
-            ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
-            ServerSideEncryptionKeyManagementServiceEncryptionContext = context,
-            ObjectLockMode = LockMode(), ObjectLockRetainUntilDate = retainUntilUtc.UtcDateTime
-        }, cancellationToken).ConfigureAwait(false);
-        return Descriptor(key, response.VersionId, length, sha256, response.ChecksumSHA256, retainUntilUtc, context);
+            var response = await s3.PutObjectAsync(new PutObjectRequest
+            {
+                BucketName = options.PrimaryBucketName, Key = key.Value, InputStream = source,
+                AutoCloseStream = false,
+                ChecksumSHA256 = checksum,
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
+                ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,
+                ServerSideEncryptionKeyManagementServiceEncryptionContext = context,
+                ObjectLockMode = LockMode(), ObjectLockRetainUntilDate = retainUntilUtc.UtcDateTime
+            }, cancellationToken).ConfigureAwait(false);
+            return Descriptor(key, response.VersionId, length, sha256, response.ChecksumSHA256, retainUntilUtc, context);
+        }
+        catch (AmazonS3Exception exception) when (IsAmbiguous(exception))
+        {
+            var versionId = await ResolveAmbiguousCompletionAsync(key, cancellationToken).ConfigureAwait(false);
+            if (versionId is null) throw;
+            return Descriptor(key, versionId, length, sha256, checksum, retainUntilUtc, context);
+        }
     }
 
     async Task<AwsImmutableObjectVersion> UploadMultipartAsync(
@@ -169,12 +179,23 @@ public sealed class S3ImmutableObjectStore(
             ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
         }
 
-        var complete = await s3.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
+        CompleteMultipartUploadResponse? complete = null;
+        string? resolvedVersionId = null;
+        try
         {
-            BucketName = options.PrimaryBucketName, Key = key.Value, UploadId = uploadId, PartETags = completed
-        }, cancellationToken).ConfigureAwait(false);
+            complete = await s3.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
+            {
+                BucketName = options.PrimaryBucketName, Key = key.Value, UploadId = uploadId, PartETags = completed
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (AmazonS3Exception exception) when (IsAmbiguous(exception))
+        {
+            resolvedVersionId = await ResolveAmbiguousCompletionAsync(key, cancellationToken).ConfigureAwait(false);
+            if (resolvedVersionId is null) throw;
+        }
         if (checkpoints is not null) await checkpoints.RemoveAsync(key, cancellationToken).ConfigureAwait(false);
-        return Descriptor(key, complete.VersionId, length, sha256, complete.ChecksumSHA256, retainUntilUtc, context);
+        return Descriptor(key, complete?.VersionId ?? resolvedVersionId, length, sha256,
+            complete?.ChecksumSHA256 ?? Convert.ToBase64String(sha256), retainUntilUtc, context);
     }
 
     public async ValueTask<int> AbortStaleMultipartUploadsAsync(CancellationToken cancellationToken)
@@ -237,6 +258,20 @@ public sealed class S3ImmutableObjectStore(
             throw new InvalidOperationException("Immutable AWS publication rejects reuse of an existing object key.");
     }
 
+    async Task<string?> ResolveAmbiguousCompletionAsync(
+        AwsGeneratedObjectKey key, CancellationToken cancellationToken)
+    {
+        var response = await s3.ListVersionsAsync(new ListVersionsRequest
+        {
+            BucketName = options.PrimaryBucketName, Prefix = key.Value, MaxKeys = 2
+        }, cancellationToken).ConfigureAwait(false);
+        var exact = (response.Versions ?? []).Where(version => version.IsDeleteMarker != true
+            && StringComparer.Ordinal.Equals(version.Key, key.Value)).ToArray();
+        if (exact.Length > 1)
+            throw new InvalidDataException("An ambiguous S3 completion produced multiple immutable object versions.");
+        return exact.SingleOrDefault()?.VersionId;
+    }
+
     async Task<byte[]> HashAsync(Stream source, CancellationToken cancellationToken)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -272,6 +307,9 @@ public sealed class S3ImmutableObjectStore(
 
     ObjectLockMode LockMode() => options.ObjectLockMode.Equals("Compliance", StringComparison.OrdinalIgnoreCase)
         ? ObjectLockMode.Compliance : ObjectLockMode.Governance;
+
+    static bool IsAmbiguous(AmazonS3Exception exception)
+        => (int)exception.StatusCode >= 500 || exception.InnerException is TimeoutException;
 
     static async Task<int> ReadExactlyOrEofAsync(Stream source, Memory<byte> buffer, CancellationToken cancellationToken)
     {

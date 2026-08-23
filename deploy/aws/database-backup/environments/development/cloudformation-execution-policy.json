@@ -174,7 +174,8 @@
       ],
       "Resource": [
         "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-journal-throttling-development",
-        "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-replication-failure-development"
+        "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-replication-failure-development",
+        "arn:aws:cloudwatch:ca-west-1:107651266250:alarm:ifm-database-backup-replication-lag-development"
       ]
     },
     {

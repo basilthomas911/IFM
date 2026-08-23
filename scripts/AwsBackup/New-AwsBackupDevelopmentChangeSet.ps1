@@ -39,6 +39,7 @@ switch ($Stack) {
         $parameters = $common + @(
             "ParameterKey=RecoveryBucketName,ParameterValue=$($inputs.resourceNames.recoveryBucket)",
             "ParameterKey=RecoveryAuditBucketName,ParameterValue=$($inputs.resourceNames.recoveryAuditBucket)",
+            "ParameterKey=PrimaryBucketName,ParameterValue=$($inputs.resourceNames.primaryBucket)",
             "ParameterKey=WorkloadAccountId,ParameterValue=$accountId",
             "ParameterKey=ReplicationRoleArn,ParameterValue=$($inputs.resourceNames.replicationRoleArn)",
             "ParameterKey=RetentionDays,ParameterValue=$($inputs.retentionDays)",

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
 using FluentAssertions;
@@ -86,6 +87,87 @@ public sealed class AwsImmutablePublicationTests
     }
 
     [Fact]
+    public async Task Lost_single_part_response_resolves_the_one_exact_immutable_version()
+    {
+        var content = "ambiguous-success"u8.ToArray();
+        var hash = SHA256.HashData(content);
+        var key = new AwsGeneratedObjectKey("v1/environment/development/test/ambiguous");
+        var options = Options();
+        var retainUntil = DateTimeOffset.UtcNow.AddDays(35);
+        var s3 = Substitute.For<IAmazonS3>();
+        s3.ListVersionsAsync(Arg.Any<ListVersionsRequest>(), Arg.Any<CancellationToken>())
+            .Returns(
+                new ListVersionsResponse { Versions = [] },
+                new ListVersionsResponse
+                {
+                    Versions = [new S3ObjectVersion { Key = key.Value, VersionId = "resolved-version" }]
+                });
+        s3.PutObjectAsync(Arg.Any<PutObjectRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<PutObjectResponse>>(_ => throw new AmazonS3Exception("response lost")
+            {
+                StatusCode = HttpStatusCode.InternalServerError
+            });
+        ConfigureReadBack(s3, options, content, "resolved-version", retainUntil);
+        var store = new S3ImmutableObjectStore(s3, options, TimeProvider.System);
+
+        var result = await store.UploadAsync(key,
+            _ => ValueTask.FromResult<Stream>(new MemoryStream(content, writable: false)), content.Length,
+            retainUntil, new Dictionary<string, string> { ["operationId"] = "ambiguous" }, CancellationToken.None);
+
+        result.VersionId.Should().Be("resolved-version");
+        result.Sha256.Should().Be(Convert.ToHexString(hash));
+        await s3.Received(2).ListVersionsAsync(Arg.Any<ListVersionsRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Exact_version_verification_rejects_wrong_encryption_key_and_short_retention()
+    {
+        var content = "metadata"u8.ToArray();
+        var options = Options();
+        var expected = Expected(options, content);
+        var s3 = Substitute.For<IAmazonS3>();
+        s3.GetObjectMetadataAsync(Arg.Any<GetObjectMetadataRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GetObjectMetadataResponse
+            {
+                ContentLength = content.Length, VersionId = expected.VersionId,
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
+                ServerSideEncryptionKeyManagementServiceKeyId = options.RecoveryEncryptionKeyArn,
+                ObjectLockMode = ObjectLockMode.Governance,
+                ObjectLockRetainUntilDate = expected.RetainUntilUtc.AddDays(-1).UtcDateTime,
+                ChecksumSHA256 = expected.S3ChecksumSha256
+            });
+        var store = new S3ImmutableObjectStore(s3, options, TimeProvider.System);
+
+        var action = () => store.VerifyAsync(expected, CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<InvalidDataException>();
+        await s3.DidNotReceive().GetObjectAsync(Arg.Any<GetObjectRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    [Trait("Category", "Gate10Negative")]
+    public async Task Exact_version_verification_rejects_truncated_content()
+    {
+        var content = "complete-content"u8.ToArray();
+        var options = Options();
+        var expected = Expected(options, content);
+        var s3 = Substitute.For<IAmazonS3>();
+        ConfigureReadBack(s3, options, content, expected.VersionId, expected.RetainUntilUtc);
+        s3.GetObjectAsync(Arg.Any<GetObjectRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new GetObjectResponse
+            {
+                ResponseStream = new MemoryStream(content[..^1], writable: false),
+                ContentLength = content.Length - 1,
+                VersionId = expected.VersionId
+            });
+        var store = new S3ImmutableObjectStore(s3, options, TimeProvider.System);
+
+        var action = () => store.VerifyAsync(expected, CancellationToken.None).AsTask();
+
+        await action.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
     public async Task Multipart_boundary_uses_bounded_parts_and_completes_before_readback()
     {
         var options = Options();
@@ -126,6 +208,7 @@ public sealed class AwsImmutablePublicationTests
     }
 
     [Fact]
+    [Trait("Category", "Gate10Negative")]
     public async Task Wal_archive_rejects_wrong_timeline_before_any_aws_call()
     {
         var s3 = Substitute.For<IAmazonS3>();
@@ -163,6 +246,26 @@ public sealed class AwsImmutablePublicationTests
                 ResponseStream = new MemoryStream(content, writable: false), ContentLength = content.LongLength,
                 VersionId = versionId
             });
+    }
+
+    static AwsImmutableObjectVersion Expected(AwsCloudDatabaseBackupOptions options, byte[] content)
+    {
+        var checksum = SHA256.HashData(content);
+        return new AwsImmutableObjectVersion
+        {
+            BucketName = options.PrimaryBucketName,
+            Region = options.PrimaryRegion,
+            ObjectKey = "v1/environment/development/test/exact",
+            VersionId = "exact-version",
+            Length = content.LongLength,
+            Sha256 = Convert.ToHexString(checksum),
+            S3ChecksumSha256 = Convert.ToBase64String(checksum),
+            EncryptionKeyArn = options.PrimaryEncryptionKeyArn,
+            EncryptionContextBase64 = Convert.ToBase64String("{}"u8),
+            ObjectLockMode = "Governance",
+            RetainUntilUtc = DateTimeOffset.UtcNow.AddDays(35),
+            PublishedUtc = DateTimeOffset.UtcNow
+        };
     }
 
     static AwsCloudDatabaseBackupOptions Options() => new()
