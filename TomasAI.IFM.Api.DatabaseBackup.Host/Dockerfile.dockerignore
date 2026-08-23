@@ -16,6 +16,8 @@
 !TomasAI.IFM.Framework.Serialization/**
 !TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation/
 !TomasAI.IFM.Framework.Storage.DatabaseBackup.LocalWorkstation/**
+!TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud/
+!TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud/**
 !TomasAI.IFM.Shared/
 !TomasAI.IFM.Shared/**
 

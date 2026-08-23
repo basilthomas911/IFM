@@ -47,7 +47,7 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
     {
         var options = Options();
         var runner = new DockerPostgreSqlNativeRunner(SourceContainer, TargetContainer, Password, _targetPort);
-        var validator = new LiveSyntheticTargetValidator();
+        var validator = new LiveSyntheticTargetValidator(TargetContainer);
         var capability = new PostgreSqlBackupCapability(options, runner, validator);
         var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
         await capability.ValidateAsync(CancellationToken.None);
@@ -137,6 +137,121 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
         runner.CombineBackupExecutionCount.Should().Be(1);
     }
 
+    [Fact]
+    [Trait("Category", "Gate9NativeIntegration")]
+    [Trait("Category", "Gate10NativeIntegration")]
+    public async Task Full_plus_six_direct_parent_incrementals_combine_and_boot_with_latest_data()
+    {
+        var started = Stopwatch.GetTimestamp();
+        var options = Options();
+        var runner = new DockerPostgreSqlNativeRunner(SourceContainer, TargetContainer, Password, _targetPort);
+        var validator = new LiveSyntheticTargetValidator();
+        var capability = new PostgreSqlBackupCapability(options, runner, validator);
+        var baseOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var baseRestorePoint = new DatabaseRestorePointId(baseOperation.Format());
+        var baseBoundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(baseOperation, new DatabaseProtectionSetId("core-postgresql")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(baseOperation, baseBoundary.SafeBoundaryReference), CancellationToken.None);
+
+        var dependencies = new List<DatabaseRestorePointId> { baseRestorePoint };
+        var parent = baseRestorePoint;
+        DatabaseRecoveryOperationId finalOperation = default;
+        PostgreSqlBackupBoundary? finalBoundary = null;
+        for (var depth = 1; depth <= 6; depth++)
+        {
+            await ExecuteSourceSqlAsync(
+                $"UPDATE gate6_restore_probe SET payload = 'native-depth-{depth}' WHERE id = 1; "
+                + "CHECKPOINT; SELECT pg_switch_wal(); CHECKPOINT;");
+            await WaitForWalSummaryAsync();
+            var operation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+            var restorePoint = new DatabaseRestorePointId(operation.Format());
+            var lineage = new DatabaseBackupLineage
+            {
+                RequestedMode = DatabaseBackupMode.Incremental,
+                ResolvedMode = DatabaseBackupMode.Incremental,
+                NativeKind = DatabaseNativeBackupKind.PostgreSqlIncremental,
+                BaseRestorePointId = baseRestorePoint,
+                ParentRestorePointId = parent,
+                ChainDepth = depth
+            };
+            var boundary = await capability.CreateBaseBackupAsync(
+                new PostgreSqlBackupRequest(
+                    operation, new DatabaseProtectionSetId("core-postgresql"), lineage),
+                new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+            _ = await capability.VerifyAsync(
+                new PostgreSqlVerificationRequest(operation, boundary.SafeBoundaryReference, lineage), CancellationToken.None);
+            if (depth < 6) dependencies.Add(restorePoint);
+            parent = restorePoint;
+            finalOperation = operation;
+            finalBoundary = boundary;
+        }
+
+        var restore = await capability.RestoreToFreshTargetAsync(
+            new PostgreSqlRestoreRequest(
+                new DatabaseRecoveryOperationId(Guid.NewGuid()),
+                new DatabaseRestorePointId(finalOperation.Format()),
+                new DatabaseFreshTargetDescriptor("docker-validation", "gate6-native"),
+                [.. dependencies]),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+
+        finalBoundary.Should().NotBeNull();
+        finalBoundary!.BackupLineage!.ChainDepth.Should().Be(6);
+        finalBoundary.BackupLineage.ParentRestorePointId.Should().Be(dependencies[^1]);
+        restore.Succeeded.Should().BeTrue();
+        validator.SyntheticValue.Should().Be("native-depth-6");
+        runner.BaseBackupExecutionCount.Should().Be(7);
+        runner.CombineBackupExecutionCount.Should().Be(1);
+        Stopwatch.GetElapsedTime(started).Should().BeLessThan(TimeSpan.FromMinutes(10));
+    }
+
+    [Fact]
+    [Trait("Category", "Gate9NativeIntegration")]
+    [Trait("Category", "Gate10NativeIntegration")]
+    public async Task Physical_base_backup_and_archived_wal_boot_to_the_selected_utc_target()
+    {
+        var started = Stopwatch.GetTimestamp();
+        var options = Options();
+        var walArchive = Path.Combine(_root, "pitr-wal");
+        Directory.CreateDirectory(walArchive);
+        var runner = new DockerPostgreSqlNativeRunner(
+            SourceContainer, TargetContainer, Password, _targetPort, walArchive);
+        var validator = new LiveSyntheticTargetValidator(TargetContainer);
+        var capability = new PostgreSqlBackupCapability(options, runner, validator);
+        var backupOperation = new DatabaseRecoveryOperationId(Guid.NewGuid());
+        var boundary = await capability.CreateBaseBackupAsync(
+            new PostgreSqlBackupRequest(backupOperation, new DatabaseProtectionSetId("core-postgresql")),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+        _ = await capability.VerifyAsync(
+            new PostgreSqlVerificationRequest(backupOperation, boundary.SafeBoundaryReference), CancellationToken.None);
+
+        await ExecuteSourceSqlAsync("UPDATE gate6_restore_probe SET payload = 'before-pitr-target' WHERE id = 1");
+        var recoveryTargetUtc = await ReadSourceUtcAsync();
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        await ExecuteSourceSqlAsync("UPDATE gate6_restore_probe SET payload = 'after-pitr-target' WHERE id = 1");
+        var segment = await ReadSourceTextAsync("SELECT pg_walfile_name(pg_current_wal_insert_lsn())");
+        await ExecuteSourceSqlAsync("SELECT pg_switch_wal(); CHECKPOINT;");
+        await DockerAsync(["cp",
+            $"{SourceContainer}:/var/lib/postgresql/data/pg_wal/{segment}",
+            Path.Combine(walArchive, segment)]);
+
+        var restore = await capability.RestoreToFreshTargetAsync(
+            new PostgreSqlRestoreRequest(
+                new DatabaseRecoveryOperationId(Guid.NewGuid()),
+                new DatabaseRestorePointId(backupOperation.Format()),
+                new DatabaseFreshTargetDescriptor(
+                    "docker-validation", "gate6-native", recoveryTargetUtc,
+                    new DatabaseArtifactReplicaId("aws-primary")),
+                Recovery: new PostgreSqlPreparedRecovery(
+                    recoveryTargetUtc, segment[..8], walArchive, [segment])),
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+
+        restore.Succeeded.Should().BeTrue();
+        validator.SyntheticValue.Should().Be("before-pitr-target");
+        Stopwatch.GetElapsedTime(started).Should().BeLessThan(TimeSpan.FromMinutes(5));
+    }
+
     PostgreSqlBackupOptions Options() => new()
     {
         ToolDirectory = Path.Combine(_root, "container-tools"),
@@ -206,6 +321,27 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
+    async Task<DateTimeOffset> ReadSourceUtcAsync()
+    {
+        await using var connection = new NpgsqlConnection(_sourceConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT clock_timestamp()";
+        var value = (DateTime)(await command.ExecuteScalarAsync()
+            ?? throw new InvalidOperationException("PostgreSQL returned no UTC timestamp."));
+        return new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+    }
+
+    async Task<string> ReadSourceTextAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(_sourceConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return (string)(await command.ExecuteScalarAsync()
+            ?? throw new InvalidOperationException("PostgreSQL returned no text value."));
+    }
+
     async Task WaitForWalSummaryAsync()
     {
         var deadline = DateTimeOffset.UtcNow.AddMinutes(1);
@@ -247,7 +383,25 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
         return output.Trim();
     }
 
-    sealed class LiveSyntheticTargetValidator : IPostgreSqlFreshTargetValidator
+    static async Task<string> DockerDiagnosticAsync(IReadOnlyList<string> arguments)
+    {
+        var start = new ProcessStartInfo
+        {
+            FileName = "docker",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Docker could not be started.");
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return (output + Environment.NewLine + error).Trim();
+    }
+
+    sealed class LiveSyntheticTargetValidator(string? diagnosticContainer = null) : IPostgreSqlFreshTargetValidator
     {
         readonly PostgreSqlFreshTargetValidator _native = new();
         public string SyntheticValue { get; private set; } = string.Empty;
@@ -258,8 +412,18 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
             string expectedSystemIdentifier,
             CancellationToken cancellationToken)
         {
-            var validation = await _native.ValidateAsync(
-                profile, sourceEnvironment, expectedSystemIdentifier, cancellationToken);
+            PostgreSqlFreshTargetValidation validation;
+            try
+            {
+                validation = await _native.ValidateAsync(
+                    profile, sourceEnvironment, expectedSystemIdentifier, cancellationToken);
+            }
+            catch (Exception exception) when (diagnosticContainer is not null)
+            {
+                var logs = await DockerDiagnosticAsync(["logs", diagnosticContainer]);
+                throw new InvalidOperationException(
+                    $"The disposable PostgreSQL target failed validation. Container logs: {logs}", exception);
+            }
             var connectionString = $"Host={profile.Host};Port={profile.Port};Database=postgres;Username=postgres;Password={Password};SSL Mode=Disable;Pooling=false";
             await using var connection = new NpgsqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken);
@@ -275,7 +439,8 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
         string sourceContainer,
         string targetContainer,
         string password,
-        int targetPort) : IPostgreSqlNativeProcessRunner
+        int targetPort,
+        string? pitrWalArchivePath = null) : IPostgreSqlNativeProcessRunner
     {
         public int BaseBackupExecutionCount { get; private set; }
         public int CombineBackupExecutionCount { get; private set; }
@@ -354,10 +519,30 @@ public sealed class PostgreSqlNativeDockerIntegrationTests : IAsyncLifetime
             else if (invocation.Tool == PostgreSqlNativeTool.Control && invocation.Arguments[0] == "start")
             {
                 var data = ValueAfter(invocation.Arguments, "--pgdata");
-                output = await DockerAsync(["run", "--detach", "--name", targetContainer,
+                var arguments = new List<string> { "run", "--detach", "--name", targetContainer,
                     "--publish", $"127.0.0.1:{targetPort}:5432",
                     "--mount", $"type=bind,source={Path.GetFullPath(data)},target=/var/lib/postgresql/data",
-                    "--env", $"POSTGRES_PASSWORD={password}", Image]);
+                    "--env", $"POSTGRES_PASSWORD={password}" };
+                if (pitrWalArchivePath is not null)
+                {
+                    await File.AppendAllTextAsync(
+                        Path.Combine(data, "postgresql.auto.conf"),
+                        "restore_command = 'cp -- \"/wal/%f\" \"%p\"'" + Environment.NewLine,
+                        cancellationToken);
+                    arguments.AddRange(["--mount",
+                        $"type=bind,source={Path.GetFullPath(pitrWalArchivePath)},target=/wal,readonly"]);
+                }
+                arguments.Add(Image);
+                output = await DockerAsync(arguments);
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                var running = await DockerAsync(
+                    ["inspect", "--format", "{{.State.Running}}", targetContainer], allowFailure: true);
+                if (!string.Equals(running, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    var logs = await DockerAsync(["logs", targetContainer], allowFailure: true);
+                    throw new InvalidOperationException(
+                        $"The disposable PostgreSQL recovery target exited during startup: {logs}");
+                }
             }
             else
             {

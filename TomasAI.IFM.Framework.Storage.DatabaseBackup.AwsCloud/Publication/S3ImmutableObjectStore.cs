@@ -132,7 +132,9 @@ public sealed class S3ImmutableObjectStore(
                 if (read != required) throw new EndOfStreamException("The immutable multipart source was truncated.");
                 if (existing.TryGetValue(partNumber, out var part) && part.Size == read)
                 {
-                    completed.Add(new PartETag(partNumber, part.ETag));
+                    if (string.IsNullOrWhiteSpace(part.ChecksumSHA256))
+                        throw new InvalidDataException("A resumed S3 multipart part has no SHA-256 checksum.");
+                    completed.Add(new PartETag(partNumber, part.ETag) { ChecksumSHA256 = part.ChecksumSHA256 });
                 }
                 else
                 {
@@ -144,7 +146,9 @@ public sealed class S3ImmutableObjectStore(
                         PartNumber = partNumber, PartSize = read, InputStream = body,
                         ChecksumSHA256 = Convert.ToBase64String(partDigest)
                     }, cancellationToken).ConfigureAwait(false);
-                    completed.Add(new PartETag(partNumber, response.ETag));
+                    if (string.IsNullOrWhiteSpace(response.ChecksumSHA256))
+                        throw new InvalidDataException("S3 returned no SHA-256 checksum for an uploaded multipart part.");
+                    completed.Add(new PartETag(partNumber, response.ETag) { ChecksumSHA256 = response.ChecksumSHA256 });
                 }
                 uploaded += read;
                 if (checkpoints is not null)

@@ -76,6 +76,16 @@ Resources:
             Principal: { AWS: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root' }
             Action: [kms:CancelKeyDeletion, kms:CreateAlias, kms:CreateGrant, kms:DeleteAlias, kms:DescribeKey, kms:DisableKey, kms:EnableKey, kms:GetKeyPolicy, kms:GetPublicKey, kms:ListGrants, kms:ListKeyPolicies, kms:ListResourceTags, kms:PutKeyPolicy, kms:RevokeGrant, kms:ScheduleKeyDeletion, kms:TagResource, kms:UntagResource, kms:UpdateAlias, kms:UpdateKeyDescription]
             Resource: '*'
+          - Sid: AllowApprovedDocumentSigning
+            Effect: Allow
+            Principal: { AWS: '*' }
+            Action: [kms:GetPublicKey, kms:Sign, kms:Verify]
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                'aws:PrincipalArn':
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ifm-database-backup-upload-${EnvironmentName}'
+                  - !Ref SecurityAuditPrincipalArn
       Tags:
         - { Key: Application, Value: IFM }
         - { Key: Component, Value: DatabaseBackup }

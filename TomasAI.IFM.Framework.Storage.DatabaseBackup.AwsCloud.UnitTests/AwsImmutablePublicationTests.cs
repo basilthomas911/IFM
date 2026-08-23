@@ -103,7 +103,11 @@ public sealed class AwsImmutablePublicationTests
             .Returns(new ListPartsResponse { Parts = [], IsTruncated = false });
         var part = 0;
         s3.UploadPartAsync(Arg.Any<UploadPartRequest>(), Arg.Any<CancellationToken>())
-            .Returns(_ => new UploadPartResponse { ETag = $"etag-{++part}" });
+            .Returns(call => new UploadPartResponse
+            {
+                ETag = $"etag-{++part}",
+                ChecksumSHA256 = call.Arg<UploadPartRequest>().ChecksumSHA256
+            });
         s3.CompleteMultipartUploadAsync(Arg.Any<CompleteMultipartUploadRequest>(), Arg.Any<CancellationToken>())
             .Returns(new CompleteMultipartUploadResponse { VersionId = "version-multipart", ChecksumSHA256 = Convert.ToBase64String(hash) });
         ConfigureReadBack(s3, options, content, "version-multipart", DateTimeOffset.UtcNow.AddDays(35));
@@ -116,7 +120,9 @@ public sealed class AwsImmutablePublicationTests
         result.VersionId.Should().Be("version-multipart");
         await s3.Received(2).UploadPartAsync(Arg.Any<UploadPartRequest>(), Arg.Any<CancellationToken>());
         await s3.Received(1).CompleteMultipartUploadAsync(
-            Arg.Is<CompleteMultipartUploadRequest>(request => request.PartETags.Count == 2), Arg.Any<CancellationToken>());
+            Arg.Is<CompleteMultipartUploadRequest>(request => request.PartETags.Count == 2
+                && request.PartETags.All(static item => !string.IsNullOrWhiteSpace(item.ChecksumSHA256))),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

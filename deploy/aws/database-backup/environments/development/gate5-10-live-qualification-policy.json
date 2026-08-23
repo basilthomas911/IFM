@@ -6,9 +6,11 @@
       "Effect": "Allow",
       "Action": [
         "dynamodb:BatchGetItem",
+        "dynamodb:ConditionCheckItem",
         "dynamodb:DeleteItem",
         "dynamodb:DescribeContinuousBackups",
         "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
         "dynamodb:GetItem",
         "dynamodb:PutItem",
         "dynamodb:Query",
@@ -25,13 +27,33 @@
       "Sid": "QualifyDevelopmentJournalPitrTarget",
       "Effect": "Allow",
       "Action": [
+        "dynamodb:BatchGetItem",
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:DeleteItem",
         "dynamodb:DescribeContinuousBackups",
         "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:GetItem",
         "dynamodb:ListTagsOfResource",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:RestoreTableToPointInTime",
+        "dynamodb:Scan",
         "dynamodb:TagResource",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:UpdateItem",
         "dynamodb:UpdateContinuousBackups"
       ],
       "Resource": "arn:aws:dynamodb:ca-central-1:107651266250:table/ifm-database-backup-journal-development-pitr-*"
+    },
+    {
+      "Sid": "QualifyDevelopmentJournalPitrAlarm",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:PutMetricAlarm"
+      ],
+      "Resource": "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-journal-throttling-development-pitr-*"
     },
     {
       "Sid": "QualifyDevelopmentPrimaryVault",
@@ -45,7 +67,8 @@
         "s3:ListBucketMultipartUploads",
         "s3:ListBucketVersions",
         "s3:ListMultipartUploadParts",
-        "s3:PutObject"
+        "s3:PutObject",
+        "s3:PutObjectRetention"
       ],
       "Resource": [
         "arn:aws:s3:::ifm-db-backup-development-primary-107651266250",
@@ -68,19 +91,31 @@
       ]
     },
     {
-      "Sid": "QualifyDevelopmentSigningAndPrimaryEncryption",
+      "Sid": "QualifyDevelopmentPrimaryEncryption",
       "Effect": "Allow",
       "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
         "kms:Encrypt",
-        "kms:GenerateDataKey",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df"
+    },
+    {
+      "Sid": "QualifyDevelopmentSigning",
+      "Effect": "Allow",
+      "Action": [
         "kms:GetPublicKey",
         "kms:Sign",
         "kms:Verify"
       ],
-      "Resource": [
-        "arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df",
-        "arn:aws:kms:ca-central-1:107651266250:key/2edd60e5-be19-483d-b4df-88df45aa2fb2"
-      ]
+      "Resource": "arn:aws:kms:ca-central-1:107651266250:key/2edd60e5-be19-483d-b4df-88df45aa2fb2"
+    },
+    {
+      "Sid": "QualifyDevelopmentRecoveryRole",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::107651266250:role/ifm-database-backup-recovery-read-development"
     },
     {
       "Sid": "QualifyDevelopmentRecoveryDecryption",

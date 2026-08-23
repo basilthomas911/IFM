@@ -112,7 +112,9 @@ public sealed class PostgreSqlBackupCapabilityIntegrationTests : IDisposable
             restoreOperation.Format(), "data");
         File.Exists(Path.Combine(targetData, "recovery.signal")).Should().BeTrue();
         var settings = await File.ReadAllTextAsync(Path.Combine(targetData, "postgresql.auto.conf"));
-        settings.Should().Contain("recovery_target_time").And.Contain(targetUtc.UtcDateTime.ToString("O"));
+        settings.Should().Contain("recovery_target_time")
+            .And.Contain("2026-08-22 18:30:00.000000+00:00")
+            .And.NotContain("2026-08-22T18:30:00");
         settings.Should().Contain("restore_command").And.Contain(walRoot.Replace('\\', '/'));
     }
 

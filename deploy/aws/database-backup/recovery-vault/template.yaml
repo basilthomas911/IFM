@@ -34,6 +34,14 @@ Resources:
             Condition:
               StringEquals: { 'kms:ViaService': !Sub 's3.${AWS::Region}.amazonaws.com' }
               ArnEquals: { 'aws:PrincipalArn': !Ref ReplicationRoleArn }
+          - Sid: RecoveryRoleDecryption
+            Effect: Allow
+            Principal: { AWS: '*' }
+            Action: [kms:Decrypt, kms:DescribeKey]
+            Resource: '*'
+            Condition:
+              ArnEquals:
+                'aws:PrincipalArn': !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/ifm-database-backup-recovery-read-${EnvironmentName}'
       Tags: [{ Key: Application, Value: IFM }, { Key: Component, Value: DatabaseBackup }, { Key: Environment, Value: !Ref EnvironmentName }]
   RecoveryKeyAlias:
     Type: AWS::KMS::Alias

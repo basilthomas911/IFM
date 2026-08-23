@@ -389,9 +389,11 @@ public sealed partial class PostgreSqlBackupCapability : IPostgreSqlBackupCapabi
         var restoreCommand = OperatingSystem.IsWindows()
             ? $"copy /Y \"{archive}/%f\" \"%p\""
             : $"cp -- \"{archive}/%f\" \"%p\"";
+        var target = recovery.TargetUtc.ToString(
+            "yyyy-MM-dd HH:mm:ss.ffffffzzz", CultureInfo.InvariantCulture);
         var settings = string.Join(Environment.NewLine,
             $"restore_command = '{restoreCommand}'",
-            $"recovery_target_time = '{recovery.TargetUtc.UtcDateTime:O}'",
+            $"recovery_target_time = '{target}'",
             "recovery_target_action = 'pause'",
             "recovery_target_inclusive = on") + Environment.NewLine;
         await File.AppendAllTextAsync(Path.Combine(targetData, "postgresql.auto.conf"), settings, cancellationToken)

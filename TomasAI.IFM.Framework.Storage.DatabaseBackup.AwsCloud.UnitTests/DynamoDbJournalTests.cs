@@ -2,6 +2,7 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using FluentAssertions;
 using NSubstitute;
+using System.Net;
 using TomasAI.IFM.Application.DatabaseBackup.Contracts;
 using TomasAI.IFM.Application.DatabaseBackup.Policies;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
@@ -64,6 +65,41 @@ public sealed class DynamoDbJournalTests
         var action = () => journal.AdmitAsync(Intent(), CancellationToken.None).AsTask();
 
         await action.Should().ThrowAsync<DatabaseExecutionConflictException>();
+    }
+
+    [Fact]
+    public async Task Ambiguous_admission_response_is_resolved_by_a_consistent_inbox_read()
+    {
+        var dynamo = Substitute.For<IAmazonDynamoDB>();
+        var intent = Intent();
+        var hash = DatabaseBackupContractSerializer.Serialize(intent.ExecutionEvent).Hash;
+        var inboxReads = 0;
+        dynamo.GetItemAsync(Arg.Any<GetItemRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var request = call.Arg<GetItemRequest>();
+                if (!request.Key["SK"].S.StartsWith("INBOX#", StringComparison.Ordinal)
+                    || Interlocked.Increment(ref inboxReads) == 1)
+                    return Task.FromResult(new GetItemResponse { Item = [] });
+
+                return Task.FromResult(new GetItemResponse
+                {
+                    Item = new() { ["content_hash"] = new AttributeValue { S = hash } }
+                });
+            });
+        dynamo.TransactWriteItemsAsync(Arg.Any<TransactWriteItemsRequest>(), Arg.Any<CancellationToken>())
+            .Returns<Task<TransactWriteItemsResponse>>(_ => throw new AmazonDynamoDBException("response lost")
+            {
+                StatusCode = HttpStatusCode.InternalServerError
+            });
+        var journal = Create(dynamo);
+
+        var result = await journal.AdmitAsync(intent, CancellationToken.None);
+
+        result.Outcome.Should().Be(JournalAdmissionOutcome.ExactDuplicate);
+        await dynamo.Received(3).GetItemAsync(
+            Arg.Is<GetItemRequest>(static request => request.ConsistentRead == true),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

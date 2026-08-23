@@ -34,8 +34,15 @@ function Invoke-AwsJson {
 
 $source = Invoke-AwsJson @('dynamodb', 'describe-table', '--table-name', $SourceTableName)
 $sourcePitr = Invoke-AwsJson @('dynamodb', 'describe-continuous-backups', '--table-name', $SourceTableName)
+$sourceTtl = Invoke-AwsJson @('dynamodb', 'describe-time-to-live', '--table-name', $SourceTableName)
 if ($sourcePitr.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus -ne 'ENABLED') {
     throw 'The source journal table does not have point-in-time recovery enabled.'
+}
+if ($source.Table.StreamSpecification.StreamEnabled -eq $true) {
+    throw 'The source journal unexpectedly has a stream; extend the reviewed PITR runbook before restoring it.'
+}
+if ($sourceTtl.TimeToLiveDescription.TimeToLiveStatus -notin @('DISABLED', 'DISABLING')) {
+    throw 'The source journal unexpectedly has TTL; extend the reviewed PITR runbook before restoring it.'
 }
 
 $plan = [pscustomobject]@{
@@ -74,10 +81,28 @@ Invoke-AwsJson @(
     'dynamodb', 'update-continuous-backups', '--table-name', $TargetTableName,
     '--point-in-time-recovery-specification', 'PointInTimeRecoveryEnabled=true'
 ) | Out-Null
+$alarmName = $TargetTableName.Replace(
+    'ifm-database-backup-journal-', 'ifm-database-backup-journal-throttling-')
+Invoke-AwsJson @(
+    'cloudwatch', 'put-metric-alarm',
+    '--alarm-name', $alarmName,
+    '--alarm-description', 'IFM restored backup journal throttling detected',
+    '--namespace', 'AWS/DynamoDB',
+    '--metric-name', 'ThrottledRequests',
+    '--dimensions', "Name=TableName,Value=$TargetTableName",
+    '--statistic', 'Sum',
+    '--period', '300',
+    '--evaluation-periods', '1',
+    '--threshold', '1',
+    '--comparison-operator', 'GreaterThanOrEqualToThreshold',
+    '--treat-missing-data', 'notBreaching'
+) | Out-Null
 
 $target = Invoke-AwsJson @('dynamodb', 'describe-table', '--table-name', $TargetTableName)
 $targetPitr = Invoke-AwsJson @('dynamodb', 'describe-continuous-backups', '--table-name', $TargetTableName)
+$targetTtl = Invoke-AwsJson @('dynamodb', 'describe-time-to-live', '--table-name', $TargetTableName)
 $targetTags = Invoke-AwsJson @('dynamodb', 'list-tags-of-resource', '--resource-arn', $targetArn)
+$targetAlarm = Invoke-AwsJson @('cloudwatch', 'describe-alarms', '--alarm-names', $alarmName)
 $sourceKeys = @($source.Table.KeySchema | ForEach-Object { "$($_.AttributeName):$($_.KeyType)" } | Sort-Object)
 $targetKeys = @($target.Table.KeySchema | ForEach-Object { "$($_.AttributeName):$($_.KeyType)" } | Sort-Object)
 $targetIndexes = @($target.Table.GlobalSecondaryIndexes | ForEach-Object { $_.IndexName })
@@ -88,6 +113,17 @@ if ($target.Table.TableStatus -ne 'ACTIVE') { throw 'Restored journal is not ACT
 if ($targetPitr.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus -ne 'ENABLED') {
     throw 'Restored journal PITR was not enabled.'
 }
+if ($target.Table.StreamSpecification.StreamEnabled -eq $true) { throw 'Restored journal unexpectedly has a stream.' }
+if ($targetTtl.TimeToLiveDescription.TimeToLiveStatus -notin @('DISABLED', 'DISABLING')) {
+    throw 'Restored journal unexpectedly has TTL.'
+}
+if (@($targetAlarm.MetricAlarms).Count -ne 1 -or
+    $targetAlarm.MetricAlarms[0].MetricName -ne 'ThrottledRequests' -or
+    @($targetAlarm.MetricAlarms[0].Dimensions | Where-Object {
+        $_.Name -eq 'TableName' -and $_.Value -eq $TargetTableName
+    }).Count -ne 1) {
+    throw 'Restored journal throttling alarm was not attached correctly.'
+}
 
 [pscustomobject]@{
     Result = 'Passed'
@@ -96,8 +132,12 @@ if ($targetPitr.ContinuousBackupsDescription.PointInTimeRecoveryDescription.Poin
     TargetArn = $targetArn
     TableStatus = $target.Table.TableStatus
     PointInTimeRecoveryStatus = $targetPitr.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus
+    TimeToLiveStatus = $targetTtl.TimeToLiveDescription.TimeToLiveStatus
+    StreamEnabled = [bool]$target.Table.StreamSpecification.StreamEnabled
     GlobalSecondaryIndexes = $targetIndexes
     Tags = $targetTags.Tags
+    ThrottlingAlarmName = $alarmName
+    ThrottlingAlarmArn = $targetAlarm.MetricAlarms[0].AlarmArn
     TargetRetainedForEvidence = $true
-    AlarmReattachmentRequiredThroughReviewedInfrastructureChange = $true
+    AlarmReattached = $true
 }
