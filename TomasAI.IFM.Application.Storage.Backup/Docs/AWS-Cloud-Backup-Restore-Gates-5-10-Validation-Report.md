@@ -8,7 +8,7 @@
 
 **Regions:** `ca-central-1` primary, `ca-west-1` recovery
 
-**Result:** Live qualification in progress; Gate 5 PITR policy promotion and remaining Gates 6-10 fault/negative drills pending
+**Result:** Gate 5 complete; Gates 6-10 live fault/negative qualification remains in progress
 
 ## Scope and status
 
@@ -18,7 +18,7 @@ Passing unit and adapter tests is implementation evidence, not a substitute for 
 
 | Gate | Implemented result | Current qualification state |
 | ---: | --- | --- |
-| 5 | DynamoDB journal, seven record families, transactions, idempotent inbox/outbox, leases/fencing, checkpoints, `WorkQueueIndex`, consistent authoritative reads, and multipart checkpoints. | Live journal contract/concurrency and crash/restart flows pass; ambiguous admission response resolution is regression-tested. Restore-to-new-table PITR remains blocked until the latest bounded policy version is made default. |
+| 5 | DynamoDB journal, seven record families, transactions, idempotent inbox/outbox, leases/fencing, checkpoints, `WorkQueueIndex`, consistent authoritative reads, and multipart checkpoints. | **Complete.** Live contract/concurrency and crash/restart flows pass; ambiguous admission response resolution is regression-tested; retained PITR target is active with schema/index parity, tags, PITR, TTL/stream parity, and its throttling alarm. |
 | 6 | Immutable S3 object store, bounded single/multipart upload/resume, checksums, SSE-KMS context, Object Lock, exact version IDs, ordered publication records, catalog enumeration/rebuild, and stale-upload cleanup. | Live single/multipart resume, duplicate/corruption rejection, exact read-back, catalog rebuild, and recovery replication pass. Remaining role-denial and dropped-response drills are pending. |
 | 7 | KMS ECDSA-SHA-256 signing/verification and offline public trust-bundle verification with key identity, algorithm, validity, and fingerprint checks. | Live online/offline verification and tamper rejection pass. Controlled denial and rollover-overlap drills remain pending. |
 | 8 | AWS recovery processor and engine selector over the shared durable state machine; independent AWS admission/execution/outbox runtime with source-scoped degraded health. | Rebuilt host is healthy; explicit restart returned healthy with NATS uninterrupted. Live AWS fault/reconciliation and health-isolation drill remains pending. |
@@ -59,7 +59,7 @@ recovery-vault reads, the recovery-read role, and the Development encryption/sig
 Development qualification identity and remove it after evidence capture. Normal operation must use the workload roles,
 not this user policy.
 
-Four real restore attempts refined and then reconfirmed the target authorization boundary without creating a target table. Target
+Five real restore attempts refined and then reconfirmed the target authorization boundary without creating a target table. Target
 `ifm-database-backup-journal-development-pitr-20260822T204240Z` was denied for missing `dynamodb:Scan`; after that policy
 update, target `ifm-database-backup-journal-development-pitr-20260822T212621Z` advanced to a missing `dynamodb:Query`
 denial; after the read-set update, target `ifm-database-backup-journal-development-pitr-20260822T213112Z` advanced to a
@@ -67,24 +67,23 @@ missing `dynamodb:UpdateItem` denial. Target
 `ifm-database-backup-journal-development-pitr-20260823T025435Z` reconfirmed that same denial because the reviewed
 repository version was not the effective IAM default. The repository policy now mirrors the established journal
 data-plane action set onto only the approved Development PITR target prefix, permits TTL parity reads, and permits only
-the target-specific throttling alarm prefix. Gate 5 PITR must be rerun after this current policy version is made default.
+the target-specific throttling alarm prefix. After the complete documented dependent-action set was made effective, the
+sixth restore passed and retained the target table and alarm described below.
 
 ## Remaining qualification sequence
 
-1. Attach the bounded policy and run the live DynamoDB contract, contention, crash/restart, ambiguous-response, and
-   restore-to-new-table PITR test. Reapply required tags, alarms, and PITR to the restored table and retain the evidence.
-2. Run S3 single/multipart boundary tests, interruption/resume, immutable denial, checksum/corruption failures, exact
+1. Run S3 single/multipart boundary tests, interruption/resume, immutable denial, checksum/corruption failures, exact
    version read-back, replication observation, and catalog deletion/rebuild.
-3. Run live KMS online/offline verification, wrong-key/Region/account and disabled-key failures, then a controlled key
+2. Run live KMS online/offline verification, wrong-key/Region/account and disabled-key failures, then a controlled key
    rollover overlap test.
-4. Run AWS processor duplicate/reorder/cancellation/restart/fault tests and prove that AWS degradation does not stop the
+3. Run AWS processor duplicate/reorder/cancellation/restart/fault tests and prove that AWS degradation does not stop the
    host, UI, actors, or local processor.
-5. Publish a PostgreSQL full backup plus at least six direct-parent incrementals while archiving WAL. Inject a gap,
+4. Publish a PostgreSQL full backup plus at least six direct-parent incrementals while archiving WAL. Inject a gap,
    restart, slow-S3, and source-failover conditions and verify eligibility/lag behavior.
-6. Restore full, incremental, and selected PITR points from both primary and recovery vaults to fresh isolated targets;
+5. Restore full, incremental, and selected PITR points from both primary and recovery vaults to fresh isolated targets;
    run native, schema, extension, privilege, row/application-invariant, and read/write checks; record component RPO/RTO.
 
-No Gate 5-10 completion claim is permitted until these results are added to this report with immutable evidence IDs.
+No Gate 6-10 completion claim is permitted until these results are added to this report with immutable evidence IDs.
 
 ## Qualification activity log
 
@@ -165,6 +164,21 @@ No Gate 5-10 completion claim is permitted until these results are added to this
   the attached/default IAM policy version still denied target-table `dynamodb:UpdateItem`. The current identity also
   lacks `iam:GetPolicy`, `iam:ListPolicyVersions`, and `iam:CreatePolicyVersion`, so an IAM administrator must promote
   the reviewed repository policy before the final retained PITR rerun.
+- After that version was promoted, the preview passed, including the new TTL read. PITR target
+  `ifm-database-backup-journal-development-pitr-20260823T030632Z` then stopped without creating a table because
+  target-table `dynamodb:BatchWriteItem` was absent. AWS's service-authorization reference identifies it as the one
+  remaining dependent restore action beyond the already bounded `DeleteItem`, `GetItem`, `PutItem`, `Query`, `Scan`,
+  and `UpdateItem` set. The repository policy now includes the complete documented target-table dependency set.
+- After the complete policy was promoted, retained PITR target
+  `ifm-database-backup-journal-development-pitr-20260823T031459Z` passed. The table reached `ACTIVE`; retained the
+  source PK/SK schema and `WorkQueueIndex`; was tagged `Application=IFM`, `Component=DatabaseBackup`,
+  `Environment=development`, and `Qualification=Gate5-PITR`; and had PITR re-enabled. Source/target parity was proven
+  with TTL `DISABLED` and streams disabled.
+- Throttling alarm `ifm-database-backup-journal-throttling-development-pitr-20260823T031459Z` was created and validated
+  against the restored table's `AWS/DynamoDB` `ThrottledRequests` metric. Its ARN is
+  `arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-journal-throttling-development-pitr-20260823T031459Z`.
+- Gate 5 is complete. The restored table and alarm are retained as Development qualification evidence; no cleanup or
+  production cutover was performed.
 
-These results materially reduce the remaining qualification set but do not close any gate whose explicit negative,
-fault-injection, alarm, rollover, end-to-end recovery, or PITR-table evidence is still listed above.
+These results close Gate 5. Gates 6-10 remain open wherever explicit negative, fault-injection, alarm, rollover, or
+end-to-end recovery evidence is still listed above.

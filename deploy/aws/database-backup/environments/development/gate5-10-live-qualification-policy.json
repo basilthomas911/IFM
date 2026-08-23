@@ -28,6 +28,7 @@
       "Effect": "Allow",
       "Action": [
         "dynamodb:BatchGetItem",
+        "dynamodb:BatchWriteItem",
         "dynamodb:ConditionCheckItem",
         "dynamodb:DeleteItem",
         "dynamodb:DescribeContinuousBackups",

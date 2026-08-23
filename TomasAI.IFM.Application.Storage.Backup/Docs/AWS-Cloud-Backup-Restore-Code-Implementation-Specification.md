@@ -1,6 +1,6 @@
 # AWS Cloud Database Backup and Restore Code Implementation Specification
 
-**Status:** Gates 0-4 complete; Gates 5-10 implemented, live qualification pending
+**Status:** Gates 0-5 complete; Gates 6-10 implemented, live qualification pending
 
 **Version:** 0.7
 
@@ -400,14 +400,14 @@ This table is the current implementation record. Update it in the same change th
 gate may move to **Complete** only when every listed exit-evidence item has a dated validation report. Existing local
 capabilities are baseline prerequisites and do not by themselves complete an AWS gate.
 
-| Gate | Status | Results/evidence recorded as of 2026-08-22 | Remaining work or completion blocker |
+| Gate | Status | Results/evidence recorded as of 2026-08-23 | Remaining work or completion blocker |
 | ---: | --- | --- | --- |
 | 0 | **Complete** | Baseline frozen; CloudFormation/Canada Region/account/recovery/retention/crypto/staging decisions accepted; threat, cost, and deletion controls recorded; AWS CLI/PowerShell installed; read-only STS preflight passed and rejected wrong account/Region/production; 77 tests passed, 8 intentionally skipped, 0 failed; credential-pattern scan passed. See the Gate 0 baseline, decision record, control model, and validation report. | None. Staging/production remain intentionally deny-all and no AWS mutation is authorized. Existing local host finding `G0-F1` is assigned to Gate 1 before any AWS processor enablement. |
 | 1 | **Complete** | AWS production/unit/integration projects and pinned SDK v4 dependencies added; source-neutral host controls, routing, health, independent source options, singleton composition, and bounded failed-operation deferral implemented. `G0-F1` is closed by a restart/noise regression test. Full solution builds with 0 warnings/errors and local regression tests pass. See Gate 1 validation report. | None. AWS admission remains disabled until Gate 8. |
 | 2 | **Complete** | Canonical JSON, v1/v2 manifest validation, and chain planning moved to shared application policy; local adapter delegates to it. A golden fingerprint locks all 120 DatabaseBackup actor-contract MessagePack shapes; canonical, duplicate/unknown JSON, lineage, cycle, time, and schema tests pass. See Gate 2 validation report. | None. Persisted and wire schemas are unchanged. |
 | 3 | **Complete** | Safe credential-free options, strict environment/account/Region/ARN/bucket validation, default SDK credential chain, temporary-session enforcement, singleton clients, bounded timeouts/retries, STS preflight, safe identity observation, failure classification, redaction tests, and source-specific degraded health implemented. Explicit live .NET STS test passed. See Gate 3 validation report. | None for Gate 3. Staging/production remain deny-all. |
 | 4 | **Complete** | Four approved Development stacks are deployed across `ca-central-1`/`ca-west-1` and `IN_SYNC`; safe outputs are captured; nine live negative IAM checks passed; a retained canary proved versioning, SHA-256, independent regional KMS encryption, Governance Object Lock, replication, and immutable CloudTrail evidence. See the Gate 4 validation, approval, outputs, and machine-readable qualification evidence. | None. Canary retention expires no earlier than 2026-09-26; do not bypass it. Staging and Production remain deny-all. |
-| 5 | **Implemented; qualification in progress** | Live journal duplicate admission, competing lease, checkpoint, acknowledgement, outbox, and crash/restart recovery pass; fencing advanced from 1 to 2 across the reconstructed journal instance. Ambiguous admission response resolution is regression-tested. | Make the current bounded policy version default and rerun the retained PITR restore-to-new-table qualification, including TTL/stream parity and the target throttling alarm. |
+| 5 | **Complete** | Live journal duplicate admission, competing lease, checkpoint, acknowledgement, outbox, and crash/restart recovery pass; fencing advanced from 1 to 2 across the reconstructed journal instance. Ambiguous admission response resolution is regression-tested. Retained PITR target `ifm-database-backup-journal-development-pitr-20260823T031459Z` is active with schema/`WorkQueueIndex` parity, required tags, PITR enabled, TTL/stream parity, and a validated target throttling alarm. | None. Preserve the retained Development table/alarm as qualification evidence and remove the temporary user policy after the remaining approved live qualification window. |
 | 6 | **Implemented; qualification in progress** | Live retained single/multipart resume, exact-version read-back, duplicate/corrupt rejection, signed publication/catalog rebuild, and recovery replication pass. A multipart completion checksum defect was found and fixed. | Complete dropped-response, stale-upload, and normal-role denied-mutation drills. |
 | 7 | **Implemented; qualification in progress** | Live KMS online/offline verification and tamper rejection pass; bounded signing/recovery key-policy delegation is deployed `IN_SYNC` without key replacement. | Complete disabled/untrusted/wrong-Region denial and controlled rollover-overlap qualification. |
 | 8 | **Implemented; qualification in progress** | A rebuilt Development host is healthy; explicit restart returns healthy with restart count zero and NATS remains uninterrupted. | Complete live AWS ambiguity, cancellation, duplicate/reorder, reconciliation, and health-isolation fault drills. |
@@ -422,8 +422,8 @@ capabilities are baseline prerequisites and do not by themselves complete an AWS
 | 17 | **Not started** | Staging topology, soak, game-day, ownership, and readiness criteria are documented. | Deploy production-shaped staging, complete soak/recovery game days, close findings, and obtain readiness approvals. |
 | 18 | **Not started** | Controlled rollout, overlap, canary, production-derived drill, and acceptance criteria are documented. | Obtain production authorization, roll out gradually, complete recovery-vault drills, prove RPO/RTO, and obtain final acceptance. |
 
-**Current overall result:** Gates 0 through 4 are complete. Gates 5 through 10 are code-complete but remain deliberately
-open until their live AWS and PostgreSQL qualification evidence is recorded. The post-Gate-5 Development workload stack
+**Current overall result:** Gates 0 through 5 are complete. Gates 6 through 10 are code-complete but remain deliberately
+open until their remaining live AWS and PostgreSQL qualification evidence is recorded. The post-Gate-5 Development workload stack
 is `UPDATE_COMPLETE` and `IN_SYNC` with zero drifted resources. See
 `AWS-Cloud-Backup-Restore-Gates-5-10-Validation-Report.md`. Staging and Production remain empty-account deny-all.
 
