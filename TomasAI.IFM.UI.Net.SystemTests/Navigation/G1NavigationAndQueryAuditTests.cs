@@ -107,7 +107,13 @@ public sealed class G1NavigationAndQueryAuditTests
                         configuration.ApiExecutable,
                         evidence.ApiLogDirectory,
                         redactor,
-                        new Dictionary<string, string?> { ["ASPNETCORE_ENVIRONMENT"] = configuration.EnvironmentName });
+                        new Dictionary<string, string?>
+                        {
+                            ["ASPNETCORE_ENVIRONMENT"] = configuration.EnvironmentName,
+                            ["AppSettings__Databento__DataSource"] = "Synthetic",
+                            ["AppSettings__Databento__Synthetic__RecordCount"] = "20",
+                            ["AppSettings__Databento__Synthetic__RecordsPerSecond"] = "2"
+                        });
                     run.ApiProcessId = api.Process.Id.ToString();
                     var readiness = await InfrastructureProbe.WaitForApiReadinessAsync(
                         configuration.ApiReadyUri,
@@ -123,7 +129,8 @@ public sealed class G1NavigationAndQueryAuditTests
                         throw new InvalidOperationException(
                             $"API readiness was {readiness.Status}; actorTypes={readiness.RegisteredActorTypes}.");
                     return Observation(
-                        $"API PID {api.Process.Id} is Healthy; registeredActorTypes={readiness.RegisteredActorTypes}.",
+                        $"API PID {api.Process.Id} is Healthy; registeredActorTypes={readiness.RegisteredActorTypes}; "
+                        + "feedSource=Synthetic (isolated read-only gate).",
                         ["network/api-readiness.json"]);
                 });
 
@@ -170,12 +177,16 @@ public sealed class G1NavigationAndQueryAuditTests
                 async token =>
                 {
                     RequireAutomation(automation);
-                    var shell = automation!.ReadShellState();
+                    var shell = await automation!.WaitForInitializedShellAsync(
+                        configuration.ReadinessTimeout,
+                        token);
                     List<string> failures = [];
                     var empty = shell.MarketOutlook.Where(pair => string.IsNullOrWhiteSpace(pair.Value)).Select(pair => pair.Key).ToArray();
                     if (empty.Length > 0)
                         failures.Add("Empty market-outlook values: " + string.Join(", ", empty));
-                    var status = automation.ReadStatusConsoleState();
+                    var status = await automation.WaitForStatusConsoleStateAsync(
+                        configuration.ReadinessTimeout,
+                        token);
                     if (status.RowCount == 0)
                         failures.Add("The bounded status console rendered no startup rows.");
                     else if (!status.Rows.Any(row => row.Contains(

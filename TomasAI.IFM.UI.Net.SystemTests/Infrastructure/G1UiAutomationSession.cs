@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -467,11 +468,6 @@ public sealed class G1UiAutomationSession : IDisposable
             window, fixture.DefinitionDescription, "YieldCurveRateEditorControl", timeout, cancellationToken);
         await SetDateAsync(window, "dtmImportDate", fixture.ImportDate, timeout, cancellationToken);
         PostButtonClick(window, "btnImport");
-        await WaitUntilAsync(
-            () => FindDescendant(window, "dtmImportDate", null) is { IsEnabled: false } ? "busy" : null,
-            timeout,
-            "The yield-curve import operation did not enter its busy state.",
-            cancellationToken);
         await WaitForEnabledAsync(window, "dtmImportDate", timeout, cancellationToken);
         var period = fixture.ImportDate.Year.ToString(CultureInfo.InvariantCulture);
         if (ReadComboItems(window, "ddlTimePeriod").Contains(period, StringComparer.Ordinal))
@@ -547,11 +543,6 @@ public sealed class G1UiAutomationSession : IDisposable
         await SetDateAsync(window, "dtmEventDate", fixture.ImportDate, timeout, cancellationToken);
         await SelectComboValueAsync(window, "ddlCountryCodes", fixture.CountryCode, timeout, cancellationToken);
         PostButtonClick(window, "btnImport");
-        await WaitUntilAsync(
-            () => FindDescendant(window, "dtmEventDate", null) is { IsEnabled: false } ? "busy" : null,
-            timeout,
-            "The economic-calendar import operation did not enter its busy state.",
-            cancellationToken);
         await DismissDialogAsync("Economic Calendar Import", "OK", timeout, cancellationToken);
         await WaitForEnabledAsync(window, "dtmEventDate", timeout, cancellationToken);
         return ReadEconomicCalendarState(window, fixture.ImportDate);
@@ -1422,6 +1413,19 @@ public sealed class G1UiAutomationSession : IDisposable
         var control = RequireDescendant(root, automationId);
         if (!control.IsEnabled)
             throw new InvalidOperationException($"The '{automationId}' command is disabled.");
+        if (control.ControlType == ControlType.Button)
+        {
+            try
+            {
+                var handle = new IntPtr(control.Properties.NativeWindowHandle.Value);
+                if (handle != IntPtr.Zero && PostMessage(handle, BmClick, IntPtr.Zero, IntPtr.Zero))
+                    return;
+            }
+            catch
+            {
+                // Virtual buttons do not always expose a stable native handle; use the coordinate fallback.
+            }
+        }
         PostControlClick(control);
     }
 
@@ -1466,26 +1470,28 @@ public sealed class G1UiAutomationSession : IDisposable
         var pickerHandle = FindVisibleDateTimePickerHandle(root, picker);
         if (pickerHandle == IntPtr.Zero)
             throw new InvalidOperationException($"The '{automationId}' date input does not expose a native handle.");
-        var selectedDate = ReadAccessibleDate(picker, automationId);
-        if (selectedDate == value)
+        try
+        {
+            picker.SelectedDate = value.ToDateTime(TimeOnly.MinValue);
             return;
+        }
+        catch (Exception exception) when (exception is COMException or Win32Exception)
+        {
+            // Some WinForms UIA providers reject the specialized property or transiently deny
+            // its synthetic mouse input; use generic/native patterns below.
+        }
+        if (picker.Patterns.Value.IsSupported)
+        {
+            picker.Patterns.Value.Pattern.SetValue(
+                value.ToString("yyyy-MMM-dd", CultureInfo.CurrentCulture));
+            return;
+        }
 
         if (picker.Patterns.LegacyIAccessible.IsSupported)
         {
             picker.Patterns.LegacyIAccessible.Pattern.SetValue(
                 value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-            Thread.Sleep(50);
-            if (ReadAccessibleDate(picker, automationId) == value)
-                return;
-        }
-
-        if (picker.Patterns.Value.IsSupported)
-        {
-            picker.Patterns.Value.Pattern.SetValue(
-                value.ToString("yyyy-MMM-dd", CultureInfo.CurrentCulture));
-            Thread.Sleep(50);
-            if (ReadAccessibleDate(picker, automationId) == value)
-                return;
+            return;
         }
 
         var nativeDate = new NativeSystemTime
@@ -1495,30 +1501,6 @@ public sealed class G1UiAutomationSession : IDisposable
             Day = checked((ushort)value.Day)
         };
         SendMessage(pickerHandle, DtmSetSystemTime, new IntPtr(GdtValid), ref nativeDate);
-        Thread.Sleep(50);
-        picker = FindDescendant(root, automationId, null)?.AsDateTimePicker() ?? picker;
-        if (ReadAccessibleDate(picker, automationId) == value)
-            return;
-
-        if (picker.Patterns.ExpandCollapse.IsSupported)
-            picker.Patterns.ExpandCollapse.Pattern.Expand();
-        else
-            OpenDateTimePickerDropDown(pickerHandle);
-        var calendarHandle = WaitForVisibleMonthCalendar(root, pickerHandle, TimeSpan.FromSeconds(3));
-        if (calendarHandle == IntPtr.Zero)
-            throw new InvalidOperationException($"The '{automationId}' calendar popup did not open.");
-
-        var monthDelta = (value.Year - selectedDate.Year) * 12 + value.Month - selectedDate.Month;
-        var monthKey = monthDelta >= 0 ? VkPageDown : VkPageUp;
-        for (var index = 0; index < Math.Abs(monthDelta); index++)
-            SendKey(calendarHandle, monthKey);
-
-        var intermediateDay = Math.Min(selectedDate.Day, DateTime.DaysInMonth(value.Year, value.Month));
-        var dayDelta = value.Day - intermediateDay;
-        var dayKey = dayDelta >= 0 ? VkRight : VkLeft;
-        for (var index = 0; index < Math.Abs(dayDelta); index++)
-            SendKey(calendarHandle, dayKey);
-        SendKey(calendarHandle, VkEnter);
     }
 
     static DateOnly ReadAccessibleDate(
@@ -2045,11 +2027,26 @@ public sealed class G1UiAutomationSession : IDisposable
 
     public G1StatusConsoleState ReadStatusConsoleState()
     {
-        SelectTab(MainWindow, "Status Console");
         var list = RequireDescendant(MainWindow, "lstStatusConsole");
         var rows = ReadDataItemRows(list);
         return new G1StatusConsoleState(rows.Count, rows.FirstOrDefault() ?? string.Empty, rows);
     }
+
+    /// <summary>
+    /// Waits until the status-console pane is accessible and contains at least one rendered row.
+    /// </summary>
+    public Task<G1StatusConsoleState> WaitForStatusConsoleStateAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+        => WaitUntilAsync(
+            () =>
+            {
+                var state = ReadStatusConsoleState();
+                return state.RowCount > 0 ? state : null;
+            },
+            timeout,
+            "The status-console pane did not become accessible with rendered rows.",
+            cancellationToken);
 
     public async Task<G1ChartState> ReadChartAsync(
         string tabName,

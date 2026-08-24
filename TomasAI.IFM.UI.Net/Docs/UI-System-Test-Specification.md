@@ -46,7 +46,7 @@ G0 through G4 validate Milestone A, the legacy operational restoration defined i
 | Gate | Scope | Entry condition | Exit condition |
 |---|---|---|---|
 | G0 | Startup, initialization, and shutdown audit | Harness builds and prerequisites can be probed | Every required step passes; no required step is blocked |
-| G1 | Shell navigation and read-only queries | G0 passes | Supported windows open, render queried state, and close cleanly |
+| G1 | Shell navigation and read-only queries | G0 passes | With the deterministic synthetic tick source isolating this read-only decision, supported windows open, render queried state, and close cleanly |
 | G2 | Reversible commands and maintenance workflows | G1 passes and isolated seed data exists | Create/change/remove and import workflows pass with cleanup |
 | G3 | Live NATS events and streaming UI behavior | G2 passes and deterministic publishers/feeds exist | Ordering, coalescing, responsiveness, and teardown pass |
 | G4 | Failure, reconnect, and lifecycle resilience | G3 passes | Supported recovery paths and repeated lifecycle tests pass |
@@ -84,7 +84,7 @@ Every step has one of these statuses:
 | G0-002 | Probe the configured NATS endpoint | Broker accepts a connection on the configured endpoint, normally port 4222 |
 | G0-003 | Probe required PostgreSQL, ScyllaDB, and Redis services | Each configured service reports reachable/ready, or the exact missing dependency is recorded |
 | G0-004 | Start `TomasAI.IFM.Application.Api.Server` in Development | Process remains alive and logs are captured |
-| G0-005 | Verify API readiness and actor runtime | Readiness succeeds and the expected actor types are registered; the current baseline is 90 registered actor types, including the framework command-exception terminal actor and independent of dynamically started entity instances |
+| G0-005 | Verify API readiness and actor runtime | Readiness polling continues through transient `Degraded` responses until rollover and market-data initialization complete; the current baseline is Healthy with 93 registered actor types, independent of dynamically started entity instances. |
 | G0-006 | Launch the configured desktop executable | Initial target is `TomasAI.IFM.UI.Net`; PID and start time are recorded |
 | G0-007 | Await desktop NATS readiness | A direct desktop-PID socket is recorded when the host exposes it; when a local container proxy owns the loopback socket, an active endpoint connection plus typed UI-initiated import traffic proves readiness without a fixed startup delay |
 | G0-008 | Find the responsive main window | `IFMAppView` appears, has the expected title, and responds to UI Automation |
@@ -97,7 +97,7 @@ Every step has one of these statuses:
 | G0-015 | Verify startup-import lifecycle policy | Both terminal listeners started before command submission, matched only the exact command ID, stopped after the bounded attempt, and issued no retry; a failed or unobserved normal-path import fails G0 even though the UI must report it and continue startup |
 | G0-016 | Query and render application value date | A valid value date is returned and shown in the shell state; reference-data imports were attempted before this live-trading-hours gate |
 | G0-017 | Render economic-calendar country/date/list state | Requires imported or seeded data; selected filters and displayed result are recorded |
-| G0-018 | Observe EOD, bar, trade-signal, placement, and feed-reset consumer startup | Each required consumer starts exactly once without an unhandled error; the retained legacy trade-placement actor request is bounded to five seconds, reports unavailable state, does not retry, and cannot block the remaining startup sequence |
+| G0-018 | Observe composite market-outlook, bar, placement, and feed-reset consumer startup | Each required consumer starts exactly once without an unhandled error; the market-outlook subscription supplies both EOD and trade-signal state, and the retained legacy trade-placement actor request is bounded to five seconds, reports unavailable state, does not retry, and cannot block the remaining startup sequence |
 | G0-019 | Start the configured current futures feed | Requires G0-011; command acceptance and correlated event/status are recorded |
 | G0-020 | Start the authoritative intraday analytics profile | For the active ES contract and value date, observe exactly 24 typed `Started` events: RSI-13, ATR-14, ADX-14, and MACD-9/12/26 for 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours; no daily-or-longer actor is started |
 | G0-021 | Reach initialized shell state | Status reports that all 24 intraday signal actors started, then reports initialization complete and enables applicable toolbar actions; any partial signal-start result is a failed G0 step and must show that no retry occurred |
@@ -186,7 +186,7 @@ G1 is a 15-step, non-short-circuiting process audit. It owns the API and desktop
 |---|---|---|
 | G1-001 | Validate configuration and exclusive process ownership | Development paths are valid and no competing IFM API, desktop, or G1 harness process exists |
 | G1-002 | Probe NATS, PostgreSQL, ScyllaDB, and Redis | All dependencies are reachable and typed event evidence starts |
-| G1-003 | Start the actor backend | Readiness is Healthy with 90 registered actor types |
+| G1-003 | Start the actor backend | Readiness is Healthy with 93 registered actor types after rollover and market-data initialization complete |
 | G1-004 | Establish typed read-only baseline | Selector catalogs, ES/VX contracts, bars, lookup names, valid named funds, and calendar rows are queryable; any prior durable feed is stopped through its public command/event flow |
 | G1-005 | Launch the desktop and await initialized shell | Final startup status is visible and all five navigation actions are enabled |
 | G1-006 | Audit shell read-only state | Status history, market outlook/EOD values, ES chart, and VX chart visibly render |
@@ -402,3 +402,7 @@ Normal test runs do not launch the API Server or desktop. The non-process infras
 ## Acceptance
 
 G0, G1, G2, G3, and G4 are accepted in Development. A gate passes only when every required step is `Passed`, cleanup succeeds, and no step is `Failed`, `BlockedDependency`, `SkippedDependency`, or `NotRun`. G2 includes live desktop, domain, persistence, and cleanup evidence through G2-038. G3 combines that live desktop event evidence with a real NATS MessagePack burst/reopen test and deterministic catalog, correlation, ordering, coalescing, bounded-history, diagnostics, and lifecycle tests. G4 combines a real desktop/API process audit with an isolated live-NATS fault proxy: bounded unavailable-NATS startup, distinct no-responder diagnostics, disconnect/reconnect correlation, repeated lifecycle cleanup, close during a severed in-flight operation, typed failure preservation, a responsive bounded 10,000-event burst, deterministic modal evidence, and no surviving desktop network ownership. Operator confirmation remains required for Milestone A; G5 is outside the restoration milestone.
+
+## UIR-13 qualification - 2026-08-24
+
+The ordered UIR-13 run accepted G0, G1, all isolated G2 command slices through G2-038, G3, the G4 live transport test, and the complete G4 process-resilience audit. G4 used a complete bounded Synthetic futures catalog because its decision concerns lifecycle resilience rather than external-provider behavior; G0 retained the live DataBento feed qualification. Exact run identifiers, final dependency metrics, cleanup status, retained failure diagnostics, and the accepted corrections are recorded in [UIR-13 Development qualification](TestResults/UIR-13-Development-2026-08-24.md). UIR-13 is complete.

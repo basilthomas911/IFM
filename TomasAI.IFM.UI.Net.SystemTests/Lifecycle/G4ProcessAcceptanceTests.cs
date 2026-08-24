@@ -66,7 +66,19 @@ public sealed class G4ProcessAcceptanceTests
                 new Dictionary<string, string?>
                 {
                     ["ASPNETCORE_ENVIRONMENT"] = configuration.EnvironmentName,
-                    ["AppSettings__Databento__DataSource"] = "Synthetic"
+                    ["AppSettings__Databento__DataSource"] = "Synthetic",
+                    ["AppSettings__Databento__Contracts__0__DomainContractId"] = "ES20260918",
+                    ["AppSettings__Databento__Contracts__0__ProviderContractName"] = "ESU6",
+                    ["AppSettings__Databento__Contracts__0__AssetTypeId"] = "Futures",
+                    ["AppSettings__Databento__Contracts__0__RootSymbol"] = "ES",
+                    ["AppSettings__Databento__Contracts__0__Dataset"] = "GLBX.MDP3",
+                    ["AppSettings__Databento__Contracts__1__DomainContractId"] = "VX20260916",
+                    ["AppSettings__Databento__Contracts__1__ProviderContractName"] = "VX/U6",
+                    ["AppSettings__Databento__Contracts__1__AssetTypeId"] = "Futures",
+                    ["AppSettings__Databento__Contracts__1__RootSymbol"] = "VX",
+                    ["AppSettings__Databento__Contracts__1__Dataset"] = "XCBF.PITCH",
+                    ["AppSettings__Databento__Synthetic__RecordCount"] = "20",
+                    ["AppSettings__Databento__Synthetic__RecordsPerSecond"] = "2"
                 });
             var readiness = await InfrastructureProbe.WaitForApiReadinessAsync(
                 configuration.ApiReadyUri,
@@ -130,8 +142,13 @@ public sealed class G4ProcessAcceptanceTests
             DialogTimeout,
             CancellationToken.None);
         var text = G4UiAutomationSession.ReadText(dialog);
-        text.Should().Contain("NATS startup");
-        text.Should().Contain(unusedPort.ToString());
+        var diagnostic = text;
+        var stderrPath = Path.Combine(logDirectory, "stderr.log");
+        if (!diagnostic.Contains("NATS startup", StringComparison.Ordinal)
+            && File.Exists(stderrPath))
+            diagnostic += Environment.NewLine + await ReadSharedTextAsync(stderrPath);
+        diagnostic.Should().Contain("NATS startup");
+        diagnostic.Should().Contain(unusedPort.ToString());
         automation.FindWindowStartingWith("Investment Fund Manager").Should().BeNull(
             "the shell must not be shown when the broker connection was never established");
         G4UiAutomationSession.Capture(
@@ -307,6 +324,9 @@ public sealed class G4ProcessAcceptanceTests
         string resultDirectory)
     {
         const int count = 10_000;
+        await automation.WaitForStatusConsoleStateAsync(
+            TimeSpan.FromSeconds(30),
+            CancellationToken.None);
         var serializer = new NatsMessagePackDataSerializer();
         await using var publisher = new NatsClient(natsUri.ToString());
         await publisher.ConnectAsync();
@@ -387,6 +407,11 @@ public sealed class G4ProcessAcceptanceTests
                 // caller's existing bounded timeout.
                 return false;
             }
+            catch (InvalidOperationException)
+            {
+                // The bounded status list can briefly disappear while WinForms recreates its handle.
+                return false;
+            }
         }
     }
 
@@ -402,6 +427,19 @@ public sealed class G4ProcessAcceptanceTests
         {
             return false;
         }
+    }
+
+    static async Task<string> ReadSharedTextAsync(string path)
+    {
+        await using FileStream stream = new(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: 4096,
+            useAsync: true);
+        using StreamReader reader = new(stream);
+        return await reader.ReadToEndAsync();
     }
 
     static Dictionary<string, string?> UiEnvironment(string natsUrl, int startupTimeoutSeconds)

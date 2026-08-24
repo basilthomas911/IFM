@@ -48,6 +48,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     private bool _shutdownStarted;
     private bool _shutdownComplete;
     private long _lastErrorSequence;
+    private int _statusLogsRenderPending;
 
     public IFMAppView(
         IAppRoot appRoot,
@@ -146,6 +147,12 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         if (_shutdownStarted || eventArgs.PropertyName == nameof(IFMAppViewModel.UiDispatchMetrics))
             return;
 
+        if (eventArgs.PropertyName == nameof(IFMAppViewModel.StatusLogs))
+        {
+            QueueStatusLogsRender();
+            return;
+        }
+
         var postedAt = Stopwatch.GetTimestamp();
         this.Post(() =>
         {
@@ -155,6 +162,33 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             try
             {
                 RenderProperty(eventArgs.PropertyName);
+            }
+            finally
+            {
+                _viewModel.RecordUiDispatch(
+                    Stopwatch.GetElapsedTime(postedAt, renderStarted),
+                    Stopwatch.GetElapsedTime(renderStarted));
+            }
+        });
+    }
+
+    void QueueStatusLogsRender()
+    {
+        if (Interlocked.Exchange(ref _statusLogsRenderPending, 1) != 0)
+            return;
+
+        var postedAt = Stopwatch.GetTimestamp();
+        this.Post(() =>
+        {
+            // Reset before reading the latest snapshot. An update concurrent with rendering can
+            // then enqueue one more pass, while all earlier notifications remain coalesced.
+            Interlocked.Exchange(ref _statusLogsRenderPending, 0);
+            if (_shutdownStarted)
+                return;
+            var renderStarted = Stopwatch.GetTimestamp();
+            try
+            {
+                RenderProperty(nameof(IFMAppViewModel.StatusLogs));
             }
             finally
             {

@@ -72,6 +72,12 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                 "IFM_G2_SECURITIES_SLICE, IFM_G2_YIELD_CURVE_SLICE, and "
                 + "IFM_G2_ECONOMIC_CALENDAR_SLICE, IFM_G2_LOOKUP_SLICE, IFM_G2_FUND_SLICE, and "
                 + "IFM_G2_ORDER_TRADE_SLICE are mutually exclusive.");
+        var isolatedDomainSlice = securitiesSlice
+            || yieldCurveSlice
+            || economicCalendarSlice
+            || lookupSlice
+            || fundSlice
+            || orderTradeSlice;
         var configuration = G2Configuration.Load();
         var process = configuration.Process;
         var redactor = new SecretRedactor([Environment.GetEnvironmentVariable("FMP_API_KEY")]);
@@ -212,7 +218,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     {
                         ["ASPNETCORE_ENVIRONMENT"] = process.EnvironmentName
                     };
-                    if (yieldCurveSlice || economicCalendarSlice || fundSlice || orderTradeSlice)
+                    if (isolatedDomainSlice)
                     {
                         apiEnvironment["AppSettings__Databento__DataSource"] = "Synthetic";
                         AddSyntheticFuturesContractBootstrap(apiEnvironment);
@@ -239,7 +245,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                             $"API readiness was {readiness.Status}; actorTypes={readiness.RegisteredActorTypes}.");
                     return Observation(
                         $"API PID {api.Process.Id} is Healthy; registeredActorTypes={readiness.RegisteredActorTypes}; "
-                        + $"feedSource={(yieldCurveSlice || economicCalendarSlice || fundSlice || orderTradeSlice ? "Synthetic (isolated non-feed slice)" : "Development configuration")}.",
+                        + $"feedSource={(isolatedDomainSlice ? "Synthetic (isolated non-feed slice)" : "Development configuration")}.",
                         ["processes/api-start.json", "network/api-readiness.json"]);
                 });
 
@@ -2331,13 +2337,13 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             await Step(
                 "G2-036",
                 "Run an approved database backup",
-                "The real System Admin UI submits a full LocalWorkstation dry-run for allowlisted core-postgresql, and exact operation/event, typed projection, visible status, and run-owned journal evidence agree.",
+                "The real System Admin UI submits a full LocalWorkstation dry-run for the run-isolated PostgreSQL protection set, and exact operation/event, typed projection, visible status, and run-owned journal evidence agree.",
                 async token =>
                 {
                     var ui = automation ?? throw new InvalidOperationException("G2 UI automation is unavailable.");
                     var querySession = queries ?? throw new InvalidOperationException("G2 typed queries are unavailable.");
                     var observer = commandObserver ?? throw new InvalidOperationException("G2 command observer is unavailable.");
-                    const string protectionSet = "core-postgresql";
+                    const string protectionSet = "g2-postgresql";
 
                     var journalPath = Path.Combine(configuration.BackupDestinationRoot, "journal", "execution-journal.db");
                     var onlineVault = Path.Combine(configuration.BackupDestinationRoot, "online-vault");
@@ -2989,6 +2995,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
             ["DatabaseBackup__Sources__LocalWorkstation__PostgreSqlEnabled"] = "true",
             ["DatabaseBackup__Sources__LocalWorkstation__ScyllaEnabled"] = "false",
             ["DatabaseBackup__Sources__LocalWorkstation__IncrementalEnabled"] = "true",
+            ["DatabaseBackup__PostgreSql__AllowedProtectionSets__0"] = "g2-postgresql",
             ["DatabaseBackup__EnvironmentId"] = "development-g2",
             ["DatabaseBackup__OnlineVault__Root"] = onlineVault,
             ["DatabaseBackup__OnlineVault__MinimumFreeBytes"] = "0",

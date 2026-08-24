@@ -9,7 +9,7 @@ This plan implements the boundary accepted in [UI service and model boundary dec
 | UIR-0 | Complete | [Development baseline - 2026-08-24](TestResults/UIR-0-Development-2026-08-24.md) |
 | UIR-1 through UIR-4 | Complete | [Development qualification - 2026-08-24](TestResults/UIR-1-4-Development-2026-08-24.md) |
 | UIR-5 through UIR-12 | Complete | [Development qualification - 2026-08-24](TestResults/UIR-5-12-Development-2026-08-24.md) |
-| UIR-13 | Not started | Run the approved full live-process G0-G4 sequence and close the decision record. |
+| UIR-13 | Complete | [Development qualification - 2026-08-24](TestResults/UIR-13-Development-2026-08-24.md) |
 
 ## UIR-0 baseline
 

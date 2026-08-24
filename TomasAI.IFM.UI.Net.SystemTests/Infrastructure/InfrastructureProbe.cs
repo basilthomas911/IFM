@@ -48,10 +48,15 @@ public static class InfrastructureProbe
                 var document = JsonSerializer.Deserialize<ApiReadinessDocument>(
                     json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (response.IsSuccessStatusCode && document is not null)
+                if (response.IsSuccessStatusCode
+                    && document is not null
+                    && string.Equals(document.Status, "Healthy", StringComparison.OrdinalIgnoreCase))
+                {
                     return document;
+                }
                 lastFailure = new InvalidOperationException(
-                    $"Readiness returned {(int)response.StatusCode}: {json}");
+                    $"Readiness returned {(int)response.StatusCode} with status "
+                    + $"'{document?.Status ?? "missing"}': {json}");
             }
             catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
             {

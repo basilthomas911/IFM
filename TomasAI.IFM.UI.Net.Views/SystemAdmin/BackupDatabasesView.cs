@@ -19,6 +19,7 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
+        clbDatabases.ItemCheck += clbDatabases_ItemCheck;
         ConfigureModeControls();
     }
 
@@ -136,7 +137,6 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
 
     void BindState()
     {
-        btnRun.Enabled = !_viewModel.IsBusy;
         Cursor = _viewModel.IsBusy ? Cursors.WaitCursor : Cursors.Default;
         var selected = clbDatabases.SelectedItem?.ToString();
         var checkedIds = clbDatabases.CheckedItems.Cast<object>()
@@ -157,7 +157,18 @@ public partial class BackupDatabasesView : UserControl, IAsyncFormControl
             clbDatabases.SelectedIndex = selectedIndex;
         }
         clbDatabases.Enabled = !_viewModel.IsBusy && clbDatabases.Items.Count > 0;
+        btnRun.Enabled = !_viewModel.IsBusy && clbDatabases.CheckedItems.Count > 0;
         BindOperationStatus(clbDatabases.SelectedItem?.ToString());
+    }
+
+    void clbDatabases_ItemCheck(object? sender, ItemCheckEventArgs e)
+    {
+        var checkedCount = clbDatabases.CheckedItems.Count;
+        if (e.CurrentValue != CheckState.Checked && e.NewValue == CheckState.Checked)
+            checkedCount++;
+        else if (e.CurrentValue == CheckState.Checked && e.NewValue != CheckState.Checked)
+            checkedCount--;
+        btnRun.Enabled = !_viewModel.IsBusy && checkedCount > 0;
     }
 
     void BindOperationStatus(string? protectionSet)

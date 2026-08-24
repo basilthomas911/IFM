@@ -19,7 +19,7 @@ public sealed class G4UiAutomationSession : IDisposable
         => _application = FlaUI.Core.Application.Attach(processId);
 
     public IReadOnlyList<string> WindowTitles()
-        => TopLevelWindows().Select(window => window.Title ?? string.Empty).ToArray();
+        => TopLevelWindows().Select(SafeWindowTitle).ToArray();
 
     public async Task<Window> WaitForWindowAsync(
         string title,
@@ -31,7 +31,7 @@ public sealed class G4UiAutomationSession : IDisposable
         while (!timeoutSource.IsCancellationRequested)
         {
             var window = TopLevelWindows().FirstOrDefault(candidate =>
-                string.Equals(candidate.Title, title, StringComparison.OrdinalIgnoreCase));
+                string.Equals(SafeWindowTitle(candidate), title, StringComparison.OrdinalIgnoreCase));
             if (window is not null)
                 return window;
             await Task.Delay(100, timeoutSource.Token).ConfigureAwait(false);
@@ -42,21 +42,41 @@ public sealed class G4UiAutomationSession : IDisposable
 
     public Window? FindWindowStartingWith(string titlePrefix)
         => TopLevelWindows().FirstOrDefault(candidate =>
-            (candidate.Title ?? string.Empty).StartsWith(titlePrefix, StringComparison.OrdinalIgnoreCase));
+            SafeWindowTitle(candidate).StartsWith(titlePrefix, StringComparison.OrdinalIgnoreCase));
 
     public static string ReadText(Window window)
-        => string.Join(
+    {
+        var values = window.FindAllDescendants()
+            .Select(element => SafeRead(() => element.Name))
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToList();
+        var handle = SafeWindowHandle(window);
+        if (handle != IntPtr.Zero)
+        {
+            EnumChildWindows(handle, (child, _) =>
+            {
+                var length = GetWindowTextLength(child);
+                if (length > 0)
+                {
+                    StringBuilder text = new(length + 1);
+                    if (GetWindowText(child, text, text.Capacity) > 0)
+                        values.Add(text.ToString());
+                }
+                return true;
+            }, IntPtr.Zero);
+        }
+        return string.Join(
             Environment.NewLine,
-            window.FindAllDescendants()
-                .Select(element => SafeRead(() => element.Name))
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.Ordinal));
+            values.Distinct(StringComparer.Ordinal));
+    }
 
     public static void Dismiss(Window window, string? knownTitle = null)
     {
         ArgumentNullException.ThrowIfNull(window);
-        var title = knownTitle ?? window.Title;
-        var handle = FindWindow(null, title);
+        var title = knownTitle ?? SafeWindowTitle(window);
+        var handle = SafeWindowHandle(window);
+        if (handle == IntPtr.Zero)
+            handle = FindWindow(null, title);
         if (handle == IntPtr.Zero)
             throw new InvalidOperationException($"Native window '{title}' was not found for dismissal.");
         var ok = FindWindowEx(handle, IntPtr.Zero, "Button", "OK");
@@ -144,6 +164,15 @@ public sealed class G4UiAutomationSession : IDisposable
         catch { return string.Empty; }
     }
 
+    static string SafeWindowTitle(Window window)
+        => SafeRead(() => window.Title);
+
+    static IntPtr SafeWindowHandle(Window window)
+    {
+        try { return new IntPtr(window.Properties.NativeWindowHandle.Value); }
+        catch { return IntPtr.Zero; }
+    }
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern IntPtr FindWindow(string? className, string? windowName);
 
@@ -153,4 +182,16 @@ public sealed class G4UiAutomationSession : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    delegate bool EnumWindowsCallback(IntPtr window, IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool EnumChildWindows(IntPtr parent, EnumWindowsCallback callback, IntPtr parameter);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetWindowText(IntPtr window, StringBuilder text, int maximumLength);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetWindowTextLength(IntPtr window);
 }

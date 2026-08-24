@@ -72,8 +72,13 @@ public sealed class DatabaseBackupDashboardSmokeTests
             var controlState = await ReadControlStateAsync(form, view);
             controlState.ProtectionSets.Should().Contain("core");
             controlState.RequestButtonText.Should().Be("Request Backup");
-            controlState.RequestButtonEnabled.Should().BeTrue();
+            controlState.RequestButtonEnabled.Should().BeFalse(
+                "a backup request requires an explicitly checked protection set");
             controlState.LocalSourceSelected.Should().BeTrue();
+
+            await CheckProtectionSetAsync(form, view, "core");
+            controlState = await ReadControlStateAsync(form, view);
+            controlState.RequestButtonEnabled.Should().BeTrue();
         }
         finally
         {
@@ -100,6 +105,22 @@ public sealed class DatabaseBackupDashboardSmokeTests
                 button.Text,
                 button.Enabled,
                 localSource.Checked));
+        });
+        return completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    static Task CheckProtectionSetAsync(Form form, BackupDatabasesView view, string protectionSet)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        form.BeginInvoke(() =>
+        {
+            var list = FindControl<CheckedListBox>(view, "clbDatabases");
+            var index = list.Items.Cast<object>()
+                .Select((item, itemIndex) => (Value: item.ToString(), Index: itemIndex))
+                .Single(item => string.Equals(item.Value, protectionSet, StringComparison.Ordinal))
+                .Index;
+            list.SetItemChecked(index, true);
+            completion.SetResult();
         });
         return completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }

@@ -2,9 +2,9 @@
 
 | Item | Decision |
 | --- | --- |
-| Status | Accepted for incremental Development migration |
+| Status | Implemented |
 | Date | 2026-08-24 |
-| Gate | UIR-0 |
+| Gate | UIR-13 |
 | Scope | `TomasAI.IFM.UI.Net` presentation project family |
 
 ## Context
@@ -65,6 +65,10 @@ The completed architecture must enforce these rules:
 The migration is vertical and incremental. Each gate moves one coherent domain slice, updates its ViewModels and tests, and removes only the superseded adapter types. Existing backend actor APIs, event-consumer implementations, and backend contracts are not redesigned by this refactor.
 
 Temporary references from ViewModels to existing Models adapters are allowed only for domains whose gate has not started. Compatibility shims must be local to the active gate, documented, and removed before that gate closes.
+
+## Implementation outcome
+
+UIR-1 through UIR-12 implemented the boundary and removed the legacy model-resolution mechanism. UIR-13 accepted the sequential solution build, presentation and architecture suites, non-live composition coverage, and the complete Development G0-G4 live-process sequence with bounded cleanup. Final dependency metrics and exact run evidence are recorded in [UIR-13 Development qualification](TestResults/UIR-13-Development-2026-08-24.md).
 
 ## Consequences
 

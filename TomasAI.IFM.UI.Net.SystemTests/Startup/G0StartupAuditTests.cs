@@ -364,16 +364,15 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-018", "Observe required consumer startup",
-                "EOD, bar, trade-signal, placement, and feed-reset startup statuses each appear once.",
+                "Composite market-outlook, bar, placement, and feed-reset startup statuses each appear once.",
                 async token =>
                 {
                     RequireDesktop(desktop);
                     RequireObserver(observer);
                     string[] expectedMessages =
                     [
-                        "Starting Futures Eod Data Event Consumer",
+                        "Starting Market Outlook Event Consumer",
                         "Starting Futures Bar Data Event Consumer",
-                        "Starting Futures Trade Signal Event Consumer",
                         "Starting Trade Placement Event Consumer",
                         "Starting Market Data Feed Reset Listener"
                     ];
@@ -387,7 +386,7 @@ public sealed class G0StartupAuditTests
                         if (count != 1)
                             throw new InvalidOperationException($"Status '{expected}' appeared {count} times; expected exactly once.");
                     }
-                    return Observation("All five required consumer startup statuses appeared exactly once.");
+                    return Observation("All four required consumer startup statuses appeared exactly once.");
                 });
 
             await Step("G0-019", "Start the current futures feed",
@@ -437,11 +436,10 @@ public sealed class G0StartupAuditTests
                             && CountStatus(rows, "initialization complete") == 1,
                         configuration.StartupTimeout,
                         token);
-                    var controls = automation!.ReadToolbarEnabledState();
-                    if (controls.Values.Any(enabled => !enabled))
-                        throw new InvalidOperationException(
-                            "One or more shell toolbar actions remained disabled: "
-                            + string.Join(", ", controls.Select(pair => $"{pair.Key}={pair.Value}")));
+                    var controls = await WaitForEnabledToolbarAsync(
+                        automation!,
+                        configuration.StartupTimeout,
+                        token);
                     return Observation(
                         $"Initialization completed after the 24-signal status; toolbar={string.Join(",", controls.Select(pair => $"{pair.Key}:{pair.Value}"))}.");
                 });
@@ -760,6 +758,42 @@ public sealed class G0StartupAuditTests
             }
         }
         throw new TimeoutException("Economic-calendar country/date/list state did not render.", lastFailure);
+    }
+
+    static async Task<IReadOnlyDictionary<string, bool>> WaitForEnabledToolbarAsync(
+        G0UiAutomationSession automation,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        Exception? lastFailure = null;
+        IReadOnlyDictionary<string, bool>? controls = null;
+        while (!timeoutSource.IsCancellationRequested)
+        {
+            try
+            {
+                controls = automation.ReadToolbarEnabledState();
+                if (controls.Values.All(static enabled => enabled))
+                    return controls;
+                lastFailure = new InvalidOperationException(
+                    "One or more shell toolbar actions remained disabled: "
+                    + string.Join(", ", controls.Select(pair => $"{pair.Key}={pair.Value}")));
+            }
+            catch (Exception exception)
+            {
+                lastFailure = exception;
+            }
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(200), timeoutSource.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+        throw new TimeoutException("The initialized shell toolbar did not become readable and enabled.", lastFailure);
     }
 
     static async Task<(G0ObservedEvent Request, G0ObservedEvent Terminal)> WaitForSuccessfulImportAsync(
