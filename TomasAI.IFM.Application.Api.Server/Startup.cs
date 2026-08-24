@@ -50,6 +50,7 @@ using TomasAI.IFM.Domain.SystemAdmin;
 using TomasAI.IFM.Domain.OptionPricer;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
+using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
@@ -546,6 +547,7 @@ public static class Startup
         var domainAssemblies = new List<Assembly>
         {
             ApplicationActorAssembly.Current,
+            DomainApplicationActorAssembly.Current,
             FundActorAssembly.Current,
             MarketDataActorAssembly.Current,
             MarketDataAnalyticsActorAssembly.Current,

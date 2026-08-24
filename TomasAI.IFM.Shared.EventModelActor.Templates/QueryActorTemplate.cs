@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.EventModelActor.Templates.Extensions;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 
@@ -13,12 +14,16 @@ namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 /// Template for a query actor. Add query parsers and handlers to the empty maps.
 /// </summary>
 public class QueryActorTemplate(
-    IDbContextFactory dbFactory,
-    ILogger<QueryActorTemplate> logger)
+    IQueryActorContext<QueryActorTemplate> actorContext)
     : BaseQueryActor<QueryActorTemplate>(
-        logger,
-        new ActorMailboxId(ActorType.Query, ActorName))
+        actorContext.Logger,
+        actorContext.ActorId)
 {
+    /// <summary>Gets the typed context owned by this actor.</summary>
+    protected IQueryActorTemplateContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IQueryActorTemplateContext, nameof(actorContext))!;
+
+    /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "QueryActorTemplate";
 
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = [];
@@ -26,7 +31,7 @@ public class QueryActorTemplate(
     static readonly Dictionary<string, Func<
         IQuery,
         IDbContextFactory,
-        IQueryActorContext,
+        IQueryActorContext<QueryActorTemplate>,
         ValueTask>> _receiveMap = [];
 
     protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
@@ -56,7 +61,7 @@ public class QueryActorTemplate(
             throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}");
 
-        await handler.Invoke(query, dbFactory, context);
+        await handler.Invoke(query, actorContext.DbFactory, actorContext.RouteTo(context));
     }
 
     protected override async ValueTask OnExceptionAsync(
@@ -81,7 +86,7 @@ public class QueryActorTemplate(
         }
         catch (Exception innerException)
         {
-            logger.LogError(
+            actorContext.Logger.LogError(
                 innerException,
                 "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}",
                 ActorName,

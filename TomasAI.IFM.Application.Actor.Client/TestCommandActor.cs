@@ -3,16 +3,23 @@ using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Application.Actor.Client.Extensions;
+using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Application.Actor.Client;
 
 /// <summary>
 /// Represents a command actor for handling and processing test commands within the actor system.
 /// </summary>
-/// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
-public class TestCommandActor(ILogger<TestCommandActor> logger) 
-    : BaseEventSourceCommandActor<TestCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+/// <param name="actorContext">The typed command context resolved through open-generic registration.</param>
+public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContext)
+    : BaseEventSourceCommandActor<TestCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the typed context owned by this actor.</summary>
+    protected ITestCommandContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITestCommandContext, nameof(actorContext))!;
+
+    /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "TestCommand";
 
     /// <summary>

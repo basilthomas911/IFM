@@ -55,6 +55,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Application.EventProjector\TomasAI.IFM.Application.EventProjector.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Application.Storage\TomasAI.IFM.Application.Storage.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Fund\TomasAI.IFM.Domain.Fund.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData\TomasAI.IFM.Domain.MarketData.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj" />

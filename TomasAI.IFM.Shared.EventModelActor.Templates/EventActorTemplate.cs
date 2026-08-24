@@ -5,6 +5,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.EventModelActor.Templates.Extensions;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 
@@ -12,20 +13,24 @@ namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 /// Template for an event actor. Add event parsers and handlers to the empty maps.
 /// </summary>
 public class EventActorTemplate(
-    IActorSupervisor supervisor,
-    ILogger<EventActorTemplate> logger)
+    IEventActorContext<EventActorTemplate> actorContext)
     : BaseEventActor<EventActorTemplate>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Event, ActorName))
+        actorContext.Supervisor,
+        actorContext.Logger,
+        actorContext.ActorId)
 {
+    /// <summary>Gets the typed context owned by this actor.</summary>
+    protected IEventActorTemplateContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IEventActorTemplateContext, nameof(actorContext))!;
+
+    /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "EventActorTemplate";
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     readonly Dictionary<string, Func<
         IEvent,
-        IEventActorContext,
+        IEventActorContext<EventActorTemplate>,
         ILogger,
         ValueTask<bool>>> _receiveMap = [];
 
@@ -52,7 +57,7 @@ public class EventActorTemplate(
             throw new InvalidOperationException(
                 $"Unable to resolve {ActorName} event from message: {@event.Subject}");
 
-        _ = await handler.Invoke(@event, context, logger);
+        _ = await handler.Invoke(@event, actorContext.RouteTo(context), actorContext.Logger);
     }
 
     protected override async ValueTask OnExceptionAsync(
@@ -76,7 +81,7 @@ public class EventActorTemplate(
             await innerException.SendErrorEventAsync<Events.EventExceptionEvent, ActorEntityId>(
                 ErrorType.EventService,
                 context);
-            logger.LogError(
+            actorContext.Logger.LogError(
                 innerException,
                 "Failed to send EventExceptionEvent for {ActorName} actor.",
                 ActorName);

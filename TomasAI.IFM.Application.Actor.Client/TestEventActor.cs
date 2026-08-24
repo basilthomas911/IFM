@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.Actor.Client.Extensions;
 
 namespace TomasAI.IFM.Application.Actor.Client;
 
@@ -13,12 +14,19 @@ namespace TomasAI.IFM.Application.Actor.Client;
 /// <remarks>This actor is designed to handle <see cref="TestEvent"/> messages and operates within the context of
 /// the actor system. It uses the provided <see cref="IActorSupervisor"/> for supervision and an <see
 /// cref="ILogger{TCategoryName}"/> for logging.</remarks>
-/// <param name="superisor"></param>
-/// <param name="logger"></param>
-public class TestEventActor(IActorSupervisor superisor, ILogger<TestEventActor> logger)
-    : BaseEventActor<TestEventActor>(superisor, logger, new ActorMailboxId(ActorType.Event, "Test"))
+/// <param name="actorContext">The typed event context resolved through open-generic registration.</param>
+public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
+    : BaseEventActor<TestEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the typed context owned by this actor.</summary>
+    protected ITestEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITestEventContext, nameof(actorContext))!;
+
+    /// <summary>Gets the event name parsed by this actor.</summary>
     public const string ActorName = "TestEvent";
+
+    /// <summary>Gets the actor mailbox name retained for compatibility with the existing sample protocol.</summary>
+    public const string MailboxName = "Test";
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {

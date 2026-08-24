@@ -62,6 +62,7 @@ using TomasAI.IFM.TradePlan.HostedService;
 using TomasAI.IFM.Service.TradePosition;
 using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
+using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -463,6 +464,7 @@ public static class Startup
         var domainAssemblies = new List<Assembly>
         {
             ApplicationActorAssembly.Current,
+            DomainApplicationActorAssembly.Current,
             FundActorAssembly.Current,
             FundActorSharedAssembly.Current,
             MarketDataActorAssembly.Current,

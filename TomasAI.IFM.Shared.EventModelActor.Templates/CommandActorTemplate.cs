@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using Newtonsoft.Json;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -8,6 +9,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Shared.EventModelActor.Templates.Extensions;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 
@@ -15,22 +17,26 @@ namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 /// Template for an event-sourced command actor. Add command parsers, handlers, and validators to the empty maps.
 /// </summary>
 public class CommandActorTemplate(
-    IEventSourceActorDbContext dbEventSource,
-    ILogger<CommandActorTemplate> logger)
+    ICommandActorContext<CommandActorTemplate> actorContext)
     : BaseEventSourceCommandActor<CommandActorTemplate>(
-        logger,
-        new ActorMailboxId(ActorType.Command, ActorName))
+        actorContext.Logger,
+        actorContext.ActorId)
 {
+    /// <summary>Gets the typed context owned by this actor.</summary>
+    protected ICommandActorTemplateContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ICommandActorTemplateContext, nameof(actorContext))!;
+
+    /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "CommandActorTemplate";
 
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
     IEventSourceActorStateRepository<CommandActorTemplateState> _repository = default!;
 
     static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = [];
 
     static readonly Dictionary<string, Func<
         ICommand,
-        ICommandActorContext,
+        ICommandActorContext<CommandActorTemplate>,
         CommandActorTemplateState,
         ServiceResult<GuidResult>>> _receiveMap = [];
 
@@ -47,7 +53,7 @@ public class CommandActorTemplate(
     protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var subject = message.Subject.ToSubject();
+        var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Command, Name: ActorName }
             || !_parseMap.TryGetValue(subject.Verb, out var parser))
             throw new InvalidOperationException(
@@ -77,7 +83,7 @@ public class CommandActorTemplate(
             throw new InvalidOperationException(
                 $"Unable to resolve {ActorName} command from message: {command.Subject}");
 
-        return handler.Invoke(command, context, templateState);
+        return handler.Invoke(command, actorContext.RouteTo(context), templateState);
     }
 
     protected override ValueTask OnValidateAsync(
@@ -142,7 +148,7 @@ public class CommandActorTemplate(
         }
         catch (Exception innerException)
         {
-            logger.LogError(
+            actorContext.Logger.LogError(
                 innerException,
                 "Error handling exception for {ActorName} command in thread {ThreadId}: {OriginalExceptionMessage}",
                 ActorName,
@@ -171,6 +177,7 @@ public sealed class CommandActorTemplateState
     : BaseEventSourceActorState<CommandActorTemplateState>,
         IEventSourceActorState<CommandActorTemplateState>
 {
+    /// <inheritdoc/>
     public override ActorThreadId Id { get; set; } = default!;
 
     protected override bool Apply(IEvent domainEvent) => false;

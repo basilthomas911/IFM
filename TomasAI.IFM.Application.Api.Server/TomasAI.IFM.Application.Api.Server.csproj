@@ -31,6 +31,7 @@
 		<ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep\TomasAI.IFM.Framework.MarketData.FinancialModelingPrep.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.Fund\TomasAI.IFM.Domain.Fund.csproj" />
+		<ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData\TomasAI.IFM.Domain.MarketData.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics\TomasAI.IFM.Domain.MarketData.Analytics.csproj" />
 		<ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Feed\TomasAI.IFM.Domain.MarketData.Feed.csproj" />

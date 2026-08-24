@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.Actor.Client.Extensions;
 
 namespace TomasAI.IFM.Application.Actor.Client;
 
@@ -14,11 +15,16 @@ namespace TomasAI.IFM.Application.Actor.Client;
 /// parsing, state loading, and error handling for queries identified by the actor name "Test". The actor is intended
 /// for use within an actor-based messaging infrastructure and is not thread-safe outside the actor system's
 /// context.</remarks>
-/// <param name="logger">The logger used to record diagnostic and operational information for the actor. Cannot be null.</param>
-public class TestQueryActor(ILogger<TestQueryActor> logger)
-    : BaseQueryActor<TestQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+/// <param name="actorContext">The typed query context resolved through open-generic registration.</param>
+public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
+    : BaseQueryActor<TestQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
-    const string ActorName = "Test";
+    /// <summary>Gets the typed context owned by this actor.</summary>
+    protected ITestQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITestQueryContext, nameof(actorContext))!;
+
+    /// <summary>Gets the actor mailbox name.</summary>
+    public const string ActorName = "Test";
     protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
     {
         var msgSubject = message.Subject;
@@ -41,7 +47,8 @@ public class TestQueryActor(ILogger<TestQueryActor> logger)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var msgInfo = IsArgumentNull.Set(context.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
+        var dispatchContext = actorContext.RouteTo(context);
+        var msgInfo = IsArgumentNull.Set(dispatchContext.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
         var actorMessage = IsArgumentNull.Set(msgInfo.Message);
         await actorMessage.ReplyAsync(new ServiceResult<string>( "The rain in Spain stays mainly in the plain."));
     }
@@ -62,7 +69,7 @@ public class TestQueryActor(ILogger<TestQueryActor> logger)
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }
