@@ -33,13 +33,13 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
             : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
         TestableFuturesOptionTickDataQueryActor(IFuturesOptionTickDataQueryContext context) : base(context) => Context = context;
 
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesOptionTickDataQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesOptionTickDataQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<FuturesOptionTickDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
 
@@ -415,7 +415,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
         var actor = _fixture.CreateActor(logger, dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var entityId = new GetLastFuturesOptionTickDataParameter(
             SampleData.EsOptionTickData.ContractId,
             SampleData.ValueDate);
@@ -447,7 +447,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
         var actor = _fixture.CreateActor(logger, dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var entityId = new GetLastFuturesOptionTickDataParameter(
             "NONEXISTENT_CONTRACT",
             SampleData.ValueDate);
@@ -477,7 +477,7 @@ public class FuturesOptionTickDataQueryActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
         var actor = _fixture.CreateActor(logger, dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var contractId = "ES20240601P5400";
         var valueDate = new DateOnly(2024, 7, 1);
         var entityId = new GetLastFuturesOptionTickDataParameter(contractId, valueDate);

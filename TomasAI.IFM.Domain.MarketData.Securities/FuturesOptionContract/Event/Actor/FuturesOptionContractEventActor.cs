@@ -9,7 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Event.Exten
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Event.Actor;
 
 public class FuturesOptionContractEventActor(IEventActorContext<FuturesOptionContractEventActor> actorContext)
-    : BaseEventActor<FuturesOptionContractEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesOptionContractEventActor>(actorContext, actorContext.Logger)
 {
     public const string Actor = "FuturesOptionContractEvent";
     readonly ILogger<FuturesOptionContractEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -26,7 +26,7 @@ public class FuturesOptionContractEventActor(IEventActorContext<FuturesOptionCon
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesOptionContractEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -47,7 +47,7 @@ public class FuturesOptionContractEventActor(IEventActorContext<FuturesOptionCon
     /// <param name="event">The event to be processed.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesOptionContractEventActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
@@ -65,7 +65,7 @@ public class FuturesOptionContractEventActor(IEventActorContext<FuturesOptionCon
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesOptionContractEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

@@ -40,14 +40,14 @@ public class FuturesAtrSignalQueryTests
         ILogger<FuturesAtrSignalQueryActor> logger)
         : FuturesAtrSignalQueryActor(new FuturesAtrSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesAtrSignalQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesAtrSignalQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);
 
         public ValueTask InvokeOnExceptionAsync(
-            IQueryActorContext context,
+            IQueryActorContext<FuturesAtrSignalQueryActor> context,
             ActorThreadId threadId,
             IQuery query,
             string verb,
@@ -55,7 +55,7 @@ public class FuturesAtrSignalQueryTests
             => OnExceptionAsync(context, threadId, query, verb, exception);
     }
 
-    static (TestableFuturesAtrSignalQueryActor Actor, IMarketDataDbContext Db, IQueryActorContext Context)
+    static (TestableFuturesAtrSignalQueryActor Actor, IMarketDataDbContext Db, IQueryActorContext<FuturesAtrSignalQueryActor> Context)
         CreateScenario()
     {
         var db = Substitute.For<IMarketDataDbContext>();
@@ -64,7 +64,7 @@ public class FuturesAtrSignalQueryTests
         var actor = new TestableFuturesAtrSignalQueryActor(
             dbFactory,
             Substitute.For<ILogger<FuturesAtrSignalQueryActor>>());
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAtrSignalQueryActor>>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
             .Returns(true);
         return (actor, db, context);

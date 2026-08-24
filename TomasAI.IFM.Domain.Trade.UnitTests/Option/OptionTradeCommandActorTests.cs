@@ -32,25 +32,25 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
         ILogger<OptionTradeCommandActor> logger)
         : OptionTradeCommandActor(new OptionTradeCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, dbFactory, Substitute.For<IEventProjector<OptionTradeCommandActor>>(), logger))
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<OptionTradeCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<OptionTradeCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnLoadStateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
             => await OnSaveStateAsync(context, threadId, state, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
 
-        public async ValueTask InvokeOnStartup(ICommandActorContext context)
+        public async ValueTask InvokeOnStartup(ICommandActorContext<OptionTradeCommandActor> context)
             => await OnStartup(context);
     }
 
@@ -77,13 +77,13 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
             Data = _fixture.DataSerializer.Serialize(command)
         };
 
-        var parseTask = Task.Run(() => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message));
+        var parseTask = Task.Run(() => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<OptionTradeCommandActor>>(), message));
         var completed = await Task.WhenAny(parseTask, Task.Delay(TimeSpan.FromSeconds(1)));
 
         completed.Should().BeSameAs(parseTask);
         var parsed = await parseTask;
         var validationTask = actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(),
+            Substitute.For<ICommandActorContext<OptionTradeCommandActor>>(),
             command.Subject.ThreadId,
             parsed).AsTask();
         await Task.Delay(25);

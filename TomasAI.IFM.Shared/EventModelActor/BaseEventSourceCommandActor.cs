@@ -15,17 +15,18 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// implement specific behavior for message processing and state handling by overriding the appropriate protected
 /// methods.</remarks>
 /// <typeparam name="TActor">The type of the actor that this command actor represents.</typeparam>
-/// <param name="logger"></param>
-/// <param name="actorId"></param>
+/// <param name="actorContext">The closed-generic command context owned by the actor for its entire lifetime.</param>
+/// <param name="logger">The logger used to record operational and diagnostic information.</param>
 public abstract class BaseEventSourceCommandActor<TActor>(
-     ILogger logger, ActorMailboxId actorId)
+    ICommandActorContext<TActor> actorContext,
+    ILogger logger)
     : ICommandActor<TActor> where TActor : IActor
 {
-    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
+    readonly ICommandActorContext<TActor> _context = IsArgumentNull.Set(actorContext);
+    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     string _serviceId = string.Empty;
 
-    ICommandActorContext? _context;
     ICommandDuplicateGuard? _commandDuplicateGuard;
     IActorSupervisor _supervisor;
     int _lifecycle;
@@ -70,7 +71,6 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-            _context = supervisor.CreateCommandActorContext(actorId);
             _commandDuplicateGuard = _context.Container.Resolve<ICommandDuplicateGuard>()
                 ?? throw new InvalidOperationException(
                     $"{nameof(ICommandDuplicateGuard)} must be registered before command actors start.");
@@ -285,36 +285,50 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         }
     }
 
-    // Explicit interface implementations forwarding to protected hooks
-    ValueTask ICommandActor.OnStartup(ICommandActorContext context) => OnStartup(context);
-    ValueTask ICommandActor.OnShutdown(ICommandActorContext context) => OnShutdown(context);
-    ValueTask<ServiceResult<GuidResult>> ICommandActor.ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command) => ReceiveAsync(context, state, command);
-    ValueTask ICommandActor.OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command);
-    ValueTask<IActorState> ICommandActor.OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(context, threadId, command);
-    ValueTask ICommandActor.OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(context, threadId, state, command);
-    ValueTask<ServiceResult<GuidResult>> ICommandActor.OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(context, threadId, command, ex);
+    // Explicit interface implementations forwarding to protected hooks.
+    ValueTask ICommandActor<TActor>.OnStartup(ICommandActorContext<TActor> context) => OnStartup(context);
+    ValueTask ICommandActor<TActor>.OnShutdown(ICommandActorContext<TActor> context) => OnShutdown(context);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.ReceiveAsync(ICommandActorContext<TActor> context, IActorState state, ICommand command) => ReceiveAsync(context, state, command);
+    ValueTask ICommandActor<TActor>.OnValidateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command);
+    ValueTask<IActorState> ICommandActor<TActor>.OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(context, threadId, command);
+    ValueTask ICommandActor<TActor>.OnSaveStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(context, threadId, state, command);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor<TActor>.OnExceptionAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(context, threadId, command, ex);
+
+    ValueTask ICommandActor.OnStartup(ICommandActorContext context) => OnStartup(RequireTypedContext(context));
+    ValueTask ICommandActor.OnShutdown(ICommandActorContext context) => OnShutdown(RequireTypedContext(context));
+    ValueTask<ServiceResult<GuidResult>> ICommandActor.ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command) => ReceiveAsync(RequireTypedContext(context), state, command);
+    ValueTask ICommandActor.OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnValidateAsync(RequireTypedContext(context), threadId, command);
+    ValueTask<IActorState> ICommandActor.OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => OnLoadStateAsync(RequireTypedContext(context), threadId, command);
+    ValueTask ICommandActor.OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command) => OnSaveStateAsync(RequireTypedContext(context), threadId, state, command);
+    ValueTask<ServiceResult<GuidResult>> ICommandActor.OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex) => OnExceptionAsync(RequireTypedContext(context), threadId, command, ex);
+
+    static ICommandActorContext<TActor> RequireTypedContext(ICommandActorContext context)
+        => context as ICommandActorContext<TActor>
+            ?? throw new ArgumentException(
+                $"The context must implement {typeof(ICommandActorContext<TActor>).Name}.",
+                nameof(context));
 
     // Protected hooks for derived classes
-    protected abstract ICommand ParseMessage(ICommandActorContext context, IActorMessage message);
+    protected abstract ICommand ParseMessage(ICommandActorContext<TActor> context, IActorMessage message);
 
     /// <summary>
     /// Compatibility entry point for existing command actor tests during the staged mailbox migration.
     /// Runtime command ingress uses <see cref="IActorMessage"/> directly.
     /// </summary>
-    protected ICommand ParseMessage(ICommandActorContext context, in NatsMsg<byte[]> message)
+    protected ICommand ParseMessage(ICommandActorContext<TActor> context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
-    protected virtual ValueTask OnStartup(ICommandActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(ICommandActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
-        ICommandActorContext context,
+        ICommandActorContext<TActor> context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnStartup(context);
     }
-    protected virtual ValueTask OnShutdown(ICommandActorContext context) => ValueTask.CompletedTask;
-    protected abstract ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command);
+    protected virtual ValueTask OnShutdown(ICommandActorContext<TActor> context) => ValueTask.CompletedTask;
+    protected abstract ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TActor> context, IActorState state, ICommand command);
     protected virtual ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TActor> context,
         IActorState state,
         ICommand command,
         CancellationToken cancellationToken)
@@ -322,9 +336,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         cancellationToken.ThrowIfCancellationRequested();
         return ReceiveAsync(context, state, command);
     }
-    protected virtual ValueTask OnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command) => ValueTask.CompletedTask;
     protected virtual ValueTask OnValidateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TActor> context,
         ActorThreadId threadId,
         ICommand command,
         CancellationToken cancellationToken)
@@ -332,13 +346,13 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         cancellationToken.ThrowIfCancellationRequested();
         return OnValidateAsync(context, threadId, command);
     }
-    protected virtual ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command )
+    protected virtual ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command )
     {
         return ValueTask.FromResult<IActorState>(default!);
     }
 
     protected virtual ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TActor> context,
         ActorThreadId threadId,
         ICommand command,
         CancellationToken cancellationToken)
@@ -347,20 +361,20 @@ public abstract class BaseEventSourceCommandActor<TActor>(
         return OnLoadStateAsync(context, threadId, command);
     }
 
-    protected virtual ValueTask OnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+    protected virtual ValueTask OnSaveStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, IActorState state, ICommand command)
     {
         return ValueTask.CompletedTask;
     }
 
     protected virtual ValueTask OnSaveStateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TActor> context,
         ActorThreadId threadId,
         IActorState state,
         ICommand command,
         CancellationToken cancellationToken)
         => OnSaveStateAsync(context, threadId, state, command);
 
-    protected abstract ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception ex);
+    protected abstract ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception ex);
 
     /// <summary>
     /// Creates a failed command event instance populated with error details and context information from the specified

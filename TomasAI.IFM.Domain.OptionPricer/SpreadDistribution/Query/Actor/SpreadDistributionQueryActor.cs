@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query.Actor;
 /// <summary>Provides the SpreadDistributionQueryActor implementation.</summary>
 public class SpreadDistributionQueryActor(
     IQueryActorContext<SpreadDistributionQueryActor> actorContext)
-    : BaseQueryActor<SpreadDistributionQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<SpreadDistributionQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected ISpreadDistributionQueryContext ActorContext { get; } =
@@ -31,7 +31,7 @@ public class SpreadDistributionQueryActor(
     /// <param name="message">The actor message to parse.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<SpreadDistributionQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -63,15 +63,15 @@ public class SpreadDistributionQueryActor(
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<SpreadDistributionQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<SpreadDistributionQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
@@ -111,7 +111,7 @@ public class SpreadDistributionQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<SpreadDistributionQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

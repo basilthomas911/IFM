@@ -18,9 +18,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 /// </summary>
 public class CommandActorTemplate(
     ICommandActorContext<CommandActorTemplate> actorContext)
-    : BaseEventSourceCommandActor<CommandActorTemplate>(
-        actorContext.Logger,
-        actorContext.ActorId)
+    : BaseEventSourceCommandActor<CommandActorTemplate>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ICommandActorTemplateContext ActorContext { get; } =
@@ -42,7 +40,7 @@ public class CommandActorTemplate(
 
     static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = [];
 
-    protected override ValueTask OnStartup(ICommandActorContext context)
+    protected override ValueTask OnStartup(ICommandActorContext<CommandActorTemplate> context)
     {
         IsArgumentNull.Check(context);
         _repository = IsArgumentNull.Set(
@@ -50,7 +48,7 @@ public class CommandActorTemplate(
         return ValueTask.CompletedTask;
     }
 
-    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
+    protected override ICommand ParseMessage(ICommandActorContext<CommandActorTemplate> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var subject = message.Subject;
@@ -65,7 +63,7 @@ public class CommandActorTemplate(
     }
 
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext context,
+        ICommandActorContext<CommandActorTemplate> context,
         IActorState state,
         ICommand command)
     {
@@ -83,11 +81,11 @@ public class CommandActorTemplate(
             throw new InvalidOperationException(
                 $"Unable to resolve {ActorName} command from message: {command.Subject}");
 
-        return handler.Invoke(command, actorContext.RouteTo(context), templateState);
+        return handler.Invoke(command, context, templateState);
     }
 
     protected override ValueTask OnValidateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<CommandActorTemplate> context,
         ActorThreadId threadId,
         ICommand command)
     {
@@ -104,7 +102,7 @@ public class CommandActorTemplate(
     }
 
     protected override async ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<CommandActorTemplate> context,
         ActorThreadId threadId,
         ICommand command)
     {
@@ -115,7 +113,7 @@ public class CommandActorTemplate(
     }
 
     protected override async ValueTask OnSaveStateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<CommandActorTemplate> context,
         ActorThreadId threadId,
         IActorState state,
         ICommand command)
@@ -130,7 +128,7 @@ public class CommandActorTemplate(
     }
 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
-        ICommandActorContext context,
+        ICommandActorContext<CommandActorTemplate> context,
         ActorThreadId threadId,
         ICommand command,
         Exception exception)

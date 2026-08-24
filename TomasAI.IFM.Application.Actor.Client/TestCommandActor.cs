@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Application.Actor.Client;
 /// </summary>
 /// <param name="actorContext">The typed command context resolved through open-generic registration.</param>
 public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContext)
-    : BaseEventSourceCommandActor<TestCommandActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseEventSourceCommandActor<TestCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ITestCommandContext ActorContext { get; } =
@@ -31,7 +31,7 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <param name="context">The context in which the command actor operates. This provides access to actor-specific resources and state.</param>
     /// <param name="message">The message to be parsed, containing the subject and payload required to resolve the command.</param>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not match the expected command format for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
+    protected override ICommand ParseMessage(ICommandActorContext<TestCommandActor> context, IActorMessage message)
     {
         var msgSubject = message.Subject;
         ICommand command = default(ICommand) switch
@@ -48,7 +48,7 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <param name="context">The context of the command actor, providing access to actor-specific information and services.</param>
     /// <param name="state">The current state of the actor, which may be used or modified during command processing.</param>
     /// <returns>A <see cref="ValueTask"/> that represents the asynchronous operation.</returns>
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TestCommandActor> context, IActorState state, ICommand cmd)
     {
         return await Task.FromResult(new ServiceResult<GuidResult>(new GuidResult(cmd.CommandId)));
     }
@@ -60,9 +60,9 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <param name="context">The context for the command actor, providing access to actor metadata and services required for state loading.</param>
     /// <param name="threadId">The identifier of the actor thread for which the state is being loaded.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains the loaded actor state.</returns>
-    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+    protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TestCommandActor> context, ActorThreadId threadId, ICommand cmd)
         => await ValueTask.FromResult(new TestCommandState());
 
-    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+    protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TestCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
         => await ValueTask.FromResult(new ServiceResult<GuidResult>(new GuidResult(cmd.CommandId)));
 }

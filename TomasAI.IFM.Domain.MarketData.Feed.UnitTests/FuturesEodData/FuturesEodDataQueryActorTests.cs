@@ -27,14 +27,14 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         public TestableFuturesEodDataQueryActor(IDbContextFactory dbFactory, ILogger<FuturesEodDataQueryActor> logger)
             : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
         TestableFuturesEodDataQueryActor(IFuturesEodDataQueryContext context) : base(context) => Context = context;
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesEodDataQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);
 
         public ValueTask InvokeOnExceptionAsync(
-            IQueryActorContext context, ActorThreadId threadId, IQuery query,
+            IQueryActorContext<FuturesEodDataQueryActor> context, ActorThreadId threadId, IQuery query,
             string verb, Exception exception)
             => OnExceptionAsync(context, threadId, query, verb, exception);
     }
@@ -79,7 +79,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var subject = new ActorSubject(actorType, actorName, verb, query.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(query) };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesEodDataQueryActor.ActorName} query from message: *");
@@ -98,7 +98,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             Data = emptyPayload ? [] : [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -250,7 +250,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var actor = CreateActor(dbFactory);
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IQueryActorContext>(), CreateQuery("LastVix")).AsTask();
+            Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), CreateQuery("LastVix")).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("database failed");
     }
@@ -276,7 +276,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesEodDataQueryActor.ActorName, "Unknown", "entity"));
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), query).AsTask();
+        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesEodDataQueryActor.ActorName} query: *");
@@ -390,7 +390,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     static async Task VerifySuccessfulReply(
-        IQueryActorContext context, IQuery query, string requestedVerb)
+        IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query, string requestedVerb)
     {
         var replyVerb = requestedVerb;
         switch (query)
@@ -431,7 +431,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     static async Task VerifyFailedReply(
-        IQueryActorContext context, IQuery query, string verb, string errorMessage)
+        IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query, string verb, string errorMessage)
     {
         switch (query)
         {

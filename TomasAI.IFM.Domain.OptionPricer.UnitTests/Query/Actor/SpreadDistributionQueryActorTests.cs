@@ -20,7 +20,7 @@ public class SpreadDistributionQueryActorTests
         : SpreadDistributionQueryActor(new SpreadDistributionQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public ValueTask InvokeReceiveAsync(
-            IQueryActorContext context,
+            IQueryActorContext<SpreadDistributionQueryActor> context,
             IQuery query,
             CancellationToken cancellationToken)
             => ReceiveAsync(context, query, cancellationToken);
@@ -41,7 +41,7 @@ public class SpreadDistributionQueryActorTests
             TradeStatus.Open,
             new DateOnly(2026, 8, 6),
             30);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<SpreadDistributionQueryActor>>();
         using var cancellation = new CancellationTokenSource();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         optionPricerDb.GetSpreadDistributionAsync(

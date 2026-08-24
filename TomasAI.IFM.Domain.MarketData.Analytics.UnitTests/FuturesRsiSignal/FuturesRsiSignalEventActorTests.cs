@@ -43,20 +43,20 @@ public class FuturesRsiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         {
         }
 
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FuturesRsiSignalEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public async ValueTask InvokeReceiveAsync(IEventActorContext<FuturesRsiSignalEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);
 
 
-        public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IEventActorContext<FuturesRsiSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
 
-        public async ValueTask InvokeOnStartAsync(IEventActorContext context)
+        public async ValueTask InvokeOnStartAsync(IEventActorContext<FuturesRsiSignalEventActor> context)
             => await OnStartup(context);
 
-        public async ValueTask InvokeOnStopAsync(IEventActorContext context)
+        public async ValueTask InvokeOnStopAsync(IEventActorContext<FuturesRsiSignalEventActor> context)
             => await OnShutdown(context);
     }
 

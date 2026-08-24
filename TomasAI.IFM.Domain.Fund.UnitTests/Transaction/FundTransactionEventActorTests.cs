@@ -50,13 +50,13 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
             return context;
         }
 
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FundTransactionEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public async ValueTask InvokeReceiveAsync(IEventActorContext<FundTransactionEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);
 
-        public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IEventActorContext<FundTransactionEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
     }
 
@@ -89,7 +89,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var message = new NatsMsg<byte[]>("Event.SomeOtherActor.SomeVerb.1", string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
         // Act
@@ -104,7 +104,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange - an unknown verb is not part of the transaction event contract.
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var message = new NatsMsg<byte[]>($"Event.{FundTransactionEventActor.Actor}.AnyVerb.1", string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
         // Act
@@ -119,7 +119,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var message = new NatsMsg<byte[]>("Invalid.Subject.Format", string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
         // Act
@@ -139,7 +139,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(
             Substitute.For<IActorSupervisor>(),
             Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var transaction = SampleData.FundTransaction;
         var entityId = new FundTransactionEntityId(transaction.FundId, transaction.OrderId);
         var @event = new FundTransactionEvent
@@ -178,7 +178,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
@@ -192,7 +192,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange - an unrelated event type is not registered in the receive map.
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var @event = CreateSampleEvent();
 
         // Act
@@ -212,7 +212,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FundTransactionEventActor.Actor, "1");
         var @event = CreateSampleEvent();
         var ex = new InvalidOperationException("Test exception message");
@@ -251,7 +251,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     {
         // Arrange
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FundTransactionEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FundTransactionEventActor.Actor, "1");
         var @event = CreateSampleEvent();
         var ex = new InvalidOperationException("Test exception message");

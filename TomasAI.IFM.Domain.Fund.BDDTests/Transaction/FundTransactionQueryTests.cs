@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -53,7 +53,7 @@ public class FundTransactionQueryTests
 
         public IFundTransactionQueryContext Context { get; }
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FundTransactionQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
     }
 

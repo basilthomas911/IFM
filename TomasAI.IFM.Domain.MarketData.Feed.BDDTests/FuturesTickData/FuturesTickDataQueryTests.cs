@@ -29,7 +29,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public void Given_AValidTickQueryMessage_When_ItIsParsed_Then_TheQueryAndMessageInfoArePreserved(string kind)
     {
         var actor = _fixture.CreateTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = CreateQuery(kind);
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
@@ -49,7 +49,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var query = (GetLastFuturesTickDataQuery)CreateQuery("Latest");
 
         var parsed = actor.InvokeParseMessage(
-            Substitute.For<IQueryActorContext>(), CreateMessage(query));
+            Substitute.For<IQueryActorContext<FuturesTickDataQueryActor>>(), CreateMessage(query));
 
         var typed = parsed.Should().BeOfType<GetLastFuturesTickDataQuery>().Which;
         typed.ContractId.Should().Be(SampleData.EsTickData.ContractId);
@@ -63,7 +63,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var query = (GetLastFuturesTickDataByTickDateQuery)CreateQuery("ByTickDate");
 
         var parsed = actor.InvokeParseMessage(
-            Substitute.For<IQueryActorContext>(), CreateMessage(query));
+            Substitute.For<IQueryActorContext<FuturesTickDataQueryActor>>(), CreateMessage(query));
 
         var typed = parsed.Should().BeOfType<GetLastFuturesTickDataByTickDateQuery>().Which;
         typed.ContractId.Should().Be(SampleData.EsTickData.ContractId);
@@ -96,7 +96,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
             Data = Serialize(query)
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesTickDataQueryActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesTickDataQueryActor.ActorName} query from message: *");
@@ -115,7 +115,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
             Data = empty ? [] : [0x00, 0x01, 0x02, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesTickDataQueryActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -137,7 +137,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         database.GetLastFuturesTickDataAsync(
             SampleData.EsTickData.ContractId, SampleData.ValueDate).Returns(SampleData.EsTickData);
         var actor = _fixture.CreateTickQueryActor(factory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = (GetLastFuturesTickDataQuery)CreateQuery("Latest");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -157,7 +157,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         database.GetLastFuturesTickDataByTickDateAsync(
             SampleData.EsTickData.ContractId, TickDate).Returns(SampleData.EsTickData);
         var actor = _fixture.CreateTickQueryActor(factory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = (GetLastFuturesTickDataByTickDateQuery)CreateQuery("ByTickDate");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -177,7 +177,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (factory, _) = CreateDatabase();
         var actor = _fixture.CreateTickQueryActor(factory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = CreateQuery(kind, "MISSING");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -201,7 +201,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var actor = _fixture.CreateTickQueryActor(factory);
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IQueryActorContext>(), CreateQuery(kind)).AsTask();
+            Substitute.For<IQueryActorContext<FuturesTickDataQueryActor>>(), CreateQuery(kind)).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("database failed");
     }
@@ -210,7 +210,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingReceiveInputs_When_ATickQueryIsReceived_Then_EachIsRejected()
     {
         var actor = _fixture.CreateTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = CreateQuery("Latest");
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -227,7 +227,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesTickDataQueryActor.ActorName, "Unknown", "entity"));
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), query).AsTask();
+        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext<FuturesTickDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesTickDataQueryActor.ActorName} query: *");
@@ -239,7 +239,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AKnownTickQueryFailure_When_ItIsHandled_Then_TheTypedFailureIsReplied(string kind)
     {
         var actor = _fixture.CreateTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = CreateQuery(kind);
 
         await actor.InvokeOnExceptionAsync(
@@ -257,7 +257,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AnUnknownTickQueryFailure_When_ItIsHandled_Then_TheFallbackFailureIsReplied()
     {
         var actor = _fixture.CreateTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesTickDataQueryActor.ActorName, "Unknown", "entity"));
@@ -276,7 +276,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_ReplyingToATickFailureAlsoFails_When_ItIsHandled_Then_TheSecondaryFailureIsSwallowed()
     {
         var actor = _fixture.CreateTickQueryActor(logger: Substitute.For<ILogger<FuturesTickDataQueryActor>>());
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = CreateQuery("Latest");
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -294,7 +294,7 @@ public class FuturesTickDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingExceptionInputs_When_ATickFailureIsHandled_Then_EachIsRejected()
     {
         var actor = _fixture.CreateTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesTickDataQueryActor> context = actor.Context;
         var query = CreateQuery("Latest");
         var exception = new Exception("failure");
 

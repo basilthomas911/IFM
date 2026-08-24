@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit;
 /// <summary>Provides the TradePlanForwardLossLimitCommandActor implementation.</summary>
 public sealed class TradePlanForwardLossLimitCommandActor(
     ICommandActorContext<TradePlanForwardLossLimitCommandActor> actorContext)
-    : BaseEventSourceCommandActor<TradePlanForwardLossLimitCommandActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseEventSourceCommandActor<TradePlanForwardLossLimitCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     private ITradePlanForwardLossLimitCommandActorContext ActorContext { get; } =
@@ -24,7 +24,7 @@ public sealed class TradePlanForwardLossLimitCommandActor(
 
     public const string ActorName = "TradePlanForwardLossLimitCommand";
 
-    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
+    protected override ICommand ParseMessage(ICommandActorContext<TradePlanForwardLossLimitCommandActor> context, IActorMessage message)
         => message.Subject switch
         {
             { ActorType: ActorType.Command, Name: ActorName, Verb: UpdateTradePlanForwardLossLimitCommand.Verb }
@@ -36,7 +36,7 @@ public sealed class TradePlanForwardLossLimitCommandActor(
         };
 
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TradePlanForwardLossLimitCommandActor> context,
         IActorState state,
         ICommand command)
     {
@@ -73,13 +73,13 @@ public sealed class TradePlanForwardLossLimitCommandActor(
     }
 
     protected override ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TradePlanForwardLossLimitCommandActor> context,
         ActorThreadId threadId,
         ICommand command)
         => ValueTask.FromResult<IActorState>(new TradePlanActorState { Id = threadId });
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TradePlanForwardLossLimitCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
         Exception ex)

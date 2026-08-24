@@ -27,7 +27,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_AnEodRepository_When_TheActorStarts_Then_ItResolvesThatRepository()
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesEodDataCommandState>>();
         context.Container.Returns(container);
@@ -59,7 +59,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateEodCommandActor(db);
         var command = vix ? (ICommand)CreateVixCommand() : CreateEodCommand();
 
-        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), CreateMessage(command));
+        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), CreateMessage(command));
 
         parsed.GetType().Should().Be(command.GetType());
         parsed.CommandId.Should().Be(command.CommandId);
@@ -82,7 +82,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var subject = new ActorSubject(actorType, actorName, verb, command.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(command) };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesEodDataCommandActor.ActorName} command from message: *");
@@ -99,7 +99,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
             Data = [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -113,9 +113,9 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var actor = _fixture.CreateEodCommandActor(db);
 
         var command = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(CreateEodCommand()));
+            Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), CreateMessage(CreateEodCommand()));
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
@@ -139,7 +139,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = vix ? (ICommand)CreateVixCommand() : CreateEodCommand();
         var state = new FuturesEodDataCommandState { Id = command.Subject.ThreadId };
 
-        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), state, command);
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
@@ -154,7 +154,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = CreateEodCommand();
         var state = new FuturesEodDataCommandState { Id = command.Subject.ThreadId };
 
-        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), state, command);
 
         var inserted = state.Events.Should().ContainSingle().Which
             .Should().BeOfType<FuturesEodDataInsertedEvent>().Which;
@@ -168,7 +168,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_MissingReceiveInputs_When_ACommandIsReceived_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var command = CreateEodCommand();
         var state = new FuturesEodDataCommandState { Id = command.Subject.ThreadId };
 
@@ -184,7 +184,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_AnUnsupportedCommand_When_ItIsReceivedOrValidated_Then_ItIsRejected()
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var command = Substitute.For<ICommand>();
         command.Subject.Returns(new ActorSubject(
             ActorType.Command, FuturesEodDataCommandActor.ActorName, "Unknown", "entity"));
@@ -205,7 +205,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = vix ? (ICommand)CreateVixCommand() : CreateEodCommand();
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -219,7 +219,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         var command = vix ? (ICommand)CreateVixCommand(Guid.Empty) : CreateEodCommand(Guid.Empty);
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -228,7 +228,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_MissingValidationInputs_When_ACommandIsValidated_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var command = CreateEodCommand();
 
         await ((Func<Task>)(() => actor.InvokeOnValidateAsync(null!, command.Subject.ThreadId, command).AsTask()))
@@ -278,7 +278,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_AKnownEodFailure_When_ItIsHandled_Then_TheTypedFailureEventIsSent(bool vix)
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var command = vix ? (ICommand)CreateVixCommand() : CreateEodCommand();
         Exception exception = vix
             ? new InsertVixFuturesEodDataException("VIX insert failed")
@@ -303,7 +303,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_AnUnexpectedEodFailure_When_ItIsHandled_Then_ACommandFailureEventIsSent()
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var command = CreateEodCommand();
 
         var result = await actor.InvokeOnExceptionAsync(
@@ -319,7 +319,7 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
     public async Task Given_AFailureWhileSendingTheTypedError_When_ItIsHandled_Then_TheGenericFallbackIsReturned()
     {
         var actor = _fixture.CreateEodCommandActor(logger: Substitute.For<ILogger<FuturesEodDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var command = CreateEodCommand();
         context.SendAsync<FuturesEodDataInsertedFailEvent, FuturesEodDataId>(
                 Arg.Any<FuturesEodDataInsertedFailEvent>())
@@ -333,11 +333,11 @@ public class FuturesEodDataCommandTests : IClassFixture<MarketDataFeedBddFixture
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>());
     }
 
-    async Task<(TestableFuturesEodDataCommandActor Actor, ICommandActorContext Context,
+    async Task<(TestableFuturesEodDataCommandActor Actor, ICommandActorContext<FuturesEodDataCommandActor> Context,
         IEventSourceActorStateRepository<FuturesEodDataCommandState> Repository)> CreateActorWithRepository()
     {
         var actor = _fixture.CreateEodCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesEodDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesEodDataCommandState>>();
         context.Container.Returns(container);

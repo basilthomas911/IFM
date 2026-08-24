@@ -19,10 +19,10 @@ public sealed class FuturesMarketPriceRealtimeActorTests
         ILogger<FuturesMarketPriceRealtimeActor> logger)
         : FuturesMarketPriceRealtimeActor(new FuturesMarketPriceRealtimeContext(supervisor, logger))
     {
-        public IEvent Parse(IEventActorContext context, IActorMessage message) =>
+        public IEvent Parse(IEventActorContext<FuturesMarketPriceRealtimeActor> context, IActorMessage message) =>
             ParseMessage(context, message);
 
-        public ValueTask Receive(IEventActorContext context, IEvent @event) =>
+        public ValueTask Receive(IEventActorContext<FuturesMarketPriceRealtimeActor> context, IEvent @event) =>
             ReceiveAsync(context, @event);
     }
 
@@ -61,7 +61,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
         message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(@event);
 
         var parsed = CreateActor().Parse(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>(),
             message);
 
         parsed.Should().BeSameAs(@event);
@@ -81,7 +81,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
         message.Subject.Returns(new ActorSubject(actorType, actorName, verb, "entity"));
 
         var parsed = CreateActor().Parse(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>(),
             message);
 
         parsed.Should().BeNull();
@@ -91,7 +91,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
     public async Task Receive_DispatchesOnlyUpdatedEventToPlaceholderHandler()
     {
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>();
 
         var action = () => actor.Receive(context, CreateEvent()).AsTask();
 
@@ -103,7 +103,7 @@ public sealed class FuturesMarketPriceRealtimeActorTests
     public async Task PlaceholderHandler_ValidatesArgumentsAndReturnsSuccess()
     {
         var @event = CreateEvent();
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesMarketPriceRealtimeActor>>();
         var logger = Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>();
 
         var result = await @event.ExecuteAsync(context, logger);

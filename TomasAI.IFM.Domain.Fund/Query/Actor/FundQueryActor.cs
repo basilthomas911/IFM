@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.Fund.Query.Actor;
 /// persistence and uses dependency injection to resolve required services.</remarks>
 /// <param name="actorContext">The typed Fund query context.</param>
 public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
-    : BaseQueryActor<FundQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<FundQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FundQuery";
 
@@ -42,7 +42,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     /// langword="null"/>.</param>
     /// <returns>The thread identifier extracted from the message subject.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<FundQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -88,11 +88,11 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     /// <param name="query"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<FundQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<FundQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
@@ -101,11 +101,6 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
         var queryType = query.GetType();
         if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
-
-        using var messageInfoScope = context.MirrorMessageInfoTo(
-            FundQueryContext,
-            query.Subject.ThreadId,
-            query.Subject.Verb);
         await receiveFunc(query, FundQueryContext, cancellationToken).ConfigureAwait(false);
     }
 
@@ -214,7 +209,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FundQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

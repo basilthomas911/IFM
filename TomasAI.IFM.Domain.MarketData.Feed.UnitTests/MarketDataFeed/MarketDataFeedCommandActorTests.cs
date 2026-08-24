@@ -31,22 +31,22 @@ public class MarketDataFeedCommandActorTests : IClassFixture<MarketDataFeedTestF
     public class TestableMarketDataFeedCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<MarketDataFeedCommandActor> logger)
         : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<MarketDataFeedCommandActor>>())
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
 
-        public ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => OnLoadStateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
             => await OnSaveStateAsync(context, threadId, state, cmd);
     }
 

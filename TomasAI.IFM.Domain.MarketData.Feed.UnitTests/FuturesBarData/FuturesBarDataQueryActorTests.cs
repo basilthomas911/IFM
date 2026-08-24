@@ -26,14 +26,14 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         public TestableFuturesBarDataQueryActor(IDbContextFactory dbFactory, ILogger<FuturesBarDataQueryActor> logger)
             : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
         TestableFuturesBarDataQueryActor(IFuturesBarDataQueryContext context) : base(context) => Context = context;
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesBarDataQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesBarDataQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);
 
         public ValueTask InvokeOnExceptionAsync(
-            IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+            IQueryActorContext<FuturesBarDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
             => OnExceptionAsync(context, threadId, query, verb, exception);
     }
 
@@ -63,7 +63,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var query = CreateRangeQuery();
 
         var result = actor.InvokeParseMessage(
-            Substitute.For<IQueryActorContext>(), CreateMessage(query));
+            Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), CreateMessage(query));
 
         var parsed = result.Should().BeOfType<GetFuturesBarDataQuery>().Which;
         parsed.ContractId.Should().Be(SampleData.FuturesBarData1.ContractId);
@@ -87,7 +87,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var subject = new ActorSubject(actorType, actorName, verb, query.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(query) };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesBarDataQueryActor.ActorName} query from message: *");
@@ -120,7 +120,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             Data = useEmptyPayload ? [] : [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -223,7 +223,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         var query = useRangeQuery ? (IQuery)CreateRangeQuery() : CreateLastQuery();
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IQueryActorContext>(), query).AsTask();
+            Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -254,7 +254,7 @@ public class FuturesBarDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
             ActorType.Query, FuturesBarDataQueryActor.ActorName, "Unknown", "entity"));
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IQueryActorContext>(), query).AsTask();
+            Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }

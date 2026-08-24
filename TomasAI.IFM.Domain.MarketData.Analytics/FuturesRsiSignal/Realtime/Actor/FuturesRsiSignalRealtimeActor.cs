@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Acto
 /// <summary>Owns non-replayable intraday RSI computation and projection.</summary>
 public class FuturesRsiSignalRealtimeActor(
     IRealtimeActorContext<FuturesRsiSignalRealtimeActor> actorContext)
-    : BaseEventActor<FuturesRsiSignalRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesRsiSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesRsiSignalRealtimeContext ActorContext { get; } =
@@ -38,10 +38,10 @@ public class FuturesRsiSignalRealtimeActor(
             message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context) => actorContext.Projector.StartAsync(context);
-    protected override ValueTask OnShutdown(IEventActorContext context) => actorContext.Projector.StopAsync();
+    protected override ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context) => actorContext.Projector.StartAsync(context);
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalRealtimeActor> context) => actorContext.Projector.StopAsync();
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IActorMessage message)
     {
         var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
@@ -52,9 +52,9 @@ public class FuturesRsiSignalRealtimeActor(
         return @event;
     }
 
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         switch (@event)
         {
             case FuturesRsiSignalSampledRealtimeEvent sampled:
@@ -79,7 +79,7 @@ public class FuturesRsiSignalRealtimeActor(
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesRsiSignalRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
         Exception exception) =>

@@ -37,14 +37,14 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
             statusConsoleWriter,
             logger))
     {
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FuturesTdiSignalEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public ValueTask InvokeReceiveAsync(IEventActorContext<FuturesTdiSignalEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);
 
         public ValueTask InvokeOnExceptionAsync(
-            IEventActorContext context,
+            IEventActorContext<FuturesTdiSignalEventActor> context,
             ActorThreadId threadId,
             IEvent @event,
             Exception exception)
@@ -56,7 +56,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         IActorSupervisor Supervisor,
         IStatusConsoleWriter StatusConsoleWriter,
         ILogger<FuturesTdiSignalEventActor> Logger,
-        IEventActorContext Context);
+        IEventActorContext<FuturesTdiSignalEventActor> Context);
 
     Scenario CreateScenario()
     {
@@ -64,7 +64,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var statusConsoleWriter = Substitute.For<IStatusConsoleWriter>();
         var logger = Substitute.For<ILogger<FuturesTdiSignalEventActor>>();
         var actor = _fixture.CreateActor(supervisor, statusConsoleWriter, logger);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();
         return new Scenario(actor, supervisor, statusConsoleWriter, logger, context);
     }
 

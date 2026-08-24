@@ -13,10 +13,10 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IQueryActor<TActor> : IActor<TActor>
     where TActor : IActor
 {
-    ValueTask OnStartup(IQueryActorContext context);
-    ValueTask OnShutdown(IQueryActorContext context);
-    ValueTask ReceiveAsync(IQueryActorContext context, IQuery qry);
-    ValueTask OnValidateAsync(IQueryActorContext context, IQuery qry);
-    ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery qry, string verb,Exception ex);
+    ValueTask OnStartup(IQueryActorContext<TActor> context);
+    ValueTask OnShutdown(IQueryActorContext<TActor> context);
+    ValueTask ReceiveAsync(IQueryActorContext<TActor> context, IQuery qry);
+    ValueTask OnValidateAsync(IQueryActorContext<TActor> context, IQuery qry);
+    ValueTask OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery qry, string verb,Exception ex);
 }
 

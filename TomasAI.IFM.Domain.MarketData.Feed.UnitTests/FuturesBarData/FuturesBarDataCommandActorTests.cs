@@ -29,27 +29,27 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         ILogger<FuturesBarDataCommandActor> logger)
         : FuturesBarDataCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesBarDataCommandActor>>())
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FuturesBarDataCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
         public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-            ICommandActorContext context, IActorState state, ICommand command)
+            ICommandActorContext<FuturesBarDataCommandActor> context, IActorState state, ICommand command)
             => ReceiveAsync(context, state, command);
 
         public ValueTask InvokeOnValidateAsync(
-            ICommandActorContext context, ActorThreadId threadId, ICommand command)
+            ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command)
             => OnValidateAsync(context, threadId, command);
 
         public ValueTask<IActorState> InvokeOnLoadStateAsync(
-            ICommandActorContext context, ActorThreadId threadId, ICommand command)
+            ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command)
             => OnLoadStateAsync(context, threadId, command);
 
         public ValueTask InvokeOnSaveStateAsync(
-            ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+            ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
             => OnSaveStateAsync(context, threadId, state, command);
 
         public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-            ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+            ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
             => OnExceptionAsync(context, threadId, command, exception);
     }
 
@@ -64,7 +64,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var result = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(command));
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), CreateMessage(command));
 
         result.GetType().Should().Be(command.GetType());
         result.CommandId.Should().Be(command.CommandId);
@@ -86,7 +86,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var command = CreateInsertCommand();
 
         var result = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(command));
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), CreateMessage(command));
 
         var parsed = result.Should().BeOfType<InsertFuturesBarDataCommand>().Which;
         parsed.FuturesBarData.Should().BeEquivalentTo(SampleData.FuturesBarData1);
@@ -107,7 +107,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var subject = new ActorSubject(actorType, actorName, verb, command.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(command) };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesBarDataCommandActor.ActorName} command from message: *");
@@ -140,7 +140,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
             Data = useEmptyPayload ? [] : [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -154,7 +154,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(
             dbEventSource, Substitute.For<ILogger<FuturesBarDataCommandActor>>());
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
         var command = actor.InvokeParseMessage(context, CreateMessage(CreateInsertCommand()));
         Func<Task> act = () => actor.InvokeOnValidateAsync(
             context, command.Subject.ThreadId, command).AsTask();
@@ -173,7 +173,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var state = new FuturesBarDataCommandState { Id = command.Subject.ThreadId };
 
         var result = await actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext>(), state, command);
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), state, command);
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
@@ -189,8 +189,8 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var insert = CreateInsertCommand();
         var state = new FuturesBarDataCommandState { Id = insert.Subject.ThreadId };
 
-        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, insert);
-        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, CreateDeleteCommand());
+        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), state, insert);
+        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), state, CreateDeleteCommand());
 
         state.Events.Should().HaveCount(2);
         state.Events.Should().ContainSingle(value => value is FuturesBarDataInsertedEvent);
@@ -203,7 +203,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
         var command = CreateInsertCommand();
         var state = new FuturesBarDataCommandState { Id = command.Subject.ThreadId };
 
@@ -227,7 +227,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var state = new FuturesBarDataCommandState { Id = command.Subject.ThreadId };
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext>(), state, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), state, command).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -242,7 +242,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var state = Substitute.For<IActorState>();
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext>(), state, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), state, command).AsTask();
 
         await act.Should().ThrowAsync<Exception>();
     }
@@ -256,7 +256,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -270,7 +270,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -292,7 +292,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -304,7 +304,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
         var command = CreateInsertCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
 
         await ((Func<Task>)(() => actor.InvokeOnValidateAsync(null!, command.Subject.ThreadId, command).AsTask()))
             .Should().ThrowAsync<ArgumentNullException>();
@@ -325,7 +325,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
             ActorType.Command, FuturesBarDataCommandActor.ActorName, "Unknown", "entity"));
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -434,7 +434,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
         var command = CreateInsertCommand();
         global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? sent = null;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -457,7 +457,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
         var command = CreateDeleteCommand();
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -478,7 +478,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var actor = _fixture.CreateActor(
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
         var command = CreateInsertCommand();
         var exception = new Exception("failure");
 
@@ -494,13 +494,13 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         nullCommandResult.Success.Should().BeFalse();
     }
 
-    async Task<(TestableFuturesBarDataCommandActor Actor, ICommandActorContext Context,
+    async Task<(TestableFuturesBarDataCommandActor Actor, ICommandActorContext<FuturesBarDataCommandActor> Context,
         IEventSourceActorStateRepository<FuturesBarDataCommandState> Repository)> CreateActorWithRepository()
     {
         var actor = _fixture.CreateActor(
             Substitute.For<IEventSourceActorDbContext>(),
             Substitute.For<ILogger<FuturesBarDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesBarDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesBarDataCommandState>>();
         context.Container.Returns(container);

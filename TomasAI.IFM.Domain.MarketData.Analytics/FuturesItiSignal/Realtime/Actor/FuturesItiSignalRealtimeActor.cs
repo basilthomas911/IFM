@@ -27,7 +27,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Acto
 /// <param name="logger">The typed logger used by this actor and its handler.</param>
 public class FuturesItiSignalRealtimeActor(
     IRealtimeActorContext<FuturesItiSignalRealtimeActor> actorContext)
-    : BaseEventActor<FuturesItiSignalRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesItiSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesItiSignalRealtimeContext ActorContext { get; } =
@@ -65,7 +65,7 @@ public class FuturesItiSignalRealtimeActor(
     readonly FuturesItiSignalRealtimeState _realtimeState = new(actorContext.DbFactory);
 
     /// <summary>Registers the route from the primary market-price actor.</summary>
-    protected override async ValueTask OnStartup(IEventActorContext context)
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
         await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
@@ -73,7 +73,7 @@ public class FuturesItiSignalRealtimeActor(
     }
 
     /// <summary>Removes the route from the primary market-price actor.</summary>
-    protected override async ValueTask OnShutdown(IEventActorContext context)
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
@@ -82,7 +82,7 @@ public class FuturesItiSignalRealtimeActor(
     }
 
     /// <summary>Parses a routed market-price event addressed to this actor.</summary>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesItiSignalRealtimeActor> context, IActorMessage message)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(message);
@@ -100,7 +100,7 @@ public class FuturesItiSignalRealtimeActor(
 
     /// <summary>Dispatches the parsed realtime event to its mapped handler.</summary>
     protected override async ValueTask ReceiveAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesItiSignalRealtimeActor> context,
         IEvent @event)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -159,7 +159,7 @@ public class FuturesItiSignalRealtimeActor(
 
     /// <summary>Publishes the standard actor event error when realtime handling fails.</summary>
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesItiSignalRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
         Exception exception) =>

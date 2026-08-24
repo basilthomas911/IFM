@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Actor;
 /// <summary>Provides the DatabaseBackupEventActor implementation.</summary>
 public class DatabaseBackupEventActor(
     IEventActorContext<DatabaseBackupEventActor> actorContext)
-    : BaseEventActor<DatabaseBackupEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<DatabaseBackupEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupEventContext ActorContext { get; } =
@@ -49,7 +49,7 @@ public class DatabaseBackupEventActor(
         type => (Func<IActorMessage, IEvent>)ParseMethod.MakeGenericMethod(type).CreateDelegate(typeof(Func<IActorMessage, IEvent>)),
         StringComparer.Ordinal);
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<DatabaseBackupEventActor> context, IActorMessage message)
     {
         if (message.Subject is not { ActorType: ActorType.Event, Name: Actor }
             || !ParseMap.TryGetValue(message.Subject.Verb, out var parser))
@@ -60,9 +60,9 @@ public class DatabaseBackupEventActor(
     static IEvent ParseTyped<TEvent>(IActorMessage message) where TEvent : class, IEvent
         => message.AsEvent<TEvent>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TEvent).Name}.");
 
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<DatabaseBackupEventActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         if (@event is not DatabaseBackupServiceEventContract serviceEvent)
             throw new InvalidOperationException($"Unsupported DatabaseBackup event '{@event.GetType().Name}'.");
         var command = DatabaseBackupEventTranslator.Translate(serviceEvent);
@@ -71,7 +71,7 @@ public class DatabaseBackupEventActor(
             throw new InvalidOperationException($"DatabaseBackup command rejected: {result.ErrorMessage}");
     }
 
-    static ValueTask<ServiceResult<GuidResult>> RequestAsync(IEventActorContext context, DatabaseBackupInternalCommand command)
+    static ValueTask<ServiceResult<GuidResult>> RequestAsync(IEventActorContext<DatabaseBackupEventActor> context, DatabaseBackupInternalCommand command)
         => command switch
         {
             RecordDatabaseOperationAdmissionCommand value => context.RequestAsync<RecordDatabaseOperationAdmissionCommand, Shared.DatabaseBackup.Contracts.DatabaseRecoveryOperationId>(value),
@@ -93,7 +93,7 @@ public class DatabaseBackupEventActor(
             _ => throw new InvalidOperationException($"Unsupported translated command '{command.GetType().Name}'.")
         };
 
-    protected override ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception exception)
+    protected override ValueTask OnExceptionAsync(IEventActorContext<DatabaseBackupEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
     {
         actorContext.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
         return ValueTask.CompletedTask;

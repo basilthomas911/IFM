@@ -23,7 +23,7 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the spread distribution job event actor. Cannot be null.</param>
 public class SpreadDistributionJobEventActor(
     IEventActorContext<SpreadDistributionJobEventActor> actorContext)
-    : BaseEventActor<SpreadDistributionJobEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<SpreadDistributionJobEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected ISpreadDistributionJobEventContext ActorContext { get; } =
@@ -46,7 +46,7 @@ public class SpreadDistributionJobEventActor(
             await ((SpreadDistributionJobStatusUpdatedEvent)evt).ExecuteAsync(ctx, statusConsoleWriter, logger).ConfigureAwait(false)
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context)
+    protected override ValueTask OnStartup(IEventActorContext<SpreadDistributionJobEventActor> context)
     {
         return ValueTask.CompletedTask;
     }
@@ -60,7 +60,7 @@ public class SpreadDistributionJobEventActor(
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<SpreadDistributionJobEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -90,9 +90,9 @@ public class SpreadDistributionJobEventActor(
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type, or if the event cannot be resolved from the message.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<SpreadDistributionJobEventActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
@@ -118,7 +118,7 @@ public class SpreadDistributionJobEventActor(
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing. Contains information about the error to be reported.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<SpreadDistributionJobEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

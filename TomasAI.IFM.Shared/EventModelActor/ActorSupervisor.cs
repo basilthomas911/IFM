@@ -293,38 +293,6 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates a new instance of a command actor context for the specified actor.
-    /// </summary>
-    /// <param name="actorId">The unique identifier of the actor for which the context is created.</param>
-    /// <returns>An instance of <see cref="ICommandActorContext"/> representing the command context for the specified actor.</returns>
-    public ICommandActorContext CreateCommandActorContext(ActorMailboxId actorId)
-        => new CommandActorContext(this, actorId);
-
-    /// <summary>
-    /// Creates a new instance of an event actor context for the specified actor.
-    /// </summary>
-    /// <param name="actorId">The unique identifier of the actor for which the context is created.</param>
-    /// <returns>An <see cref="IEventActorContext"/> instance representing the context for the specified actor.</returns>
-    public IEventActorContext CreateEventActorContext(ActorMailboxId actorId)
-       => new EventActorContext(this, actorId);
-
-    /// <summary>
-    /// Creates a new instance of a query actor context for the specified actor.
-    /// </summary>
-    /// <param name="actorId">The unique identifier of the actor for which the context is being created.</param>
-    /// <returns>An <see cref="IQueryActorContext"/> instance representing the query context for the specified actor.</returns>
-    public IQueryActorContext CreateQueryActorContext(ActorMailboxId actorId)
-       => new QueryActorContext(this, actorId);
-
-    /// <summary>
-    /// Creates and returns a new instance of a denormalizer actor context for the specified actor.
-    /// </summary>
-    /// <param name="actorId">The unique identifier of the actor for which the context is being created.</param>
-    /// <returns>An instance of <see cref="IDenormalizerActorContext"/> representing the context for the specified actor.</returns>
-    public IDenormalizerActorContext CreateDenormalizerActorContext(ActorMailboxId actorId)
-        => new DenormalizerActorContext(this, actorId);
-
-    /// <summary>
     /// Starts the actor associated with the specified mailbox ID.
     /// </summary>
     /// <param name="mailboxId">The unique identifier of the actor's mailbox.</param>

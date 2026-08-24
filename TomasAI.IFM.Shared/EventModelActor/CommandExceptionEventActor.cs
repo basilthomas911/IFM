@@ -17,14 +17,13 @@ public sealed class CommandExceptionEventActor(
     IActorSupervisor supervisor,
     ILogger<CommandExceptionEventActor> logger)
     : BaseEventActor<CommandExceptionEventActor>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Event, Actor))
+        new CommandExceptionEventContext(supervisor),
+        logger)
 {
     public const string Actor = "CommandException";
     const string ServiceId = nameof(CommandExceptionEventActor);
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<CommandExceptionEventActor> context, IActorMessage message)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(message);
@@ -40,7 +39,7 @@ public sealed class CommandExceptionEventActor(
         return message.AsEvent<ActorCommandExceptionEvent>()!;
     }
 
-    protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override ValueTask ReceiveAsync(IEventActorContext<CommandExceptionEventActor> context, IEvent @event)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (@event is not ActorCommandExceptionEvent errorEvent)
@@ -57,7 +56,7 @@ public sealed class CommandExceptionEventActor(
     }
 
     protected override ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<CommandExceptionEventActor> context,
         ActorThreadId threadId,
         IEvent @event,
         Exception ex)
@@ -68,5 +67,13 @@ public sealed class CommandExceptionEventActor(
             "Failed to handle framework command exception on thread {ThreadId}.",
             threadId);
         return ValueTask.CompletedTask;
+    }
+
+    sealed class CommandExceptionEventContext(IActorSupervisor supervisor)
+        : EventActorContext(
+            IsArgumentNull.Set(supervisor),
+            new ActorMailboxId(ActorType.Event, Actor)),
+          IEventActorContext<CommandExceptionEventActor>
+    {
     }
 }

@@ -76,11 +76,6 @@ public interface IActorSupervisor
     /// </summary>
     ValueTask ShutdownAsync(CancellationToken cancellationToken = default);
 
-    ICommandActorContext CreateCommandActorContext(ActorMailboxId mailboxId);
-    IEventActorContext CreateEventActorContext(ActorMailboxId mailboxId);
-    IQueryActorContext CreateQueryActorContext(ActorMailboxId mailboxId);
-    IDenormalizerActorContext CreateDenormalizerActorContext(ActorMailboxId mailboxId);
-
     IReadOnlyDictionary<ActorMailboxId, IActor> Children { get; }
     IReadOnlyDictionary<ActorThreadId, IActorState> ThreadState { get; }
     IContainerInstance Container { get; }

@@ -16,7 +16,7 @@ using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IM
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Event.Actor;
 
 public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTickDataEventActor> actorContext)
-    : BaseEventActor<FuturesOptionTickDataEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesOptionTickDataEventActor>(actorContext, actorContext.Logger)
 {
     public const string Actor = "FuturesOptionTickDataEvent";
 
@@ -39,13 +39,13 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
         }
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context)
+    protected override ValueTask OnStartup(IEventActorContext<FuturesOptionTickDataEventActor> context)
     {
         _ = EventContext;
         return ValueTask.CompletedTask;
     }
 
-    protected override async ValueTask OnShutdown(IEventActorContext context)
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesOptionTickDataEventActor> context)
     {
         foreach (var registration in _eventParameters.Streams.Drain())
         {
@@ -73,7 +73,7 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesOptionTickDataEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -103,7 +103,7 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type, or if the event cannot be resolved from the message.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesOptionTickDataEventActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
@@ -128,7 +128,7 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing. Contains information about the error to be reported.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesOptionTickDataEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

@@ -47,14 +47,14 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
         TestableMarketDataFeedEventActor(IMarketDataFeedEventContext context)
             : base(context) => Context = context;
 
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<MarketDataFeedEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public async ValueTask InvokeReceiveAsync(IEventActorContext<MarketDataFeedEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);
 
 
-        public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IEventActorContext<MarketDataFeedEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
     }
 
@@ -62,7 +62,7 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task StartedComplete_ActivatesEveryFuturesTickStream_AndTheBarStream()
     {
         var actor = _fixture.CreateMarketDataFeedEventActor();
-        IEventActorContext context = actor.Context;
+        IEventActorContext<MarketDataFeedEventActor> context = actor.Context;
         context.RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
                 Arg.Any<StartFuturesTickDataStreamingCommand>())
             .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
@@ -98,7 +98,7 @@ public class MarketDataFeedEventActorTests : IClassFixture<MarketDataFeedTestFix
     {
         var status = Substitute.For<IStatusConsoleWriter>();
         var actor = _fixture.CreateMarketDataFeedEventActor(statusConsoleWriter: status);
-        IEventActorContext context = actor.Context;
+        IEventActorContext<MarketDataFeedEventActor> context = actor.Context;
         context.RequestAsync<StartFuturesTickDataStreamingCommand, FuturesDataId>(
                 Arg.Any<StartFuturesTickDataStreamingCommand>())
             .Returns(new ServiceFailed<GuidResult>(6003, "route rejected"));

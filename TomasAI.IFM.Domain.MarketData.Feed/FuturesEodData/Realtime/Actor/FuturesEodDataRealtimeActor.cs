@@ -26,7 +26,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 /// NATS without durable replay.
 /// </summary>
 public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRealtimeActor> actorContext)
-    : BaseEventActor<FuturesEodDataRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesEodDataRealtimeActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = FuturesEodDataInsertedEvent.Actor;
 
@@ -77,7 +77,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
         actorContext.Logger);
 
-    protected override async ValueTask OnStartup(IEventActorContext context)
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
         await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(TickTradeRoute, Id);
@@ -85,7 +85,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         context.AddRealtimeRouter(SessionStatisticsRoute, Id);
     }
 
-    protected override async ValueTask OnShutdown(IEventActorContext context)
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
@@ -94,7 +94,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
     }
 
     protected override IEvent ParseMessage(
-        IEventActorContext context,
+        IEventActorContext<FuturesEodDataRealtimeActor> context,
         IActorMessage message)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -111,7 +111,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
     }
 
     protected override async ValueTask ReceiveAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesEodDataRealtimeActor> context,
         IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -178,7 +178,7 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         failed.ErrorMessage);
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesEodDataRealtimeActor> context,
         ActorThreadId threadId,
         IEvent domainEvent,
         Exception exception) =>

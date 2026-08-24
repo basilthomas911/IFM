@@ -24,7 +24,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot.Actor
 /// </summary>
 public class MarketOutlookRealtimeActor(
     IRealtimeActorContext<MarketOutlookRealtimeActor> actorContext)
-    : BaseEventActor<MarketOutlookRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<MarketOutlookRealtimeActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IMarketOutlookRealtimeContext ActorContext { get; } =
@@ -41,7 +41,7 @@ public class MarketOutlookRealtimeActor(
             message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!
     };
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<MarketOutlookRealtimeActor> context, IActorMessage message)
     {
         var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
@@ -52,9 +52,9 @@ public class MarketOutlookRealtimeActor(
         return @event;
     }
 
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<MarketOutlookRealtimeActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         switch (@event)
         {
             case MarketOutlookComponentChangedRealtimeEvent changed:
@@ -90,7 +90,7 @@ public class MarketOutlookRealtimeActor(
 
     async ValueTask PublishSnapshotAsync(
         MarketOutlookEodUpdatedRealtimeEvent source,
-        IEventActorContext context)
+        IEventActorContext<MarketOutlookRealtimeActor> context)
     {
         if (!string.Equals(source.FuturesEodData.Symbol, "ES", StringComparison.Ordinal))
             return;
@@ -155,7 +155,7 @@ public class MarketOutlookRealtimeActor(
     async ValueTask HydrateAsync(
         CoordinatorState state,
         MarketOutlookEntityId id,
-        IEventActorContext context)
+        IEventActorContext<MarketOutlookRealtimeActor> context)
     {
         var db = actorContext.DbFactory.MarketDataDb;
         // Re-read every persisted input at the EOD barrier. The coordinator cache keeps
@@ -193,7 +193,7 @@ public class MarketOutlookRealtimeActor(
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<MarketOutlookRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
         Exception exception)

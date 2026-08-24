@@ -19,8 +19,10 @@ public sealed class CommandDuplicateGuardTests
     public async Task Duplicate_is_acknowledged_without_validation_execution_or_persistence()
     {
         var guard = new SequencedGuard(true, false);
-        var actor = new TestCommandActor();
-        var supervisor = CreateSupervisor(actor.Id, guard);
+        var actorId = new ActorMailboxId(ActorType.Command, TestCommandActor.ActorName);
+        var supervisor = CreateSupervisor(actorId, guard);
+        var actor = new TestCommandActor(
+            new TestCommandContext(supervisor.Object, actorId));
         var command = new TestCommand();
         var acceptedMessage = new TestCommandMessage(command);
         var duplicateMessage = new TestCommandMessage(command);
@@ -48,13 +50,11 @@ public sealed class CommandDuplicateGuardTests
         var container = new ContainerInstance(type => type == typeof(ICommandDuplicateGuard)
             ? guard
             : throw new InvalidOperationException($"Unexpected service request: {type}"));
-        var context = new Mock<ICommandActorContext>();
-        context.SetupGet(instance => instance.Container).Returns(container);
         var producer = new Mock<IActorProducer>();
         var supervisor = new Mock<IActorSupervisor>();
+        supervisor.SetupGet(instance => instance.Container).Returns(container);
         supervisor.Setup(instance => instance.CreateMailbox(actorId)).Returns(Mock.Of<IActorMailbox>());
         supervisor.Setup(instance => instance.GetProducer(actorId)).Returns(producer.Object);
-        supervisor.Setup(instance => instance.CreateCommandActorContext(actorId)).Returns(context.Object);
         return supervisor;
     }
 
@@ -73,23 +73,23 @@ public sealed class CommandDuplicateGuardTests
         }
     }
 
-    sealed class TestCommandActor()
+    sealed class TestCommandActor(ICommandActorContext<TestCommandActor> actorContext)
         : BaseEventSourceCommandActor<TestCommandActor>(
-            NullLogger<TestCommandActor>.Instance,
-            new ActorMailboxId(ActorType.Command, ActorName))
+            actorContext,
+            NullLogger<TestCommandActor>.Instance)
     {
-        const string ActorName = "DuplicateGuardTest";
+        public const string ActorName = "DuplicateGuardTest";
 
         public int Validations { get; private set; }
         public int StateLoads { get; private set; }
         public int Executions { get; private set; }
         public int StateSaves { get; private set; }
 
-        protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
+        protected override ICommand ParseMessage(ICommandActorContext<TestCommandActor> context, IActorMessage message)
             => message.AsCommand<TestCommand>()!;
 
         protected override ValueTask OnValidateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<TestCommandActor> context,
             ActorThreadId threadId,
             ICommand command)
         {
@@ -98,7 +98,7 @@ public sealed class CommandDuplicateGuardTests
         }
 
         protected override ValueTask<IActorState> OnLoadStateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<TestCommandActor> context,
             ActorThreadId threadId,
             ICommand command)
         {
@@ -107,7 +107,7 @@ public sealed class CommandDuplicateGuardTests
         }
 
         protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-            ICommandActorContext context,
+            ICommandActorContext<TestCommandActor> context,
             IActorState state,
             ICommand command)
         {
@@ -117,7 +117,7 @@ public sealed class CommandDuplicateGuardTests
         }
 
         protected override ValueTask OnSaveStateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<TestCommandActor> context,
             ActorThreadId threadId,
             IActorState state,
             ICommand command)
@@ -127,12 +127,17 @@ public sealed class CommandDuplicateGuardTests
         }
 
         protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
-            ICommandActorContext context,
+            ICommandActorContext<TestCommandActor> context,
             ActorThreadId threadId,
             ICommand command,
             Exception ex)
             => ValueTask.FromResult<ServiceResult<GuidResult>>(
                 new ServiceFailed<GuidResult>(-1, ex.Message));
+    }
+
+    sealed class TestCommandContext(IActorSupervisor supervisor, ActorMailboxId actorId)
+        : CommandActorContext(supervisor, actorId), ICommandActorContext<TestCommandActor>
+    {
     }
 
     sealed class TestState : IActorState

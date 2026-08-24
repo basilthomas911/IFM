@@ -14,10 +14,10 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IEventActor<TActor> : IActor<TActor>
     where TActor : IActor
 {
-    ValueTask OnStartup(IEventActorContext context);
-    ValueTask OnShutdown(IEventActorContext context);
-    ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event);
-    ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);
-    ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
+    ValueTask OnStartup(IEventActorContext<TActor> context);
+    ValueTask OnShutdown(IEventActorContext<TActor> context);
+    ValueTask OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event);
+    ValueTask ReceiveAsync(IEventActorContext<TActor> context, IEvent @event);
+    ValueTask OnExceptionAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex);
 }
 

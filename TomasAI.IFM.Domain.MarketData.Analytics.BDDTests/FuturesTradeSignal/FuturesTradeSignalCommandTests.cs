@@ -44,39 +44,39 @@ public class FuturesTradeSignalCommandTests
         ILogger<FuturesTradeSignalCommandActor> logger)
         : FuturesTradeSignalCommandActor(new FuturesTradeSignalCommandContext(Substitute.For<IActorSupervisor>(), eventDb, eventProjector, logger))
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FuturesTradeSignalCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
         public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTradeSignalCommandActor> context,
             IActorState state,
             ICommand command)
             => ReceiveAsync(context, state, command);
 
         public ValueTask InvokeOnValidateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTradeSignalCommandActor> context,
             ActorThreadId threadId,
             ICommand command)
             => OnValidateAsync(context, threadId, command);
 
-        public ValueTask InvokeOnStartupAsync(ICommandActorContext context)
+        public ValueTask InvokeOnStartupAsync(ICommandActorContext<FuturesTradeSignalCommandActor> context)
             => OnStartup(context);
 
         public ValueTask<IActorState> InvokeOnLoadStateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTradeSignalCommandActor> context,
             ActorThreadId threadId,
             ICommand command)
             => OnLoadStateAsync(context, threadId, command);
 
         public ValueTask InvokeOnSaveStateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTradeSignalCommandActor> context,
             ActorThreadId threadId,
             IActorState state,
             ICommand command)
             => OnSaveStateAsync(context, threadId, state, command);
 
         public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTradeSignalCommandActor> context,
             ActorThreadId threadId,
             ICommand command,
             Exception exception)
@@ -87,7 +87,7 @@ public class FuturesTradeSignalCommandTests
         TestableFuturesTradeSignalCommandActor Actor,
         IEventSourceActorDbContext EventDb,
         ILogger<FuturesTradeSignalCommandActor> Logger,
-        ICommandActorContext Context,
+        ICommandActorContext<FuturesTradeSignalCommandActor> Context,
         IEventSourceActorStateRepository<FuturesTradeSignalCommandState> Repository,
         IContainerInstance Container);
 
@@ -103,7 +103,7 @@ public class FuturesTradeSignalCommandTests
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesTradeSignalCommandState>>()
             .Returns(repository);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTradeSignalCommandActor>>();
         context.Container.Returns(container);
         return new Scenario(actor, eventDb, logger, context, repository, container);
     }

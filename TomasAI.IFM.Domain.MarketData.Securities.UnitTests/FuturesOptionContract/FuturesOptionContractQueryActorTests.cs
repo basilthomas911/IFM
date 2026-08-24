@@ -51,19 +51,19 @@ public class FuturesOptionContractQueryActorTests : IClassFixture<SecuritiesFixt
 
         public IFuturesOptionContractQueryContext FuturesOptionContext { get; }
 
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesOptionContractQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesOptionContractQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeReceiveAsync(
-            IQueryActorContext context,
+            IQueryActorContext<FuturesOptionContractQueryActor> context,
             IQuery query,
             CancellationToken cancellationToken)
             => await ReceiveAsync(context, query, cancellationToken);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<FuturesOptionContractQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
 

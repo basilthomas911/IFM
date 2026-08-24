@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Query.Actor;
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
 public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actorContext)
-    : BaseQueryActor<MarketDataQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<MarketDataQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "MarketDataQuery";
     readonly ILogger<MarketDataQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -36,7 +36,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     /// <param name="message">The actor message to parse.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<MarketDataQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -65,17 +65,16 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<MarketDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<MarketDataQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        using var messageInfoScope = context.MirrorMessageInfoTo(MarketDataContext, query.Subject.ThreadId, query.Subject.Verb);
         await (query switch
         {
             GetLastRateOfReturnQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
@@ -88,7 +87,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<MarketDataQueryActor> context,
         GetLastRateOfReturnQuery query,
         CancellationToken cancellationToken)
     {
@@ -99,7 +98,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<MarketDataQueryActor> context,
         GetTradingDaysQuery query,
         CancellationToken cancellationToken)
     {
@@ -110,7 +109,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<MarketDataQueryActor> context,
         GetTradingDatesQuery query,
         CancellationToken cancellationToken)
     {
@@ -121,7 +120,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<MarketDataQueryActor> context,
         GetValueDateQuery query,
         CancellationToken cancellationToken)
     {
@@ -140,7 +139,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<MarketDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

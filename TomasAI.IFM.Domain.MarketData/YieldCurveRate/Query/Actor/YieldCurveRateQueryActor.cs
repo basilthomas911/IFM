@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.YieldCurveRate.Query.Actor;
 /// and retrieving persisted yield curve data. This actor uses dependency injection to resolve required services.</remarks>
 /// <param name="logger">The logger instance for tracking actor operations.</param>
 public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActor> actorContext)
-    : BaseQueryActor<YieldCurveRateQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<YieldCurveRateQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "YieldCurveRateQuery";
     readonly ILogger<YieldCurveRateQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -37,7 +37,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     /// <param name="message">The actor message to parse. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<YieldCurveRateQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -67,17 +67,16 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<YieldCurveRateQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<YieldCurveRateQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        using var messageInfoScope = context.MirrorMessageInfoTo(YieldCurveRateContext, query.Subject.ThreadId, query.Subject.Verb);
         await (query switch
         {
             GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
@@ -90,7 +89,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<YieldCurveRateQueryActor> context,
         GetLastYieldCurveRateQuery query,
         CancellationToken cancellationToken)
     {
@@ -101,7 +100,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<YieldCurveRateQueryActor> context,
         GetYieldCurveRatesQuery query,
         CancellationToken cancellationToken)
     {
@@ -112,7 +111,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<YieldCurveRateQueryActor> context,
         GetYieldCurveRateExistsQuery query,
         CancellationToken cancellationToken)
     {
@@ -123,7 +122,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     }
 
     async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<YieldCurveRateQueryActor> context,
         GetYieldCurveRateYearsQuery query,
         CancellationToken cancellationToken)
     {
@@ -145,7 +144,7 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<YieldCurveRateQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         try
         {

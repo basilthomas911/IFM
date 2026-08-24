@@ -14,10 +14,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 /// </summary>
 public class EventActorTemplate(
     IEventActorContext<EventActorTemplate> actorContext)
-    : BaseEventActor<EventActorTemplate>(
-        actorContext.Supervisor,
-        actorContext.Logger,
-        actorContext.ActorId)
+    : BaseEventActor<EventActorTemplate>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected IEventActorTemplateContext ActorContext { get; } =
@@ -34,7 +31,7 @@ public class EventActorTemplate(
         ILogger,
         ValueTask<bool>>> _receiveMap = [];
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<EventActorTemplate> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var subject = message.Subject;
@@ -48,7 +45,7 @@ public class EventActorTemplate(
         return @event;
     }
 
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<EventActorTemplate> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
@@ -57,11 +54,11 @@ public class EventActorTemplate(
             throw new InvalidOperationException(
                 $"Unable to resolve {ActorName} event from message: {@event.Subject}");
 
-        _ = await handler.Invoke(@event, actorContext.RouteTo(context), actorContext.Logger);
+        _ = await handler.Invoke(@event, context, actorContext.Logger);
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<EventActorTemplate> context,
         ActorThreadId threadId,
         IEvent @event,
         Exception exception)

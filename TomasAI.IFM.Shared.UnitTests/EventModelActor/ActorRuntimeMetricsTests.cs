@@ -197,21 +197,28 @@ public sealed class ActorRuntimeMetricsTests
 
     sealed class MetricsRealtimeActor(IActorSupervisor supervisor)
         : BaseEventActor<MetricsRealtimeActor>(
-            supervisor,
-            NullLogger<MetricsRealtimeActor>.Instance,
-            new ActorMailboxId(ActorType.Realtime, "MetricsRealtime"))
+            new MetricsRealtimeContext(supervisor),
+            NullLogger<MetricsRealtimeActor>.Instance)
     {
-        protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message) =>
+        protected override IEvent ParseMessage(IEventActorContext<MetricsRealtimeActor> context, IActorMessage message) =>
             new MetricsEvent();
 
-        protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event) =>
+        protected override ValueTask ReceiveAsync(IEventActorContext<MetricsRealtimeActor> context, IEvent @event) =>
             ValueTask.CompletedTask;
 
         protected override ValueTask OnExceptionAsync(
-            IEventActorContext context,
+            IEventActorContext<MetricsRealtimeActor> context,
             ActorThreadId threadId,
             IEvent @event,
             Exception ex) => ValueTask.CompletedTask;
+    }
+
+    sealed class MetricsRealtimeContext(IActorSupervisor supervisor)
+        : EventActorContext(
+            supervisor,
+            new ActorMailboxId(ActorType.Realtime, "MetricsRealtime")),
+          IEventActorContext<MetricsRealtimeActor>
+    {
     }
 
     sealed record MetricsEvent : IEvent

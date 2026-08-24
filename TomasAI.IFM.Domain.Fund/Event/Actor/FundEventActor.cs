@@ -17,10 +17,7 @@ namespace TomasAI.IFM.Domain.Fund.Event.Actor;
 /// <param name="actorContext">The Fund event context resolved through the open-generic context registration.</param>
 public class FundEventActor(
     IEventActorContext<FundEventActor> actorContext)
-    : BaseEventActor<FundEventActor>(
-        actorContext.Supervisor,
-        actorContext.Logger,
-        actorContext.ActorId)
+    : BaseEventActor<FundEventActor>(actorContext, actorContext.Logger)
 {
     public const string Actor = "FundEvent";
     /// <summary>
@@ -48,7 +45,7 @@ public class FundEventActor(
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FundEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -80,7 +77,7 @@ public class FundEventActor(
     /// <param name="event"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FundEventActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
@@ -103,7 +100,7 @@ public class FundEventActor(
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing. Contains information about the error to be reported.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FundEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

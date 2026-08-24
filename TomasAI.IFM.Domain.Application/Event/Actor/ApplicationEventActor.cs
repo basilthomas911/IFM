@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.Application.Actor.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the application event actor. Cannot be null.</param>
 public sealed class ApplicationEventActor(
     IEventActorContext<ApplicationEventActor> actorContext)
-    : BaseEventActor<ApplicationEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<ApplicationEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     private IApplicationEventContext ActorContext { get; } =
@@ -34,7 +34,7 @@ public sealed class ApplicationEventActor(
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<ApplicationEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -61,9 +61,9 @@ public sealed class ApplicationEventActor(
     /// <param name="event"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override ValueTask ReceiveAsync(IEventActorContext<ApplicationEventActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
 
@@ -89,7 +89,7 @@ public sealed class ApplicationEventActor(
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing. Contains information about the error to be reported.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<ApplicationEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

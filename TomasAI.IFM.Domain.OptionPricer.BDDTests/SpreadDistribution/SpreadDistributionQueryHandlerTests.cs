@@ -34,7 +34,7 @@ public class SpreadDistributionQueryHandlerTests
         var query = new GetSpreadDistributionQuery(
             42, TradeType.ShortIronCondor, TradeStatus.Open,
             new DateOnly(2026, 8, 2), 30);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<SpreadDistributionQueryActor>>();
 
         await actor.InvokeReceiveAsync(context, query);
 
@@ -50,7 +50,7 @@ public class SpreadDistributionQueryHandlerTests
         ILogger<SpreadDistributionQueryActor> logger)
         : SpreadDistributionQueryActor(new SpreadDistributionQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
-        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public ValueTask InvokeReceiveAsync(IQueryActorContext<SpreadDistributionQueryActor> context, IQuery query)
             => base.ReceiveAsync(context, query);
     }
 }

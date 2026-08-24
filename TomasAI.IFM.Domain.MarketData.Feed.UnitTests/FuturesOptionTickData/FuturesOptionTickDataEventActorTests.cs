@@ -35,8 +35,8 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         : FuturesOptionTickDataEventActor(new FuturesOptionTickDataEventContext(
             supervisor, logger, marketDataApi, status))
     {
-        public ValueTask Start(IEventActorContext context) => OnStartup(context);
-        public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
+        public ValueTask Start(IEventActorContext<FuturesOptionTickDataEventActor> context) => OnStartup(context);
+        public ValueTask Stop(IEventActorContext<FuturesOptionTickDataEventActor> context) => OnShutdown(context);
     }
 
     public sealed class TestableRealtimeActor(
@@ -47,10 +47,10 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         : FuturesOptionTickDataRealtimeActor(new FuturesOptionTickDataRealtimeContext(
             supervisor, logger, marketDataApi, status))
     {
-        public IEvent Parse(IEventActorContext context, IActorMessage message) =>
+        public IEvent Parse(IEventActorContext<FuturesOptionTickDataRealtimeActor> context, IActorMessage message) =>
             ParseMessage(context, message);
-        public ValueTask Start(IEventActorContext context) => OnStartup(context);
-        public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
+        public ValueTask Start(IEventActorContext<FuturesOptionTickDataRealtimeActor> context) => OnStartup(context);
+        public ValueTask Stop(IEventActorContext<FuturesOptionTickDataRealtimeActor> context) => OnShutdown(context);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
             Substitute.For<IMarketDataApi>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesOptionTickDataEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesOptionTickDataEventActor>>();
 
         await actor.Start(context);
         await actor.Stop(context);
@@ -75,7 +75,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
     public async Task Realtime_actor_registers_and_removes_only_the_realtime_tick_route()
     {
         var actor = CreateRealtimeActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesOptionTickDataRealtimeActor>>();
         var route = new ActorTypeId(
             ActorType.Realtime,
             FuturesTickTradeDataInsertedEvent.Actor,
@@ -108,7 +108,7 @@ public sealed class FuturesOptionTickDataEventActorTests : IClassFixture<MarketD
         };
 
         var parsed = actor.Parse(
-                Substitute.For<IEventActorContext>(),
+                Substitute.For<IEventActorContext<FuturesOptionTickDataRealtimeActor>>(),
                 new NatsActorMessage(message))
             .Should().BeOfType<FuturesTickTradeDataInsertedEvent>().Which;
 

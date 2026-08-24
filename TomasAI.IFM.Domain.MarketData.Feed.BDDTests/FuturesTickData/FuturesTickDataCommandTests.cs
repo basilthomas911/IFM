@@ -25,7 +25,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_ATickRepository_When_TheActorStarts_Then_ItResolvesThatRepository()
     {
         var actor = _fixture.CreateTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesTickDataCommandState>>();
         context.Container.Returns(container);
@@ -58,7 +58,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var actor = _fixture.CreateTickCommandActor(database);
         var command = CreateCommand(kind);
 
-        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), CreateMessage(command));
+        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), CreateMessage(command));
 
         parsed.GetType().Should().Be(command.GetType());
         parsed.CommandId.Should().Be(command.CommandId);
@@ -84,7 +84,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
             Data = Serialize(command)
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesTickDataCommandActor.ActorName} command from message: *");
@@ -103,7 +103,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
             Data = empty ? [] : [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -117,9 +117,9 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var actor = _fixture.CreateTickCommandActor(database);
 
         var command = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand("Insert")));
+            Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), CreateMessage(CreateCommand("Insert")));
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
@@ -145,7 +145,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var command = CreateCommand(kind);
         var state = new FuturesTickDataCommandState { Id = command.Subject.ThreadId };
 
-        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), state, command);
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
@@ -160,7 +160,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var state = new FuturesTickDataCommandState { Id = commands[0].Subject.ThreadId };
 
         foreach (var command in commands)
-            await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+            await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), state, command);
 
         state.Events.Select(value => value.GetType()).Should().ContainInOrder(
             typeof(FuturesTickDataInsertedEvent),
@@ -172,7 +172,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_MissingReceiveInputs_When_ATickCommandIsReceived_Then_EachIsRejected()
     {
         var actor = _fixture.CreateTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var command = CreateCommand("Insert");
         var state = new FuturesTickDataCommandState { Id = command.Subject.ThreadId };
 
@@ -188,7 +188,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_AnUnsupportedTickCommand_When_ItIsReceivedOrValidated_Then_ItIsRejected()
     {
         var actor = _fixture.CreateTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var command = Substitute.For<ICommand>();
         command.Subject.Returns(new ActorSubject(
             ActorType.Command, FuturesTickDataCommandActor.ActorName, "Unknown", "entity"));
@@ -210,7 +210,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var command = CreateCommand(kind);
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -225,7 +225,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var command = CreateCommand(kind, Guid.Empty);
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -241,7 +241,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         var command = CreateInvalidCommand(kind);
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -250,7 +250,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_MissingValidationInputs_When_ATickCommandIsValidated_Then_EachIsRejected()
     {
         var actor = _fixture.CreateTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var command = CreateCommand("Insert");
 
         await ((Func<Task>)(() => actor.InvokeOnValidateAsync(null!, command.Subject.ThreadId, command).AsTask()))
@@ -317,7 +317,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_ATickFailure_When_ItIsHandled_Then_ACommandFailureEventIsSent()
     {
         var actor = _fixture.CreateTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var command = CreateCommand("Insert");
 
         var result = await actor.InvokeOnExceptionAsync(
@@ -334,7 +334,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_FirstErrorDeliveryFails_When_TheFailureIsRetried_Then_AFailedResultReturns()
     {
         var actor = _fixture.CreateTickCommandActor(logger: Substitute.For<ILogger<FuturesTickDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var command = CreateCommand("Insert");
         var attempts = 0;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -354,7 +354,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     public async Task Given_ErrorDeliveryAlwaysFails_When_TheFailureIsHandled_Then_AFailedResultStillReturns()
     {
         var actor = _fixture.CreateTickCommandActor(logger: Substitute.For<ILogger<FuturesTickDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var command = CreateCommand("Insert");
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -369,11 +369,11 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>());
     }
 
-    async Task<(TestableFuturesTickDataCommandActor Actor, ICommandActorContext Context,
+    async Task<(TestableFuturesTickDataCommandActor Actor, ICommandActorContext<FuturesTickDataCommandActor> Context,
         IEventSourceActorStateRepository<FuturesTickDataCommandState> Repository)> CreateActorWithRepository()
     {
         var actor = _fixture.CreateTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesTickDataCommandState>>();
         context.Container.Returns(container);

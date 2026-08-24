@@ -48,7 +48,7 @@ public class FundQueryTests
 
         public IFundQueryContext FundContext { get; }
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FundQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
     }
 

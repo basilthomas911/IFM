@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.Actor.Client;
 /// cref="ILogger{TCategoryName}"/> for logging.</remarks>
 /// <param name="actorContext">The typed event context resolved through open-generic registration.</param>
 public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
-    : BaseEventActor<TestEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<TestEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ITestEventContext ActorContext { get; } =
@@ -33,7 +33,7 @@ public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
         ["TestEvent"] = msg => msg.AsEvent<TestEvent>()!
     };
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<TestEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -45,12 +45,12 @@ public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
         @event.CheckForEmptyCommandId();
         return @event;
     }
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<TestEventActor> context, IEvent @event)
     {
         await Task.CompletedTask;
     }
 
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<TestEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
         => await ValueTask.CompletedTask;
 
 }

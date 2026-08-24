@@ -43,16 +43,16 @@ public class FuturesOptionContractCommandActorTests : IClassFixture<SecuritiesFi
             context.ReferenceLookupService.Returns(Substitute.For<IReferenceLookupService>());
             return context;
         }
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FuturesOptionContractCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesOptionContractCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<FuturesOptionContractCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<FuturesOptionContractCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
@@ -85,7 +85,7 @@ public class FuturesOptionContractCommandActorTests : IClassFixture<SecuritiesFi
         };
 
         var parsed = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(),
+            Substitute.For<ICommandActorContext<FuturesOptionContractCommandActor>>(),
             message);
 
         parsed.CommandId.Should().Be(command.CommandId);

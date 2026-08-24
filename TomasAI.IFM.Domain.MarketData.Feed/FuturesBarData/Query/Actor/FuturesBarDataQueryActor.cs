@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Query.Actor;
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
 public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActor> actorContext)
-    : BaseQueryActor<FuturesBarDataQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<FuturesBarDataQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesBarDataQuery";
 
@@ -37,7 +37,7 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     /// <param name="message">The actor message to parse.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<FuturesBarDataQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -70,17 +70,13 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<FuturesBarDataQueryActor> context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        using var messageInfoScope = context.MirrorMessageInfoTo(
-            QueryContext,
-            query.Subject.ThreadId,
-            query.Subject.Verb);
         await receiveFunc.Invoke(QueryContext, query).ConfigureAwait(false);
     }
 
@@ -114,7 +110,7 @@ public class FuturesBarDataQueryActor(IQueryActorContext<FuturesBarDataQueryActo
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesBarDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

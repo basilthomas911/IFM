@@ -23,7 +23,7 @@ public sealed class MarketOutlookRealtimeActorTests
         ILogger<MarketOutlookRealtimeActor> logger)
         : MarketOutlookRealtimeActor(new MarketOutlookRealtimeContext(supervisor, dbFactory, logger))
     {
-        internal ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        internal ValueTask InvokeReceiveAsync(IEventActorContext<MarketOutlookRealtimeActor> context, IEvent @event)
             => ReceiveAsync(context, @event);
     }
 
@@ -32,7 +32,7 @@ public sealed class MarketOutlookRealtimeActorTests
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<MarketOutlookRealtimeActor>>();
         var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
         var changed = new MarketOutlookComponentChangedRealtimeEvent
         {
@@ -58,7 +58,7 @@ public sealed class MarketOutlookRealtimeActorTests
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<MarketOutlookRealtimeActor>>();
         var valueDate = new DateOnly(2026, 8, 21);
         var entityId = new MarketOutlookEntityId("NQU26", valueDate);
         var eod = new MarketOutlookEodUpdatedRealtimeEvent
@@ -96,7 +96,7 @@ public sealed class MarketOutlookRealtimeActorTests
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(db);
         var actor = CreateActor(dbFactory);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<MarketOutlookRealtimeActor>>();
         context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
                 Arg.Any<GetLastFuturesEodDataQuery>())
             .Returns(ValueTask.FromResult<ServiceResult<FuturesEodDataV2ReadModel>>(

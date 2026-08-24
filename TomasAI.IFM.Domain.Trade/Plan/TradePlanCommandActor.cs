@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.Trade.Plan;
 /// <summary>Provides the TradePlanCommandActor implementation.</summary>
 public sealed class TradePlanCommandActor(
     ICommandActorContext<TradePlanCommandActor> actorContext)
-    : BaseEventSourceCommandActor<TradePlanCommandActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseEventSourceCommandActor<TradePlanCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     private ITradePlanCommandActorContext ActorContext { get; } =
@@ -24,7 +24,7 @@ public sealed class TradePlanCommandActor(
 
     public const string ActorName = "TradePlanCommand";
 
-    protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
+    protected override ICommand ParseMessage(ICommandActorContext<TradePlanCommandActor> context, IActorMessage message)
     {
         if (!message.Subject.Is(ActorType.Command, ActorName, UpdateTradePlanCommand.Verb))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
@@ -32,7 +32,7 @@ public sealed class TradePlanCommandActor(
     }
 
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TradePlanCommandActor> context,
         IActorState state,
         ICommand command)
     {
@@ -48,13 +48,13 @@ public sealed class TradePlanCommandActor(
     }
 
     protected override ValueTask<IActorState> OnLoadStateAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TradePlanCommandActor> context,
         ActorThreadId threadId,
         ICommand command)
         => ValueTask.FromResult<IActorState>(new TradePlanActorState { Id = threadId });
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(
-        ICommandActorContext context,
+        ICommandActorContext<TradePlanCommandActor> context,
         ActorThreadId threadId,
         ICommand command,
         Exception ex)

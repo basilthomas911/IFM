@@ -31,13 +31,13 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         {
         }
 
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesAdxSignalQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesAdxSignalQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<FuturesAdxSignalQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
     }
 
@@ -87,7 +87,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var subject = query.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -114,7 +114,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var subject = query.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         actor.InvokeParseMessage(context, natsMsg);
@@ -139,7 +139,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var subject = query.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         actor.InvokeParseMessage(context, natsMsg);
@@ -165,7 +165,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var subject = query.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -192,7 +192,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var originalDataLength = payload.Length;
         var natsMsg = new NatsMsg<byte[]>(originalSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         actor.InvokeParseMessage(context, natsMsg);
@@ -235,7 +235,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var invalidSubject = $"Query.WrongActorName.{GetFuturesAdxSignalQuery.Verb}.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -256,7 +256,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var invalidSubject = $"Query.{FuturesAdxSignalQueryActor.ActorName}.UnknownVerb.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -277,7 +277,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var subject = query.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, corruptedPayload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -297,7 +297,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var subject = query.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, emptyPayload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -325,7 +325,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         var query = CreateQuery();
         var state = new DummyQueryState { Id = query.Subject.ThreadId };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         context.ReplyAsync(query.Subject.ThreadId, GetFuturesAdxSignalQuery.Verb, Arg.Any<ServiceResult<FuturesAdxSignalReadModel?>>())
             .Returns(ValueTask.CompletedTask);
@@ -356,7 +356,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         var query = CreateDailyQuery();
         var state = new DummyQueryState { Id = query.Subject.ThreadId };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         context.ReplyAsync(query.Subject.ThreadId, GetFuturesAdxDailySignalQuery.Verb, Arg.Any<ServiceResult<FuturesAdxSignalReadModel?>>())
             .Returns(ValueTask.CompletedTask);
@@ -387,7 +387,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         var query = CreateQuery();
         var state = new DummyQueryState { Id = query.Subject.ThreadId };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         context.ReplyAsync(query.Subject.ThreadId, GetFuturesAdxSignalQuery.Verb, Arg.Any<ServiceResult<FuturesAdxSignalReadModel?>>())
             .Returns(ValueTask.CompletedTask);
@@ -429,7 +429,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var actor = _fixture.CreateAdxQueryActor();
 
         var state = new DummyQueryState { Id = new ActorThreadId(ActorType.Query, FuturesAdxSignalQueryActor.ActorName, "test-thread") };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!);
@@ -445,7 +445,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var actor = _fixture.CreateAdxQueryActor();
 
         var state = new DummyQueryState { Id = new ActorThreadId(ActorType.Query, FuturesAdxSignalQueryActor.ActorName, "test-thread") };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
         var unsupportedQuery = Substitute.For<IQuery>();
 
         // Act
@@ -471,7 +471,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var query = CreateQuery();
         var threadId = query.Subject.ThreadId;
         var exception = new InvalidOperationException("Test exception");
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         ServiceResult<FuturesAdxSignalReadModel?>? capturedResult = null;
         context.ReplyAsync(threadId, GetFuturesAdxSignalQuery.Verb, Arg.Do<ServiceResult<FuturesAdxSignalReadModel?>>(r => capturedResult = r))
@@ -498,7 +498,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var threadId = new ActorThreadId(ActorType.Query, FuturesAdxSignalQueryActor.ActorName, "test-thread");
         var unsupportedQuery = Substitute.For<IQuery>();
         var exception = new InvalidOperationException("Test exception");
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
         var verb = "UnknownVerb";
 
         ServiceFailed<ActorEntityId>? capturedResult = null;
@@ -543,7 +543,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var actor = _fixture.CreateAdxQueryActor();
 
         var query = CreateQuery();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
         var exception = new InvalidOperationException("Test exception");
 
         // Act
@@ -560,7 +560,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var actor = _fixture.CreateAdxQueryActor();
 
         var threadId = new ActorThreadId(ActorType.Query, FuturesAdxSignalQueryActor.ActorName, "test-thread");
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
         var exception = new InvalidOperationException("Test exception");
 
         // Act
@@ -578,7 +578,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         var query = CreateQuery();
         var threadId = query.Subject.ThreadId;
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
         var exception = new InvalidOperationException("Test exception");
 
         // Act
@@ -596,7 +596,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
 
         var query = CreateQuery();
         var threadId = query.Subject.ThreadId;
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnExceptionAsync(context, threadId, query, GetFuturesAdxSignalQuery.Verb, null!);
@@ -616,7 +616,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var query = CreateQuery();
         var threadId = query.Subject.ThreadId;
         var exception = new InvalidOperationException("Test exception");
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesAdxSignalQueryActor>>();
 
         context.ReplyAsync(threadId, GetFuturesAdxSignalQuery.Verb, Arg.Any<ServiceResult<FuturesAdxSignalReadModel?>>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("Reply failed"));

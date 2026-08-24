@@ -26,7 +26,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Query.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class OptionTradeQueryActor(
     IQueryActorContext<OptionTradeQueryActor> actorContext)
-    : BaseQueryActor<OptionTradeQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<OptionTradeQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IOptionTradeQueryContext ActorContext { get; } =
@@ -41,7 +41,7 @@ public class OptionTradeQueryActor(
     /// <param name="message">The actor message to parse.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<OptionTradeQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -82,15 +82,15 @@ public class OptionTradeQueryActor(
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<OptionTradeQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<OptionTradeQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
@@ -199,7 +199,7 @@ public class OptionTradeQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<OptionTradeQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

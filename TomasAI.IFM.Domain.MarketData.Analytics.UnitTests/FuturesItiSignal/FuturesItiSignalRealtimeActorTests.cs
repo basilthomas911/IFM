@@ -42,20 +42,20 @@ public sealed class FuturesItiSignalRealtimeActorTests
             statusConsoleWriter,
             logger))
     {
-        public IEvent Parse(IEventActorContext context, IActorMessage message) =>
+        public IEvent Parse(IEventActorContext<FuturesItiSignalRealtimeActor> context, IActorMessage message) =>
             ParseMessage(context, message);
 
-        public ValueTask Receive(IEventActorContext context, IEvent @event) =>
+        public ValueTask Receive(IEventActorContext<FuturesItiSignalRealtimeActor> context, IEvent @event) =>
             ReceiveAsync(context, @event);
 
-        public ValueTask Start(IEventActorContext context) => OnStartup(context);
-        public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
+        public ValueTask Start(IEventActorContext<FuturesItiSignalRealtimeActor> context) => OnStartup(context);
+        public ValueTask Stop(IEventActorContext<FuturesItiSignalRealtimeActor> context) => OnShutdown(context);
     }
 
     [Fact]
     public async Task Lifecycle_RegistersAndRemovesMarketPriceRealtimeRoute()
     {
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>();
         var actor = CreateActor(out _);
         var route = new ActorTypeId(
             ActorType.Realtime,
@@ -85,7 +85,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>().Returns(@event);
         var actor = CreateActor(out _);
 
-        var parsed = actor.Parse(Substitute.For<IEventActorContext>(), message);
+        var parsed = actor.Parse(Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(), message);
 
         parsed.Should().BeSameAs(@event);
     }
@@ -98,7 +98,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var @event = CreateEvent();
 
         var handled = await @event.ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
             projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
@@ -129,7 +129,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     {
         var marketDataApi = CreateReadyMarketDataApi();
         var actor = CreateActor(out var projector, marketDataApi);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>();
 
         await actor.Start(context);
         await actor.Receive(context, CreateEvent());
@@ -159,7 +159,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
     {
         var marketDataApi = CreateReadyMarketDataApi();
         var actor = CreateActor(out _, marketDataApi);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>();
 
         await actor.Start(context);
         await actor.Receive(context, CreateEvent());
@@ -250,7 +250,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var @event = CreateEvent(contractId: VxContractId);
 
         var handled = await @event.ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
             projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
@@ -272,7 +272,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var projector = CreateProjector();
 
         var handled = await CreateEvent().ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
             projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
@@ -293,7 +293,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var projector = CreateProjector();
 
         var handled = await CreateEvent().ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
             projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
@@ -311,7 +311,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var projector = CreateProjector();
 
         var action = () => CreateEvent().ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
             projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),
@@ -334,7 +334,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         };
 
         var action = () => @event.ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
+            Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
             projector,
             marketDataApi,
             new FuturesItiSignalStreamOwnership(),

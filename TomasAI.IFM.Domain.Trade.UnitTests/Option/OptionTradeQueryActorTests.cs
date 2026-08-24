@@ -33,19 +33,19 @@ public class OptionTradeQueryActorTests : IClassFixture<TradeFixture>
         ILogger<OptionTradeQueryActor> logger)
         : OptionTradeQueryActor(new OptionTradeQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, blackboardService, logger))
     {
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<OptionTradeQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<OptionTradeQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeReceiveAsync(
-            IQueryActorContext context,
+            IQueryActorContext<OptionTradeQueryActor> context,
             IQuery query,
             CancellationToken cancellationToken)
             => await ReceiveAsync(context, query, cancellationToken);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<OptionTradeQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
     }
 
@@ -57,7 +57,7 @@ public class OptionTradeQueryActorTests : IClassFixture<TradeFixture>
         dbFactory.TradeDb.Returns(tradeDb);
         var actor = _fixture.CreateQueryActor(dbFactory);
         var query = new GetOptionTradeQuery(100, 1);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<OptionTradeQueryActor>>();
         using var cancellation = new CancellationTokenSource();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         tradeDb.GetOptionTradeAsync(100, 1, cancellation.Token)

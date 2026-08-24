@@ -26,7 +26,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public void Given_AValidLastOptionTickMessage_When_ItIsParsed_Then_TheQueryAndMessageInfoArePreserved()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery();
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
@@ -55,7 +55,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
             Data = Serialize(query)
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesOptionTickDataQueryActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesOptionTickDataQueryActor.ActorName} query from message: *");
@@ -72,7 +72,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
             Data = [0x00, 0x01, 0x02, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesOptionTickDataQueryActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -92,7 +92,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     {
         var (factory, database) = CreateDatabase(SampleData.EsOptionTickData);
         var actor = _fixture.CreateOptionTickQueryActor(factory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery();
 
         await actor.InvokeReceiveAsync(context, query);
@@ -110,7 +110,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     {
         var (factory, database) = CreateDatabase(null);
         var actor = _fixture.CreateOptionTickQueryActor(factory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery("MISSING");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -133,7 +133,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
         var actor = _fixture.CreateOptionTickQueryActor(factory);
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IQueryActorContext>(), CreateQuery()).AsTask();
+            Substitute.For<IQueryActorContext<FuturesOptionTickDataQueryActor>>(), CreateQuery()).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("database failed");
     }
@@ -142,7 +142,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_MissingReceiveInputs_When_AnOptionTickQueryIsReceived_Then_EachIsRejected()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery();
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -159,7 +159,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "Unknown", "entity"));
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), query).AsTask();
+        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext<FuturesOptionTickDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesOptionTickDataQueryActor.ActorName} query: *");
@@ -169,7 +169,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_AKnownOptionTickQueryFailure_When_ItIsHandled_Then_TheTypedFailureIsReplied()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery();
 
         await actor.InvokeOnExceptionAsync(
@@ -187,7 +187,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_AnUnknownQueryFailure_When_ItIsHandled_Then_TheFallbackFailureIsReplied()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesOptionTickDataQueryActor.ActorName, "Unknown", "entity"));
@@ -206,7 +206,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_ReplyingToAnOptionTickFailureAlsoFails_When_ItIsHandled_Then_TheSecondaryFailureIsSwallowed()
     {
         var actor = _fixture.CreateOptionTickQueryActor(logger: Substitute.For<ILogger<FuturesOptionTickDataQueryActor>>());
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery();
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -224,7 +224,7 @@ public class FuturesOptionTickDataQueryTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_MissingExceptionInputs_When_AnOptionTickFailureIsHandled_Then_EachIsRejected()
     {
         var actor = _fixture.CreateOptionTickQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context = actor.Context;
         var query = CreateQuery();
         var exception = new Exception("failure");
 

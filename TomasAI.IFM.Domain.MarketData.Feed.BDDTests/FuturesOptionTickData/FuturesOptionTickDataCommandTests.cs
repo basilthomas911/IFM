@@ -27,7 +27,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
     public async Task Given_AnOptionTickRepository_When_TheActorStarts_Then_ItResolvesThatRepository()
     {
         var actor = _fixture.CreateOptionTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesOptionTickDataCommandState>>();
         context.Container.Returns(container);
@@ -60,7 +60,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
         var actor = _fixture.CreateOptionTickCommandActor(db);
         var command = CreateCommand(kind);
 
-        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), CreateMessage(command));
+        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), CreateMessage(command));
 
         parsed.GetType().Should().Be(command.GetType());
         parsed.CommandId.Should().Be(command.CommandId);
@@ -86,7 +86,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
             Data = Serialize(command)
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesOptionTickDataCommandActor.ActorName} command from message: *");
@@ -99,7 +99,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
         var command = CreateCommand("Insert");
         var message = new NatsMsg<byte[]> { Subject = command.Subject.ToString(), Data = [0x00, 0x01, 0xFF] };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -113,9 +113,9 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
         var actor = _fixture.CreateOptionTickCommandActor(db);
 
         var command = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand("Insert")));
+            Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), CreateMessage(CreateCommand("Insert")));
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
@@ -141,7 +141,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
         var command = CreateCommand(kind);
         var state = new FuturesOptionTickDataCommandState { Id = command.Subject.ThreadId };
 
-        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+        var result = await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), state, command);
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
@@ -156,7 +156,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
         var state = new FuturesOptionTickDataCommandState { Id = commands[0].Subject.ThreadId };
 
         foreach (var command in commands)
-            await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+            await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>(), state, command);
 
         state.Events.Should().HaveCount(3);
         state.Events.Select(value => value.GetType()).Should().ContainInOrder(
@@ -169,7 +169,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
     public async Task Given_MissingReceiveInputs_When_AnOptionTickCommandIsReceived_Then_EachIsRejected()
     {
         var actor = _fixture.CreateOptionTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var command = CreateCommand("Insert");
         var state = new FuturesOptionTickDataCommandState { Id = command.Subject.ThreadId };
 
@@ -185,7 +185,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
     public async Task Given_AnUnsupportedCommand_When_ItIsReceivedOrValidated_Then_ItIsRejected()
     {
         var actor = _fixture.CreateOptionTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var command = Substitute.For<ICommand>();
         command.Subject.Returns(new ActorSubject(
             ActorType.Command, FuturesOptionTickDataCommandActor.ActorName, "Unknown", "entity"));
@@ -294,7 +294,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
     public async Task Given_AnOptionTickFailure_When_ItIsHandled_Then_ACommandFailureEventIsSent()
     {
         var actor = _fixture.CreateOptionTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var command = CreateCommand("Insert");
 
         var result = await actor.InvokeOnExceptionAsync(
@@ -311,7 +311,7 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
     public async Task Given_ErrorEventDeliveryFailsTwice_When_TheFailureIsHandled_Then_AFailedResultStillReturns()
     {
         var actor = _fixture.CreateOptionTickCommandActor(logger: Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>());
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var command = CreateCommand("Insert");
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -326,11 +326,11 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>());
     }
 
-    async Task<(TestableFuturesOptionTickDataCommandActor Actor, ICommandActorContext Context,
+    async Task<(TestableFuturesOptionTickDataCommandActor Actor, ICommandActorContext<FuturesOptionTickDataCommandActor> Context,
         IEventSourceActorStateRepository<FuturesOptionTickDataCommandState> Repository)> CreateActorWithRepository()
     {
         var actor = _fixture.CreateOptionTickCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesOptionTickDataCommandState>>();
         context.Container.Returns(container);
@@ -339,9 +339,9 @@ public class FuturesOptionTickDataCommandTests : IClassFixture<MarketDataFeedBdd
         return (actor, context, repository);
     }
 
-    static ICommandActorContext CreateValidationContext()
+    static ICommandActorContext<FuturesOptionTickDataCommandActor> CreateValidationContext()
     {
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesOptionTickDataCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var lookup = Substitute.For<IReferenceLookupService>();
         var contract = SampleData.FuturesOptionContracts[0];

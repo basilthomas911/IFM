@@ -27,7 +27,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         (windowEnd - windowStart).Should().Be(TimeSpan.FromMinutes(1));
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateRangeQuery(barData, windowStart, windowEnd);
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
@@ -47,7 +47,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         (windowEnd - windowStart).Should().Be(TimeSpan.FromMinutes(1));
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateLastQuery(barData);
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
@@ -75,7 +75,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var subject = new ActorSubject(actorType, actorName, verb, query.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(query) };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesBarDataQueryActor.ActorName} query from message: *");
@@ -90,7 +90,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
             GetFuturesBarDataQuery.Verb, "ES.ES.2025-06-15");
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = [0x00, 0x01, 0xFF] };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -119,7 +119,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         db.GetFuturesBarDataAsync(barData.ContractId, barData.Symbol, barData.ValueDate, windowStart, windowEnd)
             .Returns(expected);
         var actor = _fixture.CreateQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateRangeQuery(barData, windowStart, windowEnd);
 
         await actor.InvokeReceiveAsync(context, query);
@@ -145,7 +145,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         db.GetLastFuturesBarDataAsync(barData.ContractId, barData.Symbol, barData.ValueDate)
             .Returns(barData);
         var actor = _fixture.CreateQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateLastQuery(barData);
 
         await actor.InvokeReceiveAsync(context, query);
@@ -169,7 +169,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<DateOnly>(), Arg.Any<DateTime>(), Arg.Any<DateTime>())
             .Returns(Array.Empty<FuturesBarDataReadModel>());
         var actor = _fixture.CreateQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateRangeQuery(
             SampleData.FuturesBarData,
             SampleData.FuturesBarData.BarDate,
@@ -195,7 +195,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var actor = _fixture.CreateQueryActor(dbFactory);
         var query = CreateLastQuery(SampleData.FuturesBarDataAlternate);
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), query).AsTask();
+        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("database failed");
     }
@@ -204,7 +204,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingReceiveInputs_When_AQueryIsReceived_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateLastQuery(SampleData.FuturesBarData);
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -220,7 +220,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(ActorType.Query, FuturesBarDataQueryActor.ActorName, "Unknown", "entity"));
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), query).AsTask();
+        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext<FuturesBarDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesBarDataQueryActor.ActorName} query: *");
@@ -230,7 +230,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_A_RangeQueryFailure_When_TheExceptionIsHandled_Then_AFailedRangeResultIsReplied()
     {
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateRangeQuery(
             SampleData.FuturesBarDataAlternate,
             SampleData.FuturesBarDataAlternate.BarDate,
@@ -251,7 +251,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_A_LastQueryFailure_When_TheExceptionIsHandled_Then_AFailedLastBarResultIsReplied()
     {
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateLastQuery(SampleData.FuturesBarDataAlternate);
 
         await actor.InvokeOnExceptionAsync(
@@ -269,7 +269,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AnUnknownQueryFailure_When_TheExceptionIsHandled_Then_TheFallbackFailureIsReplied()
     {
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.ErrorCode.Returns(9999);
         query.Subject.Returns(new ActorSubject(ActorType.Query, FuturesBarDataQueryActor.ActorName, "Unknown", "entity"));
@@ -288,7 +288,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_ReplyingToAnExceptionAlsoFails_When_TheExceptionIsHandled_Then_TheSecondaryFailureIsSwallowed()
     {
         var actor = _fixture.CreateQueryActor(logger: Substitute.For<ILogger<FuturesBarDataQueryActor>>());
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateRangeQuery(
             SampleData.FuturesBarData,
             SampleData.FuturesBarData.BarDate,
@@ -308,7 +308,7 @@ public class FuturesBarDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingExceptionInputs_When_AnExceptionIsHandled_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesBarDataQueryActor> context = actor.Context;
         var query = CreateLastQuery(SampleData.FuturesBarData);
         var exception = new Exception("failure");
 

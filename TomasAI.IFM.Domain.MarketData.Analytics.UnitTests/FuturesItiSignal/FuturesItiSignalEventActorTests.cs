@@ -40,19 +40,19 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         {
         }
 
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FuturesItiSignalEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public async ValueTask InvokeReceiveAsync(IEventActorContext<FuturesItiSignalEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);
 
-        public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IEventActorContext<FuturesItiSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
 
-        public async ValueTask InvokeOnStartAsync(IEventActorContext context)
+        public async ValueTask InvokeOnStartAsync(IEventActorContext<FuturesItiSignalEventActor> context)
             => await OnStartup(context);
 
-        public async ValueTask InvokeOnStopAsync(IEventActorContext context)
+        public async ValueTask InvokeOnStopAsync(IEventActorContext<FuturesItiSignalEventActor> context)
             => await OnShutdown(context);
     }
 
@@ -74,7 +74,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateEodDataInsertedCompleteEvent();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesEodDataInsertedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -96,7 +96,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -124,7 +124,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var entityId = SampleData.EntityIdFor(timePeriod);
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent() with { EntityId = entityId };
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.{entityId.Format()}";
@@ -151,7 +151,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -176,7 +176,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -214,7 +214,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var actor1 = _fixture.CreateActor(mockSupervisor, mockLogger1);
         var actor2 = _fixture.CreateActor(mockSupervisor, mockLogger2);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -267,7 +267,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var invalidSubject = $"Command.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
@@ -288,7 +288,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var invalidSubject = $"Event.WrongActor.{FuturesItiSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
@@ -309,7 +309,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var invalidSubject = $"Event.{FuturesItiSignalEventActor.Actor}.UnknownVerb.123";
         var message = new NatsMsg<byte[]>
@@ -330,7 +330,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent(commandId: Guid.Empty);
 
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
@@ -354,7 +354,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var malformedSubject = "InvalidSubjectFormat";
         var message = new NatsMsg<byte[]>
         {
@@ -375,7 +375,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -395,7 +395,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -415,7 +415,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var subject = $"Event.{FuturesItiSignalEventActor.Actor}.{FuturesItiSignalGeneratedCompleteEvent.Verb}.123";
         var corruptedData = new byte[] { 0x00, 0x01, 0x02, 0xFF };
         var message = new NatsMsg<byte[]>
@@ -440,7 +440,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateEodDataInsertedCompleteEvent();
 
         // Act
@@ -455,7 +455,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
 
         // Act
@@ -471,7 +471,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var entityId = SampleData.EntityIdFor(timePeriod);
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent() with { EntityId = entityId };
 
@@ -487,7 +487,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var event1 = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var event2 = SampleData.CreateItiSignalGeneratedCompleteEvent() with
         {
@@ -528,7 +528,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, null!);
@@ -542,7 +542,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
 
         var unknownEvent = Substitute.For<IEvent>();
         unknownEvent.Subject.Returns(new ActorSubject(ActorType.Event, FuturesItiSignalEventActor.Actor, "UnknownVerb", "123"));
@@ -564,7 +564,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Test exception message");
@@ -588,7 +588,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var exception = new ArgumentNullException("paramName", "Parameter cannot be null");
@@ -612,7 +612,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var @event = SampleData.CreateEodDataInsertedCompleteEvent();
         var exception = new TimeoutException("Database operation timed out");
@@ -636,7 +636,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var exception = new Exception("Generic failure");
@@ -657,7 +657,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Full detail exception message");
@@ -700,7 +700,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Test exception");
 
@@ -720,7 +720,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var exception = new InvalidOperationException("Test exception");
 
@@ -740,7 +740,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesItiSignalEventActor.Actor, "1");
         var @event = SampleData.CreateItiSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Original failure");

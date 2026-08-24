@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Domain.MarketData.EconomicCalendar.Query.Actor;
 /// retrieval and uses dependency injection to resolve required services.</remarks>
 /// <param name="logger"></param>
 public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQueryActor> actorContext)
-    : BaseQueryActor<EconomicCalendarQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<EconomicCalendarQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "EconomicCalendarQuery";
     readonly ILogger<EconomicCalendarQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -39,7 +39,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// langword="null"/>.</param>
     /// <returns>The thread identifier extracted from the message subject.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<EconomicCalendarQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -82,17 +82,16 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<EconomicCalendarQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<EconomicCalendarQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        using var messageInfoScope = context.MirrorMessageInfoTo(EconomicCalendarContext, query.Subject.ThreadId, query.Subject.Verb);
         await receiveFunc.Invoke(EconomicCalendarContext, query, cancellationToken);
     }
 
@@ -160,7 +159,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<EconomicCalendarQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         try
         {

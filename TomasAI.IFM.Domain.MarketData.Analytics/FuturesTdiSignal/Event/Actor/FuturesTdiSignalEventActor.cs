@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 /// <param name="logger"></param>
 public class FuturesTdiSignalEventActor(
     IEventActorContext<FuturesTdiSignalEventActor> actorContext)
-    : BaseEventActor<FuturesTdiSignalEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesTdiSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesTdiSignalEventContext ActorContext { get; } =
@@ -46,14 +46,14 @@ public class FuturesTdiSignalEventActor(
         }
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context)
+    protected override ValueTask OnStartup(IEventActorContext<FuturesTdiSignalEventActor> context)
     {
         _ = context;
         context.AddEventRouter(RsiSignalsRoute, Id);
         return ValueTask.CompletedTask;
     }
 
-    protected override ValueTask OnShutdown(IEventActorContext context)
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesTdiSignalEventActor> context)
     {
         context.RemoveEventRouter(RsiSignalsRoute, Id);
         return ValueTask.CompletedTask;
@@ -66,7 +66,7 @@ public class FuturesTdiSignalEventActor(
     /// <param name="context">The actor context used for event processing. Cannot be null.</param>
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesTdiSignalEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -95,9 +95,9 @@ public class FuturesTdiSignalEventActor(
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesTdiSignalEventActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
@@ -115,7 +115,7 @@ public class FuturesTdiSignalEventActor(
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesTdiSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

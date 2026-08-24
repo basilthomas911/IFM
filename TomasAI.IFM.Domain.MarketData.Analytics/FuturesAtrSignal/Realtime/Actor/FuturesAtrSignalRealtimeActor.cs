@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime.Acto
 /// <summary>Provides the FuturesAtrSignalRealtimeActor implementation.</summary>
 public class FuturesAtrSignalRealtimeActor(
     IRealtimeActorContext<FuturesAtrSignalRealtimeActor> actorContext)
-    : BaseEventActor<FuturesAtrSignalRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesAtrSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesAtrSignalRealtimeContext ActorContext { get; } =
@@ -29,10 +29,10 @@ public class FuturesAtrSignalRealtimeActor(
         [FuturesAtrSignalGeneratedFailEvent.Verb] = message => message.AsEvent<FuturesAtrSignalGeneratedFailEvent>()!
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context) => actorContext.Projector.StartAsync(context);
-    protected override ValueTask OnShutdown(IEventActorContext context) => actorContext.Projector.StopAsync();
+    protected override ValueTask OnStartup(IEventActorContext<FuturesAtrSignalRealtimeActor> context) => actorContext.Projector.StartAsync(context);
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesAtrSignalRealtimeActor> context) => actorContext.Projector.StopAsync();
 
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesAtrSignalRealtimeActor> context, IActorMessage message)
     {
         var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
@@ -43,9 +43,9 @@ public class FuturesAtrSignalRealtimeActor(
         return @event;
     }
 
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesAtrSignalRealtimeActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         switch (@event)
         {
             case FuturesAtrSignalSampledRealtimeEvent sampled:
@@ -64,7 +64,7 @@ public class FuturesAtrSignalRealtimeActor(
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception exception) =>
+        IEventActorContext<FuturesAtrSignalRealtimeActor> context, ActorThreadId threadId, IEvent @event, Exception exception) =>
         await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

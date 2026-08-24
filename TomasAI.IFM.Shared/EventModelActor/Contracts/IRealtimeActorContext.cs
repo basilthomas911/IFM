@@ -5,8 +5,8 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 /// </summary>
 /// <remarks>
 /// Realtime actors currently use <see cref="IEventActorContext"/> and <c>BaseEventActor&lt;TActor&gt;</c> for their
-/// runtime lifecycle. This marker keeps that base contract unchanged while allowing dependency injection to resolve
-/// a strongly typed, realtime-specific context during the incremental actor-context migration.
+/// runtime lifecycle. The closed-generic marker allows dependency injection to resolve a context for the concrete
+/// realtime actor while retaining the shared event-context capabilities.
 /// </remarks>
 /// <typeparam name="TActor">The realtime actor type associated with the context.</typeparam>
 public interface IRealtimeActorContext<TActor> : IEventActorContext<TActor>

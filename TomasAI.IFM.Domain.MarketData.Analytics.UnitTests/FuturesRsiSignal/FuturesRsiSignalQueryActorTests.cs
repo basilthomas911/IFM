@@ -32,19 +32,19 @@ public class FuturesRsiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         {
         }
 
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesRsiSignalQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesRsiSignalQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeReceiveAsync(
-            IQueryActorContext context,
+            IQueryActorContext<FuturesRsiSignalQueryActor> context,
             IQuery query,
             CancellationToken cancellationToken)
             => await ReceiveAsync(context, query, cancellationToken);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<FuturesRsiSignalQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
 
@@ -73,7 +73,7 @@ public class FuturesRsiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
                     SampleData.TimePeriod,
                     SampleData.PeriodLength).Format())
         };
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesRsiSignalQueryActor>>();
         using var cancellation = new CancellationTokenSource();
         marketDataDb.GetLastFuturesRsiSignalAsync(
                 query.ContractId,

@@ -60,28 +60,28 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             return context;
         }
 
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FundCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FundCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<FundCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<FundCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<FundCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnLoadStateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<FundCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
             => await OnSaveStateAsync(context, threadId, state, cmd);
 
-        public async ValueTask InvokeOnStartup(ICommandActorContext context)
+        public async ValueTask InvokeOnStartup(ICommandActorContext<FundCommandActor> context)
             => await ((ICommandActor<FundCommandActor>)this).OnStartup(context);
 
-        public async ValueTask InvokeOnShutdown(ICommandActorContext context)
+        public async ValueTask InvokeOnShutdown(ICommandActorContext<FundCommandActor> context)
             => await ((ICommandActor<FundCommandActor>)this).OnShutdown(context);
     }
 
@@ -93,7 +93,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FundCommandState>>();
 
@@ -112,7 +112,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     {
         var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
         var actor = _fixture.CreateActor(eventProjector: eventProjector);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundCommandState>>()
             .Returns(Substitute.For<IEventSourceActorStateRepository<FundCommandState>>());
@@ -131,17 +131,13 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var supervisor = Substitute.For<IActorSupervisor>();
         var producer = Substitute.For<IActorProducer>();
         var mailbox = Substitute.For<IActorMailbox>();
-        var context = Substitute.For<ICommandActorContext>();
-        var container = Substitute.For<IContainerInstance>();
-        container.Resolve<IEventSourceActorStateRepository<FundCommandState>>()
-            .Returns(Substitute.For<IEventSourceActorStateRepository<FundCommandState>>());
-        context.Container.Returns(container);
         supervisor.CreateMailbox(actor.Id).Returns(mailbox);
         supervisor.GetProducer(actor.Id).Returns(producer);
-        supervisor.CreateCommandActorContext(actor.Id).Returns(context);
         using var cancellation = new CancellationTokenSource();
         var projectorStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        eventProjector.StartAsync(context, cancellation.Token)
+        eventProjector.StartAsync(
+                Arg.Any<ICommandActorContext<FundCommandActor>>(),
+                cancellation.Token)
             .Returns(_ => new ValueTask(WaitForCancellationAsync()));
 
         var startup = actor.StartAsync(supervisor, cancellation.Token).AsTask();
@@ -165,7 +161,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     {
         var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
         var actor = _fixture.CreateActor(eventProjector: eventProjector);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         await actor.InvokeOnShutdown(context);
 
@@ -179,14 +175,13 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(eventProjector: eventProjector);
         var supervisor = Substitute.For<IActorSupervisor>();
         var producer = Substitute.For<IActorProducer>();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundCommandState>>()
             .Returns(Substitute.For<IEventSourceActorStateRepository<FundCommandState>>());
         context.Container.Returns(container);
         supervisor.CreateMailbox(actor.Id).Returns(Substitute.For<IActorMailbox>());
         supervisor.GetProducer(actor.Id).Returns(producer);
-        supervisor.CreateCommandActorContext(actor.Id).Returns(context);
 
         await actor.StartAsync(supervisor);
         await actor.StopAsync();
@@ -206,7 +201,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         // Return null for Container property
         context.Container.Returns((IContainerInstance?)null);
 
@@ -225,7 +220,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
 
         context.Container.Returns(container);
@@ -248,7 +243,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FundCommandState>>();
 
@@ -272,7 +267,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FundCommandState>>();
 
@@ -294,7 +289,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FundCommandState>>();
 
@@ -355,7 +350,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var correctRepo = Substitute.For<IEventSourceActorStateRepository<FundCommandState>>();
 
@@ -412,7 +407,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
         // Prepare context substitute
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         
         // Setup database mock to return a completed task when InsertCommandLogAsync is called
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -459,7 +454,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Setup database mock to return a completed task when InsertCommandLogAsync is called
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -507,7 +502,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Setup database mock to return a completed task when InsertCommandLogAsync is called
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -556,7 +551,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Setup database mock to return a completed task when InsertCommandLogAsync is called
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -609,7 +604,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -651,7 +646,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -687,7 +682,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -723,7 +718,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -765,7 +760,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -802,7 +797,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -840,7 +835,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         };
         cmd.Should().NotBeNull();
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act / Assert - invoking the exposed helper should complete without throwing
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -864,7 +859,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         };
         cmd.Should().NotBeNull();
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -907,7 +902,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var natsMsg = new NatsMsg<byte[]>(cmd.Subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
         var msgInfo = new ActorMessageInfo(natsMsg, cmd);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.GetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>()).Returns(msgInfo);
 
         // Act
@@ -939,7 +934,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -959,7 +954,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var subject = new ActorSubject(ActorType.Command, "SomeOtherActor", CreateFundCommand.Verb, "1");
         var natsMsg = new NatsMsg<byte[]>(subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
@@ -977,7 +972,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var subject = new ActorSubject(ActorType.Command, FundCommandActor.Actor, "UnknownVerb", "1");
         var natsMsg = new NatsMsg<byte[]>(subject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
@@ -1028,7 +1023,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1055,7 +1050,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1085,7 +1080,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1115,7 +1110,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1147,7 +1142,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1179,7 +1174,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1210,7 +1205,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1241,7 +1236,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1270,7 +1265,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1297,7 +1292,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1325,7 +1320,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -1366,7 +1361,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var cmd = Substitute.For<ICommand>();
         cmd.Subject.Returns(new ActorSubject(ActorType.Command, FundCommandActor.Actor, "Unknown", "1"));
 
@@ -1392,7 +1387,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -1429,7 +1424,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundCommandState>>().Returns(mockRepo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -1473,7 +1468,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundCommandActor.Actor, "test-thread");
 
         // Act
@@ -1506,13 +1501,13 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var state = new FundCommandState { Id = threadId };
 
         var mockRepo = Substitute.For<IEventSourceActorStateRepository<FundCommandState>>();
-        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FundCommandState>(), Arg.Any<ICommand>())
+        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext<FundCommandActor>>(), Arg.Any<FundCommandState>(), Arg.Any<ICommand>())
             .Returns(ValueTask.CompletedTask);
 
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundCommandState>>().Returns(mockRepo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -1522,7 +1517,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         // Assert
         await mockRepo.Received(1).SaveStateAsync(
-            Arg.Is<ICommandActorContext>(ctx => ctx == context),
+            Arg.Is<ICommandActorContext<FundCommandActor>>(ctx => ctx == context),
             Arg.Is<FundCommandState>(s => s.Id == threadId),
             Arg.Is<ICommand>(c => c.CommandId == cmd.CommandId));
     }
@@ -1542,7 +1537,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var threadId = cmd.Subject.ThreadId;
 
         // Act
@@ -1559,7 +1554,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundCommandActor.Actor, "test-thread");
         var state = new FundCommandState { Id = threadId };
 
@@ -1592,7 +1587,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new CreateFundException("Fund already exists");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.SendAsync<FundCreatedFailEvent, FundId>(Arg.Any<FundCreatedFailEvent>())
             .Returns(ValueTask.CompletedTask);
 
@@ -1623,7 +1618,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new InvalidOperationException("Unexpected error occurred");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.SendAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
@@ -1655,7 +1650,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new InvalidOperationException("Original error");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         context.SendAsync<IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(x => throw new Exception("SendAsync failed"));
@@ -1676,7 +1671,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundCommandActor.Actor, "test-thread");
         var exception = new InvalidOperationException("error");
 

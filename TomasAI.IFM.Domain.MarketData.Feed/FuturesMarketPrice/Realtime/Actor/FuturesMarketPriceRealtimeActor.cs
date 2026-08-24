@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesMarketPrice.Realtime.Actor;
 /// <param name="supervisor">The supervisor that owns the actor mailbox and messaging resources.</param>
 /// <param name="actorContext.Logger">The typed actorContext.Logger used by the actor and its event handlers.</param>
 public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarketPriceRealtimeActor> actorContext)
-    : BaseEventActor<FuturesMarketPriceRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesMarketPriceRealtimeActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Identifies the primary futures market-price realtime actor.</summary>
     public const string ActorName = FuturesMarketPriceUpdatedRealtimeEvent.Actor;
@@ -43,7 +43,7 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     /// <param name="context">The event actor context processing the message.</param>
     /// <param name="message">The actor message containing the serialized realtime event.</param>
     /// <returns>The parsed event, or <see langword="null"/> when the subject is not supported.</returns>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesMarketPriceRealtimeActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(message);
@@ -65,7 +65,7 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     /// <param name="context">The event actor context supplied to the handler.</param>
     /// <param name="event">The realtime event to dispatch.</param>
     /// <returns>A task representing handler execution.</returns>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesMarketPriceRealtimeActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
@@ -88,7 +88,7 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     /// <param name="exception">The handler exception.</param>
     /// <returns>A task representing error-event publication.</returns>
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesMarketPriceRealtimeActor> context,
         ActorThreadId threadId,
         IEvent @event,
         Exception exception) =>

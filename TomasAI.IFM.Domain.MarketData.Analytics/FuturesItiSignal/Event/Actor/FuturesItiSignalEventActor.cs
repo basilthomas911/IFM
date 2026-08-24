@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information for the futures ITI signal event actor. Cannot be null.</param>
 public class FuturesItiSignalEventActor(
     IEventActorContext<FuturesItiSignalEventActor> actorContext)
-    : BaseEventActor<FuturesItiSignalEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesItiSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesItiSignalEventContext ActorContext { get; } =
@@ -44,7 +44,7 @@ public class FuturesItiSignalEventActor(
     /// <remarks>The generated-event family is addressed directly to this actor.</remarks>
     /// <param name="context">The context in which the event actor operates. Used to add event routers for handling events.</param>
     /// <returns>A task that represents the asynchronous operation of the startup process.</returns>
-    protected override async ValueTask OnStartup(IEventActorContext context)
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesItiSignalEventActor> context)
     {
         _ = context;
         await ValueTask.CompletedTask;
@@ -57,7 +57,7 @@ public class FuturesItiSignalEventActor(
     /// to prevent further event handling and to release resources.</remarks>
     /// <param name="context">The context in which the event actor operates. Used to manage event routing and actor lifecycle operations.</param>
     /// <returns>A completed ValueTask that indicates the shutdown operation has been processed.</returns>
-    protected override async ValueTask OnShutdown(IEventActorContext context)
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesItiSignalEventActor> context)
     {
         await ValueTask.CompletedTask;
     }
@@ -71,7 +71,7 @@ public class FuturesItiSignalEventActor(
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
-    protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
+    protected override IEvent ParseMessage(IEventActorContext<FuturesItiSignalEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -100,9 +100,9 @@ public class FuturesItiSignalEventActor(
     /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
     /// <returns>A task that represents the asynchronous receive operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type, or if the event cannot be resolved from the message.</exception>
-    protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
+    protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesItiSignalEventActor> context, IEvent @event)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
@@ -122,7 +122,7 @@ public class FuturesItiSignalEventActor(
     /// <param name="event">The event being processed when the exception was thrown.</param>
     /// <param name="ex">The exception that was thrown during actor processing. Contains information about the error to be reported.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesItiSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
     {
         try
         {

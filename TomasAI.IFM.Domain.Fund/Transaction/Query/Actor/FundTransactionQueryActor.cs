@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Query.Actor;
 /// persistence and uses dependency injection to resolve required services.</remarks>
 /// <param name="actorContext">The typed Fund transaction query context.</param>
 public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryActor> actorContext)
-    : BaseQueryActor<FundTransactionQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<FundTransactionQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FundTransactionQuery";
 
@@ -41,7 +41,7 @@ public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryAc
     /// <param name="message">The actor message to parse. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<FundTransactionQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -80,11 +80,11 @@ public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryAc
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<FundTransactionQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<FundTransactionQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
@@ -93,10 +93,6 @@ public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryAc
         var queryType = query.GetType();
         if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
-        using var messageInfoScope = context.MirrorMessageInfoTo(
-            FundTransactionQueryContext,
-            query.Subject.ThreadId,
-            query.Subject.Verb);
         await receiveFunc.Invoke(query, FundTransactionQueryContext, cancellationToken).ConfigureAwait(false);
     }
 
@@ -131,7 +127,7 @@ public class FundTransactionQueryActor(IQueryActorContext<FundTransactionQueryAc
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FundTransactionQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

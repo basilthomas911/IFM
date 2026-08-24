@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
@@ -54,25 +54,25 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             return context;
         }
 
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FundTransactionCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FundTransactionCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<FundTransactionCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<FundTransactionCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<FundTransactionCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnLoadStateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<FundTransactionCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
             => await OnSaveStateAsync(context, threadId, state, cmd);
 
-        public async ValueTask InvokeOnStartup(ICommandActorContext context)
+        public async ValueTask InvokeOnStartup(ICommandActorContext<FundTransactionCommandActor> context)
             => await ((ICommandActor<FundTransactionCommandActor>)this).OnStartup(context);
     }
 
@@ -135,7 +135,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var subject = cmd.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -158,7 +158,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var subject = cmd.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -181,7 +181,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var subject = cmd.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
@@ -204,7 +204,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var subject = new ActorSubject(ActorType.Command, FundTransactionCommandActor.ActorName, "UnknownVerb", cmd.EntityId.Format()).ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -225,7 +225,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var subject = new ActorSubject(ActorType.Command, "SomeOtherActor", CreateFundTransactionCommand.Verb, cmd.EntityId.Format()).ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -269,7 +269,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         var state = CreateState();
         var cmd = CreateCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -291,7 +291,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         var state = CreateState();
         var cmd = CreateBatchCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -315,10 +315,10 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var tx = SampleData.FundTransaction with { TransactionType = FundTransactionType.UnrealizedTradePnl };
         // Ensure the transaction exists before processing end of day
         var createCmd = CreateCommand(tx);
-        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, createCmd);
+        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FundTransactionCommandActor>>(), state, createCmd);
 
         var cmd = CreateEndOfDayCommand(tx);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -340,7 +340,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         var state = CreateState();
         var cmd = CreateEndOfDayCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -361,7 +361,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             .Returns(Task.CompletedTask);
 
         var state = CreateState();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var unrecognized = Substitute.For<ICommand>();
 
         // Act
@@ -398,7 +398,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var cmd = CreateCommand();
 
         // Act
@@ -416,7 +416,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var state = CreateState();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, null!);
@@ -438,7 +438,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var state = CreateState();
         var invalidTx = SampleData.FundTransaction with { TransactionType = (FundTransactionType)9999 };
         var cmd = CreateCommand(invalidTx);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -461,7 +461,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var state = CreateState();
         var invalidTx = SampleData.FundTransaction with { TransactionType = (FundTransactionType)9999 };
         var cmd = CreateBatchCommand(new[] { invalidTx });
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -484,11 +484,11 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var state = CreateState();
         var tx = SampleData.FundTransaction with { TransactionType = FundTransactionType.OpeningTrade };
         var createCmd = CreateCommand(tx);
-        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, createCmd);
+        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FundTransactionCommandActor>>(), state, createCmd);
 
         // The existing transaction is OpeningTrade, but end-of-day requires UnrealizedTradePnl
         var cmd = CreateEndOfDayCommand(tx with { TransactionType = FundTransactionType.OpeningTrade });
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -511,7 +511,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var state = CreateState(balance: 1000m);
         var tx = SampleData.FundTransaction with { TransactionType = FundTransactionType.CashWithdrawal };
         var cmd = CreateCommand(tx);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -533,7 +533,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = CreateCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act / Assert
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -558,7 +558,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             TradeId = 0
         };
         var command = CreateCommand(transaction);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         Func<Task> act = async () =>
             await actor.InvokeOnValidateAsync(context, command.Subject.ThreadId, command);
@@ -584,7 +584,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             TradeId = 0
         };
         var command = CreateCommand(transaction);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         Func<Task> act = async () =>
             await actor.InvokeOnValidateAsync(context, command.Subject.ThreadId, command);
@@ -601,7 +601,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         var invalidTx = SampleData.FundTransaction with { FundId = 0 };
         var cmd = CreateCommand(invalidTx);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -618,7 +618,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = CreateBatchCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act / Assert
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -639,7 +639,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = new FundTransactionEntityId(0, 0),
             FundTransactions = Array.Empty<FundTransactionReadModel>()
         };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -656,7 +656,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = CreateEndOfDayCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act / Assert
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -670,7 +670,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundTransactionCommandActor.ActorName, "test-thread");
         var unrecognized = Substitute.For<ICommand>();
         unrecognized.CommandId.Returns(Guid.NewGuid());
@@ -706,7 +706,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = CreateCommand(commandId: Guid.Empty);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -724,7 +724,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         var invalidTx = SampleData.FundTransaction with { ValueDate = DateOnly.MinValue };
         var cmd = CreateCommand(invalidTx);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -743,7 +743,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var tx1 = SampleData.FundTransaction;
         var tx2 = SampleData.FundTransaction with { FundId = tx1.FundId + 1 };
         var cmd = CreateBatchCommand(new[] { tx1, tx2 });
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -766,7 +766,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             EntityId = new FundTransactionEntityId(0, 0),
             FundTransactions = null!
         };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -784,7 +784,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         var invalidTx = SampleData.FundTransaction with { TransactionType = FundTransactionType.UnrealizedTradePnl, TradeId = 0 };
         var cmd = CreateEndOfDayCommand(invalidTx);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
@@ -800,7 +800,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundTransactionCommandActor.ActorName, "test-thread");
 
         // Act
@@ -832,7 +832,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>().Returns(mockRepo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -870,7 +870,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundTransactionCommandActor.ActorName, "test-thread");
 
         // Act
@@ -897,7 +897,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>().Returns(mockRepo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -926,13 +926,13 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         state.Id = threadId;
 
         var mockRepo = Substitute.For<IEventSourceActorStateRepository<FundTransactionCommandState>>();
-        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FundTransactionCommandState>(), Arg.Any<ICommand>())
+        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext<FundTransactionCommandActor>>(), Arg.Any<FundTransactionCommandState>(), Arg.Any<ICommand>())
             .Returns(ValueTask.CompletedTask);
 
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>().Returns(mockRepo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -942,7 +942,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
 
         // Assert
         await mockRepo.Received(1).SaveStateAsync(
-            Arg.Is<ICommandActorContext>(ctx => ctx == context),
+            Arg.Is<ICommandActorContext<FundTransactionCommandActor>>(ctx => ctx == context),
             Arg.Is<FundTransactionCommandState>(s => s.Id == threadId),
             Arg.Is<ICommand>(c => c.CommandId == cmd.CommandId));
     }
@@ -955,7 +955,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
         var cmd = CreateCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var threadId = cmd.Subject.ThreadId;
 
         // Act
@@ -972,7 +972,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundTransactionCommandActor.ActorName, "test-thread");
         var state = CreateState();
         state.Id = threadId;
@@ -1016,13 +1016,13 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         state.Id = threadId;
 
         var mockRepo = Substitute.For<IEventSourceActorStateRepository<FundTransactionCommandState>>();
-        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FundTransactionCommandState>(), Arg.Any<ICommand>())
+        mockRepo.SaveStateAsync(Arg.Any<ICommandActorContext<FundTransactionCommandActor>>(), Arg.Any<FundTransactionCommandState>(), Arg.Any<ICommand>())
             .Returns(x => throw new InvalidOperationException("Repo save failed"));
 
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FundTransactionCommandState>>().Returns(mockRepo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -1049,7 +1049,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new CreateFundTransactionException("Unsupported fund transaction type");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.SendAsync<FundTransactionCreatedFailEvent, FundTransactionEntityId>(Arg.Any<FundTransactionCreatedFailEvent>())
             .Returns(ValueTask.CompletedTask);
 
@@ -1073,7 +1073,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new CreateFundTransactionsException("Batch creation failed");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.SendAsync<FundTransactionsFailEvent, FundTransactionEntityId>(Arg.Any<FundTransactionsFailEvent>())
             .Returns(ValueTask.CompletedTask);
 
@@ -1097,7 +1097,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new ProcessEndOfDayFundTransactionException("Transaction does not exist");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.SendAsync<EndOfDayFundTransactionProcessedFailEvent, FundTransactionEntityId>(Arg.Any<EndOfDayFundTransactionProcessedFailEvent>())
             .Returns(ValueTask.CompletedTask);
 
@@ -1121,7 +1121,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new InvalidOperationException("Unexpected error occurred");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.SendAsync<TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(ValueTask.CompletedTask);
@@ -1146,7 +1146,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var threadId = cmd.Subject.ThreadId;
         var exception = new InvalidOperationException("Original error");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         context.SendAsync<TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
             .Returns(x => throw new Exception("SendAsync failed"));
@@ -1167,7 +1167,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
         var logger = Substitute.For<ILogger<FundTransactionCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FundTransactionCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FundTransactionCommandActor.ActorName, "test-thread");
         var exception = new InvalidOperationException("error");
 

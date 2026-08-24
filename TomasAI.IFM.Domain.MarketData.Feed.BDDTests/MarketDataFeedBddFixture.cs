@@ -141,18 +141,18 @@ public sealed class TestableMarketDataFeedCommandActor(
     ILogger<MarketDataFeedCommandActor> logger)
     : MarketDataFeedCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
-    public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand command)
+    public ValueTask InvokeOnStartup(ICommandActorContext<MarketDataFeedCommandActor> context) => OnStartup(context);
+    public ICommand InvokeParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, NatsMsg<byte[]> message) => ParseMessage(context, message);
+    public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<MarketDataFeedCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
-    public ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command)
+    public ValueTask InvokeOnValidateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnValidateAsync(context, threadId, command);
-    public ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand command)
+    public ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnLoadStateAsync(context, threadId, command);
-    public ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+    public ValueTask InvokeOnSaveStateAsync(ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
         => OnSaveStateAsync(context, threadId, state, command);
     public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        ICommandActorContext<MarketDataFeedCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
@@ -170,10 +170,10 @@ public sealed class TestableMarketDataFeedQueryActor : MarketDataFeedQueryActor
     TestableMarketDataFeedQueryActor(IMarketDataFeedQueryContext context)
         : base(context) => Context = context;
 
-    public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message) => ParseMessage(context, message);
-    public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);
+    public IQuery InvokeParseMessage(IQueryActorContext<MarketDataFeedQueryActor> context, NatsMsg<byte[]> message) => ParseMessage(context, message);
+    public ValueTask InvokeReceiveAsync(IQueryActorContext<MarketDataFeedQueryActor> context, IQuery query) => ReceiveAsync(context, query);
     public ValueTask InvokeOnExceptionAsync(
-        IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+        IQueryActorContext<MarketDataFeedQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
         => OnExceptionAsync(context, threadId, query, verb, exception);
 }
 
@@ -183,29 +183,29 @@ public sealed class TestableFuturesBarDataCommandActor(
     ILogger<FuturesBarDataCommandActor> logger)
     : FuturesBarDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
+    public ValueTask InvokeOnStartup(ICommandActorContext<FuturesBarDataCommandActor> context) => OnStartup(context);
 
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+    public ICommand InvokeParseMessage(ICommandActorContext<FuturesBarDataCommandActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-        ICommandActorContext context, IActorState state, ICommand command)
+        ICommandActorContext<FuturesBarDataCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
 
     public ValueTask InvokeOnValidateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnValidateAsync(context, threadId, command);
 
     public ValueTask<IActorState> InvokeOnLoadStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnLoadStateAsync(context, threadId, command);
 
     public ValueTask InvokeOnSaveStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+        ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
         => OnSaveStateAsync(context, threadId, state, command);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        ICommandActorContext<FuturesBarDataCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
@@ -221,14 +221,14 @@ public sealed class TestableFuturesBarDataQueryActor : FuturesBarDataQueryActor
     TestableFuturesBarDataQueryActor(IFuturesBarDataQueryContext context)
         : base(context) => Context = context;
 
-    public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    public IQuery InvokeParseMessage(IQueryActorContext<FuturesBarDataQueryActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
-    public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+    public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesBarDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
 
     public ValueTask InvokeOnExceptionAsync(
-        IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+        IQueryActorContext<FuturesBarDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
         => OnExceptionAsync(context, threadId, query, verb, exception);
 }
 
@@ -238,29 +238,29 @@ public sealed class TestableFuturesClosingPriceCommandActor(
     ILogger<FuturesClosingPriceCommandActor> logger)
     : FuturesClosingPriceCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
+    public ValueTask InvokeOnStartup(ICommandActorContext<FuturesClosingPriceCommandActor> context) => OnStartup(context);
 
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+    public ICommand InvokeParseMessage(ICommandActorContext<FuturesClosingPriceCommandActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-        ICommandActorContext context, IActorState state, ICommand command)
+        ICommandActorContext<FuturesClosingPriceCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
 
     public ValueTask InvokeOnValidateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnValidateAsync(context, threadId, command);
 
     public ValueTask<IActorState> InvokeOnLoadStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnLoadStateAsync(context, threadId, command);
 
     public ValueTask InvokeOnSaveStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+        ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
         => OnSaveStateAsync(context, threadId, state, command);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
@@ -270,29 +270,29 @@ public sealed class TestableFuturesEodDataCommandActor(
     ILogger<FuturesEodDataCommandActor> logger)
     : FuturesEodDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
+    public ValueTask InvokeOnStartup(ICommandActorContext<FuturesEodDataCommandActor> context) => OnStartup(context);
 
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+    public ICommand InvokeParseMessage(ICommandActorContext<FuturesEodDataCommandActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-        ICommandActorContext context, IActorState state, ICommand command)
+        ICommandActorContext<FuturesEodDataCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
 
     public ValueTask InvokeOnValidateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesEodDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnValidateAsync(context, threadId, command);
 
     public ValueTask<IActorState> InvokeOnLoadStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesEodDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnLoadStateAsync(context, threadId, command);
 
     public ValueTask InvokeOnSaveStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+        ICommandActorContext<FuturesEodDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
         => OnSaveStateAsync(context, threadId, state, command);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        ICommandActorContext<FuturesEodDataCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
@@ -308,14 +308,14 @@ public sealed class TestableFuturesEodDataQueryActor : FuturesEodDataQueryActor
     TestableFuturesEodDataQueryActor(IFuturesEodDataQueryContext context)
         : base(context) => Context = context;
 
-    public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    public IQuery InvokeParseMessage(IQueryActorContext<FuturesEodDataQueryActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
-    public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+    public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
 
     public ValueTask InvokeOnExceptionAsync(
-        IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+        IQueryActorContext<FuturesEodDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
         => OnExceptionAsync(context, threadId, query, verb, exception);
 }
 
@@ -325,29 +325,29 @@ public sealed class TestableFuturesOptionTickDataCommandActor(
     ILogger<FuturesOptionTickDataCommandActor> logger)
     : FuturesOptionTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
+    public ValueTask InvokeOnStartup(ICommandActorContext<FuturesOptionTickDataCommandActor> context) => OnStartup(context);
 
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+    public ICommand InvokeParseMessage(ICommandActorContext<FuturesOptionTickDataCommandActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-        ICommandActorContext context, IActorState state, ICommand command)
+        ICommandActorContext<FuturesOptionTickDataCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
 
     public ValueTask InvokeOnValidateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesOptionTickDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnValidateAsync(context, threadId, command);
 
     public ValueTask<IActorState> InvokeOnLoadStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesOptionTickDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnLoadStateAsync(context, threadId, command);
 
     public ValueTask InvokeOnSaveStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+        ICommandActorContext<FuturesOptionTickDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
         => OnSaveStateAsync(context, threadId, state, command);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        ICommandActorContext<FuturesOptionTickDataCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
@@ -363,14 +363,14 @@ public sealed class TestableFuturesOptionTickDataQueryActor : FuturesOptionTickD
     TestableFuturesOptionTickDataQueryActor(IFuturesOptionTickDataQueryContext context)
         : base(context) => Context = context;
 
-    public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    public IQuery InvokeParseMessage(IQueryActorContext<FuturesOptionTickDataQueryActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
-    public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+    public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesOptionTickDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
 
     public ValueTask InvokeOnExceptionAsync(
-        IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+        IQueryActorContext<FuturesOptionTickDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
         => OnExceptionAsync(context, threadId, query, verb, exception);
 }
 
@@ -380,29 +380,29 @@ public sealed class TestableFuturesTickDataCommandActor(
     ILogger<FuturesTickDataCommandActor> logger)
     : FuturesTickDataCommandActor(TypedActorContextFactory.Command(dbEventSource, eventProjector, logger), eventProjector)
 {
-    public ValueTask InvokeOnStartup(ICommandActorContext context) => OnStartup(context);
+    public ValueTask InvokeOnStartup(ICommandActorContext<FuturesTickDataCommandActor> context) => OnStartup(context);
 
-    public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+    public ICommand InvokeParseMessage(ICommandActorContext<FuturesTickDataCommandActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-        ICommandActorContext context, IActorState state, ICommand command)
+        ICommandActorContext<FuturesTickDataCommandActor> context, IActorState state, ICommand command)
         => ReceiveAsync(context, state, command);
 
     public ValueTask InvokeOnValidateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesTickDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnValidateAsync(context, threadId, command);
 
     public ValueTask<IActorState> InvokeOnLoadStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command)
+        ICommandActorContext<FuturesTickDataCommandActor> context, ActorThreadId threadId, ICommand command)
         => OnLoadStateAsync(context, threadId, command);
 
     public ValueTask InvokeOnSaveStateAsync(
-        ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand command)
+        ICommandActorContext<FuturesTickDataCommandActor> context, ActorThreadId threadId, IActorState state, ICommand command)
         => OnSaveStateAsync(context, threadId, state, command);
 
     public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-        ICommandActorContext context, ActorThreadId threadId, ICommand command, Exception exception)
+        ICommandActorContext<FuturesTickDataCommandActor> context, ActorThreadId threadId, ICommand command, Exception exception)
         => OnExceptionAsync(context, threadId, command, exception);
 }
 
@@ -418,13 +418,13 @@ public sealed class TestableFuturesTickDataQueryActor : FuturesTickDataQueryActo
     TestableFuturesTickDataQueryActor(IFuturesTickDataQueryContext context)
         : base(context) => Context = context;
 
-    public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+    public IQuery InvokeParseMessage(IQueryActorContext<FuturesTickDataQueryActor> context, NatsMsg<byte[]> message)
         => ParseMessage(context, message);
 
-    public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+    public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesTickDataQueryActor> context, IQuery query)
         => ReceiveAsync(context, query);
 
     public ValueTask InvokeOnExceptionAsync(
-        IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+        IQueryActorContext<FuturesTickDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
         => OnExceptionAsync(context, threadId, query, verb, exception);
 }

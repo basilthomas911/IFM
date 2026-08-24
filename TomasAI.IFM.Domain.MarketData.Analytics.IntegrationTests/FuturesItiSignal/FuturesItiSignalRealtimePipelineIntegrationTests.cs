@@ -475,7 +475,9 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 @event.Subject.ThreadId).ConfigureAwait(false);
 
             await ((IEventActor<FuturesItiSignalRealtimeActor>)_itiActor)
-                .ReceiveAsync(Substitute.For<IEventActorContext>(), @event)
+                .ReceiveAsync(
+                    Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>(),
+                    @event)
                 .ConfigureAwait(false);
         }
 

@@ -46,19 +46,19 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
 
         public IMarketDataQueryContext Context { get; }
 
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<MarketDataQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<MarketDataQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
         public async ValueTask InvokeReceiveAsync(
-            IQueryActorContext context,
+            IQueryActorContext<MarketDataQueryActor> context,
             IQuery query,
             CancellationToken cancellationToken)
             => await ReceiveAsync(context, query, cancellationToken);
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<MarketDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
     }

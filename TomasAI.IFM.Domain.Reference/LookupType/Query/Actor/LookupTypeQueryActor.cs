@@ -14,7 +14,7 @@ using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.Reference.LookupType.Query.Actor;
 
 public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actorContext)
-    : BaseQueryActor<LookupTypeQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<LookupTypeQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "LookupTypeQuery";
     readonly ILogger<LookupTypeQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -32,7 +32,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <param name="message">The actor message to parse. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<LookupTypeQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -75,20 +75,16 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<LookupTypeQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<LookupTypeQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        using var messageInfoScope = context.MirrorMessageInfoTo(
-            LookupTypeQueryContext,
-            query.Subject.ThreadId,
-            query.Subject.Verb);
         await receiveFunc.Invoke(LookupTypeQueryContext, query, cancellationToken);
     }
 
@@ -155,7 +151,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<LookupTypeQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         try
         {

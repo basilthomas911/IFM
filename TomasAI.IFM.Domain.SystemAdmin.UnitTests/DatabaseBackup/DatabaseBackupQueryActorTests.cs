@@ -19,7 +19,7 @@ public sealed class DatabaseBackupQueryActorTests
     sealed class TestableQueryActor(ISystemAdminDbContext db, ILogger<DatabaseBackupQueryActor> logger)
         : DatabaseBackupQueryActor(new DatabaseBackupQueryContext(Substitute.For<IActorSupervisor>(), db, logger))
     {
-        public ValueTask Receive(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+        public ValueTask Receive(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query, CancellationToken cancellationToken)
             => base.ReceiveAsync(context, query, cancellationToken);
     }
 
@@ -27,7 +27,7 @@ public sealed class DatabaseBackupQueryActorTests
     public async Task Query_handler_validates_reads_projection_and_replies_with_typed_result()
     {
         var db = Substitute.For<ISystemAdminDbContext>();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<DatabaseBackupQueryActor>>();
         var rows = new[] { new DatabaseBackupHealthReadModel { Source = BackupSource.LocalWorkstation, Ready = true } };
         var query = new GetDatabaseBackupServiceHealthQuery
         {
@@ -49,7 +49,7 @@ public sealed class DatabaseBackupQueryActorTests
     public async Task Missing_single_projection_returns_typed_not_found_result()
     {
         var db = Substitute.For<ISystemAdminDbContext>();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<DatabaseBackupQueryActor>>();
         var operationId = new DatabaseRecoveryOperationId(Guid.NewGuid());
         var query = new GetDatabaseBackupOperationQuery
         {

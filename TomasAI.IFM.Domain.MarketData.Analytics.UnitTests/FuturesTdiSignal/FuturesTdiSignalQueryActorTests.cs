@@ -35,14 +35,14 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         ILogger<FuturesTdiSignalQueryActor> logger)
         : FuturesTdiSignalQueryActor(new FuturesTdiSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<FuturesTdiSignalQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesTdiSignalQueryActor> context, IQuery query)
             => ReceiveAsync(context, query);
 
         public ValueTask InvokeOnExceptionAsync(
-            IQueryActorContext context,
+            IQueryActorContext<FuturesTdiSignalQueryActor> context,
             ActorThreadId threadId,
             IQuery query,
             string verb,
@@ -55,7 +55,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         IDbContextFactory DbFactory,
         IMarketDataDbContext Db,
         ILogger<FuturesTdiSignalQueryActor> Logger,
-        IQueryActorContext Context);
+        IQueryActorContext<FuturesTdiSignalQueryActor> Context);
 
     Scenario CreateScenario()
     {
@@ -64,7 +64,7 @@ public class FuturesTdiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         dbFactory.MarketDataDb.Returns(db);
         var logger = Substitute.For<ILogger<FuturesTdiSignalQueryActor>>();
         var actor = _fixture.CreateActor(dbFactory, logger);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesTdiSignalQueryActor>>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
             .Returns(true);
         return new Scenario(actor, dbFactory, db, logger, context);

@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Actor;
 /// <summary>Provides the DatabaseBackupQueryActor implementation.</summary>
 public class DatabaseBackupQueryActor(
     IQueryActorContext<DatabaseBackupQueryActor> actorContext)
-    : BaseQueryActor<DatabaseBackupQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<DatabaseBackupQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IDatabaseBackupQueryContext ActorContext { get; } =
@@ -54,7 +54,7 @@ public class DatabaseBackupQueryActor(
         route => (Func<IActorMessage, IQuery>)ParseMethod.MakeGenericMethod(route.QueryType, route.ResultType).CreateDelegate(typeof(Func<IActorMessage, IQuery>)),
         StringComparer.Ordinal);
 
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<DatabaseBackupQueryActor> context, IActorMessage message)
     {
         if (message.Subject is not { ActorType: ActorType.Query, Name: Actor }
             || !ParseMap.TryGetValue(message.Subject.Verb, out var parser))
@@ -69,12 +69,12 @@ public class DatabaseBackupQueryActor(
         where TResult : class
         => message.AsQuery<TQuery, TResult>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TQuery).Name}.");
 
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         ((DatabaseBackupQuery)query).Validate();
         switch (query)
         {
@@ -97,18 +97,18 @@ public class DatabaseBackupQueryActor(
         }
     }
 
-    static ValueTask Reply<TQuery, TResult>(IQueryActorContext context, TQuery query, TResult result)
+    static ValueTask Reply<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult result)
         where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
         => context.ReplyAsync(query.Subject.ThreadId, query.Verb, new ServiceOk<TResult>(result));
 
-    static ValueTask ReplyOne<TQuery, TResult>(IQueryActorContext context, TQuery query, TResult? result)
+    static ValueTask ReplyOne<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult? result)
         where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
         => context.ReplyAsync<TResult>(query.Subject.ThreadId, query.Verb,
             result is null
                 ? new ServiceFailed<TResult>(404, "DatabaseBackup projection was not found.")
                 : new ServiceOk<TResult>(result));
 
-    protected override ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
+    protected override ValueTask OnExceptionAsync(IQueryActorContext<DatabaseBackupQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
     {
         return query switch
         {

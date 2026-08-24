@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.TickAggregation.Realtime.Actor;
 /// projections without event sourcing or replay.
 /// </summary>
 public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggregationRealtimeActor> actorContext)
-    : BaseEventActor<TickAggregationRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<TickAggregationRealtimeActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "TickAggregationRealtime";
 
@@ -45,14 +45,14 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
             message => message.AsEvent<FuturesTickQuoteDataInsertedFailEvent>()!
     };
 
-    protected override async ValueTask OnStartup(IEventActorContext context) =>
+    protected override async ValueTask OnStartup(IEventActorContext<TickAggregationRealtimeActor> context) =>
         await ((ITickAggregationRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
 
-    protected override async ValueTask OnShutdown(IEventActorContext context) =>
+    protected override async ValueTask OnShutdown(IEventActorContext<TickAggregationRealtimeActor> context) =>
         await ((ITickAggregationRealtimeContext)actorContext).Projector.StopAsync().ConfigureAwait(false);
 
     protected override IEvent ParseMessage(
-        IEventActorContext context,
+        IEventActorContext<TickAggregationRealtimeActor> context,
         IActorMessage message)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -69,7 +69,7 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
     }
 
     protected override async ValueTask ReceiveAsync(
-        IEventActorContext context,
+        IEventActorContext<TickAggregationRealtimeActor> context,
         IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -105,7 +105,7 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<TickAggregationRealtimeActor> context,
         ActorThreadId threadId,
         IEvent domainEvent,
         Exception exception) =>

@@ -94,11 +94,11 @@ public class YieldCurveRateQueryActorTests
         }
 
         public IYieldCurveRateQueryContext Context { get; }
-        public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public ValueTask InvokeReceiveAsync(IQueryActorContext<YieldCurveRateQueryActor> context, IQuery query)
             => base.ReceiveAsync(context, query);
 
         public ValueTask InvokeReceiveAsync(
-            IQueryActorContext context,
+            IQueryActorContext<YieldCurveRateQueryActor> context,
             IQuery query,
             CancellationToken cancellationToken)
             => base.ReceiveAsync(context, query, cancellationToken);

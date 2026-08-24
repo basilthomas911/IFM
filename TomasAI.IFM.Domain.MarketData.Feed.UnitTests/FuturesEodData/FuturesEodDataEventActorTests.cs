@@ -36,14 +36,14 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         ILogger<FuturesEodDataEventActor> logger)
             : this(TypedActorContextFactory.Event(supervisor, blackboardService, statusConsoleWriter, logger)) { }
         TestableFuturesEodDataEventActor(IFuturesEodDataEventContext context) : base(context) => Context = context;
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FuturesEodDataEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public ValueTask InvokeReceiveAsync(IEventActorContext<FuturesEodDataEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);
 
         public ValueTask InvokeOnExceptionAsync(
-            IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception exception)
+            IEventActorContext<FuturesEodDataEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
             => OnExceptionAsync(context, threadId, @event, exception);
     }
 
@@ -145,7 +145,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_InsertedEvent_CachesDataAndSendsUpdatedEvent()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
         context.SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(
                 Arg.Any<FuturesEodDataUpdatedEvent>())
@@ -167,7 +167,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_InsertedCompleteEvent_PublishesExternalNotifySnapshot()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedCompleteEvent();
 
         await harness.Actor.InvokeReceiveAsync(context, @event);
@@ -198,7 +198,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_InsertedCompleteNotifyFailure_DoesNotFailDurableCompletion()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedCompleteEvent();
         context.SendAsync<FuturesEodDataUpdatedNotifyEvent, FuturesEodDataId>(
                 Arg.Any<FuturesEodDataUpdatedNotifyEvent>())
@@ -215,7 +215,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         var harness = CreateHarness();
         harness.JsonSerializer.Serialize(Arg.Any<object>())
             .Returns(_ => throw new InvalidOperationException("cache failed"));
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
 
         Func<Task> act = () => harness.Actor.InvokeReceiveAsync(context, @event).AsTask();
@@ -234,7 +234,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_UpdatedEventPublishFailure_WritesStatus()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
         context.SendAsync<FuturesEodDataUpdatedEvent, FuturesEodDataId>(
                 Arg.Any<FuturesEodDataUpdatedEvent>())
@@ -253,7 +253,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_VixCompleteEvent_QueriesCachesAndReportsValue()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateVixFuturesEodDataInsertedCompleteEvent();
         context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(
                 Arg.Any<GetVixFuturesEodDataQuery>())
@@ -280,7 +280,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_VixQueryWithoutData_DoesNotCacheOrWriteSuccess(bool failedResult)
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateVixFuturesEodDataInsertedCompleteEvent();
         var result = failedResult
             ? new ServiceResult<VixFuturesEodDataReadModel[]>(5005, "query failed")
@@ -300,7 +300,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_VixQueryFailure_WritesFailureStatus()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateVixFuturesEodDataInsertedCompleteEvent();
         context.RequestAsync<VixFuturesEodDataReadModel[], GetVixFuturesEodDataQuery>(
                 Arg.Any<GetVixFuturesEodDataQuery>())
@@ -320,7 +320,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task ReceiveAsync_NullInputs_ThrowArgumentNullException()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
 
         await ((Func<Task>)(() => harness.Actor.InvokeReceiveAsync(null!, @event).AsTask()))
@@ -348,7 +348,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_ValidInputs_SendsEventExceptionEvent()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
 
         await harness.Actor.InvokeOnExceptionAsync(
@@ -364,7 +364,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_FirstPublishFails_RetriesWithSecondaryFailure()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateVixFuturesEodDataInsertedCompleteEvent();
         var callCount = 0;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
@@ -388,7 +388,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_BothPublishesFail_DoesNotLeakPublishingFailure()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent>())
@@ -404,7 +404,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     public async Task OnExceptionAsync_InvalidThreadOrEvent_IsConvertedToEventException()
     {
         var harness = CreateHarness();
-        IEventActorContext context = harness.Actor.Context;
+        IEventActorContext<FuturesEodDataEventActor> context = harness.Actor.Context;
         var @event = CreateFuturesEodDataInsertedEvent();
 
         await harness.Actor.InvokeOnExceptionAsync(

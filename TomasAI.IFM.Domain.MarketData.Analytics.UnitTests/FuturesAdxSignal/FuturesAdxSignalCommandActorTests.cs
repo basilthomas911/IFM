@@ -28,25 +28,25 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     public class TestableFuturesAdxSignalCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesAdxSignalCommandActor> logger)
         : FuturesAdxSignalCommandActor(new FuturesAdxSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, Substitute.For<IEventProjector<FuturesAdxSignalCommandActor>>(), logger))
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FuturesAdxSignalCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesAdxSignalCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<FuturesAdxSignalCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnStartup(ICommandActorContext context)
+        public async ValueTask InvokeOnStartup(ICommandActorContext<FuturesAdxSignalCommandActor> context)
             => await OnStartup(context);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<FuturesAdxSignalCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnLoadStateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<FuturesAdxSignalCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
             => await OnSaveStateAsync(context, threadId, state, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<FuturesAdxSignalCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
@@ -86,7 +86,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -131,7 +131,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -164,7 +164,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -197,7 +197,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -238,7 +238,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var invalidSubject = $"Command.DifferentActor.{GenerateFuturesAdxSignalCommand.Verb}.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -262,7 +262,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var invalidSubject = $"Command.{FuturesAdxSignalCommandActor.ActorName}.UnknownVerb.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -305,7 +305,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, corruptedPayload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -330,7 +330,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, emptyPayload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -355,7 +355,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new Exception("Database connection failed")));
@@ -382,7 +382,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var cmd = CreateAdxCommand();
         var state = new FuturesAdxSignalCommandState { Id = cmd.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -403,7 +403,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var cmd = SampleData.AdxMinimalGenerateCommand;
         var state = new FuturesAdxSignalCommandState { Id = cmd.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -429,7 +429,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxDailySignalCommand.Actor, GenerateFuturesAdxDailySignalCommand.Verb, dailyId.ToDailyEntityId().Format())
         };
         var state = new FuturesAdxSignalCommandState { Id = cmd.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd);
@@ -472,7 +472,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
 
         var cmd = CreateAdxCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!, cmd);
@@ -490,7 +490,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
 
         var state = new FuturesAdxSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesAdxSignalCommandActor.ActorName, "test-thread") };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, null!);
@@ -509,7 +509,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var unknownCmd = Substitute.For<ICommand>();
         var state = new FuturesAdxSignalCommandState { Id = new ActorThreadId(ActorType.Command, FuturesAdxSignalCommandActor.ActorName, "test-thread") };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, unknownCmd);
@@ -529,7 +529,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var cmd = CreateAdxCommand();
         var invalidState = Substitute.For<IActorState>();
         invalidState.Id.Returns(cmd.Subject.ThreadId);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, invalidState, cmd);
@@ -552,7 +552,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var cmd = CreateAdxCommand();
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -576,7 +576,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxDailySignalCommand.Actor, GenerateFuturesAdxDailySignalCommand.Verb, dailyId.ToDailyEntityId().Format())
         };
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -603,7 +603,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, invalidId.ToEntityId().Format())
         };
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -627,7 +627,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, invalidId.ToEntityId().Format())
         };
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -651,7 +651,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, invalidId.ToEntityId().Format())
         };
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -675,7 +675,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, invalidId.ToEntityId().Format())
         };
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -699,7 +699,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
             Subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, invalidId.ToEntityId().Format())
         };
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
@@ -720,7 +720,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var unknownCmd = Substitute.For<ICommand>();
         unknownCmd.Subject.Returns(new ActorSubject(ActorType.Command, FuturesAdxSignalCommandActor.ActorName, "UnknownVerb", Guid.NewGuid().ToString()));
         var threadId = new ActorThreadId(ActorType.Command, FuturesAdxSignalCommandActor.ActorName, "test-thread");
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, unknownCmd);
@@ -769,7 +769,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesAdxSignalCommandState>>().Returns(repo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -814,7 +814,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesAdxSignalCommandActor.ActorName, "test-thread");
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(context, threadId, null!);
@@ -832,7 +832,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var actor = _fixture.CreateAdxCommandActor(dbEventSource, logger);
 
         var cmd = CreateAdxCommand();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnLoadStateAsync(context, default, cmd);
@@ -858,13 +858,13 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var state = new FuturesAdxSignalCommandState { Id = threadId };
 
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesAdxSignalCommandState>>();
-        repo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FuturesAdxSignalCommandState>(), Arg.Any<ICommand>())
+        repo.SaveStateAsync(Arg.Any<ICommandActorContext<FuturesAdxSignalCommandActor>>(), Arg.Any<FuturesAdxSignalCommandState>(), Arg.Any<ICommand>())
             .Returns(ValueTask.CompletedTask);
 
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesAdxSignalCommandState>>().Returns(repo);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -909,7 +909,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var cmd = CreateAdxCommand();
         var threadId = cmd.Subject.ThreadId;
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, threadId, null!, cmd);
@@ -928,7 +928,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var cmd = CreateAdxCommand();
         var state = new FuturesAdxSignalCommandState { Id = cmd.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, default, state, cmd);
@@ -947,7 +947,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var threadId = new ActorThreadId(ActorType.Command, FuturesAdxSignalCommandActor.ActorName, "test-thread");
         var state = new FuturesAdxSignalCommandState { Id = threadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnSaveStateAsync(context, threadId, state, null!);
@@ -972,7 +972,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesAdxSignalCommandState>>();
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesAdxSignalCommandState>>().Returns(repo);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
         context.Container.Returns(container);
 
         await actor.InvokeOnStartup(context);
@@ -1000,7 +1000,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var threadId = command.Subject.ThreadId;
         var exception = new InvalidOperationException("Unexpected error occurred");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -1030,7 +1030,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var expectedMessage = "Adx signal generation failed";
         var exception = new Exception(expectedMessage);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -1060,7 +1060,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var threadId = command.Subject.ThreadId;
         var exception = new Exception("Test exception");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -1111,7 +1111,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var threadId = command.Subject.ThreadId;
         var exception = new Exception("Original error");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -1137,7 +1137,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
         var command = CreateAdxCommand();
         var exception = new InvalidOperationException("Test error");
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesAdxSignalCommandActor>>();
 
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())

@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Query.A
 /// contracts by symbol, and checking for existing contract IDs. This actor uses dependency injection to resolve required services.</remarks>
 /// <param name="logger">The logger instance for tracking actor operations.</param>
 public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionContractQueryActor> actorContext)
-    : BaseQueryActor<FuturesOptionContractQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<FuturesOptionContractQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesOptionContractQuery";
     readonly ILogger<FuturesOptionContractQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -37,7 +37,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <param name="message">The actor message to parse. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<FuturesOptionContractQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -78,11 +78,11 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<FuturesOptionContractQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<FuturesOptionContractQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
@@ -91,8 +91,6 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        using var messageInfoScope = context.MirrorMessageInfoTo(
-            FuturesOptionContractContext, query.Subject.ThreadId, query.Subject.Verb);
         await receiveFunc.Invoke(FuturesOptionContractContext, query, cancellationToken);
     }
 
@@ -143,7 +141,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesOptionContractQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         try
         {

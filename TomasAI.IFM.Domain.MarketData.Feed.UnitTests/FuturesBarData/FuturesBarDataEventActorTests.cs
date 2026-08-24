@@ -34,17 +34,17 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         ILogger<FuturesBarDataEventActor> logger)
             : this(TypedActorContextFactory.Event(supervisor, futuresBarTimer, marketDataApi, statusConsoleWriter, logger)) { }
         TestableFuturesBarDataEventActor(IFuturesBarDataEventContext context) : base(context) => Context = context;
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FuturesBarDataEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public ValueTask InvokeReceiveAsync(IEventActorContext<FuturesBarDataEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);
 
         public ValueTask InvokeOnExceptionAsync(
-            IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception exception)
+            IEventActorContext<FuturesBarDataEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
             => OnExceptionAsync(context, threadId, @event, exception);
 
-        public ValueTask InvokeOnShutdown(IEventActorContext context)
+        public ValueTask InvokeOnShutdown(IEventActorContext<FuturesBarDataEventActor> context)
             => OnShutdown(context);
     }
 

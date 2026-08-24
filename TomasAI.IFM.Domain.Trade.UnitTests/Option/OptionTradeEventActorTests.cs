@@ -26,10 +26,10 @@ public sealed class OptionTradeEventActorTests : IClassFixture<TradeFixture>
         ILogger<OptionTradeEventActor> logger)
         : OptionTradeEventActor(new OptionTradeEventContext(supervisor, statusConsole, logger))
     {
-        public IEvent Parse(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent Parse(IEventActorContext<OptionTradeEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public ValueTask Receive(IEventActorContext context, IEvent @event)
+        public ValueTask Receive(IEventActorContext<OptionTradeEventActor> context, IEvent @event)
             => ReceiveAsync(context, @event);
     }
 
@@ -44,7 +44,7 @@ public sealed class OptionTradeEventActorTests : IClassFixture<TradeFixture>
             Data = ActorExtensions.DataSerializer!.Serialize(source)
         };
 
-        var parsed = actor.Parse(Substitute.For<IEventActorContext>(), message);
+        var parsed = actor.Parse(Substitute.For<IEventActorContext<OptionTradeEventActor>>(), message);
 
         parsed.Should().BeOfType<OptionTradeEndOfDayProcessedEvent>()
             .Which.CommandId.Should().Be(source.CommandId);
@@ -55,7 +55,7 @@ public sealed class OptionTradeEventActorTests : IClassFixture<TradeFixture>
     {
         var source = SourceEvent();
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<OptionTradeEventActor>>();
         context.RequestAsync<ProcessEndOfDayFundTransactionCommand, FundTransactionEntityId>(
                 Arg.Any<ProcessEndOfDayFundTransactionCommand>())
             .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
@@ -85,7 +85,7 @@ public sealed class OptionTradeEventActorTests : IClassFixture<TradeFixture>
     {
         var source = SourceEvent();
         var actor = CreateActor();
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<OptionTradeEventActor>>();
         context.RequestAsync<ProcessEndOfDayFundTransactionCommand, FundTransactionEntityId>(
                 Arg.Any<ProcessEndOfDayFundTransactionCommand>())
             .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(

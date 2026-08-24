@@ -15,15 +15,17 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// custom message parsing, state updates, and exception handling. The class ensures that actor resources are properly
 /// initialized and released, and provides hooks for extending behavior in specialized denormalizer scenarios.</remarks>
 /// <typeparam name="TActor">The type of actor managed by this denormalizer. Must implement <see cref="IActor"/>.</typeparam>
+/// <param name="actorContext">The closed-generic denormalizer context owned by the actor for its entire lifetime.</param>
 /// <param name="logger">The logger used to record operational and diagnostic information for the actor.</param>
-/// <param name="actorId">The unique identifier for the actor's mailbox, used to route messages and manage actor state.</param>
-public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailboxId actorId)
+public abstract class BaseDenormalizerActor<TActor>(
+    IDenormalizerActorContext<TActor> actorContext,
+    ILogger logger)
     : IDenormalizerActor<TActor> where TActor : IActor
 {
-    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
+    readonly IDenormalizerActorContext<TActor> _context = IsArgumentNull.Set(actorContext);
+    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     string _serviceId = string.Empty;
-    IDenormalizerActorContext _context;
     IActorSupervisor _supervisor;
     int _lifecycle;
 
@@ -66,7 +68,6 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-            _context = supervisor.CreateDenormalizerActorContext(actorId);
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
@@ -172,25 +173,25 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     }
 
     // Explicit interface implementations forwarding to protected hooks
-    protected abstract IEvent ParseMessage(IDenormalizerActorContext context, NatsMsg<byte[]> message);
-    ValueTask IDenormalizerActor<TActor>.OnStartup(IDenormalizerActorContext context) => OnStartup(context);
-    ValueTask IDenormalizerActor<TActor>.OnShutdown(IDenormalizerActorContext context) => OnShutdown(context);
-    ValueTask IDenormalizerActor<TActor>.ReceiveAsync(IDenormalizerActorContext context, ActorThreadId threadId, IEvent @event) => ReceiveAsync(context, threadId, @event);
-    ValueTask IDenormalizerActor<TActor>.OnExceptionAsync(IDenormalizerActorContext context, ActorThreadId threadId,IEvent @event, Exception ex) => OnExceptionAsync(context, threadId, @event  , ex);
+    protected abstract IEvent ParseMessage(IDenormalizerActorContext<TActor> context, NatsMsg<byte[]> message);
+    ValueTask IDenormalizerActor<TActor>.OnStartup(IDenormalizerActorContext<TActor> context) => OnStartup(context);
+    ValueTask IDenormalizerActor<TActor>.OnShutdown(IDenormalizerActorContext<TActor> context) => OnShutdown(context);
+    ValueTask IDenormalizerActor<TActor>.ReceiveAsync(IDenormalizerActorContext<TActor> context, ActorThreadId threadId, IEvent @event) => ReceiveAsync(context, threadId, @event);
+    ValueTask IDenormalizerActor<TActor>.OnExceptionAsync(IDenormalizerActorContext<TActor> context, ActorThreadId threadId,IEvent @event, Exception ex) => OnExceptionAsync(context, threadId, @event  , ex);
 
     // Protected hooks for derived classes
-    protected virtual ValueTask OnStartup(IDenormalizerActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(IDenormalizerActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
-        IDenormalizerActorContext context,
+        IDenormalizerActorContext<TActor> context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnStartup(context);
     }
-    protected virtual ValueTask OnShutdown(IDenormalizerActorContext context) => ValueTask.CompletedTask;
-    protected abstract ValueTask ReceiveAsync(IDenormalizerActorContext context, ActorThreadId threadId, IEvent @event);
+    protected virtual ValueTask OnShutdown(IDenormalizerActorContext<TActor> context) => ValueTask.CompletedTask;
+    protected abstract ValueTask ReceiveAsync(IDenormalizerActorContext<TActor> context, ActorThreadId threadId, IEvent @event);
     protected virtual ValueTask ReceiveAsync(
-        IDenormalizerActorContext context,
+        IDenormalizerActorContext<TActor> context,
         ActorThreadId threadId,
         IEvent @event,
         CancellationToken cancellationToken)
@@ -198,7 +199,7 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
         cancellationToken.ThrowIfCancellationRequested();
         return ReceiveAsync(context, threadId, @event);
     }
-    protected abstract ValueTask OnExceptionAsync(IDenormalizerActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
+    protected abstract ValueTask OnExceptionAsync(IDenormalizerActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex);
 
     /// <summary>
     /// 
@@ -207,7 +208,7 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     /// <param name="denormalizerAction"></param>
     /// <param name="postDenormalizeEvent"></param>
     /// <returns></returns>
-    protected async ValueTask<bool> UpdateReadModelAsync<TEvent, TComplete, TFail, TEntityId>(IDenormalizerActorContext context, TEvent dernomalizeEvent, Func<ValueTask> denormalizerAction, bool postDenormalizeEvent = true)
+    protected async ValueTask<bool> UpdateReadModelAsync<TEvent, TComplete, TFail, TEntityId>(IDenormalizerActorContext<TActor> context, TEvent dernomalizeEvent, Func<ValueTask> denormalizerAction, bool postDenormalizeEvent = true)
         where TEvent :  class,IEvent<TEntityId>
         where TComplete : class, ICompleteEvent<TEntityId>
         where TFail : class, IErrorEvent<TEntityId>
@@ -242,7 +243,7 @@ public abstract class BaseDenormalizerActor<TActor>(ILogger logger, ActorMailbox
     /// </summary>
     /// <param name="e"></param>
     /// <returns></returns>
-    protected async ValueTask<bool> PostEventAsync<TEvent, TEntityId>(IDenormalizerActorContext context, TEvent e)
+    protected async ValueTask<bool> PostEventAsync<TEvent, TEntityId>(IDenormalizerActorContext<TActor> context, TEvent e)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
     {

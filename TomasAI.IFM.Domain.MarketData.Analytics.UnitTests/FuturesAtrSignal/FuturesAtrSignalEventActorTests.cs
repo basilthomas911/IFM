@@ -32,18 +32,18 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
         {
         }
 
-        public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
+        public IEvent InvokeParseMessage(IEventActorContext<FuturesAtrSignalEventActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
+        public async ValueTask InvokeReceiveAsync(IEventActorContext<FuturesAtrSignalEventActor> context, IEvent @event)
             => await ReceiveAsync(context, @event);
-        public async ValueTask InvokeOnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IEventActorContext<FuturesAtrSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
             => await OnExceptionAsync(context, threadId, @event, ex);
 
-        public async ValueTask InvokeOnStartAsync(IEventActorContext context)
+        public async ValueTask InvokeOnStartAsync(IEventActorContext<FuturesAtrSignalEventActor> context)
             => await OnStartup(context);
 
-        public async ValueTask InvokeOnStopAsync(IEventActorContext context)
+        public async ValueTask InvokeOnStopAsync(IEventActorContext<FuturesAtrSignalEventActor> context)
             => await OnShutdown(context);
     }
 
@@ -54,7 +54,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -81,7 +81,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -107,7 +107,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -145,7 +145,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var actor1 = _fixture.CreateAtrEventActor(mockSupervisor, mockLogger1);
         var actor2 = _fixture.CreateAtrEventActor(mockSupervisor, mockLogger2);
 
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
         var serializedData = _fixture.DataSerializer.Serialize(@event);
@@ -198,7 +198,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var invalidSubject = $"Command.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
@@ -219,7 +219,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var invalidSubject = $"Event.WrongActor.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
@@ -240,7 +240,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var invalidSubject = $"Event.{FuturesAtrSignalEventActor.Actor}.UnknownVerb.123";
         var message = new NatsMsg<byte[]>
@@ -261,7 +261,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent(commandId: Guid.Empty);
 
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.{@event.EntityId.Format()}";
@@ -285,7 +285,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var malformedSubject = "InvalidSubjectFormat";
         var message = new NatsMsg<byte[]>
         {
@@ -306,7 +306,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -326,7 +326,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.123";
         var message = new NatsMsg<byte[]>
         {
@@ -346,7 +346,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var subject = $"Event.{FuturesAtrSignalEventActor.Actor}.{FuturesAtrSignalGeneratedCompleteEvent.Verb}.123";
         var corruptedData = new byte[] { 0x00, 0x01, 0x02, 0xFF };
         var message = new NatsMsg<byte[]>
@@ -371,7 +371,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var mockState = Substitute.For<IActorState>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
 
@@ -387,7 +387,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var mockState = Substitute.For<IActorState>();
         var event1 = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var event2 = SampleData.CreateAtrSignalGeneratedCompleteEvent();
@@ -426,7 +426,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, null!);
@@ -440,7 +440,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var mockState = Substitute.For<IActorState>();
 
         var unknownEvent = Substitute.For<IEvent>();
@@ -463,7 +463,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Test exception message");
@@ -487,7 +487,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new ArgumentNullException("paramName", "Parameter cannot be null");
@@ -511,7 +511,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new TimeoutException("Database operation timed out");
@@ -535,7 +535,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Test exception");
@@ -556,7 +556,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         // Arrange
         var actor = _fixture.CreateAtrEventActor();
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new InvalidOperationException("Detailed error");
@@ -604,7 +604,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAtrSignalEventActor>>();
         var actor = _fixture.CreateAtrEventActor(mockSupervisor, mockLogger);
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new Exception("Test error");
 
@@ -626,7 +626,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAtrSignalEventActor>>();
         var actor = _fixture.CreateAtrEventActor(mockSupervisor, mockLogger);
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var exception = new Exception("Test error");
 
@@ -648,7 +648,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FuturesAtrSignalEventActor>>();
         var actor = _fixture.CreateAtrEventActor(mockSupervisor, mockLogger);
-        var mockContext = Substitute.For<IEventActorContext>();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAtrSignalEventActor>>();
         var threadId = new ActorThreadId(ActorType.Event, FuturesAtrSignalEventActor.Actor, "1");
         var @event = SampleData.CreateAtrSignalGeneratedCompleteEvent();
         var exception = new Exception("Original error");

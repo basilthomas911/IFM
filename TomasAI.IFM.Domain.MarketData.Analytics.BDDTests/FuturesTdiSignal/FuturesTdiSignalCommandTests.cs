@@ -44,39 +44,39 @@ public class FuturesTdiSignalCommandTests
         ILogger<FuturesTdiSignalCommandActor> logger)
         : FuturesTdiSignalCommandActor(new FuturesTdiSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, eventProjector, logger))
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FuturesTdiSignalCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
         public ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTdiSignalCommandActor> context,
             IActorState state,
             ICommand command)
             => ReceiveAsync(context, state, command);
 
         public ValueTask InvokeOnValidateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTdiSignalCommandActor> context,
             ActorThreadId threadId,
             ICommand command)
             => OnValidateAsync(context, threadId, command);
 
-        public ValueTask InvokeOnStartupAsync(ICommandActorContext context)
+        public ValueTask InvokeOnStartupAsync(ICommandActorContext<FuturesTdiSignalCommandActor> context)
             => OnStartup(context);
 
         public ValueTask<IActorState> InvokeOnLoadStateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTdiSignalCommandActor> context,
             ActorThreadId threadId,
             ICommand command)
             => OnLoadStateAsync(context, threadId, command);
 
         public ValueTask InvokeOnSaveStateAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTdiSignalCommandActor> context,
             ActorThreadId threadId,
             IActorState state,
             ICommand command)
             => OnSaveStateAsync(context, threadId, state, command);
 
         public ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(
-            ICommandActorContext context,
+            ICommandActorContext<FuturesTdiSignalCommandActor> context,
             ActorThreadId threadId,
             ICommand command,
             Exception exception)
@@ -86,7 +86,7 @@ public class FuturesTdiSignalCommandTests
     sealed record Scenario(
         TestableFuturesTdiSignalCommandActor Actor,
         IEventSourceActorDbContext EventDb,
-        ICommandActorContext Context,
+        ICommandActorContext<FuturesTdiSignalCommandActor> Context,
         IEventSourceActorStateRepository<FuturesTdiSignalCommandState> Repository,
         IContainerInstance Container);
 
@@ -103,7 +103,7 @@ public class FuturesTdiSignalCommandTests
         var container = Substitute.For<IContainerInstance>();
         container.Resolve<IEventSourceActorStateRepository<FuturesTdiSignalCommandState>>()
             .Returns(repository);
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesTdiSignalCommandActor>>();
         context.Container.Returns(container);
         return new Scenario(actor, eventDb, context, repository, container);
     }

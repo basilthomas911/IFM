@@ -33,22 +33,22 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
     public class TestableFuturesClosingPriceCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesClosingPriceCommandActor> logger)
         : FuturesClosingPriceCommandActor(TypedActorContextFactory.Command(dbEventSource, logger), Substitute.For<IEventProjector<FuturesClosingPriceCommandActor>>())
     {
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<FuturesClosingPriceCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<FuturesClosingPriceCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask<IActorState> InvokeOnLoadStateAsync(ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnLoadStateAsync(context, threadId, cmd);
 
-        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext context, ActorThreadId threadId, IActorState state, ICommand cmd)
+        public async ValueTask InvokeOnSaveStateAsync(ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, IActorState state, ICommand cmd)
             => await OnSaveStateAsync(context, threadId, state, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<FuturesClosingPriceCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 
@@ -77,7 +77,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var subject = command!.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -126,7 +126,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var subject = command!.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -167,7 +167,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var invalidSubject = $"Query.{FuturesClosingPriceCommandActor.ActorName}.{InsertFuturesClosingPriceCommand.Verb}.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -199,7 +199,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var invalidSubject = $"Command.DifferentActor.{InsertFuturesClosingPriceCommand.Verb}.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -231,7 +231,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var invalidSubject = $"Command.{FuturesClosingPriceCommandActor.ActorName}.UnknownVerb.{Guid.NewGuid()}";
         var natsMsg = new NatsMsg<byte[]>(invalidSubject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Action act = () => actor.InvokeParseMessage(context, natsMsg);
@@ -289,7 +289,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var subject = command!.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, corruptedPayload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -321,7 +321,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var subject = command!.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, emptyPayload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.CompletedTask);
@@ -353,7 +353,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var subject = command!.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Simulate database insert failure
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -389,7 +389,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd!);
@@ -428,7 +428,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         var result = await actor.InvokeReceiveAsync(context, state, cmd!);
@@ -484,7 +484,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, null!, cmd!);
@@ -503,7 +503,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread") };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, null!);
@@ -527,7 +527,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         cmd.CommandId.Returns(Guid.NewGuid());
         cmd.Subject.Returns(new ActorSubject(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "UnknownVerb", "thread-id"));
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd);
@@ -556,7 +556,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var state = Substitute.For<IActorState>();
         state.Id.Returns(cmd!.Subject.ThreadId);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd!);
@@ -586,7 +586,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         db.GetFuturesClosingPriceAsync(Arg.Any<FuturesDataId>())
             .Returns(new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels.FuturesClosingPriceReadModel("ESM4", SampleData.ValueDate, SampleData.ClosingPrice1, DateTime.UtcNow, "test"));
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, state, cmd!);
@@ -615,7 +615,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var threadId = command!.Subject.ThreadId;
 
         // Act
@@ -645,7 +645,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var threadId = command!.Subject.ThreadId;
 
         // Act
@@ -672,7 +672,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = invalidId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var threadId = command!.Subject.ThreadId;
 
         // Act
@@ -699,7 +699,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = invalidId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var threadId = command!.Subject.ThreadId;
 
         // Act
@@ -751,7 +751,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // Act
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, default, command!);
@@ -768,7 +768,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
         var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread");
 
         // Act
@@ -790,7 +790,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         cmd.CommandId.Returns(Guid.NewGuid());
         cmd.Subject.Returns(new ActorSubject(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "UnknownVerb", "thread-id"));
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var threadId = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread");
 
         // Act
@@ -824,7 +824,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var expectedState = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -865,7 +865,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var expectedState = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -904,7 +904,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -938,7 +938,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -962,7 +962,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var logger = Substitute.For<ILogger<FuturesClosingPriceCommandActor>>();
         var actor = _fixture.CreateActor<FuturesClosingPriceCommandActor>(dbEventSource, logger);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -996,7 +996,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -1039,13 +1039,13 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
         context.Container.Returns(container);
         container.Resolve<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>().Returns(repo);
-        repo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FuturesClosingPriceCommandState>(), Arg.Any<ICommand>())
+        repo.SaveStateAsync(Arg.Any<ICommandActorContext<FuturesClosingPriceCommandActor>>(), Arg.Any<FuturesClosingPriceCommandState>(), Arg.Any<ICommand>())
             .Returns(ValueTask.CompletedTask);
 
         await ((ICommandActor<FuturesClosingPriceCommandActor>)actor).OnStartup(context);
@@ -1057,7 +1057,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
 
         // Assert
         await repo.Received(1).SaveStateAsync(
-            Arg.Is<ICommandActorContext>(c => c == context),
+            Arg.Is<ICommandActorContext<FuturesClosingPriceCommandActor>>(c => c == context),
             Arg.Is<FuturesClosingPriceCommandState>(s => s == state),
             Arg.Is<ICommand>(c => c.CommandId == cmd!.CommandId));
     }
@@ -1081,13 +1081,13 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
         context.Container.Returns(container);
         container.Resolve<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>().Returns(repo);
-        repo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FuturesClosingPriceCommandState>(), Arg.Any<ICommand>())
+        repo.SaveStateAsync(Arg.Any<ICommandActorContext<FuturesClosingPriceCommandActor>>(), Arg.Any<FuturesClosingPriceCommandState>(), Arg.Any<ICommand>())
             .Returns(ValueTask.CompletedTask);
 
         await ((ICommandActor<FuturesClosingPriceCommandActor>)actor).OnStartup(context);
@@ -1124,7 +1124,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -1161,7 +1161,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -1193,7 +1193,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
             EntityId = entityId
         };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -1222,7 +1222,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = new ActorThreadId(ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "test-thread") };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -1259,7 +1259,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var wrongState = Substitute.For<IActorState>();
         wrongState.Id.Returns(cmd!.Subject.ThreadId);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
@@ -1296,13 +1296,13 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var db = Substitute.For<IMarketDataDbContext>();
         var state = new FuturesClosingPriceCommandState(db) { Id = cmd!.Subject.ThreadId };
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repo = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
 
         context.Container.Returns(container);
         container.Resolve<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>().Returns(repo);
-        repo.SaveStateAsync(Arg.Any<ICommandActorContext>(), Arg.Any<FuturesClosingPriceCommandState>(), Arg.Any<ICommand>())
+        repo.SaveStateAsync(Arg.Any<ICommandActorContext<FuturesClosingPriceCommandActor>>(), Arg.Any<FuturesClosingPriceCommandState>(), Arg.Any<ICommand>())
             .Returns(new ValueTask(Task.FromException(new InvalidOperationException("Repository save failed"))));
 
         await ((ICommandActor<FuturesClosingPriceCommandActor>)actor).OnStartup(context);
@@ -1340,7 +1340,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var threadId = command!.Subject.ThreadId;
         var exception = new InvalidOperationException("Unexpected error occurred");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -1376,7 +1376,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var threadId = command!.Subject.ThreadId;
         var exception = new InsertFuturesClosingPriceException("Closing price already exists");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         context.SendAsync<FuturesClosingPriceInsertedFailEvent, FuturesDataId>(
             Arg.Any<FuturesClosingPriceInsertedFailEvent>())
@@ -1413,7 +1413,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var threadId = command!.Subject.ThreadId;
         var exception = new InvalidOperationException("Test exception");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -1448,7 +1448,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var expectedMessage = "Detailed error message for testing";
         var exception = new InvalidOperationException(expectedMessage);
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent? capturedEvent = null;
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -1486,7 +1486,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var threadId = command!.Subject.ThreadId;
         var exception = new InvalidOperationException("Original error");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         // First call throws, second call (in catch) also throws, forcing CommandFailed path
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
@@ -1523,7 +1523,7 @@ public class FuturesClosingPriceCommandActorTests : IClassFixture<MarketDataFeed
         var threadId = command!.Subject.ThreadId;
         var exception = new CommandValidationException(command.ErrorCode, "Validation failed");
 
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
 
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
             Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())

@@ -25,4 +25,11 @@ public interface ICommandActor
 public interface ICommandActor<TActor> : ICommandActor, IActor<TActor>
     where TActor : IActor
 {
+    ValueTask OnStartup(ICommandActorContext<TActor> context);
+    ValueTask OnShutdown(ICommandActorContext<TActor> context);
+    ValueTask OnValidateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command);
+    ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command);
+    ValueTask OnSaveStateAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, IActorState state, ICommand command);
+    ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<TActor> context, IActorState state, ICommand command);
+    ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<TActor> context, ActorThreadId threadId, ICommand command, Exception ex);
 }

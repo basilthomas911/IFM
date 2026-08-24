@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.Trade.Plan;
 /// <summary>Provides the TradePlanQueryActor implementation.</summary>
 public sealed class TradePlanQueryActor(
     IQueryActorContext<TradePlanQueryActor> actorContext)
-    : BaseQueryActor<TradePlanQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<TradePlanQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     private ITradePlanQueryContext ActorContext { get; } =
@@ -23,7 +23,7 @@ public sealed class TradePlanQueryActor(
 
     public const string ActorName = "TradePlanQuery";
 
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<TradePlanQueryActor> context, IActorMessage message)
     {
         var subject = message.Subject;
         if (subject is not { ActorType: ActorType.Query, Name: ActorName }
@@ -45,15 +45,15 @@ public sealed class TradePlanQueryActor(
         [GetTradePlanForwardLossLimitQuery.Verb] = message => message.AsQuery<GetTradePlanForwardLossLimitQuery, TradePlanForwardLossLimitReadModel>()!
     };
 
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<TradePlanQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<TradePlanQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         cancellationToken.ThrowIfCancellationRequested();
         switch (query)
         {
@@ -93,7 +93,7 @@ public sealed class TradePlanQueryActor(
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IQueryActorContext context,
+        IQueryActorContext<TradePlanQueryActor> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,

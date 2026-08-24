@@ -39,8 +39,8 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         : FuturesTickDataEventActor(new FuturesTickDataEventContext(
             supervisor, logger, marketDataApi, blackboard, status))
     {
-        public ValueTask Start(IEventActorContext context) => OnStartup(context);
-        public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
+        public ValueTask Start(IEventActorContext<FuturesTickDataEventActor> context) => OnStartup(context);
+        public ValueTask Stop(IEventActorContext<FuturesTickDataEventActor> context) => OnShutdown(context);
     }
 
     public sealed class TestableRealtimeActor : FuturesEodDataRealtimeActor
@@ -60,12 +60,12 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         TestableRealtimeActor(IFuturesEodDataRealtimeContext context)
             : base(context) => Context = context;
 
-        public IEvent Parse(IEventActorContext context, IActorMessage message) =>
+        public IEvent Parse(IEventActorContext<FuturesEodDataRealtimeActor> context, IActorMessage message) =>
             ParseMessage(context, message);
-        public ValueTask Receive(IEventActorContext context, IEvent domainEvent) =>
+        public ValueTask Receive(IEventActorContext<FuturesEodDataRealtimeActor> context, IEvent domainEvent) =>
             ReceiveAsync(context, domainEvent);
-        public ValueTask Start(IEventActorContext context) => OnStartup(context);
-        public ValueTask Stop(IEventActorContext context) => OnShutdown(context);
+        public ValueTask Start(IEventActorContext<FuturesEodDataRealtimeActor> context) => OnStartup(context);
+        public ValueTask Stop(IEventActorContext<FuturesEodDataRealtimeActor> context) => OnShutdown(context);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             Substitute.For<IBlackboardService>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<FuturesTickDataEventActor>>());
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesTickDataEventActor>>();
 
         await actor.Start(context);
         await actor.Stop(context);
@@ -92,7 +92,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
     {
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out _);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesEodDataRealtimeActor>>();
         var route = new ActorTypeId(
             ActorType.Realtime,
             FuturesTickTradeDataInsertedEvent.Actor,
@@ -135,7 +135,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             Data = ActorExtensions.DataSerializer!.Serialize(source)
         };
 
-        var parsed = actor.Parse(Substitute.For<IEventActorContext>(), new NatsActorMessage(message))
+        var parsed = actor.Parse(Substitute.For<IEventActorContext<FuturesEodDataRealtimeActor>>(), new NatsActorMessage(message))
             .Should().BeOfType<FuturesTickTradeDataInsertedEvent>().Which;
 
         parsed.CommandId.Should().Be(source.CommandId);
@@ -161,7 +161,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
             new DateOnly(2026, 9, 16),
             true));
 
-        await actor.Receive(Substitute.For<IEventActorContext>(), CreateTrade());
+        await actor.Receive(Substitute.For<IEventActorContext<FuturesEodDataRealtimeActor>>(), CreateTrade());
 
         await projector.Received(1).ProcessRealtimeEventAsync(
             Arg.Is<VixFuturesEodDataInsertedEvent>(inserted =>
@@ -211,7 +211,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         };
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out _);
-        IEventActorContext context = actor.Context;
+        IEventActorContext<FuturesEodDataRealtimeActor> context = actor.Context;
         var current = new FuturesEodDataV2ReadModel(
             contractId, ValueDate, "ES", 5390m, 5460m, 5370m, 5425m, 1000,
             0.1, 0.01, 54.25, 5500, 5425, 5350,
@@ -268,7 +268,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         };
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out _);
-        IEventActorContext context = actor.Context;
+        IEventActorContext<FuturesEodDataRealtimeActor> context = actor.Context;
         context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
                 Arg.Any<GetFuturesEodDataQuery>())
             .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(null!));

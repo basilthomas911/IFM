@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Application.Actor.Client;
 /// context.</remarks>
 /// <param name="actorContext">The typed query context resolved through open-generic registration.</param>
 public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
-    : BaseQueryActor<TestQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<TestQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected ITestQueryContext ActorContext { get; } =
@@ -25,7 +25,7 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
 
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "Test";
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<TestQueryActor> context, IActorMessage message)
     {
         var msgSubject = message.Subject;
         IQuery query = default(IQuery) switch
@@ -43,17 +43,17 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
 
     }
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<TestQueryActor> context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         var msgInfo = IsArgumentNull.Set(dispatchContext.GetMessageInfo(query.Subject.ThreadId, query.Subject.Verb)).Value;
         var actorMessage = IsArgumentNull.Set(msgInfo.Message);
         await actorMessage.ReplyAsync(new ServiceResult<string>( "The rain in Spain stays mainly in the plain."));
     }
 
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<TestQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         try
         {

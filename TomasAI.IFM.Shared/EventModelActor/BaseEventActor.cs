@@ -16,19 +16,23 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// Provides lifecycle hooks (startup/shutdown), message handling, validation, state load/save, and exception handling.
 /// </remarks>
 /// <typeparam name="TActor">The actor type implementing <see cref="IEventActor{TActor}"/>.</typeparam>
-public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogger logger, ActorMailboxId actorId)
+/// <param name="actorContext">The closed-generic event context owned by the actor for its entire lifetime.</param>
+/// <param name="logger">The logger used to record operational and diagnostic information.</param>
+public abstract class BaseEventActor<TActor>(
+    IEventActorContext<TActor> actorContext,
+    ILogger logger)
     : IEventActor<TActor> where TActor : IActor
 {
-    readonly IActorSupervisor _supervisor = IsArgumentNull.Set(supervisor);
-    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
+    readonly IEventActorContext<TActor> _context = IsArgumentNull.Set(actorContext);
+    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
-    IEventActorContext? _context;
+    IActorSupervisor _supervisor;
     string _serviceId = string.Empty;
     int _lifecycle;
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
-    public IActorMailbox Mailbox { get; } = supervisor.CreateMailbox(actorId)!;
+    public IActorMailbox Mailbox { get; private set; }
     public bool IsRunning
     {
         get => Volatile.Read(ref _lifecycle) == 2;
@@ -53,6 +57,8 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
         IJSActorProducer? jetStreamProducer = null;
         try
         {
+            _supervisor = supervisorArg;
+            Mailbox = supervisorArg.CreateMailbox(_actorId);
             switch (_actorId.ActorType.GetDeliveryType())
             {
                 case ActorDeliveryType.NatsCore:
@@ -69,7 +75,6 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
             }
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-            _context = new EventActorContext(_supervisor, _actorId);
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
@@ -218,41 +223,41 @@ public abstract class BaseEventActor<TActor>(IActorSupervisor supervisor, ILogge
     }
 
     // Explicit interface implementations forwarding to protected hooks
-    ValueTask IEventActor<TActor>.OnStartup(IEventActorContext context) => OnStartup(context);
-    ValueTask IEventActor<TActor>.OnShutdown(IEventActorContext context) => OnShutdown(context);
-    ValueTask IEventActor<TActor>.ReceiveAsync(IEventActorContext context, IEvent @event) => ReceiveAsync(context, @event);
-    ValueTask IEventActor<TActor>.OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event) => OnValidateAsync(context, threadId, @event);
-    ValueTask IEventActor<TActor>.OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex) => OnExceptionAsync(context, threadId, @event, ex);
+    ValueTask IEventActor<TActor>.OnStartup(IEventActorContext<TActor> context) => OnStartup(context);
+    ValueTask IEventActor<TActor>.OnShutdown(IEventActorContext<TActor> context) => OnShutdown(context);
+    ValueTask IEventActor<TActor>.ReceiveAsync(IEventActorContext<TActor> context, IEvent @event) => ReceiveAsync(context, @event);
+    ValueTask IEventActor<TActor>.OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event) => OnValidateAsync(context, threadId, @event);
+    ValueTask IEventActor<TActor>.OnExceptionAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex) => OnExceptionAsync(context, threadId, @event, ex);
 
     // Protected hooks for derived classes
-    protected abstract IEvent ParseMessage(IEventActorContext context, IActorMessage message);
+    protected abstract IEvent ParseMessage(IEventActorContext<TActor> context, IActorMessage message);
 
     /// <summary>
     /// Compatibility entry point for existing event actor tests while the
     /// runtime path uses owned <see cref="IActorMessage"/> branches directly.
     /// </summary>
-    protected IEvent ParseMessage(IEventActorContext context, in NatsMsg<byte[]> message)
+    protected IEvent ParseMessage(IEventActorContext<TActor> context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
-    protected virtual ValueTask OnStartup(IEventActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(IEventActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
-        IEventActorContext context,
+        IEventActorContext<TActor> context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnStartup(context);
     }
-    protected virtual ValueTask OnShutdown(IEventActorContext context) => ValueTask.CompletedTask;
-    protected abstract ValueTask ReceiveAsync(IEventActorContext context, IEvent @event);
-    protected virtual ValueTask ReceiveAsync(IEventActorContext context, IEvent @event, CancellationToken cancellationToken)
+    protected virtual ValueTask OnShutdown(IEventActorContext<TActor> context) => ValueTask.CompletedTask;
+    protected abstract ValueTask ReceiveAsync(IEventActorContext<TActor> context, IEvent @event);
+    protected virtual ValueTask ReceiveAsync(IEventActorContext<TActor> context, IEvent @event, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ReceiveAsync(context, @event);
     }
-    protected virtual ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event) => ValueTask.CompletedTask;
-    protected virtual ValueTask OnValidateAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, CancellationToken cancellationToken)
+    protected virtual ValueTask OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnValidateAsync(context, threadId, @event);
     }
-    protected abstract ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
+    protected abstract ValueTask OnExceptionAsync(IEventActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex);
 }

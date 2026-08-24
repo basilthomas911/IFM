@@ -35,7 +35,7 @@ public class FuturesItiSignalQueryTests
     class TestableFuturesItiSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesItiSignalQueryActor> logger)
         : FuturesItiSignalQueryActor(new FuturesItiSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<FuturesItiSignalQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
     }
 
@@ -54,9 +54,9 @@ public class FuturesItiSignalQueryTests
         return (dbFactory, marketDataDb);
     }
 
-    static IQueryActorContext CreateContext()
+    static IQueryActorContext<FuturesItiSignalQueryActor> CreateContext()
     {
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<FuturesItiSignalQueryActor>>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
         return context;
     }

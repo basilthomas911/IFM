@@ -24,3 +24,12 @@ public interface IDenormalizerActorContext
     bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info);
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId);
 }
+
+/// <summary>
+/// Provides a denormalizer actor context associated with a specific actor type.
+/// </summary>
+/// <typeparam name="TActor">The denormalizer actor type associated with the context.</typeparam>
+public interface IDenormalizerActorContext<TActor> : IDenormalizerActorContext
+    where TActor : IActor
+{
+}

@@ -14,14 +14,18 @@ namespace TomasAI.IFM.Shared.EventModelActor;
 /// Provides lifecycle hooks (startup/shutdown), message handling, validation, state load/save, and exception handling.
 /// </remarks>
 /// <typeparam name="TActor">The actor type implementing <see cref="IQueryActor{TActor}"/>.</typeparam>
-public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId actorId)
+/// <param name="actorContext">The closed-generic query context owned by the actor for its entire lifetime.</param>
+/// <param name="logger">The logger used to record operational and diagnostic information.</param>
+public abstract class BaseQueryActor<TActor>(
+    IQueryActorContext<TActor> actorContext,
+    ILogger logger)
     : IQueryActor<TActor> where TActor : IActor
 {
-    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorId);
+    readonly IQueryActorContext<TActor> _context = IsArgumentNull.Set(actorContext);
+    readonly ActorMailboxId _actorId = IsArgumentNull.Set(actorContext).ActorId;
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     string _serviceId = string.Empty;
 
-    IQueryActorContext? _context;
     IActorSupervisor _supervisor;
     int _lifecycle;
 
@@ -66,7 +70,6 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-            _context = supervisor.CreateQueryActorContext(actorId);
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
         }
@@ -207,41 +210,41 @@ public abstract class BaseQueryActor<TActor>( ILogger logger, ActorMailboxId act
     }
 
     // Explicit interface implementations forwarding to protected hooks
-    ValueTask IQueryActor<TActor>.OnStartup(IQueryActorContext context) => OnStartup(context);
-    ValueTask IQueryActor<TActor>.OnShutdown(IQueryActorContext context) => OnShutdown(context);
-    ValueTask IQueryActor<TActor>.ReceiveAsync(IQueryActorContext context, IQuery query) => ReceiveAsync(context, query);
-    ValueTask IQueryActor<TActor>.OnValidateAsync(IQueryActorContext context, IQuery query) => OnValidateAsync(context, query);
-    ValueTask IQueryActor<TActor>.OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => OnExceptionAsync(context, threadId, query, verb, ex);
+    ValueTask IQueryActor<TActor>.OnStartup(IQueryActorContext<TActor> context) => OnStartup(context);
+    ValueTask IQueryActor<TActor>.OnShutdown(IQueryActorContext<TActor> context) => OnShutdown(context);
+    ValueTask IQueryActor<TActor>.ReceiveAsync(IQueryActorContext<TActor> context, IQuery query) => ReceiveAsync(context, query);
+    ValueTask IQueryActor<TActor>.OnValidateAsync(IQueryActorContext<TActor> context, IQuery query) => OnValidateAsync(context, query);
+    ValueTask IQueryActor<TActor>.OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex) => OnExceptionAsync(context, threadId, query, verb, ex);
 
     // Protected hooks for derived classes
-    protected abstract IQuery ParseMessage(IQueryActorContext context, IActorMessage message);
+    protected abstract IQuery ParseMessage(IQueryActorContext<TActor> context, IActorMessage message);
 
     /// <summary>
     /// Compatibility entry point for existing query actor tests during the staged mailbox migration.
     /// Runtime query ingress uses <see cref="IActorMessage"/> directly.
     /// </summary>
-    protected IQuery ParseMessage(IQueryActorContext context, in NatsMsg<byte[]> message)
+    protected IQuery ParseMessage(IQueryActorContext<TActor> context, in NatsMsg<byte[]> message)
         => ParseMessage(context, new LegacyNatsActorMessage(message));
-    protected virtual ValueTask OnStartup(IQueryActorContext context) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnStartup(IQueryActorContext<TActor> context) => ValueTask.CompletedTask;
     protected virtual ValueTask OnStartup(
-        IQueryActorContext context,
+        IQueryActorContext<TActor> context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnStartup(context);
     }
-    protected virtual ValueTask OnShutdown(IQueryActorContext context) => ValueTask.CompletedTask;
-    protected abstract ValueTask ReceiveAsync(IQueryActorContext context, IQuery query);
-    protected virtual ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    protected virtual ValueTask OnShutdown(IQueryActorContext<TActor> context) => ValueTask.CompletedTask;
+    protected abstract ValueTask ReceiveAsync(IQueryActorContext<TActor> context, IQuery query);
+    protected virtual ValueTask ReceiveAsync(IQueryActorContext<TActor> context, IQuery query, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return ReceiveAsync(context, query);
     }
-    protected virtual ValueTask OnValidateAsync(IQueryActorContext context, IQuery query) => ValueTask.CompletedTask;
-    protected virtual ValueTask OnValidateAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    protected virtual ValueTask OnValidateAsync(IQueryActorContext<TActor> context, IQuery query) => ValueTask.CompletedTask;
+    protected virtual ValueTask OnValidateAsync(IQueryActorContext<TActor> context, IQuery query, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return OnValidateAsync(context, query);
     }
-    protected abstract  ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex);
+    protected abstract  ValueTask OnExceptionAsync(IQueryActorContext<TActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex);
 }

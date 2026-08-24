@@ -12,9 +12,9 @@ namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
 public interface IDenormalizerActor<TActor> : IActor<TActor>
     where TActor : IActor
 {
-    ValueTask OnStartup(IDenormalizerActorContext context);
-    ValueTask OnShutdown(IDenormalizerActorContext context);
-    ValueTask ReceiveAsync(IDenormalizerActorContext context, ActorThreadId threadId, IEvent @event);
-    ValueTask OnExceptionAsync(IDenormalizerActorContext context, ActorThreadId threadId, IEvent @event, Exception ex);
+    ValueTask OnStartup(IDenormalizerActorContext<TActor> context);
+    ValueTask OnShutdown(IDenormalizerActorContext<TActor> context);
+    ValueTask ReceiveAsync(IDenormalizerActorContext<TActor> context, ActorThreadId threadId, IEvent @event);
+    ValueTask OnExceptionAsync(IDenormalizerActorContext<TActor> context, ActorThreadId threadId, IEvent @event, Exception ex);
 }
 

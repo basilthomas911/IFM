@@ -32,14 +32,14 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
             Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
             logger))
     {
-        public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
+        public IQuery InvokeParseMessage(IQueryActorContext<TradeQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
+        public async ValueTask InvokeReceiveAsync(IQueryActorContext<TradeQueryActor> context, IQuery query)
             => await ReceiveAsync(context, query);
 
 
-        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+        public async ValueTask InvokeOnExceptionAsync(IQueryActorContext<TradeQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
             => await OnExceptionAsync(context, threadId, query, verb, ex);
     }
 
@@ -60,7 +60,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var query = new GetTradeHistoryQuery(orderId: 100)
         {
             Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format())
@@ -84,7 +84,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var query = new GetTradeLimitQuery(tradeId: 1)
         {
             Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeLimitQuery.Verb, _entityId.Format())
@@ -108,7 +108,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var valueDate = new DateOnly(2025, 1, 15);
         var query = new GetTradePositionQuery(100, 1, TradeType.ShortIronCondor, valueDate, 45, TradeStatus.Open)
         {
@@ -137,7 +137,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var query = new GetTradeQuantityQuery(tradeId: 1)
         {
             Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeQuantityQuery.Verb, _entityId.Format())
@@ -161,7 +161,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var query = new GetTradeTypeLimitQuery(tradeId: 1, TradeType.ShortIronCondor)
         {
             Subject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeTypeLimitQuery.Verb, _entityId.Format())
@@ -187,7 +187,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var entityId = SampleData.EntityId2; // orderId=200, tradeId=2
         var query = new GetTradeHistoryQuery(orderId: 200)
         {
@@ -230,7 +230,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var invalidSubject = new ActorSubject(ActorType.Command, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format());
         var message = new NatsMsg<byte[]>(invalidSubject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
@@ -245,7 +245,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var invalidSubject = new ActorSubject(ActorType.Query, "WrongActor", GetTradeHistoryQuery.Verb, _entityId.Format());
         var message = new NatsMsg<byte[]>(invalidSubject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
@@ -260,7 +260,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var invalidSubject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, "UnknownVerb", _entityId.Format());
         var message = new NatsMsg<byte[]>(invalidSubject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
@@ -275,7 +275,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var validSubject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format());
         var message = new NatsMsg<byte[]>(validSubject.ToString(), string.Empty, 0, default!, Array.Empty<byte>(), default!, NatsMsgFlags.None);
 
@@ -289,7 +289,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var corruptedPayload = new byte[] { 0x00, 0x01, 0x02, 0xFF, 0xFE };
         var validSubject = new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, GetTradeHistoryQuery.Verb, _entityId.Format());
         var message = new NatsMsg<byte[]>(validSubject.ToString(), string.Empty, 0, default!, corruptedPayload, default!, NatsMsgFlags.None);
@@ -312,7 +312,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
 
         var query = new GetTradeHistoryQuery(orderId: 100)
         {
@@ -340,7 +340,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
 
         var query = new GetTradeLimitQuery(tradeId: 1)
         {
@@ -367,7 +367,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
 
         var query = new GetTradePositionQuery(100, 1, TradeType.ShortIronCondor, new DateOnly(2025, 1, 15), 45, TradeStatus.Open)
         {
@@ -394,7 +394,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
 
         var query = new GetTradeQuantityQuery(tradeId: 1)
         {
@@ -421,7 +421,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         dbFactory.TradeDb.Returns(tradeDb);
 
         var actor = _fixture.CreateTradeQueryActor(dbFactory);
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
 
         var query = new GetTradeTypeLimitQuery(tradeId: 1, TradeType.ShortIronCondor)
         {
@@ -463,7 +463,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
 
         // Act & Assert
         var act = async () => await actor.InvokeReceiveAsync(context, null!);
@@ -475,7 +475,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var unsupportedQuery = Substitute.For<IQuery>();
         unsupportedQuery.Subject.Returns(new ActorSubject(ActorType.Query, TradeQueryActor.ActorName, "UnsupportedVerb", _entityId.Format()));
 
@@ -494,7 +494,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var query = new GetTradeHistoryQuery(orderId: 100)
         {
@@ -520,7 +520,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var query = new GetTradeLimitQuery(tradeId: 1)
         {
@@ -546,7 +546,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var query = new GetTradePositionQuery(100, 1, TradeType.ShortIronCondor, new DateOnly(2025, 1, 15), 45, TradeStatus.Open)
         {
@@ -572,7 +572,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var query = new GetTradeQuantityQuery(tradeId: 1)
         {
@@ -598,7 +598,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var query = new GetTradeTypeLimitQuery(tradeId: 1, TradeType.ShortIronCondor)
         {
@@ -624,7 +624,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var unknownQuery = Substitute.For<IQuery>();
         unknownQuery.ErrorCode.Returns(9999);
@@ -666,7 +666,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
-        var context = Substitute.For<IQueryActorContext>();
+        var context = Substitute.For<IQueryActorContext<TradeQueryActor>>();
         var threadId = new ActorThreadId(ActorType.Query, TradeQueryActor.ActorName, _entityId.Format());
         var query = new GetTradeHistoryQuery(orderId: 100)
         {

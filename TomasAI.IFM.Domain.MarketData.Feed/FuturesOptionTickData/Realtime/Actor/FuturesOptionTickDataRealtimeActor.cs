@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Realtime.Acto
 
 /// <summary>Consumes the futures-option branch of normalized live trades over Core NATS.</summary>
 public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOptionTickDataRealtimeActor> actorContext)
-    : BaseEventActor<FuturesOptionTickDataRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
+    : BaseEventActor<FuturesOptionTickDataRealtimeActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesOptionTickDataRealtime";
 
@@ -27,20 +27,20 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
         FuturesTickTradeDataInsertedEvent.Actor,
         FuturesTickTradeDataInsertedEvent.Verb);
 
-    protected override ValueTask OnStartup(IEventActorContext context)
+    protected override ValueTask OnStartup(IEventActorContext<FuturesOptionTickDataRealtimeActor> context)
     {
         context.AddRealtimeRouter(TickTradeRoute, Id);
         return ValueTask.CompletedTask;
     }
 
-    protected override ValueTask OnShutdown(IEventActorContext context)
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesOptionTickDataRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(TickTradeRoute, Id);
         return ValueTask.CompletedTask;
     }
 
     protected override IEvent ParseMessage(
-        IEventActorContext context,
+        IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
         IActorMessage message)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -60,7 +60,7 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
     }
 
     protected override async ValueTask ReceiveAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
         IEvent domainEvent)
     {
         if (domainEvent is not FuturesTickTradeDataInsertedEvent trade)
@@ -78,7 +78,7 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IEventActorContext context,
+        IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
         ActorThreadId threadId,
         IEvent domainEvent,
         Exception exception) =>

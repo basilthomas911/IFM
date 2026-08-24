@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Query.Actor;
 /// <param name="logger">The logger used to record diagnostic and operational information.</param>
 public class FuturesTdiSignalQueryActor(
     IQueryActorContext<FuturesTdiSignalQueryActor> actorContext)
-    : BaseQueryActor<FuturesTdiSignalQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<FuturesTdiSignalQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
     protected IFuturesTdiSignalQueryContext ActorContext { get; } =
@@ -36,7 +36,7 @@ public class FuturesTdiSignalQueryActor(
     /// <param name="message">The actor message to parse.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<FuturesTdiSignalQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -68,15 +68,15 @@ public class FuturesTdiSignalQueryActor(
     /// <param name="query">The query to process.</param>
     /// <returns>A task that represents the asynchronous query processing operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<FuturesTdiSignalQueryActor> context, IQuery query)
         => await ReceiveAsync(context, query, CancellationToken.None).ConfigureAwait(false);
 
     protected override async ValueTask ReceiveAsync(
-        IQueryActorContext context,
+        IQueryActorContext<FuturesTdiSignalQueryActor> context,
         IQuery query,
         CancellationToken cancellationToken)
     {
-        var dispatchContext = actorContext.RouteTo(context);
+        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
@@ -109,7 +109,7 @@ public class FuturesTdiSignalQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesTdiSignalQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);

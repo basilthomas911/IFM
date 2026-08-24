@@ -21,7 +21,7 @@ namespace TomasAI.IFM.Domain.Reference.Query.Actor;
 /// required services.</remarks>
 /// <param name="logger">Logger for recording actor operations and errors.</param>
 public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorContext)
-    : BaseQueryActor<ReferenceQueryActor>(actorContext.Logger, actorContext.ActorId)
+    : BaseQueryActor<ReferenceQueryActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "ReferenceQuery";
     readonly ILogger<ReferenceQueryActor> _logger = IsArgumentNull.Set(actorContext.Logger);
@@ -39,7 +39,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// <param name="message">The actor message to parse. This parameter cannot be <see langword="null"/>.</param>
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<ReferenceQueryActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
@@ -82,20 +82,16 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// <param name="query">The query to be processed. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the incoming query type is not supported by the actor.</exception>
-    protected override ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override ValueTask ReceiveAsync(IQueryActorContext<ReferenceQueryActor> context, IQuery query)
         => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<ReferenceQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        using var messageInfoScope = context.MirrorMessageInfoTo(
-            ReferenceQueryContext,
-            query.Subject.ThreadId,
-            query.Subject.Verb);
         await receiveFunc.Invoke(ReferenceQueryContext, query, cancellationToken);
     }
 
@@ -161,7 +157,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
+    protected override async ValueTask OnExceptionAsync(IQueryActorContext<ReferenceQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
         try
         {

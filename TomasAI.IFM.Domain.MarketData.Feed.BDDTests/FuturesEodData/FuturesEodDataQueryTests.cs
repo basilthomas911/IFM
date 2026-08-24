@@ -38,7 +38,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         IQuery query, string verb)
     {
         var actor = _fixture.CreateEodQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
 
         var parsed = actor.InvokeParseMessage(context, CreateMessage(query));
 
@@ -61,7 +61,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var subject = new ActorSubject(actorType, actorName, verb, query.EntityId.Format());
         var message = new NatsMsg<byte[]> { Subject = subject.ToString(), Data = Serialize(query) };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage($"Unable to resolve {FuturesEodDataQueryActor.ActorName} query from message: *");
@@ -78,7 +78,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
             Data = [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -100,7 +100,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (dbFactory, _) = CreateDatabaseWithResults();
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
 
         await actor.InvokeReceiveAsync(context, query);
 
@@ -112,7 +112,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (dbFactory, db) = CreateDatabaseWithResults();
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = CreateVixQuery(string.Empty);
 
         await actor.InvokeReceiveAsync(context, query);
@@ -135,7 +135,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         db.GetFuturesEodDataAsync(Arg.Any<string>(), Arg.Any<DateOnly>())
             .Returns((FuturesEodDataV2ReadModel?)null);
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = (GetFuturesEodDataQuery)CreateQuery("Current");
 
         await actor.InvokeReceiveAsync(context, query);
@@ -153,7 +153,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     {
         var (dbFactory, db) = CreateDatabaseWithResults();
         var actor = _fixture.CreateEodQueryActor(dbFactory);
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = (GetFuturesEodDataMovingAveragesQuery)CreateQuery("MovingAverages");
         var expected = SampleData.EodClosingPrices.Average(value => value.ClosingPrice);
 
@@ -182,7 +182,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         var actor = _fixture.CreateEodQueryActor(dbFactory);
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<IQueryActorContext>(), CreateQuery("LastVix")).AsTask();
+            Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), CreateQuery("LastVix")).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("database failed");
     }
@@ -191,7 +191,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingReceiveInputs_When_AnEodQueryIsReceived_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateEodQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = CreateQuery("Current");
 
         await ((Func<Task>)(() => actor.InvokeReceiveAsync(null!, query).AsTask()))
@@ -208,7 +208,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesEodDataQueryActor.ActorName, "Unknown", "entity"));
 
-        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext>(), query).AsTask();
+        Func<Task> act = () => actor.InvokeReceiveAsync(Substitute.For<IQueryActorContext<FuturesEodDataQueryActor>>(), query).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage($"Unable to process {FuturesEodDataQueryActor.ActorName} query: *");
@@ -220,7 +220,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         IQuery query, string verb)
     {
         var actor = _fixture.CreateEodQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
 
         await actor.InvokeOnExceptionAsync(
             context, query.Subject.ThreadId, query, verb, new TimeoutException("query timed out"));
@@ -232,7 +232,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_AnUnknownQueryFailure_When_ItIsHandled_Then_TheFallbackFailureIsReplied()
     {
         var actor = _fixture.CreateEodQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = Substitute.For<IQuery>();
         query.Subject.Returns(new ActorSubject(
             ActorType.Query, FuturesEodDataQueryActor.ActorName, "Unknown", "entity"));
@@ -251,7 +251,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_ReplyingToAnEodFailureAlsoFails_When_ItIsHandled_Then_TheSecondaryFailureIsSwallowed()
     {
         var actor = _fixture.CreateEodQueryActor(logger: Substitute.For<ILogger<FuturesEodDataQueryActor>>());
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = (GetFuturesEodDataByDateRangeQuery)CreateQuery("Range");
         context.ReplyAsync(
                 Arg.Any<ActorThreadId>(), Arg.Any<string>(),
@@ -269,7 +269,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     public async Task Given_MissingExceptionInputs_When_AnEodFailureIsHandled_Then_EachMissingInputIsRejected()
     {
         var actor = _fixture.CreateEodQueryActor();
-        IQueryActorContext context = actor.Context;
+        IQueryActorContext<FuturesEodDataQueryActor> context = actor.Context;
         var query = CreateQuery("Current");
         var exception = new Exception("failure");
 
@@ -313,7 +313,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
         return (dbFactory, db);
     }
 
-    static async Task VerifySuccessfulReply(IQueryActorContext context, IQuery query, string requestedVerb)
+    static async Task VerifySuccessfulReply(IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query, string requestedVerb)
     {
         var replyVerb = requestedVerb;
 
@@ -352,7 +352,7 @@ public class FuturesEodDataQueryTests : IClassFixture<MarketDataFeedBddFixture>
     }
 
     static async Task VerifyFailedReply(
-        IQueryActorContext context, IQuery query, string verb, string errorMessage)
+        IQueryActorContext<FuturesEodDataQueryActor> context, IQuery query, string verb, string errorMessage)
     {
         switch (query)
         {

@@ -50,7 +50,7 @@ public class EconomicCalendarCommandActorTests : IClassFixture<EconomicCalendarT
             Data = ActorExtensions.DataSerializer!.Serialize(command)
         };
 
-        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        var parsed = actor.InvokeParseMessage(Substitute.For<ICommandActorContext<EconomicCalendarCommandActor>>(), message);
 
         parsed.CommandId.Should().Be(command.CommandId);
         pendingAudit.Task.IsCompleted.Should().BeFalse();
@@ -70,16 +70,16 @@ public class EconomicCalendarCommandActorTests : IClassFixture<EconomicCalendarT
             context.Logger.Returns(logger);
             return context;
         }
-        public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
+        public ICommand InvokeParseMessage(ICommandActorContext<EconomicCalendarCommandActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeReceiveAsync(ICommandActorContext<EconomicCalendarCommandActor> context, IActorState state, ICommand cmd)
             => await ReceiveAsync(context, state, cmd);
 
-        public async ValueTask InvokeOnValidateAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd)
+        public async ValueTask InvokeOnValidateAsync(ICommandActorContext<EconomicCalendarCommandActor> context, ActorThreadId threadId, ICommand cmd)
             => await OnValidateAsync(context, threadId, cmd);
 
-        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext context, ActorThreadId threadId, ICommand cmd, Exception ex)
+        public async ValueTask<ServiceResult<GuidResult>> InvokeOnExceptionAsync(ICommandActorContext<EconomicCalendarCommandActor> context, ActorThreadId threadId, ICommand cmd, Exception ex)
             => await OnExceptionAsync(context, threadId, cmd, ex);
     }
 

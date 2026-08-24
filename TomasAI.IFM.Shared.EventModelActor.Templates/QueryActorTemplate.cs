@@ -15,9 +15,7 @@ namespace TomasAI.IFM.Shared.EventModelActor.Templates;
 /// </summary>
 public class QueryActorTemplate(
     IQueryActorContext<QueryActorTemplate> actorContext)
-    : BaseQueryActor<QueryActorTemplate>(
-        actorContext.Logger,
-        actorContext.ActorId)
+    : BaseQueryActor<QueryActorTemplate>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
     protected IQueryActorTemplateContext ActorContext { get; } =
@@ -34,7 +32,7 @@ public class QueryActorTemplate(
         IQueryActorContext<QueryActorTemplate>,
         ValueTask>> _receiveMap = [];
 
-    protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
+    protected override IQuery ParseMessage(IQueryActorContext<QueryActorTemplate> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
         var subject = message.Subject;
@@ -52,7 +50,7 @@ public class QueryActorTemplate(
         return query;
     }
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query)
+    protected override async ValueTask ReceiveAsync(IQueryActorContext<QueryActorTemplate> context, IQuery query)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
@@ -61,11 +59,11 @@ public class QueryActorTemplate(
             throw new InvalidOperationException(
                 $"Unable to process {ActorName} query: {query.GetType().Name}");
 
-        await handler.Invoke(query, actorContext.DbFactory, actorContext.RouteTo(context));
+        await handler.Invoke(query, actorContext.DbFactory, context);
     }
 
     protected override async ValueTask OnExceptionAsync(
-        IQueryActorContext context,
+        IQueryActorContext<QueryActorTemplate> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,

@@ -29,7 +29,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_ARepository_When_TheActorStarts_Then_ItResolvesTheClosingPriceStateRepository()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
         context.Container.Returns(container);
@@ -50,7 +50,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var command = CreateCommand();
 
         var result = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(command));
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), CreateMessage(command));
 
         var parsed = result.Should().BeOfType<InsertFuturesClosingPriceCommand>().Which;
         parsed.CommandId.Should().Be(command.CommandId);
@@ -77,7 +77,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
             Data = ActorExtensions.DataSerializer!.Serialize(command)
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), message);
 
         act.Should().Throw<InvalidOperationException>();
     }
@@ -95,7 +95,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
             Data = empty ? [] : [0x00, 0x01, 0xFF]
         };
 
-        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext>(), message);
+        Action act = () => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), message);
 
         act.Should().Throw<Exception>();
     }
@@ -109,9 +109,9 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var actor = _fixture.CreateClosingPriceCommandActor(dbEventSource);
 
         var command = actor.InvokeParseMessage(
-            Substitute.For<ICommandActorContext>(), CreateMessage(CreateCommand()));
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), CreateMessage(CreateCommand()));
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
     }
@@ -124,7 +124,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var state = new FuturesClosingPriceCommandState { Id = command.Subject.ThreadId };
 
         var result = await actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext>(), state, command);
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), state, command);
 
         result.Success.Should().BeTrue();
         result.Value!.Guid.Should().Be(command.CommandId);
@@ -140,10 +140,10 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var actor = _fixture.CreateClosingPriceCommandActor();
         var command = CreateCommand();
         var state = new FuturesClosingPriceCommandState { Id = command.Subject.ThreadId };
-        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext>(), state, command);
+        await actor.InvokeReceiveAsync(Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), state, command);
 
         Func<Task> act = () => actor.InvokeReceiveAsync(
-            Substitute.For<ICommandActorContext>(), state, CreateCommand()).AsTask();
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), state, CreateCommand()).AsTask();
 
         await act.Should().ThrowAsync<InsertFuturesClosingPriceException>();
     }
@@ -152,7 +152,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_MissingReceiveInputs_When_TheCommandIsReceived_Then_EachInputIsRejected()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var command = CreateCommand();
         var state = new FuturesClosingPriceCommandState { Id = command.Subject.ThreadId };
 
@@ -168,7 +168,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_AnUnsupportedCommand_When_ItIsReceivedOrValidated_Then_ItIsRejected()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var command = Substitute.For<ICommand>();
         command.Subject.Returns(new ActorSubject(
             ActorType.Command, FuturesClosingPriceCommandActor.ActorName, "Unknown", "entity"));
@@ -187,7 +187,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var command = CreateCommand();
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().NotThrowAsync();
     }
@@ -206,7 +206,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
         var actor = _fixture.CreateClosingPriceCommandActor();
 
         Func<Task> act = () => actor.InvokeOnValidateAsync(
-            Substitute.For<ICommandActorContext>(), command.Subject.ThreadId, command).AsTask();
+            Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
         await act.Should().ThrowAsync<CommandValidationException>();
     }
@@ -248,7 +248,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_A_GenericCommandFailure_When_ItIsHandled_Then_ACommandErrorEventIsReturned()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var command = CreateCommand();
         context.SendAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(
                 Arg.Any<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent>())
@@ -269,7 +269,7 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
     public async Task Given_A_DuplicateInsertFailure_When_ItIsHandled_Then_AClosingPriceFailEventIsSent()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var command = CreateCommand();
         context.SendAsync<FuturesClosingPriceInsertedFailEvent, FuturesDataId>(
                 Arg.Any<FuturesClosingPriceInsertedFailEvent>())
@@ -285,11 +285,11 @@ public class FuturesClosingPriceCommandTests : IClassFixture<MarketDataFeedBddFi
                 value.CommandId == command.CommandId && value.ErrorMessage == "duplicate closing price"));
     }
 
-    async Task<(TestableFuturesClosingPriceCommandActor Actor, ICommandActorContext Context,
+    async Task<(TestableFuturesClosingPriceCommandActor Actor, ICommandActorContext<FuturesClosingPriceCommandActor> Context,
         IEventSourceActorStateRepository<FuturesClosingPriceCommandState> Repository)> CreateActorWithRepository()
     {
         var actor = _fixture.CreateClosingPriceCommandActor();
-        var context = Substitute.For<ICommandActorContext>();
+        var context = Substitute.For<ICommandActorContext<FuturesClosingPriceCommandActor>>();
         var container = Substitute.For<IContainerInstance>();
         var repository = Substitute.For<IEventSourceActorStateRepository<FuturesClosingPriceCommandState>>();
         context.Container.Returns(container);
