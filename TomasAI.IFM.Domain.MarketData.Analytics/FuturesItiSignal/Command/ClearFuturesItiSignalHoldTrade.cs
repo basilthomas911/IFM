@@ -66,28 +66,16 @@ public static class ClearFuturesItiSignalHoldTrade
         {
             Subject = new ActorSubject(ActorType.Event, FuturesItiSignalGeneratedEvent.Actor, FuturesItiSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesItiSignal = new FuturesItiSignalV2ReadModel(
-                contractId: contractId,
-                valueDate: valueDate,
-                timePeriod: state.TimePeriod,
-                sequenceId: 0,
-                intrinsicTime: timestamp,
-                intrinsicTimeGroupId: state.IntrinsicTimeGroupId,
-                intrinsicTimeLength: 0,
-                intrinsicPrice: state.IntrinsicPrice,
-                intrinsicTimeTrend: state.IntrinsicTimeTrend,
-                intrinsicTimeMode: IntrinsicTimeModeType.HoldTradeChanged,
-                trendPrice: state.TrendPrice,
-                trendExtreme: state.TrendExtreme,
-                trendReversal: state.TrendReversal,
-                trendDelta: state.TrendDelta,
-                targetDelta: state.TargetDelta,
-                lambda: state.Lambda,
-                tradingDays: state.TradingDays,
-                threshold: state.Threshold,
-                upTrendTrigger: state.UpTrendTrigger,
-                downTrendTrigger: state.DownTrendTrigger,
-                tradeState: tradeState),
+            FuturesItiSignal = state.CurrentSignal! with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                SequenceId = 0,
+                IntrinsicTime = timestamp,
+                IntrinsicTimeLength = 0,
+                IntrinsicTimeMode = IntrinsicTimeModeType.HoldTradeChanged,
+                TradeState = tradeState
+            },
             CreatedOn = createdOn,
             CreatedBy = createdBy
         };

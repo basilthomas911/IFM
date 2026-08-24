@@ -1290,7 +1290,9 @@ internal static class MarketDataDbCql
             threshold,
             upTrendTrigger, 
             downTrendTrigger, 
-            tradeState 
+            tradeState,
+            bandLevel,
+            reversalLevel
         ) VALUES (
             :contractId, 
             :valueDate, 
@@ -1312,7 +1314,9 @@ internal static class MarketDataDbCql
             :threshold,
             :upTrendTrigger,
             :downTrendTrigger, 
-            :tradeState
+            :tradeState,
+            :bandLevel,
+            :reversalLevel
         );
     """;
 
@@ -1338,7 +1342,9 @@ internal static class MarketDataDbCql
             threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
+            tradeState AS "TradeState",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -1637,7 +1643,7 @@ internal static class MarketDataDbCql
             intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
             trendReversal, trendDelta, targetDelta, lambda, tradingDays,
             threshold, upTrendTrigger, downTrendTrigger, tradeState,
-            bandAnchorPrice, bandPercentage, bandSize
+            bandAnchorPrice, bandPercentage, bandSize, bandLevel, reversalLevel
         ) VALUES (
             :contractId, :timePeriod, :calendarBucketStart,
             :timeFrameStartValueDate, :valueDate, :sequenceId, :intrinsicTime,
@@ -1645,7 +1651,7 @@ internal static class MarketDataDbCql
             :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
             :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
             :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState,
-            :bandAnchorPrice, :bandPercentage, :bandSize
+            :bandAnchorPrice, :bandPercentage, :bandSize, :bandLevel, :reversalLevel
         );
     """;
 
@@ -1675,7 +1681,9 @@ internal static class MarketDataDbCql
             timeFrameStartValueDate AS "TimeFrameStartValueDate",
             bandAnchorPrice AS "BandAnchorPrice",
             bandPercentage AS "BandPercentage",
-            bandSize AS "BandSize"
+            bandSize AS "BandSize",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_timeframe_state
         WHERE contractId = :contractId
         AND timePeriod = :timePeriod
@@ -1688,13 +1696,15 @@ internal static class MarketDataDbCql
             intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
             intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
             trendReversal, trendDelta, targetDelta, lambda, tradingDays,
-            threshold, upTrendTrigger, downTrendTrigger, tradeState)
+            threshold, upTrendTrigger, downTrendTrigger, tradeState,
+            bandLevel, reversalLevel)
         VALUES (
             :contractId, :valueDate, :timePeriod, :sequenceId, :intrinsicTime,
             :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
             :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
             :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
-            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState);
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState,
+            :bandLevel, :reversalLevel);
     """;
 
     public const string InsertFuturesItiSignalByContractMonthV2 = """
@@ -1703,13 +1713,15 @@ internal static class MarketDataDbCql
             intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
             intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
             trendReversal, trendDelta, targetDelta, lambda, tradingDays,
-            threshold, upTrendTrigger, downTrendTrigger, tradeState)
+            threshold, upTrendTrigger, downTrendTrigger, tradeState,
+            bandLevel, reversalLevel)
         VALUES (
             :contractId, :yearMonth, :valueDate, :timePeriod, :sequenceId, :intrinsicTime,
             :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
             :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
             :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
-            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState);
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState,
+            :bandLevel, :reversalLevel);
     """;
 
     public const string InsertFuturesItiSignalByTrendModeMonthV2 = """
@@ -1718,13 +1730,15 @@ internal static class MarketDataDbCql
             intrinsicTimeGroupId, intrinsicTimeLength, intrinsicPrice,
             intrinsicTimeTrend, intrinsicTimeMode, trendPrice, trendExtreme,
             trendReversal, trendDelta, targetDelta, lambda, tradingDays,
-            threshold, upTrendTrigger, downTrendTrigger, tradeState)
+            threshold, upTrendTrigger, downTrendTrigger, tradeState,
+            bandLevel, reversalLevel)
         VALUES (
             :contractId, :yearMonth, :valueDate, :timePeriod, :sequenceId, :intrinsicTime,
             :intrinsicTimeGroupId, :intrinsicTimeLength, :intrinsicPrice,
             :intrinsicTimeTrend, :intrinsicTimeMode, :trendPrice, :trendExtreme,
             :trendReversal, :trendDelta, :targetDelta, :lambda, :tradingDays,
-            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState);
+            :threshold, :upTrendTrigger, :downTrendTrigger, :tradeState,
+            :bandLevel, :reversalLevel);
     """;
 
     public const string GetFuturesItiSignalsCanonicalByContract = """
@@ -1737,7 +1751,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal
         WHERE contractId = :contractId;
     """;
@@ -1752,7 +1767,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal;
     """;
 
@@ -1766,7 +1782,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal
         WHERE contractId = :contractId AND valueDate = :valueDate;
     """;
@@ -1781,7 +1798,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_month_v2
         WHERE contractId = :contractId AND yearMonth = :yearMonth
         AND valueDate >= :startDate AND valueDate <= :endDate;
@@ -1797,7 +1815,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId AND valueDate = :valueDate
         AND intrinsicTimeMode = :intrinsicTimeMode;
@@ -1813,7 +1832,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId AND valueDate = :valueDate
         AND intrinsicTimeMode = :intrinsicTimeMode AND sequenceId > :sequenceId;
@@ -1829,7 +1849,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_trend_mode_month_v2
         WHERE contractId = :contractId AND intrinsicTimeTrend = :intrinsicTimeTrend
         AND intrinsicTimeMode = :intrinsicTimeMode AND yearMonth = :yearMonth
@@ -1846,7 +1867,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_trend_mode_month_v2
         WHERE contractId = :contractId AND intrinsicTimeTrend = :intrinsicTimeTrend
         AND intrinsicTimeMode = :intrinsicTimeMode AND yearMonth = :yearMonth
@@ -1875,7 +1897,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2;
     """;
 
@@ -1889,7 +1912,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_month_v2;
     """;
 
@@ -1903,7 +1927,8 @@ internal static class MarketDataDbCql
             trendReversal AS "TrendReversal", trendDelta AS "TrendDelta",
             targetDelta AS "TargetDelta", lambda AS "Lambda", tradingDays AS "TradingDays",
             threshold AS "Threshold", upTrendTrigger AS "UpTrendTrigger",
-            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState"
+            downTrendTrigger AS "DownTrendTrigger", tradeState AS "TradeState",
+            bandLevel AS "BandLevel", reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_trend_mode_month_v2;
     """;
 
@@ -1949,7 +1974,9 @@ internal static class MarketDataDbCql
             threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
+            tradeState AS "TradeState",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -1979,7 +2006,9 @@ internal static class MarketDataDbCql
             threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
+            tradeState AS "TradeState",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -2018,7 +2047,9 @@ internal static class MarketDataDbCql
             threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
+            tradeState AS "TradeState",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -2049,7 +2080,9 @@ internal static class MarketDataDbCql
             threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
+            tradeState AS "TradeState",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal_by_contract_day_v2
         WHERE contractId = :contractId 
         AND valueDate = :valueDate
@@ -2535,7 +2568,9 @@ internal static class MarketDataDbCql
             threshold AS "Threshold",
             upTrendTrigger AS "UpTrendTrigger",
             downTrendTrigger AS "DownTrendTrigger",
-            tradeState AS "TradeState"
+            tradeState AS "TradeState",
+            bandLevel AS "BandLevel",
+            reversalLevel AS "ReversalLevel"
         FROM futures_iti_signal
         WHERE contractId = :contractId
         AND valueDate = :valueDate

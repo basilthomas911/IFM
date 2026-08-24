@@ -272,6 +272,14 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task DurableCompletion_PublishesSerializableItiNotification()
     {
         var source = CreateCompletion(TimeFrameType.Weekly);
+        source = source with
+        {
+            FuturesItiSignal = source.FuturesItiSignal! with
+            {
+                BandLevel = 1.25,
+                ReversalLevel = 0.40
+            }
+        };
         var context = Substitute.For<IEventActorContext>();
         FuturesItiSignalUpdatedNotifyEvent? published = null;
         context.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
@@ -299,6 +307,8 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         var roundTrip = MessagePackSerializer.Deserialize<FuturesItiSignalUpdatedNotifyEvent>(
             MessagePackSerializer.Serialize(published));
         roundTrip.Should().BeEquivalentTo(published);
+        roundTrip.FuturesItiSignal.BandLevel.Should().Be(1.25);
+        roundTrip.FuturesItiSignal.ReversalLevel.Should().Be(0.40);
     }
 
     [Fact]

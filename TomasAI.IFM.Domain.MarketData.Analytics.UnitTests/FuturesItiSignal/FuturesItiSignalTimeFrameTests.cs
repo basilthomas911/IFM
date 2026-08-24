@@ -214,12 +214,80 @@ public sealed class FuturesItiSignalTimeFrameTests
     }
 
     [Theory]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_010, 0.10)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_100, 1.00)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_125, 1.25)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 4_970, -0.30)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_990, 0.10)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_900, 1.00)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_875, 1.25)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 5_030, -0.30)]
+    public void CalculateBandLevel_ReturnsSignedThresholdProgress(
+        IntrinsicTimeTrendType trend,
+        double price,
+        double expected)
+    {
+        var signal = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 1) with
+        {
+            IntrinsicTimeTrend = trend,
+            TrendPrice = 5_000,
+            IntrinsicPrice = price
+        };
+
+        FuturesItiSignalCompute.CalculateBandLevel(signal, threshold: 100)
+            .Should().BeApproximately(expected, 1e-10);
+    }
+
+    [Theory]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_120, 5_120, 0.00)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_120, 5_060, 0.50)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_120, 5_000, 1.00)]
+    [InlineData(IntrinsicTimeTrendType.UpTrend, 5_120, 4_970, 1.25)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_880, 4_880, 0.00)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_880, 4_940, 0.50)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_880, 5_000, 1.00)]
+    [InlineData(IntrinsicTimeTrendType.DownTrend, 4_880, 5_030, 1.25)]
+    public void CalculateReversalLevel_ReturnsEstablishedMoveRetracement(
+        IntrinsicTimeTrendType trend,
+        double extreme,
+        double price,
+        double expected)
+    {
+        var signal = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 1) with
+        {
+            IntrinsicTimeTrend = trend,
+            TrendPrice = 5_000,
+            TrendExtreme = extreme,
+            IntrinsicPrice = price
+        };
+
+        FuturesItiSignalCompute.CalculateReversalLevel(signal)
+            .Should().BeApproximately(expected, 1e-10);
+    }
+
+    [Fact]
+    public void CalculateLevels_ZeroDenominatorsReturnZero()
+    {
+        var signal = Signal(TimeFrameType.Daily, Tuesday, Tuesday, groupId: 0) with
+        {
+            TrendPrice = 5_000,
+            TrendExtreme = 5_000,
+            IntrinsicPrice = 5_000
+        };
+
+        FuturesItiSignalCompute.CalculateBandLevel(signal, threshold: 0).Should().Be(0);
+        FuturesItiSignalCompute.CalculateReversalLevel(signal).Should().Be(0);
+    }
+
+    [Theory]
     [InlineData(typeof(GenerateFuturesItiSignalCommand), nameof(GenerateFuturesItiSignalCommand.TimeFrameStartValueDate), 12)]
     [InlineData(typeof(FuturesItiSignalGeneratedEvent), nameof(FuturesItiSignalGeneratedEvent.DeriveLongerPeriods), 12)]
     [InlineData(typeof(FuturesItiSignalV2ReadModel), nameof(FuturesItiSignalV2ReadModel.TimeFrameStartValueDate), 21)]
     [InlineData(typeof(FuturesItiSignalV2ReadModel), nameof(FuturesItiSignalV2ReadModel.BandAnchorPrice), 22)]
     [InlineData(typeof(FuturesItiSignalV2ReadModel), nameof(FuturesItiSignalV2ReadModel.BandPercentage), 23)]
     [InlineData(typeof(FuturesItiSignalV2ReadModel), nameof(FuturesItiSignalV2ReadModel.BandSize), 24)]
+    [InlineData(typeof(FuturesItiSignalV2ReadModel), nameof(FuturesItiSignalV2ReadModel.BandLevel), 25)]
+    [InlineData(typeof(FuturesItiSignalV2ReadModel), nameof(FuturesItiSignalV2ReadModel.ReversalLevel), 26)]
     public void MessagePackContracts_PreserveEstablishedAndAdditiveKeys(
         Type contractType,
         string propertyName,

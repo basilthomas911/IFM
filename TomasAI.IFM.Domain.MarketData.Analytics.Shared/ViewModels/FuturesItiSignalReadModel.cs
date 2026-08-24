@@ -91,6 +91,16 @@ public record FuturesItiSignalV2ReadModel
     /// <summary>Absolute price movement required before another band-qualified signal is durable.</summary>
     [Key(24)] public double BandSize { get; init; }
 
+    /// <summary>
+    /// Signed progress from the current direction-change price, expressed as a multiple of the full ITI threshold.
+    /// </summary>
+    [Key(25)] public double BandLevel { get; init; }
+
+    /// <summary>
+    /// Fraction of the established move from the direction-change price to the trend extreme that has been retraced.
+    /// </summary>
+    [Key(26)] public double ReversalLevel { get; init; }
+
     /// <summary>Entity identifier (contract + value date). Not serialized.</summary>
     [JsonIgnore]
     [IgnoreMember]
@@ -135,7 +145,9 @@ public record FuturesItiSignalV2ReadModel
         DateOnly timeFrameStartValueDate = default,
         double bandAnchorPrice = 0,
         double bandPercentage = 0,
-        double bandSize = 0)
+        double bandSize = 0,
+        double bandLevel = 0,
+        double reversalLevel = 0)
     {
         ContractId = contractId;
         ValueDate = valueDate;
@@ -162,6 +174,8 @@ public record FuturesItiSignalV2ReadModel
         BandAnchorPrice = bandAnchorPrice;
         BandPercentage = bandPercentage;
         BandSize = bandSize;
+        BandLevel = bandLevel;
+        ReversalLevel = reversalLevel;
     }
 
     /// <summary>
@@ -305,6 +319,14 @@ public class FuturesItiSignalV2ReadModelValidationRules : BaseValidationRules, I
                 .GreaterThanOrEqualTo(0)
                 .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
                 .WithMessage("FuturesItiSignalV2.BandSize must be a valid non-negative number");
+
+            RuleFor(x => x.BandLevel)
+                .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
+                .WithMessage("FuturesItiSignalV2.BandLevel must be a finite number");
+
+            RuleFor(x => x.ReversalLevel)
+                .Must(value => !double.IsNaN(value) && !double.IsInfinity(value))
+                .WithMessage("FuturesItiSignalV2.ReversalLevel must be a finite number");
 
             // Enum validations
             RuleFor(x => x.IntrinsicTimeTrend)

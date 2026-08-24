@@ -241,12 +241,47 @@ public sealed class FuturesItiSignalCompute
         {
             Lambda = lambda,
             Threshold = threshold,
+            BandLevel = CalculateBandLevel(signal, threshold),
+            ReversalLevel = CalculateReversalLevel(signal),
             BandAnchorPrice = _command.FuturesPrice,
             BandPercentage = DefaultBandPercentage,
             BandSize = threshold * DefaultBandPercentage,
             UpTrendTrigger = upTrendTrigger,
             DownTrendTrigger = downTrendTrigger
         };
+    }
+
+    /// <summary>
+    /// Calculates signed directional progress from the trend's direction-change price as a multiple of the full threshold.
+    /// </summary>
+    internal static double CalculateBandLevel(
+        FuturesItiSignalV2ReadModel signal,
+        double threshold)
+    {
+        if (threshold <= 0 || double.IsNaN(threshold) || double.IsInfinity(threshold))
+            return 0;
+
+        var directionalMovement = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
+            ? signal.IntrinsicPrice - signal.TrendPrice
+            : signal.TrendPrice - signal.IntrinsicPrice;
+        return directionalMovement / threshold;
+    }
+
+    /// <summary>
+    /// Calculates the proportion of the established trend excursion that has been retraced from its extreme.
+    /// </summary>
+    internal static double CalculateReversalLevel(FuturesItiSignalV2ReadModel signal)
+    {
+        var trendExcursion = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
+            ? signal.TrendExtreme - signal.TrendPrice
+            : signal.TrendPrice - signal.TrendExtreme;
+        if (trendExcursion <= 0 || double.IsNaN(trendExcursion) || double.IsInfinity(trendExcursion))
+            return 0;
+
+        var retracement = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
+            ? signal.TrendExtreme - signal.IntrinsicPrice
+            : signal.IntrinsicPrice - signal.TrendExtreme;
+        return Math.Max(0, retracement / trendExcursion);
     }
 
     static double CalculateLambda(

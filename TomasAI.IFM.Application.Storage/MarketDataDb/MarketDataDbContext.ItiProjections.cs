@@ -38,7 +38,9 @@ public partial class MarketDataDbContext
         hash = MarketDataProjectionHash.Add(hash, row.Threshold);
         hash = MarketDataProjectionHash.Add(hash, row.UpTrendTrigger);
         hash = MarketDataProjectionHash.Add(hash, row.DownTrendTrigger);
-        return MarketDataProjectionHash.Add(hash, row.TradeState.ToStringFast());
+        hash = MarketDataProjectionHash.Add(hash, row.TradeState.ToStringFast());
+        hash = MarketDataProjectionHash.Add(hash, row.BandLevel);
+        return MarketDataProjectionHash.Add(hash, row.ReversalLevel);
     }
 
     static string GetFuturesItiDayScopeKey(string contractId, DateOnly valueDate)
@@ -97,7 +99,9 @@ public partial class MarketDataDbContext
             e.Threshold,
             e.UpTrendTrigger,
             e.DownTrendTrigger,
-            e.TradeState.ToStringFast());
+            e.TradeState.ToStringFast(),
+            e.BandLevel,
+            e.ReversalLevel);
 
     static InsertFuturesItiSignalByContractMonthV2 CreateFuturesItiSignalMonthParameters(
         FuturesItiSignalV2ReadModel e,
@@ -124,7 +128,9 @@ public partial class MarketDataDbContext
             e.Threshold,
             e.UpTrendTrigger,
             e.DownTrendTrigger,
-            e.TradeState.ToStringFast());
+            e.TradeState.ToStringFast(),
+            e.BandLevel,
+            e.ReversalLevel);
 
     static UpsertFuturesItiTimeFrameState CreateFuturesItiTimeFrameStateParameters(
         FuturesItiSignalV2ReadModel e,
@@ -155,7 +161,9 @@ public partial class MarketDataDbContext
             e.TradeState.ToStringFast(),
             e.BandAnchorPrice == 0 ? e.IntrinsicPrice : e.BandAnchorPrice,
             e.BandPercentage == 0 ? 0.10 : e.BandPercentage,
-            e.BandSize == 0 ? e.Threshold * 0.10 : e.BandSize);
+            e.BandSize == 0 ? e.Threshold * 0.10 : e.BandSize,
+            e.BandLevel,
+            e.ReversalLevel);
 
     static DateOnly GetFuturesItiCalendarBucketStart(
         DateOnly valueDate,

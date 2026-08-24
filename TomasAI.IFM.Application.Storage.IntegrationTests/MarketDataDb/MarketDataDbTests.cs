@@ -2231,6 +2231,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.UpTrendTrigger.Should().Be(expectedSignal.UpTrendTrigger);
         result.DownTrendTrigger.Should().Be(expectedSignal.DownTrendTrigger);
         result.TradeState.Should().Be(expectedSignal.TradeState);
+        result.BandLevel.Should().Be(expectedSignal.BandLevel);
+        result.ReversalLevel.Should().Be(expectedSignal.ReversalLevel);
     }
 
     [Fact]
@@ -2247,7 +2249,9 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             TimeFrameStartValueDate = frameStart,
             BandAnchorPrice = 5_432.25,
             BandPercentage = 0.10,
-            BandSize = 2.75
+            BandSize = 2.75,
+            BandLevel = 1.20,
+            ReversalLevel = 0.35
         };
 
         try
@@ -2265,6 +2269,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             result.BandAnchorPrice.Should().Be(5_432.25);
             result.BandPercentage.Should().Be(0.10);
             result.BandSize.Should().Be(2.75);
+            result.BandLevel.Should().Be(1.20);
+            result.ReversalLevel.Should().Be(0.35);
         }
         finally
         {

@@ -1065,7 +1065,9 @@ public partial class MarketDataDbContext(
             threshold: e.GetDouble(17),
             upTrendTrigger: e.GetDouble(18),
             downTrendTrigger: e.GetDouble(19),
-            tradeState: e.GetEnum<IntrinsicTimeTradeState>(20)
+            tradeState: e.GetEnum<IntrinsicTimeTradeState>(20),
+            bandLevel: e.GetDouble(21),
+            reversalLevel: e.GetDouble(22)
         );
 
     static FuturesItiSignalMDIV2ReadModel MapToFuturesItiSignalMDI<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
@@ -1136,7 +1138,9 @@ public partial class MarketDataDbContext(
             timeFrameStartValueDate: e.GetDateOnly(21),
             bandAnchorPrice: e.GetDouble(22),
             bandPercentage: e.GetDouble(23),
-            bandSize: e.GetDouble(24));
+            bandSize: e.GetDouble(24),
+            bandLevel: e.GetDouble(25),
+            reversalLevel: e.GetDouble(26));
 
     static FuturesItiTrendDeltaModelReadModel MapToFuturesItiTrendDeltaModel<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(

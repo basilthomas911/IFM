@@ -193,6 +193,36 @@ internal static class MarketDataSchemaCql
         ADD twoHundredDMA DECIMAL;
         """;
 
+    public const string AddFuturesItiSignalBandLevelColumn =
+        "ALTER TABLE futures_iti_signal ADD bandLevel double;";
+
+    public const string AddFuturesItiSignalReversalLevelColumn =
+        "ALTER TABLE futures_iti_signal ADD reversalLevel double;";
+
+    public const string AddFuturesItiSignalByContractDayV2BandLevelColumn =
+        "ALTER TABLE futures_iti_signal_by_contract_day_v2 ADD bandLevel double;";
+
+    public const string AddFuturesItiSignalByContractDayV2ReversalLevelColumn =
+        "ALTER TABLE futures_iti_signal_by_contract_day_v2 ADD reversalLevel double;";
+
+    public const string AddFuturesItiSignalByContractMonthV2BandLevelColumn =
+        "ALTER TABLE futures_iti_signal_by_contract_month_v2 ADD bandLevel double;";
+
+    public const string AddFuturesItiSignalByContractMonthV2ReversalLevelColumn =
+        "ALTER TABLE futures_iti_signal_by_contract_month_v2 ADD reversalLevel double;";
+
+    public const string AddFuturesItiSignalByTrendModeMonthV2BandLevelColumn =
+        "ALTER TABLE futures_iti_signal_by_trend_mode_month_v2 ADD bandLevel double;";
+
+    public const string AddFuturesItiSignalByTrendModeMonthV2ReversalLevelColumn =
+        "ALTER TABLE futures_iti_signal_by_trend_mode_month_v2 ADD reversalLevel double;";
+
+    public const string AddFuturesItiTimeFrameStateBandLevelColumn =
+        "ALTER TABLE futures_iti_timeframe_state ADD bandLevel double;";
+
+    public const string AddFuturesItiTimeFrameStateReversalLevelColumn =
+        "ALTER TABLE futures_iti_timeframe_state ADD reversalLevel double;";
+
     public const string CreateFuturesTdiSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_tdi_signal (
             contractId TEXT,
@@ -359,6 +389,8 @@ internal static class MarketDataSchemaCql
     upTrendTrigger double,
     downTrendTrigger double,
     tradeState text,
+    bandLevel double,
+    reversalLevel double,
     PRIMARY KEY (contractId, valueDate, timePeriod, intrinsicTimeMode, intrinsicTimeTrend, intrinsicTimeGroupId, sequenceId)
     ) WITH CLUSTERING ORDER BY (valueDate desc, timePeriod desc, intrinsicTimeMode desc, intrinsicTimeTrend desc,intrinsicTimeGroupId desc, sequenceId desc);
     """;
@@ -386,6 +418,8 @@ internal static class MarketDataSchemaCql
     upTrendTrigger double,
     downTrendTrigger double,
     tradeState text,
+    bandLevel double,
+    reversalLevel double,
     PRIMARY KEY ((contractId, valueDate), intrinsicTimeMode, sequenceId, timePeriod, intrinsicTimeTrend, intrinsicTimeGroupId)
     ) WITH CLUSTERING ORDER BY (intrinsicTimeMode ASC, sequenceId DESC, timePeriod ASC, intrinsicTimeTrend ASC, intrinsicTimeGroupId ASC);
     """;
@@ -414,6 +448,8 @@ internal static class MarketDataSchemaCql
     upTrendTrigger double,
     downTrendTrigger double,
     tradeState text,
+    bandLevel double,
+    reversalLevel double,
     PRIMARY KEY ((contractId, yearMonth), valueDate, sequenceId, timePeriod, intrinsicTimeMode, intrinsicTimeTrend, intrinsicTimeGroupId)
     ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC, timePeriod ASC, intrinsicTimeMode ASC, intrinsicTimeTrend ASC, intrinsicTimeGroupId ASC);
     """;
@@ -442,6 +478,8 @@ internal static class MarketDataSchemaCql
     upTrendTrigger double,
     downTrendTrigger double,
     tradeState text,
+    bandLevel double,
+    reversalLevel double,
     PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth), valueDate, sequenceId, timePeriod, intrinsicTimeGroupId)
     ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC, timePeriod ASC, intrinsicTimeGroupId ASC);
     """;
@@ -474,6 +512,8 @@ internal static class MarketDataSchemaCql
       bandAnchorPrice double,
       bandPercentage double,
       bandSize double,
+      bandLevel double,
+      reversalLevel double,
       PRIMARY KEY ((contractId, timePeriod, calendarBucketStart))
       );
       """;

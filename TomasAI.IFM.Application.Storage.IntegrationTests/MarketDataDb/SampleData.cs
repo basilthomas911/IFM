@@ -154,7 +154,9 @@ public class SampleData
         trendDelta: 1,
         upTrendTrigger: 1,
         downTrendTrigger: 1,
-        tradeState: IntrinsicTimeTradeState.Ready
+        tradeState: IntrinsicTimeTradeState.Ready,
+        bandLevel: 0.75,
+        reversalLevel: 0.25
     );
 
     public static FuturesItiSignalV2ReadModel FuturesItiSignal2 => new (
@@ -178,7 +180,9 @@ public class SampleData
         trendDelta: 2,
         upTrendTrigger: 2,
         downTrendTrigger: 2,
-        tradeState: IntrinsicTimeTradeState.Ready
+        tradeState: IntrinsicTimeTradeState.Ready,
+        bandLevel: 1.25,
+        reversalLevel: 0.50
     );
 
     public static FuturesContractV2ReadModel FuturesContract1 = new ("SYM20251215", "Description1", "SYM", "LocalSymbol1", "SecurityType1", "Currency1", "Exchange1", "Multiplier1", new DateOnly(2025, 12, 15), true);
