@@ -11,16 +11,17 @@ using TomasAI.IFM.Domain.Trade.Option.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event.Actor;
 
+/// <summary>Provides the OptionTradeEventActor implementation.</summary>
 public class OptionTradeEventActor(
-    IActorSupervisor supervisor, 
-    IActorOptionPricerCommandApiFactory commandApiFactory,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<OptionTradeEventActor> logger)
-    : BaseEventActor<OptionTradeEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<OptionTradeEventActor> actorContext)
+    : BaseEventActor<OptionTradeEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IOptionTradeEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IOptionTradeEventContext, nameof(actorContext))!;
+
     public const string Actor = "OptionTradeEvent";
-    IActorOptionPricerCommandApi? _commandApi;
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IEvent, IEventActorContext<OptionTradeEventActor>, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(OptionTradeEndOfDayProcessedEvent).Name] = static (evt, ctx, _, _, _)
             => ((OptionTradeEndOfDayProcessedEvent)evt).ProcessFundEndOfDayAsync(ctx),
@@ -30,12 +31,9 @@ public class OptionTradeEventActor(
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetCommandApi(context);
+        _ = context;
         return ValueTask.CompletedTask;
     }
-
-    IActorOptionPricerCommandApi GetCommandApi(IEventActorContext context)
-        => _commandApi ??= commandApiFactory.Create(context);
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
     {
@@ -65,7 +63,7 @@ public class OptionTradeEventActor(
     }
 
     /// <summary>
-    /// Receives an event and dispatches it to the appropriate handler based on the event's type. 
+    /// Receives an event and dispatches it to the appropriate handler based on the event's type.
     /// If no handler is found for the event type, an <see cref="InvalidOperationException"/> is thrown.
     /// </summary>
     /// <param name="context">The event actor context in which the event is being processed.</param>
@@ -74,6 +72,7 @@ public class OptionTradeEventActor(
     /// <exception cref="InvalidOperationException"></exception>
     protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
@@ -81,10 +80,10 @@ public class OptionTradeEventActor(
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
         return AwaitHandlerAsync(receiveFunc.Invoke(
             @event,
-            context,
-            GetCommandApi(context),
-            statusConsoleWriter,
-            logger));
+            dispatchContext,
+            dispatchContext,
+            actorContext.StatusConsoleWriter,
+            actorContext.Logger));
 
         static async ValueTask AwaitHandlerAsync(ValueTask<bool> operation)
             => _ = await operation.ConfigureAwait(false);
@@ -110,7 +109,7 @@ public class OptionTradeEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

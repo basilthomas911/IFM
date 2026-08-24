@@ -37,7 +37,7 @@ public class FuturesTdiSignalQueryTests
     sealed class TestableFuturesTdiSignalQueryActor(
         IDbContextFactory dbFactory,
         ILogger<FuturesTdiSignalQueryActor> logger)
-        : FuturesTdiSignalQueryActor(dbFactory, logger)
+        : FuturesTdiSignalQueryActor(new FuturesTdiSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

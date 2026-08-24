@@ -8,17 +8,19 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 
 /// <summary>Owns non-replayable intraday RSI computation and projection.</summary>
 public class FuturesRsiSignalRealtimeActor(
-    IActorSupervisor supervisor,
-    IRealtimeProjector<FuturesRsiSignalRealtimeActor> projector,
-    IBlackboardService blackboard,
-    ILogger<FuturesRsiSignalRealtimeActor> logger)
-    : BaseEventActor<FuturesRsiSignalRealtimeActor>(
-        supervisor, logger, new ActorMailboxId(ActorType.Realtime, ActorName))
+    IRealtimeActorContext<FuturesRsiSignalRealtimeActor> actorContext)
+    : BaseEventActor<FuturesRsiSignalRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesRsiSignalRealtimeContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesRsiSignalRealtimeContext, nameof(actorContext))!;
+
     public const string ActorName = FuturesRsiSignalSampledRealtimeEvent.Actor;
     readonly FuturesRsiSignalRealtimeState _state = new();
 
@@ -36,8 +38,8 @@ public class FuturesRsiSignalRealtimeActor(
             message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context) => projector.StartAsync(context);
-    protected override ValueTask OnShutdown(IEventActorContext context) => projector.StopAsync();
+    protected override ValueTask OnStartup(IEventActorContext context) => actorContext.Projector.StartAsync(context);
+    protected override ValueTask OnShutdown(IEventActorContext context) => actorContext.Projector.StopAsync();
 
     protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
@@ -52,14 +54,15 @@ public class FuturesRsiSignalRealtimeActor(
 
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         switch (@event)
         {
             case FuturesRsiSignalSampledRealtimeEvent sampled:
-                _ = await sampled.ExecuteAsync(context, projector, _state, blackboard, logger)
+                _ = await sampled.ExecuteAsync(context, actorContext.Projector, _state, actorContext.Blackboard, actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesRsiSignalGeneratedFailEvent failed:
-                logger.LogError(
+                actorContext.Logger.LogError(
                     "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
                     failed.EventName, failed.EntityId, failed.ErrorMessage);
                 break;

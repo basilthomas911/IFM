@@ -27,7 +27,7 @@ public class FuturesRsiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     public class TestableFuturesRsiSignalCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesRsiSignalCommandActor> logger)
-        : FuturesRsiSignalCommandActor(dbEventSource, Substitute.For<IEventProjector<FuturesRsiSignalCommandActor>>(), logger)
+        : FuturesRsiSignalCommandActor(new FuturesRsiSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, Substitute.For<IEventProjector<FuturesRsiSignalCommandActor>>(), logger))
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

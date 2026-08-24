@@ -1,6 +1,6 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Domain.OptionPricer.Command.Api;
+using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -21,7 +21,7 @@ public class ActorOptionPricerCommandApiTests
         context.RequestAsync<CompleteSpreadDistributionJobCommand, SpreadDistributionJobEntityId>(
                 Arg.Any<CompleteSpreadDistributionJobCommand>())
             .Returns(expected);
-        var api = new ActorOptionPricerCommandApiFactory().Create(context);
+        var api = context;
 
         var result = await api.CompleteSpreadDistributionJobAsync(
             entityId, completed, SpreadDistributionJobStatus.Completed);
@@ -49,7 +49,7 @@ public class ActorOptionPricerCommandApiTests
         context.RequestAsync<CompleteSpreadDistributionJobCommand, SpreadDistributionJobEntityId>(
                 Arg.Any<CompleteSpreadDistributionJobCommand>())
             .Returns(new ServiceFailed<GuidResult>(CompleteSpreadDistributionJobCommand.ErrorId, "job failed"));
-        var api = new ActorOptionPricerCommandApi(context);
+        var api = context;
 
         Func<Task> act = async () => await api.CompleteSpreadDistributionJobAsync(
             entityId, DateTime.UtcNow, SpreadDistributionJobStatus.Completed);

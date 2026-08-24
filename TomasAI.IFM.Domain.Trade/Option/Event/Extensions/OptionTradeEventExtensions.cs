@@ -60,9 +60,9 @@ internal static class OptionTradeEventExtensions
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the submit operation fails or the service result indicates an error.</exception>
     internal static async ValueTask SubmitSpreadDistributionJobAsync(
-        this IActorOptionPricerCommandApi commandApi,
+        this IEventActorContext commandApi,
         SpreadDistributionJobReadModel spreadDistributionJob)
     {
-        _ = await commandApi.SubmitSpreadDistributionJobAsync(spreadDistributionJob);
+        _ = await OptionPricerCommandApiExtensions.SubmitSpreadDistributionJobAsync(commandApi, spreadDistributionJob);
     }
 }

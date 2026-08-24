@@ -6,15 +6,19 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Actor;
 
+/// <summary>Provides the FuturesMacdSignalRealtimeActor implementation.</summary>
 public class FuturesMacdSignalRealtimeActor(
-    IActorSupervisor supervisor,
-    IRealtimeProjector<FuturesMacdSignalRealtimeActor> projector,
-    ILogger<FuturesMacdSignalRealtimeActor> logger)
-    : BaseEventActor<FuturesMacdSignalRealtimeActor>(
-        supervisor, logger, new ActorMailboxId(ActorType.Realtime, ActorName))
+    IRealtimeActorContext<FuturesMacdSignalRealtimeActor> actorContext)
+    : BaseEventActor<FuturesMacdSignalRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesMacdSignalRealtimeContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesMacdSignalRealtimeContext, nameof(actorContext))!;
+
     public const string ActorName = FuturesMacdSignalSampledRealtimeEvent.Actor;
     readonly FuturesMacdSignalRealtimeState _state = new();
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> Parsers = new()
@@ -25,8 +29,8 @@ public class FuturesMacdSignalRealtimeActor(
         [FuturesMacdSignalGeneratedFailEvent.Verb] = message => message.AsEvent<FuturesMacdSignalGeneratedFailEvent>()!
     };
 
-    protected override ValueTask OnStartup(IEventActorContext context) => projector.StartAsync(context);
-    protected override ValueTask OnShutdown(IEventActorContext context) => projector.StopAsync();
+    protected override ValueTask OnStartup(IEventActorContext context) => actorContext.Projector.StartAsync(context);
+    protected override ValueTask OnShutdown(IEventActorContext context) => actorContext.Projector.StopAsync();
 
     protected override IEvent ParseMessage(IEventActorContext context, IActorMessage message)
     {
@@ -41,13 +45,14 @@ public class FuturesMacdSignalRealtimeActor(
 
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         switch (@event)
         {
             case FuturesMacdSignalSampledRealtimeEvent sampled:
-                _ = await sampled.ExecuteAsync(projector, _state, logger).ConfigureAwait(false);
+                _ = await sampled.ExecuteAsync(actorContext.Projector, _state, actorContext.Logger).ConfigureAwait(false);
                 break;
             case FuturesMacdSignalGeneratedFailEvent failed:
-                logger.LogError("{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
+                actorContext.Logger.LogError("{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
                     failed.EventName, failed.EntityId, failed.ErrorMessage);
                 break;
             case FuturesMacdSignalGeneratedEvent:

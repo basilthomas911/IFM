@@ -28,7 +28,7 @@ public class FuturesAtrSignalEventActorTests : IClassFixture<MarketDataAnalytics
     {
         public TestableFuturesAtrSignalEventActor(IActorSupervisor supervisor, IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesAtrSignalEventActor> logger, IMarketDataApi marketDataApi)
-            : base(supervisor, statusConsoleWriter, logger, marketDataApi)
+            : base(new FuturesAtrSignalEventContext(supervisor, statusConsoleWriter, logger, marketDataApi))
         {
         }
 

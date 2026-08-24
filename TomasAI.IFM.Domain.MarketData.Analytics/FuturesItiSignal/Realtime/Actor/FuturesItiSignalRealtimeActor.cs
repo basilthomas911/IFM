@@ -11,6 +11,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 
 /// <summary>
@@ -24,17 +26,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Acto
 /// <param name="statusConsoleWriter">Reports compatibility-flow errors to external status observers.</param>
 /// <param name="logger">The typed logger used by this actor and its handler.</param>
 public class FuturesItiSignalRealtimeActor(
-    IActorSupervisor supervisor,
-    IRealtimeProjector<FuturesItiSignalRealtimeActor> projector,
-    IMarketDataApi marketDataApi,
-    IDbContextFactory dbFactory,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesItiSignalRealtimeActor> logger)
-    : BaseEventActor<FuturesItiSignalRealtimeActor>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Realtime, ActorName))
+    IRealtimeActorContext<FuturesItiSignalRealtimeActor> actorContext)
+    : BaseEventActor<FuturesItiSignalRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesItiSignalRealtimeContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesItiSignalRealtimeContext, nameof(actorContext))!;
+
     /// <summary>Identifies the futures ITI realtime actor mailbox.</summary>
     public const string ActorName = "FuturesItiSignal";
     public const string TradeSignalUpdatedVerb = "TradeSignalUpdated";
@@ -64,13 +62,13 @@ public class FuturesItiSignalRealtimeActor(
     };
 
     readonly FuturesItiSignalStreamOwnership _streamOwnership = new();
-    readonly FuturesItiSignalRealtimeState _realtimeState = new(dbFactory);
+    readonly FuturesItiSignalRealtimeState _realtimeState = new(actorContext.DbFactory);
 
     /// <summary>Registers the route from the primary market-price actor.</summary>
     protected override async ValueTask OnStartup(IEventActorContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        await projector.StartAsync(context).ConfigureAwait(false);
+        await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
         context.AddRealtimeRouter(MarketPriceRoute, Id);
     }
 
@@ -79,8 +77,8 @@ public class FuturesItiSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
-        await projector.StopAsync().ConfigureAwait(false);
-        await _streamOwnership.ReleaseAsync(marketDataApi).ConfigureAwait(false);
+        await actorContext.Projector.StopAsync().ConfigureAwait(false);
+        await _streamOwnership.ReleaseAsync(actorContext.MarketDataApi).ConfigureAwait(false);
     }
 
     /// <summary>Parses a routed market-price event addressed to this actor.</summary>
@@ -113,23 +111,23 @@ public class FuturesItiSignalRealtimeActor(
             case FuturesMarketPriceUpdatedRealtimeEvent priceUpdated:
                 _ = await priceUpdated.ExecuteAsync(
                         context,
-                        projector,
-                        marketDataApi,
+                        actorContext.Projector,
+                        actorContext.MarketDataApi,
                         _streamOwnership,
                         _realtimeState,
-                        logger)
+                        actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesItiSignalGeneratedCompleteEvent completed:
                 _ = await completed.ExecuteRealtimeAsync(
                         context,
-                        projector,
-                        statusConsoleWriter,
-                        logger)
+                        actorContext.Projector,
+                        actorContext.StatusConsoleWriter,
+                        actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesItiSignalGeneratedFailEvent failed:
-                logger.LogError(
+                actorContext.Logger.LogError(
                     "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
                     failed.EventName,
                     failed.EntityId,
@@ -140,12 +138,12 @@ public class FuturesItiSignalRealtimeActor(
             case FuturesTradeSignalUpdatedCompleteEvent tradeCompleted:
                 _ = await tradeCompleted.ExecuteAsync(
                         context,
-                        statusConsoleWriter,
-                        logger)
+                        actorContext.StatusConsoleWriter,
+                        actorContext.Logger)
                     .ConfigureAwait(false);
                 break;
             case FuturesTradeSignalUpdatedFailEvent tradeFailed:
-                logger.LogError(
+                actorContext.Logger.LogError(
                     "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
                     tradeFailed.EventName,
                     tradeFailed.EntityId,

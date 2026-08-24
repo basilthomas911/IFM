@@ -42,7 +42,7 @@ public class FuturesTdiSignalCommandTests
         IEventSourceActorDbContext dbEventSource,
         IEventProjector<FuturesTdiSignalCommandActor> eventProjector,
         ILogger<FuturesTdiSignalCommandActor> logger)
-        : FuturesTdiSignalCommandActor(dbEventSource, eventProjector, logger)
+        : FuturesTdiSignalCommandActor(new FuturesTdiSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, eventProjector, logger))
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

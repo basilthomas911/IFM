@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -65,7 +66,7 @@ public sealed class FuturesRsiSignalHotCacheTests
                     sent.TrySetResult();
                 }))
             .Returns(ValueTask.CompletedTask);
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var commandApi = Substitute.For<IEventActorContext>();
 
         try
         {
@@ -83,8 +84,8 @@ public sealed class FuturesRsiSignalHotCacheTests
             published.FuturesPrice.Should().Be(6425.25m);
             published.SourceSequence.Should().Be(9001);
             published.SourceEventTimestamp.Should().Be(eventTimestamp.UtcDateTime);
-            await commandApi.DidNotReceiveWithAnyArgs().GenerateFuturesRsiSignalAsync(
-                default!, default, default, default);
+            await commandApi.DidNotReceiveWithAnyArgs()
+                .RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(default!);
         }
         finally
         {

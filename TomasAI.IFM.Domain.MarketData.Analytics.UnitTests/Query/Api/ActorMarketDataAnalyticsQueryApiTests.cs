@@ -2,7 +2,8 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
-using TomasAI.IFM.Domain.MarketData.Analytics.Query.Api;
+using TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
@@ -22,30 +23,30 @@ public class ActorMarketDataAnalyticsQueryApiTests
     {
         string[] methodNames =
         [
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTradeSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetLastFuturesTradeSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTradeSignalBySymbolAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTradeSignalIdsAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesRsiSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesRsiDailySignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTrendDirectionFromRSISignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesTdiSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiTrendDirectionChangedSignalsAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalDataAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiMDIDistributionAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiMDIDistributionByTrendAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalMDIAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesItiSignalMDIByTrendAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAtrSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAtrDailySignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAdxSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAdxDailySignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesMacdSignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesMacdDailySignalAsync)
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesTradeSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetLastFuturesTradeSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesTradeSignalBySymbolAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesTradeSignalIdsAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesRsiSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesRsiDailySignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesTrendDirectionFromRSISignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesTdiSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiTrendDirectionChangedSignalsAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiSignalDataAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiMDIDistributionAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiMDIDistributionByTrendAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiSignalMDIAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesItiSignalMDIByTrendAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesAtrSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesAtrDailySignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesAdxSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesAdxDailySignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesMacdSignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesMacdDailySignalAsync)
         ];
 
-        var methods = typeof(IActorMarketDataAnalyticsQueryApi).GetMethods();
+        var methods = typeof(MarketDataAnalyticsQueryExtensions).GetMethods();
         foreach (var methodName in methodNames)
         {
             methods.Should().Contain(method =>
@@ -92,16 +93,16 @@ public class ActorMarketDataAnalyticsQueryApiTests
     {
         string[] methodNames =
         [
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAdxDailySignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesAtrDailySignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesMacdDailySignalAsync),
-            nameof(IActorMarketDataAnalyticsQueryApi.GetFuturesRsiDailySignalAsync)
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesAdxDailySignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesAtrDailySignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesMacdDailySignalAsync),
+            nameof(MarketDataAnalyticsQueryExtensions.GetFuturesRsiDailySignalAsync)
         ];
 
         foreach (var methodName in methodNames)
         {
-            typeof(IActorMarketDataAnalyticsQueryApi).GetMethods().Should().Contain(method =>
-                method.Name == methodName && method.GetParameters().Length == 3);
+            typeof(MarketDataAnalyticsQueryExtensions).GetMethods().Should().Contain(method =>
+                method.Name == methodName && method.GetParameters().Length == 4);
             typeof(IMarketDataAnalyticsQueryApi).GetMethods().Should().NotContain(method =>
                 method.Name == methodName);
         }
@@ -117,7 +118,7 @@ public class ActorMarketDataAnalyticsQueryApiTests
 
         var result = await api.GetFuturesTradeSignalIdsAsync(valueDate);
 
-        api.Should().BeAssignableTo<IActorMarketDataAnalyticsQueryApi>();
+        api.Should().BeAssignableTo<IFuturesTradeSignalQueryContext>();
         result.Success.Should().BeTrue();
         result.Value.Should().BeEmpty();
         await db.Received(1).GetFuturesTradeSignalIdByValueDateAsync(valueDate);
@@ -171,7 +172,7 @@ public class ActorMarketDataAnalyticsQueryApiTests
     {
         var exception = new InvalidOperationException("daily analytics unavailable");
         var cases = new (Action<IMarketDataDbContext> Arrange,
-            Func<ActorMarketDataAnalyticsQueryApi, Task<ServiceResult>> Act,
+            Func<IFuturesTradeSignalQueryContext, Task<ServiceResult>> Act,
             int ErrorId)[]
         {
             (db => db.GetLastFuturesAdxDailySignalAsync(ContractId, TimePeriod, PeriodLength)
@@ -320,11 +321,13 @@ public class ActorMarketDataAnalyticsQueryApiTests
         }
     }
 
-    static (ActorMarketDataAnalyticsQueryApi Api, IMarketDataDbContext Db) CreateApi()
+    static (IFuturesTradeSignalQueryContext Api, IMarketDataDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IMarketDataDbContext>();
         dbFactory.MarketDataDb.Returns(db);
-        return (new ActorMarketDataAnalyticsQueryApi(dbFactory), db);
+        var context = Substitute.For<IFuturesTradeSignalQueryContext>();
+        context.DbFactory.Returns(dbFactory);
+        return (context, db);
     }
 }

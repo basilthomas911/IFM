@@ -31,7 +31,7 @@ public class OptionTradeQueryActorTests : IClassFixture<TradeFixture>
         IDbContextFactory dbFactory,
         IBlackboardService blackboardService,
         ILogger<OptionTradeQueryActor> logger)
-        : OptionTradeQueryActor(dbFactory, blackboardService, logger)
+        : OptionTradeQueryActor(new OptionTradeQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, blackboardService, logger))
     {
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

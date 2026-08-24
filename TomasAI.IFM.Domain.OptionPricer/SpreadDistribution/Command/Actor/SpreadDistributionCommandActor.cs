@@ -12,6 +12,8 @@ using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Validation;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Extensions;
+
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Actor;
 
 /// <summary>
@@ -24,14 +26,16 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.Actor;
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class SpreadDistributionCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<SpreadDistributionCommandActor> eventProjector,
-    ILogger<SpreadDistributionCommandActor> logger)
-    : BaseEventSourceCommandActor<SpreadDistributionCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<SpreadDistributionCommandActor> actorContext)
+    : BaseEventSourceCommandActor<SpreadDistributionCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected ISpreadDistributionCommandContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ISpreadDistributionCommandContext, nameof(actorContext))!;
+
     public const string ActorName = "SpreadDistributionCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(dbEventSource));
-    readonly IEventProjector<SpreadDistributionCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
+    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
+    readonly IEventProjector<SpreadDistributionCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
     IEventSourceActorStateRepository<SpreadDistributionCommandState> _repo = default!;
 
     /// <summary>
@@ -98,6 +102,7 @@ public class SpreadDistributionCommandActor(
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
@@ -105,7 +110,7 @@ public class SpreadDistributionCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, spreadDistributionState);
+        _ = receiveFunc.Invoke(cmd, dispatchContext, spreadDistributionState);
         return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
     }
 
@@ -113,7 +118,7 @@ public class SpreadDistributionCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding spread distribution command
     /// logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, SpreadDistributionCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<SpreadDistributionCommandActor>, SpreadDistributionCommandState, bool>> _receiveMap = new()
     {
         [typeof(InsertSpreadDistributionCommand).Name] = (cmd, context, state) => (cmd as InsertSpreadDistributionCommand)!.Execute(state),
         [typeof(DeleteSpreadDistributionCommand).Name] = (cmd, context, state) => (cmd as DeleteSpreadDistributionCommand)!.Execute(state)
@@ -225,7 +230,7 @@ public class SpreadDistributionCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

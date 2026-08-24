@@ -30,7 +30,7 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     public class TestableFuturesItiSignalQueryActor : FuturesItiSignalQueryActor
     {
         public TestableFuturesItiSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesItiSignalQueryActor> logger)
-            : base(dbFactory, logger)
+            : base(new FuturesItiSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
         {
         }
 

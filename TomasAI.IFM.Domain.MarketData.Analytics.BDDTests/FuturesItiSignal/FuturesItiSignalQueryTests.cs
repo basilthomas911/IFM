@@ -33,7 +33,7 @@ public class FuturesItiSignalQueryTests
 
     // Test helper to expose the protected ReceiveAsync method for BDD-style testing.
     class TestableFuturesItiSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesItiSignalQueryActor> logger)
-        : FuturesItiSignalQueryActor(dbFactory, logger)
+        : FuturesItiSignalQueryActor(new FuturesItiSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public async ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => await ReceiveAsync(context, query);

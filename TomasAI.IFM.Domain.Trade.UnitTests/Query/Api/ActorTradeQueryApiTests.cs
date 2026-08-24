@@ -3,7 +3,8 @@ using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.TradeDb;
-using TomasAI.IFM.Domain.Trade.Query.Api;
+using TomasAI.IFM.Domain.Trade.Query.Extensions;
+using TomasAI.IFM.Domain.Trade.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
@@ -19,7 +20,7 @@ public class ActorTradeQueryApiTests
 
         var result = await api.GetTradeQuantityAsync(7);
 
-        api.Should().BeAssignableTo<IActorTradeQueryApi>();
+        api.Should().BeAssignableTo<ITradeQueryContext>();
         result.Success.Should().BeTrue();
         result.Value!.Value.Should().Be(4);
         await db.Received(1).GetTradeQuantityAsync(7);
@@ -74,11 +75,14 @@ public class ActorTradeQueryApiTests
         await db.Received(1).GetTradeQuantityAsync(7, cancellation.Token);
     }
 
-    static (ActorTradeQueryApi Api, ITradeDbContext Db) CreateApi()
+    static (ITradeQueryContext Api, ITradeDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<ITradeDbContext>();
         dbFactory.TradeDb.Returns(db);
-        return (new ActorTradeQueryApi(dbFactory, Substitute.For<IBlackboardService>()), db);
+        var context = Substitute.For<ITradeQueryContext>();
+        context.DbFactory.Returns(dbFactory);
+        context.BlackboardService.Returns(Substitute.For<IBlackboardService>());
+        return (context, db);
     }
 }

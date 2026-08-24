@@ -8,18 +8,28 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Extensions;
+
+using TomasAI.IFM.Shared.Extensions;
+
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor;
 
+/// <summary>Provides the DatabaseBackupCommandActor implementation.</summary>
 public class DatabaseBackupCommandActor(
-    IEventProjector<DatabaseBackupCommandActor> eventProjector,
-    ILogger<DatabaseBackupCommandActor> logger)
-    : BaseEventSourceCommandActor<DatabaseBackupCommandActor>(logger, new ActorMailboxId(ActorType.Command, Actor))
+    ICommandActorContext<DatabaseBackupCommandActor> actorContext)
+    : BaseEventSourceCommandActor<DatabaseBackupCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IDatabaseBackupCommandContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IDatabaseBackupCommandContext, nameof(actorContext))!;
+
     public const string Actor = DatabaseBackupCommand.Actor;
     IEventSourceActorStateRepository<DatabaseBackupCommandState> _repository = default!;
-    readonly IEventProjector<DatabaseBackupCommandActor> _eventProjector = eventProjector;
+    readonly IEventProjector<DatabaseBackupCommandActor> _eventProjector = actorContext.EventProjector;
 
+    /// <summary>Gets the SupportedCommandTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedCommandTypes => CommandTypes;
+    /// <summary>Gets the SupportedVerbs value.</summary>
     public static IReadOnlyCollection<string> SupportedVerbs => ParseMap.Keys;
 
     static readonly Type[] CommandTypes =
@@ -85,6 +95,7 @@ public class DatabaseBackupCommandActor(
 
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand command)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         var aggregate = (DatabaseBackupCommandState)state;
         var operationId = command switch
         {

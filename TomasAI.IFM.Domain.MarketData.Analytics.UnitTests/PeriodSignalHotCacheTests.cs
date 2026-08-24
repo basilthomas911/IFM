@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -30,7 +31,7 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesRsiSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesRsiSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
         var sent = Capture<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(context);
 
@@ -47,7 +48,7 @@ public sealed class PeriodSignalHotCacheTests
                     && e.SourceSequence == 9001
                     && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
             await commandApi.DidNotReceiveWithAnyArgs()
-                .GenerateFuturesRsiSignalAsync(default, default);
+                .RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(default!);
         }
         finally
         {
@@ -62,7 +63,7 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesAtrSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesAtrSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
         var sent = Capture<FuturesAtrSignalSampledRealtimeEvent, FuturesAtrSignalEntityId>(context);
 
@@ -79,7 +80,7 @@ public sealed class PeriodSignalHotCacheTests
                     && e.SourceSequence == 9001
                     && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
             await commandApi.DidNotReceiveWithAnyArgs()
-                .GenerateFuturesAtrSignalAsync(default, default);
+                .RequestAsync<GenerateFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(default!);
         }
         finally
         {
@@ -94,7 +95,7 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesMacdSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesMacdSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
         var sent = Capture<FuturesMacdSignalSampledRealtimeEvent, FuturesMacdSignalEntityId>(context);
 
@@ -111,7 +112,7 @@ public sealed class PeriodSignalHotCacheTests
                     && e.SourceSequence == 9001
                     && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
             await commandApi.DidNotReceiveWithAnyArgs()
-                .GenerateFuturesMacdSignalAsync(default, default);
+                .RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(default!);
         }
         finally
         {
@@ -126,7 +127,7 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesAdxSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesAdxSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IActorMarketDataAnalyticsCommandApi>();
+        var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
         var sent = Capture<FuturesAdxSignalSampledRealtimeEvent, FuturesAdxSignalEntityId>(context);
 
@@ -143,7 +144,7 @@ public sealed class PeriodSignalHotCacheTests
                     && e.SourceSequence == 9001
                     && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
             await commandApi.DidNotReceiveWithAnyArgs()
-                .GenerateFuturesAdxSignalAsync(default, default);
+                .RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(default!);
         }
         finally
         {

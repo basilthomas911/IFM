@@ -8,13 +8,19 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
+using TomasAI.IFM.Domain.Trade.Plan;
+
 namespace TomasAI.IFM.Domain.Trade.Plan;
 
+/// <summary>Provides the TradePlanQueryActor implementation.</summary>
 public sealed class TradePlanQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<TradePlanQueryActor> logger)
-    : BaseQueryActor<TradePlanQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+    IQueryActorContext<TradePlanQueryActor> actorContext)
+    : BaseQueryActor<TradePlanQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    private ITradePlanQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITradePlanQueryContext, nameof(actorContext))!;
+
     public const string ActorName = "TradePlanQuery";
 
     protected override IQuery ParseMessage(IQueryActorContext context, IActorMessage message)
@@ -47,38 +53,39 @@ public sealed class TradePlanQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         cancellationToken.ThrowIfCancellationRequested();
         switch (query)
         {
             case GetStopLossLimitQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanStopLossLimitReadModel>(
-                        await new GetStopLossLimitQueryHandler(dbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetStopLossLimitQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetTradePlanForwardLossRatiosQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanForwardLossRatioReadModel[]>(
-                        await new GetTradePlanForwardLossRatiosQueryHandler(dbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlanForwardLossRatiosQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetTradePlanForwardLossRatioQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanForwardLossRatioReadModel>(
-                        await new GetTradePlanForwardLossRatioQueryHandler(dbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlanForwardLossRatioQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetTradePlansQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanReadModel[]>(
-                        await new GetTradePlansQueryHandler(dbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlansQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetIronCondorForwardDeltaQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<IronCondorForwardDeltaDataModel>(
-                        await new GetIronCondorForwardDeltaQueryHandler(dbFactory.MarketDataDb).ExecuteAsync(q)));
+                        await new GetIronCondorForwardDeltaQueryHandler(actorContext.DbFactory.MarketDataDb).ExecuteAsync(q)));
                 break;
             case GetTradePlanForwardLossLimitQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanForwardLossLimitReadModel>(
-                        await new GetTradePlanForwardLossLimitQueryHandler(dbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlanForwardLossLimitQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             default:
                 throw new InvalidOperationException($"Unable to process {ActorName} query: {query.GetType().Name}");

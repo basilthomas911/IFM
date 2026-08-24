@@ -1,6 +1,6 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Domain.Trade.Command.Api;
+using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -20,7 +20,7 @@ public class ActorTradeCommandApiTests
         context.RequestAsync<ChangeOptionTradeSpreadDistributionStatisticsCommand, OptionTradeEntityId>(
                 Arg.Any<ChangeOptionTradeSpreadDistributionStatisticsCommand>())
             .Returns(expected);
-        var api = new ActorTradeCommandApiFactory().Create(context);
+        var api = context;
 
         var result = await api.ChangeSpreadDistributionStatisticsAsync(101, 7, 0.35, 0.21, valueDate);
 
@@ -50,7 +50,7 @@ public class ActorTradeCommandApiTests
             .Returns(new ServiceFailed<GuidResult>(
                 ChangeOptionTradeSpreadDistributionStatisticsCommand.ErrorId,
                 "trade update failed"));
-        var api = new ActorTradeCommandApi(context);
+        var api = context;
 
         Func<Task> act = async () => await api.ChangeSpreadDistributionStatisticsAsync(
             101, 7, 0.35, 0.21, new DateOnly(2026, 8, 2));

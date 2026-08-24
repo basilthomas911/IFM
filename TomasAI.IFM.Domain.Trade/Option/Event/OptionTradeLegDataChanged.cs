@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace TomasAI.IFM.Domain.Trade.Option.Event;
 
+/// <summary>Provides the OptionTradeLegDataChanged implementation.</summary>
 public static class OptionTradeLegDataChanged
 {
     static OptionTradeLegDataChanged()
@@ -22,7 +23,7 @@ public static class OptionTradeLegDataChanged
 
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="e"></param>
     /// <param name="context"></param>
@@ -30,7 +31,7 @@ public static class OptionTradeLegDataChanged
     /// <param name="logger"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this OptionTradeLegDataChangedEvent e,  IEventActorContext context, IActorOptionPricerCommandApi commandApi, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+        this OptionTradeLegDataChangedEvent e,  IEventActorContext context, IEventActorContext commandApi, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
     {
         var source = $"OptionTradeLegDataChangedEvent for EntityId: {e.EntityId}";
         try
@@ -48,7 +49,7 @@ public static class OptionTradeLegDataChanged
                    jobFailed: null,
                    inProgress: true,
                    lossProbabilityFactor: 0.1);
-            await commandApi.SubmitSpreadDistributionJobAsync(spreadDistributionJob);
+            await OptionPricerCommandApiExtensions.SubmitSpreadDistributionJobAsync(commandApi, spreadDistributionJob);
             return true;
         }
         catch (Exception ex)

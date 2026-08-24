@@ -21,7 +21,7 @@ public sealed class MarketOutlookRealtimeActorTests
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
         ILogger<MarketOutlookRealtimeActor> logger)
-        : MarketOutlookRealtimeActor(supervisor, dbFactory, logger)
+        : MarketOutlookRealtimeActor(new MarketOutlookRealtimeContext(supervisor, dbFactory, logger))
     {
         internal ValueTask InvokeReceiveAsync(IEventActorContext context, IEvent @event)
             => ReceiveAsync(context, @event);

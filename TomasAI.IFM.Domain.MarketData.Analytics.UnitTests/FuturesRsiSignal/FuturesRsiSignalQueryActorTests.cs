@@ -28,7 +28,7 @@ public class FuturesRsiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     public class TestableFuturesRsiSignalQueryActor : FuturesRsiSignalQueryActor
     {
         public TestableFuturesRsiSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesRsiSignalQueryActor> logger)
-            : base(dbFactory, logger)
+            : base(new FuturesRsiSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
         {
         }
 
@@ -101,5 +101,5 @@ public class FuturesRsiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
             default(ServiceResult<FuturesRsiSignalReadModel?>)!);
     }
 
-  
+
 }

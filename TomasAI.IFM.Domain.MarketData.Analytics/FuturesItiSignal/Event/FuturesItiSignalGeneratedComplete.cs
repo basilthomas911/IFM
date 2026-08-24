@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 
+/// <summary>Provides the FuturesItiSignalGeneratedComplete implementation.</summary>
 public static class FuturesItiSignalGeneratedComplete
 {
     static FuturesItiSignalGeneratedComplete()
@@ -33,7 +34,7 @@ public static class FuturesItiSignalGeneratedComplete
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesItiSignalGeneratedCompleteEvent e,
         IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi,
+        IEventActorContext commandApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)
     {
@@ -57,7 +58,7 @@ public static class FuturesItiSignalGeneratedComplete
                 return true;
             }
 
-            await commandApi.UpdateFuturesTradeSignalAsync(
+            await MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
                 inputs.FuturesEodData,
                 inputs.FuturesRsiSignal,
                 inputs.FuturesTdiSignal,

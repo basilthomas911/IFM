@@ -27,7 +27,7 @@ public class FuturesAdxSignalQueryActorTests : IClassFixture<MarketDataAnalytics
     public class TestableFuturesAdxSignalQueryActor : FuturesAdxSignalQueryActor
     {
         public TestableFuturesAdxSignalQueryActor(IDbContextFactory dbFactory, ILogger<FuturesAdxSignalQueryActor> logger)
-            : base(dbFactory, logger)
+            : base(new FuturesAdxSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
         {
         }
 

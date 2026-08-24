@@ -34,13 +34,13 @@ public sealed class FuturesItiSignalRealtimeActorTests
         IDbContextFactory dbFactory,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesItiSignalRealtimeActor> logger)
-        : FuturesItiSignalRealtimeActor(
+        : FuturesItiSignalRealtimeActor(new FuturesItiSignalRealtimeContext(
             supervisor,
             projector,
             marketDataApi,
             dbFactory,
             statusConsoleWriter,
-            logger)
+            logger))
     {
         public IEvent Parse(IEventActorContext context, IActorMessage message) =>
             ParseMessage(context, message);

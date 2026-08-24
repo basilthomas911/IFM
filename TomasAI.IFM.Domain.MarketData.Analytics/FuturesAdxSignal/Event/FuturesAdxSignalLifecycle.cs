@@ -14,10 +14,12 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 
+/// <summary>Provides the FuturesAdxSignalLifecycle implementation.</summary>
 public static class FuturesAdxSignalLifecycle
 {
+    /// <summary>Executes the ExecuteAsync operation.</summary>
     public static ValueTask<bool> ExecuteAsync(this FuturesAdxSignalStartedEvent e, IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi, IMarketDataApi marketDataApi,
+        IEventActorContext commandApi, IMarketDataApi marketDataApi,
         IStatusConsoleWriter status, ILogger logger)
     {
         try
@@ -66,6 +68,7 @@ public static class FuturesAdxSignalLifecycle
         async ValueTask<bool> HandleStartFailureAsync(Exception ex) { await LogAsync(ex); return false; }
     }
 
+    /// <summary>Executes the ExecuteAsync operation.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAdxSignalStoppedEvent e, IEventActorContext context,
         IStatusConsoleWriter status, ILogger logger)
     {

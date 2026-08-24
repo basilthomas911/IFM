@@ -450,16 +450,16 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                 innerProjector,
                 handoffCounter);
 
-            var primaryActor = new FuturesMarketPriceRealtimeActor(
+            var primaryActor = new FuturesMarketPriceRealtimeActor(new FuturesMarketPriceRealtimeContext(
                 supervisor,
-                Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
-            var itiActor = new FuturesItiSignalRealtimeActor(
+                Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>()));
+            var itiActor = new FuturesItiSignalRealtimeActor(new FuturesItiSignalRealtimeContext(
                 supervisor,
                 projector,
                 marketDataApi,
                 dbFactory,
                 Substitute.For<IStatusConsoleWriter>(),
-                Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
+                Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()));
             await primaryActor.StartAsync(supervisor);
             await itiActor.StartAsync(supervisor);
             return new(primaryActor, itiActor, handoffCounter);

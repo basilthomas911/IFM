@@ -29,12 +29,12 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
     public class TestableFuturesMacdSignalCommandActor : FuturesMacdSignalCommandActor
     {
         public TestableFuturesMacdSignalCommandActor(IEventSourceActorDbContext dbEventSource, IDbContextFactory dbFactory, ILogger<FuturesMacdSignalCommandActor> logger)
-            : base(dbEventSource, dbFactory, Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(), logger)
+            : base(new FuturesMacdSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, dbFactory, Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(), logger))
         {
         }
 
         public TestableFuturesMacdSignalCommandActor(IEventSourceActorDbContext dbEventSource, ILogger<FuturesMacdSignalCommandActor> logger)
-            : base(dbEventSource, null, Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(), logger)
+            : base(new FuturesMacdSignalCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, null, Substitute.For<IEventProjector<FuturesMacdSignalCommandActor>>(), logger))
         {
         }
 

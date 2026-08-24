@@ -7,17 +7,21 @@ using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+
+using TomasAI.IFM.Domain.Trade.Plan;
 
 namespace TomasAI.IFM.Domain.Trade.Plan;
 
+/// <summary>Provides the TradePlanCommandActor implementation.</summary>
 public sealed class TradePlanCommandActor(
-    IDbContextFactory dbFactory,
-    ITradeEventProducer eventProducer,
-    ILogger<TradePlanCommandActor> logger)
-    : BaseEventSourceCommandActor<TradePlanCommandActor>(
-        logger,
-        new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<TradePlanCommandActor> actorContext)
+    : BaseEventSourceCommandActor<TradePlanCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    private ITradePlanCommandActorContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITradePlanCommandActorContext, nameof(actorContext))!;
+
     public const string ActorName = "TradePlanCommand";
 
     protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
@@ -33,8 +37,8 @@ public sealed class TradePlanCommandActor(
         ICommand command)
     {
         var update = (UpdateTradePlanCommand)command;
-        await dbFactory.TradeDb.InsertTradePlanAsync(update.TradePlan);
-        await eventProducer.PostEventAsync(new TradePlanUpdatedEvent
+        await actorContext.DbFactory.TradeDb.InsertTradePlanAsync(update.TradePlan);
+        await actorContext.EventProducer.PostEventAsync(new TradePlanUpdatedEvent
         {
             CommandId = update.CommandId,
             EntityId = update.EntityId,
@@ -60,5 +64,6 @@ public sealed class TradePlanCommandActor(
 
 sealed class TradePlanActorState : IActorState<TradePlanActorState>
 {
+    /// <summary>Gets the Id value.</summary>
     public ActorThreadId Id { get; set; } = default!;
 }

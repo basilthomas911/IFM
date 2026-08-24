@@ -7,25 +7,32 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
 
+/// <summary>Provides the FuturesTradeSignalEventActor implementation.</summary>
 public class FuturesTradeSignalEventActor(
-    IActorSupervisor supervisor,IStatusConsoleWriter statusConsoleWriter, ILogger<FuturesTradeSignalEventActor> logger)
-    : BaseEventActor<FuturesTradeSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<FuturesTradeSignalEventActor> actorContext)
+    : BaseEventActor<FuturesTradeSignalEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesTradeSignalEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesTradeSignalEventContext, nameof(actorContext))!;
+
     public const string Actor = "FuturesTradeSignalEvent";
 
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesTradeSignalUpdatedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTradeSignalUpdatedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
         },
         [typeof(FuturesItiSignalHoldTradeChangedEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalHoldTradeChangedEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
         }
     };
 
@@ -67,12 +74,13 @@ public class FuturesTradeSignalEventActor(
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type.</exception>
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, statusConsoleWriter, logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, actorContext.StatusConsoleWriter, actorContext.Logger);
     }
 
     /// <summary>
@@ -96,7 +104,7 @@ public class FuturesTradeSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

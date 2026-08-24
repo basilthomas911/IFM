@@ -13,6 +13,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.State;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
 
 /// <summary>
@@ -25,14 +27,16 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class FuturesItiSignalCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<FuturesItiSignalCommandActor> eventProjector,
-    ILogger<FuturesItiSignalCommandActor> logger)
-    : BaseEventSourceCommandActor<FuturesItiSignalCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<FuturesItiSignalCommandActor> actorContext)
+    : BaseEventSourceCommandActor<FuturesItiSignalCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesItiSignalCommandContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesItiSignalCommandContext, nameof(actorContext))!;
+
     public const string ActorName = "FuturesItiSignalCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
-    readonly IEventProjector<FuturesItiSignalCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
+    readonly IEventProjector<FuturesItiSignalCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
     IEventSourceActorStateRepository<FuturesItiSignalCommandState> _repo = default!;
 
     /// <summary>
@@ -91,6 +95,7 @@ public class FuturesItiSignalCommandActor(
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
@@ -98,14 +103,14 @@ public class FuturesItiSignalCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, itiSignalState));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, itiSignalState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures ITI signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesItiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesItiSignalCommandActor>, FuturesItiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(GenerateFuturesItiSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesItiSignalCommand)!.Execute(state),
         [typeof(ClearFuturesItiSignalHoldTradeCommand).Name] = (cmd, context, state) => (cmd as ClearFuturesItiSignalHoldTradeCommand)!.Execute(state),
@@ -234,7 +239,7 @@ public class FuturesItiSignalCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

@@ -10,6 +10,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
+using TomasAI.IFM.Domain.Trade.Queries;
+
 namespace TomasAI.IFM.Domain.Trade.Queries;
 
 /// <summary>
@@ -23,10 +25,13 @@ namespace TomasAI.IFM.Domain.Trade.Queries;
 /// <param name="dbFactory">The database context factory used to access trade data.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class TradeQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<TradeQueryActor> logger)
-    : BaseQueryActor<TradeQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+    IQueryActorContext<TradeQueryActor> actorContext)
+    : BaseQueryActor<TradeQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected ITradeQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITradeQueryContext, nameof(actorContext))!;
+
     public const string ActorName = "TradeQuery";
 
     /// <summary>
@@ -80,19 +85,20 @@ public class TradeQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        return receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding trade
     /// query logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext<TradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
         [typeof(GetTradeHistoryQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
@@ -172,7 +178,7 @@ public class TradeQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

@@ -26,7 +26,11 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     }
 
     public class TestableTradeQueryActor(IDbContextFactory dbFactory, ILogger<TradeQueryActor> logger)
-        : TradeQueryActor(dbFactory, logger)
+        : TradeQueryActor(new TradeQueryContext(
+            Substitute.For<IActorSupervisor>(),
+            dbFactory,
+            Substitute.For<TomasAI.IFM.Application.Blackboard.IBlackboardService>(),
+            logger))
     {
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

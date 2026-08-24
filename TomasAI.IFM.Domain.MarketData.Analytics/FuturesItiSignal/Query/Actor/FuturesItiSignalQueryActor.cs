@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
 
 /// <summary>
@@ -19,10 +21,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Query.Actor;
 /// It processes queries, validates them, and manages the actor's state.</remarks>
 /// <param name="logger"></param>
 public class FuturesItiSignalQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesItiSignalQueryActor> logger)
-    : BaseQueryActor<FuturesItiSignalQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+    IQueryActorContext<FuturesItiSignalQueryActor> actorContext)
+    : BaseQueryActor<FuturesItiSignalQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesItiSignalQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesItiSignalQueryContext, nameof(actorContext))!;
+
     public const string ActorName = "FuturesItiSignalQuery";
 
     /// <summary>
@@ -74,19 +79,20 @@ public class FuturesItiSignalQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken).ConfigureAwait(false);
+        await receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures ITI signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext<FuturesItiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
         [typeof(GetFuturesItiSignalDataQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
@@ -146,7 +152,7 @@ public class FuturesItiSignalQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

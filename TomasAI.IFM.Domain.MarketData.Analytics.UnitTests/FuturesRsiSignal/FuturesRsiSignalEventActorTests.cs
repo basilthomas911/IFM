@@ -29,18 +29,17 @@ public class FuturesRsiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     public class TestableFuturesRsiSignalEventActor : FuturesRsiSignalEventActor
     {
         public TestableFuturesRsiSignalEventActor(
-            IActorSupervisor supervisor, 
+            IActorSupervisor supervisor,
             IMarketDataApi marketDataApi,
             IStatusConsoleWriter statusConsoleWriter,
             ILogger<FuturesRsiSignalEventActor> logger,
             IBlackboardService blackboardService)
-            : base(
+            : base(new FuturesRsiSignalEventContext(
                 supervisor,
-                new global::TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory(),
                 marketDataApi,
                 statusConsoleWriter,
                 logger,
-                blackboardService)
+                blackboardService))
         {
         }
 
@@ -60,6 +59,6 @@ public class FuturesRsiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         public async ValueTask InvokeOnStopAsync(IEventActorContext context)
             => await OnShutdown(context);
     }
-   
-  
+
+
 }

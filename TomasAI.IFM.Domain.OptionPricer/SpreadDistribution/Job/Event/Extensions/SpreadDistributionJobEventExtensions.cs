@@ -170,7 +170,7 @@ internal static class SpreadDistributionJobEventExtensions
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the update operation fails or the service result indicates an error.</exception>
     internal static async ValueTask UpdateSpreadDistributionStatisticsAsync(
-        this IActorTradeCommandApi commandApi,
+        this IEventActorContext commandApi,
         int orderId,
         int tradeId,
         TradeType tradeType,
@@ -179,7 +179,7 @@ internal static class SpreadDistributionJobEventExtensions
         SpreadDistributionReadModel putSpreadDistribution,
         SpreadDistributionReadModel callSpreadDistribution)
     {
-        _ = await commandApi.UpdateSpreadDistributionStatisticsAsync(
+        _ = await TradeCommandApiExtensions.UpdateSpreadDistributionStatisticsAsync(commandApi,
             orderId,
             tradeId,
             tradeType,
@@ -204,14 +204,14 @@ internal static class SpreadDistributionJobEventExtensions
     /// <returns>A task that represents the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the change operation fails or the service result indicates an error.</exception>
     internal static async ValueTask ChangeSpreadDistributionStatisticsAsync(
-        this IActorTradeCommandApi commandApi,
+        this IEventActorContext commandApi,
         int orderId,
         int tradeId,
         double forwardLossRatio,
         double lossProbability,
         DateOnly valueDate)
     {
-        _ = await commandApi.ChangeSpreadDistributionStatisticsAsync(
+        _ = await TradeCommandApiExtensions.ChangeSpreadDistributionStatisticsAsync(commandApi,
             orderId,
             tradeId,
             forwardLossRatio,
@@ -228,12 +228,12 @@ internal static class SpreadDistributionJobEventExtensions
     /// <param name="jobStatus">The resulting job status.</param>
     /// <exception cref="InvalidOperationException">Thrown when the command does not succeed.</exception>
     internal static async ValueTask CompleteSpreadDistributionJobAsync(
-        this IActorOptionPricerCommandApi commandApi,
+        this IEventActorContext commandApi,
         SpreadDistributionJobEntityId entityId,
         DateTime jobCompleted,
         SpreadDistributionJobStatus jobStatus)
     {
-        _ = await commandApi.CompleteSpreadDistributionJobAsync(entityId, jobCompleted, jobStatus);
+        _ = await OptionPricerCommandApiExtensions.CompleteSpreadDistributionJobAsync(commandApi, entityId, jobCompleted, jobStatus);
     }
 
     /// <summary>
@@ -246,12 +246,12 @@ internal static class SpreadDistributionJobEventExtensions
     /// <param name="errorMessage">The error message describing the failure.</param>
     /// <exception cref="InvalidOperationException">Thrown when the command does not succeed.</exception>
     internal static async ValueTask FailSpreadDistributionJobAsync(
-        this IActorOptionPricerCommandApi commandApi,
+        this IEventActorContext commandApi,
         SpreadDistributionJobEntityId entityId,
         DateTime jobFailed,
         SpreadDistributionJobStatus jobStatus,
         string errorMessage)
     {
-        _ = await commandApi.FailSpreadDistributionJobAsync(entityId, jobFailed, jobStatus, errorMessage);
+        _ = await OptionPricerCommandApiExtensions.FailSpreadDistributionJobAsync(commandApi, entityId, jobFailed, jobStatus, errorMessage);
     }
 }

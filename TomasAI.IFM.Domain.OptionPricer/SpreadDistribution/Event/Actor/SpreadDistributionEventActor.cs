@@ -5,13 +5,21 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Event.Extensions;
+
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Event.Actor;
 
-public class SpreadDistributionEventActor(IActorSupervisor supervisor, ILogger<SpreadDistributionEventActor> logger)
-    : BaseEventActor<SpreadDistributionEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+/// <summary>Provides the SpreadDistributionEventActor implementation.</summary>
+public class SpreadDistributionEventActor(
+    IEventActorContext<SpreadDistributionEventActor> actorContext)
+    : BaseEventActor<SpreadDistributionEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected ISpreadDistributionEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ISpreadDistributionEventContext, nameof(actorContext))!;
+
     public const string Actor = "SpreadDistributionEvent";
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, ILogger, ValueTask<bool>>> _receiveMap = [];
+    static readonly Dictionary<string, Func<IEvent, IEventActorContext<SpreadDistributionEventActor>, ILogger, ValueTask<bool>>> _receiveMap = [];
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
 
     /// <summary>
@@ -36,7 +44,7 @@ public class SpreadDistributionEventActor(IActorSupervisor supervisor, ILogger<S
     }
 
     /// <summary>
-    /// Receives an event and dispatches it to the appropriate handler based on the event's type. 
+    /// Receives an event and dispatches it to the appropriate handler based on the event's type.
     /// If no handler is found for the event type, an <see cref="InvalidOperationException"/> is thrown.
     /// </summary>
     /// <param name="context">The event actor context in which the event is being processed.</param>
@@ -45,12 +53,13 @@ public class SpreadDistributionEventActor(IActorSupervisor supervisor, ILogger<S
     /// <exception cref="InvalidOperationException"></exception>
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, actorContext.Logger);
     }
 
     /// <summary>
@@ -73,7 +82,7 @@ public class SpreadDistributionEventActor(IActorSupervisor supervisor, ILogger<S
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

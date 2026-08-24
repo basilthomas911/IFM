@@ -32,11 +32,10 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         IActorSupervisor supervisor,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesTdiSignalEventActor> logger)
-        : FuturesTdiSignalEventActor(
+        : FuturesTdiSignalEventActor(new FuturesTdiSignalEventContext(
             supervisor,
-            new global::TomasAI.IFM.Domain.MarketData.Analytics.Command.Api.ActorMarketDataAnalyticsCommandApiFactory(),
             statusConsoleWriter,
-            logger)
+            logger))
     {
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

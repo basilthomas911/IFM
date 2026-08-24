@@ -2,7 +2,8 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
-using TomasAI.IFM.Domain.OptionPricer.Query.Api;
+using TomasAI.IFM.Domain.OptionPricer.Query.Extensions;
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query.Actor;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 
@@ -18,7 +19,7 @@ public class ActorOptionPricerQueryApiTests
 
         var result = await api.IsSpreadDistributionJobInProgressAsync(1, 2);
 
-        api.Should().BeAssignableTo<IActorOptionPricerQueryApi>();
+        api.Should().BeAssignableTo<ISpreadDistributionQueryContext>();
         result.Success.Should().BeTrue();
         result.Value!.Value.Should().BeTrue();
         await db.Received(1).GetSpreadDistributionJobInProgressCountAsync(1, 2);
@@ -64,11 +65,13 @@ public class ActorOptionPricerQueryApiTests
             .GetSpreadDistributionJobInProgressCountAsync(1, 2, cancellation.Token);
     }
 
-    static (ActorOptionPricerQueryApi Api, IOptionPricerDbContext Db) CreateApi()
+    static (ISpreadDistributionQueryContext Api, IOptionPricerDbContext Db) CreateApi()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var db = Substitute.For<IOptionPricerDbContext>();
         dbFactory.OptionPricerDb.Returns(db);
-        return (new ActorOptionPricerQueryApi(dbFactory), db);
+        var context = Substitute.For<ISpreadDistributionQueryContext>();
+        context.DbFactory.Returns(dbFactory);
+        return (context, db);
     }
 }

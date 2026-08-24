@@ -9,13 +9,19 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query.Extensions;
+
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Query.Actor;
 
+/// <summary>Provides the SpreadDistributionQueryActor implementation.</summary>
 public class SpreadDistributionQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<SpreadDistributionQueryActor> logger)
-    : BaseQueryActor<SpreadDistributionQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+    IQueryActorContext<SpreadDistributionQueryActor> actorContext)
+    : BaseQueryActor<SpreadDistributionQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected ISpreadDistributionQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ISpreadDistributionQueryContext, nameof(actorContext))!;
+
     public const string ActorName = "SpreadDistributionQuery";
 
     /// <summary>
@@ -65,19 +71,20 @@ public class SpreadDistributionQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        await receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding spread distribution query
     /// logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext<SpreadDistributionQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
         [typeof(GetSpreadDistributionQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
@@ -124,7 +131,7 @@ public class SpreadDistributionQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 

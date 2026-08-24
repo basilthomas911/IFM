@@ -84,9 +84,9 @@ internal static class FuturesOptionTickDataEventExtensions
    /// with matching legs are updated.</param>
    /// <returns>A task that represents the asynchronous update operation.</returns>
    /// <exception cref="NotImplementedException">Thrown if the trade type is not supported for decomposition into a single-leg spread type.</exception>
-    public static async ValueTask UpdateFuturesOptionTradeLegDataAsync(this IActorTradeCommandApi commandApi,
-        FuturesOptionTickDataV2ReadModel optionTickData, 
-        double riskFreeRate,  
+    public static async ValueTask UpdateFuturesOptionTradeLegDataAsync(this IEventActorContext commandApi,
+        FuturesOptionTickDataV2ReadModel optionTickData,
+        double riskFreeRate,
         OptionTradeReadModel[] optionTrades)
     {
         // Retrieve all option trades whose legs reference the same contract as the incoming tick data.

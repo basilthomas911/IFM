@@ -9,6 +9,8 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
+using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Extensions;
+
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 
 /// <summary>
@@ -20,17 +22,15 @@ namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event.Actor;
 /// null.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the spread distribution job event actor. Cannot be null.</param>
 public class SpreadDistributionJobEventActor(
-    IActorSupervisor supervisor,
-    IActorOptionPricerCommandApiFactory optionPricerCommandApiFactory,
-    IActorTradeCommandApiFactory tradeCommandApiFactory,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<SpreadDistributionJobEventActor> logger)
-    : BaseEventActor<SpreadDistributionJobEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<SpreadDistributionJobEventActor> actorContext)
+    : BaseEventActor<SpreadDistributionJobEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected ISpreadDistributionJobEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ISpreadDistributionJobEventContext, nameof(actorContext))!;
+
     public const string Actor = "SpreadDistributionJobEvent";
-    IActorOptionPricerCommandApi? _optionPricerCommandApi;
-    IActorTradeCommandApi? _tradeCommandApi;
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorOptionPricerCommandApi, IActorTradeCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(SpreadDistributionJobSubmittedEvent).Name] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
         {
@@ -48,16 +48,8 @@ public class SpreadDistributionJobEventActor(
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetOptionPricerCommandApi(context);
-        _ = GetTradeCommandApi(context);
         return ValueTask.CompletedTask;
     }
-
-    IActorOptionPricerCommandApi GetOptionPricerCommandApi(IEventActorContext context)
-        => _optionPricerCommandApi ??= optionPricerCommandApiFactory.Create(context);
-
-    IActorTradeCommandApi GetTradeCommandApi(IEventActorContext context)
-        => _tradeCommandApi ??= tradeCommandApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -100,6 +92,7 @@ public class SpreadDistributionJobEventActor(
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type, or if the event cannot be resolved from the message.</exception>
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
@@ -107,11 +100,11 @@ public class SpreadDistributionJobEventActor(
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
         _ = await receiveFunc.Invoke(
             @event,
-            context,
-            GetOptionPricerCommandApi(context),
-            GetTradeCommandApi(context),
-            statusConsoleWriter,
-            logger);
+            dispatchContext,
+            dispatchContext,
+            dispatchContext,
+            actorContext.StatusConsoleWriter,
+            actorContext.Logger);
     }
 
     /// <summary>
@@ -137,7 +130,7 @@ public class SpreadDistributionJobEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

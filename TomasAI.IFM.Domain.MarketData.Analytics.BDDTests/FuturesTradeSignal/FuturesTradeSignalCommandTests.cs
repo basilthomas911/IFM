@@ -42,7 +42,7 @@ public class FuturesTradeSignalCommandTests
         IEventSourceActorDbContext eventDb,
         IEventProjector<FuturesTradeSignalCommandActor> eventProjector,
         ILogger<FuturesTradeSignalCommandActor> logger)
-        : FuturesTradeSignalCommandActor(eventDb, eventProjector, logger)
+        : FuturesTradeSignalCommandActor(new FuturesTradeSignalCommandContext(Substitute.For<IActorSupervisor>(), eventDb, eventProjector, logger))
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

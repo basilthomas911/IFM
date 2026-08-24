@@ -8,45 +8,47 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="supervisor"></param>
 /// <param name="statusConsoleWriter"></param>
 /// <param name="logger"></param>
 public class FuturesTdiSignalEventActor(
-    IActorSupervisor supervisor,
-    IActorMarketDataAnalyticsCommandApiFactory commandApiFactory,
-    IStatusConsoleWriter statusConsoleWriter,
-    ILogger<FuturesTdiSignalEventActor> logger)
-    : BaseEventActor<FuturesTdiSignalEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+    IEventActorContext<FuturesTdiSignalEventActor> actorContext)
+    : BaseEventActor<FuturesTdiSignalEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesTdiSignalEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesTdiSignalEventContext, nameof(actorContext))!;
+
     public const string Actor = "FuturesTdiSignalEvent";
-    IActorMarketDataAnalyticsCommandApi? _commandApi;
     static readonly ActorTypeId RsiSignalsRoute = new(
         ActorType.Event,
         FuturesRsiSignalsGeneratedEvent.Actor,
         FuturesRsiSignalsGeneratedEvent.Verb);
 
-    readonly Dictionary<string, Func<IEvent, IEventActorContext, IActorMarketDataAnalyticsCommandApi, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
         [typeof(FuturesTdiSignalGeneratedCompleteEvent).Name] = async (evt, context, _, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTdiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
         },
         [typeof(FuturesRsiSignalsGeneratedEvent).Name] = async (evt, context, commandApi, _, logger) =>
         {
             var e = (evt as FuturesRsiSignalsGeneratedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, logger);
+            return await e.ExecuteAsync(context, commandApi, actorContext.Logger);
         }
     };
 
     protected override ValueTask OnStartup(IEventActorContext context)
     {
-        _ = GetCommandApi(context);
+        _ = context;
         context.AddEventRouter(RsiSignalsRoute, Id);
         return ValueTask.CompletedTask;
     }
@@ -56,9 +58,6 @@ public class FuturesTdiSignalEventActor(
         context.RemoveEventRouter(RsiSignalsRoute, Id);
         return ValueTask.CompletedTask;
     }
-
-    IActorMarketDataAnalyticsCommandApi GetCommandApi(IEventActorContext context)
-        => _commandApi ??= commandApiFactory.Create(context);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -98,12 +97,13 @@ public class FuturesTdiSignalEventActor(
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type.</exception>
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, context, GetCommandApi(context), statusConsoleWriter, logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, context, actorContext.StatusConsoleWriter, actorContext.Logger);
     }
 
     /// <summary>
@@ -127,7 +127,7 @@ public class FuturesTdiSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -1,8 +1,8 @@
 using FluentAssertions;
 using NSubstitute;
-using TomasAI.IFM.Domain.MarketData.Analytics.Command.Api;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -21,7 +21,7 @@ public class ActorMarketDataAnalyticsCommandApiTests
         context.RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(
                 Arg.Any<GenerateFuturesRsiSignalCommand>())
             .Returns(expected);
-        var api = new ActorMarketDataAnalyticsCommandApiFactory().Create(context);
+        var api = context;
 
         var result = await api.GenerateFuturesRsiSignalAsync(signalId, 6425.25m);
 
@@ -57,7 +57,7 @@ public class ActorMarketDataAnalyticsCommandApiTests
         context.RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(
                 Arg.Do<GenerateFuturesMacdSignalCommand>(commands.Add))
             .Returns(expected);
-        var api = new ActorMarketDataAnalyticsCommandApi(context);
+        var api = context;
         var valueDate = new DateOnly(2026, 8, 17);
         var timestamp = new TimeOnly(12, 30);
 
@@ -92,7 +92,7 @@ public class ActorMarketDataAnalyticsCommandApiTests
         context.RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(
                 Arg.Any<GenerateFuturesRsiSignalCommand>())
             .Returns(new ServiceFailed<GuidResult>(GenerateFuturesRsiSignalCommand.ErrorId, "generation failed"));
-        var api = new ActorMarketDataAnalyticsCommandApi(context);
+        var api = context;
 
         Func<Task> act = async () => await api.GenerateFuturesRsiSignalAsync(signalId, 6425.25m);
 

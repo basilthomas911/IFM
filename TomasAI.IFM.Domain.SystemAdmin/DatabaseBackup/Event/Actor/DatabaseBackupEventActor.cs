@@ -8,14 +8,26 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Extensions;
+
+using TomasAI.IFM.Shared.Extensions;
+
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Event.Actor;
 
-public class DatabaseBackupEventActor(IActorSupervisor supervisor, ILogger<DatabaseBackupEventActor> logger)
-    : BaseEventActor<DatabaseBackupEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+/// <summary>Provides the DatabaseBackupEventActor implementation.</summary>
+public class DatabaseBackupEventActor(
+    IEventActorContext<DatabaseBackupEventActor> actorContext)
+    : BaseEventActor<DatabaseBackupEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IDatabaseBackupEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IDatabaseBackupEventContext, nameof(actorContext))!;
+
     public const string Actor = "DatabaseBackupEvent";
 
+    /// <summary>Gets the SupportedServiceEventTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedServiceEventTypes => ServiceEventTypes;
+    /// <summary>Gets the SupportedVerbs value.</summary>
     public static IReadOnlyCollection<string> SupportedVerbs => ParseMap.Keys;
 
     static readonly Type[] ServiceEventTypes =
@@ -50,6 +62,7 @@ public class DatabaseBackupEventActor(IActorSupervisor supervisor, ILogger<Datab
 
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         if (@event is not DatabaseBackupServiceEventContract serviceEvent)
             throw new InvalidOperationException($"Unsupported DatabaseBackup event '{@event.GetType().Name}'.");
         var command = DatabaseBackupEventTranslator.Translate(serviceEvent);
@@ -82,7 +95,7 @@ public class DatabaseBackupEventActor(IActorSupervisor supervisor, ILogger<Datab
 
     protected override ValueTask OnExceptionAsync(IEventActorContext context, ActorThreadId threadId, IEvent @event, Exception exception)
     {
-        logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
+        actorContext.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
         return ValueTask.CompletedTask;
     }
 }

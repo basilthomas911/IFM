@@ -14,10 +14,12 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
 
+/// <summary>Provides the FuturesMacdSignalLifecycle implementation.</summary>
 public static class FuturesMacdSignalLifecycle
 {
+    /// <summary>Executes the ExecuteAsync operation.</summary>
     public static ValueTask<bool> ExecuteAsync(this FuturesMacdSignalStartedEvent e, IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi, IMarketDataApi marketDataApi,
+        IEventActorContext commandApi, IMarketDataApi marketDataApi,
         IStatusConsoleWriter status, ILogger logger)
     {
         try
@@ -72,6 +74,7 @@ public static class FuturesMacdSignalLifecycle
         async ValueTask<bool> HandleStartFailureAsync(Exception ex) { await LogAsync(ex); return false; }
     }
 
+    /// <summary>Executes the ExecuteAsync operation.</summary>
     public static async ValueTask<bool> ExecuteAsync(this FuturesMacdSignalStoppedEvent e, IEventActorContext context,
         IStatusConsoleWriter status, ILogger logger)
     {

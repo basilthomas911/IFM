@@ -33,7 +33,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     public sealed class TestableFuturesTradeSignalQueryActor(
         IDbContextFactory dbFactory,
         ILogger<FuturesTradeSignalQueryActor> logger)
-        : FuturesTradeSignalQueryActor(dbFactory, logger)
+        : FuturesTradeSignalQueryActor(new FuturesTradeSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public IQuery InvokeParseMessage(IQueryActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

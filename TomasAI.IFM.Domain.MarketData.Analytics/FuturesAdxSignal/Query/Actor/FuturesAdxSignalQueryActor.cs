@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query.Actor;
 
 /// <summary>
@@ -18,10 +20,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Query.Actor;
 /// and manages the actor's state.</remarks>
 /// <param name="logger">The logger used to record diagnostic and operational information.</param>
 public class FuturesAdxSignalQueryActor(
-    IDbContextFactory dbFactory,
-    ILogger<FuturesAdxSignalQueryActor> logger)
-    : BaseQueryActor<FuturesAdxSignalQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+    IQueryActorContext<FuturesAdxSignalQueryActor> actorContext)
+    : BaseQueryActor<FuturesAdxSignalQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IFuturesAdxSignalQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IFuturesAdxSignalQueryContext, nameof(actorContext))!;
+
     public const string ActorName = "FuturesAdxSignalQuery";
 
     /// <summary>
@@ -72,19 +77,20 @@ public class FuturesAdxSignalQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(context, dbFactory, query, cancellationToken).ConfigureAwait(false);
+        await receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures ADX signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<string, Func<IQueryActorContext<FuturesAdxSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
         [typeof(GetFuturesAdxSignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
@@ -134,7 +140,7 @@ public class FuturesAdxSignalQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

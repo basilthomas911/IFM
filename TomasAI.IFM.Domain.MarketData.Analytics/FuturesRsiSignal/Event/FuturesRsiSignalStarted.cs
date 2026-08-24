@@ -17,6 +17,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 
+/// <summary>Provides the FuturesRsiSignalStarted implementation.</summary>
 public static class FuturesRsiSignalStarted
 {
     static FuturesRsiSignalStarted()
@@ -38,7 +39,7 @@ public static class FuturesRsiSignalStarted
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalStartedEvent e,
         IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi,
+        IEventActorContext commandApi,
         IMarketDataApi marketDataApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)

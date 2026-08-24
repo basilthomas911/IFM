@@ -25,13 +25,13 @@ internal static class IEventActorContextExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesRsiSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi,
+        this IEventActorContext commandApi,
         FuturesRsiSignalId futuresRsiSignalId,
         decimal futuresPrice,
         long sourceSequence = 0,
         DateTime sourceEventTimestamp = default)
     {
-        _ = await commandApi.GenerateFuturesRsiSignalAsync(
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesRsiSignalAsync(commandApi,
             futuresRsiSignalId,
             futuresPrice,
             sourceSequence,
@@ -47,14 +47,14 @@ internal static class IEventActorContextExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesTdiSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi,
+        this IEventActorContext commandApi,
         FuturesTdiSignalId futuresTdiSignalId,
         FuturesRsiSignalReadModel[] futuresRsiSignals,
         TimeFrameType timePeriod,
         FuturesTdiConfiguration? configuration = null,
         Guid? commandId = null)
     {
-        _ = await commandApi.GenerateFuturesTdiSignalAsync(
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi,
             futuresTdiSignalId,
             futuresRsiSignals,
             timePeriod,
@@ -72,12 +72,12 @@ internal static class IEventActorContextExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesMacdSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
+        this IEventActorContext commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
     {
-        _ = await commandApi.GenerateFuturesMacdSignalAsync(futuresMacdSignalId, futuresPrice);
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice);
     }
 
-    
+
     /// <summary>
     /// Retrieves the most recent end-of-day (EOD) futures data for a specified contract and value date.
     /// </summary>

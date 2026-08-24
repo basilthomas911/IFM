@@ -12,6 +12,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
+using TomasAI.IFM.Domain.Application.Actor.Command.Extensions;
+
 namespace TomasAI.IFM.Domain.Application.Actor.Command.Actor;
 
 /// <summary>
@@ -24,14 +26,16 @@ namespace TomasAI.IFM.Domain.Application.Actor.Command.Actor;
 /// <param name="dbEventSource">The event source database context used for logging and persisting command events.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public sealed class ApplicationCommandActor(
-    IEventSourceActorDbContext dbEventSource,
-    IEventProjector<ApplicationCommandActor> eventProjector,
-    ILogger<ApplicationCommandActor> logger)
-    : BaseEventSourceCommandActor<ApplicationCommandActor>(logger, new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<ApplicationCommandActor> actorContext)
+    : BaseEventSourceCommandActor<ApplicationCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    private IApplicationCommandContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IApplicationCommandContext, nameof(actorContext))!;
+
     public const string ActorName = "ApplicationCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(dbEventSource);
-    readonly IEventProjector<ApplicationCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
+    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
+    readonly IEventProjector<ApplicationCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
     IEventSourceActorStateRepository<ApplicationCommandState> _repo = default!;
 
     /// <summary>
@@ -82,6 +86,7 @@ public sealed class ApplicationCommandActor(
     /// <exception cref="InvalidOperationException">Thrown if the command type cannot be resolved from the message.</exception>
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext context, IActorState state, ICommand cmd)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
@@ -192,7 +197,7 @@ public sealed class ApplicationCommandActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             return CommandFailed(innerEx, command);
         }
     }

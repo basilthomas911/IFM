@@ -11,6 +11,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.Trade.Shared.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
+using TomasAI.IFM.Domain.Trade.Option.Query.Extensions;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Query.Actor;
 
 /// <summary>
@@ -23,11 +25,13 @@ namespace TomasAI.IFM.Domain.Trade.Option.Query.Actor;
 /// <param name="dbFactory">The database context factory used to access option trade data.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the actor.</param>
 public class OptionTradeQueryActor(
-    IDbContextFactory dbFactory,
-    IBlackboardService blackboardService,
-    ILogger<OptionTradeQueryActor> logger)
-    : BaseQueryActor<OptionTradeQueryActor>(logger, new ActorMailboxId(ActorType.Query, ActorName))
+    IQueryActorContext<OptionTradeQueryActor> actorContext)
+    : BaseQueryActor<OptionTradeQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IOptionTradeQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IOptionTradeQueryContext, nameof(actorContext))!;
+
     public const string ActorName = "OptionTradeQuery";
 
     /// <summary>
@@ -86,24 +90,25 @@ public class OptionTradeQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(context, dbFactory, query, cancellationToken);
+        return receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding option trade query
     /// logic against the database context factory.
     /// </summary>
-    readonly Dictionary<string, Func<IQueryActorContext, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    readonly Dictionary<string, Func<IQueryActorContext<OptionTradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
         [typeof(GetOptionTradeQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetOptionTradeQuery)!;
-            var result = await query.GetOptionTradeAsync(dbFactory, cancellationToken);
+            var result = await query.GetOptionTradeAsync(actorContext.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradeQuery.Verb,
                 new ServiceResult<OptionTradeReadModel?>(result));
@@ -111,7 +116,7 @@ public class OptionTradeQueryActor(
         [typeof(GetOptionTradesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetOptionTradesQuery)!;
-            var result = await query.GetOptionTradesAsync(dbFactory, cancellationToken);
+            var result = await query.GetOptionTradesAsync(actorContext.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradesQuery.Verb,
                 new ServiceResult<OptionTradeReadModel[]>(result));
@@ -119,7 +124,7 @@ public class OptionTradeQueryActor(
         [typeof(GetOptionTradeSpreadDataQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetOptionTradeSpreadDataQuery)!;
-            var result = await query.GetOptionTradeSpreadDataAsync(dbFactory, cancellationToken);
+            var result = await query.GetOptionTradeSpreadDataAsync(actorContext.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradeSpreadDataQuery.Verb,
                 new ServiceResult<OptionTradeSpreadsDataModel>(result));
@@ -127,7 +132,7 @@ public class OptionTradeQueryActor(
         [typeof(GetOptionTradeSpreadBarDataQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetOptionTradeSpreadBarDataQuery)!;
-            var result = await query.GetOptionTradeSpreadBarDataAsync(dbFactory, cancellationToken);
+            var result = await query.GetOptionTradeSpreadBarDataAsync(actorContext.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionTradeSpreadBarDataQuery.Verb,
                 new ServiceResult<OptionTradeSpreadBarsDataModel[]>(result));
@@ -135,7 +140,7 @@ public class OptionTradeQueryActor(
         [typeof(GetOptionLegContractIdsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetOptionLegContractIdsQuery)!;
-            var result = await query.GetOptionLegContractIdsAsync(dbFactory, cancellationToken);
+            var result = await query.GetOptionLegContractIdsAsync(actorContext.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetOptionLegContractIdsQuery.Verb,
                 new ServiceResult<string[]>(result));
@@ -143,7 +148,7 @@ public class OptionTradeQueryActor(
         [typeof(GetIronCondorTradePriceQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetIronCondorTradePriceQuery)!;
-            var result = await query.GetIronCondorTradePriceAsync(dbFactory, cancellationToken);
+            var result = await query.GetIronCondorTradePriceAsync(actorContext.DbFactory, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorTradePriceQuery.Verb,
                 new ServiceResult<TradePriceReadModel?>(result));
@@ -151,7 +156,7 @@ public class OptionTradeQueryActor(
         [typeof(GetTradePositionsQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (GetTradePositionsQuery)q;
-            var result = await dbFactory.TradeDb.GetTradePositionsAsync(
+            var result = await actorContext.DbFactory.TradeDb.GetTradePositionsAsync(
                 query.OrderId, query.TradeId, cancellationToken);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePositionsQuery.Verb,
                 new ServiceResult<TradePositionReadModel[]>([.. result]));
@@ -159,7 +164,7 @@ public class OptionTradeQueryActor(
         [typeof(GetTradePositionTradeTypesQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (GetTradePositionTradeTypesQuery)q;
-            var result = await dbFactory.TradeDb.GetTradePositionTradeTypesAsync(
+            var result = await actorContext.DbFactory.TradeDb.GetTradePositionTradeTypesAsync(
                 query.OrderId,
                 query.TradeId,
                 query.ValueDate,
@@ -179,7 +184,7 @@ public class OptionTradeQueryActor(
         {
             var query = (GetIronCondorMDILimitQuery)q;
             cancellationToken.ThrowIfCancellationRequested();
-            var result = blackboardService.Trade.IronCondorMDILimit.Get(
+            var result = actorContext.BlackboardService.Trade.IronCondorMDILimit.Get(
                 new OptionTradeEntityId(query.OrderId, query.TradeId), query.ValueDate);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorMDILimitQuery.Verb,
                 new ServiceResult<IronCondorMDILimitDataModel?>(result));
@@ -232,7 +237,7 @@ public class OptionTradeQueryActor(
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

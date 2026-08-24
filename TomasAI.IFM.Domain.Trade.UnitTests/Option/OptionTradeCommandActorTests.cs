@@ -30,7 +30,7 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
         IEventSourceActorDbContext dbEventSource,
         IDbContextFactory dbFactory,
         ILogger<OptionTradeCommandActor> logger)
-        : OptionTradeCommandActor(dbEventSource, dbFactory, Substitute.For<IEventProjector<OptionTradeCommandActor>>(), logger)
+        : OptionTradeCommandActor(new OptionTradeCommandContext(Substitute.For<IActorSupervisor>(), dbEventSource, dbFactory, Substitute.For<IEventProjector<OptionTradeCommandActor>>(), logger))
     {
         public ICommand InvokeParseMessage(ICommandActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

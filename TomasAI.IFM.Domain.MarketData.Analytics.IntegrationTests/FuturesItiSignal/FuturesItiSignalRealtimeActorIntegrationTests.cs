@@ -66,16 +66,16 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
                 return ValueTask.FromResult(true);
             });
         var marketDataApi = CreateReadyMarketDataApi();
-        var primaryActor = new FuturesMarketPriceRealtimeActor(
+        var primaryActor = new FuturesMarketPriceRealtimeActor(new FuturesMarketPriceRealtimeContext(
             supervisor,
-            Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>());
-        var itiActor = new FuturesItiSignalRealtimeActor(
+            Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>()));
+        var itiActor = new FuturesItiSignalRealtimeActor(new FuturesItiSignalRealtimeContext(
             supervisor,
             projector,
             marketDataApi,
             CreateDbFactory(),
             Substitute.For<IStatusConsoleWriter>(),
-            Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>());
+            Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()));
         supervisor.ActorExists(primaryActor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
             .Returns(ImmutableHashSet.Create(itiActor.Id));

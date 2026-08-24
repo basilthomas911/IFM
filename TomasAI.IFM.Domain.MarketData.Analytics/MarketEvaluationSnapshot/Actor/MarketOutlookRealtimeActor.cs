@@ -14,6 +14,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot.Extensions;
+
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot.Actor;
 
 /// <summary>
@@ -21,14 +23,13 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot.Actor
 /// snapshot only when the corresponding EOD projection completes.
 /// </summary>
 public class MarketOutlookRealtimeActor(
-    IActorSupervisor supervisor,
-    IDbContextFactory dbFactory,
-    ILogger<MarketOutlookRealtimeActor> logger)
-    : BaseEventActor<MarketOutlookRealtimeActor>(
-        supervisor,
-        logger,
-        new ActorMailboxId(ActorType.Realtime, ActorName))
+    IRealtimeActorContext<MarketOutlookRealtimeActor> actorContext)
+    : BaseEventActor<MarketOutlookRealtimeActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IMarketOutlookRealtimeContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IMarketOutlookRealtimeContext, nameof(actorContext))!;
+
     public const string ActorName = "MarketOutlook";
     readonly ConcurrentDictionary<MarketOutlookEntityId, CoordinatorState> _states = new();
 
@@ -53,6 +54,7 @@ public class MarketOutlookRealtimeActor(
 
     protected override async ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         switch (@event)
         {
             case MarketOutlookComponentChangedRealtimeEvent changed:
@@ -115,7 +117,7 @@ public class MarketOutlookRealtimeActor(
             tradeSignal = compute.FuturesTradeSignal;
         }
 
-        state.CurrentSnapshot ??= await dbFactory.MarketDataDb
+        state.CurrentSnapshot ??= await actorContext.DbFactory.MarketDataDb
             .GetMarketOutlookSnapshotAsync(source.EntityId.ContractId, source.EntityId.ValueDate)
             .ConfigureAwait(false);
         tradeSignal ??= state.CurrentSnapshot?.FuturesTradeSignal;
@@ -127,7 +129,7 @@ public class MarketOutlookRealtimeActor(
             enrichedEod,
             tradeSignal,
             string.Join(", ", missing));
-        await dbFactory.MarketDataDb.UpsertMarketOutlookSnapshotAsync(snapshot)
+        await actorContext.DbFactory.MarketDataDb.UpsertMarketOutlookSnapshotAsync(snapshot)
             .ConfigureAwait(false);
         state.CurrentSnapshot = snapshot;
 
@@ -155,7 +157,7 @@ public class MarketOutlookRealtimeActor(
         MarketOutlookEntityId id,
         IEventActorContext context)
     {
-        var db = dbFactory.MarketDataDb;
+        var db = actorContext.DbFactory.MarketDataDb;
         // Re-read every persisted input at the EOD barrier. The coordinator cache keeps
         // asynchronous updates available, while the read closes any cross-mailbox race
         // where an input was committed before EOD but its realtime message arrives later.
@@ -196,7 +198,7 @@ public class MarketOutlookRealtimeActor(
         IEvent @event,
         Exception exception)
     {
-        logger.LogErrorEvent(ActorName, exception,
+        actorContext.Logger.LogErrorEvent(ActorName, exception,
             "Market Outlook coordination failed for {EntityId}", @event.Subject.EntityId);
         await ValueTask.CompletedTask;
     }

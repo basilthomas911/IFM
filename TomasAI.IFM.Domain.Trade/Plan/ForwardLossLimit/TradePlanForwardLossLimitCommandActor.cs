@@ -7,17 +7,21 @@ using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+
+using TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit;
 
 namespace TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit;
 
+/// <summary>Provides the TradePlanForwardLossLimitCommandActor implementation.</summary>
 public sealed class TradePlanForwardLossLimitCommandActor(
-    IDbContextFactory dbFactory,
-    ITradeEventProducer eventProducer,
-    ILogger<TradePlanForwardLossLimitCommandActor> logger)
-    : BaseEventSourceCommandActor<TradePlanForwardLossLimitCommandActor>(
-        logger,
-        new ActorMailboxId(ActorType.Command, ActorName))
+    ICommandActorContext<TradePlanForwardLossLimitCommandActor> actorContext)
+    : BaseEventSourceCommandActor<TradePlanForwardLossLimitCommandActor>(actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    private ITradePlanForwardLossLimitCommandActorContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as ITradePlanForwardLossLimitCommandActorContext, nameof(actorContext))!;
+
     public const string ActorName = "TradePlanForwardLossLimitCommand";
 
     protected override ICommand ParseMessage(ICommandActorContext context, IActorMessage message)
@@ -39,8 +43,8 @@ public sealed class TradePlanForwardLossLimitCommandActor(
         switch (command)
         {
             case UpdateTradePlanForwardLossLimitCommand update:
-                await dbFactory.TradeDb.InsertTradePlanForwardLossLimitAsync(update.TradePlanForwardLossLimit);
-                await eventProducer.PostEventAsync(new TradePlanForwardLossLimitUpdatedEvent
+                await actorContext.DbFactory.TradeDb.InsertTradePlanForwardLossLimitAsync(update.TradePlanForwardLossLimit);
+                await actorContext.EventProducer.PostEventAsync(new TradePlanForwardLossLimitUpdatedEvent
                 {
                     CommandId = update.CommandId,
                     EntityId = update.EntityId.Format(),
@@ -50,8 +54,8 @@ public sealed class TradePlanForwardLossLimitCommandActor(
                 });
                 break;
             case ClearTradePlanForwardLossLimitCommand clear:
-                await dbFactory.TradeDb.DeleteTradePlanForwardLossLimitAsync(clear.EntityId);
-                await eventProducer.PostEventAsync(new TradePlanForwardLossLimitClearedEvent
+                await actorContext.DbFactory.TradeDb.DeleteTradePlanForwardLossLimitAsync(clear.EntityId);
+                await actorContext.EventProducer.PostEventAsync(new TradePlanForwardLossLimitClearedEvent
                 {
                     CommandId = clear.CommandId,
                     EntityId = clear.EntityId.Format(),

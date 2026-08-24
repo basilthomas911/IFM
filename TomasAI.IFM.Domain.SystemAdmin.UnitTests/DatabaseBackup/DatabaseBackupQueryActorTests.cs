@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.SystemAdmin.UnitTests.DatabaseBackup;
 public sealed class DatabaseBackupQueryActorTests
 {
     sealed class TestableQueryActor(ISystemAdminDbContext db, ILogger<DatabaseBackupQueryActor> logger)
-        : DatabaseBackupQueryActor(db, logger)
+        : DatabaseBackupQueryActor(new DatabaseBackupQueryContext(Substitute.For<IActorSupervisor>(), db, logger))
     {
         public ValueTask Receive(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
             => base.ReceiveAsync(context, query, cancellationToken);

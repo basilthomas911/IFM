@@ -34,7 +34,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
         IActorSupervisor supervisor,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger<FuturesTradeSignalEventActor> logger)
-        : FuturesTradeSignalEventActor(supervisor, statusConsoleWriter, logger)
+        : FuturesTradeSignalEventActor(new FuturesTradeSignalEventContext(supervisor, statusConsoleWriter, logger))
     {
         public IEvent InvokeParseMessage(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);

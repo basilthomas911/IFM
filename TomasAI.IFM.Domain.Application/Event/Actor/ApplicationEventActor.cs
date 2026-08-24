@@ -6,6 +6,8 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
+using TomasAI.IFM.Domain.Application.Actor.Event.Extensions;
+
 namespace TomasAI.IFM.Domain.Application.Actor.Event.Actor;
 
 /// <summary>
@@ -14,9 +16,14 @@ namespace TomasAI.IFM.Domain.Application.Actor.Event.Actor;
 /// <param name="supervisor">The actor supervisor that manages actor lifecycle and coordinates event processing within the system. Cannot be
 /// null.</param>
 /// <param name="logger">The logger used to record diagnostic and operational information for the application event actor. Cannot be null.</param>
-public sealed class ApplicationEventActor(IActorSupervisor supervisor, ILogger<ApplicationEventActor> logger)
-    : BaseEventActor<ApplicationEventActor>(supervisor, logger, new ActorMailboxId(ActorType.Event, Actor))
+public sealed class ApplicationEventActor(
+    IEventActorContext<ApplicationEventActor> actorContext)
+    : BaseEventActor<ApplicationEventActor>(actorContext.Supervisor, actorContext.Logger, actorContext.ActorId)
 {
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    private IApplicationEventContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IApplicationEventContext, nameof(actorContext))!;
+
     public const string Actor = ApplicationStartupEvent.Actor;
 
     /// <summary>
@@ -56,6 +63,7 @@ public sealed class ApplicationEventActor(IActorSupervisor supervisor, ILogger<A
     /// <exception cref="InvalidOperationException"></exception>
     protected override ValueTask ReceiveAsync(IEventActorContext context, IEvent @event)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
 
@@ -92,7 +100,7 @@ public sealed class ApplicationEventActor(IActorSupervisor supervisor, ILogger<A
         }
         catch (Exception innerEx)
         {
-            logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

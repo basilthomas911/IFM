@@ -28,6 +28,7 @@ using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 
+/// <summary>Provides the FuturesItiSignalEventExtensions implementation.</summary>
 public static class FuturesItiSignalEventExtensions
 {
     /// <summary>
@@ -56,7 +57,7 @@ public static class FuturesItiSignalEventExtensions
     }
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="context"></param>
     /// <param name="contractId"></param>
@@ -314,7 +315,7 @@ public static class FuturesItiSignalEventExtensions
     /// <returns>A ValueTask representing the asynchronous operation of updating the futures trade signal.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the update operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask UpdateFuturesTradeSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi,
+        this IEventActorContext commandApi,
         FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel? futuresRsiSignal,
         FuturesTdiSignalReadModel? futuresTdiSignal,
@@ -322,7 +323,7 @@ public static class FuturesItiSignalEventExtensions
         decimal vixFuturesPrice,
         TimeFrameType timePeriod)
     {
-        _ = await commandApi.UpdateFuturesTradeSignalAsync(
+        _ = await MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
             futuresEodData,
             futuresRsiSignal,
             futuresTdiSignal,
@@ -345,7 +346,7 @@ public static class FuturesItiSignalEventExtensions
     /// <exception cref="InvalidOperationException">Thrown if the operation fails to generate the futures ITI signal, such as when the underlying service returns an
     /// error.</exception>
     public static async ValueTask GenerateFuturesItiSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi,
+        this IEventActorContext commandApi,
         string contractId,
         DateOnly valueDate,
         TimeFrameType timePeriod,
@@ -353,7 +354,7 @@ public static class FuturesItiSignalEventExtensions
         double futuresPrice,
         double vixFuturesPrice)
     {
-        _ = await commandApi.GenerateFuturesItiSignalAsync(
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesItiSignalAsync(commandApi,
             contractId,
             valueDate,
             timePeriod,

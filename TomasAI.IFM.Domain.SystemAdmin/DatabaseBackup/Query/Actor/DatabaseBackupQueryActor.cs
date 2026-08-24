@@ -7,15 +7,27 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
+using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Extensions;
+
+using TomasAI.IFM.Shared.Extensions;
+
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Query.Actor;
 
-public class DatabaseBackupQueryActor(ISystemAdminDbContext dbContext, ILogger<DatabaseBackupQueryActor> logger)
-    : BaseQueryActor<DatabaseBackupQueryActor>(logger, new ActorMailboxId(ActorType.Query, Actor))
+/// <summary>Provides the DatabaseBackupQueryActor implementation.</summary>
+public class DatabaseBackupQueryActor(
+    IQueryActorContext<DatabaseBackupQueryActor> actorContext)
+    : BaseQueryActor<DatabaseBackupQueryActor>(actorContext.Logger, actorContext.ActorId)
 {
-    public const string Actor = DatabaseBackupQuery.Actor;
-    readonly ISystemAdminDbContext _dbContext = dbContext;
+    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
+    protected IDatabaseBackupQueryContext ActorContext { get; } =
+        IsArgumentNull.Set(actorContext as IDatabaseBackupQueryContext, nameof(actorContext))!;
 
+    public const string Actor = DatabaseBackupQuery.Actor;
+    readonly ISystemAdminDbContext _dbContext = actorContext.DbContext;
+
+    /// <summary>Gets the SupportedQueryTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes => QueryRoutes.Select(route => route.QueryType).ToArray();
+    /// <summary>Gets the SupportedVerbs value.</summary>
     public static IReadOnlyCollection<string> SupportedVerbs => ParseMap.Keys;
 
     static readonly (Type QueryType, Type ResultType)[] QueryRoutes =
@@ -62,6 +74,7 @@ public class DatabaseBackupQueryActor(ISystemAdminDbContext dbContext, ILogger<D
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext context, IQuery query, CancellationToken cancellationToken)
     {
+        var dispatchContext = actorContext.RouteTo(context);
         ((DatabaseBackupQuery)query).Validate();
         switch (query)
         {

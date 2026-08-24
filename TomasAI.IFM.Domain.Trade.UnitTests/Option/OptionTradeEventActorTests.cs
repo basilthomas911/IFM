@@ -22,10 +22,9 @@ public sealed class OptionTradeEventActorTests : IClassFixture<TradeFixture>
 
     sealed class TestableOptionTradeEventActor(
         IActorSupervisor supervisor,
-        IActorOptionPricerCommandApiFactory commandApiFactory,
         IStatusConsoleWriter statusConsole,
         ILogger<OptionTradeEventActor> logger)
-        : OptionTradeEventActor(supervisor, commandApiFactory, statusConsole, logger)
+        : OptionTradeEventActor(new OptionTradeEventContext(supervisor, statusConsole, logger))
     {
         public IEvent Parse(IEventActorContext context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -101,7 +100,6 @@ public sealed class OptionTradeEventActorTests : IClassFixture<TradeFixture>
     static TestableOptionTradeEventActor CreateActor()
         => new(
             Substitute.For<IActorSupervisor>(),
-            Substitute.For<IActorOptionPricerCommandApiFactory>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger<OptionTradeEventActor>>());
 

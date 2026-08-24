@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 
 namespace TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Event;
 
+/// <summary>Provides the SpreadDistributionJobSubmitted implementation.</summary>
 public static class SpreadDistributionJobSubmitted
 {
     static SpreadDistributionJobSubmitted()
@@ -34,8 +35,8 @@ public static class SpreadDistributionJobSubmitted
     public static async ValueTask<bool> ExecuteAsync(
         this SpreadDistributionJobSubmittedEvent e,
         IEventActorContext context,
-        IActorOptionPricerCommandApi optionPricerCommandApi,
-        IActorTradeCommandApi tradeCommandApi,
+        IEventActorContext optionPricerCommandApi,
+        IEventActorContext tradeCommandApi,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)
     {
@@ -44,12 +45,12 @@ public static class SpreadDistributionJobSubmitted
         if (serviceResult.Success && serviceResult.Value is not null)
         {
             var spreadJob = serviceResult.Value;
-            await optionPricerCommandApi.CompleteSpreadDistributionJobAsync(spreadJob.EntityId, DateTime.UtcNow, SpreadDistributionJobStatus.Completed).ConfigureAwait(false);
+            await OptionPricerCommandApiExtensions.CompleteSpreadDistributionJobAsync(optionPricerCommandApi, spreadJob.EntityId, DateTime.UtcNow, SpreadDistributionJobStatus.Completed).ConfigureAwait(false);
             await statusConsoleWriter.WriteConsoleAsync(LogSourceType.SpreadDistributionJobEvent, $"SpreadDistributionJobCompleted: {spreadJob.JobSubmitted:HH:mm:ss} Duration {spreadJob.Duration:F4} ms").ConfigureAwait(false);
         }
         else
         {
-            await optionPricerCommandApi.FailSpreadDistributionJobAsync(e.SpreadDistributionJob.EntityId, DateTime.UtcNow, SpreadDistributionJobStatus.Failed, serviceResult.ErrorMessage).ConfigureAwait(false);
+            await OptionPricerCommandApiExtensions.FailSpreadDistributionJobAsync(optionPricerCommandApi, e.SpreadDistributionJob.EntityId, DateTime.UtcNow, SpreadDistributionJobStatus.Failed, serviceResult.ErrorMessage).ConfigureAwait(false);
             await statusConsoleWriter.WriteConsoleAsync(LogSourceType.SpreadDistributionJobEvent, serviceResult.ErrorCode, serviceResult.ErrorMessage).ConfigureAwait(false);
         }
         return true;
@@ -75,7 +76,7 @@ public static class SpreadDistributionJobSubmitted
     internal static ISpreadDistributionJobService GetSpreadDistributionJobService(
         this SpreadDistributionJobSubmittedEvent e,
         IEventActorContext context,
-        IActorTradeCommandApi tradeCommandApi)
+        IEventActorContext tradeCommandApi)
            => e.SpreadDistributionJob.TradeType switch
            {
                TradeType.LongIronCondor => new IronCondorSpreadDistributionJobService(e, context, tradeCommandApi),

@@ -16,7 +16,7 @@ using TomasAI.IFM.Domain.OptionPricer.Shared.Queries;
 
 namespace TomasAI.IFM.Domain.OptionPricer.BDDTests.SpreadDistribution;
 
-public class SpreadDistributionQueryHandlerTests 
+public class SpreadDistributionQueryHandlerTests
 {
     [Fact]
     public async Task ReceiveAsync_GetSpreadDistributionQuery_RepliesWithTypedResultAndQueryVerb()
@@ -48,7 +48,7 @@ public class SpreadDistributionQueryHandlerTests
     sealed class TestableSpreadDistributionQueryActor(
         IDbContextFactory dbFactory,
         ILogger<SpreadDistributionQueryActor> logger)
-        : SpreadDistributionQueryActor(dbFactory, logger)
+        : SpreadDistributionQueryActor(new SpreadDistributionQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public ValueTask InvokeReceiveAsync(IQueryActorContext context, IQuery query)
             => base.ReceiveAsync(context, query);

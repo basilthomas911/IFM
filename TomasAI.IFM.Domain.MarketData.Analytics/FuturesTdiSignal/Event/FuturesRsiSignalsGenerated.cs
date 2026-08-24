@@ -16,7 +16,7 @@ public static class FuturesRsiSignalsGenerated
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalsGeneratedEvent e,
         IEventActorContext context,
-        IActorMarketDataAnalyticsCommandApi commandApi,
+        IEventActorContext commandApi,
         ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(e);
@@ -52,7 +52,7 @@ public static class FuturesRsiSignalsGenerated
             latest.Timestamp,
             configuration.ConfigurationId);
 
-        await commandApi.GenerateFuturesTdiSignalAsync(
+        await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi,
             signalId,
             signals,
             latest.TimePeriod,

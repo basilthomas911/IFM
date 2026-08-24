@@ -19,10 +19,10 @@ internal static class FuturesAdxSignalEventExtensions
     /// <param name="futuresEodData">The end-of-day futures data used as input for RSI signal generation.</param>
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesAdxSignalAsync(this IActorMarketDataAnalyticsCommandApi commandApi, FuturesEodDataV2ReadModel futuresEodData,TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
+    public static async ValueTask GenerateFuturesAdxSignalAsync(this IEventActorContext commandApi, FuturesEodDataV2ReadModel futuresEodData,TimeFrameType timePeriod, int periodLength, decimal futuresPrice)
     {
         var signalId = new FuturesAdxSignalId(futuresEodData.ContractId, futuresEodData.ValueDate, timePeriod, periodLength, TimeOnly.FromDateTime(DateTime.Now));
-        _ = await commandApi.GenerateFuturesAdxSignalAsync(signalId, futuresPrice);
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAdxSignalAsync(commandApi, signalId, futuresPrice);
     }
 
     /// <summary>
@@ -34,9 +34,9 @@ internal static class FuturesAdxSignalEventExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesTdiSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
+        this IEventActorContext commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
     {
-        _ = await commandApi.GenerateFuturesTdiSignalAsync(futuresTdiSignalId, futuresRsiSignals, timePeriod);
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi, futuresTdiSignalId, futuresRsiSignals, timePeriod);
     }
 
     /// <summary>
@@ -49,9 +49,9 @@ internal static class FuturesAdxSignalEventExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesMacdSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
+        this IEventActorContext commandApi, FuturesMacdSignalId futuresMacdSignalId, decimal futuresPrice)
     {
-        _ = await commandApi.GenerateFuturesMacdSignalAsync(futuresMacdSignalId, futuresPrice);
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice);
     }
 
     /// <summary>
@@ -63,9 +63,9 @@ internal static class FuturesAdxSignalEventExtensions
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
     public static async ValueTask GenerateFuturesAtrSignalAsync(
-        this IActorMarketDataAnalyticsCommandApi commandApi, FuturesAtrSignalId futuresAtrSignalId, decimal futuresPrice)
+        this IEventActorContext commandApi, FuturesAtrSignalId futuresAtrSignalId, decimal futuresPrice)
     {
-        _ = await commandApi.GenerateFuturesAtrSignalAsync(futuresAtrSignalId, futuresPrice);
+        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAtrSignalAsync(commandApi, futuresAtrSignalId, futuresPrice);
     }
 
 }

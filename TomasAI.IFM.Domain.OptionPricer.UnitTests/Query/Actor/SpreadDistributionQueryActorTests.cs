@@ -17,7 +17,7 @@ public class SpreadDistributionQueryActorTests
     sealed class TestableSpreadDistributionQueryActor(
         IDbContextFactory dbFactory,
         ILogger<SpreadDistributionQueryActor> logger)
-        : SpreadDistributionQueryActor(dbFactory, logger)
+        : SpreadDistributionQueryActor(new SpreadDistributionQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
     {
         public ValueTask InvokeReceiveAsync(
             IQueryActorContext context,
