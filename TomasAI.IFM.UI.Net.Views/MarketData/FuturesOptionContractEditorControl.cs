@@ -1,8 +1,8 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
@@ -345,10 +345,10 @@ public partial class FuturesOptionContractEditorControl
 
     static void BindLookup(
         ComboBox comboBox,
-        IReadOnlyList<LookupTypeReadModel> values)
+        IReadOnlyList<LookupTypeUiModel> values)
     {
         comboBox.DataSource = null;
-        comboBox.DisplayMember = nameof(LookupTypeReadModel.Description);
+        comboBox.DisplayMember = nameof(LookupTypeUiModel.Description);
         comboBox.DataSource = values.ToArray();
         comboBox.SelectedIndex = values.Count > 0 ? 0 : -1;
     }

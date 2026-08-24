@@ -81,7 +81,7 @@ public class FundTransactionEditorViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => viewModel.LoadFundsOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
 
         exception.Which.ErrorCode.Should().Be(802);
         viewModel.LoadFundsOperation.LastFailure.Should().BeSameAs(exception.Which);
@@ -95,7 +95,7 @@ public class FundTransactionEditorViewModelTests
         marketDataApi.GetValueDateAsync().Returns(Task.FromResult<ServiceResult<ScalarReadModel<DateOnly>>>(
             new ServiceOk<ScalarReadModel<DateOnly>>(new ScalarReadModel<DateOnly>(expected))));
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(
+        appRoot.Services.MarketDataQueries.Returns(new MarketDataQueryService(
             marketDataApi,
             Substitute.For<IMarketDataFeedQueryApi>()));
         var viewModel = new FundTransactionEditorViewModel(appRoot);
@@ -108,9 +108,9 @@ public class FundTransactionEditorViewModelTests
     static (FundTransactionEditorViewModel ViewModel, IFundQueryApi Api) CreateSubject()
     {
         var api = Substitute.For<IFundQueryApi>();
-        var model = new FundQueryModel(api);
+        var model = new FundQueryService(api);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<FundQueryModel>().Returns(model);
+        appRoot.Services.FundQueries.Returns(model);
         return (new FundTransactionEditorViewModel(appRoot), api);
     }
 

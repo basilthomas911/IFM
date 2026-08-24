@@ -161,7 +161,7 @@ public class TradeOrderEditorViewModelTests
         });
 
         var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
         exception.Which.ErrorCode.Should().Be(722);
         subject.ViewModel.LastError!.ErrorCode.Should().Be(722);
         subject.ViewModel.CommandId.Should().BeEmpty();
@@ -259,20 +259,20 @@ public class TradeOrderEditorViewModelTests
         var eventConsumers = new EventHarness();
         var referenceApi = Substitute.For<IReferenceQueryApi>();
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<FundQueryModel>().Returns(new FundQueryModel(queryApi));
-        appRoot.GetModel<FundCommandModel>().Returns(new FundCommandModel(
+        appRoot.Services.FundQueries.Returns(new FundQueryService(queryApi));
+        appRoot.Services.FundCommands.Returns(new FundCommandService(
             commandApi,
             riskConsumer,
             eventConsumers.TradeStateConsumer));
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(referenceApi));
-        appRoot.GetModel<FundOrderEventModel>().Returns(new FundOrderEventModel(eventConsumers.FundConsumer));
-        appRoot.GetModel<StatusConsoleModel>().Returns(new StatusConsoleModel(
+        appRoot.Services.FundOrderEvents.Returns(new FundOrderEventService(eventConsumers.FundConsumer));
+        appRoot.Services.StatusConsole.Returns(new StatusConsoleService(
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<IStatusConsoleEventConsumer>()));
         var viewModel = new TradeOrderEditorViewModel(
             appRoot,
             new DateOnly(2026, 8, 11),
             [Contract()],
+            UiServiceFactory.CreateReference(referenceApi),
             timeProvider ?? new ManualTimeProvider(EntryWindowUtc));
         return new Subject(viewModel, queryApi, commandApi, eventConsumers);
     }

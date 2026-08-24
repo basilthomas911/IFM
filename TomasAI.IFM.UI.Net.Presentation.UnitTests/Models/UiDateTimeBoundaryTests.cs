@@ -29,7 +29,7 @@ public class UiDateTimeBoundaryTests
         api.ImportYieldCurveRatesAsync(utcDate).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
         api.ImportEconomicCalendarsAsync(utcDate, Arg.Any<string[]?>())
             .Returns(new ServiceOk<Guid>(Guid.NewGuid()));
-        var model = new MarketDataCommandModel(api);
+        var model = new MarketDataCommandService(api);
 
         await model.ImportYieldCurveRatesAsync(easternEvening);
         await model.ImportEconomicCalendarsAsync(easternEvening, ["US"]);
@@ -46,7 +46,7 @@ public class UiDateTimeBoundaryTests
         var api = Substitute.For<IMarketDataFeedQueryApi>();
         api.GetFuturesBarDataAsync("ESU6", "ES", ValueDate, UtcStart, UtcEnd)
             .Returns(new ServiceOk<FuturesBarDataReadModel[]>([]));
-        var model = new MarketDataFeedQueryModel(api);
+        var model = new MarketDataFeedQueryService(api);
 
         await model.GetFuturesBarDataAsync(
             "ESU6",
@@ -71,7 +71,7 @@ public class UiDateTimeBoundaryTests
         var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
         api.GetEconomicCalendarsAsync(UtcStart, EconomicCalendarViewType.Today, "US")
             .Returns(new ServiceOk<EconomicCalendarReadModel[]>([]));
-        var model = new MarketDataQueryModel(api, feedApi);
+        var model = new MarketDataQueryService(api, feedApi);
 
         await model.LoadEconomicCalendarAsync(
             EasternStart,
@@ -97,7 +97,7 @@ public class UiDateTimeBoundaryTests
                 UtcStart,
                 UtcEnd)
             .Returns(new ServiceOk<OptionTradeSpreadBarsDataModel[]>([]));
-        var model = new TradeQueryModel(api);
+        var model = new TradeQueryService(api);
 
         await model.GetOptionTradeSpreadBarDataAsync(
             1,

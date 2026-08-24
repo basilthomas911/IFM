@@ -79,7 +79,7 @@ public class IronCondorMonitorViewModelTests
         tradeApi.GetOptionTradeAsync(101, 7).Returns(
             new ServiceFailed<OptionTradeReadModel>(731, "trade projection unavailable"));
         var appRoot = CreateAppRoot();
-        appRoot.GetModel<TradeQueryModel>().Returns(new TradeQueryModel(tradeApi));
+        appRoot.Services.TradeQueries.Returns(new TradeQueryService(tradeApi));
         var viewModel = CreateViewModel(appRoot);
         var changed = new List<string?>();
         viewModel.PropertyChanged += (_, eventArgs) => changed.Add(eventArgs.PropertyName);
@@ -115,9 +115,9 @@ public class IronCondorMonitorViewModelTests
     static IAppRoot CreateAppRoot()
     {
         var appRoot = Substitute.For<IAppRoot>();
-        var eventModel = new EventModel(Substitute.For<ICommandResponseUIEventConsumer>());
+        var eventModel = new CommandResponseEventService(Substitute.For<ICommandResponseUIEventConsumer>());
         eventModel.SetSiteId(Guid.NewGuid());
-        appRoot.GetModel<EventModel>().Returns(eventModel);
+        appRoot.Services.CommandResponses.Returns(eventModel);
         return appRoot;
     }
 

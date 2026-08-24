@@ -1,10 +1,12 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -22,9 +24,9 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
     readonly object _stateGate = new();
     readonly string _contractId;
     readonly DateOnly _valueDate;
-    readonly MarketDataAnalyticsQueryModel _analyticsQueryModel;
-    readonly ReferenceQueryModel _referenceQueryModel;
-    readonly MarketDataAnalyticsEventModel _eventModel;
+    readonly MarketDataAnalyticsQueryService _analyticsQueryModel;
+    readonly IReferenceDataService _referenceDataService;
+    readonly MarketDataAnalyticsEventService _eventModel;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly Guid _siteId = Guid.NewGuid();
     List<FuturesItiSignalV2ReadModel> _tradeSignals = [];
@@ -38,16 +40,21 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
     int _acceptEvents;
 
     /// <summary>Creates status-console state for one underlying contract and value date.</summary>
-    public StatusConsoleViewModel(IAppRoot appRoot, string contractId, DateOnly valueDate)
+    public StatusConsoleViewModel(
+        IAppRoot appRoot,
+        string contractId,
+        DateOnly valueDate,
+        IReferenceDataService referenceDataService)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(contractId);
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
 
         _contractId = contractId;
         _valueDate = valueDate;
-        _analyticsQueryModel = appRoot.GetModel<MarketDataAnalyticsQueryModel>();
-        _referenceQueryModel = appRoot.GetModel<ReferenceQueryModel>();
-        _eventModel = appRoot.GetModel<MarketDataAnalyticsEventModel>();
+        _analyticsQueryModel = appRoot.Services.AnalyticsQueries;
+        _eventModel = appRoot.Services.AnalyticsEvents;
         _lifecycle = new AsyncLifecycleCoordinator(StartConsumerCoreAsync, StopConsumerCoreAsync);
         LoadTradeStatusOperation = new AsyncOperation(LoadTradeStatusCoreAsync);
         LoadMDIForwardLossRatiosOperation = new AsyncOperation(LoadMDIForwardLossRatiosCoreAsync);
@@ -134,7 +141,7 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
                 _tradeSignals = [.. loaded];
             PublishTradeState();
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception.ErrorCode, exception.Message, "Trade Status Error");
             throw;
@@ -145,29 +152,22 @@ public sealed class StatusConsoleViewModel : ObservableObject, IAsyncLifecycle, 
     {
         try
         {
-            MDIForwardLossRatioReadModel[] upTrend = [];
-            MDIForwardLossRatioReadModel[] downTrend = [];
-            await _referenceQueryModel.ExecuteObservableAsync(
-                async model =>
-                {
-                    await model.LoadMDIFowardLossRatiosAsync(
-                        IntrinsicTimeTrendType.UpTrend,
-                        TradeType.ShortIronCondor,
-                        values => upTrend = values ?? []);
-                    await model.LoadMDIFowardLossRatiosAsync(
-                        IntrinsicTimeTrendType.DownTrend,
-                        TradeType.LongIronCondor,
-                        values => downTrend = values ?? []);
-                },
-                cancellationToken);
+            var upTrend = (await _referenceDataService.GetMdiForwardLossRatiosAsync(
+                IntrinsicTimeTrendType.UpTrend,
+                TradeType.ShortIronCondor,
+                cancellationToken)).RequireValue();
+            var downTrend = (await _referenceDataService.GetMdiForwardLossRatiosAsync(
+                IntrinsicTimeTrendType.DownTrend,
+                TradeType.LongIronCondor,
+                cancellationToken)).RequireValue();
 
             MDIForwardLossRatios = upTrend
-                .OrderByDescending(value => value.MDI)
-                .Concat(downTrend.OrderByDescending(value => value.MDI))
+                .OrderByDescending(value => value.Mdi)
+                .Concat(downTrend.OrderByDescending(value => value.Mdi))
                 .Select(value => new MDIForwardLossRatioUIViewModel(value))
                 .ToArray();
         }
-        catch (ModelOperationException exception)
+        catch (UiOperationException exception)
         {
             PublishError(exception.ErrorCode, exception.Message, "Forward Loss Ratio Error");
             throw;

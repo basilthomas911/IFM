@@ -18,14 +18,14 @@ public class ReferenceViewModelTests
     {
         var definition = Definition("EconomicCalendar", "Economic calendar");
         var (viewModel, api) = CreateSubject(
-            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([definition])));
+            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([ToBackend(definition)])));
         var changes = new List<string?>();
         viewModel.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
 
         await viewModel.LoadReferenceDataDefinitionTypesOperation.ExecuteAsync();
 
         viewModel.ReferenceDataDefinitionTypes.Should().Equal(definition);
-        viewModel.GetReferenceDataDefinitionType(0).Should().BeSameAs(definition);
+        viewModel.GetReferenceDataDefinitionType(0).Should().Be(definition);
         viewModel.GetReferenceDataDefinitionType(-1).Should().BeNull();
         changes.Should().Contain(nameof(viewModel.ReferenceDataDefinitionTypes));
         await api.Received(1).GetReferenceDataDefinitionTypesAsync();
@@ -39,7 +39,7 @@ public class ReferenceViewModelTests
 
         var exception = await FluentActions
             .Awaiting(() => viewModel.LoadReferenceDataDefinitionTypesOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
 
         exception.Which.ErrorCode.Should().Be(742);
         viewModel.LoadReferenceDataDefinitionTypesOperation.LastFailure.Should().BeSameAs(exception.Which);
@@ -51,12 +51,12 @@ public class ReferenceViewModelTests
     {
         var api = Substitute.For<IReferenceQueryApi>();
         api.GetReferenceDataDefinitionTypesAsync().Returns(Task.FromResult(result));
-        var model = new ReferenceQueryModel(api);
-        var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(model);
-        return (new ReferenceViewModel(appRoot), api);
+        return (new ReferenceViewModel(UiServiceFactory.CreateReference(api)), api);
     }
 
-    internal static LookupTypeReadModel Definition(string shortCode, string description)
+    internal static LookupTypeUiModel Definition(string shortCode, string description)
         => new("ReferenceDataDefinitionType", shortCode, 1, description, DateTime.UtcNow, "test");
+
+    internal static LookupTypeReadModel ToBackend(LookupTypeUiModel value)
+        => new(value.LookupTypeName, value.ShortCode, value.OrderId, value.Description, value.CreatedOn, value.CreatedBy);
 }

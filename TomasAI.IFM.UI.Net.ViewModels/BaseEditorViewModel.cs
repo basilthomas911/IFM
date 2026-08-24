@@ -28,19 +28,7 @@ public class BaseEditorViewModel : ObservableObject
     public Action ClearError = null!;
     public Action StartWaitIndicator = null!;
     public Action StopWaitIndicator = null!;
-    public Action<EventModel, string> ShowWaitView = null!;
-
-    protected async Task ExecuteCommandAsync(
-        Func<Task<ServiceResult<Guid>>> commandFunc,
-        Action<Guid> onSuccess,
-        Action<ServiceResult<Guid>> onFailure)
-    {
-        var serviceResult = await commandFunc();
-        if (serviceResult.Success)
-            onSuccess(serviceResult.Value);
-        else
-            onFailure(serviceResult);
-    }
+    public Action<CommandResponseEventService, string> ShowWaitView = null!;
 
     /// <summary>
     /// set event source for all consumer events
@@ -60,7 +48,7 @@ public class BaseEditorViewModel : ObservableObject
     /// write status console
     /// </summary>
     public Task WriteStatusConsole(LogSourceType logSourceType, string statusMsg)
-        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model => {
+        => _appRoot.Services.StatusConsole.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => this.OnError?.Invoke(errorCode, errorMsg));
             await model.WriteConsoleAsync(logSourceType, statusMsg);
          });
@@ -72,7 +60,7 @@ public class BaseEditorViewModel : ObservableObject
     /// <param name="errorCode"></param>
     /// <param name="errorMsg"></param>
     public Task WriteStatusConsole(LogSourceType logSourceType,int errorCode, string errorMsg)
-        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.StatusConsole.ExecuteAsync(async model =>
         {
             model.OnError((errCode, errMsg) => this.OnError?.Invoke(errCode, errMsg));
             await model.WriteConsoleAsync(logSourceType, errorCode, errorMsg);

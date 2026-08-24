@@ -69,11 +69,12 @@ public class IronCondorTradeOrderViewModelTests
         referenceApi.GetDefaultFuturesContractDefinitionsAsync().Returns(
             new ServiceFailed<DefaultFuturesContractDefinitionsReadModel>(744, "reference query unavailable"));
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(referenceApi));
-        var viewModel = CreateViewModel(appRoot);
+        var viewModel = CreateViewModel(
+            appRoot,
+            referenceDataService: UiServiceFactory.CreateReference(referenceApi));
 
         var exception = await FluentActions.Awaiting(viewModel.LoadIronCondorTradeOrders)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
 
         exception.Which.ErrorCode.Should().Be(744);
         viewModel.LastError!.ErrorCode.Should().Be(744);
@@ -110,7 +111,8 @@ public class IronCondorTradeOrderViewModelTests
     static IronCondorTradeOrderViewModel CreateViewModel(
         IAppRoot? appRoot = null,
         TradeType tradeType = TradeType.ShortIronCondor,
-        string reference = "P:4500:4550 X C:5000:5050")
+        string reference = "P:4500:4550 X C:5000:5050",
+        IReferenceDataService? referenceDataService = null)
         => new(
             appRoot ?? Substitute.For<IAppRoot>(),
             ValueDate,
@@ -118,7 +120,8 @@ public class IronCondorTradeOrderViewModelTests
             Contract(),
             Order(),
             Trade(tradeType, reference),
-            OrderActionType.Open);
+            OrderActionType.Open,
+            referenceDataService ?? Substitute.For<IReferenceDataService>());
 
     static FundOrderReadModel Order()
         => new(

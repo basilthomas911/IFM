@@ -18,12 +18,12 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Fund;
 public sealed class FundCashTransactionViewModel : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
     readonly AsyncLifecycleCoordinator _lifecycle;
-    readonly FundEventModel _eventModel;
-    readonly FundCommandModel _commandModel;
+    readonly FundEventService _eventModel;
+    readonly FundCommandService _commandModel;
     readonly object _correlationGate = new();
     readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
     FundTransactionReadModel? _pendingTransaction;
-    ModelOperationException? _failure;
+    UiServiceOperationException? _failure;
     Guid _commandId;
     bool _isCompleted;
 
@@ -40,8 +40,8 @@ public sealed class FundCashTransactionViewModel : BaseEditorViewModel, IAsyncLi
         Fund = fund ?? throw new ArgumentNullException(nameof(fund));
         ValueDate = valueDate;
         TransactionType = transactionType;
-        _eventModel = AppRoot.GetModel<FundEventModel>();
-        _commandModel = AppRoot.GetModel<FundCommandModel>();
+        _eventModel = AppRoot.Services.FundEvents;
+        _commandModel = AppRoot.Services.FundCommands;
         SubmitOperation = new AsyncOperation(
             SubmitCoreAsync,
             () => _pendingTransaction is not null && CommandId == Guid.Empty);
@@ -68,7 +68,7 @@ public sealed class FundCashTransactionViewModel : BaseEditorViewModel, IAsyncLi
         private set => SetProperty(ref _isCompleted, value);
     }
 
-    public ModelOperationException? Failure
+    public UiServiceOperationException? Failure
     {
         get => _failure;
         private set => SetProperty(ref _failure, value);
@@ -183,7 +183,7 @@ public sealed class FundCashTransactionViewModel : BaseEditorViewModel, IAsyncLi
         lock (_correlationGate)
             _commandId = Guid.Empty;
         OnPropertyChanged(nameof(CommandId));
-        Failure = new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+        Failure = new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
         SubmitOperation.NotifyCanExecuteChanged();
         await WriteStatusConsole(
             LogSourceType.Fund,

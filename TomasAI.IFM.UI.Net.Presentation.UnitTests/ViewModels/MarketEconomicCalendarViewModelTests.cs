@@ -98,7 +98,7 @@ public class MarketEconomicCalendarViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => subject.ViewModel.LoadCountryCodesOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
 
         exception.Which.ErrorCode.Should().Be(818);
         subject.ViewModel.LastError!.ErrorCode.Should().Be(818);
@@ -139,10 +139,16 @@ public class MarketEconomicCalendarViewModelTests
         var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
         var eventSource = new TestEventSource(consumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(api, feedApi));
-        appRoot.GetModel<EconomicCalendarEventModel>()
-            .Returns(new EconomicCalendarEventModel(consumer));
-        return new Subject(new MarketEconomicCalendarViewModel(appRoot), api, eventSource);
+        appRoot.Services.MarketDataQueries.Returns(new MarketDataQueryService(api, feedApi));
+        return new Subject(
+            new MarketEconomicCalendarViewModel(
+                appRoot,
+                UiServiceFactory.CreateEconomicCalendar(
+                    api,
+                    Substitute.For<IMarketDataCommandApi>(),
+                    consumer)),
+            api,
+            eventSource);
     }
 
     static EconomicCalendarReadModel Calendar(DateTime date, string countryCode, string eventName)
@@ -200,7 +206,8 @@ public class MarketEconomicCalendarViewModelTests
         public bool IsStarted { get; private set; }
 
         public void PublishAdded()
-            => (_added ?? throw new InvalidOperationException("Listener not started."))(null!);
+            => (_added ?? throw new InvalidOperationException("Listener not started."))(
+                new EconomicCalendarAddedCompleteEvent());
 
         public void PublishImportFailed(int errorCode, string errorMessage)
             => (_importFailed ?? throw new InvalidOperationException("Listener not started."))(

@@ -30,7 +30,7 @@
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.ViewModels\TomasAI.IFM.UI.Net.ViewModels.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.Net.Views\TomasAI.IFM.UI.Net.Views.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.UI.EventConsumer\TomasAI.IFM.UI.EventConsumer.csproj" />
-    <ProjectReference Include="..\TomasAI.IFM.UI.Net\TomasAI.IFM.UI.Net.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\TomasAI.IFM.UI.Net\TomasAI.IFM.UI.Net.csproj" />
   </ItemGroup>
 
   <ItemGroup>

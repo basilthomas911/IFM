@@ -1,6 +1,7 @@
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Services.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.MarketData;
 
@@ -14,15 +15,19 @@ public partial class MarketDataForm
     IControlCommand? _ctrlCommand;
     bool _closeComplete;
 
-    public MarketDataForm(IAppRoot appRoot, IStatusConsoleEventProducer statusConsoleLog)
+    public MarketDataForm(
+        IAppRoot appRoot,
+        IStatusConsoleEventProducer statusConsoleLog,
+        IReferenceDataService referenceDataService)
     {
         _appRoot = appRoot;
         _statusConsoleLog = statusConsoleLog;
         _controlMap = new Dictionary<string, Func<IAppRoot, Control>>
         {
-            { "FuturesOptionContract", ar => new FuturesOptionContractEditorControl( new FuturesOptionContractEditorViewModel(ar), _viewModel!)},
+            { "FuturesOptionContract", ar => new FuturesOptionContractEditorControl(
+                new FuturesOptionContractEditorViewModel(ar, referenceDataService), _viewModel!)},
             { "FuturesContract", ar => new FuturesContractEditorControl(
-                new FuturesContractEditorViewModel(ar),
+                new FuturesContractEditorViewModel(ar, referenceDataService),
                 EnableAvailableButtons)},
             { "YieldCurveRates", ar => new YieldCurveRateEditorControl( new YieldCurveRateEditorViewModel(ar), _viewModel!)}
         };

@@ -17,10 +17,8 @@ public class CreateFundReadModelTests
         api.GetNextSeedIdAsync("FundId").Returns(
             Task.FromResult<ServiceResult<ScalarReadModel<int>>>(
                 new ServiceOk<ScalarReadModel<int>>(new ScalarReadModel<int>(81))));
-        var model = new ReferenceQueryModel(api);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(model);
-        var viewModel = new CreateFundReadModel(appRoot);
+        var viewModel = new CreateFundReadModel(appRoot, UiServiceFactory.CreateReference(api));
 
         await viewModel.LoadNewFundIdOperation.ExecuteAsync();
 

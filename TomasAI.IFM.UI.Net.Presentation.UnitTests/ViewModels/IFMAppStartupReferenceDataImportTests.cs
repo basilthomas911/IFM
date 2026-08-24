@@ -227,13 +227,11 @@ public class IFMAppStartupReferenceDataImportTests
                 Arg.Any<string>())
             .Returns(Task.CompletedTask);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<EventModel>().Returns(new EventModel(commandResponseConsumer));
-        appRoot.GetModel<MarketDataEventModel>()
-            .Returns(_ => new MarketDataEventModel(yieldCurveConsumer));
-        appRoot.GetModel<EconomicCalendarEventModel>()
-            .Returns(_ => new EconomicCalendarEventModel(calendarConsumer));
-        appRoot.GetModel<MarketDataCommandModel>()
-            .Returns(_ => new MarketDataCommandModel(commandApi));
+        appRoot.Services.CommandResponses.Returns(new CommandResponseEventService(commandResponseConsumer));
+        appRoot.Services.MarketDataEvents
+            .Returns(_ => new MarketDataEventService(yieldCurveConsumer));
+        appRoot.Services.MarketDataCommands
+            .Returns(_ => new MarketDataCommandService(commandApi));
         appRoot.GetStatusConsoleWriter().Returns(statusWriter);
         var timeProvider = new ManualTimeProvider(Now);
 
@@ -242,6 +240,10 @@ public class IFMAppStartupReferenceDataImportTests
             new Version(1, 2, 3),
             "Test",
             Substitute.For<IIFMAppLiveViewAdapter>(),
+            UiServiceFactory.CreateEconomicCalendar(
+                Substitute.For<IMarketDataQueryApi>(),
+                commandApi,
+                calendarConsumer),
             timeProvider,
             TerminalTimeout);
         return new Subject(

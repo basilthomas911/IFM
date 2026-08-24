@@ -6,6 +6,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
@@ -19,10 +22,10 @@ public sealed class FuturesOptionContractEditorViewModel
     : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
     readonly AsyncLifecycleCoordinator _lifecycle;
-    readonly MarketDataEventModel _eventModel;
-    readonly MarketDataCommandModel _commandModel;
-    readonly MarketDataQueryModel _queryModel;
-    readonly ReferenceQueryModel _referenceQueryModel;
+    readonly MarketDataEventService _eventModel;
+    readonly MarketDataCommandService _commandModel;
+    readonly MarketDataQueryService _queryModel;
+    readonly IReferenceDataService _referenceDataService;
     readonly ICollection<IEvent> _consumeEvents;
     readonly object _correlationGate = new();
     readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
@@ -31,12 +34,12 @@ public sealed class FuturesOptionContractEditorViewModel
     readonly AsyncOperation _addOperation;
     readonly AsyncOperation _changeOperation;
     readonly AsyncOperation _removeOperation;
-    IReadOnlyList<LookupTypeReadModel> _symbols = [];
-    IReadOnlyList<LookupTypeReadModel> _securityTypes = [];
-    IReadOnlyList<LookupTypeReadModel> _currencies = [];
-    IReadOnlyList<LookupTypeReadModel> _exchanges = [];
-    IReadOnlyList<LookupTypeReadModel> _multipliers = [];
-    IReadOnlyList<LookupTypeReadModel> _optionTypes = [];
+    IReadOnlyList<LookupTypeUiModel> _symbols = [];
+    IReadOnlyList<LookupTypeUiModel> _securityTypes = [];
+    IReadOnlyList<LookupTypeUiModel> _currencies = [];
+    IReadOnlyList<LookupTypeUiModel> _exchanges = [];
+    IReadOnlyList<LookupTypeUiModel> _multipliers = [];
+    IReadOnlyList<LookupTypeUiModel> _optionTypes = [];
     IReadOnlyList<FuturesOptionContractReadModel> _futuresOptionContracts = [];
     FuturesOptionContractReadModel? _pendingAdd;
     PendingChange? _pendingChange;
@@ -49,12 +52,15 @@ public sealed class FuturesOptionContractEditorViewModel
     /// <summary>
     /// Creates the editor and resolves its Models from the application composition root.
     /// </summary>
-    public FuturesOptionContractEditorViewModel(IAppRoot appRoot) : base(appRoot)
+    public FuturesOptionContractEditorViewModel(
+        IAppRoot appRoot,
+        IReferenceDataService referenceDataService) : base(appRoot)
     {
-        _eventModel = AppRoot.GetModel<MarketDataEventModel>();
-        _commandModel = AppRoot.GetModel<MarketDataCommandModel>();
-        _queryModel = AppRoot.GetModel<MarketDataQueryModel>();
-        _referenceQueryModel = AppRoot.GetModel<ReferenceQueryModel>();
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
+        _eventModel = AppRoot.Services.MarketDataEvents;
+        _commandModel = AppRoot.Services.MarketDataCommands;
+        _queryModel = AppRoot.Services.MarketDataQueries;
         _consumeEvents =
         [
             new FuturesOptionContractAddedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
@@ -85,42 +91,42 @@ public sealed class FuturesOptionContractEditorViewModel
     }
 
     /// <summary>Gets the available underlying symbols.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Symbols
+    public IReadOnlyList<LookupTypeUiModel> Symbols
     {
         get => _symbols;
         private set => SetProperty(ref _symbols, value);
     }
 
     /// <summary>Gets the available option security types.</summary>
-    public IReadOnlyList<LookupTypeReadModel> SecurityTypes
+    public IReadOnlyList<LookupTypeUiModel> SecurityTypes
     {
         get => _securityTypes;
         private set => SetProperty(ref _securityTypes, value);
     }
 
     /// <summary>Gets the available currencies.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Currencies
+    public IReadOnlyList<LookupTypeUiModel> Currencies
     {
         get => _currencies;
         private set => SetProperty(ref _currencies, value);
     }
 
     /// <summary>Gets the available exchanges.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Exchanges
+    public IReadOnlyList<LookupTypeUiModel> Exchanges
     {
         get => _exchanges;
         private set => SetProperty(ref _exchanges, value);
     }
 
     /// <summary>Gets the available contract multipliers.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Multipliers
+    public IReadOnlyList<LookupTypeUiModel> Multipliers
     {
         get => _multipliers;
         private set => SetProperty(ref _multipliers, value);
     }
 
     /// <summary>Gets the available option types.</summary>
-    public IReadOnlyList<LookupTypeReadModel> OptionTypes
+    public IReadOnlyList<LookupTypeUiModel> OptionTypes
     {
         get => _optionTypes;
         private set => SetProperty(ref _optionTypes, value);
@@ -211,22 +217,22 @@ public sealed class FuturesOptionContractEditorViewModel
     }
 
     /// <summary>Gets an underlying symbol by presentation index.</summary>
-    public LookupTypeReadModel GetSymbol(int index) => GetLookup(Symbols, index);
+    public LookupTypeUiModel GetSymbol(int index) => GetLookup(Symbols, index);
 
     /// <summary>Gets an option type by presentation index.</summary>
-    public LookupTypeReadModel GetOptionType(int index) => GetLookup(OptionTypes, index);
+    public LookupTypeUiModel GetOptionType(int index) => GetLookup(OptionTypes, index);
 
     /// <summary>Gets a security type by presentation index.</summary>
-    public LookupTypeReadModel GetSecurityType(int index) => GetLookup(SecurityTypes, index);
+    public LookupTypeUiModel GetSecurityType(int index) => GetLookup(SecurityTypes, index);
 
     /// <summary>Gets a currency by presentation index.</summary>
-    public LookupTypeReadModel GetCurrency(int index) => GetLookup(Currencies, index);
+    public LookupTypeUiModel GetCurrency(int index) => GetLookup(Currencies, index);
 
     /// <summary>Gets an exchange by presentation index.</summary>
-    public LookupTypeReadModel GetExchange(int index) => GetLookup(Exchanges, index);
+    public LookupTypeUiModel GetExchange(int index) => GetLookup(Exchanges, index);
 
     /// <summary>Gets a multiplier by presentation index.</summary>
-    public LookupTypeReadModel GetMultiplier(int index) => GetLookup(Multipliers, index);
+    public LookupTypeUiModel GetMultiplier(int index) => GetLookup(Multipliers, index);
 
     /// <summary>Gets an option contract by presentation index, or <see langword="null"/> for an invalid index.</summary>
     public FuturesOptionContractReadModel? GetFuturesOptionContract(int index)
@@ -288,18 +294,12 @@ public sealed class FuturesOptionContractEditorViewModel
     async Task LoadCoreAsync(CancellationToken cancellationToken)
     {
         await InitializeAsync(cancellationToken);
-        var securityTypes = await LoadLookupAsync(
-            (model, completed) => model.LoadSecurityTypesAsync(completed), cancellationToken);
-        var currencies = await LoadLookupAsync(
-            (model, completed) => model.LoadCurrenciesAsync(completed), cancellationToken);
-        var exchanges = await LoadLookupAsync(
-            (model, completed) => model.LoadExchangesAsync(completed), cancellationToken);
-        var multipliers = await LoadLookupAsync(
-            (model, completed) => model.LoadMultipliersAsync(completed), cancellationToken);
-        var optionTypes = await LoadLookupAsync(
-            (model, completed) => model.LoadOptionTypesAsync(completed), cancellationToken);
-        var symbols = await LoadLookupAsync(
-            (model, completed) => model.LoadSymbolsAsync(completed), cancellationToken);
+        var securityTypes = await LoadLookupAsync("SecurityType", cancellationToken);
+        var currencies = await LoadLookupAsync("Currency", cancellationToken);
+        var exchanges = await LoadLookupAsync("Exchange", cancellationToken);
+        var multipliers = await LoadLookupAsync("Multiplier", cancellationToken);
+        var optionTypes = await LoadLookupAsync("OptionType", cancellationToken);
+        var symbols = await LoadLookupAsync("Symbol", cancellationToken);
         var selectedSymbol = symbols.FirstOrDefault()?.ShortCode ?? string.Empty;
         var contracts = string.IsNullOrWhiteSpace(selectedSymbol)
             ? []
@@ -320,16 +320,11 @@ public sealed class FuturesOptionContractEditorViewModel
     async Task LoadContractsCoreAsync(CancellationToken cancellationToken)
         => FuturesOptionContracts = await QueryContractsAsync(SelectedSymbol, cancellationToken);
 
-    async Task<IReadOnlyList<LookupTypeReadModel>> LoadLookupAsync(
-        Func<ReferenceQueryModel, Action<ICollection<LookupTypeReadModel>>, Task> load,
+    async Task<IReadOnlyList<LookupTypeUiModel>> LoadLookupAsync(
+        string lookupTypeName,
         CancellationToken cancellationToken)
-    {
-        ICollection<LookupTypeReadModel> result = [];
-        await _referenceQueryModel.ExecuteObservableAsync(
-            model => load(model, loaded => result = loaded ?? []),
-            cancellationToken);
-        return result.ToArray();
-    }
+        => (await _referenceDataService.GetLookupTypesAsync(lookupTypeName, cancellationToken))
+            .RequireValue();
 
     async Task<IReadOnlyList<FuturesOptionContractReadModel>> QueryContractsAsync(
         string symbol,
@@ -380,7 +375,7 @@ public sealed class FuturesOptionContractEditorViewModel
     }
 
     async Task ExecuteMutationAsync(
-        Func<MarketDataCommandModel, Task<Guid>> submit,
+        Func<MarketDataCommandService, Task<Guid>> submit,
         string symbol,
         string statusMessage,
         Action clearPending,
@@ -397,7 +392,7 @@ public sealed class FuturesOptionContractEditorViewModel
 
             var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
             if (terminalEvent is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+                throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
 
             SelectedSymbol = symbol;
             FuturesOptionContracts = await QueryContractsAsync(symbol, cancellationToken);
@@ -511,12 +506,12 @@ public sealed class FuturesOptionContractEditorViewModel
         }
     }
 
-    static LookupTypeReadModel GetLookup(IReadOnlyList<LookupTypeReadModel> values, int index)
+    static LookupTypeUiModel GetLookup(IReadOnlyList<LookupTypeUiModel> values, int index)
         => index >= 0 && index < values.Count
             ? values[index]
             : throw new ArgumentOutOfRangeException(nameof(index));
 
-    static int GetLookupIndex(IReadOnlyList<LookupTypeReadModel> values, string shortCode)
+    static int GetLookupIndex(IReadOnlyList<LookupTypeUiModel> values, string shortCode)
     {
         for (var index = 0; index < values.Count; index++)
             if (values[index].ShortCode.Equals(shortCode, StringComparison.OrdinalIgnoreCase))

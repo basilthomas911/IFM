@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.Views.App;
+using TomasAI.IFM.UI.Net.Services.Reference;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 
@@ -148,7 +149,9 @@ public sealed class DashboardSplitterRenderingTests
                 appRoot.AppEnvironment.Returns("TEST");
                 using var form = new IFMAppView(
                     appRoot,
-                    Substitute.For<IViewNavigator>())
+                    Substitute.For<IViewNavigator>(),
+                    Substitute.For<IReferenceDataService>(),
+                    Substitute.For<IEconomicCalendarService>())
                 {
                     ClientSize = new Size(1200, 800),
                     WindowState = FormWindowState.Normal
@@ -207,7 +210,9 @@ public sealed class DashboardSplitterRenderingTests
         appRoot.AppEnvironment.Returns("TEST");
         var form = new IFMAppView(
             appRoot,
-            Substitute.For<IViewNavigator>())
+            Substitute.For<IViewNavigator>(),
+            Substitute.For<IReferenceDataService>(),
+            Substitute.For<IEconomicCalendarService>())
         {
             ClientSize = new Size(1200, 800),
             WindowState = FormWindowState.Normal

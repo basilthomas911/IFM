@@ -20,12 +20,12 @@ public sealed class AdjustFundTransactionReadModel : BaseEditorViewModel, IAsync
     readonly FundTransactionReadModel _fundTransaction;
     readonly decimal _fundBalance;
     readonly ICollection<IEvent> _consumeEvents;
-    readonly FundEventModel _eventModel;
-    readonly FundCommandModel _commandModel;
+    readonly FundEventService _eventModel;
+    readonly FundCommandService _commandModel;
     readonly object _correlationGate = new();
     readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
     FundTransactionReadModel? _pendingAdjustment;
-    ModelOperationException? _adjustmentFailure;
+    UiServiceOperationException? _adjustmentFailure;
     Guid _commandId;
     bool _isAdjustmentCompleted;
 
@@ -37,8 +37,8 @@ public sealed class AdjustFundTransactionReadModel : BaseEditorViewModel, IAsync
     {
         _fundTransaction = fundTransaction ?? throw new ArgumentNullException(nameof(fundTransaction));
         _fundBalance = fundBalance;
-        _eventModel = AppRoot.GetModel<FundEventModel>();
-        _commandModel = AppRoot.GetModel<FundCommandModel>();
+        _eventModel = AppRoot.Services.FundEvents;
+        _commandModel = AppRoot.Services.FundCommands;
         _consumeEvents =
         [
             new OpeningTradeFundTransactionAdjustmentCreatedCompleteEvent(),
@@ -74,7 +74,7 @@ public sealed class AdjustFundTransactionReadModel : BaseEditorViewModel, IAsync
         private set => SetProperty(ref _isAdjustmentCompleted, value);
     }
 
-    public ModelOperationException? AdjustmentFailure
+    public UiServiceOperationException? AdjustmentFailure
     {
         get => _adjustmentFailure;
         private set => SetProperty(ref _adjustmentFailure, value);
@@ -209,7 +209,7 @@ public sealed class AdjustFundTransactionReadModel : BaseEditorViewModel, IAsync
         lock (_correlationGate)
             _commandId = Guid.Empty;
         OnPropertyChanged(nameof(CommandId));
-        AdjustmentFailure = new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+        AdjustmentFailure = new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
         SubmitAdjustmentOperation.NotifyCanExecuteChanged();
         await WriteStatusConsole(
             LogSourceType.MarketData,

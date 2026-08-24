@@ -13,6 +13,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.SystemAdmin;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 using TomasAI.IFM.UI.Net.Views.SystemAdmin;
 using System.Windows.Forms;
@@ -27,11 +28,9 @@ public sealed class DatabaseBackupDashboardSmokeTests
     {
         var queryApi = CreateDisposableQueryApi();
         var eventConsumer = Substitute.For<ISystemAdminUIEventConsumer>();
-        var model = new DatabaseBackupModel(
+        var service = new DatabaseBackupService(
             Substitute.For<IDatabaseBackupCommandApi>(), queryApi, eventConsumer);
-        var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<DatabaseBackupModel>().Returns(model);
-        var viewModel = new DatabaseBackupViewModel(appRoot);
+        var viewModel = new DatabaseBackupViewModel(service);
         var ready = new TaskCompletionSource<(Form Form, BackupDatabasesView View, IntPtr Handle)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         Exception? uiFailure = null;

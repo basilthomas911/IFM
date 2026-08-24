@@ -43,7 +43,7 @@ public class YieldCurveRateEditViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => viewModel.CheckValueDateOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
 
         exception.Which.ErrorCode.Should().Be(812);
         viewModel.CanSave.Should().BeFalse();
@@ -55,7 +55,7 @@ public class YieldCurveRateEditViewModelTests
         var api = Substitute.For<IMarketDataQueryApi>();
         var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(api, feedApi));
+        appRoot.Services.MarketDataQueries.Returns(new MarketDataQueryService(api, feedApi));
         return (new YieldCurveRateEditViewModel(appRoot), api);
     }
 }

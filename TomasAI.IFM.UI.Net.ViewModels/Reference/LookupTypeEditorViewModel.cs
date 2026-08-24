@@ -1,11 +1,11 @@
-using TomasAI.IFM.Domain.Reference.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.UI.Net.ViewModels.Extensions;
+using TomasAI.IFM.UI.Net.Models.Operations;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.UI.Net.Services.Subscriptions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
-using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.ViewModels.Operations.Domain;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 
@@ -15,27 +15,33 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 public sealed class LookupTypeEditorViewModel
     : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
-    readonly LookupTypeEventModel _eventModel;
-    readonly ReferenceCommandModel _commandModel;
-    readonly ReferenceQueryModel _queryModel;
+    readonly IReferenceDataService _service;
+    readonly IUiEventSubscription _subscription;
     readonly AsyncLifecycleCoordinator _lifecycle;
-    readonly TerminalEventCorrelation _terminalCorrelation = new();
-    Dictionary<LookupTypeShortCode, LookupTypeReadModel> _lookupTypes = [];
+    readonly TerminalNotificationCorrelation _terminalCorrelation = new();
+    Dictionary<(string Name, string ShortCode), LookupTypeUiModel> _lookupTypes = [];
     List<string> _lookupTypeNames = [];
-    List<LookupTypeShortCodeReadModel> _lookupTypeShortCodes = [];
+    List<LookupTypeShortCodeUiModel> _lookupTypeShortCodes = [];
     string _lastStatusMessage = string.Empty;
 
-    public LookupTypeEditorViewModel(IAppRoot appRoot) : base(appRoot)
+    /// <summary>Creates the lookup editor with its explicit Reference service.</summary>
+    public LookupTypeEditorViewModel(IAppRoot appRoot, IReferenceDataService service) : base(appRoot)
     {
-        _eventModel = appRoot.GetModel<LookupTypeEventModel>();
-        _commandModel = appRoot.GetModel<ReferenceCommandModel>();
-        _queryModel = appRoot.GetModel<ReferenceQueryModel>();
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _subscription = _service.CreateLookupSubscription(HandleTerminalNotificationAsync);
         _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
     }
 
-    public IDictionary<LookupTypeShortCode, LookupTypeReadModel> LookupTypes => _lookupTypes;
+    /// <summary>Gets lookup definitions keyed by category and short code.</summary>
+    public IReadOnlyDictionary<(string Name, string ShortCode), LookupTypeUiModel> LookupTypes => _lookupTypes;
+
+    /// <summary>Gets the available lookup category names.</summary>
     public ICollection<string> LookupTypeNames => _lookupTypeNames;
-    public ICollection<LookupTypeShortCodeReadModel> LookupTypeShortCodes => _lookupTypeShortCodes;
+
+    /// <summary>Gets short-code selectors for the selected lookup category.</summary>
+    public ICollection<LookupTypeShortCodeUiModel> LookupTypeShortCodes => _lookupTypeShortCodes;
+
+    /// <summary>Gets the command identifier while a mutation awaits completion.</summary>
     public Guid CommandId => _terminalCorrelation.CommandId;
 
     public string LastStatusMessage
@@ -46,32 +52,37 @@ public sealed class LookupTypeEditorViewModel
 
     public Action OnLookupTypeNamesLoaded { get; set; } = () => { };
     public Action OnLookupTypeShortCodesLoaded { get; set; } = () => { };
-    public Action<LookupTypeReadModel?> OnLookupTypeLoaded { get; set; } = _ => { };
+    public Action<LookupTypeUiModel?> OnLookupTypeLoaded { get; set; } = _ => { };
     public Action OnWaitCursor = () => { };
     public Action OnDefaultCursor = () => { };
 
-    public Task AddLookupType(LookupTypeReadModel lookupType, Action onCompleted)
+    /// <summary>Adds a lookup definition and waits for its correlated terminal notification.</summary>
+    public Task AddLookupType(LookupTypeUiModel lookupType, Action onCompleted)
         => ExecuteMutationAsync(
-            model => model.AddLookupTypeAsync(lookupType),
-            $"Lookup Type {lookupType.Id} Added",
+            cancellationToken => _service.AddLookupTypeAsync(lookupType, cancellationToken),
+            $"Lookup Type {lookupType.LookupTypeName}:{lookupType.OrderId} Added",
             onCompleted,
             CancellationToken.None);
 
     public Task ChangeLookupType(
-        LookupTypeId lookupTypeId,
-        LookupTypeReadModel lookupType,
+        string lookupTypeName,
+        int orderId,
+        LookupTypeUiModel lookupType,
         bool overwrite,
         Action onCompleted)
         => ExecuteMutationAsync(
-            model => model.ChangeLookupTypeAsync(lookupTypeId, lookupType, overwrite),
-            $"Lookup Type {lookupTypeId} Changed",
+            cancellationToken => _service.ChangeLookupTypeAsync(
+                lookupTypeName, orderId, lookupType, overwrite, cancellationToken),
+            $"Lookup Type {lookupTypeName}:{orderId} Changed",
             onCompleted,
             CancellationToken.None);
 
-    public Task RemoveLookupType(LookupTypeId lookupTypeId, bool overwrite)
+    /// <summary>Removes a lookup definition and waits for its correlated terminal notification.</summary>
+    public Task RemoveLookupType(string lookupTypeName, int orderId, bool overwrite)
         => ExecuteMutationAsync(
-            model => model.RemoveLookupTypeAsync(lookupTypeId, overwrite),
-            $"Lookup Type {lookupTypeId} Removed",
+            cancellationToken => _service.RemoveLookupTypeAsync(
+                lookupTypeName, orderId, overwrite, cancellationToken),
+            $"Lookup Type {lookupTypeName}:{orderId} Removed",
             null,
             CancellationToken.None);
 
@@ -83,28 +94,24 @@ public sealed class LookupTypeEditorViewModel
 
     public async Task LoadLookupTypeShortCodes(string lookupTypeName)
     {
-        LookupTypeShortCodeReadModel[] loaded = [];
-        await _queryModel.ExecuteObservableAsync(
-            model => model.LoadLookupTypeShortCodesAsync(
-                lookupTypeName,
-                values => loaded = values ?? []),
-            CancellationToken.None);
-        _lookupTypeShortCodes = [.. loaded];
+        _lookupTypeShortCodes = [.. (await _service.GetLookupTypeShortCodesAsync(
+            lookupTypeName,
+            CancellationToken.None)).RequireValue()];
         OnLookupTypeShortCodesLoaded?.Invoke();
     }
 
     public void LoadLookupType(string lookupTypeName, string lookupTypeShortCode)
     {
         _lookupTypes.TryGetValue(
-            new LookupTypeShortCode(lookupTypeName, lookupTypeShortCode),
+            (lookupTypeName, lookupTypeShortCode),
             out var lookupType);
         OnLookupTypeLoaded?.Invoke(lookupType);
     }
 
-    public LookupTypeReadModel? GetLookupType(string lookupTypeName, string lookupTypeShortCode)
-        => _lookupTypes.GetValueOrDefault(new LookupTypeShortCode(lookupTypeName, lookupTypeShortCode));
+    public LookupTypeUiModel? GetLookupType(string lookupTypeName, string lookupTypeShortCode)
+        => _lookupTypes.GetValueOrDefault((lookupTypeName, lookupTypeShortCode));
 
-    public LookupTypeReadModel? GetLookupType(string lookupTypeName, int orderId)
+    public LookupTypeUiModel? GetLookupType(string lookupTypeName, int orderId)
         => _lookupTypes.Values.FirstOrDefault(value =>
             string.Equals(value.LookupTypeName, lookupTypeName, StringComparison.Ordinal)
             && value.OrderId == orderId);
@@ -140,38 +147,29 @@ public sealed class LookupTypeEditorViewModel
     {
         await StopAsync(CancellationToken.None);
         await _lifecycle.DisposeAsync();
+        await _subscription.DisposeAsync();
     }
 
     Task StartListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel.ExecuteObservableAsync(
-            model => model.StartAsync(HandleTerminalEventAsync).AsTask(),
-            cancellationToken);
+        => _subscription.StartAsync(cancellationToken).AsTask();
 
     Task StopListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel.ExecuteObservableAsync(
-            model => model.StopAsync().AsTask(),
-            cancellationToken);
+        => _subscription.StopAsync(cancellationToken).AsTask();
 
     async Task LoadLookupTypesCoreAsync(CancellationToken cancellationToken)
     {
-        ICollection<LookupTypeReadModel> loadedTypes = [];
-        string[] loadedNames = [];
-        await _queryModel.ExecuteObservableAsync(
-            model => model.LoadLookupTypesAsync(values => loadedTypes = values ?? []),
-            cancellationToken);
-        await _queryModel.ExecuteObservableAsync(
-            model => model.LoadLookupTypeNamesAsync(values => loadedNames = values ?? []),
-            cancellationToken);
+        var loadedTypes = (await _service.GetLookupTypesAsync(cancellationToken)).RequireValue();
+        var loadedNames = (await _service.GetLookupTypeNamesAsync(cancellationToken)).RequireValue();
 
         _lookupTypes = [];
         foreach (var lookupType in loadedTypes)
-            _lookupTypes.TryAdd(lookupType.ShortCodeId, lookupType);
+            _lookupTypes.TryAdd((lookupType.LookupTypeName, lookupType.ShortCode), lookupType);
         _lookupTypeNames = [.. loadedNames.Distinct(StringComparer.Ordinal)];
         OnLookupTypeNamesLoaded?.Invoke();
     }
 
     async Task ExecuteMutationAsync(
-        Func<ReferenceCommandModel, Task<Guid>> submit,
+        Func<CancellationToken, ValueTask<UiOperationResult<Guid>>> submit,
         string statusMessage,
         Action? onCompleted,
         CancellationToken cancellationToken)
@@ -180,19 +178,18 @@ public sealed class LookupTypeEditorViewModel
         OnWaitCursor?.Invoke();
         try
         {
-            Guid commandId = Guid.Empty;
-            await _commandModel.ExecuteObservableAsync(
-                async model => commandId = await submit(model),
-                cancellationToken);
+            var commandId = (await submit(cancellationToken)).RequireValue();
             if (commandId == Guid.Empty)
                 throw new InvalidOperationException(
                     "The lookup-type command returned an empty correlation identifier.");
 
             var terminalTask = _terminalCorrelation.AwaitAsync(commandId, cancellationToken);
             OnPropertyChanged(nameof(CommandId));
-            var terminalEvent = await terminalTask;
-            if (terminalEvent is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+            var terminalNotification = await terminalTask;
+            if (terminalNotification.IsFailure)
+                throw new UiOperationException(new UiOperationError(
+                    terminalNotification.ErrorCode,
+                    terminalNotification.ErrorMessage));
 
             await LoadLookupTypesCoreAsync(cancellationToken);
             LastStatusMessage = statusMessage;
@@ -206,9 +203,9 @@ public sealed class LookupTypeEditorViewModel
         }
     }
 
-    ValueTask HandleTerminalEventAsync(IEvent terminalEvent)
+    ValueTask HandleTerminalNotificationAsync(TerminalNotificationUiModel terminalNotification)
     {
-        _terminalCorrelation.TryPublish(terminalEvent);
+        _terminalCorrelation.TryPublish(terminalNotification);
         return ValueTask.CompletedTask;
     }
 }

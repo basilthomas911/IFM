@@ -1,0 +1,232 @@
+using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.UI.EventConsumer;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+
+namespace TomasAI.IFM.UI.Net.Services.MarketDataFeed;
+
+/// <summary>Provides the MarketDataFeedCommandService UI service boundary.</summary>
+public class MarketDataFeedCommandService(
+    IMarketDataFeedCommandApi marketDataFeedCommandApi,
+    IMarketDataQueryApi marketDataQueryApi,
+    IMarketDataFeedQueryApi marketDataFeedQueryApi,
+    IFuturesEodDataUIEventConsumer futuresEodDataEventConsumer,
+    IFuturesTradeSignalUIEventConsumer futuresTradeSignalEventConsumer,
+    IFuturesOptionTickDataUIEventConsumer futuresOptionTickDataEventConsumer,
+    IMarketDataFeedResetUIEventConsumer marketDataFeedResetEventConsumer,
+    IMarketDataFeedStatusUIEventConsumer marketDataFeedStatusEventConsumer,
+    IFuturesBarDataUIEventConsumer futuresBarDataEventConsumer) : UiServiceBase<MarketDataFeedCommandService>
+{
+    readonly IMarketDataFeedCommandApi _marketDataFeedCommandApi = marketDataFeedCommandApi;
+    readonly IMarketDataQueryApi _marketDataQueryApi = marketDataQueryApi;
+    readonly IMarketDataFeedQueryApi _marketDataFeedQueryApi = marketDataFeedQueryApi;
+    readonly IFuturesEodDataUIEventConsumer _futuresEodDataEventConsumer = futuresEodDataEventConsumer;
+    readonly IFuturesTradeSignalUIEventConsumer _futuresTradeSignalEventConsumer = futuresTradeSignalEventConsumer;
+    readonly IFuturesOptionTickDataUIEventConsumer _futuresOptionTickDataEventConsumer = futuresOptionTickDataEventConsumer;
+    readonly IMarketDataFeedResetUIEventConsumer _marketDataFeedResetEventConsumer = marketDataFeedResetEventConsumer;
+    readonly IMarketDataFeedStatusUIEventConsumer _marketDataFeedStatusEventConsumer = marketDataFeedStatusEventConsumer;
+    readonly IFuturesBarDataUIEventConsumer _futuresBarDataEventConsumer = futuresBarDataEventConsumer;
+
+    /// <summary>
+    /// add trade live feed
+    /// </summary>
+    /// <param name="orderId"></param>
+    /// <param name="tradeId"></param>
+    public async Task AddTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
+        => await ExecuteCommandAsync(() =>  _marketDataFeedCommandApi.AddTradeLiveFeedAsync(orderId, tradeId, valueDate));
+
+    /// <summary>
+    /// remove trade live feed
+    /// </summary>
+    /// <param name="orderId"></param>
+    /// <param name="tradeId"></param>
+    public async Task RemoveTradeLiveFeedAsync(int orderId, int tradeId, DateOnly valueDate)
+        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.RemoveTradeLiveFeedAsync(orderId, tradeId, valueDate));
+    /// <summary>Executes or exposes a documented UI service operation.</summary>
+    public async Task RemoveTradeLiveFeedsAsync(int orderId)
+        => await ExecuteCommandAsync(() => _marketDataFeedCommandApi.RemoveTradeLiveFeedsAsync(orderId));
+
+    /// <summary>
+    /// start market data feed streaming
+    /// </summary>
+    /// <param name="futuresContracts"></param>
+    /// <param name="valueDate"></param>
+    public async Task<Guid> StartDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
+        => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StartMarketDataFeedAsync(futuresContracts, valueDate));
+
+    /// <summary>
+    /// stop market data feed streaming
+    /// </summary>
+    /// <param name="valueDate"></param>
+    /// <param name="stopStreamingOperation"></param>
+    public async Task<Guid> StopDataFeedAsync(DateOnly valueDate, Func<Task> stopStreamingOperation)
+    {
+        ArgumentNullException.ThrowIfNull(stopStreamingOperation);
+        await stopStreamingOperation();
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        return await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StopMarketDataFeedAsync(valueDate) );
+    }
+
+    /// <summary>
+    /// reset market data feed streaming
+    /// </summary>
+    /// <param name="futuresContracts"></param>
+    /// <param name="valueDate"></param>
+    public async Task ResetDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
+        => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.ResetMarketDataFeedAsync(futuresContracts, valueDate));
+
+    /// <summary>
+    /// stop streaming futures tick data
+    /// </summary>
+    /// <param name="contractId"></param>
+    public async Task StopStreamingFuturesTickDataAsync(string contractId, DateOnly valueDate)
+        => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StopFuturesTickDataStreamingAsync(contractId, valueDate));
+
+    /// <summary>
+    /// Starts streaming tick data for futures options contracts asynchronously.
+    /// </summary>
+    /// <remarks>This method retrieves futures options contract definitions and starts streaming tick data for
+    /// each contract specified in the <paramref name="feedIds"/> dictionary. If a contract definition cannot be found
+    /// or an error occurs during the process, the method raises an error and terminates further processing.</remarks>
+    /// <param name="feedIds">A dictionary where the key represents the feed identifier and the value represents the contract identifier.</param>
+    /// <param name="baseContract">The base futures contract associated with the options contracts.</param>
+    /// <param name="valueDate">The value date for the options contracts.</param>
+    /// <param name="maturityDate">The maturity date for the options contracts.</param>
+    /// <param name="riskFreeRate">The risk-free interest rate used in calculations.</param>
+    /// <param name="onCompleted">An action to be invoked upon successful completion of the streaming process.</param>
+    /// <returns></returns>
+    public async Task StartStreamingFuturesOptionTickDataAsync(Dictionary<FuturesOptionTickEntityId, string> feedIds, FuturesContractV2ReadModel baseContract, DateOnly valueDate, DateOnly maturityDate, double riskFreeRate, Action onCompleted)
+        => await ExecuteAsync(async () => {
+            foreach (var e in feedIds)
+            {
+                var entityId = e.Key;
+                var contractId = e.Value;
+                var qfContractResult = await _marketDataQueryApi.GetFuturesOptionContractAsync(e.Value);
+                if (qfContractResult is not null && qfContractResult.Success && qfContractResult.Value is not null)
+                {
+                    var qfContract = qfContractResult.Value;
+                    var contractResult = await _marketDataFeedQueryApi.GetFuturesOptionContractAsync(contractId, qfContract);
+                    if (contractResult is not null && contractResult.Success && contractResult.Value is not null)
+                    {
+                        var contract = contractResult.Value;
+                        await _marketDataFeedCommandApi.StartFuturesOptionTickDataStreamingAsync(entityId, contract, baseContract, valueDate, maturityDate, riskFreeRate);
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+                        continue;
+                    }
+                    RaiseError(contractResult?.ErrorCode ?? 9999, $"Futures option contract definition: {contractId} not found");
+                    return;
+                }
+                RaiseError(qfContractResult?.ErrorCode ?? 9998, $"Futures option contract: {contractId} not found");
+                return;
+            }
+            onCompleted?.Invoke();
+        });
+
+    /// <summary>
+    /// stop streaming futures tick data
+    /// </summary>
+    /// <param name="feedId"></param>
+    public async Task StopStreamingFuturesOptionTickDataAsync(FuturesOptionTickEntityId entityId, string contractId)
+        => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StopFuturesOptionTickDataStreamingAsync(entityId, contractId) );
+
+    /// <summary>
+    /// delete futures bar data less than value date
+    /// </summary>
+    /// <param name="valueDate"></param>
+    public async Task DeleteFuturesBarDataAsync (FuturesBarDataId id)
+        => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.DeleteFuturesBarDataAsync(id) );
+
+    /// <summary>
+    /// start listening for futures eod data updates
+    /// </summary>
+    /// <param name="siteId"></param>
+    /// <param name="listenerAction"></param>
+    public async Task StartFuturesEodDataEventConsumerAsync(Guid siteId, Action<FuturesEodDataUpdatedNotifyEvent> listenerAction)
+        => await ExecuteValueTaskAsync( () => _futuresEodDataEventConsumer.StartAsync(siteId, listenerAction) );
+
+    /// <summary>
+    /// stop listening for futures eod data updates
+    /// </summary>
+    /// <param name="siteId"></param>
+    public async Task StopFuturesEodDataEventConsumerAsync(Guid siteId)
+        => await ExecuteValueTaskAsync( () => _futuresEodDataEventConsumer.StopAsync(siteId) );
+
+    /// <summary>
+    /// start listening for futures trade signal updates
+    /// </summary>
+    /// <param name="siteId"></param>
+    /// <param name="listenerAction"></param>
+    public async Task StartFuturesTradeSignalEventConsumerAsync(Guid siteId, Action<FuturesTradeSignalUpdatedNotifyEvent> listenerAction)
+        => await ExecuteValueTaskAsync( () => _futuresTradeSignalEventConsumer.StartAsync(siteId, listenerAction) );
+
+    /// <summary>
+    /// stop listening for futures trade signal updates
+    /// </summary>
+    /// <param name="siteId"></param>
+    public async Task StopFuturesTradeSignalEventConsumerAsync(Guid siteId)
+        => await ExecuteValueTaskAsync( () => _futuresTradeSignalEventConsumer.StopAsync(siteId) );
+
+    /// <summary>
+    /// start listening for futures bar data inserted complete
+    /// </summary>
+    /// <param name="siteId"></param>
+    /// <param name="listenerAction"></param>
+    public async Task StartFuturesBarDataEventConsumerAsync(
+        Guid siteId,
+        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> listenerAction)
+        => await ExecuteValueTaskAsync( () => _futuresBarDataEventConsumer.StartAsync( listenerAction) );
+
+    /// <summary>
+    /// stop listening for futures bar data inserted complete
+    /// </summary>
+    /// <param name="siteId"></param>
+    public async Task StopFuturesBarDataEventConsumerAsync(Guid siteId)
+        => await ExecuteValueTaskAsync( () => _futuresBarDataEventConsumer.StopAsync() );
+
+    /// <summary>
+    /// start listening for market data feed reset event
+    /// </summary>
+    /// <param name="listenerAction"></param>
+    public async Task StartMarketDataFeedResetListenerAsync(Func<MarketDataFeedResetStreamingEvent, ValueTask> listenerAction)
+        => await ExecuteValueTaskAsync( () => _marketDataFeedResetEventConsumer.StartAsync(listenerAction) );
+
+    /// <summary>
+    /// stop listening for market data feed reset event
+    /// </summary>
+    public async Task StopMarketDataFeedResetListenerAsync()
+        => await ExecuteValueTaskAsync( _marketDataFeedResetEventConsumer.StopAsync );
+
+    /// <summary>Starts the terminal event listener used to correlate shell feed operations.</summary>
+    public async Task StartMarketDataFeedStatusListenerAsync(Func<IEvent, ValueTask> listenerAction)
+        => await ExecuteValueTaskAsync(() => _marketDataFeedStatusEventConsumer.StartAsync(listenerAction));
+
+    /// <summary>Stops the shell market-data feed terminal event listener.</summary>
+    public async Task StopMarketDataFeedStatusListenerAsync()
+        => await ExecuteValueTaskAsync(_marketDataFeedStatusEventConsumer.StopAsync);
+
+    /// <summary>
+    /// start listening for futures option tick data updates
+    /// </summary>
+    /// <param name="listenerAction"></param>
+    public async Task StartFuturesOptionTickDataListenerAsync(
+        Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> listenerAction)
+        => await ExecuteValueTaskAsync( () => _futuresOptionTickDataEventConsumer.StartAsync(listenerAction) );
+
+    /// <summary>
+    /// stop listening for futures option tick data updates
+    /// </summary>
+    public async Task StopFuturesOptionTickDataListenerAsync()
+        => await ExecuteValueTaskAsync( _futuresOptionTickDataEventConsumer.StopAsync );
+
+}

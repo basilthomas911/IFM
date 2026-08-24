@@ -2,6 +2,15 @@
 
 This plan implements the boundary accepted in [UI service and model boundary decision record](UI-Service-Model-Refactor-Decision-Record.md). Gates are vertical slices so the application remains buildable and testable after each merge.
 
+## Implementation status
+
+| Gate | Status | Evidence |
+| --- | --- | --- |
+| UIR-0 | Complete | [Development baseline - 2026-08-24](TestResults/UIR-0-Development-2026-08-24.md) |
+| UIR-1 through UIR-4 | Complete | [Development qualification - 2026-08-24](TestResults/UIR-1-4-Development-2026-08-24.md) |
+| UIR-5 through UIR-12 | Complete | [Development qualification - 2026-08-24](TestResults/UIR-5-12-Development-2026-08-24.md) |
+| UIR-13 | Not started | Run the approved full live-process G0-G4 sequence and close the decision record. |
+
 ## UIR-0 baseline
 
 UIR-0 is documentation and qualification only. It moves no production class and changes no runtime registration.

@@ -112,7 +112,7 @@ public class FundOrderEditorViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => subject.ViewModel.LoadOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
 
         exception.Which.ErrorCode.Should().Be(919);
         subject.ViewModel.LastError!.ErrorCode.Should().Be(919);
@@ -140,9 +140,8 @@ public class FundOrderEditorViewModelTests
                 new ServiceOk<FuturesEodDataV2ReadModel>(Eod(call.ArgAt<string>(0)))));
 
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(referenceApi));
-        appRoot.GetModel<MarketDataFeedQueryModel>()
-            .Returns(new MarketDataFeedQueryModel(marketDataApi));
+        appRoot.Services.FeedQueries
+            .Returns(new MarketDataFeedQueryService(marketDataApi));
         var timeProvider = new ManualTimeProvider(
             new DateTimeOffset(2026, 8, 11, 12, 0, 0, TimeSpan.Zero));
         var viewModel = new FundOrderEditorViewModel(
@@ -150,6 +149,7 @@ public class FundOrderEditorViewModelTests
             ValueDate,
             [Contract("ESZ26", "ES"), Contract("NQZ26", "NQ")],
             17,
+            UiServiceFactory.CreateReference(referenceApi),
             timeProvider);
         return new Subject(viewModel, referenceApi, marketDataApi);
     }

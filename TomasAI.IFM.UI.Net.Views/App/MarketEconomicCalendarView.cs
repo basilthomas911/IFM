@@ -2,6 +2,7 @@ using System.ComponentModel;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
@@ -24,9 +25,11 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
     }
 
     /// <summary>Creates, starts, and loads the lifecycle-owned calendar ViewModel.</summary>
-    public async Task LoadViewAsync(IAppRoot appRoot)
+    public async Task LoadViewAsync(
+        IAppRoot appRoot,
+        IEconomicCalendarService economicCalendarService)
     {
-        _viewModel = new MarketEconomicCalendarViewModel(appRoot);
+        _viewModel = new MarketEconomicCalendarViewModel(appRoot, economicCalendarService);
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
         _viewModel.SelectCalendarPeriod(
             tabCalendarPeriod.SelectedTab?.Text ?? "Today",

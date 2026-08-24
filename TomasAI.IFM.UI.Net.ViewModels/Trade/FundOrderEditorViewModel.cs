@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
@@ -19,8 +21,8 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     readonly DateTime _orderDate;
     readonly OrderStatus _orderStatus = OrderStatus.Open;
     readonly DateOnly _valueDate;
-    readonly ReferenceQueryModel _referenceQueryModel;
-    readonly MarketDataFeedQueryModel _marketDataFeedQueryModel;
+    readonly IReferenceDataService _referenceDataService;
+    readonly MarketDataFeedQueryService _marketDataFeedQueryModel;
     readonly TimeProvider _timeProvider;
     int _orderId;
     string _selectedBaseContractId;
@@ -37,10 +39,13 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         DateOnly valueDate,
         IEnumerable<FuturesContractV2ReadModel> baseContracts,
         int fundId,
+        IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
 
         _fundId = fundId;
         _valueDate = valueDate;
@@ -50,8 +55,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         _maturityDate = DateOnly.FromDateTime(_orderDate);
         BaseContractIds = baseContracts.Select(contract => contract.ContractId).ToArray();
         _selectedBaseContractId = BaseContractIds.FirstOrDefault() ?? string.Empty;
-        _referenceQueryModel = appRoot.GetModel<ReferenceQueryModel>();
-        _marketDataFeedQueryModel = appRoot.GetModel<MarketDataFeedQueryModel>();
+        _marketDataFeedQueryModel = appRoot.Services.FeedQueries;
         LoadOperation = new AsyncOperation(LoadCoreAsync);
         RefreshReferenceOperation = new AsyncOperation(RefreshReferenceCoreAsync, () => !LoadOperation.IsRunning);
         LoadOperation.PropertyChanged += OperationPropertyChanged;
@@ -219,14 +223,10 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     {
         try
         {
-            var orderId = 0;
-            await _referenceQueryModel.ExecuteObservableAsync(
-                async model => await model.NewOrderIdAsync(value => orderId = value),
-                cancellationToken);
-            OrderId = orderId;
+            OrderId = (await _referenceDataService.GetNextOrderIdAsync(cancellationToken)).RequireValue();
             await RefreshReferenceCoreAsync(cancellationToken);
         }
-        catch (ModelOperationException exception)
+        catch (UiOperationException exception)
         {
             PublishError(exception, "New Fund Order Error");
             throw;
@@ -254,7 +254,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
             UpdateReference();
             OnPropertyChanged(nameof(FundOrder));
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception, "Futures EOD Data Error");
             throw;
@@ -268,7 +268,14 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
             : $"{SelectedBaseContractId} @ {TradeDate:MMM dd} - {MaturityDate:MMM dd} => {FuturesEodData.MarketDirection}:{FuturesEodData.MarketVolatility}:{FuturesEodData.PriceDirection}:{FuturesEodData.PriceVolatility}";
     }
 
-    void PublishError(ModelOperationException exception, string caption)
+    void PublishError(UiServiceOperationException exception, string caption)
+        => LastError = new PresentationError(
+            Interlocked.Increment(ref _errorSequence),
+            exception.ErrorCode,
+            exception.Message,
+            caption);
+
+    void PublishError(UiOperationException exception, string caption)
         => LastError = new PresentationError(
             Interlocked.Increment(ref _errorSequence),
             exception.ErrorCode,

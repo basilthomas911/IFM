@@ -86,7 +86,7 @@ public sealed class FundTransactionEditorViewModel : ObservableObject
     public async Task<DateOnly> GetValueDateAsync(CancellationToken cancellationToken)
     {
         DateOnly? valueDate = null;
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteObservableAsync(
+        await _appRoot.Services.MarketDataQueries.ExecuteObservableAsync(
             model => model.GetValueDateAsync(value => valueDate = value),
             cancellationToken);
         return valueDate
@@ -94,7 +94,7 @@ public sealed class FundTransactionEditorViewModel : ObservableObject
     }
 
     Task LoadFundsCoreAsync(CancellationToken cancellationToken)
-        => _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(
+        => _appRoot.Services.FundQueries.ExecuteObservableAsync(
             async model =>
             {
                 FundReadModel[] funds = [];
@@ -104,7 +104,7 @@ public sealed class FundTransactionEditorViewModel : ObservableObject
             cancellationToken);
 
     Task LoadFundDetailsCoreAsync(CancellationToken cancellationToken)
-        => _appRoot.GetModel<FundQueryModel>().ExecuteObservableAsync(
+        => _appRoot.Services.FundQueries.ExecuteObservableAsync(
             async model =>
             {
                 FundTransactionReadModel[] transactions = [];

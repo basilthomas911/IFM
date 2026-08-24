@@ -32,11 +32,11 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
 {
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly TradeEndOfDayParameter _parameter;
-    readonly EndOfDayProcessEventModel _eventModel;
-    readonly FundQueryModel _fundQueryModel;
-    readonly TradeQueryModel _tradeQueryModel;
-    readonly MarketDataFeedQueryModel _marketDataFeedQueryModel;
-    readonly TradeCommandModel _tradeCommandModel;
+    readonly EndOfDayProcessEventService _eventModel;
+    readonly FundQueryService _fundQueryModel;
+    readonly TradeQueryService _tradeQueryModel;
+    readonly MarketDataFeedQueryService _marketDataFeedQueryModel;
+    readonly TradeCommandService _tradeCommandModel;
     readonly object _correlationGate = new();
     readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
     readonly AsyncOperation _loadOperation;
@@ -58,11 +58,11 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
         ArgumentNullException.ThrowIfNull(parameter);
         _parameter = parameter;
         _valueDate = parameter.ValueDate;
-        _eventModel = appRoot.GetModel<EndOfDayProcessEventModel>();
-        _fundQueryModel = appRoot.GetModel<FundQueryModel>();
-        _tradeQueryModel = appRoot.GetModel<TradeQueryModel>();
-        _marketDataFeedQueryModel = appRoot.GetModel<MarketDataFeedQueryModel>();
-        _tradeCommandModel = appRoot.GetModel<TradeCommandModel>();
+        _eventModel = appRoot.Services.EndOfDayEvents;
+        _fundQueryModel = appRoot.Services.FundQueries;
+        _tradeQueryModel = appRoot.Services.TradeQueries;
+        _marketDataFeedQueryModel = appRoot.Services.FeedQueries;
+        _tradeCommandModel = appRoot.Services.TradeCommands;
         _loadOperation = new AsyncOperation(LoadCoreAsync, () => !_runOperation.IsRunning);
         _runOperation = new AsyncOperation(
             RunCoreAsync,
@@ -288,7 +288,7 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
                 throw new InvalidOperationException("The end-of-day command returned an empty correlation identifier.");
             var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
             if (terminalEvent is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+                throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
             if (terminalEvent is not EndOfDayFundTransactionProcessedCompleteEvent)
                 throw new InvalidOperationException($"Unexpected end-of-day event {terminalEvent.GetType().Name}.");
             IsCompleted = true;
@@ -398,7 +398,7 @@ public sealed class EndOfDayProcessViewModel : ObservableObject, IAsyncLifecycle
 
     void PublishError(Exception exception, string caption)
     {
-        var errorCode = exception is ModelOperationException modelFailure ? modelFailure.ErrorCode : 0;
+        var errorCode = exception is UiServiceOperationException modelFailure ? modelFailure.ErrorCode : 0;
         LastError = new PresentationError(
             Interlocked.Increment(ref _errorSequence),
             errorCode,

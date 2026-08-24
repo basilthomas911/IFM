@@ -1,7 +1,7 @@
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.UI.Net.ViewModels.Extensions;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
@@ -12,19 +12,21 @@ namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 /// </summary>
 public sealed class SystemAdminViewModel : ObservableObject
 {
-    readonly IAppRoot _appRoot;
-    IReadOnlyList<LookupTypeReadModel> _functionTypes = [];
+    readonly IReferenceDataService _referenceDataService;
+    IReadOnlyList<LookupTypeUiModel> _functionTypes = [];
 
-    public SystemAdminViewModel(IAppRoot appRoot)
+    /// <summary>Creates the selector workflow with its explicit Reference service.</summary>
+    public SystemAdminViewModel(IReferenceDataService referenceDataService)
     {
-        _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
         LoadFunctionTypesOperation = new AsyncOperation(LoadFunctionTypesCoreAsync);
     }
 
     /// <summary>
     /// Gets the available System Admin functions in selector order.
     /// </summary>
-    public IReadOnlyList<LookupTypeReadModel> FunctionTypes
+    public IReadOnlyList<LookupTypeUiModel> FunctionTypes
     {
         get => _functionTypes;
         private set => SetProperty(ref _functionTypes, value);
@@ -38,17 +40,10 @@ public sealed class SystemAdminViewModel : ObservableObject
     /// <summary>
     /// Gets a function type by index, or <see langword="null"/> when the selection is invalid.
     /// </summary>
-    public LookupTypeReadModel? GetFunctionType(int index)
+    public LookupTypeUiModel? GetFunctionType(int index)
         => index >= 0 && index < FunctionTypes.Count ? FunctionTypes[index] : null;
 
-    Task LoadFunctionTypesCoreAsync(CancellationToken cancellationToken)
-        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteObservableAsync(
-            async model =>
-            {
-                IReadOnlyList<LookupTypeReadModel> functionTypes = [];
-                await model.LoadSystemAdminFunctionTypesAsync(
-                    loaded => functionTypes = loaded?.ToArray() ?? []);
-                FunctionTypes = functionTypes;
-            },
-            cancellationToken);
+    async Task LoadFunctionTypesCoreAsync(CancellationToken cancellationToken)
+        => FunctionTypes = (await _referenceDataService.GetSystemAdminFunctionTypesAsync(cancellationToken))
+            .RequireValue();
 }

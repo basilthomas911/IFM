@@ -17,7 +17,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     static readonly IReadOnlyList<TimeFrameType> SupportedPeriods = Array.AsReadOnly(
         new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly });
     readonly object _stateGate = new();
-    readonly StrategyOperationsModel _model;
+    readonly StrategyOperationsService _model;
     readonly string _contractId;
     readonly DateOnly _valueDate;
     readonly Guid _siteId = Guid.NewGuid();
@@ -35,14 +35,14 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     public StrategyOperationsViewModel(IAppRoot appRoot, string contractId, DateOnly valueDate)
         : this(
             (appRoot ?? throw new ArgumentNullException(nameof(appRoot)))
-                .GetModel<StrategyOperationsModel>(),
+                .Services.StrategyOperations,
             contractId,
             valueDate)
     {
     }
 
     internal StrategyOperationsViewModel(
-        StrategyOperationsModel model,
+        StrategyOperationsService model,
         string contractId,
         DateOnly valueDate)
     {
@@ -158,13 +158,13 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             var result = await _model.GetLatestFuturesItiSignalAsync(
                     _contractId,
                     _valueDate,
-                    period)
-                .WaitAsync(cancellationToken);
-            if (!result.Success)
+                    period,
+                    cancellationToken);
+            if (!result.IsSuccess)
             {
                 PublishError(
-                    result.ErrorCode,
-                    result.ErrorMessage,
+                    result.Error!.Code,
+                    result.Error.Message,
                     $"{period} ITI Snapshot Unavailable");
                 return;
             }

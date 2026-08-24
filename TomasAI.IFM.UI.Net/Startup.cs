@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Extensions.Logging;
 using SimpleInjector;
+using SimpleInjector.Diagnostics;
 using System.Reflection;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -32,6 +33,16 @@ using TomasAI.IFM.UI.Net.Views.Presentation;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
+using TomasAI.IFM.UI.Net.Services.SystemAdmin;
+using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.UI.Net.Services;
+using TomasAI.IFM.UI.Net.Services.Analytics;
+using TomasAI.IFM.UI.Net.Services.Application;
+using TomasAI.IFM.UI.Net.Services.Fund;
+using TomasAI.IFM.UI.Net.Services.MarketData;
+using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
+using TomasAI.IFM.UI.Net.Services.OptionPricing;
+using TomasAI.IFM.UI.Net.Services.Trade;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 
@@ -81,9 +92,16 @@ namespace TomasAI.IFM.UI.Net
             var appRoot = new Startup();
             _container!.Register<IAppRoot>(() => appRoot, Lifestyle.Singleton);
             var asmForm = new Assembly[] { typeof(IForm<>).Assembly };
-            _container!.Register(typeof(IForm<>), asmForm, Lifestyle.Singleton);
-            var asmModel = new Assembly[] { typeof(IModel<>).Assembly };
-            _container!.Register(typeof(IModel<>), asmModel, Lifestyle.Transient);
+            // Each window owns its ViewModels and event subscriptions; a closed form must never be reused.
+            _container!.Register(typeof(IForm<>), asmForm, Lifestyle.Transient);
+            foreach (var producer in _container.GetCurrentRegistrations().Where(producer =>
+                         producer.ServiceType.IsGenericType
+                         && producer.ServiceType.GetGenericTypeDefinition() == typeof(IForm<>)))
+            {
+                producer.Registration.SuppressDiagnosticWarning(
+                    DiagnosticType.DisposableTransientComponent,
+                    "WinForms owns each transient form and disposes it when its window lifetime ends.");
+            }
             return appRoot;
         }
 
@@ -234,7 +252,7 @@ namespace TomasAI.IFM.UI.Net
             // Calendar dashboard and editor own independent listener lifecycles and may be open concurrently.
             _container!.Register<IEconomicCalendarUIEventConsumer, EconomicCalendarUIEventConsumer>(Lifestyle.Transient);
             _container!.Register<ILookupTypeUIEventConsumer, LookupTypeUIEventConsumer>(Lifestyle.Transient);
-            _container!.RegisterSingleton<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>();
+            _container!.Register<ISystemAdminUIEventConsumer, SystemAdminUIEventConsumer>(Lifestyle.Transient);
             _container!.RegisterSingleton<IApplicationUIEventConsumer, ApplicationUIEventConsumer>();
             _container!.RegisterSingleton<IOptionTradeSpreadBarDataUIEventConsumer, OptionTradeSpreadBarDataUIEventConsumer>();
             _container!.RegisterSingleton<IFuturesItiSignalUIEventConsumer, FuturesItiSignalUIEventConsumer>();
@@ -248,6 +266,38 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterPresentationServices()
         {
+            _container!.RegisterSingleton<CommandResponseEventService>();
+            _container.RegisterSingleton<ApplicationEventService>();
+            _container.RegisterSingleton<StatusConsoleService>();
+            _container.RegisterSingleton<FundCommandService>();
+            _container.RegisterSingleton<FundQueryService>();
+            _container.RegisterSingleton<FundEventService>();
+            _container.RegisterSingleton<FundOrderEventService>();
+            _container.RegisterSingleton<MarketDataCommandService>();
+            _container.RegisterSingleton<MarketDataQueryService>();
+            _container.RegisterSingleton<MarketDataEventService>();
+            _container.RegisterSingleton<OptionTradeSpreadBarDataEventService>();
+            _container.RegisterSingleton<MarketDataFeedCommandService>();
+            _container.RegisterSingleton<MarketDataFeedQueryService>();
+            _container.RegisterSingleton<MarketDataAnalyticsCommandService>();
+            _container.RegisterSingleton<MarketDataAnalyticsQueryService>();
+            _container.RegisterSingleton<MarketDataAnalyticsEventService>();
+            _container.RegisterSingleton<IOptionPricingService, OptionPricingService>();
+            _container.RegisterSingleton<SpreadDistributionJobService>();
+            _container.RegisterSingleton<StrategyOperationsService>();
+            _container.RegisterSingleton<TradeCommandService>();
+            _container.RegisterSingleton<TradeQueryService>();
+            _container.RegisterSingleton<TradePlacementCommandService>();
+            _container.RegisterSingleton<TradePlacementEventService>();
+            _container.RegisterSingleton<TradePlanQueryService>();
+            _container.RegisterSingleton<TradePlanEventService>();
+            _container.RegisterSingleton<TradePlanActionEventService>();
+            _container.RegisterSingleton<TradePositionFeedEventService>();
+            _container.RegisterSingleton<EndOfDayProcessEventService>();
+            _container.RegisterSingleton<IUiServiceCatalog, UiServiceCatalog>();
+            _container!.Register<IDatabaseBackupService, DatabaseBackupService>(Lifestyle.Transient);
+            _container.Register<IReferenceDataService, ReferenceDataService>(Lifestyle.Transient);
+            _container.Register<IEconomicCalendarService, EconomicCalendarService>(Lifestyle.Transient);
             _container!.RegisterSingleton<YieldCurveRateEditViewModel>();
             _container!.RegisterSingleton<IViewNavigator>(() =>
                 new WinFormsViewNavigator(viewType =>
@@ -272,13 +322,9 @@ namespace TomasAI.IFM.UI.Net
         /// </summary>
         public string AppEnvironment { get; }
 
-        /// <summary>
-        /// return container instance object that implements controller class type
-        /// </summary>
-        /// <typeparam name="TController">controller class type</typeparam>
-        /// <returns>instance of controller class type</returns>
-        public TModel GetModel<TModel>() where TModel : class
-            => (_container!.GetInstance<IModel<TModel>>() as TModel)!;
+        /// <summary>Gets the immutable catalog of explicitly registered UI domain services.</summary>
+        public IUiServiceCatalog Services
+            => _container!.GetInstance<IUiServiceCatalog>();
 
         /// <summary>
         /// return status console api

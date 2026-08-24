@@ -1,9 +1,6 @@
 using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.Domain.Trade.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -11,16 +8,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTradeForm>, IFormControl
 {
-    readonly IAppRoot _appRoot;
     TradeOrderEditorViewModel? _viewModel;
     FundOrderTradeReadModel? _fundOrderTrade;
-    Dictionary<string, LookupTypeReadModel> _baseSymbolMap;
+    Dictionary<string, LookupTypeUiModel> _baseSymbolMap;
 
     public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade!;
 
-    public CreateFundOrderTradeForm(IAppRoot appRoot)
+    public CreateFundOrderTradeForm()
     {
-        _appRoot = appRoot;
         _baseSymbolMap = [];
         InitializeComponent();
         ddlBaseSymbol.SelectedIndexChanged += ddlBaseSymbol_SelectedIndexChanged;
@@ -51,24 +46,20 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
     {
         try
         {
-            await _appRoot.GetModel<ReferenceQueryModel>().ExecuteAsync(async model =>
+            var tradeId = await _viewModel!.GetNewTradeIdAsync();
+            var symbols = await _viewModel.GetSymbolsAsync();
+            this.Post(() =>
             {
-                await model.NewTradeIdAsync(tradeId =>
-                    this.Post(() =>
-                    {
-                        txtTradeId.Text = $"{tradeId}";
-                        txtTradeState.Text = $"{TradeState.NewTrade}";
-                        LoadTradeTypes();
-                        var openingFundOrderTrade = _viewModel!.GetOpeningFundOrderTrade();
-                        if (openingFundOrderTrade != null)
-                        {
-                            SetClosingTradeType(openingFundOrderTrade!.TradeType);
-                            txtReference.Text = openingFundOrderTrade.Reference;
-                        }
-                    }));
-
-                await model.LoadSymbolsAsync(symbols =>
-                    this.Post(() => LoadSymbols([.. symbols])));
+                txtTradeId.Text = $"{tradeId}";
+                txtTradeState.Text = $"{TradeState.NewTrade}";
+                LoadTradeTypes();
+                var openingFundOrderTrade = _viewModel.GetOpeningFundOrderTrade();
+                if (openingFundOrderTrade != null)
+                {
+                    SetClosingTradeType(openingFundOrderTrade.TradeType);
+                    txtReference.Text = openingFundOrderTrade.Reference;
+                }
+                LoadSymbols([.. symbols]);
             });
         }
         catch (Exception ex)
@@ -98,7 +89,7 @@ public partial class CreateFundOrderTradeForm : Form, IForm<CreateFundOrderTrade
     {
     }
 
-    void LoadSymbols(LookupTypeReadModel[] lookupTypes)
+    void LoadSymbols(LookupTypeUiModel[] lookupTypes)
     {
         ddlBaseSymbol.Enabled = false;
         ddlBaseSymbol.Items.Clear();

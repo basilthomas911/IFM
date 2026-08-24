@@ -7,6 +7,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
@@ -41,10 +44,10 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
     readonly IReadOnlyList<FuturesContractV2ReadModel> _baseContracts;
-    readonly FundQueryModel _fundQueryModel;
-    readonly FundCommandModel _fundCommandModel;
-    readonly ReferenceQueryModel _referenceQueryModel;
-    readonly FundOrderEventModel _fundOrderEventModel;
+    readonly FundQueryService _fundQueryModel;
+    readonly FundCommandService _fundCommandModel;
+    readonly IReferenceDataService _referenceDataService;
+    readonly FundOrderEventService _fundOrderEventModel;
     readonly object _correlationGate = new();
     readonly Dictionary<Guid, IEvent> _earlyTerminalEvents = [];
     IReadOnlyList<FundReadModel> _funds = [];
@@ -70,18 +73,20 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         IAppRoot appRoot,
         DateOnly? valueDate,
         ICollection<FuturesContractV2ReadModel> baseContracts,
+        IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
         _appRoot = appRoot;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _valueDate = valueDate;
         _baseContracts = baseContracts.ToArray();
-        _fundQueryModel = appRoot.GetModel<FundQueryModel>();
-        _fundCommandModel = appRoot.GetModel<FundCommandModel>();
-        _referenceQueryModel = appRoot.GetModel<ReferenceQueryModel>();
-        _fundOrderEventModel = appRoot.GetModel<FundOrderEventModel>();
+        _fundQueryModel = appRoot.Services.FundQueries;
+        _fundCommandModel = appRoot.Services.FundCommands;
+        _fundOrderEventModel = appRoot.Services.FundOrderEvents;
         LoadOperation = new AsyncOperation(LoadCoreAsync, () => !IsCommandRunning);
         LoadOperation.PropertyChanged += OperationPropertyChanged;
         _lifecycle = new AsyncLifecycleCoordinator(StartListenersCoreAsync, StopListenersCoreAsync);
@@ -358,18 +363,23 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     {
         try
         {
-            var tradeId = 0;
-            await _referenceQueryModel.ExecuteObservableAsync(
-                async model => await model.NewTradeIdAsync(value => tradeId = value),
-                cancellationToken);
-            return tradeId;
+            return (await _referenceDataService.GetNextTradeIdAsync(cancellationToken)).RequireValue();
         }
-        catch (ModelOperationException exception)
+        catch (UiOperationException exception)
         {
-            PublishError(exception, "New Trade Id Error");
+            LastError = new PresentationError(
+                Interlocked.Increment(ref _errorSequence),
+                exception.ErrorCode,
+                exception.Message,
+                "New Trade Id Error");
             throw;
         }
     }
+
+    /// <summary>Gets Symbol lookup values used by the trade-entry view.</summary>
+    public async Task<IReadOnlyList<LookupTypeUiModel>> GetSymbolsAsync(
+        CancellationToken cancellationToken = default)
+        => (await _referenceDataService.GetLookupTypesAsync("Symbol", cancellationToken)).RequireValue();
 
     public Task StartFundOrderListener() => InitializeAsync(CancellationToken.None);
     public Task StopFundOrderListener() => StopAsync(CancellationToken.None);
@@ -463,7 +473,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             OnPropertyChanged(nameof(SelectedFund));
             RebuildOrders(selectedOrderId, selectedTradeId);
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception, "Loading Funds Error");
             throw;
@@ -471,7 +481,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     }
 
     async Task ExecuteMutationAsync(
-        Func<FundCommandModel, Task<Guid>> submit,
+        Func<FundCommandService, Task<Guid>> submit,
         CancellationToken cancellationToken)
     {
         if (Interlocked.CompareExchange(ref _isSubmittingCommand, 1, 0) != 0 || CommandId != Guid.Empty)
@@ -487,10 +497,10 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
                 throw new InvalidOperationException("The fund command returned an empty correlation identifier.");
             var terminalEvent = await AwaitTerminalEventAsync(commandId, cancellationToken);
             if (terminalEvent is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+                throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
             await PublishChangeAsync(terminalEvent, cancellationToken);
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception, "Trade Order Command Error");
             throw;
@@ -548,10 +558,10 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         try
         {
             if (@event is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+                throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
             await PublishChangeAsync(@event, CancellationToken.None);
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception, "Trade Order Command Error");
         }
@@ -583,20 +593,20 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         };
         LastStatusMessage = status;
         LastChange = new TradeOrderEditorChange(Interlocked.Increment(ref _changeSequence), kind, @event);
-        await _appRoot.GetModel<StatusConsoleModel>().ExecuteObservableAsync(
+        await _appRoot.Services.StatusConsole.ExecuteObservableAsync(
             async model => await model.WriteConsoleAsync(LogSourceType.TradeOrder, status),
             cancellationToken);
         await LoadCoreAsync(cancellationToken);
     }
 
-    async Task ExecuteFeedCommandAsync(Func<MarketDataFeedCommandModel, Task> command, string caption)
+    async Task ExecuteFeedCommandAsync(Func<MarketDataFeedCommandService, Task> command, string caption)
     {
         try
         {
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteObservableAsync(
+            await _appRoot.Services.FeedCommands.ExecuteObservableAsync(
                 async model => await command(model));
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception, caption);
             throw;
@@ -693,7 +703,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         NotifyCapabilitiesChanged();
     }
 
-    void PublishError(ModelOperationException exception, string caption)
+    void PublishError(UiServiceOperationException exception, string caption)
         => LastError = new PresentationError(
             Interlocked.Increment(ref _errorSequence),
             exception.ErrorCode,

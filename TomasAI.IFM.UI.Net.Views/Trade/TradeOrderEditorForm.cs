@@ -15,6 +15,7 @@ using System.ComponentModel;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
@@ -22,6 +23,7 @@ public partial class TradeOrderEditorForm
     : Form, IForm<TradeOrderEditorForm>, IFormControl
 {
     readonly IAppRoot _appRoot;
+    readonly IReferenceDataService _referenceDataService;
     TradeOrderEditorViewModel _viewModel = null!;
     int _lastTradeIndex;
     int _lastTradeOrderIndex;
@@ -34,11 +36,14 @@ public partial class TradeOrderEditorForm
     /// create trade order form
     /// </summary>
     /// <param name="appRoot"></param>
-    public TradeOrderEditorForm(IAppRoot appRoot)
+    public TradeOrderEditorForm(
+        IAppRoot appRoot,
+        IReferenceDataService referenceDataService)
     {
         InitializeComponent();
         ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
+        _referenceDataService = referenceDataService;
     }
 
     public FundReadModel Fund => _viewModel?.SelectedFund!;
@@ -105,7 +110,7 @@ public partial class TradeOrderEditorForm
                     break;
             }
         }
-        catch (ModelOperationException)
+        catch (UiServiceOperationException)
         {
             // The ViewModel publishes coded live-feed failures through LastError.
         }
@@ -336,7 +341,8 @@ public partial class TradeOrderEditorForm
                        baseContract,
                        fundOrder!,
                        fundOrderTrade,
-                       orderActionType);
+                       orderActionType,
+                       _referenceDataService);
                    tradeControl = new IronCondorTradeOrderView(this, viewModel);
                    break;
             }
@@ -477,7 +483,12 @@ public partial class TradeOrderEditorForm
         var valueDate = _viewModel.ValueDate.HasValue
             ? _viewModel.ValueDate.Value
             : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
-        var vm = new FundOrderEditorViewModel(_appRoot, valueDate, _viewModel.BaseContracts, fundId);
+        var vm = new FundOrderEditorViewModel(
+            _appRoot,
+            valueDate,
+            _viewModel.BaseContracts,
+            fundId,
+            _referenceDataService);
         var dlg = new CreateFundOrderForm();
         dlg.SetViewModel(vm);
         if (dlg.ShowDialog() == DialogResult.OK)
@@ -500,7 +511,7 @@ public partial class TradeOrderEditorForm
         if (lstTradeOrders.SelectedIndices.Count > 0)
         {
             var fundOrder = _viewModel.GetFundOrder(lstTradeOrders.SelectedIndices[0]);
-            var dlg = new CreateFundOrderTradeForm(_appRoot);
+            var dlg = new CreateFundOrderTradeForm();
             dlg.SetViewModel(_viewModel);
             dlg.SetFundOrder(fundOrder!);
             if (dlg.ShowDialog() == DialogResult.OK)
@@ -632,7 +643,7 @@ public partial class TradeOrderEditorForm
 
     async void btnCreateFund_Click(object sender, EventArgs e)
     {
-        var vm = new CreateFundReadModel(_appRoot);
+        var vm = new CreateFundReadModel(_appRoot, _referenceDataService);
         var dlg = new CreateFundForm(vm);
         switch (dlg.ShowDialog())
         {
@@ -716,7 +727,7 @@ public partial class TradeOrderEditorForm
         {
             await operation();
         }
-        catch (ModelOperationException)
+        catch (UiServiceOperationException)
         {
             // The ViewModel publishes coded failures through LastError.
         }

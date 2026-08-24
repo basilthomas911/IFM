@@ -108,15 +108,15 @@ public class AdjustFundTransactionReadModelTests
         var commandApi = Substitute.For<IFundCommandApi>();
         var riskConsumer = Substitute.For<IFundRiskMarginUIEventConsumer>();
         var stateConsumer = Substitute.For<IFundOrderTradeStateUIEventConsumer>();
-        var fundCommandModel = new FundCommandModel(commandApi, riskConsumer, stateConsumer);
-        var fundEventModel = new FundEventModel(eventConsumer);
-        var statusModel = new StatusConsoleModel(
+        var fundCommandModel = new FundCommandService(commandApi, riskConsumer, stateConsumer);
+        var fundEventModel = new FundEventService(eventConsumer);
+        var statusModel = new StatusConsoleService(
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<IStatusConsoleEventConsumer>());
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<FundCommandModel>().Returns(fundCommandModel);
-        appRoot.GetModel<FundEventModel>().Returns(fundEventModel);
-        appRoot.GetModel<StatusConsoleModel>().Returns(statusModel);
+        appRoot.Services.FundCommands.Returns(fundCommandModel);
+        appRoot.Services.FundEvents.Returns(fundEventModel);
+        appRoot.Services.StatusConsole.Returns(statusModel);
         return (new AdjustFundTransactionReadModel(appRoot, OriginalTransaction(), 1000m), eventSource, commandApi);
     }
 

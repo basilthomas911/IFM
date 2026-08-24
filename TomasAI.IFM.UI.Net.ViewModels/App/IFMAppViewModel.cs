@@ -14,10 +14,14 @@ using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.UI.Net.Services.Subscriptions;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.ViewModels.Operations.Domain;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App;
@@ -93,6 +97,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly SemaphoreSlim _marketDataFeedOperationGate = new(1, 1);
     readonly IAppRoot _appRoot;
     readonly IIFMAppLiveViewAdapter _liveViewAdapter;
+    readonly IEconomicCalendarService _economicCalendarService;
     readonly TimeProvider _timeProvider;
     readonly TimeSpan _startupReferenceDataImportTimeout;
     readonly TimeSpan _marketDataFeedTerminalTimeout;
@@ -110,6 +115,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>? _compositeMarketOutlookChannel;
     OrderedBatchAsyncChannel<IEvent>? _tradePlacementChannel;
     OrderedBatchAsyncChannel<StatusConsoleLogReadModel>? _statusConsoleChannel;
+    IUiEventSubscription? _economicCalendarStartupSubscription;
     DateOnly? _valueDate;
     IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
@@ -147,6 +153,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// <param name="appVersion">Desktop application version.</param>
     /// <param name="appEnvironment">Configured application environment.</param>
     /// <param name="liveViewAdapter">Transitional adapter for later live-dashboard and trading slices.</param>
+    /// <param name="economicCalendarService">Economic-calendar operations and event subscriptions.</param>
     /// <param name="timeProvider">Optional time provider used by startup delays and the feed watchdog.</param>
     /// <param name="startupReferenceDataImportTimeout">Bounded wait for each startup import terminal event.</param>
     public IFMAppViewModel(
@@ -154,6 +161,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         Version appVersion,
         string appEnvironment,
         IIFMAppLiveViewAdapter liveViewAdapter,
+        IEconomicCalendarService economicCalendarService,
         TimeProvider? timeProvider = null,
         TimeSpan? startupReferenceDataImportTimeout = null,
         TimeSpan? marketDataFeedTerminalTimeout = null)
@@ -164,6 +172,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             ? throw new ArgumentException("Application environment is required.", nameof(appEnvironment))
             : appEnvironment;
         _liveViewAdapter = liveViewAdapter ?? throw new ArgumentNullException(nameof(liveViewAdapter));
+        _economicCalendarService = economicCalendarService
+            ?? throw new ArgumentNullException(nameof(economicCalendarService));
         _timeProvider = timeProvider ?? TimeProvider.System;
         _startupReferenceDataImportTimeout = startupReferenceDataImportTimeout
             ?? DefaultStartupReferenceDataImportTimeout;
@@ -182,7 +192,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 "The market-data feed terminal timeout must be positive and bounded.");
         }
         _siteId = Guid.NewGuid();
-        _appRoot.GetModel<EventModel>().SetSiteId(_siteId);
+        _appRoot.Services.CommandResponses.SetSiteId(_siteId);
         _lifecycle = new AsyncLifecycleCoordinator(InitializeCoreAsync, StopCoreAsync);
         StartupOperation = new AsyncOperation(StartupCorePresentationAsync, () => !_lifecycle.IsRunning);
         ShutdownOperation = new AsyncOperation(ShutdownCorePresentationAsync, () => _lifecycle.IsRunning);
@@ -506,7 +516,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         if (IsMarketDataFeedActive)
             await DisableTradeLiveFeed(cancellationToken: cancellationToken);
         await StopMarketDataFeedStatusListener();
-        await _appRoot.GetModel<ApplicationEventModel>().StopApplicationEventConsumerAsync();
+        await _appRoot.Services.ApplicationEvents.StopApplicationEventConsumerAsync();
         await StopStatusConsoleListener();
         IsMenuEnabled = false;
         StartupOperation.NotifyCanExecuteChanged();
@@ -525,7 +535,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// application startup
     /// </summary>
     Task StartApplicationCoreAsync(CancellationToken cancellationToken)
-        => _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.MarketDataQueries.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMsg) => PublishError(
                 errorCode,
@@ -597,7 +607,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             metricsChanged: PublishStatusConsoleMetrics);
         _statusConsoleChannel = channel;
         PublishStatusConsoleMetrics(channel.Metrics);
-        return _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model => {
+        return _appRoot.Services.StatusConsole.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Status Console Log Error"));
             await model.StartStatusConsoleLogListenerAsync(async o => {
@@ -621,7 +631,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var channel = Interlocked.Exchange(ref _statusConsoleChannel, null);
         try
         {
-            await _appRoot.GetModel<StatusConsoleModel>().StopStatusConsoleLogListener(_siteId);
+            await _appRoot.Services.StatusConsole.StopStatusConsoleLogListener(_siteId);
         }
         finally
         {
@@ -634,7 +644,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// start application events listener
     /// </summary>
     Task StartApplicationEventsListener()
-        => _appRoot.GetModel<ApplicationEventModel>().ExecuteAsync(async model => {
+        => _appRoot.Services.ApplicationEvents.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Application Events Listener Error"));
             await model.StartApplicationEventConsumerAsync(
@@ -674,7 +684,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _compositeMarketOutlookChannel = channel;
         PublishMarketOutlookMetrics(channel.Metrics);
 
-        await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.AnalyticsCommands.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Starting Market Outlook Event Consumer Error"));
@@ -693,7 +703,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var contract = GetMarketOutlookContract();
         if (contract is null || !_valueDate.HasValue)
             return;
-        await _appRoot.GetModel<MarketDataAnalyticsQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.AnalyticsQueries.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Loading Market Outlook Snapshot Error"));
@@ -730,7 +740,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var channel = Interlocked.Exchange(ref _compositeMarketOutlookChannel, null);
         try
         {
-            await _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(
+            await _appRoot.Services.AnalyticsCommands.ExecuteAsync(
                 async model => await model.StopMarketOutlookEventConsumerAsync(_siteId));
         }
         finally
@@ -741,7 +751,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
         Task GetLastFuturesBarData(DateOnly valueDate)
-            => _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async model =>
+            => _appRoot.Services.FeedQueries.ExecuteAsync(async model =>
             {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Loading Latest Futures Bar Data Error"));
@@ -779,7 +789,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             metricsChanged: PublishTradePlacementMetrics);
         _tradePlacementChannel = channel;
         PublishTradePlacementMetrics(channel.Metrics);
-        return _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
+        return _appRoot.Services.TradePlacementEvents.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Starting Trade Placement Event Consumer Error"));
             await WriteStatusConsoleAsync("Starting Trade Placement Event Consumer...");
@@ -805,7 +815,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var channel = Interlocked.Exchange(ref _tradePlacementChannel, null);
         try
         {
-            await _appRoot.GetModel<TradePlacementEventModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.TradePlacementEvents.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Stopping Trade Placement Event Consumer Error"));
                 await WriteStatusConsoleAsync("Stopping Trade Placement Event Consumer...");
@@ -823,7 +833,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// Starts the authoritative RSI, ATR, ADX, and MACD intraday actor profile.
     /// </summary>
     Task StartFuturesIntradaySignalServices(CancellationToken cancellationToken)
-        => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.AnalyticsCommands.ExecuteAsync(async model =>
         {
             await DelayStartupAsync(cancellationToken);
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
@@ -862,7 +872,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// Stops every actor in the authoritative intraday signal profile.
     /// </summary>
     Task StopFuturesIntradaySignalServices()
-        => _appRoot.GetModel<MarketDataAnalyticsCommandModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.AnalyticsCommands.ExecuteAsync(async model =>
         {
             var esContract = _baseContracts?.Where(e => e.ContractId.StartsWith("ES"))?.FirstOrDefault();
             if (esContract is not null && _valueDate.HasValue)
@@ -885,7 +895,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// start futures bar data event consumer
     /// </summary>
     Task StartFuturesBarDataEventConsumer(CancellationToken cancellationToken)
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+        => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
             if (_futuresBarChannels is not null)
                 return;
             model.OnError((errorCode, errorMessage) =>
@@ -911,7 +921,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
         try
         {
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Stopping Futures Bar Data Event Consumer Error"));
                 await WriteStatusConsoleAsync("Stopping Futures Bar Data Event Consumer...");
@@ -942,7 +952,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async queryModel =>
+        await _appRoot.Services.FeedQueries.ExecuteAsync(async queryModel =>
         {
             queryModel.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Loading Futures Bar Data Error"));
@@ -970,7 +980,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         const string economicCalendarDataset = "Economic Calendar";
         var importDate = EasternTime.GetNow(_timeProvider);
         var yieldCurveCorrelation = new TerminalEventCorrelation();
-        var economicCalendarCorrelation = new TerminalEventCorrelation();
+        var economicCalendarCorrelation = new TerminalNotificationCorrelation();
         var cleanupFailures = new List<string>();
         StartupReferenceDataImportStatus? yieldCurveStatus = null;
         StartupReferenceDataImportStatus? economicCalendarStatus = null;
@@ -1026,11 +1036,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     cancellationToken)
                 : Task.FromResult(yieldCurveStatus!);
             var economicCalendarTask = economicCalendarListenerStarted
-                ? ExecuteStartupImportAsync(
+                ? ExecuteEconomicCalendarStartupImportAsync(
                     economicCalendarDataset,
                     importDate,
                     economicCalendarCorrelation,
-                    model => model.ImportEconomicCalendarsAsync(importDate),
                     cancellationToken)
                 : Task.FromResult(economicCalendarStatus!);
 
@@ -1077,7 +1086,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     Task StartYieldCurveStartupImportListenerAsync(
         TerminalEventCorrelation correlation,
         CancellationToken cancellationToken)
-        => _appRoot.GetModel<MarketDataEventModel>().ExecuteObservableAsync(
+        => _appRoot.Services.MarketDataEvents.ExecuteObservableAsync(
             model => model.StartMarketDataListenerAsync(
             [
                 new YieldCurveRatesImportedCompleteEvent()
@@ -1093,42 +1102,62 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             cancellationToken);
 
     Task StopYieldCurveStartupImportListenerAsync()
-        => _appRoot.GetModel<MarketDataEventModel>().ExecuteObservableAsync(
+        => _appRoot.Services.MarketDataEvents.ExecuteObservableAsync(
             model => model.StopMarketDataListenerAsync().AsTask(),
             CancellationToken.None);
 
-    Task StartEconomicCalendarStartupImportListenerAsync(
-        TerminalEventCorrelation correlation,
+    async Task StartEconomicCalendarStartupImportListenerAsync(
+        TerminalNotificationCorrelation correlation,
         CancellationToken cancellationToken)
-        => _appRoot.GetModel<EconomicCalendarEventModel>().ExecuteObservableAsync(
-            model => model.StartEconomicCalendarEventListenersAsync(
-                _ => { },
-                _ => { },
-                _ => { },
-                _ => { },
-                _ => { },
-                _ => { },
-                @event => correlation.TryPublish(@event),
-                @event => correlation.TryPublish(@event)),
-            cancellationToken);
+    {
+        var subscription = _economicCalendarService.CreateSubscription(
+            notification => correlation.TryPublish(notification));
+        _economicCalendarStartupSubscription = subscription;
+        try
+        {
+            await subscription.StartAsync(cancellationToken);
+        }
+        catch
+        {
+            Interlocked.CompareExchange(
+                ref _economicCalendarStartupSubscription,
+                null,
+                subscription);
+            await subscription.DisposeAsync();
+            throw;
+        }
+    }
 
-    Task StopEconomicCalendarStartupImportListenerAsync()
-        => _appRoot.GetModel<EconomicCalendarEventModel>().ExecuteObservableAsync(
-            model => model.StopEconomicCalendarEventListenersAsync(),
-            CancellationToken.None);
+    async Task StopEconomicCalendarStartupImportListenerAsync()
+    {
+        var subscription = Interlocked.Exchange(
+            ref _economicCalendarStartupSubscription,
+            null);
+        if (subscription is null)
+            return;
+
+        try
+        {
+            await subscription.StopAsync(CancellationToken.None);
+        }
+        finally
+        {
+            await subscription.DisposeAsync();
+        }
+    }
 
     async Task<StartupReferenceDataImportStatus> ExecuteStartupImportAsync(
         string dataset,
         DateTime importDate,
         TerminalEventCorrelation correlation,
-        Func<MarketDataCommandModel, Task<Guid>> submitCommand,
+        Func<MarketDataCommandService, Task<Guid>> submitCommand,
         CancellationToken cancellationToken)
     {
         var commandId = Guid.Empty;
         correlation.BeginAttempt();
         try
         {
-            await _appRoot.GetModel<MarketDataCommandModel>().ExecuteObservableAsync(
+            await _appRoot.Services.MarketDataCommands.ExecuteObservableAsync(
                 async model => commandId = await submitCommand(model),
                 cancellationToken);
             if (commandId == Guid.Empty)
@@ -1183,6 +1212,72 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
+    async Task<StartupReferenceDataImportStatus> ExecuteEconomicCalendarStartupImportAsync(
+        string dataset,
+        DateTime importDate,
+        TerminalNotificationCorrelation correlation,
+        CancellationToken cancellationToken)
+    {
+        var commandId = Guid.Empty;
+        correlation.BeginAttempt();
+        try
+        {
+            commandId = (await _economicCalendarService.ImportAsync(
+                importDate,
+                [],
+                cancellationToken)).RequireValue();
+            if (commandId == Guid.Empty)
+            {
+                throw new InvalidOperationException(
+                    $"The {dataset} startup import returned an empty correlation identifier.");
+            }
+
+            var notification = await correlation.AwaitAsync(
+                commandId,
+                _startupReferenceDataImportTimeout,
+                _timeProvider,
+                cancellationToken);
+            if (notification.IsFailure)
+            {
+                return new StartupReferenceDataImportStatus(
+                    dataset,
+                    StartupReferenceDataImportOutcome.Failed,
+                    commandId,
+                    notification.ErrorCode,
+                    $"{dataset} automatic import failed: {notification.ErrorMessage}");
+            }
+
+            return new StartupReferenceDataImportStatus(
+                dataset,
+                StartupReferenceDataImportOutcome.Completed,
+                commandId,
+                0,
+                $"{dataset} automatic import completed for {importDate:yyyy-MM-dd}.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TimeoutException)
+        {
+            return new StartupReferenceDataImportStatus(
+                dataset,
+                StartupReferenceDataImportOutcome.NotObserved,
+                commandId,
+                0,
+                $"{dataset} automatic import outcome was not observed within "
+                    + $"{_startupReferenceDataImportTimeout}.");
+        }
+        catch (Exception exception)
+        {
+            return CreateStartupImportFailure(dataset, exception, "automatic import failed", commandId);
+        }
+        finally
+        {
+            correlation.EndAttempt();
+        }
+    }
+
     static StartupReferenceDataImportStatus CreateStartupImportFailure(
         string dataset,
         Exception exception,
@@ -1192,7 +1287,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             dataset,
             StartupReferenceDataImportOutcome.Failed,
             commandId,
-            exception is ModelOperationException modelFailure ? modelFailure.ErrorCode : 0,
+            exception switch
+            {
+                UiServiceOperationException modelFailure => modelFailure.ErrorCode,
+                UiOperationException serviceFailure => serviceFailure.ErrorCode,
+                _ => 0
+            },
             $"{dataset} {context}: {exception.Message}");
 
     async Task ReportStartupImportFailuresAsync(
@@ -1234,7 +1334,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _marketDataFeedTerminalCorrelation.BeginAttempt();
         try
         {
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Enable Trade Live Feed Error"));
                 await WriteStatusConsoleAsync("Starting Trade Data Feeds...");
@@ -1270,7 +1370,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         _marketDataFeedTerminalCorrelation.BeginAttempt();
         try
         {
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) =>
                     PublishError(errorCode, errorMessage, "Disable Trade Live Feed Error"));
                 await WriteStatusConsoleAsync("Stopping Trade Data Feeds...");
@@ -1331,7 +1431,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
     Task StartMarketDataFeedStatusListener()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Market Data Feed Status Listener Error"));
@@ -1343,14 +1443,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         });
 
     Task StopMarketDataFeedStatusListener()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(
+        => _appRoot.Services.FeedCommands.ExecuteAsync(
             model => model.StopMarketDataFeedStatusListenerAsync());
 
     /// <summary>
     /// enable market data feed reset listener
     /// </summary>
     Task EnableMarketDataFeedResetListener(CancellationToken cancellationToken)
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+        => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Enable MarketData Feed Reset Listener Error"));
             await WriteStatusConsoleAsync("Starting Market Data Feed Reset Listener...");
@@ -1363,7 +1463,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// disable market data feed reset listener
     /// </summary>
     Task DisableMarketDataFeedResetListener()
-        => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+        => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
                 PublishError(errorCode, errorMessage, "Disable MarketData Feed Reset Listener Error"));
             await model.StopMarketDataFeedResetListenerAsync();

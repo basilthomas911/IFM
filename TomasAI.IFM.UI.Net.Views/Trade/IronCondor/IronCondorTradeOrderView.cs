@@ -55,7 +55,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
             _parentControl.SetOrderAction(_viewModel.OrderActionType);
             await ApplyOrderActionAsync(_viewModel.OrderActionType);
         }
-        catch (ModelOperationException)
+        catch (UiServiceOperationException)
         {
             ShowLatestError();
         }
@@ -922,7 +922,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         {
             await _viewModel.SetFundMaxProfit();
         }
-        catch (ModelOperationException)
+        catch (UiServiceOperationException)
         {
             ShowLatestError();
         }

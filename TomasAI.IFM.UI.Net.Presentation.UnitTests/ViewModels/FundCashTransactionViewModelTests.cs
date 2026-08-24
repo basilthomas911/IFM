@@ -114,14 +114,14 @@ public sealed class FundCashTransactionViewModelTests
         var eventConsumer = Substitute.For<IFundUIEventConsumer>();
         var eventSource = new TestFundEventSource(eventConsumer);
         var commandApi = Substitute.For<IFundCommandApi>();
-        var fundCommandModel = new FundCommandModel(
+        var fundCommandModel = new FundCommandService(
             commandApi,
             Substitute.For<IFundRiskMarginUIEventConsumer>(),
             Substitute.For<IFundOrderTradeStateUIEventConsumer>());
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<FundCommandModel>().Returns(fundCommandModel);
-        appRoot.GetModel<FundEventModel>().Returns(new FundEventModel(eventConsumer));
-        appRoot.GetModel<StatusConsoleModel>().Returns(new StatusConsoleModel(
+        appRoot.Services.FundCommands.Returns(fundCommandModel);
+        appRoot.Services.FundEvents.Returns(new FundEventService(eventConsumer));
+        appRoot.Services.StatusConsole.Returns(new StatusConsoleService(
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<IStatusConsoleEventConsumer>()));
         var fund = new FundReadModel(7, "G2 Fund", "fixture", 1000m, false, DateTime.UtcNow, "tests");

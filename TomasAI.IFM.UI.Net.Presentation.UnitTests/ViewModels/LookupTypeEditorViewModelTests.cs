@@ -42,7 +42,7 @@ public sealed class LookupTypeEditorViewModelTests
         var added = Lookup("G2-Lookup", "A", "added");
         var subject = CreateSubject([], [], [added], ["G2-Lookup"]);
         var callbackCount = 0;
-        subject.CommandApi.AddLookupTypeAsync(added).Returns(new ServiceOk<Guid>(commandId));
+        subject.CommandApi.AddLookupTypeAsync(ToBackend(added)).Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadLookupTypes();
 
         var operation = subject.ViewModel.AddLookupType(added, () => callbackCount++);
@@ -50,14 +50,14 @@ public sealed class LookupTypeEditorViewModelTests
         await subject.EventSource.PublishAsync(new LookupTypeAddedCompleteEvent
         {
             CommandId = Guid.NewGuid(),
-            LookupType = added
+            LookupType = ToBackend(added)
         });
         operation.IsCompleted.Should().BeFalse();
         callbackCount.Should().Be(0);
         await subject.EventSource.PublishAsync(new LookupTypeAddedCompleteEvent
         {
             CommandId = commandId,
-            LookupType = added
+            LookupType = ToBackend(added)
         });
         await operation;
 
@@ -78,12 +78,13 @@ public sealed class LookupTypeEditorViewModelTests
         var changed = original with { ShortCode = "B", Description = "changed" };
         var subject = CreateSubject([original], ["G2-Lookup"]);
         var callbackCount = 0;
-        subject.CommandApi.ChangeLookupTypeAsync(original.Id, changed, true)
+        subject.CommandApi.ChangeLookupTypeAsync(ToBackend(original).Id, ToBackend(changed), true)
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadLookupTypes();
 
         var operation = subject.ViewModel.ChangeLookupType(
-            original.Id,
+            original.LookupTypeName,
+            original.OrderId,
             changed,
             true,
             () => callbackCount++);
@@ -96,7 +97,7 @@ public sealed class LookupTypeEditorViewModelTests
         });
 
         var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
         exception.Which.ErrorCode.Should().Be(7024);
         callbackCount.Should().Be(0);
         subject.ViewModel.LookupTypes.Values.Should().Equal(original);
@@ -111,17 +112,20 @@ public sealed class LookupTypeEditorViewModelTests
         var commandId = Guid.NewGuid();
         var removed = Lookup("G2-Lookup", "B", "changed");
         var subject = CreateSubject([removed], ["G2-Lookup"], [], []);
-        subject.CommandApi.RemoveLookupTypeAsync(removed.Id, true)
+        subject.CommandApi.RemoveLookupTypeAsync(ToBackend(removed).Id, true)
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadLookupTypes();
 
-        var operation = subject.ViewModel.RemoveLookupType(removed.Id, true);
+        var operation = subject.ViewModel.RemoveLookupType(
+            removed.LookupTypeName,
+            removed.OrderId,
+            true);
         await WaitForCommandAsync(subject.ViewModel, commandId);
         await subject.EventSource.PublishAsync(new LookupTypeRemovedCompleteEvent
         {
             CommandId = commandId,
-            LookupTypeId = removed.Id,
-            EntityId = removed.Id
+            LookupTypeId = ToBackend(removed).Id,
+            EntityId = ToBackend(removed).Id
         });
         await operation;
 
@@ -139,7 +143,7 @@ public sealed class LookupTypeEditorViewModelTests
         var commandId = Guid.NewGuid();
         var added = Lookup("G2-Lookup", "A", "added");
         var subject = CreateSubject([], [], [added], ["G2-Lookup"]);
-        subject.CommandApi.AddLookupTypeAsync(added).Returns(_ => PublishEarlyAsync());
+        subject.CommandApi.AddLookupTypeAsync(ToBackend(added)).Returns(_ => PublishEarlyAsync());
         await subject.ViewModel.LoadLookupTypes();
 
         await subject.ViewModel.AddLookupType(added, () => { });
@@ -153,22 +157,24 @@ public sealed class LookupTypeEditorViewModelTests
             await subject.EventSource.PublishAsync(new LookupTypeAddedCompleteEvent
             {
                 CommandId = commandId,
-                LookupType = added
+                LookupType = ToBackend(added)
             });
             return new ServiceOk<Guid>(commandId);
         }
     }
 
     static Subject CreateSubject(
-        LookupTypeReadModel[] initialTypes,
+        LookupTypeUiModel[] initialTypes,
         string[] initialNames,
-        LookupTypeReadModel[]? refreshedTypes = null,
+        LookupTypeUiModel[]? refreshedTypes = null,
         string[]? refreshedNames = null)
     {
         var queryApi = Substitute.For<IReferenceQueryApi>();
         queryApi.GetLookupTypesAsync().Returns(
-            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([.. initialTypes])),
-            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([.. refreshedTypes ?? initialTypes])));
+            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection(
+                [.. initialTypes.Select(ToBackend)])),
+            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection(
+                [.. (refreshedTypes ?? initialTypes).Select(ToBackend)])));
         queryApi.GetLookupTypeNamesAsync().Returns(
             new ServiceOk<string[]>(initialNames),
             new ServiceOk<string[]>(refreshedNames ?? initialNames));
@@ -176,18 +182,20 @@ public sealed class LookupTypeEditorViewModelTests
         var eventConsumer = Substitute.For<ILookupTypeUIEventConsumer>();
         var eventSource = new TestLookupTypeEventSource(eventConsumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(queryApi));
-        appRoot.GetModel<ReferenceCommandModel>().Returns(new ReferenceCommandModel(commandApi));
-        appRoot.GetModel<LookupTypeEventModel>().Returns(new LookupTypeEventModel(eventConsumer));
         return new Subject(
-            new LookupTypeEditorViewModel(appRoot),
+            new LookupTypeEditorViewModel(
+                appRoot,
+                UiServiceFactory.CreateReference(queryApi, commandApi, eventConsumer)),
             queryApi,
             commandApi,
             eventSource);
     }
 
-    static LookupTypeReadModel Lookup(string name, string shortCode, string description)
+    static LookupTypeUiModel Lookup(string name, string shortCode, string description)
         => new(name, shortCode, 0, description, DateTime.UtcNow, "test");
+
+    static LookupTypeReadModel ToBackend(LookupTypeUiModel value)
+        => new(value.LookupTypeName, value.ShortCode, value.OrderId, value.Description, value.CreatedOn, value.CreatedBy);
 
     static async Task WaitForCommandAsync(LookupTypeEditorViewModel viewModel, Guid commandId)
     {

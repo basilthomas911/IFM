@@ -18,9 +18,9 @@ public sealed class YieldCurveRateEditorViewModel
     : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
     readonly AsyncLifecycleCoordinator _lifecycle;
-    readonly MarketDataEventModel _eventModel;
-    readonly MarketDataCommandModel _commandModel;
-    readonly MarketDataQueryModel _queryModel;
+    readonly MarketDataEventService _eventModel;
+    readonly MarketDataCommandService _commandModel;
+    readonly MarketDataQueryService _queryModel;
     readonly ICollection<IEvent> _consumeEvents;
     readonly TerminalEventCorrelation _terminalCorrelation = new();
     readonly AsyncOperation _loadOperation;
@@ -45,9 +45,9 @@ public sealed class YieldCurveRateEditorViewModel
     /// </summary>
     public YieldCurveRateEditorViewModel(IAppRoot appRoot) : base(appRoot)
     {
-        _eventModel = AppRoot.GetModel<MarketDataEventModel>();
-        _commandModel = AppRoot.GetModel<MarketDataCommandModel>();
-        _queryModel = AppRoot.GetModel<MarketDataQueryModel>();
+        _eventModel = AppRoot.Services.MarketDataEvents;
+        _commandModel = AppRoot.Services.MarketDataCommands;
+        _queryModel = AppRoot.Services.MarketDataQueries;
         _consumeEvents =
         [
             new YieldCurveRateAddedCompleteEvent().SetEventSource($"{EventTopic.MarketDataEvents}"),
@@ -332,7 +332,7 @@ public sealed class YieldCurveRateEditorViewModel
     }
 
     async Task ExecuteMutationAsync(
-        Func<MarketDataCommandModel, Task<Guid>> submit,
+        Func<MarketDataCommandService, Task<Guid>> submit,
         string statusMessage,
         Action clearPending,
         DateOnly preferredDate,
@@ -352,7 +352,7 @@ public sealed class YieldCurveRateEditorViewModel
             OnPropertyChanged(nameof(CommandId));
             var terminalEvent = await terminalTask;
             if (terminalEvent is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+                throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
 
             await RefreshSnapshotAsync(preferredDate.Year.ToString(), cancellationToken);
             LastStatusMessage = statusMessage;

@@ -18,16 +18,14 @@ public class SystemAdminViewModelTests
         var api = Substitute.For<IReferenceQueryApi>();
         api.GetSystemAdminFunctionTypesAsync().Returns(
             Task.FromResult<ServiceResult<LookupTypeCollection>>(
-                new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([function]))));
-        var model = new ReferenceQueryModel(api);
-        var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(model);
-        var viewModel = new SystemAdminViewModel(appRoot);
+                new ServiceOk<LookupTypeCollection>(new LookupTypeCollection(
+                    [ReferenceViewModelTests.ToBackend(function)]))));
+        var viewModel = new SystemAdminViewModel(UiServiceFactory.CreateReference(api));
 
         await viewModel.LoadFunctionTypesOperation.ExecuteAsync();
 
         viewModel.FunctionTypes.Should().Equal(function);
-        viewModel.GetFunctionType(0).Should().BeSameAs(function);
+        viewModel.GetFunctionType(0).Should().Be(function);
         viewModel.GetFunctionType(1).Should().BeNull();
         await api.Received(1).GetSystemAdminFunctionTypesAsync();
     }

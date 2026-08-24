@@ -1,9 +1,10 @@
-using TomasAI.IFM.Domain.Reference.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.UI.Net.Services.Subscriptions;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
@@ -17,8 +18,8 @@ namespace TomasAI.IFM.UI.Net.ViewModels.App;
 public sealed class MarketEconomicCalendarViewModel
     : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
-    readonly MarketDataQueryModel _marketDataQueryModel;
-    readonly EconomicCalendarEventModel _eventModel;
+    readonly MarketDataQueryService _marketDataQueryModel;
+    readonly IUiEventSubscription _eventSubscription;
     readonly AsyncLifecycleCoordinator _lifecycle;
     IReadOnlyList<EconomicCalendarReadModel> _economicCalendars = [];
     IReadOnlyList<string> _countryCodes = [];
@@ -32,11 +33,14 @@ public sealed class MarketEconomicCalendarViewModel
     int _acceptEvents;
 
     /// <summary>Creates an economic-calendar ViewModel from application Models.</summary>
-    public MarketEconomicCalendarViewModel(IAppRoot appRoot)
+    public MarketEconomicCalendarViewModel(
+        IAppRoot appRoot,
+        IEconomicCalendarService economicCalendarService)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
-        _marketDataQueryModel = appRoot.GetModel<MarketDataQueryModel>();
-        _eventModel = appRoot.GetModel<EconomicCalendarEventModel>();
+        ArgumentNullException.ThrowIfNull(economicCalendarService);
+        _marketDataQueryModel = appRoot.Services.MarketDataQueries;
+        _eventSubscription = economicCalendarService.CreateSubscription(HandleNotification);
         _lifecycle = new AsyncLifecycleCoordinator(StartListenersCoreAsync, StopListenersCoreAsync);
         LoadCountryCodesOperation = new AsyncOperation(LoadCountryCodesCoreAsync);
         RefreshOperation = new AsyncOperation(RefreshCoreAsync);
@@ -132,6 +136,7 @@ public sealed class MarketEconomicCalendarViewModel
     public async ValueTask DisposeAsync()
     {
         await _lifecycle.DisposeAsync();
+        await _eventSubscription.DisposeAsync();
         await DisposeOperationAsync(LoadCountryCodesOperation);
         await DisposeOperationAsync(RefreshOperation);
     }
@@ -151,7 +156,7 @@ public sealed class MarketEconomicCalendarViewModel
                 ?? CountryCodes.FirstOrDefault()
                 ?? string.Empty;
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception.ErrorCode, exception.Message, "Economic Calendar Country Codes Error");
             throw;
@@ -183,7 +188,7 @@ public sealed class MarketEconomicCalendarViewModel
             CalendarDate = calendarDate;
             SelectedEconomicCalendar = calendars.FirstOrDefault();
         }
-        catch (ModelOperationException exception)
+        catch (UiServiceOperationException exception)
         {
             PublishError(exception.ErrorCode, exception.Message, "Economic Calendar Error");
             throw;
@@ -194,26 +199,13 @@ public sealed class MarketEconomicCalendarViewModel
     {
         cancellationToken.ThrowIfCancellationRequested();
         Interlocked.Exchange(ref _acceptEvents, 1);
-        _eventModel.OnError((errorCode, errorMessage) =>
-            PublishError(errorCode, errorMessage, "Economic Calendar Listener Error"));
         try
         {
-            await _eventModel.ExecuteAsync(
-                async model => await model.StartEconomicCalendarEventListenersAsync(
-                    _ => QueueRefresh(),
-                    failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Add Failed"),
-                    _ => QueueRefresh(),
-                    failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Change Failed"),
-                    _ => QueueRefresh(),
-                    failed => PublishError(failed.ErrorCode, failed.ErrorMessage, "Economic Calendar Remove Failed"),
-                    _ => QueueRefresh(),
-                    _ => { }),
-                cancellationToken);
+            await _eventSubscription.StartAsync(cancellationToken);
         }
         catch
         {
             Interlocked.Exchange(ref _acceptEvents, 0);
-            _eventModel.OnError(null!);
             throw;
         }
     }
@@ -221,16 +213,24 @@ public sealed class MarketEconomicCalendarViewModel
     async Task StopListenersCoreAsync(CancellationToken cancellationToken)
     {
         Interlocked.Exchange(ref _acceptEvents, 0);
-        try
+        await _eventSubscription.StopAsync(cancellationToken);
+    }
+
+    void HandleNotification(TerminalNotificationUiModel notification)
+    {
+        if (notification.Kind == TerminalNotificationKind.Imported && notification.IsFailure)
+            return;
+
+        if (notification.IsFailure)
         {
-            await _eventModel.ExecuteAsync(
-                async model => await model.StopEconomicCalendarEventListenersAsync(),
-                cancellationToken);
+            PublishError(
+                notification.ErrorCode,
+                notification.ErrorMessage,
+                "Economic Calendar Listener Error");
+            return;
         }
-        finally
-        {
-            _eventModel.OnError(null!);
-        }
+
+        QueueRefresh();
     }
 
     void QueueRefresh()
@@ -254,7 +254,7 @@ public sealed class MarketEconomicCalendarViewModel
         {
             await RefreshOperation.ExecuteAsync(cancellationToken);
         }
-        catch (ModelOperationException)
+        catch (UiServiceOperationException)
         {
             // RefreshOperation already published the coded failure for the view.
         }

@@ -67,7 +67,7 @@ public sealed class G3EventCatalogContractTests
     public void IntradayAnalytics_PreservesEveryConfiguredSignalAndTimeframeBeforeDerivedTdiDisplay()
     {
         var commandModel = Read(
-            "TomasAI.IFM.UI.Net.Models/MarketDataAnalyticsCommandModel.cs");
+            "TomasAI.IFM.UI.Net.Services/Analytics/MarketDataAnalyticsCommandService.cs");
         foreach (var signal in new[] { "StartFuturesRsiSignalAsync", "StartFuturesAtrSignalAsync", "StartFuturesAdxSignalAsync", "StartFuturesMacdSignalAsync" })
             commandModel.Should().Contain(signal);
 

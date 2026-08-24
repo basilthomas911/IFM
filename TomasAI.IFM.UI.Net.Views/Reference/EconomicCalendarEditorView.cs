@@ -1,4 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -9,6 +8,7 @@ using System.Windows.Forms;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Models.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference
 {
@@ -66,7 +66,7 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                 if (_viewModel.EconomicCalendars?.Count > 0)
                 {
                     foreach (var ec in _viewModel.EconomicCalendars!)
-                        lstCalendarEvents.Items.Add($"{ec.Id}");
+                        lstCalendarEvents.Items.Add($"{ec.CountryCode}:{ec.EventName}");
                     lstCalendarEvents.SelectedIndex = selectedIndex < 0 ? 0 : selectedIndex;
                     dtmEventDate.Enabled = true;
                     _canChangeRemove = true;
@@ -135,16 +135,16 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                     SetReadOnlyControls(false);
                     break;
                 case EditMode.Add:
-                    var economicCalendar = new EconomicCalendarReadModel
+                    var economicCalendar = new EconomicCalendarUiModel
                     (
-                        eventDate: EasternTime.ToUtc(dtmEventDate.Value),
-                        countryCode: _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? String.Empty,
-                        eventName: txtEventName.Text,
-                        actual: txtActual.Text,
-                        forecast: txtForecast.Text,
-                        prior: txtPrior.Text,
-                        createdOn: DateTime.UtcNow,
-                        createdBy: String.Empty
+                        EventDate: EasternTime.ToUtc(dtmEventDate.Value),
+                        CountryCode: _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? String.Empty,
+                        EventName: txtEventName.Text,
+                        Actual: txtActual.Text,
+                        Forecast: txtForecast.Text,
+                        Prior: txtPrior.Text,
+                        CreatedOn: DateTime.UtcNow,
+                        CreatedBy: String.Empty
                     );
                     ObserveMutation(_viewModel.AddEconomicCalendar(economicCalendar, () => this.Post(() =>
                     {
@@ -167,13 +167,13 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         {
             if (_viewModel.ImportOperation.IsRunning)
                 return;
-            var economicCalendarId = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex)?.Id;
-            if (economicCalendarId != null)
+            var selectedCalendar = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex);
+            if (selectedCalendar != null)
             {
                 switch (_editMode)
                 {
                     case EditMode.View:
-                        dtmEventDate.Value = EasternTime.FromUtc(economicCalendarId.EventDate);
+                        dtmEventDate.Value = EasternTime.FromUtc(selectedCalendar.EventDate);
                         dtmEventDate.Enabled = false;
                         ddlCountryCodes.Enabled = false;
                         _editMode = EditMode.Change;
@@ -182,18 +182,24 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
                         SetReadOnlyControls(false);
                         break;
                     case EditMode.Change:
-                        var economicCalendar = new EconomicCalendarReadModel
+                        var economicCalendar = new EconomicCalendarUiModel
                         (
-                           eventDate: economicCalendarId.EventDate,
-                           countryCode: _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? String.Empty,
-                           eventName: txtEventName.Text,
-                           actual: txtActual.Text,
-                           forecast: txtForecast.Text,
-                           prior: txtPrior.Text,
-                           createdOn: DateTime.UtcNow,
-                           createdBy: String.Empty
+                           EventDate: selectedCalendar.EventDate,
+                           CountryCode: _viewModel.GetCountryCode(ddlCountryCodes.SelectedIndex) ?? String.Empty,
+                           EventName: txtEventName.Text,
+                           Actual: txtActual.Text,
+                           Forecast: txtForecast.Text,
+                           Prior: txtPrior.Text,
+                           CreatedOn: DateTime.UtcNow,
+                           CreatedBy: String.Empty
                         );
-                        ObserveMutation(_viewModel.ChangeEconomicCalendar(economicCalendarId, economicCalendar, true, () => this.Post(() =>
+                        ObserveMutation(_viewModel.ChangeEconomicCalendar(
+                            selectedCalendar.EventDate,
+                            selectedCalendar.CountryCode,
+                            selectedCalendar.EventName,
+                            economicCalendar,
+                            true,
+                            () => this.Post(() =>
                         {
                             _editMode = EditMode.View;
                             dtmEventDate.Enabled = true;
@@ -215,11 +221,15 @@ namespace TomasAI.IFM.UI.Net.Views.Reference
         {
             if (_viewModel.ImportOperation.IsRunning)
                 return;
-            var economicCalendarId = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex)?.Id;
-            if (economicCalendarId != null)
-                if (MessageBox.Show($"Are you sure you want to remove Economic Calendar {economicCalendarId} ?", "Remove Economic Calendar", MessageBoxButtons.YesNo) == DialogResult.Yes)
+            var selectedCalendar = _viewModel.GetEconomicCalendar(lstCalendarEvents.SelectedIndex);
+            if (selectedCalendar != null)
+                if (MessageBox.Show($"Are you sure you want to remove Economic Calendar {selectedCalendar.CountryCode}:{selectedCalendar.EventName} ?", "Remove Economic Calendar", MessageBoxButtons.YesNo) == DialogResult.Yes)
                     ObserveMutation(
-                        _viewModel.RemoveEconomicCalendar(economicCalendarId, true),
+                        _viewModel.RemoveEconomicCalendar(
+                            selectedCalendar.EventDate,
+                            selectedCalendar.CountryCode,
+                            selectedCalendar.EventName,
+                            true),
                         "Economic Calendar Remove Failed");
         }
 

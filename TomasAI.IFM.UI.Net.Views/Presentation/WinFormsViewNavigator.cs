@@ -28,9 +28,17 @@ public sealed class WinFormsViewNavigator(Func<Type, object> resolveView) : IVie
             ?? Application.OpenForms
                 .Cast<Form>()
                 .FirstOrDefault(candidate => candidate.Visible && !ReferenceEquals(candidate, form));
-        var result = owner is null
-            ? form.ShowDialog()
-            : form.ShowDialog(owner);
+        DialogResult result;
+        try
+        {
+            result = owner is null
+                ? form.ShowDialog()
+                : form.ShowDialog(owner);
+        }
+        finally
+        {
+            form.Dispose();
+        }
 
         return result switch
         {

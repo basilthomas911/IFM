@@ -1,7 +1,8 @@
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
-using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Events;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.SystemAdmin;
+using TomasAI.IFM.UI.Net.Services.Subscriptions;
+using TomasAI.IFM.UI.Net.Services.SystemAdmin;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
@@ -11,22 +12,23 @@ namespace TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 /// </summary>
 public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
 {
-    readonly IAppRoot _appRoot;
+    readonly IDatabaseBackupService _service;
+    readonly IUiEventSubscription _subscription;
     readonly AsyncLifecycleCoordinator _lifecycle;
-    DatabaseBackupModel? _model;
     BackupSource _source = BackupSource.LocalWorkstation;
     DatabaseBackupMode _requestedMode = DatabaseBackupMode.Full;
     string? _selectedProtectionSet;
 
     /// <summary>Creates a database-backup dashboard view model.</summary>
-    public DatabaseBackupViewModel(IAppRoot appRoot)
+    public DatabaseBackupViewModel(IDatabaseBackupService service)
     {
-        _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _subscription = _service.CreateNotificationSubscription(OnNotificationAsync);
         _lifecycle = new AsyncLifecycleCoordinator(StartCoreAsync, StopCoreAsync);
     }
 
     /// <summary>Gets the latest immutable dashboard snapshot.</summary>
-    public DatabaseBackupDashboardState State { get; private set; } = new(
+    public DatabaseBackupDashboardUiModel State { get; private set; } = new(
         BackupSource.LocalWorkstation, [], [], null, null);
 
     /// <summary>Gets whether an API operation is currently in progress.</summary>
@@ -71,11 +73,11 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
         StateChanged?.Invoke();
         try
         {
-            var result = await Model.LoadAsync(
+            var result = await _service.LoadAsync(
                 _source, _selectedProtectionSet, cancellationToken).ConfigureAwait(true);
-            if (!result.Success || result.Value is null)
+            if (!result.IsSuccess || result.Value is null)
             {
-                Error?.Invoke(result.ErrorMessage);
+                Error?.Invoke(result.Error?.Message ?? "The dashboard refresh failed.");
                 return;
             }
             State = result.Value;
@@ -120,14 +122,14 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 var policyRevision = State.ProtectionSets
                     .FirstOrDefault(item => item.Id == protectionSet)?.PolicyRevision ?? 0;
-                var result = await Model.RequestBackupAsync(
+                var result = await _service.RequestBackupAsync(
                     _source, protectionSet, policyRevision, _requestedMode, cancellationToken).ConfigureAwait(true);
-                if (!result.Success || result.Value is null)
+                if (!result.IsSuccess || result.Value is null)
                 {
-                    Error?.Invoke(result.ErrorMessage);
+                    Error?.Invoke(result.Error?.Message ?? "The backup request failed.");
                     continue;
                 }
-                RefreshRequested?.Invoke(result.Value.OperationId.Value);
+                RefreshRequested?.Invoke(result.Value.OperationId);
             }
         }
         finally
@@ -144,28 +146,28 @@ public sealed class DatabaseBackupViewModel : IAsyncLifecycle, IAsyncDisposable
     public Task StopAsync(CancellationToken cancellationToken) => _lifecycle.StopAsync(cancellationToken);
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync() => _lifecycle.DisposeAsync();
-
-    DatabaseBackupModel Model => _model ??= _appRoot.GetModel<DatabaseBackupModel>();
+    public async ValueTask DisposeAsync()
+    {
+        await _lifecycle.DisposeAsync();
+        await _subscription.DisposeAsync();
+    }
 
     async Task StartCoreAsync(CancellationToken cancellationToken)
     {
-        await Model.StartNotificationsAsync(OnNotificationAsync, cancellationToken).ConfigureAwait(false);
+        await _subscription.StartAsync(cancellationToken).ConfigureAwait(false);
         await RefreshAsync(cancellationToken).ConfigureAwait(true);
     }
 
     async Task StopCoreAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_model is not null)
-            await _model.StopNotificationsAsync().ConfigureAwait(false);
+        await _subscription.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    ValueTask OnNotificationAsync(DatabaseBackupEventContract domainEvent)
+    ValueTask OnNotificationAsync(DatabaseBackupNotificationUiModel notification)
     {
         // The NATS callback never mutates bound state. The WinForms view observes this signal,
         // marshals it through Control.BeginInvoke, and initiates a bounded query refresh.
-        RefreshRequested?.Invoke(domainEvent.EntityId.Value);
+        RefreshRequested?.Invoke(notification.EntityId);
         return ValueTask.CompletedTask;
     }
 }

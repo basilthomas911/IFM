@@ -1,12 +1,13 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Domain.MarketData.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.UI.Net.ViewModels.Extensions;
+using TomasAI.IFM.UI.Net.Models.Operations;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.UI.Net.Services.Subscriptions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
+using TomasAI.IFM.UI.Net.ViewModels.Operations.Domain;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 
@@ -16,24 +17,22 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 public sealed class EconomicCalendarEditorViewModel
     : BaseEditorViewModel, IAsyncLifecycle, IAsyncDisposable
 {
-    readonly EconomicCalendarEventModel _eventModel;
-    readonly MarketDataCommandModel _commandModel;
-    readonly MarketDataQueryModel _queryModel;
+    readonly IEconomicCalendarService _service;
+    readonly IUiEventSubscription _subscription;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly AsyncOperation _importOperation;
-    readonly TerminalEventCorrelation _terminalCorrelation = new();
-    List<EconomicCalendarCountryCodeReadModel> _countryCodes = [];
-    List<EconomicCalendarReadModel> _economicCalendars = [];
+    readonly TerminalNotificationCorrelation _terminalCorrelation = new();
+    List<EconomicCalendarCountryCodeUiModel> _countryCodes = [];
+    List<EconomicCalendarUiModel> _economicCalendars = [];
     DateTime? _pendingImportDate;
     string? _pendingImportCountryCode;
     string _lastStatusMessage = string.Empty;
 
-    /// <summary>Creates the editor and resolves its application Models.</summary>
-    public EconomicCalendarEditorViewModel(IAppRoot appRoot) : base(appRoot)
+    /// <summary>Creates the editor with its explicit economic-calendar service.</summary>
+    public EconomicCalendarEditorViewModel(IAppRoot appRoot, IEconomicCalendarService service) : base(appRoot)
     {
-        _eventModel = appRoot.GetModel<EconomicCalendarEventModel>();
-        _commandModel = appRoot.GetModel<MarketDataCommandModel>();
-        _queryModel = appRoot.GetModel<MarketDataQueryModel>();
+        _service = service ?? throw new ArgumentNullException(nameof(service));
+        _subscription = _service.CreateSubscription(HandleTerminalNotification);
         _lifecycle = new AsyncLifecycleCoordinator(StartListenerCoreAsync, StopListenerCoreAsync);
         _importOperation = new AsyncOperation(
             ImportCoreAsync,
@@ -42,8 +41,11 @@ public sealed class EconomicCalendarEditorViewModel
                 && _lifecycle.IsRunning);
     }
 
-    public ICollection<EconomicCalendarCountryCodeReadModel> CountryCodes => _countryCodes;
-    public ICollection<EconomicCalendarReadModel> EconomicCalendars => _economicCalendars;
+    /// <summary>Gets economic-calendar country-code selectors.</summary>
+    public ICollection<EconomicCalendarCountryCodeUiModel> CountryCodes => _countryCodes;
+
+    /// <summary>Gets economic-calendar entries for the active date and country.</summary>
+    public ICollection<EconomicCalendarUiModel> EconomicCalendars => _economicCalendars;
 
     public Action OnCountryCodesLoaded = () => { };
     public Action OnEconomicCalendarsLoaded = () => { };
@@ -69,7 +71,7 @@ public sealed class EconomicCalendarEditorViewModel
         => index >= 0 && index < _countryCodes.Count ? _countryCodes[index].CountryCode : null!;
 
     /// <summary>Retrieves the economic calendar at the specified list index.</summary>
-    public EconomicCalendarReadModel GetEconomicCalendar(int index)
+    public EconomicCalendarUiModel GetEconomicCalendar(int index)
         => index >= 0 && index < _economicCalendars.Count ? _economicCalendars[index] : null!;
 
     /// <summary>Retrieves the index of the specified country code.</summary>
@@ -82,36 +84,49 @@ public sealed class EconomicCalendarEditorViewModel
     }
 
     /// <summary>Adds a new economic-calendar entry.</summary>
-    public Task AddEconomicCalendar(EconomicCalendarReadModel economicCalendar, Action onCompleted)
+    public Task AddEconomicCalendar(EconomicCalendarUiModel economicCalendar, Action onCompleted)
         => ExecuteMutationAsync(
-            model => model.AddEconomicCalendarAsync(economicCalendar),
+            cancellationToken => _service.AddAsync(economicCalendar, cancellationToken),
             DateOnly.FromDateTime(EasternTime.FromUtc(economicCalendar.EventDate)),
             economicCalendar.CountryCode,
-            $"Economic Calendar {economicCalendar.Id} Added",
+            $"Economic Calendar {economicCalendar.CountryCode}:{economicCalendar.EventName} Added",
             onCompleted,
             CancellationToken.None);
 
     /// <summary>Changes an economic-calendar entry.</summary>
     public Task ChangeEconomicCalendar(
-        EconomicCalendarId economicCalendarId,
-        EconomicCalendarReadModel economicCalendar,
+        DateTime originalEventDate,
+        string originalCountryCode,
+        string originalEventName,
+        EconomicCalendarUiModel economicCalendar,
         bool overwrite,
         Action onCompleted)
         => ExecuteMutationAsync(
-            model => model.ChangeEconomicCalendarAsync(economicCalendarId, economicCalendar, overwrite),
+            cancellationToken => _service.ChangeAsync(
+                originalEventDate,
+                originalCountryCode,
+                originalEventName,
+                economicCalendar,
+                overwrite,
+                cancellationToken),
             DateOnly.FromDateTime(EasternTime.FromUtc(economicCalendar.EventDate)),
             economicCalendar.CountryCode,
-            $"Economic Calendar {economicCalendarId} Changed",
+            $"Economic Calendar {originalCountryCode}:{originalEventName} Changed",
             onCompleted,
             CancellationToken.None);
 
     /// <summary>Removes an economic-calendar entry.</summary>
-    public Task RemoveEconomicCalendar(EconomicCalendarId economicCalendarId, bool overwrite)
+    public Task RemoveEconomicCalendar(
+        DateTime eventDate,
+        string countryCode,
+        string eventName,
+        bool overwrite)
         => ExecuteMutationAsync(
-            model => model.RemoveEconomicCalendarAsync(economicCalendarId, overwrite),
-            DateOnly.FromDateTime(EasternTime.FromUtc(economicCalendarId.EventDate)),
-            economicCalendarId.CountryCode,
-            $"Economic Calendar {economicCalendarId} Removed",
+            cancellationToken => _service.RemoveAsync(
+                eventDate, countryCode, eventName, overwrite, cancellationToken),
+            DateOnly.FromDateTime(EasternTime.FromUtc(eventDate)),
+            countryCode,
+            $"Economic Calendar {countryCode}:{eventName} Removed",
             null,
             CancellationToken.None);
 
@@ -158,33 +173,18 @@ public sealed class EconomicCalendarEditorViewModel
     {
         await StopAsync(CancellationToken.None);
         await _lifecycle.DisposeAsync();
+        await _subscription.DisposeAsync();
     }
 
     Task StartListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel.ExecuteObservableAsync(
-            model => model.StartEconomicCalendarEventListenersAsync(
-                HandleTerminalEvent,
-                HandleTerminalEvent,
-                HandleTerminalEvent,
-                HandleTerminalEvent,
-                HandleTerminalEvent,
-                HandleTerminalEvent,
-                HandleTerminalEvent,
-                HandleTerminalEvent),
-            cancellationToken);
+        => _subscription.StartAsync(cancellationToken).AsTask();
 
     Task StopListenerCoreAsync(CancellationToken cancellationToken)
-        => _eventModel.ExecuteObservableAsync(
-            model => model.StopEconomicCalendarEventListenersAsync(),
-            cancellationToken);
+        => _subscription.StopAsync(cancellationToken).AsTask();
 
     async Task LoadCountryCodesCoreAsync(CancellationToken cancellationToken)
     {
-        EconomicCalendarCountryCodeReadModel[] loaded = [];
-        await _queryModel.ExecuteObservableAsync(
-            model => model.LoadEconomicCalendarCountryCodesAsync(values => loaded = values ?? []),
-            cancellationToken);
-        _countryCodes = [.. loaded];
+        _countryCodes = [.. (await _service.GetCountryCodesAsync(cancellationToken)).RequireValue()];
         OnCountryCodesLoaded?.Invoke();
     }
 
@@ -193,14 +193,10 @@ public sealed class EconomicCalendarEditorViewModel
         string countryCode,
         CancellationToken cancellationToken)
     {
-        EconomicCalendarReadModel[] loaded = [];
-        await _queryModel.ExecuteObservableAsync(
-            model => model.LoadEconomicCalendarsAsync(
-                eventDate,
-                countryCode,
-                values => loaded = values ?? []),
-            cancellationToken);
-        _economicCalendars = [.. loaded.OrderBy(value => value.EventDate)];
+        _economicCalendars = [.. (await _service.GetCalendarsAsync(
+            eventDate,
+            countryCode,
+            cancellationToken)).RequireValue().OrderBy(value => value.EventDate)];
         OnEconomicCalendarsLoaded?.Invoke();
     }
 
@@ -212,7 +208,7 @@ public sealed class EconomicCalendarEditorViewModel
             ?? throw new InvalidOperationException("No economic-calendar country code is prepared.");
 
         await ExecuteMutationAsync(
-            model => model.ImportEconomicCalendarsAsync(importDate, [countryCode]),
+            token => _service.ImportAsync(importDate, [countryCode], token),
             DateOnly.FromDateTime(importDate),
             countryCode,
             $"Economic Calendars Imported for {importDate:yyyy-MM-dd} ({countryCode})",
@@ -225,7 +221,7 @@ public sealed class EconomicCalendarEditorViewModel
     }
 
     async Task ExecuteMutationAsync(
-        Func<MarketDataCommandModel, Task<Guid>> submit,
+        Func<CancellationToken, ValueTask<UiOperationResult<Guid>>> submit,
         DateOnly eventDate,
         string countryCode,
         string statusMessage,
@@ -235,19 +231,18 @@ public sealed class EconomicCalendarEditorViewModel
         _terminalCorrelation.BeginAttempt();
         try
         {
-            Guid commandId = Guid.Empty;
-            await _commandModel.ExecuteObservableAsync(
-                async model => commandId = await submit(model),
-                cancellationToken);
+            var commandId = (await submit(cancellationToken)).RequireValue();
             if (commandId == Guid.Empty)
                 throw new InvalidOperationException(
                     "The economic-calendar command returned an empty correlation identifier.");
 
             var terminalTask = _terminalCorrelation.AwaitAsync(commandId, cancellationToken);
             OnPropertyChanged(nameof(CommandId));
-            var terminalEvent = await terminalTask;
-            if (terminalEvent is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+            var terminalNotification = await terminalTask;
+            if (terminalNotification.IsFailure)
+                throw new UiOperationException(new UiOperationError(
+                    terminalNotification.ErrorCode,
+                    terminalNotification.ErrorMessage));
 
             await LoadEconomicCalendarsCoreAsync(
                 eventDate,
@@ -264,8 +259,8 @@ public sealed class EconomicCalendarEditorViewModel
         }
     }
 
-    void HandleTerminalEvent(IEvent @event)
-        => _terminalCorrelation.TryPublish(@event);
+    void HandleTerminalNotification(TerminalNotificationUiModel notification)
+        => _terminalCorrelation.TryPublish(notification);
 
     async Task AwaitImportStoppedAsync()
     {

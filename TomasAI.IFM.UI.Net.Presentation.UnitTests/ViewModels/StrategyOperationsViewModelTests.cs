@@ -163,7 +163,7 @@ public sealed class StrategyOperationsViewModelTests
 
         var consumer = Substitute.For<IFuturesItiSignalUIEventConsumer>();
         var eventSource = new TestEventSource(consumer);
-        var model = new StrategyOperationsModel(queryApi, consumer);
+        var model = new StrategyOperationsService(queryApi, consumer);
         return new Subject(
             new StrategyOperationsViewModel(model, ContractId, ValueDate),
             queryApi,

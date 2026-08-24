@@ -82,7 +82,7 @@ public class StatusConsoleViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => subject.ViewModel.LoadTradeStatusOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
 
         exception.Which.ErrorCode.Should().Be(717);
         subject.ViewModel.LoadTradeStatusOperation.LastFailure.Should().BeSameAs(exception.Which);
@@ -129,14 +129,17 @@ public class StatusConsoleViewModelTests
         var tradeSignalConsumer = Substitute.For<IFuturesTradeSignalUIEventConsumer>();
         var eventSource = new TestEventSource(consumer, tradeSignalConsumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<MarketDataAnalyticsQueryModel>()
-            .Returns(new MarketDataAnalyticsQueryModel(analyticsApi));
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(referenceApi));
-        appRoot.GetModel<MarketDataAnalyticsEventModel>()
-            .Returns(new MarketDataAnalyticsEventModel(consumer, tradeSignalConsumer));
+        appRoot.Services.AnalyticsQueries
+            .Returns(new MarketDataAnalyticsQueryService(analyticsApi));
+        appRoot.Services.AnalyticsEvents
+            .Returns(new MarketDataAnalyticsEventService(consumer, tradeSignalConsumer));
 
         return new Subject(
-            new StatusConsoleViewModel(appRoot, "ESZ26", ValueDate),
+            new StatusConsoleViewModel(
+                appRoot,
+                "ESZ26",
+                ValueDate,
+                UiServiceFactory.CreateReference(referenceApi)),
             analyticsApi,
             eventSource);
     }

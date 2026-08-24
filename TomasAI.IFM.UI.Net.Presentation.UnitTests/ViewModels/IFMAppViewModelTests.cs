@@ -264,14 +264,15 @@ public class IFMAppViewModelTests
     static IFMAppViewModel CreateSubject(TimeProvider? timeProvider = null)
     {
         var commandResponseConsumer = Substitute.For<ICommandResponseUIEventConsumer>();
-        var eventModel = new EventModel(commandResponseConsumer);
+        var eventModel = new CommandResponseEventService(commandResponseConsumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<EventModel>().Returns(eventModel);
+        appRoot.Services.CommandResponses.Returns(eventModel);
         return new IFMAppViewModel(
             appRoot,
             new Version(1, 2, 3),
             "Test",
             Substitute.For<IIFMAppLiveViewAdapter>(),
+            Substitute.For<IEconomicCalendarService>(),
             timeProvider);
     }
 }

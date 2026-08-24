@@ -42,7 +42,7 @@ public class EconomicCalendarEditorViewModelTests
         var added = Calendar(ImportDate.AddHours(8), "US", "G2 Calendar");
         var subject = CreateSubject([added]);
         var callbackCount = 0;
-        subject.CommandApi.AddEconomicCalendarAsync(added).Returns(new ServiceOk<Guid>(commandId));
+        subject.CommandApi.AddEconomicCalendarAsync(ToBackend(added)).Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadCountryCodes();
 
         var operation = subject.ViewModel.AddEconomicCalendar(added, () => callbackCount++);
@@ -50,14 +50,14 @@ public class EconomicCalendarEditorViewModelTests
         subject.EventSource.PublishAddedComplete(new EconomicCalendarAddedCompleteEvent
         {
             CommandId = Guid.NewGuid(),
-            EconomicCalendar = added
+            EconomicCalendar = ToBackend(added)
         });
         operation.IsCompleted.Should().BeFalse();
         callbackCount.Should().Be(0);
         subject.EventSource.PublishAddedComplete(new EconomicCalendarAddedCompleteEvent
         {
             CommandId = commandId,
-            EconomicCalendar = added
+            EconomicCalendar = ToBackend(added)
         });
         await operation;
 
@@ -76,12 +76,14 @@ public class EconomicCalendarEditorViewModelTests
         var changed = original with { Actual = "2.01", Forecast = "2.02", Prior = "2.03" };
         var subject = CreateSubject();
         var callbackCount = 0;
-        subject.CommandApi.ChangeEconomicCalendarAsync(original.Id, changed, true)
+        subject.CommandApi.ChangeEconomicCalendarAsync(ToBackend(original).Id, ToBackend(changed), true)
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadCountryCodes();
 
         var operation = subject.ViewModel.ChangeEconomicCalendar(
-            original.Id,
+            original.EventDate,
+            original.CountryCode,
+            original.EventName,
             changed,
             true,
             () => callbackCount++);
@@ -94,7 +96,7 @@ public class EconomicCalendarEditorViewModelTests
         });
 
         var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
         exception.Which.ErrorCode.Should().Be(7002);
         callbackCount.Should().Be(0);
         subject.ViewModel.EconomicCalendars.Should().BeEmpty();
@@ -112,16 +114,20 @@ public class EconomicCalendarEditorViewModelTests
         var commandId = Guid.NewGuid();
         var removed = Calendar(ImportDate.AddHours(8), "US", "G2 Calendar");
         var subject = CreateSubject();
-        subject.CommandApi.RemoveEconomicCalendarAsync(removed.Id, true)
+        subject.CommandApi.RemoveEconomicCalendarAsync(ToBackend(removed).Id, true)
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.LoadCountryCodes();
 
-        var operation = subject.ViewModel.RemoveEconomicCalendar(removed.Id, true);
+        var operation = subject.ViewModel.RemoveEconomicCalendar(
+            removed.EventDate,
+            removed.CountryCode,
+            removed.EventName,
+            true);
         await WaitForCommandAsync(subject.ViewModel, commandId);
         subject.EventSource.PublishRemovedComplete(new EconomicCalendarRemovedCompleteEvent
         {
             CommandId = commandId,
-            EntityId = removed.Id
+            EntityId = ToBackend(removed).Id
         });
         await operation;
 
@@ -162,7 +168,7 @@ public class EconomicCalendarEditorViewModelTests
             CommandId = commandId,
             ImportedDate = ImportDate,
             CountryCodes = ["US"],
-            EconomicCalendars = [imported]
+            EconomicCalendars = [ToBackend(imported)]
         });
         await operation;
 
@@ -199,7 +205,7 @@ public class EconomicCalendarEditorViewModelTests
         });
 
         var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
         exception.Which.ErrorCode.Should().Be(429);
         subject.ViewModel.ImportOperation.LastFailure.Should().BeSameAs(exception.Which);
         subject.ViewModel.CommandId.Should().BeEmpty();
@@ -320,7 +326,7 @@ public class EconomicCalendarEditorViewModelTests
         await subject.ViewModel.StopAsync(CancellationToken.None);
     }
 
-    static Subject CreateSubject(EconomicCalendarReadModel[]? calendars = null)
+    static Subject CreateSubject(EconomicCalendarUiModel[]? calendars = null)
     {
         var queryApi = Substitute.For<IMarketDataQueryApi>();
         queryApi.GetEconomicCalendarCountryCodesAsync().Returns(
@@ -333,26 +339,40 @@ public class EconomicCalendarEditorViewModelTests
                 Arg.Any<DateTime>(),
                 Arg.Any<EconomicCalendarViewType>(),
                 Arg.Any<string>())
-            .Returns(new ServiceOk<EconomicCalendarReadModel[]>(calendars ?? []));
+            .Returns(new ServiceOk<EconomicCalendarReadModel[]>(
+                [.. (calendars ?? []).Select(ToBackend)]));
 
         var commandApi = Substitute.For<IMarketDataCommandApi>();
         var feedQueryApi = Substitute.For<IMarketDataFeedQueryApi>();
         var consumer = Substitute.For<IEconomicCalendarUIEventConsumer>();
         var eventSource = new TestEconomicCalendarEventSource(consumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(queryApi, feedQueryApi));
-        appRoot.GetModel<MarketDataCommandModel>().Returns(new MarketDataCommandModel(commandApi));
-        appRoot.GetModel<EconomicCalendarEventModel>().Returns(new EconomicCalendarEventModel(consumer));
-
         return new Subject(
-            new EconomicCalendarEditorViewModel(appRoot),
+            new EconomicCalendarEditorViewModel(
+                appRoot,
+                UiServiceFactory.CreateEconomicCalendar(queryApi, commandApi, consumer)),
             queryApi,
             commandApi,
             eventSource);
     }
 
-    static EconomicCalendarReadModel Calendar(DateTime date, string countryCode, string eventName)
+    static EconomicCalendarUiModel Calendar(DateTime date, string countryCode, string eventName)
         => new(date, countryCode, eventName, "1", "2", "3", ImportDate, "test");
+
+    static EconomicCalendarReadModel ToBackend(EconomicCalendarUiModel value)
+        => new(
+            value.EventDate,
+            value.CountryCode,
+            value.EventName,
+            value.Actual,
+            value.Forecast,
+            value.Prior,
+            value.CreatedOn,
+            value.CreatedBy,
+            value.Impact,
+            value.Unit,
+            value.Change,
+            value.ChangePercentage);
 
     static async Task WaitForCommandAsync(
         EconomicCalendarEditorViewModel viewModel,

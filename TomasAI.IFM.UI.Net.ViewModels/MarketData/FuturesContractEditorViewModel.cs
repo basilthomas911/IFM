@@ -6,6 +6,9 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
@@ -37,17 +40,17 @@ public sealed class FuturesContractEditorViewModel
         };
 
     readonly AsyncLifecycleCoordinator _lifecycle;
-    readonly MarketDataEventModel _eventModel;
-    readonly MarketDataCommandModel _commandModel;
-    readonly MarketDataQueryModel _queryModel;
-    readonly ReferenceQueryModel _referenceQueryModel;
+    readonly MarketDataEventService _eventModel;
+    readonly MarketDataCommandService _commandModel;
+    readonly MarketDataQueryService _queryModel;
+    readonly IReferenceDataService _referenceDataService;
     readonly ICollection<IEvent> _consumeEvents;
     readonly TerminalEventCorrelation _terminalCorrelation = new();
-    IReadOnlyList<LookupTypeReadModel> _symbols = [];
-    IReadOnlyList<LookupTypeReadModel> _securityTypes = [];
-    IReadOnlyList<LookupTypeReadModel> _currencies = [];
-    IReadOnlyList<LookupTypeReadModel> _exchanges = [];
-    IReadOnlyList<LookupTypeReadModel> _multipliers = [];
+    IReadOnlyList<LookupTypeUiModel> _symbols = [];
+    IReadOnlyList<LookupTypeUiModel> _securityTypes = [];
+    IReadOnlyList<LookupTypeUiModel> _currencies = [];
+    IReadOnlyList<LookupTypeUiModel> _exchanges = [];
+    IReadOnlyList<LookupTypeUiModel> _multipliers = [];
     IReadOnlyList<FuturesContractV2ReadModel> _futuresContracts = [];
     string _lastStatusMessage = string.Empty;
     FuturesContractV2ReadModel? _pendingAdd;
@@ -57,12 +60,15 @@ public sealed class FuturesContractEditorViewModel
     /// <summary>
     /// Creates the editor and resolves its framework-neutral Models from the application composition root.
     /// </summary>
-    public FuturesContractEditorViewModel(IAppRoot appRoot) : base(appRoot)
+    public FuturesContractEditorViewModel(
+        IAppRoot appRoot,
+        IReferenceDataService referenceDataService) : base(appRoot)
     {
-        _eventModel = AppRoot.GetModel<MarketDataEventModel>();
-        _commandModel = AppRoot.GetModel<MarketDataCommandModel>();
-        _queryModel = AppRoot.GetModel<MarketDataQueryModel>();
-        _referenceQueryModel = AppRoot.GetModel<ReferenceQueryModel>();
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
+        _eventModel = AppRoot.Services.MarketDataEvents;
+        _commandModel = AppRoot.Services.MarketDataCommands;
+        _queryModel = AppRoot.Services.MarketDataQueries;
 
         _consumeEvents =
         [
@@ -82,35 +88,35 @@ public sealed class FuturesContractEditorViewModel
     }
 
     /// <summary>Gets the available currencies.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Currencies
+    public IReadOnlyList<LookupTypeUiModel> Currencies
     {
         get => _currencies;
         private set => SetProperty(ref _currencies, value);
     }
 
     /// <summary>Gets the available security types.</summary>
-    public IReadOnlyList<LookupTypeReadModel> SecurityTypes
+    public IReadOnlyList<LookupTypeUiModel> SecurityTypes
     {
         get => _securityTypes;
         private set => SetProperty(ref _securityTypes, value);
     }
 
     /// <summary>Gets the available exchanges.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Exchanges
+    public IReadOnlyList<LookupTypeUiModel> Exchanges
     {
         get => _exchanges;
         private set => SetProperty(ref _exchanges, value);
     }
 
     /// <summary>Gets the available contract multipliers.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Multipliers
+    public IReadOnlyList<LookupTypeUiModel> Multipliers
     {
         get => _multipliers;
         private set => SetProperty(ref _multipliers, value);
     }
 
     /// <summary>Gets the available underlying symbols.</summary>
-    public IReadOnlyList<LookupTypeReadModel> Symbols
+    public IReadOnlyList<LookupTypeUiModel> Symbols
     {
         get => _symbols;
         private set => SetProperty(ref _symbols, value);
@@ -208,7 +214,7 @@ public sealed class FuturesContractEditorViewModel
     public FuturesContractV2ReadModel? GetFuturesContract(int index)
         => index >= 0 && index < FuturesContracts.Count ? FuturesContracts[index] : null;
 
-    static LookupTypeReadModel GetLookup(IReadOnlyList<LookupTypeReadModel> values, int index)
+    static LookupTypeUiModel GetLookup(IReadOnlyList<LookupTypeUiModel> values, int index)
         => index >= 0 && index < values.Count
             ? values[index]
             : throw new ArgumentOutOfRangeException(nameof(index));
@@ -216,16 +222,11 @@ public sealed class FuturesContractEditorViewModel
     async Task LoadCoreAsync(CancellationToken cancellationToken)
     {
         await InitializeAsync(cancellationToken);
-        var securityTypes = await LoadLookupAsync(
-            (model, completed) => model.LoadSecurityTypesAsync(completed), cancellationToken);
-        var currencies = await LoadLookupAsync(
-            (model, completed) => model.LoadCurrenciesAsync(completed), cancellationToken);
-        var exchanges = await LoadLookupAsync(
-            (model, completed) => model.LoadExchangesAsync(completed), cancellationToken);
-        var multipliers = await LoadLookupAsync(
-            (model, completed) => model.LoadMultipliersAsync(completed), cancellationToken);
-        var symbols = await LoadLookupAsync(
-            (model, completed) => model.LoadSymbolsAsync(completed), cancellationToken);
+        var securityTypes = await LoadLookupAsync("SecurityType", cancellationToken);
+        var currencies = await LoadLookupAsync("Currency", cancellationToken);
+        var exchanges = await LoadLookupAsync("Exchange", cancellationToken);
+        var multipliers = await LoadLookupAsync("Multiplier", cancellationToken);
+        var symbols = await LoadLookupAsync("Symbol", cancellationToken);
         var futuresContracts = await QueryFuturesContractsAsync(cancellationToken);
 
         SecurityTypes = securityTypes;
@@ -236,16 +237,11 @@ public sealed class FuturesContractEditorViewModel
         FuturesContracts = futuresContracts;
     }
 
-    async Task<IReadOnlyList<LookupTypeReadModel>> LoadLookupAsync(
-        Func<ReferenceQueryModel, Action<ICollection<LookupTypeReadModel>>, Task> load,
+    async Task<IReadOnlyList<LookupTypeUiModel>> LoadLookupAsync(
+        string lookupTypeName,
         CancellationToken cancellationToken)
-    {
-        ICollection<LookupTypeReadModel> result = [];
-        await _referenceQueryModel.ExecuteObservableAsync(
-            model => load(model, loaded => result = loaded ?? []),
-            cancellationToken);
-        return result.ToArray();
-    }
+        => (await _referenceDataService.GetLookupTypesAsync(lookupTypeName, cancellationToken))
+            .RequireValue();
 
     async Task<IReadOnlyList<FuturesContractV2ReadModel>> QueryFuturesContractsAsync(
         CancellationToken cancellationToken)
@@ -301,7 +297,7 @@ public sealed class FuturesContractEditorViewModel
     }
 
     async Task ExecuteMutationAsync(
-        Func<MarketDataCommandModel, Task<Guid>> submit,
+        Func<MarketDataCommandService, Task<Guid>> submit,
         string statusMessage,
         Action clearPending,
         CancellationToken cancellationToken)
@@ -325,7 +321,7 @@ public sealed class FuturesContractEditorViewModel
                 cancellationToken);
             OnPropertyChanged(nameof(CommandId));
             if (terminal is IErrorEvent error)
-                throw new ModelOperationException(error.ErrorCode, error.ErrorMessage);
+                throw new UiServiceOperationException(error.ErrorCode, error.ErrorMessage);
 
             FuturesContracts = await QueryFuturesContractsAsync(cancellationToken);
             LastStatusMessage = statusMessage;

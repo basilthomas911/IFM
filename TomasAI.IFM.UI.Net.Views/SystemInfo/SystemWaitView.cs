@@ -1,15 +1,15 @@
-using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Services.Application;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemInfo;
 
 public partial class SystemWaitView : Form
 {
-    readonly EventModel _eventModel;
+    readonly CommandResponseEventService _eventModel;
     readonly CancellationTokenSource _lifetimeCancellation = new();
     readonly Task _waitTask;
     bool _closeComplete;
 
-    public SystemWaitView(EventModel eventModel, string waitText)
+    public SystemWaitView(CommandResponseEventService eventModel, string waitText)
     {
         InitializeComponent();
         lblWaitInfo.Text = waitText;

@@ -1,5 +1,3 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.ViewModels.Extensions;
@@ -62,15 +60,11 @@ public sealed class YieldCurveRateEditViewModel : ObservableObject
 
     async Task CheckValueDateCoreAsync(CancellationToken cancellationToken)
     {
-        ServiceResult<ScalarReadModel<bool>>? result = null;
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteObservableAsync(
-            model => model.YieldCurveRateExistsAsync(ValueDate, loaded => result = loaded),
+        var rateExists = false;
+        await _appRoot.Services.MarketDataQueries.ExecuteObservableAsync(
+            async model => rateExists = await model.YieldCurveRateExistsValueAsync(ValueDate),
             cancellationToken);
-        if (result is null)
-            throw new InvalidOperationException("Yield-curve date validation returned no result.");
-        if (!result.Success)
-            throw new ModelOperationException(result.ErrorCode, result.ErrorMessage);
-        RateExists = result.Value?.Value == true;
+        RateExists = rateExists;
         CanSave = !RateExists;
     }
 }

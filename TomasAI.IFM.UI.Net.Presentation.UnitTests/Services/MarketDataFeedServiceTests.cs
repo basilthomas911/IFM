@@ -1,0 +1,160 @@
+using FluentAssertions;
+using NSubstitute;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.UI.EventConsumer;
+using TomasAI.IFM.UI.Net.Models;
+
+namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Services;
+
+/// <summary>Verifies Market Data Feed service command, query, and subscription behavior.</summary>
+public sealed class MarketDataFeedServiceTests
+{
+    readonly IMarketDataFeedCommandApi _commandApi = Substitute.For<IMarketDataFeedCommandApi>();
+    readonly IMarketDataQueryApi _marketDataQueryApi = Substitute.For<IMarketDataQueryApi>();
+    readonly IMarketDataFeedQueryApi _feedQueryApi = Substitute.For<IMarketDataFeedQueryApi>();
+    readonly IFuturesEodDataUIEventConsumer _eodConsumer = Substitute.For<IFuturesEodDataUIEventConsumer>();
+    readonly IFuturesTradeSignalUIEventConsumer _tradeSignalConsumer = Substitute.For<IFuturesTradeSignalUIEventConsumer>();
+    readonly IFuturesOptionTickDataUIEventConsumer _optionTickConsumer = Substitute.For<IFuturesOptionTickDataUIEventConsumer>();
+    readonly IMarketDataFeedResetUIEventConsumer _resetConsumer = Substitute.For<IMarketDataFeedResetUIEventConsumer>();
+    readonly IMarketDataFeedStatusUIEventConsumer _statusConsumer = Substitute.For<IMarketDataFeedStatusUIEventConsumer>();
+    readonly IFuturesBarDataUIEventConsumer _barConsumer = Substitute.For<IFuturesBarDataUIEventConsumer>();
+
+    [Fact]
+    public async Task StartDataFeed_ForwardsContractsAndValueDateExactlyOnce()
+    {
+        var model = CreateModel();
+        ICollection<FuturesContractV2ReadModel> contracts = [];
+        var valueDate = new DateOnly(2026, 8, 11);
+        var commandId = Guid.NewGuid();
+        _commandApi.StartMarketDataFeedAsync(contracts, valueDate)
+            .Returns(Task.FromResult<ServiceResult<Guid>>(
+                new ServiceOk<Guid>(commandId)));
+
+        var result = await model.StartDataFeedAsync(contracts, valueDate);
+
+        result.Should().Be(commandId);
+        await _commandApi.Received(1).StartMarketDataFeedAsync(contracts, valueDate);
+    }
+
+    [Fact]
+    public async Task StartDataFeed_PreservesServiceFailureForTheViewModelBoundary()
+    {
+        var model = CreateModel();
+        ICollection<FuturesContractV2ReadModel> contracts = [];
+        var valueDate = new DateOnly(2026, 8, 11);
+        (int Code, string Message)? error = null;
+        model.OnError((code, message) => error = (code, message));
+        _commandApi.StartMarketDataFeedAsync(contracts, valueDate)
+            .Returns(Task.FromResult<ServiceResult<Guid>>(
+                new ServiceFailed<Guid>(7301, "Feed start failed.")));
+
+        var commandId = await model.StartDataFeedAsync(contracts, valueDate);
+
+        commandId.Should().Be(Guid.Empty);
+        error.Should().Be((7301, "Feed start failed."));
+    }
+
+    [Fact]
+    public async Task StopDataFeed_AwaitsStreamingCleanupBeforeSubmittingStop()
+    {
+        var model = CreateModel();
+        var valueDate = new DateOnly(2026, 8, 11);
+        var commandId = Guid.NewGuid();
+        var cleanupCompleted = false;
+        _commandApi.StopMarketDataFeedAsync(valueDate)
+            .Returns(_ =>
+            {
+                cleanupCompleted.Should().BeTrue();
+                return Task.FromResult<ServiceResult<Guid>>(new ServiceOk<Guid>(commandId));
+            });
+
+        var result = await model.StopDataFeedAsync(valueDate, async () =>
+        {
+            await Task.Yield();
+            cleanupCompleted = true;
+        });
+
+        result.Should().Be(commandId);
+        await _commandApi.Received(1).StopMarketDataFeedAsync(valueDate);
+    }
+
+    [Fact]
+    public async Task OptionTickListener_StartAndStopOwnTheConsumerCalls()
+    {
+        var model = CreateModel();
+        Func<OptionTradeTickPriceDataUpdatedEvent, ValueTask> listener = _ => ValueTask.CompletedTask;
+        _optionTickConsumer.StartAsync(listener).Returns(ValueTask.CompletedTask);
+        _optionTickConsumer.StopAsync().Returns(ValueTask.CompletedTask);
+
+        await model.StartFuturesOptionTickDataListenerAsync(listener);
+        await model.StopFuturesOptionTickDataListenerAsync();
+
+        await _optionTickConsumer.Received(1).StartAsync(listener);
+        await _optionTickConsumer.Received(1).StopAsync();
+    }
+
+    [Fact]
+    public async Task MarketDataFeedStatusListener_StartAndStopOwnTheTerminalConsumerCalls()
+    {
+        var model = CreateModel();
+        Func<IEvent, ValueTask> listener = _ => ValueTask.CompletedTask;
+        _statusConsumer.StartAsync(listener).Returns(ValueTask.CompletedTask);
+        _statusConsumer.StopAsync().Returns(ValueTask.CompletedTask);
+
+        await model.StartMarketDataFeedStatusListenerAsync(listener);
+        await model.StopMarketDataFeedStatusListenerAsync();
+
+        await _statusConsumer.Received(1).StartAsync(listener);
+        await _statusConsumer.Received(1).StopAsync();
+    }
+
+    [Fact]
+    public async Task FuturesEodListener_UsesTheExternalNotifyContract()
+    {
+        var model = CreateModel();
+        var siteId = Guid.NewGuid();
+        Action<FuturesEodDataUpdatedNotifyEvent> listener = _ => { };
+        _eodConsumer.StartAsync(siteId, listener).Returns(ValueTask.CompletedTask);
+        _eodConsumer.StopAsync(siteId).Returns(ValueTask.CompletedTask);
+
+        await model.StartFuturesEodDataEventConsumerAsync(siteId, listener);
+        await model.StopFuturesEodDataEventConsumerAsync(siteId);
+
+        await _eodConsumer.Received(1).StartAsync(siteId, listener);
+        await _eodConsumer.Received(1).StopAsync(siteId);
+    }
+
+    [Fact]
+    public async Task FuturesTradeSignalListener_UsesTheExternalNotifyContractAndSiteId()
+    {
+        var model = CreateModel();
+        var siteId = Guid.NewGuid();
+        Action<FuturesTradeSignalUpdatedNotifyEvent> listener = _ => { };
+        _tradeSignalConsumer.StartAsync(siteId, listener).Returns(ValueTask.CompletedTask);
+        _tradeSignalConsumer.StopAsync(siteId).Returns(ValueTask.CompletedTask);
+
+        await model.StartFuturesTradeSignalEventConsumerAsync(siteId, listener);
+        await model.StopFuturesTradeSignalEventConsumerAsync(siteId);
+
+        await _tradeSignalConsumer.Received(1).StartAsync(siteId, listener);
+        await _tradeSignalConsumer.Received(1).StopAsync(siteId);
+    }
+
+    MarketDataFeedCommandService CreateModel()
+        => new(
+            _commandApi,
+            _marketDataQueryApi,
+            _feedQueryApi,
+            _eodConsumer,
+            _tradeSignalConsumer,
+            _optionTickConsumer,
+            _resetConsumer,
+            _statusConsumer,
+            _barConsumer);
+}

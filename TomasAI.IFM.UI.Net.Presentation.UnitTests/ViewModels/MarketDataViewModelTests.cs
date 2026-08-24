@@ -18,12 +18,12 @@ public class MarketDataViewModelTests
     {
         var definition = Definition("FuturesContract", "Futures contracts");
         var (viewModel, api) = CreateSubject(
-            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([definition])));
+            new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([ToBackend(definition)])));
 
         await viewModel.LoadDefinitionTypesOperation.ExecuteAsync();
 
         viewModel.DefinitionTypes.Should().Equal(definition);
-        viewModel.GetDefinitionType(0).Should().BeSameAs(definition);
+        viewModel.GetDefinitionType(0).Should().Be(definition);
         viewModel.GetDefinitionType(-1).Should().BeNull();
         await api.Received(1).GetMarketDataDefinitionTypesAsync();
     }
@@ -49,7 +49,7 @@ public class MarketDataViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => viewModel.LoadDefinitionTypesOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
 
         exception.Which.ErrorCode.Should().Be(821);
         viewModel.LoadDefinitionTypesOperation.LastFailure.Should().BeSameAs(exception.Which);
@@ -60,12 +60,12 @@ public class MarketDataViewModelTests
     {
         var api = Substitute.For<IReferenceQueryApi>();
         api.GetMarketDataDefinitionTypesAsync().Returns(Task.FromResult(result));
-        var model = new ReferenceQueryModel(api);
-        var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(model);
-        return (new MarketDataViewModel(appRoot), api);
+        return (new MarketDataViewModel(UiServiceFactory.CreateReference(api)), api);
     }
 
-    static LookupTypeReadModel Definition(string shortCode, string description)
+    static LookupTypeUiModel Definition(string shortCode, string description)
         => new("MarketDataDefinitionType", shortCode, 1, description, DateTime.UtcNow, "test");
+
+    static LookupTypeReadModel ToBackend(LookupTypeUiModel value)
+        => new(value.LookupTypeName, value.ShortCode, value.OrderId, value.Description, value.CreatedOn, value.CreatedBy);
 }

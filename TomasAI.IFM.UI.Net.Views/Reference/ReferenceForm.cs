@@ -1,5 +1,6 @@
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Services.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
@@ -11,13 +12,18 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
     IControlCommand? _ctrlCommand;
     bool _closeComplete;
 
-    public ReferenceForm(IAppRoot appRoot)
+    public ReferenceForm(
+        IAppRoot appRoot,
+        IReferenceDataService referenceDataService,
+        IEconomicCalendarService economicCalendarService)
     {
         _appRoot = appRoot;
         _controlMap = new Dictionary<string, Func<IAppRoot, Control>>
         {
-            { "EconomicCalendar", ar => new EconomicCalendarEditorView( new EconomicCalendarEditorViewModel(ar) )},
-            { "LookupTypes", ar => new LookupTypeEditorView( new LookupTypeEditorViewModel(ar) )}
+            { "EconomicCalendar", ar => new EconomicCalendarEditorView(
+                new EconomicCalendarEditorViewModel(ar, economicCalendarService))},
+            { "LookupTypes", ar => new LookupTypeEditorView(
+                new LookupTypeEditorViewModel(ar, referenceDataService))}
         };
         _ctrlCommand = null;
         InitializeComponent();

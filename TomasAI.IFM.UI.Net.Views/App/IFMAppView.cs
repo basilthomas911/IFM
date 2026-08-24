@@ -23,6 +23,7 @@ using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
 
@@ -38,6 +39,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     const int DwmTextColor = 36;
     private IAppRoot _appRoot;
     private readonly IViewNavigator _navigator;
+    private readonly IEconomicCalendarService _economicCalendarService;
+    private readonly IReferenceDataService _referenceDataService;
     private Control? _tradeBlotter;
     private IFMAppViewModel _viewModel = null!;
     private Dictionary<ActionState, Color> _tradePlanStateMap = null!;
@@ -46,10 +49,16 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     private bool _shutdownComplete;
     private long _lastErrorSequence;
 
-    public IFMAppView(IAppRoot appRoot, IViewNavigator navigator)
+    public IFMAppView(
+        IAppRoot appRoot,
+        IViewNavigator navigator,
+        IReferenceDataService referenceDataService,
+        IEconomicCalendarService economicCalendarService)
     {
         _appRoot = appRoot;
         _navigator = navigator;
+        _referenceDataService = referenceDataService;
+        _economicCalendarService = economicCalendarService;
         InitializeComponent();
         operationViewSplitter.Paint += DashboardSplitter_Paint;
         marketViewSplitter.Paint += DashboardSplitter_Paint;
@@ -108,7 +117,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             _appRoot,
             _appVersion,
             _appRoot.AppEnvironment,
-            this);
+            this,
+            _economicCalendarService);
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
         RenderShellState();
         try
@@ -335,7 +345,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             view.LoadViewModel(new TradeOrderEditorViewModel(
                 _appRoot,
                 _viewModel.ValueDate,
-                [.. _viewModel.BaseContracts]));
+                [.. _viewModel.BaseContracts],
+                _referenceDataService));
         });
         switch (navigationResult)
         {
@@ -388,7 +399,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     private void marketDataButton_Click(object sender, EventArgs e)
     {
         _navigator.ShowModal<MarketDataForm>(view =>
-            view.LoadViewModel(new MarketDataViewModel(_appRoot)));
+            view.LoadViewModel(new MarketDataViewModel(_referenceDataService)));
     }
 
     private async void marketDataFeedButton_Click(object sender, EventArgs e)
@@ -412,13 +423,13 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     private void referenceButton_Click(object sender, EventArgs e)
     {
         _navigator.ShowModal<ReferenceForm>(view =>
-            view.LoadViewModel(new ReferenceViewModel(_appRoot)));
+            view.LoadViewModel(new ReferenceViewModel(_referenceDataService)));
     }
 
     private void systemAdminButton_Click(object sender, EventArgs e)
     {
         _navigator.ShowModal<SystemAdminForm>(view =>
-            view.LoadViewModel(new SystemAdminViewModel(_appRoot)));
+            view.LoadViewModel(new SystemAdminViewModel(_referenceDataService)));
     }
 
     private void IFMApp_Resize(object sender, EventArgs e)
@@ -555,7 +566,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 
     private async void economicCalendarView1_Load(object sender, EventArgs e)
     {
-        await economicCalendarView1.LoadViewAsync(_appRoot);
+        await economicCalendarView1.LoadViewAsync(_appRoot, _economicCalendarService);
     }
 
     private void tabTradeBlotter_SelectedIndexChanged(object sender, EventArgs e)

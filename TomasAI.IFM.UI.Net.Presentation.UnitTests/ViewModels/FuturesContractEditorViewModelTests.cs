@@ -104,7 +104,7 @@ public class FuturesContractEditorViewModelTests
         });
 
         var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
         exception.Which.ErrorCode.Should().Be(714);
         subject.ViewModel.RemoveOperation.LastFailure.Should().BeSameAs(exception.Which);
         subject.ViewModel.CommandId.Should().BeEmpty();
@@ -120,7 +120,7 @@ public class FuturesContractEditorViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => subject.ViewModel.LoadOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiOperationException>();
 
         exception.Which.ErrorCode.Should().Be(611);
         subject.ViewModel.LoadOperation.LastFailure.Should().BeSameAs(exception.Which);
@@ -163,13 +163,12 @@ public class FuturesContractEditorViewModelTests
         var eventConsumer = Substitute.For<IMarketDataUIEventConsumer>();
         var eventSource = new TestMarketDataEventSource(eventConsumer);
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<ReferenceQueryModel>().Returns(new ReferenceQueryModel(referenceApi));
-        appRoot.GetModel<MarketDataQueryModel>().Returns(new MarketDataQueryModel(queryApi, feedQueryApi));
-        appRoot.GetModel<MarketDataCommandModel>().Returns(new MarketDataCommandModel(commandApi));
-        appRoot.GetModel<MarketDataEventModel>().Returns(new MarketDataEventModel(eventConsumer));
+        appRoot.Services.MarketDataQueries.Returns(new MarketDataQueryService(queryApi, feedQueryApi));
+        appRoot.Services.MarketDataCommands.Returns(new MarketDataCommandService(commandApi));
+        appRoot.Services.MarketDataEvents.Returns(new MarketDataEventService(eventConsumer));
 
         return new Subject(
-            new FuturesContractEditorViewModel(appRoot),
+            new FuturesContractEditorViewModel(appRoot, UiServiceFactory.CreateReference(referenceApi)),
             referenceApi,
             queryApi,
             commandApi,

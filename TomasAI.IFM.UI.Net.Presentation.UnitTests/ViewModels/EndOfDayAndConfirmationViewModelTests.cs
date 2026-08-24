@@ -117,7 +117,7 @@ public class EndOfDayAndConfirmationViewModelTests
         });
 
         var exception = await FluentActions.Awaiting(() => operation)
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
         exception.Which.ErrorCode.Should().Be(731);
         subject.ViewModel.LastError!.ErrorCode.Should().Be(731);
         subject.ViewModel.CommandId.Should().BeEmpty();
@@ -134,7 +134,7 @@ public class EndOfDayAndConfirmationViewModelTests
 
         var exception = await FluentActions.Awaiting(
                 () => subject.ViewModel.LoadOperation.ExecuteAsync())
-            .Should().ThrowAsync<ModelOperationException>();
+            .Should().ThrowAsync<UiServiceOperationException>();
 
         exception.Which.ErrorCode.Should().Be(744);
         subject.ViewModel.LastError!.ErrorCode.Should().Be(744);
@@ -187,11 +187,11 @@ public class EndOfDayAndConfirmationViewModelTests
             ConfigureCommand(commandApi, () => Task.FromResult<ServiceResult<Guid>>(new ServiceOk<Guid>(commandId.Value)));
         var events = new EventHarness();
         var appRoot = Substitute.For<IAppRoot>();
-        appRoot.GetModel<FundQueryModel>().Returns(new FundQueryModel(fundApi));
-        appRoot.GetModel<TradeQueryModel>().Returns(new TradeQueryModel(tradeApi));
-        appRoot.GetModel<MarketDataFeedQueryModel>().Returns(new MarketDataFeedQueryModel(marketDataApi));
-        appRoot.GetModel<TradeCommandModel>().Returns(new TradeCommandModel(commandApi));
-        appRoot.GetModel<EndOfDayProcessEventModel>().Returns(new EndOfDayProcessEventModel(events.Consumer));
+        appRoot.Services.FundQueries.Returns(new FundQueryService(fundApi));
+        appRoot.Services.TradeQueries.Returns(new TradeQueryService(tradeApi));
+        appRoot.Services.FeedQueries.Returns(new MarketDataFeedQueryService(marketDataApi));
+        appRoot.Services.TradeCommands.Returns(new TradeCommandService(commandApi));
+        appRoot.Services.EndOfDayEvents.Returns(new EndOfDayProcessEventService(events.Consumer));
         var parameter = new TradeEndOfDayParameter
         {
             FundId = 17,

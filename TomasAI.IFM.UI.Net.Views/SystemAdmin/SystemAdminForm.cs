@@ -1,27 +1,24 @@
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.SystemAdmin;
 
 namespace TomasAI.IFM.UI.Net.Views.SystemAdmin;
 
 public partial class SystemAdminForm : Form, IForm<SystemAdminForm>, IFormControl
 {
-    readonly IAppRoot _appRoot;
-    readonly IStatusConsoleEventProducer _statusConsoleLog;
     SystemAdminViewModel _viewModel = null!;
     Dictionary<string, Func<Control>> _controlMap;
-    IReadOnlyList<LookupTypeReadModel> _visibleFunctionTypes = [];
+    IReadOnlyList<LookupTypeUiModel> _visibleFunctionTypes = [];
     bool _closeComplete;
 
-    public SystemAdminForm(IAppRoot appRoot, IStatusConsoleEventProducer statusConsoleLog)
+    public SystemAdminForm(IDatabaseBackupService databaseBackupService)
     {
-        _appRoot = appRoot;
-        _statusConsoleLog = statusConsoleLog;
         InitializeComponent();
         _controlMap = new Dictionary<string, Func<Control>>
         {
-            { "BackupDatabases", () => new BackupDatabasesView(new DatabaseBackupViewModel(appRoot)) },
+            { "BackupDatabases", () => new BackupDatabasesView(
+                new DatabaseBackupViewModel(databaseBackupService)) },
         };
         
     }

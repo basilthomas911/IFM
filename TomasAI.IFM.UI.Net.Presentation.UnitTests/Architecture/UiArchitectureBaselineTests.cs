@@ -10,6 +10,7 @@ public class UiArchitectureBaselineTests
         "TomasAI.IFM.UI.Net.Views",
         "TomasAI.IFM.UI.Net.ViewModels",
         "TomasAI.IFM.UI.Net.Models",
+        "TomasAI.IFM.UI.Net.Services",
         "TomasAI.IFM.UI.EventConsumer"
     ];
 
@@ -17,6 +18,7 @@ public class UiArchitectureBaselineTests
     [
         "TomasAI.IFM.UI.Net.ViewModels",
         "TomasAI.IFM.UI.Net.Models",
+        "TomasAI.IFM.UI.Net.Services",
         "TomasAI.IFM.UI.EventConsumer"
     ];
 

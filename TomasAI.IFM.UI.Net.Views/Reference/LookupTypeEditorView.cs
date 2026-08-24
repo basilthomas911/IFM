@@ -1,6 +1,6 @@
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.ViewModels.Reference;
+using TomasAI.IFM.UI.Net.Models.Reference;
 
 namespace TomasAI.IFM.UI.Net.Views.Reference;
 
@@ -91,15 +91,13 @@ public partial class LookupTypeEditorView
                 lstLookupTypeShortCodes.Enabled = false;
                 break;
             case EditMode.Add:
-                var lookupType = new LookupTypeReadModel
-                (
-                    lookupTypeName: txtLookupTypeName.Text,
-                    shortCode: txtShortCode.Text,
-                    orderId: _viewModel.GetNextOrderId(txtLookupTypeName.Text),
-                    description: txtDescription.Text,
-                    createdOn: DateTime.UtcNow,
-                    createdBy: String.Empty
-                );
+                var lookupType = new LookupTypeUiModel(
+                    txtLookupTypeName.Text,
+                    txtShortCode.Text,
+                    _viewModel.GetNextOrderId(txtLookupTypeName.Text),
+                    txtDescription.Text,
+                    DateTime.UtcNow,
+                    string.Empty);
                 ObserveMutation(_viewModel.AddLookupType(lookupType, () => this.Post(() =>
                 {
                     _editMode = EditMode.View;
@@ -128,8 +126,8 @@ public partial class LookupTypeEditorView
             MessageBox.Show("Order ID must be a non-negative integer.", "Invalid Order ID", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
-        var lookupTypeId = _viewModel.GetLookupType(lookupTypeName, orderId)?.Id;
-        if (lookupTypeId != null)
+        var selectedLookupType = _viewModel.GetLookupType(lookupTypeName, orderId);
+        if (selectedLookupType != null)
         {
             switch (_editMode)
             {
@@ -141,16 +139,21 @@ public partial class LookupTypeEditorView
                     lstLookupTypeShortCodes.Enabled = false;
                     break;
                 case EditMode.Change:
-                    var lookupType = new LookupTypeReadModel
+                    var lookupType = new LookupTypeUiModel
                     (
-                        lookupTypeName: txtLookupTypeName.Text,
-                        shortCode: txtShortCode.Text,
-                        orderId: Convert.ToInt32(txtOrderId.Text),
-                        description: txtDescription.Text,
-                        createdOn: DateTime.UtcNow,
-                        createdBy: String.Empty
+                        LookupTypeName: txtLookupTypeName.Text,
+                        ShortCode: txtShortCode.Text,
+                        OrderId: Convert.ToInt32(txtOrderId.Text),
+                        Description: txtDescription.Text,
+                        CreatedOn: DateTime.UtcNow,
+                        CreatedBy: String.Empty
                     );
-                    ObserveMutation(_viewModel.ChangeLookupType(lookupTypeId, lookupType, true, () => this.Post(() =>
+                    ObserveMutation(_viewModel.ChangeLookupType(
+                        selectedLookupType.LookupTypeName,
+                        selectedLookupType.OrderId,
+                        lookupType,
+                        true,
+                        () => this.Post(() =>
                     {
                         _editMode = EditMode.View;
                         lstLookupTypeNames.Enabled = true;
@@ -171,10 +174,12 @@ public partial class LookupTypeEditorView
             MessageBox.Show("Order ID must be a non-negative integer.", "Invalid Order ID", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
-        var lookupTypeId = _viewModel.GetLookupType(lookupTypeName, orderId)?.Id;
-        if (lookupTypeId != null)
-            if (MessageBox.Show($"Are you sure you want to remove Lookup Type {lookupTypeId} ?", "Remove Lookup Type", MessageBoxButtons.YesNo) == DialogResult.Yes)
-                ObserveMutation(_viewModel.RemoveLookupType(lookupTypeId, true), "Lookup Type Remove Failed");
+        var selectedLookupType = _viewModel.GetLookupType(lookupTypeName, orderId);
+        if (selectedLookupType != null)
+            if (MessageBox.Show($"Are you sure you want to remove Lookup Type {lookupTypeName}:{orderId} ?", "Remove Lookup Type", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                ObserveMutation(
+                    _viewModel.RemoveLookupType(lookupTypeName, orderId, true),
+                    "Lookup Type Remove Failed");
     }
 
     public bool Close(Action<bool> closeAction)

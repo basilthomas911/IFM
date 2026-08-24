@@ -146,7 +146,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _optionLegDataMap = [];
         _spreadPaths = [];
         _spreadPathQueue = new();
-        _siteId = _appRoot.GetModel<EventModel>().SiteId;
+        _siteId = _appRoot.Services.CommandResponses.SiteId;
         _liveStreamsIds = [];
         _timeProvider = timeProvider ?? TimeProvider.System;
         _liveFeedLifecycle = new AsyncLifecycleCoordinator(EnableLiveFeedCoreAsync, DisableLiveFeedCoreAsync);
@@ -288,7 +288,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             _resetListenerCancellation = new CancellationTokenSource();
         }
         var cancellationToken = _resetListenerCancellation.Token;
-        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
             await model.StartMarketDataFeedResetListenerAsync(async _ => {
                if (_liveFeedEnabled)
                {
@@ -309,7 +309,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     private Task DeleteOptionTradeSpreadBarData()
-        => _appRoot.GetModel<TradeCommandModel>().ExecuteAsync(async model => {
+        => _appRoot.Services.TradeCommands.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Delete Option Trade Spread Bar Data Error"));
             var optionTradeId = new OptionTradeEntityId(_fundOrderTrade.OrderId, _fundOrderTrade.TradeId);
             await model.DeleteOptionTradeSpreadBarDataAsync(optionTradeId, _fundOrderTrade.TradeType, _valueDate.HasValue? _valueDate.Value: DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
@@ -323,7 +323,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (!_resetListenerEnabled)
             return;
         _resetListenerCancellation.Cancel();
-        await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
             await model.StopMarketDataFeedResetListenerAsync());
         _resetListenerEnabled = false;
     }
@@ -337,7 +337,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             return null;
 
         OptionTradeReadModel? trade = null;
-        await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.TradeQueries.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMsg) =>
                 PublishError(errorCode, errorMsg, "Loading Iron Condor Trade Error"));
@@ -384,7 +384,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         // load iron condor trade from storage
         Task LoadTradeInfo()
-            => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.TradeQueries.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Loading Iron Condor Trade Info Error"));
                 await model.GetTradeInfoAsync(_fundOrderTrades, tradeInfo => {
                     _tradeInfo = [.. tradeInfo];
@@ -394,7 +394,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         // load iron condor trade positions from storage
         Task LoadTradePositions()
-            => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.TradeQueries.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Loading Iron Condor Trade Positions Error"));
                 await model.GetTradePositionsAsync(orderId, tradeId, tradePositions => {
                     _tradePositions = [.. tradePositions];
@@ -403,7 +403,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
         // load risk free rate from market data query model
         Task LoadRiskFreeRate()
-            => _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.MarketDataQueries.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Loading Iron Condor Risk Free Rate Error"));
                 await model.GetRiskFreeRateAsync(riskFreeRate => _riskFreeRate = riskFreeRate);
             });
@@ -425,7 +425,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     Task LoadIronCondorTradePlans()
-           => _appRoot.GetModel<TradePlanQueryModel>().ExecuteAsync(async model => {
+           => _appRoot.Services.TradePlanQueries.ExecuteAsync(async model => {
                var valueDate = _valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
                model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Loading Iron Condor Trade Plans Error"));
                await model.GetTradePlansAsync(_fundOrder.OrderId, _fundOrderTrade.TradeId, valueDate, tradePlans => {
@@ -438,7 +438,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// load trade history from storage
     /// </summary>
     public Task LoadTradeHistory()
-      => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model => {
+      => _appRoot.Services.TradeQueries.ExecuteAsync(async model => {
           model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Loading Iron Condor Trade History Error"));
           await model.GetTradeHistoryAsync(_optionTrade.OrderId, tradeHistory =>
           {
@@ -487,7 +487,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         var daysToExpiry = _tradeHistory[index].DaysToExpiry;
         var valueDate = _tradeHistory[index].ValueDate;
         var key = new TradePositionEntityId(orderId, tradeId, valueDate, tradeType, tradeStatus,daysToExpiry );
-        await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.TradeQueries.ExecuteAsync(async model =>
         {
             if (_tradeHistory is null || _tradeHistory.Count == 0)
                 return;
@@ -558,7 +558,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         if (index < 0 || index >= _tradeHistory.Count)
             return Task.CompletedTask;
-        return _appRoot.GetModel<TradePlanQueryModel>().ExecuteAsync(async model => {
+        return _appRoot.Services.TradePlanQueries.ExecuteAsync(async model => {
             var orderId = _tradeHistory[index].OrderId;
             var tradeId = _tradeHistory[index].TradeId;
             var valueDate = _tradeHistory[index].ValueDate;
@@ -576,7 +576,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
        //if (_futuresEodHistoryLoaded)
        //     return;
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.MarketDataQueries.ExecuteAsync(async model =>
             await model.GetFuturesContractAsync(
                 _optionTrade.UnderlyingContractId,
                 futuresContract => _futuresContract = futuresContract));
@@ -584,7 +584,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (_futuresContract is null)
             return;
 
-        await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async marketDataFeedQueryModel =>
+        await _appRoot.Services.FeedQueries.ExecuteAsync(async marketDataFeedQueryModel =>
         {
             var valueDate = _optionTrade?.TradePositions?.LastOrDefault()?.ValueDate
                 ?? (_valueDate.HasValue ? _valueDate.Value : DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
@@ -607,7 +607,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     public async Task LoadFuturesEodData(int index)
     {
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async marketDataModel =>
+        await _appRoot.Services.MarketDataQueries.ExecuteAsync(async marketDataModel =>
             await marketDataModel.GetFuturesContractAsync(
                 _optionTrade.UnderlyingContractId,
                 futuresContract => _futuresContract = futuresContract));
@@ -615,7 +615,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (_futuresContract is null || index < 0 || index >= _tradeHistory.Count)
             return;
 
-        await _appRoot.GetModel<MarketDataFeedQueryModel>().ExecuteAsync(async marketDataFeedQueryModel =>
+        await _appRoot.Services.FeedQueries.ExecuteAsync(async marketDataFeedQueryModel =>
         {
             var valueDate = _tradeHistory[index].ValueDate;
             await marketDataFeedQueryModel.GetFuturesEodDataAsync(
@@ -636,10 +636,10 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     Task LoadTradeLimits(int orderId, int tradeId)
         => _appRoot.ExecuteAsync(async cancellationToken => {
             cancellationToken.ThrowIfCancellationRequested();
-            var tradeModel = _appRoot.GetModel<TradeQueryModel>();
+            var tradeModel = _appRoot.Services.TradeQueries;
             var tradeLimit = default(TradeLimitReadModel);
             await tradeModel.GetTradeLimitsAsync(tradeId, e => tradeLimit = e);
-            var fundModel = _appRoot.GetModel<FundQueryModel>();
+            var fundModel = _appRoot.Services.FundQueries;
             await fundModel.GetFundBalanceAsync(_fundOrder.FundId, fundBalance =>
             {
                 _tradeLimits = tradeLimit!;
@@ -657,7 +657,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         DateTime endDate)
         => _appRoot.ExecuteAsync(async cancellationToken => {
             cancellationToken.ThrowIfCancellationRequested();
-            var model = _appRoot.GetModel<TradeQueryModel>();
+            var model = _appRoot.Services.TradeQueries;
             await model.GetOptionTradeSpreadBarDataAsync(orderId, tradeId, tradeType, valueDate, startDate, endDate,
                 async optionTradeSpreadBarData => {
                     await model.GetIronCondorMDILimitAsync(orderId, tradeId, valueDate, ironCondorMDILimit =>
@@ -705,7 +705,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// </summary>
     public async Task ReloadIronCondorTrade()
     {
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.MarketDataQueries.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMsg) =>
                 PublishError(errorCode, errorMsg, "Unable to connect to IFM servers"));
@@ -713,7 +713,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         });
 
         OptionTradeReadModel? trade = null;
-        await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.TradeQueries.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMsg) =>
                 PublishError(errorCode, errorMsg, "Reloading Iron Condor Trade Error"));
@@ -771,7 +771,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         return;
 
         Task LoadValueDate()
-            =>_appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model => {
+            =>_appRoot.Services.MarketDataQueries.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Load Value Date Error"));
                 await model.GetValueDateAsync(valueDate => {
                     _valueDate = valueDate;
@@ -779,14 +779,14 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             });
 
         Task DeleteSpreadDistributionJobsInProgress()
-            => _appRoot.GetModel<SpreadDistributionJobModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.SpreadDistributionJobs.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Delete Spread Distribution Jobs In Progress Error"));
                 var valueDate = _valueDate ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
                 await model.DeleteSpreadDistributionJobsInProgressAsync(new SpreadDistributionJobEntityId(OrderId, TradeId, valueDate));
             });
 
         Task EnableTradeLiveFeed()
-            => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Trade Live Feed Error"));
                 List<string> optionContractIds = _optionTrade.OptionLegs is not null
                     ? [.. _optionTrade.OptionLegs.OrderByDescending(e => e.ContractId).Select(e => e.ContractId.Trim())]
@@ -816,7 +816,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 timeProvider: _timeProvider,
                 metricsChanged: PublishFuturesEodMetrics);
             PublishFuturesEodMetrics(_futuresEodChannel.Metrics);
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Futures EOD Listener Error"));
                 await model.StartFuturesEodDataEventConsumerAsync(
                     _siteId,
@@ -845,7 +845,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 timeProvider: _timeProvider,
                 metricsChanged: PublishFuturesOptionTickMetrics);
             _futuresOptionTickChannels = channels;
-            await _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model =>
+            await _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
             {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Futures Option Tick Data Listener Error"));
                 await model.StartFuturesOptionTickDataListenerAsync(e =>
@@ -907,7 +907,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                         updatedBy: Environment.UserName
                     ).SetOptionLeg(optionLeg);
 
-                    var tradeModel = _appRoot.GetModel<TradeCommandModel>();
+                    var tradeModel = _appRoot.Services.TradeCommands;
                     if (!_optionLegDataMap.TryAdd(optionLeg.ContractId, optionLegData))
                     {
                         if (_optionLegDataMap[optionLeg.ContractId].OptionPrice != optionLegData.OptionPrice)
@@ -951,7 +951,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 timeProvider: _timeProvider,
                 metricsChanged: PublishTradePositionMetrics);
             PublishTradePositionMetrics(_tradePositionChannel.Metrics);
-            await _appRoot.GetModel<TradePositionFeedEventModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.TradePositionEvents.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Enable Trade Position Listener Error"));
                 await model.StartTradePositionListenerAsync(e => {
                     _tradePositionChannel?.TryWrite(new TradePositionChangeSourceReadModel(e.PutTradePosition!, e.CallTradePosition!, e.TradePositionChangeSource, e.OptionLegId));
@@ -1038,7 +1038,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 timeProvider: _timeProvider,
                 metricsChanged: PublishTradePlanMetrics);
             PublishTradePlanMetrics(_tradePlanChannel.Metrics);
-            await _appRoot.GetModel<TradePlanEventModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.TradePlanEvents.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Trade Plan Listener Error"));
                 await model.StartTradePlanListenerAsync(async e =>
                 {
@@ -1074,7 +1074,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 metricsChanged: PublishSpreadBarMetrics);
             _spreadBarChannel = channel;
             PublishSpreadBarMetrics(channel.Metrics);
-            await _appRoot.GetModel<OptionTradeSpreadBarDataEventModel>().ExecuteAsync(async model => {
+            await _appRoot.Services.SpreadBarEvents.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Option Trade Spread Bar Data Listener Error"));
                 await model.StartOptionTradeSpreadBarDataListenerAsync(@event =>
                 {
@@ -1104,7 +1104,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         }
 
         Task UpdateDailyProfitTarget()
-            => _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.MarketDataQueries.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Loading Trade Days Error"));
                 var tradingDays = 0;
                 var maxTradingDays = 0;
@@ -1120,7 +1120,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                     MarketType.Futures,
                     CurrencyType.USD,
                     value => maxTradingDays = value);
-                await _appRoot.GetModel<TradeCommandModel>().ExecuteAsync(async tradeModel =>
+                await _appRoot.Services.TradeCommands.ExecuteAsync(async tradeModel =>
                 {
                     tradeModel.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Updating Trade Limit Daily Profit Target Error"));
                     await tradeModel.UpdateTradeLimitDailyProfitTargetAsync(
@@ -1132,7 +1132,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             });
 
         Task LoadCurrentTradeHistory()
-             => _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model => {
+             => _appRoot.Services.TradeQueries.ExecuteAsync(async model => {
                  model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Load Current Trade History Error"));
                  await model.GetTradeHistoryAsync(_optionTrade.OrderId, tradeHistory => {
                      _tradeHistory = new (tradeHistory);
@@ -1141,7 +1141,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
              });
 
         Task GenerateSpreadDistribution(double lossProbabilityFactor = 0)
-            => _appRoot.GetModel<SpreadDistributionJobModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.SpreadDistributionJobs.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMsg) => WriteStatusConsole(errorCode, errorMsg));
                 await model.IsSpreadDistributionJobInProgressAsync(OrderId, TradeId, async jobInProgress => {
                     if (!jobInProgress)
@@ -1194,7 +1194,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         return;
 
         Task DisableTradeLiveFeed()
-            => _appRoot.GetModel<MarketDataFeedCommandModel>().ExecuteAsync(async model => {
+            => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Disable Trade Live Feed Error"));
                 if (_optionTrade is not null)
                 {
@@ -1214,7 +1214,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             var channel = Interlocked.Exchange(ref _futuresEodChannel, null);
             try
             {
-                await _appRoot.GetModel<MarketDataFeedCommandModel>()
+                await _appRoot.Services.FeedCommands
                     .ExecuteAsync(async model => await model.StopFuturesEodDataEventConsumerAsync(_siteId));
             }
             finally
@@ -1229,7 +1229,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             var channels = Interlocked.Exchange(ref _futuresOptionTickChannels, null);
             try
             {
-                await _appRoot.GetModel<MarketDataFeedCommandModel>()
+                await _appRoot.Services.FeedCommands
                     .ExecuteAsync(async model => await model.StopFuturesOptionTickDataListenerAsync());
             }
             finally
@@ -1247,7 +1247,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
             try
             {
-                await _appRoot.GetModel<TradePositionFeedEventModel>().StopTradePositionListenerAsync();
+                await _appRoot.Services.TradePositionEvents.StopTradePositionListenerAsync();
             }
             finally
             {
@@ -1262,7 +1262,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
                 return;
             try
             {
-                await _appRoot.GetModel<TradePlanEventModel>()
+                await _appRoot.Services.TradePlanEvents
                     .ExecuteAsync(async model => await model.StopTradePlanListenerAsync());
             }
             finally
@@ -1276,7 +1276,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             var channel = Interlocked.Exchange(ref _spreadBarChannel, null);
             try
             {
-                await _appRoot.GetModel<OptionTradeSpreadBarDataEventModel>()
+                await _appRoot.Services.SpreadBarEvents
                     .ExecuteAsync(async model => await model.StopOptionTradeSpreadBarDataListenerAsync());
             }
             finally
@@ -1288,7 +1288,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     public Task InsertOptionTradeSpreadData(decimal netForwardPrice, (TradePositionReadModel PutCreditSpread, TradePositionReadModel CallCreditSpread) e)
-       => _appRoot.GetModel<TradeCommandModel>()
+       => _appRoot.Services.TradeCommands
             .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Insert Option Trade Spread Data Error"));
                 var optionTradeSpreadData = GetOptionTradeSpreadData(netForwardPrice, e);
@@ -1315,7 +1315,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     async Task SnapshotTickAsync()
     {
         DateOnly? valueDate = null;
-        await _appRoot.GetModel<MarketDataQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.MarketDataQueries.ExecuteAsync(async model =>
             await model.GetValueDateAsync(value => valueDate = value));
         if (!valueDate.HasValue)
             return;
@@ -1323,7 +1323,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         if (!IsLiveFeedEnabled)
             return;
 
-        await _appRoot.GetModel<TradeCommandModel>()
+        await _appRoot.Services.TradeCommands
             .ExecuteAsync(async model => await model.SnapshotOptionTradeAsync(_optionTrade.OrderId, _optionTrade.TradeId));
         await WriteStatusConsole($"SnapshotOptionTrade executed for {_optionTrade.OrderId}:{_optionTrade.TradeId}");
     }
@@ -1335,7 +1335,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     {
         var valueDate = _valueDate ?? DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System));
         OptionTradeSpreadsDataModel? spreadData = null;
-        await _appRoot.GetModel<TradeQueryModel>().ExecuteAsync(async model =>
+        await _appRoot.Services.TradeQueries.ExecuteAsync(async model =>
             await model.GetOptionTradeSpreadDataAsync(
                 _optionTrade.OrderId,
                 _optionTrade.TradeId,
@@ -1355,7 +1355,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
             winLimit: spreadData.WinLimit,
             forwardSpread: spreadData.ForwardSpread,
             netSpread: spreadData.NetSpread);
-        await _appRoot.GetModel<TradeCommandModel>()
+        await _appRoot.Services.TradeCommands
             .ExecuteAsync(async model => await model.InsertOptionTradeSpreadBarDataAsync(optionTradeSpreadBarData));
     }
 
@@ -1371,11 +1371,11 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     Task WriteStatusConsole(int errorCode, string errorMessage)
-        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.StatusConsole.ExecuteAsync(async model =>
             await model.WriteConsoleAsync(LogSourceType.Trade, errorCode, errorMessage));
 
     Task WriteStatusConsole(string statusMessage)
-        => _appRoot.GetModel<StatusConsoleModel>().ExecuteAsync(async model =>
+        => _appRoot.Services.StatusConsole.ExecuteAsync(async model =>
             await model.WriteConsoleAsync(LogSourceType.Trade, statusMessage));
 
     void PublishPosition(

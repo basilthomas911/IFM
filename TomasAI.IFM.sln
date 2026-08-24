@@ -329,6 +329,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Stora
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Benchmarks", "TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Benchmarks\TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Benchmarks.csproj", "{26BBB06A-77C8-4BCD-A062-01A54761C127}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.UI.Net.Services", "TomasAI.IFM.UI.Net.Services\TomasAI.IFM.UI.Net.Services.csproj", "{0952CEC9-7D37-4ECB-A56C-0978C9099E47}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -3303,6 +3305,26 @@ Global
 		{26BBB06A-77C8-4BCD-A062-01A54761C127}.Release|x64.Build.0 = Release|Any CPU
 		{26BBB06A-77C8-4BCD-A062-01A54761C127}.Release|x86.ActiveCfg = Release|Any CPU
 		{26BBB06A-77C8-4BCD-A062-01A54761C127}.Release|x86.Build.0 = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|ARM.Build.0 = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|x64.Build.0 = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Debug|x86.Build.0 = Debug|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|ARM.ActiveCfg = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|ARM.Build.0 = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|ARM64.Build.0 = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x64.ActiveCfg = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x64.Build.0 = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x86.ActiveCfg = Release|Any CPU
+		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

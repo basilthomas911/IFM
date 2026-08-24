@@ -1,9 +1,9 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
-using TomasAI.IFM.UI.Net.Models;
-using TomasAI.IFM.UI.Net.ViewModels.Extensions;
+using TomasAI.IFM.UI.Net.Models.Reference;
+using TomasAI.IFM.UI.Net.Services.Operations;
+using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 
@@ -14,13 +14,15 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Reference;
 /// </summary>
 public sealed class ReferenceViewModel : ObservableObject
 {
-    readonly IAppRoot _appRoot;
-    IReadOnlyList<LookupTypeReadModel> _referenceDataDefinitionTypes = [];
-    IReadOnlyList<MDIForwardLossRatioReadModel> _mdiForwardLossRatios = [];
+    readonly IReferenceDataService _referenceDataService;
+    IReadOnlyList<LookupTypeUiModel> _referenceDataDefinitionTypes = [];
+    IReadOnlyList<MdiForwardLossRatioUiModel> _mdiForwardLossRatios = [];
 
-    public ReferenceViewModel(IAppRoot appRoot)
+    /// <summary>Creates the Reference selector workflow with its explicit service dependency.</summary>
+    public ReferenceViewModel(IReferenceDataService referenceDataService)
     {
-        _appRoot = appRoot ?? throw new ArgumentNullException(nameof(appRoot));
+        _referenceDataService = referenceDataService
+            ?? throw new ArgumentNullException(nameof(referenceDataService));
         LoadReferenceDataDefinitionTypesOperation = new AsyncOperation(
             LoadReferenceDataDefinitionTypesCoreAsync);
     }
@@ -28,7 +30,7 @@ public sealed class ReferenceViewModel : ObservableObject
     /// <summary>
     /// Gets the available reference-data editors in selector order.
     /// </summary>
-    public IReadOnlyList<LookupTypeReadModel> ReferenceDataDefinitionTypes
+    public IReadOnlyList<LookupTypeUiModel> ReferenceDataDefinitionTypes
     {
         get => _referenceDataDefinitionTypes;
         private set => SetProperty(ref _referenceDataDefinitionTypes, value);
@@ -37,7 +39,7 @@ public sealed class ReferenceViewModel : ObservableObject
     /// <summary>
     /// Gets the most recently loaded forward-loss ratios.
     /// </summary>
-    public IReadOnlyList<MDIForwardLossRatioReadModel> MdiForwardLossRatios
+    public IReadOnlyList<MdiForwardLossRatioUiModel> MdiForwardLossRatios
     {
         get => _mdiForwardLossRatios;
         private set => SetProperty(ref _mdiForwardLossRatios, value);
@@ -51,7 +53,7 @@ public sealed class ReferenceViewModel : ObservableObject
     /// <summary>
     /// Gets a selector item by index, or <see langword="null"/> when the selection is invalid.
     /// </summary>
-    public LookupTypeReadModel? GetReferenceDataDefinitionType(int index)
+    public LookupTypeUiModel? GetReferenceDataDefinitionType(int index)
         => index >= 0 && index < ReferenceDataDefinitionTypes.Count
             ? ReferenceDataDefinitionTypes[index]
             : null;
@@ -63,26 +65,19 @@ public sealed class ReferenceViewModel : ObservableObject
         IntrinsicTimeTrendType trendDirection,
         TradeType tradeType,
         CancellationToken cancellationToken = default)
-        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteObservableAsync(
-            async model =>
-            {
-                MDIForwardLossRatioReadModel[] ratios = [];
-                await model.LoadMDIFowardLossRatiosAsync(
-                    trendDirection,
-                    tradeType,
-                    loaded => ratios = loaded ?? []);
-                MdiForwardLossRatios = ratios;
-            },
-            cancellationToken);
+        => LoadMdiForwardLossRatiosCoreAsync(trendDirection, tradeType, cancellationToken);
 
-    Task LoadReferenceDataDefinitionTypesCoreAsync(CancellationToken cancellationToken)
-        => _appRoot.GetModel<ReferenceQueryModel>().ExecuteObservableAsync(
-            async model =>
-            {
-                IReadOnlyList<LookupTypeReadModel> definitions = [];
-                await model.LoadReferenceDataDefinitionTypesAsync(
-                    loaded => definitions = loaded?.ToArray() ?? []);
-                ReferenceDataDefinitionTypes = definitions;
-            },
-            cancellationToken);
+    async Task LoadMdiForwardLossRatiosCoreAsync(
+        IntrinsicTimeTrendType trendDirection,
+        TradeType tradeType,
+        CancellationToken cancellationToken)
+        => MdiForwardLossRatios = (await _referenceDataService.GetMdiForwardLossRatiosAsync(
+            trendDirection,
+            tradeType,
+            cancellationToken)).RequireValue();
+
+    async Task LoadReferenceDataDefinitionTypesCoreAsync(CancellationToken cancellationToken)
+        => ReferenceDataDefinitionTypes =
+            (await _referenceDataService.GetReferenceDataDefinitionTypesAsync(cancellationToken))
+            .RequireValue();
 }
