@@ -50,7 +50,9 @@ public abstract class SchemaDbContext<TSchemaDb>(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await Use(definition.CreateStatement)
+                await Use(
+                        $"{GetType().Name}.Create.{definition.Name}",
+                        definition.CreateStatement)
                     .ExecuteCommandAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -103,7 +105,9 @@ public abstract class SchemaDbContext<TSchemaDb>(
             if (!requested.Contains(definition.Name))
                 continue;
             cancellationToken.ThrowIfCancellationRequested();
-            await Use(definition.DropStatement)
+            await Use(
+                    $"{GetType().Name}.Drop.{definition.Name}",
+                    definition.DropStatement)
                 .ExecuteCommandAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -113,6 +117,10 @@ public abstract class SchemaDbContext<TSchemaDb>(
     public async Task DropAllAsync()
     {
         foreach (var definition in Definitions.Reverse())
-            await Use(definition.DropStatement).ExecuteCommandAsync().ConfigureAwait(false);
+            await Use(
+                    $"{GetType().Name}.Drop.{definition.Name}",
+                    definition.DropStatement)
+                .ExecuteCommandAsync()
+                .ConfigureAwait(false);
     }
 }

@@ -14,14 +14,9 @@ public interface IObjectRepository
     CommandType QueuedCommandType { get; }
     IObjectRepositoryConnection CreateConnection();
     DbParameter CreateParameter();
-    IObjectRepositoryContext Use(string commandText);
-    //IObjectRepositoryContext Use<TStoredProc>(Expression<Func<TStoredProc, object>> spPropertyNameExpr, bool useParamNameAsDbName = true) where TStoredProc : class;
-    //IObjectRepositoryContext Use<TStoredProc>(Expression<Func<TStoredProc, Enum>> spPropertyNameExpr) where TStoredProc : Enum;
-    IObjectRepositoryContext Use<TStoredProc>(TStoredProc spPropertyNameEnum) where TStoredProc : Enum;
-    IObjectDataReaderContext Use(Func<string, IDataReaderOptions> getReaderOptions);
-    IObjectUriContext Use(Uri uriObject);
+    IObjectRepositoryContext Use(string commandName, string commandText);
+    IObjectUriContext Use(string commandName, Uri uriObject);
 
-    //void QueueCommand(string commandText, CommandType commandType, DbParameter[] dbParameters);
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
     IObjectRepositoryTransaction? BeginTransaction();
 

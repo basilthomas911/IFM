@@ -205,7 +205,7 @@ public sealed class DatabaseBackupProjectionSchemaTests
 
         foreach (var tableName in AuthoritativeTableNames)
         {
-            var count = await db.Use($"SELECT COUNT(*) FROM system_admin.{tableName};")
+            var count = await db.UseTest($"SELECT COUNT(*) FROM system_admin.{tableName};")
                 .ExecuteScalarAsync(static row => row.GetLong(0));
             count.Should().BeGreaterThanOrEqualTo(0);
         }

@@ -45,7 +45,7 @@ public sealed class SystemAdminDbContext(
         var transaction = BeginTransaction();
         try
         {
-            var existing = await Use(SystemAdminDbSql.GetProjectionReceiptForUpdate)
+            var existing = await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProjectionReceiptForUpdate)}", SystemAdminDbSql.GetProjectionReceiptForUpdate)
                 .SetParameters(new ProjectionKey(projectorName, domainEvent.EventId))
                 .ExecuteSingleAsync(static row => row.GetString(0), cancellationToken)
                 .ConfigureAwait(false);
@@ -59,12 +59,12 @@ public sealed class SystemAdminDbContext(
 
             await ApplyRowsAsync(domainEvent, cancellationToken).ConfigureAwait(false);
             var now = DateTime.UtcNow;
-            await Use(SystemAdminDbSql.InsertProjectionReceipt)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.InsertProjectionReceipt)}", SystemAdminDbSql.InsertProjectionReceipt)
                 .SetParameters(new InsertProjectionReceiptParameter(
                     projectorName, domainEvent.EventId, hash, domainEvent.Source.SourceEventId, now))
                 .ExecuteCommandAsync(cancellationToken)
                 .ConfigureAwait(false);
-            await Use(SystemAdminDbSql.UpsertProjectionCheckpoint)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertProjectionCheckpoint)}", SystemAdminDbSql.UpsertProjectionCheckpoint)
                 .SetParameters(new UpsertProjectionCheckpointParameter(projectorName, domainEvent.EventId, now))
                 .ExecuteCommandAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -83,7 +83,7 @@ public sealed class SystemAdminDbContext(
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectorName);
-        return await Use(SystemAdminDbSql.GetProjectionCheckpoint)
+        return await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProjectionCheckpoint)}", SystemAdminDbSql.GetProjectionCheckpoint)
             .SetParameters(new ProjectorKey(projectorName))
             .ExecuteSingleAsync(static row => new DatabaseBackupProjectionCheckpoint(
                 row.GetString(0), row.GetLong(1), row.GetLong(2), AsOffset(row.GetDateTime(3))), cancellationToken)
@@ -98,13 +98,13 @@ public sealed class SystemAdminDbContext(
         var transaction = BeginTransaction();
         try
         {
-            await Use(SystemAdminDbSql.ClearProjections)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ClearProjections)}", SystemAdminDbSql.ClearProjections)
                 .ExecuteCommandAsync(cancellationToken)
                 .ConfigureAwait(false);
-            await Use(SystemAdminDbSql.ClearProjectionReceipts)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ClearProjectionReceipts)}", SystemAdminDbSql.ClearProjectionReceipts)
                 .SetParameters(new ProjectorKey(projectorName))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-            await Use(SystemAdminDbSql.ClearProjectionCheckpoint)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ClearProjectionCheckpoint)}", SystemAdminDbSql.ClearProjectionCheckpoint)
                 .SetParameters(new ProjectorKey(projectorName))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
             transaction?.Commit();
@@ -120,10 +120,10 @@ public sealed class SystemAdminDbContext(
     {
         if (ProjectsOperation(domainEvent))
         {
-            await Use(SystemAdminDbSql.UpsertOperation)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertOperation)}", SystemAdminDbSql.UpsertOperation)
                 .SetParameters(new UpsertOperationParameter(domainEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-            await Use(SystemAdminDbSql.InsertPhase)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.InsertPhase)}", SystemAdminDbSql.InsertPhase)
                 .SetParameters(new InsertPhaseParameter(domainEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -135,23 +135,23 @@ public sealed class SystemAdminDbContext(
             var restoreTested = domainEvent.Source.OperationKind == DatabaseRecoveryOperationKind.RestoreDrill
                 && domainEvent is DatabaseOperationCompletedEvent;
             var eligible = domainEvent.Outcome is not DatabaseRecoveryOutcome.Failed and not DatabaseRecoveryOutcome.Rejected;
-            await Use(SystemAdminDbSql.UpsertRestorePoint)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertRestorePoint)}", SystemAdminDbSql.UpsertRestorePoint)
                 .SetParameters(new UpsertRestorePointParameter(domainEvent, eligible, hold && !release, restoreTested))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         }
 
         if (domainEvent.ArtifactReplica is not null)
-            await Use(SystemAdminDbSql.UpsertArtifactReplica)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertArtifactReplica)}", SystemAdminDbSql.UpsertArtifactReplica)
                 .SetParameters(new UpsertArtifactReplicaParameter(domainEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
         if (domainEvent is DatabaseOperationErrorRecordedEvent or DatabaseOperationFailedEvent)
-            await Use(SystemAdminDbSql.UpsertRecoveryError)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertRecoveryError)}", SystemAdminDbSql.UpsertRecoveryError)
                 .SetParameters(new UpsertRecoveryErrorParameter(domainEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
         if (domainEvent.Policy is not null && domainEvent.PolicyId is not null)
-            await Use(SystemAdminDbSql.UpsertPolicy)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertPolicy)}", SystemAdminDbSql.UpsertPolicy)
                 .SetParameters(new UpsertPolicyParameter(
                     domainEvent,
                     JsonSerializer.Serialize(domainEvent.Policy, JsonOptions),
@@ -160,33 +160,33 @@ public sealed class SystemAdminDbContext(
 
         if (domainEvent.Source.ProducingHostId is not null
             && domainEvent is DatabaseBackupServiceCapabilityRecordedEvent or DatabaseBackupServiceReconciledEvent)
-            await Use(SystemAdminDbSql.UpsertServiceHealth)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertServiceHealth)}", SystemAdminDbSql.UpsertServiceHealth)
                 .SetParameters(new UpsertServiceHealthParameter(
                     domainEvent, domainEvent is DatabaseBackupServiceReconciledEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
         if (domainEvent.RetentionPlanId is not null)
-            await Use(SystemAdminDbSql.UpsertRetention)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.UpsertRetention)}", SystemAdminDbSql.UpsertRetention)
                 .SetParameters(new UpsertRetentionParameter(
                     domainEvent, EmptyJsonArray, EmptyJsonArray,
                     domainEvent is DatabaseRetentionAuthorizedDomainEvent or DatabaseRetentionExecutionRequestedDomainEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
         if (domainEvent.Statistics is not null)
-            await Use(SystemAdminDbSql.InsertRunStatistics)
+            await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.InsertRunStatistics)}", SystemAdminDbSql.InsertRunStatistics)
                 .SetParameters(new InsertRunStatisticsParameter(domainEvent))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<DatabaseProtectionSetReadModel[]> GetProtectionSetsAsync(
         GetDatabaseProtectionSetsQuery query, CancellationToken cancellationToken)
-        => [.. await Use(SystemAdminDbSql.GetProtectionSets)
+        => [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetProtectionSets)}", SystemAdminDbSql.GetProtectionSets)
             .SetParameters(new SourceFilter(query.Source))
             .ExecuteQueryAsync(MapProtectionSet, cancellationToken).ConfigureAwait(false)];
 
     public async ValueTask<DatabaseBackupPolicyReadModel?> GetPolicyAsync(
         GetDatabaseBackupPolicyQuery query, CancellationToken cancellationToken)
-        => await Use(SystemAdminDbSql.GetPolicy)
+        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetPolicy)}", SystemAdminDbSql.GetPolicy)
             .SetParameters(new PolicyQueryParameter(query.Request.EnvironmentIdentity, query.PolicyId!.Value.Value))
             .ExecuteSingleAsync(MapPolicy, cancellationToken).ConfigureAwait(false);
 
@@ -198,7 +198,7 @@ public sealed class SystemAdminDbContext(
         ListDatabaseBackupOperationsQuery query, CancellationToken cancellationToken)
     {
         Guid? continuation = Guid.TryParse(query.ContinuationIdentity, out var parsed) ? parsed : null;
-        return [.. await Use(SystemAdminDbSql.ListOperations)
+        return [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListOperations)}", SystemAdminDbSql.ListOperations)
             .SetParameters(new OperationListParameter(
                 query.Source, query.ProtectionSetId?.Value, query.FromUtc?.UtcDateTime,
                 query.ToUtc?.UtcDateTime, continuation, query.PageSize))
@@ -208,7 +208,7 @@ public sealed class SystemAdminDbContext(
     public async ValueTask<DatabaseBackupSetReadModel?> GetBackupSetAsync(
         GetDatabaseBackupSetQuery query, CancellationToken cancellationToken)
     {
-        var operations = (await Use(SystemAdminDbSql.GetBackupSetOperations)
+        var operations = (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetBackupSetOperations)}", SystemAdminDbSql.GetBackupSetOperations)
             .SetParameters(new BackupSetKey(query.BackupSetId!.Value.Value))
             .ExecuteQueryAsync(MapOperation, cancellationToken).ConfigureAwait(false)).ToArray();
         if (operations.Length == 0) return null;
@@ -226,7 +226,7 @@ public sealed class SystemAdminDbContext(
 
     public async ValueTask<DatabaseRestorePointReadModel[]> ListRestorePointsAsync(
         ListDatabaseRestorePointsQuery query, CancellationToken cancellationToken)
-        => [.. await Use(SystemAdminDbSql.ListRestorePoints)
+        => [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListRestorePoints)}", SystemAdminDbSql.ListRestorePoints)
             .SetParameters(new RestorePointListParameter(
                 query.Source, query.ProtectionSetId?.Value, query.FromUtc?.UtcDateTime,
                 query.ToUtc?.UtcDateTime, NullIfEmpty(query.ContinuationIdentity), query.PageSize))
@@ -234,18 +234,22 @@ public sealed class SystemAdminDbContext(
 
     public async ValueTask<DatabaseRestorePointReadModel?> GetRestorePointAsync(
         GetDatabaseRestorePointQuery query, CancellationToken cancellationToken)
-        => await Use(SystemAdminDbSql.GetRestorePoint)
+        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRestorePoint)}", SystemAdminDbSql.GetRestorePoint)
             .SetParameters(new RestorePointKey(query.RestorePointId!.Value.Value, query.Source))
             .ExecuteSingleAsync(MapRestorePoint, cancellationToken).ConfigureAwait(false);
 
     public async ValueTask<DatabaseRestorePointReadModel?> GetLatestVerifiedBackupAsync(
         GetLatestVerifiedDatabaseBackupQuery query, CancellationToken cancellationToken)
-        => await GetLatestRestorePointAsync(SystemAdminDbSql.GetLatestVerified, query.Source,
+        => await GetLatestRestorePointAsync(
+            $"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetLatestVerified)}",
+            SystemAdminDbSql.GetLatestVerified, query.Source,
             query.ProtectionSetId!.Value.Value, cancellationToken).ConfigureAwait(false);
 
     public async ValueTask<DatabaseRestorePointReadModel?> GetLatestRestoreTestedBackupAsync(
         GetLatestRestoreTestedDatabaseBackupQuery query, CancellationToken cancellationToken)
-        => await GetLatestRestorePointAsync(SystemAdminDbSql.GetLatestRestoreTested, query.Source,
+        => await GetLatestRestorePointAsync(
+            $"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetLatestRestoreTested)}",
+            SystemAdminDbSql.GetLatestRestoreTested, query.Source,
             query.ProtectionSetId!.Value.Value, cancellationToken).ConfigureAwait(false);
 
     public ValueTask<DatabaseProtectionSetReadModel[]> GetRecoveryObjectiveComplianceAsync(
@@ -259,7 +263,7 @@ public sealed class SystemAdminDbContext(
     public async ValueTask<DatabaseRestoreOperationReadModel?> GetRestoreOperationAsync(
         GetDatabaseRestoreOperationQuery query, CancellationToken cancellationToken)
     {
-        var operation = await Use(SystemAdminDbSql.GetRestoreOperation)
+        var operation = await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRestoreOperation)}", SystemAdminDbSql.GetRestoreOperation)
             .SetParameters(new OperationKey(query.OperationId!.Value.Value))
             .ExecuteSingleAsync(MapOperationRow, cancellationToken).ConfigureAwait(false);
         return operation is null ? null : ToRestoreOperation(operation);
@@ -267,27 +271,27 @@ public sealed class SystemAdminDbContext(
 
     public async ValueTask<DatabaseRestoreOperationReadModel[]> ListRestoreDrillsAsync(
         ListDatabaseRestoreDrillsQuery query, CancellationToken cancellationToken)
-        => [.. (await Use(SystemAdminDbSql.ListRestoreDrills)
+        => [.. (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.ListRestoreDrills)}", SystemAdminDbSql.ListRestoreDrills)
             .SetParameters(new RestoreDrillListParameter(query.Source, query.PageSize))
             .ExecuteQueryAsync(MapOperationRow, cancellationToken).ConfigureAwait(false))
             .Select(ToRestoreOperation)];
 
     public async ValueTask<DatabaseRetentionReadModel?> GetRetentionForecastAsync(
         GetDatabaseRetentionForecastQuery query, CancellationToken cancellationToken)
-        => await Use(SystemAdminDbSql.GetRetention)
+        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRetention)}", SystemAdminDbSql.GetRetention)
             .SetParameters(new RetentionQueryParameter(query.Source, query.RetentionPlanId?.Value))
             .ExecuteSingleAsync(MapRetention, cancellationToken).ConfigureAwait(false);
 
     public async ValueTask<DatabaseBackupHealthReadModel[]> GetServiceHealthAsync(
         GetDatabaseBackupServiceHealthQuery query, CancellationToken cancellationToken)
-        => [.. await Use(SystemAdminDbSql.GetServiceHealth)
+        => [.. await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetServiceHealth)}", SystemAdminDbSql.GetServiceHealth)
             .SetParameters(new ServiceHealthQueryParameter(query.Request.EnvironmentIdentity, query.Source))
             .ExecuteQueryAsync(MapHealth, cancellationToken).ConfigureAwait(false)];
 
     public async ValueTask<DatabaseRecoveryRunStatsReadModel?> GetRecoveryRunStatsAsync(
         GetDatabaseRecoveryRunStatsQuery query, CancellationToken cancellationToken)
     {
-        var rows = (await Use(SystemAdminDbSql.GetRunStatistics)
+        var rows = (await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetRunStatistics)}", SystemAdminDbSql.GetRunStatistics)
             .SetParameters(new OperationKey(query.OperationId!.Value.Value))
             .ExecuteQueryAsync(MapStatisticsRow, cancellationToken).ConfigureAwait(false)).ToArray();
         if (rows.Length == 0) return null;
@@ -301,13 +305,17 @@ public sealed class SystemAdminDbContext(
     }
 
     async ValueTask<DatabaseBackupOperationReadModel?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken)
-        => await Use(SystemAdminDbSql.GetOperation)
+        => await Use($"{nameof(SystemAdminDbSql)}.{nameof(SystemAdminDbSql.GetOperation)}", SystemAdminDbSql.GetOperation)
             .SetParameters(new OperationKey(operationId))
             .ExecuteSingleAsync(MapOperation, cancellationToken).ConfigureAwait(false);
 
     async ValueTask<DatabaseRestorePointReadModel?> GetLatestRestorePointAsync(
-        string sql, BackupSource source, string protectionSetId, CancellationToken cancellationToken)
-        => await Use(sql)
+        string commandName,
+        string sql,
+        BackupSource source,
+        string protectionSetId,
+        CancellationToken cancellationToken)
+        => await Use(commandName, sql)
             .SetParameters(new LatestRestorePointKey(source, protectionSetId))
             .ExecuteSingleAsync(MapRestorePoint, cancellationToken).ConfigureAwait(false);
 

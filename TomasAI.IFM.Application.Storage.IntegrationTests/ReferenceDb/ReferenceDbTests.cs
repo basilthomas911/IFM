@@ -99,7 +99,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         public async Task InsertLookupTypeAsyncOk()
         {
             var db = _testFixture.DbFactory.ReferenceDb;
-            await db.Use($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
+            await db.UseTest($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
             var dbReader = db as IReferenceDbReadContext;
             var dbWriter = db as IReferenceDbWriteContext;
             await dbWriter.InsertLookupTypeAsync(SampleData.LookupType);
@@ -115,7 +115,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         public async Task GetLookupTypesAsyncOk()
         {
             var db = _testFixture.DbFactory.ReferenceDb;
-            await db.Use($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
+            await db.UseTest($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
             var dbReader = db as IReferenceDbReadContext;
             var dbWriter = db as IReferenceDbWriteContext;
             await dbWriter.InsertLookupTypeAsync(SampleData.LookupType);
@@ -131,7 +131,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         public async Task GetLookupTypeAsyncOk()
         {
             var db = _testFixture.DbFactory.ReferenceDb;
-            await db.Use($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
+            await db.UseTest($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
             var dbReader = db as IReferenceDbReadContext;
             var dbWriter = db as IReferenceDbWriteContext;
             await dbWriter.InsertLookupTypeAsync(SampleData.LookupType);
@@ -146,7 +146,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         public async Task GetLookupTypeNamesAsyncOk()
         {
             var db = _testFixture.DbFactory.ReferenceDb;
-            await db.Use($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
+            await db.UseTest($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
             var dbReader = db as IReferenceDbReadContext;
             var dbWriter = db as IReferenceDbWriteContext;
             await dbWriter.InsertLookupTypeAsync(SampleData.LookupType);
@@ -161,7 +161,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         public async Task DeleteLookupTypeAsyncOk()
         {
             var db = _testFixture.DbFactory.ReferenceDb;
-            await db.Use($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
+            await db.UseTest($"delete from lookup_type where lookupTypeName = '{SampleData.LookupType.LookupTypeName}' ").ExecuteCommandAsync();
             var dbReader = db as IReferenceDbReadContext;
             var dbWriter = db as IReferenceDbWriteContext;
             await dbWriter.InsertLookupTypeAsync(SampleData.LookupType);
@@ -292,10 +292,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
                 context.ScheduledJobCanonicalMutationSubmittingForTestingAsync = null;
                 if (jobId > 0)
                 {
-                    await db.Use(ReferenceDbCql.DeleteScheduledJob)
+                    await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJob)}", ReferenceDbCql.DeleteScheduledJob)
                         .SetParameters(new DeleteScheduledJob(jobId))
                         .ExecuteCommandAsync();
-                    await db.Use(ReferenceDbCql.DeleteScheduledJobDays)
+                    await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJobDays)}", ReferenceDbCql.DeleteScheduledJobDays)
                         .SetParameters(new DeleteScheduledJobDays(jobId))
                         .ExecuteCommandAsync();
                 }
@@ -363,7 +363,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             var reservationToken = Guid.NewGuid();
             await dbWriter.BackfillQueryProjectionsV2Async(batchSize: 32);
 
-            await db.Use(ReferenceDbCql.InsertScheduledJobByNameV3)
+            await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJobByNameV3)}", ReferenceDbCql.InsertScheduledJobByNameV3)
                 .SetParameters(new InsertScheduledJobByNameV3(jobName, jobId, reservationToken))
                 .ExecuteCommandAsync();
             try
@@ -376,7 +376,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
 
                 var reconciliation = await dbWriter.ReconcileQueryProjectionsV2Async();
                 reconciliation.UnexpectedScheduledJobs.Should().Be(1);
-                var reservedJobId = await db.Use(ReferenceDbCql.GetScheduledJobId)
+                var reservedJobId = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobId)}", ReferenceDbCql.GetScheduledJobId)
                     .SetParameters(new GetScheduledJobId(jobName))
                     .ExecuteScalarAsync(static row => row.GetInt(0));
                 reservedJobId.Should().Be(jobId,
@@ -409,16 +409,16 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
                 await dbWriter.InsertScheduledJobAsync(job);
                 jobId = await dbReader.GetScheduledJobIdAsync(job.JobName);
                 jobId.Should().BeGreaterThan(0);
-                var oldReservationToken = await db.Use(ReferenceDbCql.GetScheduledJobReservationV3)
+                var oldReservationToken = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobReservationV3)}", ReferenceDbCql.GetScheduledJobReservationV3)
                     .SetParameters(new GetScheduledJobReservationV3(job.JobName))
                     .ExecuteSingleAsync(static row => row.GetGuid(1));
 
                 // Simulate a positively acknowledged canonical delete whose old
                 // conditional reservation release is still delayed in the network.
-                await db.Use(ReferenceDbCql.DeleteScheduledJob)
+                await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJob)}", ReferenceDbCql.DeleteScheduledJob)
                     .SetParameters(new DeleteScheduledJob(jobId))
                     .ExecuteCommandAsync();
-                await db.Use(ReferenceDbCql.DeleteScheduledJobDays)
+                await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJobDays)}", ReferenceDbCql.DeleteScheduledJobDays)
                     .SetParameters(new DeleteScheduledJobDays(jobId))
                     .ExecuteCommandAsync();
 
@@ -428,12 +428,12 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
                 });
                 recreated = true;
 
-                var currentReservationToken = await db.Use(ReferenceDbCql.GetScheduledJobReservationV3)
+                var currentReservationToken = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobReservationV3)}", ReferenceDbCql.GetScheduledJobReservationV3)
                     .SetParameters(new GetScheduledJobReservationV3(job.JobName))
                     .ExecuteSingleAsync(static row => row.GetGuid(1));
                 currentReservationToken.Should().NotBe(oldReservationToken);
 
-                var delayedOldReleaseApplied = await db.Use(ReferenceDbCql.ReleaseScheduledJobNameV3)
+                var delayedOldReleaseApplied = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseScheduledJobNameV3)}", ReferenceDbCql.ReleaseScheduledJobNameV3)
                     .SetParameters(new ReleaseScheduledJobNameV3(
                         job.JobName,
                         jobId,
@@ -448,10 +448,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
                     await dbWriter.DeleteScheduledJobAsync(jobId);
                 else if (jobId > 0)
                 {
-                    await db.Use(ReferenceDbCql.DeleteScheduledJob)
+                    await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJob)}", ReferenceDbCql.DeleteScheduledJob)
                         .SetParameters(new DeleteScheduledJob(jobId))
                         .ExecuteCommandAsync();
-                    await db.Use(ReferenceDbCql.DeleteScheduledJobDays)
+                    await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJobDays)}", ReferenceDbCql.DeleteScheduledJobDays)
                         .SetParameters(new DeleteScheduledJobDays(jobId))
                         .ExecuteCommandAsync();
                 }
@@ -472,7 +472,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             var replacementJobId = jobId + 1;
             var job = SampleData.ScheduledJob with { JobId = jobId, JobName = jobName };
             await dbWriter.BackfillQueryProjectionsV2Async(batchSize: 32);
-            await db.Use(ReferenceDbCql.InsertScheduledJob)
+            await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJob)}", ReferenceDbCql.InsertScheduledJob)
                 .SetParameters(new InsertScheduledJob(
                     job.JobId,
                     job.JobName,
@@ -498,13 +498,13 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
                 await overlappedBackfill.Should().ThrowAsync<StorageException>(
                     "the overlapping delete must supersede global cutover");
 
-                (await db.Use(ReferenceDbCql.GetScheduledJobId)
+                (await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobId)}", ReferenceDbCql.GetScheduledJobId)
                         .SetParameters(new GetScheduledJobId(jobName))
                         .ExecuteScalarAsync(static row => row.GetInt(0)))
                     .Should().Be(0);
 
                 var replacementToken = Guid.NewGuid();
-                var replacementApplied = await db.Use(ReferenceDbCql.InsertScheduledJobByNameV3)
+                var replacementApplied = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJobByNameV3)}", ReferenceDbCql.InsertScheduledJobByNameV3)
                     .SetParameters(new InsertScheduledJobByNameV3(
                         jobName,
                         replacementJobId,
@@ -516,7 +516,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
             finally
             {
                 context.ScheduledJobBackfillReservationInsertedForTestingAsync = null;
-                await db.Use(ReferenceDbCql.DeleteScheduledJob)
+                await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJob)}", ReferenceDbCql.DeleteScheduledJob)
                     .SetParameters(new DeleteScheduledJob(jobId))
                     .ExecuteCommandAsync();
                 await DeleteScheduledJobProjectionAsync(db, jobName);
@@ -602,7 +602,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.ReferenceDb
         }
 
         static Task DeleteScheduledJobProjectionAsync(IReferenceDbContext db, string jobName)
-            => db.Use(ReferenceDbCql.DeleteScheduledJobByNameV3ForOfflineRepair)
+            => db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJobByNameV3ForOfflineRepair)}", ReferenceDbCql.DeleteScheduledJobByNameV3ForOfflineRepair)
                 .SetParameters(new DeleteScheduledJobByNameV3ForOfflineRepair(jobName))
                 .ExecuteCommandAsync();
 

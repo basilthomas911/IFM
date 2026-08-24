@@ -13,7 +13,9 @@ public interface IObjectRepositoryContext: IDisposable
     List<object> ParameterValues { get; }
     bool UseTransaction { get; }
     int CommandTimeout { get; }
+    string CommandName { get; }
     string CommandText { get; }
+    string CommandLogText { get; }
 
     IObjectRepositoryContext SetParameters(object parameterValue = default);
     IObjectRepositoryContext SetParameters<TParam>(in TParam parameterValue) where TParam : struct, IBindValue;

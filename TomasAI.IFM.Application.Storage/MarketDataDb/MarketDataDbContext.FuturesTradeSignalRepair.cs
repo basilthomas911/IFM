@@ -27,7 +27,7 @@ public partial class MarketDataDbContext
         long validRowCount = 0;
         long quarantinedRowCount = 0;
 
-        await foreach (var payload in db.Use(MarketDataDbCql.GetFuturesTradeSignalJsonAll)
+        await foreach (var payload in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesTradeSignalJsonAll)}", MarketDataDbCql.GetFuturesTradeSignalJsonAll)
             .ExecuteStreamAsync(MapJsonPayload, cancellationToken))
         {
             rowsScanned++;
@@ -74,7 +74,7 @@ public partial class MarketDataDbContext
         var lookupRows = latestLookupRows.Concat(dateLookupRows).ToArray();
         for (var offset = 0; offset < lookupRows.Length; offset += batchSize)
         {
-            await db.Use(MarketDataDbCql.InsertFuturesTradeSignalIndex)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalIndex)}", MarketDataDbCql.InsertFuturesTradeSignalIndex)
                 .SetParameters(lookupRows.Skip(offset).Take(batchSize))
                 .ExecuteCommandAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -90,7 +90,7 @@ public partial class MarketDataDbContext
         {
             if (quarantinedRows.Count == 0)
                 return;
-            await db.Use(MarketDataDbCql.InsertFuturesTradeSignalQuarantine)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesTradeSignalQuarantine)}", MarketDataDbCql.InsertFuturesTradeSignalQuarantine)
                 .SetParameters(quarantinedRows)
                 .ExecuteCommandAsync(cancellationToken)
                 .ConfigureAwait(false);

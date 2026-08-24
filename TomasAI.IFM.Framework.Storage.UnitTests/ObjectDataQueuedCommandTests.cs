@@ -16,12 +16,15 @@ public class ObjectDataQueuedCommandTests
         var parameters = new DbParameter[] { new SqlParameter("@id", 1) };
 
         // Act
-        var cmd = new ObjectDataQueuedCommand(CommandType.Text, "SELECT * FROM Test", parameters);
+        var cmd = new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "SELECT * FROM Test", parameters);
 
         // Assert
         cmd.Should().NotBeNull();
         cmd.CommandType.Should().Be(CommandType.Text);
+        cmd.CommandName.Should().Be($"{nameof(ObjectDataQueuedCommandTests)}.Command");
         cmd.CommandText.Should().Be("SELECT * FROM Test");
+        cmd.CommandLogText.Should().Be(
+            $"command name: {nameof(ObjectDataQueuedCommandTests)}.Command{Environment.NewLine}SELECT * FROM Test");
         cmd.Parameters.Should().NotBeNull();
         cmd.Parameters.Should().HaveCount(1);
     }
@@ -30,7 +33,7 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandWithStoredProcedureType()
     {
         // Arrange & Act
-        var cmd = new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spGetData", null);
+        var cmd = new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.StoredProcedure, "spGetData", null);
 
         // Assert
         cmd.CommandType.Should().Be(CommandType.StoredProcedure);
@@ -42,7 +45,7 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandWithNullParameters()
     {
         // Arrange & Act
-        var cmd = new ObjectDataQueuedCommand(CommandType.Text, "SELECT 1", null);
+        var cmd = new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "SELECT 1", null);
 
         // Assert
         cmd.Should().NotBeNull();
@@ -53,7 +56,7 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandWithEmptyParameters()
     {
         // Arrange & Act
-        var cmd = new ObjectDataQueuedCommand(CommandType.Text, "SELECT 1", Array.Empty<DbParameter>());
+        var cmd = new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "SELECT 1", Array.Empty<DbParameter>());
 
         // Assert
         cmd.Should().NotBeNull();
@@ -64,7 +67,7 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandWithEmptyCommandText()
     {
         // Arrange & Act
-        var act = () => new ObjectDataQueuedCommand(CommandType.Text, "", null);
+        var act = () => new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "", null);
 
         // Assert
         act.Should().Throw<ArgumentException>();
@@ -74,7 +77,7 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandWithNullCommandText()
     {
         // Arrange & Act
-        var act = () => new ObjectDataQueuedCommand(CommandType.Text, null, null);
+        var act = () => new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, null, null);
 
         // Assert
         act.Should().Throw<ArgumentException>();
@@ -84,9 +87,20 @@ public class ObjectDataQueuedCommandTests
     public void CreateObjectDataQueuedCommandWithWhitespaceCommandText()
     {
         // Arrange & Act
-        var act = () => new ObjectDataQueuedCommand(CommandType.Text, "   ", null);
+        var act = () => new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "   ", null);
 
         // Assert
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void CreateObjectDataQueuedCommandWithInvalidCommandName(string? commandName)
+    {
+        var act = () => new ObjectDataQueuedCommand(commandName!, CommandType.Text, "SELECT 1", null);
+
         act.Should().Throw<ArgumentException>();
     }
 
@@ -102,7 +116,7 @@ public class ObjectDataQueuedCommandTests
         };
 
         // Act
-        var cmd = new ObjectDataQueuedCommand(CommandType.Text, "INSERT INTO Test VALUES (@id, @name, @active)", parameters);
+        var cmd = new ObjectDataQueuedCommand($"{nameof(ObjectDataQueuedCommandTests)}.Command", CommandType.Text, "INSERT INTO Test VALUES (@id, @name, @active)", parameters);
 
         // Assert
         cmd.Parameters.Should().HaveCount(3);

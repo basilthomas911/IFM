@@ -53,8 +53,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_type_limit").ExecuteCommandAsync();
-            await db.Use("insert into trade_type_limit (TradeId, TradeType, MaxLossLimit, MinProfitLimit) values (1038, 'CallCreditSpread', 13, 1.625)").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_type_limit").ExecuteCommandAsync();
+            await db.UseTest("insert into trade_type_limit (TradeId, TradeType, MaxLossLimit, MinProfitLimit) values (1038, 'CallCreditSpread', 13, 1.625)").ExecuteCommandAsync();
 
             // when...
             var tradeTypeLimit = await db.GetTradeTypeLimitAsync(1038, TradeType.CallCreditSpread);
@@ -72,8 +72,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_type_limit").ExecuteCommandAsync();
-            await db.Use("insert into trade_type_limit (TradeId, TradeType, MaxLossLimit, MinProfitLimit) values (1038, 'CallCreditSpread', 13, 1.625)").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_type_limit").ExecuteCommandAsync();
+            await db.UseTest("insert into trade_type_limit (TradeId, TradeType, MaxLossLimit, MinProfitLimit) values (1038, 'CallCreditSpread', 13, 1.625)").ExecuteCommandAsync();
 
             // when...
             var tradeTypeLimits = await db.GetTradeTypeLimitsAsync(1038);
@@ -92,7 +92,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_type_limit").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_type_limit").ExecuteCommandAsync();
             var tradeTypeLimit = new TradeTypeLimitReadModel(1038, TradeType.CallCreditSpread, 13, 1.625, 1.625);
 
             // when...
@@ -112,8 +112,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task GetTradeFillOk()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_fill").ExecuteCommandAsync();
-            await db.Use("insert into trade_fill (FundId, OrderId, TradeId, FillDate, FillQuantity, CreatedOn, CreatedBy) values (10, 20, 1038, '2018-11-15', 7, '2018-11-15','basilt')").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_fill").ExecuteCommandAsync();
+            await db.UseTest("insert into trade_fill (FundId, OrderId, TradeId, FillDate, FillQuantity, CreatedOn, CreatedBy) values (10, 20, 1038, '2018-11-15', 7, '2018-11-15','basilt')").ExecuteCommandAsync();
             var tradeFills = await db.GetTradeFillsAsync(1038);
             tradeFills.Should().NotBeNull();
             tradeFills.Count.Should().Be(1);
@@ -131,7 +131,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task InsertTradeFillAsync()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_fill").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_fill").ExecuteCommandAsync();
             var tradeFill = new TradeFillReadModel(
                 FundId: 10,
                 OrderId: 20,
@@ -158,10 +158,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task GetTradeFillDataOk()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_fill").ExecuteCommandAsync();
-            await db.Use("insert into trade_fill (FundId, OrderId, TradeId, FillDate, FillQuantity, CreatedOn, CreatedBy) values (10, 20, 1038, '2018-11-15', 7, '2018-11-15','basilt')").ExecuteCommandAsync();
-            await db.Use("delete from trade_fill_data").ExecuteCommandAsync();
-            await db.Use("insert into trade_fill_data (FundId, OrderId, TradeId, ContractId, FillDate, BidPrice, AskPrice, Commission, OptionLegAction, CreatedOn, CreatedBy) values (10, 20, 1038, 'ES20220429C4850', '2018-11-15', 10.00, 10.25, 15.25,'Short', '2018-11-15','basilt')").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_fill").ExecuteCommandAsync();
+            await db.UseTest("insert into trade_fill (FundId, OrderId, TradeId, FillDate, FillQuantity, CreatedOn, CreatedBy) values (10, 20, 1038, '2018-11-15', 7, '2018-11-15','basilt')").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_fill_data").ExecuteCommandAsync();
+            await db.UseTest("insert into trade_fill_data (FundId, OrderId, TradeId, ContractId, FillDate, BidPrice, AskPrice, Commission, OptionLegAction, CreatedOn, CreatedBy) values (10, 20, 1038, 'ES20220429C4850', '2018-11-15', 10.00, 10.25, 15.25,'Short', '2018-11-15','basilt')").ExecuteCommandAsync();
             var tradeFills = await db.GetTradeFillsAsync(1038);
             tradeFills.Should().NotBeNull();
             tradeFills.Count.Should().Be(1);
@@ -193,8 +193,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task InsertTradeFillDataAsync()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_fill").ExecuteCommandAsync();
-            await db.Use("delete from trade_fill_data").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_fill").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_fill_data").ExecuteCommandAsync();
             var tradeFill = new TradeFillReadModel(
                 FundId: 10,
                 OrderId: 20,
@@ -250,8 +250,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task GetTradeLiveFeedOk()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_live_feed").ExecuteCommandAsync();
-            await db.Use("insert into trade_live_feed (OrderId, TradeId, LiveFeed) values (1001, 2002, 1)").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_live_feed").ExecuteCommandAsync();
+            await db.UseTest("insert into trade_live_feed (OrderId, TradeId, LiveFeed) values (1001, 2002, 1)").ExecuteCommandAsync();
             var tradeLiveFeeds = await db.GetTradeLiveFeedAsync(1001, 2002);
             Assert.NotNull(tradeLiveFeeds);
             Assert.Equal(1, tradeLiveFeeds.Count);
@@ -264,7 +264,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task InsertTradeLiveFeedOk()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_live_feed").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_live_feed").ExecuteCommandAsync();
             var tradeLiveFeed = new TradeLiveFeedReadModel(1001, 2002, false);
             await db.InsertTradeLiveFeedAsync(tradeLiveFeed);
             var tradeLiveFeeds = await db.GetTradeLiveFeedAsync(1001, 2002);
@@ -279,7 +279,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         public async Task DeleteTradeLiveFeedOk()
         {
             var db = _fixture.Db;
-            await db.Use("delete from trade_live_feed").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_live_feed").ExecuteCommandAsync();
             var tradeLiveFeed = new TradeLiveFeedReadModel(1001, 2002, false);
             await db.InsertTradeLiveFeedAsync(tradeLiveFeed);
             var tradeLiveFeeds = await db.GetTradeLiveFeedAsync(1001, 2002);
@@ -299,7 +299,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_plan").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_plan").ExecuteCommandAsync();
             await db.InsertTradePlanAsync(SampleData.TradePlan);
 
             // when...
@@ -331,7 +331,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_plan").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_plan").ExecuteCommandAsync();
             await db.InsertTradePlanAsync(SampleData.TradePlan);
 
             // when...
@@ -349,7 +349,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
 
             // when...
             await db.InsertTradeOrderAsync(SampleData.TradeOrder);
@@ -358,10 +358,10 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             var fundId = SampleData.TradeOrder.FundId;
             var orderId = SampleData.TradeOrder.OrderId;
             var tradeId = SampleData.TradeOrder.TradeId;
-            var rowCount = await db.Use($"select count(*) from trade_order where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteScalarAsync<int>();
+            var rowCount = await db.UseTest($"select count(*) from trade_order where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteScalarAsync<int>();
             rowCount.Should().Be(1);
 
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
         }
 
         [Fact]
@@ -369,7 +369,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
             await db.InsertTradeOrderAsync(SampleData.TradeOrder);
 
             // when...
@@ -384,7 +384,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             result.OrderId.Should().Be(SampleData.TradeOrder.OrderId);
             result.TradeId.Should().Be(SampleData.TradeOrder.TradeId);
 
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
         }
 
         [Fact]
@@ -392,7 +392,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
             await db.InsertTradeOrderAsync(SampleData.TradeOrder);
 
             // when...
@@ -407,7 +407,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             e.FundId.Should().Be(SampleData.TradeOrder.FundId);
             e.ValueDate.Should().Be(SampleData.TradeOrder.ValueDate);
 
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
         }
 
         [Fact]
@@ -415,7 +415,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
             await db.InsertTradeOrderAsync(SampleData.TradeOrder);
 
             // when...
@@ -438,7 +438,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             result.UpdatedOn.Should().Be(updatedOn);
             result.UpdatedBy.Should().Be(updatedBy);
 
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
         }
 
         [Fact]
@@ -446,7 +446,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
         {
             // given...
             var db = _fixture.Db;
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
             await db.InsertTradeOrderAsync(SampleData.TradeOrder);
 
             // when...
@@ -469,7 +469,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             result.UpdatedOn.Should().Be(updatedOn);
             result.UpdatedBy.Should().Be(updatedBy);
 
-            await db.Use("delete from trade_order").ExecuteCommandAsync();
+            await db.UseTest("delete from trade_order").ExecuteCommandAsync();
         }
     }
 }

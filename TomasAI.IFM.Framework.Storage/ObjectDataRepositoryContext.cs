@@ -17,11 +17,15 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// create repository context
     /// </summary>
     /// <param name="db"></param>
-    public ObjectDataRepositoryContext(IObjectRepository db, ILogger<DbProvider> logger)
+    public ObjectDataRepositoryContext(
+        IObjectRepository db,
+        ILogger<DbProvider> logger,
+        string commandName = "")
     {
         if (db == null)
             throw new ArgumentException("ObjectDataRepositoryContext: base repository parameter is empty");
         _db = db;
+        CommandName = commandName;
         _useTransaction = true;
         _commandTimeout = -1;
         _logger = logger;
@@ -75,7 +79,10 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     public int CommandTimeout => _commandTimeout;
     public IObjectRepository Repository => _db;
 
+    public string CommandName { get; }
     public string CommandText => GetCommandText();
+    public string CommandLogText =>
+        $"command name: {CommandName}{Environment.NewLine}{CommandText}";
 
     /// <summary>
     /// set stored procedure parameters
@@ -221,7 +228,7 @@ public abstract class ObjectDataRepositoryContext : IObjectRepositoryContext, ID
     /// <returns></returns>
     //public void QueueCommand() => _db.QueueCommand(GetCommandText(), GetCommandType(), GetQueuedCommandParameters().SingleOrDefault());
     public object QueueCommand()
-        => _provider.QueueCommand(GetCommandText(), GetCommandType(), ParameterValues);
+        => _provider.QueueCommand(CommandName, GetCommandText(), GetCommandType(), ParameterValues);
 
     /// <summary>
     /// execute list of command stored procedure 

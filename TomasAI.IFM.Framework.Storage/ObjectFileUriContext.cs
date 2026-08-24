@@ -5,8 +5,8 @@ using TomasAI.IFM.Framework.Storage.Json;
 
 namespace TomasAI.IFM.Framework.Storage;
 
-public class ObjectFileUriContext(Uri uri, IDataReaderOptions dataReaderOptions) 
-    : ObjectUriContext(uri, dataReaderOptions), IObjectFileUriContext
+public class ObjectFileUriContext(string commandName, Uri uri, IDataReaderOptions dataReaderOptions)
+    : ObjectUriContext(commandName, uri, dataReaderOptions), IObjectFileUriContext
 {
 
     public void Read<TResult>(Func<string, TResult> mapper, Action<IEnumerable<TResult>> reducer)

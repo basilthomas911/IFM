@@ -358,7 +358,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
 
         try
         {
-            await fixture.DevDatabase.Use("""
+            await fixture.DevDatabase.UseTest("""
                 CREATE TABLE IF NOT EXISTS economic_calendar (
                     eventDate timestamp, countryCode text, eventName text,
                     actual text, forecast text, prior text, impact text, unit text,
@@ -366,7 +366,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
                     PRIMARY KEY (eventDate, countryCode, eventName)
                 ) WITH CLUSTERING ORDER BY (countryCode ASC, eventName ASC);
                 """).ExecuteCommandAsync();
-            await fixture.DevDatabase.Use("""
+            await fixture.DevDatabase.UseTest("""
                 INSERT INTO economic_calendar (eventDate, countryCode, eventName, actual, forecast, prior,
                     impact, unit, change, changePercentage, createdOn, createdBy)
                 VALUES (:eventDate, :countryCode, :eventName, :actual, :forecast, :prior,
@@ -387,7 +387,7 @@ public sealed class FmpQueryOptimizationTests(MarketDataFixture fixture)
         finally
         {
             await fixture.DevDatabase.DeleteEconomicCalendarAsync(calendar.Id);
-            await fixture.DevDatabase.Use("""
+            await fixture.DevDatabase.UseTest("""
                 DELETE FROM economic_calendar
                 WHERE eventDate = :eventDate AND countryCode = :countryCode AND eventName = :eventName;
                 """).SetParameters(new LegacyCalendarKey(calendar)).ExecuteCommandAsync();

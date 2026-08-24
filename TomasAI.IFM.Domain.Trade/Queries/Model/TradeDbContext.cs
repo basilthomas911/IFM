@@ -18,7 +18,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeHistory)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeHistory)}", TradeDbCql.GetTradeHistory)
             .SetParameters(new GetTradeHistory(orderId));
         var trades = cancellationToken.CanBeCanceled
             ? await query.ExecuteQueryAsync(MapToTradeHistory!, cancellationToken)
@@ -49,7 +49,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeLimit)}", TradeDbCql.GetTradeLimit)
             .SetParameters(new GetTradeLimit(tradeId));
         var tradeLimit = cancellationToken.CanBeCanceled
             ? await query.ExecuteSingleAsync(MapToTradeLimit!, cancellationToken)
@@ -82,7 +82,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeTypeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimit)}", TradeDbCql.GetTradeTypeLimit)
             .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()));
         return new(cancellationToken.CanBeCanceled
             ? query.ExecuteSingleAsync(MapToTradeTypeLimit, cancellationToken)
@@ -97,7 +97,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePosition)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePosition)}", TradeDbCql.GetTradePosition)
             .SetParameters(new GetTradePosition(orderId, tradeId, tradeType.ToStringFast(), valueDate, daysToExpiry, tradeStatus.ToStringFast()));
         return (cancellationToken.CanBeCanceled
             ? await query.ExecuteSingleAsync(MapToTradePosition!, cancellationToken)
@@ -114,7 +114,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePositions)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
             .SetParameters(new GetTradePositions(orderId, tradeId));
         return new(cancellationToken.CanBeCanceled
             ? query.ExecuteQueryAsync(MapToTradePosition!, cancellationToken)
@@ -129,7 +129,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePositionsById)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositionsById)}", TradeDbCql.GetTradePositionsById)
             .SetParameters(new GetTradePositionsById(orderId, tradeId, valueDate, tradeStatus.ToStringFast(), daysToExpiry));
         var positions = cancellationToken.CanBeCanceled
             ? await query.ExecuteQueryAsync(MapToTradePosition!, cancellationToken)
@@ -146,7 +146,7 @@ internal static class TradeDbContext
         CancellationToken cancellationToken = default)
     {
         var query = dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionLegs)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegs(tradeId));
         var optionLegs = cancellationToken.CanBeCanceled
             ? await query.ExecuteQueryAsync(MapToOptionLeg!, cancellationToken)

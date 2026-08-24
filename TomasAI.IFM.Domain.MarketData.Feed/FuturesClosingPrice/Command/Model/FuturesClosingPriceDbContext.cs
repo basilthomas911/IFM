@@ -14,7 +14,7 @@ internal static class FuturesClosingPriceDbContext
 	internal static async ValueTask InsertFuturesClosingPriceAsync(
 		this IDbContextFactory dbFactory, FuturesClosingPriceReadModel e)
 		=> await dbFactory.MarketDataDb
-			.Use(FuturesClosingPriceDbCql.InsertFuturesClosingPrice)
+			.Use($"{nameof(FuturesClosingPriceDbCql)}.{nameof(FuturesClosingPriceDbCql.InsertFuturesClosingPrice)}", FuturesClosingPriceDbCql.InsertFuturesClosingPrice)
 			.SetParameters(new InsertFuturesClosingPrice(
 				contractId: e.ContractId,
 				valueDate: e.ValueDate,

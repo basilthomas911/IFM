@@ -33,7 +33,7 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
         => await _dbFactory.SequenceIdDb
-            .Use(SequenceIdDbSql.GetSequenceAllocationSize)
+            .Use($"{nameof(SequenceIdDbSql)}.{nameof(SequenceIdDbSql.GetSequenceAllocationSize)}", SequenceIdDbSql.GetSequenceAllocationSize)
             .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
             .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
             .ConfigureAwait(false);
@@ -45,7 +45,7 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
         => await _dbFactory.SequenceIdDb
-            .Use(SequenceIdDbSql.GetCurrentSequenceId)
+            .Use($"{nameof(SequenceIdDbSql)}.{nameof(SequenceIdDbSql.GetCurrentSequenceId)}", SequenceIdDbSql.GetCurrentSequenceId)
             .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
             .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
             .ConfigureAwait(false);
@@ -59,7 +59,7 @@ public class SequenceIdDbContext(IDbConnectionSettings connectionSettings, IDbCo
         SequenceName sequenceName,
         CancellationToken cancellationToken = default)
         => await _dbFactory.SequenceIdDb
-                .Use(SequenceIdDbSql.GetNextSequenceId)
+                .Use($"{nameof(SequenceIdDbSql)}.{nameof(SequenceIdDbSql.GetNextSequenceId)}", SequenceIdDbSql.GetNextSequenceId)
                 .SetParameters(new GetNextSequenceId(sequenceName.ToStringFast()))
                 .ExecuteScalarAsync(MapToSequenceId, cancellationToken)
                 .ConfigureAwait(false);

@@ -18,7 +18,7 @@ public partial class MarketDataDbContext
             ? null
             : MessagePackSerializer.Serialize(snapshot.FuturesTradeSignal);
         await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.UpsertMarketOutlookSnapshot)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertMarketOutlookSnapshot)}", MarketDataDbCql.UpsertMarketOutlookSnapshot)
             .SetParameters(new UpsertMarketOutlookSnapshot(
                 snapshot.ContractId,
                 snapshot.ValueDate,
@@ -36,7 +36,7 @@ public partial class MarketDataDbContext
         DateOnly valueDate,
         CancellationToken cancellationToken = default)
         => await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetMarketOutlookSnapshot)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketOutlookSnapshot)}", MarketDataDbCql.GetMarketOutlookSnapshot)
             .SetParameters(new GetMarketOutlookSnapshot(contractId, valueDate))
             .ExecuteSingleAsync(MapToMarketOutlookSnapshot, cancellationToken)
             .ConfigureAwait(false);

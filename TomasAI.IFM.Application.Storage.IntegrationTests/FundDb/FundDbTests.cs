@@ -90,20 +90,20 @@ public class FundDbTests(FundDatabaseFixture testFixture)
 
     async Task ResetFundTransactionsAsync()
     {
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_identity_v4;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_identity_v4;").ExecuteCommandAsync();
         await ResetFundTransactionProjectionsAsync();
     }
 
     async Task ResetFundTransactionProjectionsAsync()
     {
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_timeline_v3;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_balance_by_status_day_v3;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_amount_v3;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_projection_state_v3;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_projection_mutation_v3;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_write_mutation_v3;").ExecuteCommandAsync();
-        await _testFixture.FundDb.Use("TRUNCATE TABLE fund_transaction_write_ownership_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_timeline_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_balance_by_status_day_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_amount_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_projection_state_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_projection_mutation_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_write_mutation_v3;").ExecuteCommandAsync();
+        await _testFixture.FundDb.UseTest("TRUNCATE TABLE fund_transaction_write_ownership_v3;").ExecuteCommandAsync();
     }
 
     /*
@@ -131,7 +131,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task GetFundsAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
         await db.InsertFundAsync(SampleData.Fund);
         var funds = await db.GetFundsAsync();
         funds.Should().NotBeNull();
@@ -153,7 +153,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task InsertFundAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
         await db.InsertFundAsync(SampleData.Fund);
         var fund = await db.GetFundAsync(SampleData.Fund.FundId);
         fund.Should().NotBeNull();
@@ -165,7 +165,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task DeleteFundAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
         await db.InsertFundAsync(SampleData.Fund);
         await db.DeleteFundAsync(SampleData.Fund.FundId);
         var fund = await db.GetFundAsync(SampleData.Fund.FundId);
@@ -177,7 +177,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task InsertFundOrderAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund_order where FundId = {SampleData.FundOrder.FundId}").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund_order where FundId = {SampleData.FundOrder.FundId}").ExecuteCommandAsync();
         await db.InsertFundOrderAsync(SampleData.FundOrder);
         var fundOrders = await db.GetFundOrdersAsync();
         fundOrders.Count.Should().BeGreaterThanOrEqualTo(1);    
@@ -202,7 +202,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task DeleteFundOrderAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund_order where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund_order where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
         await db.InsertFundOrderAsync(SampleData.FundOrder);
         var fundOrderId = FundOrderId.Create(SampleData.FundOrder.FundId, SampleData.FundOrder.OrderId);
          await db.DeleteFundOrderAsync(fundOrderId.FundId, fundOrderId.OrderId);
@@ -221,7 +221,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var reservationToken = Guid.NewGuid();
         var baseline = await db.BackfillFundOrderByOrderIdProjectionAsync();
 
-        await db.Use(FundDbCql.InsertFundOrderByOrderIdV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrderByOrderIdV3)}", FundDbCql.InsertFundOrderByOrderIdV3)
             .SetParameters(new InsertFundOrderByOrderIdV3(orderId, fundId, reservationToken))
             .ExecuteCommandAsync();
         try
@@ -234,7 +234,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             result.MissingRows.Should().Be(baseline.MissingRows);
             result.TokenlessRows.Should().Be(baseline.TokenlessRows);
             result.IsReconciled.Should().Be(baseline.IsReconciled);
-            var reservedFundId = await db.Use(FundDbCql.GetFundIdFromOrderId)
+            var reservedFundId = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundIdFromOrderId)}", FundDbCql.GetFundIdFromOrderId)
                 .SetParameters(new GetFundIdFromOrderId(orderId))
                 .ExecuteScalarAsync(static row => row.GetInt(0));
             reservedFundId.Should().Be(fundId,
@@ -242,7 +242,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         }
         finally
         {
-            await db.Use(FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)}", FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)
                 .SetParameters(new DeleteFundOrderByOrderIdV3ForOfflineRepair(orderId))
                 .ExecuteCommandAsync();
         }
@@ -261,7 +261,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             await db.InsertFundOrderAsync(order);
             await db.DeleteFundOrderAsync(fundId, orderId);
 
-            (await db.Use(FundDbCql.GetFundIdFromOrderId)
+            (await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundIdFromOrderId)}", FundDbCql.GetFundIdFromOrderId)
                     .SetParameters(new GetFundIdFromOrderId(orderId))
                     .ExecuteScalarAsync(static row => row.GetInt(0)))
                 .Should().Be(fundId);
@@ -272,10 +272,10 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         }
         finally
         {
-            await db.Use(FundDbCql.DeleteFundOrder)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrder)}", FundDbCql.DeleteFundOrder)
                 .SetParameters(new DeleteFundOrder(fundId, orderId))
                 .ExecuteCommandAsync();
-            await db.Use(FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)}", FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)
                 .SetParameters(new DeleteFundOrderByOrderIdV3ForOfflineRepair(orderId))
                 .ExecuteCommandAsync();
         }
@@ -310,7 +310,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
 
             await db.DeleteFundOrderAsync(fundId, orderId);
             (await db.GetFundOrderAsync(fundId, orderId)).Should().BeNull();
-            (await db.Use(FundDbCql.GetFundIdFromOrderId)
+            (await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundIdFromOrderId)}", FundDbCql.GetFundIdFromOrderId)
                     .SetParameters(new GetFundIdFromOrderId(orderId))
                     .ExecuteScalarAsync(static row => row.GetInt(0)))
                 .Should().Be(fundId, "successful recovery retains permanent historical ownership");
@@ -319,10 +319,10 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         {
             resumeInsert.TrySetResult();
             db.FundOrderCanonicalMutationSubmittingForTestingAsync = null;
-            await db.Use(FundDbCql.DeleteFundOrder)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrder)}", FundDbCql.DeleteFundOrder)
                 .SetParameters(new DeleteFundOrder(fundId, orderId))
                 .ExecuteCommandAsync();
-            await db.Use(FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)}", FundDbCql.DeleteFundOrderByOrderIdV3ForOfflineRepair)
                 .SetParameters(new DeleteFundOrderByOrderIdV3ForOfflineRepair(orderId))
                 .ExecuteCommandAsync();
         }
@@ -333,7 +333,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task InsertFundOrderTradeAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund_order_trade where FundId = {SampleData.FundOrderTrade.FundId} and OrderId = {SampleData.FundOrderTrade.OrderId}").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund_order_trade where FundId = {SampleData.FundOrderTrade.FundId} and OrderId = {SampleData.FundOrderTrade.OrderId}").ExecuteCommandAsync();
         await db.InsertFundOrderTradeAsync(SampleData.FundOrderTrade);
         var fundOrderTrades = await db.GetFundOrderTradesAsync();
         fundOrderTrades.Count.Should().BeGreaterThanOrEqualTo(1);
@@ -348,7 +348,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var fundId = SampleData.FundOrderTrade.FundId;
         var orderId = SampleData.FundOrderTrade.OrderId;
         var tradeId = 992934;
-        await db.Use($"delete from fund_order_trade where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund_order_trade where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteCommandAsync();
         await db.InsertFundOrderTradeAsync(SampleData.FundOrderTrade with { TradeId = tradeId});
         await db.DeleteFundOrderTradeAsync(SampleData.FundOrderTrade.FundId, SampleData.FundOrderTrade.OrderId, tradeId);
         var fundOrderTrades = await db.GetFundOrderTradesAsync();
@@ -406,14 +406,14 @@ public class FundDbTests(FundDatabaseFixture testFixture)
 
         var monthBucket = new DateOnly(transaction.ValueDate.Year, transaction.ValueDate.Month, 1);
         var activeMutationId = Guid.NewGuid();
-        await db.Use(FundDbCql.InsertFundTransactionProjectionMutationV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionProjectionMutationV3)}", FundDbCql.InsertFundTransactionProjectionMutationV3)
             .SetParameters(new InsertFundTransactionProjectionMutationV3(
                 transaction.FundId,
                 monthBucket,
                 activeMutationId,
                 DateTime.UtcNow))
             .ExecuteCommandAsync();
-        await db.Use(FundDbCql.InsertFundTransactionAmountV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionAmountV3)}", FundDbCql.InsertFundTransactionAmountV3)
             .SetParameters(new InsertFundTransactionAmountV3(
                 transaction.FundId,
                 monthBucket,
@@ -430,7 +430,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
 
         var mutationFallbackPnl = await db.GetFundPnlAsync(transaction.FundId, transaction.ValueDate, transaction.ValueDate);
         mutationFallbackPnl.Should().ContainSingle().Which.Pnl.Should().Be(transaction.Amount);
-        await db.Use(FundDbCql.DeleteFundTransactionProjectionMutationV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionProjectionMutationV3)}", FundDbCql.DeleteFundTransactionProjectionMutationV3)
             .SetParameters(new DeleteFundTransactionProjectionMutationV3(
                 transaction.FundId,
                 monthBucket,
@@ -438,7 +438,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             .ExecuteCommandAsync();
 
         var staleTransactionId = long.MaxValue - 101;
-        await db.Use(FundDbCql.InsertFundTransactionTimelineV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionTimelineV3)}", FundDbCql.InsertFundTransactionTimelineV3)
             .SetParameters(new InsertFundTransactionTimelineV3(
                 transaction.FundId,
                 monthBucket,
@@ -454,7 +454,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
                 transaction.Amount,
                 transaction.Balance))
             .ExecuteCommandAsync();
-        await db.Use(FundDbCql.InsertFundBalanceByStatusDayV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundBalanceByStatusDayV3)}", FundDbCql.InsertFundBalanceByStatusDayV3)
             .SetParameters(new InsertFundBalanceByStatusDayV3(
                 transaction.FundId,
                 monthBucket,
@@ -468,7 +468,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
                 transaction.TradeType.ToString(),
                 transaction.Balance))
             .ExecuteCommandAsync();
-        await db.Use(FundDbCql.InsertFundTransactionAmountV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionAmountV3)}", FundDbCql.InsertFundTransactionAmountV3)
             .SetParameters(new InsertFundTransactionAmountV3(
                 transaction.FundId,
                 monthBucket,
@@ -511,20 +511,20 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var startedOn = cutoffUtc.AddMinutes(-1);
         await ResetFundTransactionsAsync();
         await db.InsertFundTransactionAsync(transaction);
-        await db.Use(FundDbCql.InsertFundTransactionWriteMutationV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionWriteMutationV3)}", FundDbCql.InsertFundTransactionWriteMutationV3)
             .SetParameters(new InsertFundTransactionWriteMutationV3(
                 transaction.FundId,
                 mutationId,
                 startedOn))
             .ExecuteCommandAsync();
-        await db.Use(FundDbCql.InsertFundTransactionProjectionMutationV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionProjectionMutationV3)}", FundDbCql.InsertFundTransactionProjectionMutationV3)
             .SetParameters(new InsertFundTransactionProjectionMutationV3(
                 transaction.FundId,
                 monthBucket,
                 mutationId,
                 startedOn))
             .ExecuteCommandAsync();
-        _ = await db.Use(FundDbCql.ClaimFundTransactionWriteOwnershipV3)
+        _ = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ClaimFundTransactionWriteOwnershipV3)}", FundDbCql.ClaimFundTransactionWriteOwnershipV3)
             .SetParameters(new ClaimFundTransactionWriteOwnershipV3(
                 transaction.FundId,
                 mutationId,
@@ -540,11 +540,11 @@ public class FundDbTests(FundDatabaseFixture testFixture)
             staleOperationCutoffUtc: cutoffUtc);
 
         result.IsReconciled.Should().BeTrue();
-        (await db.Use(FundDbCql.GetFundTransactionWriteMutationsV3)
+        (await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionWriteMutationsV3)}", FundDbCql.GetFundTransactionWriteMutationsV3)
                 .SetParameters(new GetFundTransactionWriteMutationsV3(transaction.FundId))
                 .ExecuteQueryAsync(static row => row.GetGuid(0)))
             .Should().BeEmpty();
-        (await db.Use(FundDbCql.GetFundTransactionProjectionMutationsV3)
+        (await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionMutationsV3)}", FundDbCql.GetFundTransactionProjectionMutationsV3)
                 .SetParameters(new GetFundTransactionProjectionMutationsV3(
                     transaction.FundId,
                     monthBucket))
@@ -619,7 +619,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         canonicalRows.Should().ContainSingle();
         canonicalRows[0].TransactionId.Should().BeInRange(50_000, 50_000 + writerCount - 1);
 
-        var reservedTransactionId = await db.Use(FundDbCql.GetFundTransactionIdentityV4)
+        var reservedTransactionId = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionIdentityV4)}", FundDbCql.GetFundTransactionIdentityV4)
             .SetParameters(new GetFundTransactionIdentityV4(
                 transaction.FundId,
                 transaction.ValueDate,
@@ -632,7 +632,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         reservedTransactionId.Should().Be(canonicalRows[0].TransactionId);
 
         var monthBucket = FundTransactionProjection.GetMonthBucket(transaction.ValueDate);
-        (await db.Use(FundDbCql.GetFundTransactionProjectionStateV3)
+        (await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionStateV3)}", FundDbCql.GetFundTransactionProjectionStateV3)
                 .SetParameters(new GetFundTransactionProjectionStateV3(transaction.FundId, monthBucket))
                 .ExecuteQueryAsync(static row => row.GetBool(1)))
             .Should().ContainSingle().Which.Should().BeFalse();
@@ -653,7 +653,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         };
         await ResetFundTransactionsAsync();
 
-        await db.Use(FundDbCql.InsertFundTransaction)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransaction)}", FundDbCql.InsertFundTransaction)
             .SetParameters(
             [
                 new InsertFundTransaction(
@@ -697,7 +697,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         result.ConflictingIdentityRows.Should().Be(0);
         result.CompletedMonths.Should().Be(0);
         result.IsReconciled.Should().BeFalse();
-        (await db.Use(FundDbCql.GetFundTransactionIdentityV4)
+        (await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionIdentityV4)}", FundDbCql.GetFundTransactionIdentityV4)
                 .SetParameters(new GetFundTransactionIdentityV4(
                     transaction.FundId,
                     transaction.ValueDate,
@@ -748,11 +748,11 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         await db.InsertFundTransactionAsync(updatedSecond);
 
         var monthBucket = new DateOnly(second.ValueDate.Year, second.ValueDate.Month, 1);
-        var states = await db.Use(FundDbCql.GetFundTransactionProjectionStateV3)
+        var states = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionStateV3)}", FundDbCql.GetFundTransactionProjectionStateV3)
             .SetParameters(new GetFundTransactionProjectionStateV3(second.FundId, monthBucket))
             .ExecuteQueryAsync(row => row.GetBool(1));
         states.Should().ContainSingle().Which.Should().BeTrue();
-        var activeMutations = await db.Use(FundDbCql.GetFundTransactionProjectionMutationsV3)
+        var activeMutations = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionMutationsV3)}", FundDbCql.GetFundTransactionProjectionMutationsV3)
             .SetParameters(new GetFundTransactionProjectionMutationsV3(second.FundId, monthBucket))
             .ExecuteQueryAsync(row => row.GetGuid(0));
         activeMutations.Should().BeEmpty();
@@ -789,7 +789,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var fundId = SampleData.FundTransaction.FundId;
         var valueDate = SampleData.FundTransaction.ValueDate;
         await db
-            .Use($"delete from fund where fundId = :fundId")
+            .UseTest($"delete from fund where fundId = :fundId")
             .SetParameters(new DeleteFund(fundId))
             .ExecuteCommandAsync();
         await db.InsertFundAsync(SampleData.Fund);
@@ -943,7 +943,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
     public async Task UpdatedFundOrderStatusAsyncOk()
     {
         var db = _testFixture.FundDb;
-        await db.Use($"delete from fund_order where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund_order where FundId = {SampleData.Fund.FundId} ").ExecuteCommandAsync();
         var oldStatus = SampleData.FundOrder.OrderStatus;
         await db.InsertFundOrderAsync(SampleData.FundOrder);
         await db.UpdateFundOrderStatusAsync(SampleData.FundOrder.FundId, SampleData.FundOrder.OrderId,  Domain.Fund.Shared.OrderStatus.Closed);
@@ -978,7 +978,7 @@ public class FundDbTests(FundDatabaseFixture testFixture)
         var fundId = SampleData.FundOrderTrade.FundId;
         var orderId = SampleData.FundOrderTrade.OrderId;
         var tradeId = SampleData.FundOrderTrade.TradeId;
-        await db.Use($"delete from fund_order_trade where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteCommandAsync();
+        await db.UseTest($"delete from fund_order_trade where FundId = {fundId} and OrderId = {orderId} and TradeId = {tradeId}").ExecuteCommandAsync();
         await db.InsertFundOrderTradeAsync(SampleData.FundOrderTrade);
         var oldState = SampleData.FundOrderTrade.TradeState;
         await db.UpdateFundOrderTradeStateAsync(fundId, orderId, tradeId, global::TomasAI.IFM.Domain.Trade.Shared.TradeState.OrderCompleted, DateTime.Now, "basilt");

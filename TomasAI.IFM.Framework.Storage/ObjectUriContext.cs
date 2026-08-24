@@ -5,7 +5,10 @@ namespace TomasAI.IFM.Framework.Storage;
 /// <summary>
 /// Provides a base implementation for an object URI context, managing parameter values for URI-based data access.
 /// </summary>
-public abstract class ObjectUriContext(Uri uri, IDataReaderOptions dataReaderOptions) : IObjectUriContext
+public abstract class ObjectUriContext(
+    string commandName,
+    Uri uri,
+    IDataReaderOptions dataReaderOptions) : IObjectUriContext
 {
     readonly List<object> _parameterValues = [];
 
@@ -23,6 +26,17 @@ public abstract class ObjectUriContext(Uri uri, IDataReaderOptions dataReaderOpt
     /// Gets the options for the data reader.
     /// </summary>
     public IDataReaderOptions DataReaderOptions { get; } = IsArgumentNull.Set(dataReaderOptions);
+
+    /// <summary>
+    /// Gets the globally identifiable name of the URI operation.
+    /// </summary>
+    public string CommandName { get; } = IsArgumentNull.Set(commandName);
+
+    /// <summary>
+    /// Gets the command name and URI formatted for diagnostic logging.
+    /// </summary>
+    public string CommandLogText =>
+        $"command name: {CommandName}{Environment.NewLine}{Uri}";
 
     /// <summary>
     /// Sets a single parameter value for the URI context, clearing any existing parameters.

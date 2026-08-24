@@ -73,11 +73,11 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
 
     async Task CleanupAndVerifyAsync(PostgresEventSourceTestScope scope)
     {
-        await Repository.Use("DELETE FROM event_projector_state WHERE eventid = $1 OR eventid = $2;")
+        await Repository.UseTest("DELETE FROM event_projector_state WHERE eventid = $1 OR eventid = $2;")
             .SetParameters(new EventVersions(scope.EventVersion, scope.SecondEventVersion))
             .ExecuteCommandAsync();
 
-        await Repository.Use("""
+        await Repository.UseTest("""
                 DELETE FROM event_log
                 WHERE eventstreamid = $1 OR eventstreamid = $2 OR eventversion = $3 OR eventversion = $4;
                 """)
@@ -88,15 +88,15 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
                 scope.SecondEventVersion))
             .ExecuteCommandAsync();
 
-        await Repository.Use("DELETE FROM command_log WHERE commandid = $1;")
+        await Repository.UseTest("DELETE FROM command_log WHERE commandid = $1;")
             .SetParameters(new CommandKey(scope.CommandId))
             .ExecuteCommandAsync();
 
-        await Repository.Use("DELETE FROM event_name_id WHERE eventnameid = $1;")
+        await Repository.UseTest("DELETE FROM event_name_id WHERE eventnameid = $1;")
             .SetParameters(new EventNameKey(scope.EventNameId))
             .ExecuteCommandAsync();
 
-        await Repository.Use("""
+        await Repository.UseTest("""
                 DELETE FROM event_stream_id
                 WHERE eventstreamid = $1 OR eventstreamid = $2 OR eventstream = $3 OR eventstream = $4;
                 """)
@@ -132,7 +132,9 @@ public sealed class PostgresStorageProviderFixture : IAsyncLifetime
     async Task EnsureEmptyAsync<TParam>(string sql, TParam parameters, string table)
         where TParam : struct, IBindValue
     {
-        var count = await Repository.Use(sql)
+        var count = await Repository.Use(
+                $"{nameof(PostgresStorageProviderFixture)}.{nameof(EnsureEmptyAsync)}.{table}",
+                sql)
             .SetParameters(parameters)
             .ExecuteScalarAsync(static row => row.GetLong(0));
 

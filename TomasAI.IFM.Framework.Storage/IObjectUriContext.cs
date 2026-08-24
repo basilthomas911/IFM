@@ -15,4 +15,13 @@ public interface IObjectUriContext
     /// </summary>
     IDataReaderOptions DataReaderOptions { get; }
 
+    /// <summary>
+    /// Gets the globally identifiable name of the URI operation.
+    /// </summary>
+    string CommandName { get; }
+
+    /// <summary>
+    /// Gets the command name and URI formatted for diagnostic logging.
+    /// </summary>
+    string CommandLogText { get; }
 }

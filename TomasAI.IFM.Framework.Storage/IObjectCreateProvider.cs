@@ -7,7 +7,7 @@ public interface IObjectCreateProvider
     IObjectRepositoryConnection CreateConnection();
     IObjectRepositoryParameter CreateParameter();
     IObjectRepositoryContext CreateStoredProcedureContext(string storedProcName);
-    IObjectRepositoryContext CreateCommandTextContext(string commandText);
+    IObjectRepositoryContext CreateCommandTextContext(string commandName, string commandText);
     [Obsolete("Use CreateQueuedCommandsContext(IReadOnlyCollection<object>) so queue metadata can be validated.")]
     IObjectRepositoryContext CreateQueuedCommandsContext();
     IObjectRepositoryContext CreateQueuedCommandsContext(IReadOnlyCollection<object> queuedCommands)
@@ -17,6 +17,6 @@ public interface IObjectCreateProvider
     IObjectRepositoryTransaction<TRepo>? CreateTransaction<TRepo>() where TRepo : IObjectRepository;
     IObjectBulkCopyContext CreateBulkCopyContext(DataTable bulkCopyDataTable);
     IObjectDataReaderContext CreateDataReaderContext(IDataReaderOptions dataReaderOptions);
-    IObjectUriContext CreateFileUriContext(Uri uriObject, IDataReaderOptions dataReaderOptions);
-    IObjectUriContext CreateHttpUriContext(Uri uriObject, IDataReaderOptions dataReaderOptions);
+    IObjectUriContext CreateFileUriContext(string commandName, Uri uriObject, IDataReaderOptions dataReaderOptions);
+    IObjectUriContext CreateHttpUriContext(string commandName, Uri uriObject, IDataReaderOptions dataReaderOptions);
 }

@@ -165,7 +165,7 @@ public sealed class FundQueryGcSoakTests(
 
     async Task DeleteDataAsync(int fundId)
     {
-        await dbFixture.FundDb.Use(
+        await dbFixture.FundDb.UseTest(
             $"delete from fund_transaction where fundid = {fundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.DeleteFundAsync(fundId);
     }

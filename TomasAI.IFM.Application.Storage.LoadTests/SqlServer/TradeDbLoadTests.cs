@@ -44,10 +44,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0l;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\option_leg.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\option_leg.csv"))
            .ReadAsync(MapToOptionLeg, async reducer =>
            {
-               await db.Use($"truncate option_leg").ExecuteCommandAsync();
+               await db.UseTest($"truncate option_leg").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertOptionLegsAsync(reducer);
            });
 
@@ -79,10 +79,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\option_leg_data.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\option_leg_data.csv"))
            .ReadAsync(MapToOptionLegData, async reducer =>
            {
-               await db.Use($"truncate option_leg_data").ExecuteCommandAsync();
+               await db.UseTest($"truncate option_leg_data").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertOptionLegDataAsync(reducer);
            });
 
@@ -122,10 +122,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\option_trade.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\option_trade.csv"))
            .ReadAsync(MapToOptionTrade, async reducer =>
            {
-               await db.Use($"truncate option_trade").ExecuteCommandAsync();
+               await db.UseTest($"truncate option_trade").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertOptionTradesAsync(reducer);
            });
 
@@ -162,10 +162,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\option_trade_spread_bar_data.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\option_trade_spread_bar_data.csv"))
            .ReadAsync(MapToOptionTradeSpreadBarData, async reducer =>
            {
-               await db.Use($"truncate option_trade_spread_bar_data").ExecuteCommandAsync();
+               await db.UseTest($"truncate option_trade_spread_bar_data").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertOptionTradeSpreadBarDataAsync(reducer);
            });
 
@@ -195,10 +195,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\option_trade_spread_data.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\option_trade_spread_data.csv"))
            .ReadAsync(MapToOptionTradeSpreadData, async reducer =>
            {
-               await db.Use($"truncate option_trade_spread_data").ExecuteCommandAsync();
+               await db.UseTest($"truncate option_trade_spread_data").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertOptionTradeSpreadDataAsync(reducer);
            });
 
@@ -230,10 +230,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_fill.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_fill.csv"))
            .ReadAsync(MapToTradeFill, async reducer =>
            {
-               await db.Use($"truncate trade_fill").ExecuteCommandAsync();
+               await db.UseTest($"truncate trade_fill").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertTradeFillsAsync(reducer);
            });
 
@@ -260,10 +260,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_limit.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_limit.csv"))
            .ReadAsync(MapToTradeLimit, async reducer =>
            {
-               await db.Use($"truncate trade_limit").ExecuteCommandAsync();
+               await db.UseTest($"truncate trade_limit").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertTradeLimitsAsync(reducer);
            });
 
@@ -300,10 +300,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_type_limit.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_type_limit.csv"))
            .ReadAsync(MapToTradeTypeLimit, async reducer =>
            {
-               await db.Use($"truncate trade_type_limit").ExecuteCommandAsync();
+               await db.UseTest($"truncate trade_type_limit").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertTradeTypeLimitsAsync(reducer);
            });
 
@@ -330,10 +330,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_position.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_position.csv"))
            .ReadAsync(MapToTradePosition, async reducer =>
            {
-               await db.Use($"truncate trade_position").ExecuteCommandAsync();
+               await db.UseTest($"truncate trade_position").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertTradePositionsAsync(reducer);
            });
 
@@ -376,10 +376,10 @@ public class TradeDbLoadTests : IClassFixture<TradeDbFixture>
         var rowCount = 0L;
         var db = TestFixture.TradeDb;
         var dbTrade = db as ITradeDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_plan.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\trade_plan.csv"))
            .ReadAsync(MapToTradePlan, async reducer =>
            {
-               await db.Use($"truncate trade_plan").ExecuteCommandAsync();
+               await db.UseTest($"truncate trade_plan").ExecuteCommandAsync();
                rowCount = await dbTrade.InsertTradePlansAsync(reducer);
            });
 

@@ -189,7 +189,7 @@ public class PostgresBulkWriteBenchmarks
 
     [Benchmark(Description = "After: bounded NpgsqlBatch")]
     public Task RedesignedBoundedBatch()
-        => _repository.Use(UpsertRow)
+        => _repository.Use($"{nameof(PostgresBulkWriteBenchmarks)}.{nameof(UpsertRow)}", UpsertRow)
             .SetParameters(_redesignedValues)
             .ExecuteCommandAsync();
 

@@ -101,7 +101,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (ownedTransaction is not null)
                 await TryRollbackAsync(ownedTransaction).ConfigureAwait(false);
             throw new StorageException(
-                $"{ProviderTypeName}.ExecuteCommandAsync: {commandText} {ex.Message}",
+                $"{ProviderTypeName}.ExecuteCommandAsync: {ctx.CommandLogText} {ex.Message}",
                 ex);
         }
         finally
@@ -262,8 +262,14 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <param name="commandType"></param>
     /// <param name="parameterValues"></param>
     /// <exception cref="ArgumentException"></exception>
-    public object QueueCommand(string commandText, CommandType commandType, List<object> parameterValues)
+    public object QueueCommand(
+        string commandName,
+        string commandText,
+        CommandType commandType,
+        List<object> parameterValues)
     {
+        if (string.IsNullOrWhiteSpace(commandName))
+            throw new ArgumentException($"{ProviderTypeName}.QueueCommand: command name parameter is empty");
         if (string.IsNullOrWhiteSpace(commandText))
             throw new ArgumentException($"{ProviderTypeName}.QueueCommand: command text parameter is empty");
         NpgsqlParameter[]? dbParameters = null;
@@ -275,6 +281,7 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
 
         return new ObjectDataQueuedCommand(
+            commandName,
             commandType,
             commandText,
             dbParameters,
@@ -296,7 +303,8 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
     {
         if (queuedCommands?.Count == 0)
             throw new InvalidOperationException($"{ProviderTypeName}.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
-        var commandText = string.Empty;
+        var commandLogText = string.Empty;
+        var batchCommandLogs = new Dictionary<NpgsqlBatchCommand, string>();
         await using var conn = _ctx.Repository.CreateConnection().As<NpgsqlConnection>(_ctx.Repository.ConnectionString);
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var tx = useTransaction
@@ -315,11 +323,12 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
                 if (queuedCommand is null) continue;
                 if (string.IsNullOrWhiteSpace(queuedCommand.CommandText))
                     throw new ArgumentException($"{ProviderTypeName}.ExecuteQueuedCommandsAsync: command text parameter is empty");
-                commandText = queuedCommand.CommandText;
-                var batchCommand = new NpgsqlBatchCommand(commandText)
+                commandLogText = queuedCommand.CommandLogText;
+                var batchCommand = new NpgsqlBatchCommand(queuedCommand.CommandText)
                 {
                     CommandType = queuedCommand.CommandType
                 };
+                batchCommandLogs.Add(batchCommand, commandLogText);
                 prepareBatch &= queuedCommand.CommandType == CommandType.Text;
                 if (queuedCommand.Parameters is not null && queuedCommand.Parameters.Length > 0)
                 {
@@ -333,7 +342,6 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
 
             if (batch.BatchCommands.Count > 0)
             {
-                commandText = "NpgsqlBatch";
                 if (prepareBatch && hasParameterizedCommand)
                     await batch.PrepareAsync(cancellationToken).ConfigureAwait(false);
                 await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -353,9 +361,12 @@ public class PostgresObjectDataRepositoryProvider : IObjectRepositoryProvider
             if (tx is not null)
                 await TryRollbackAsync(tx).ConfigureAwait(false);
             while (ex.InnerException != null) ex = ex.InnerException;
-            if (ex is NpgsqlException { BatchCommand: not null } npgsqlException)
-                commandText = npgsqlException.BatchCommand.CommandText;
-            var errorMessage = $"{ProviderTypeName}.ExecuteQueuedCommandAsync: {commandText} {ex.Message}";
+            if (ex is NpgsqlException { BatchCommand: not null } npgsqlException &&
+                batchCommandLogs.TryGetValue(npgsqlException.BatchCommand, out var failingCommandLogText))
+            {
+                commandLogText = failingCommandLogText;
+            }
+            var errorMessage = $"{ProviderTypeName}.ExecuteQueuedCommandAsync: {commandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
     }

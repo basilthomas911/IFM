@@ -63,7 +63,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         var scope = PostgresEventSourceTestData.Scope(1);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var result = await repository.Use($"""
+            var result = await repository.UseTest($"""
                     INSERT INTO event_stream_id (eventstreamid, eventstream)
                     VALUES ({scope.EventStreamId}, '{scope.EventStream}');
                     """)
@@ -80,7 +80,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         var scope = PostgresEventSourceTestData.Scope(2);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var result = await repository.Use(InsertEventStream)
+            var result = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                 .SetParameters(new InsertEventStreamBindValue(scope.EventStreamId, scope.EventStream))
                 .ExecuteCommandAsync();
 
@@ -103,7 +103,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
                 new EventStreamParameters(scope.SecondEventStreamId, scope.SecondEventStream)
             };
 
-            var result = await repository.Use(InsertEventStream)
+            var result = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                 .SetParameters(parameters)
                 .ExecuteCommandAsync();
 
@@ -124,11 +124,11 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             var enumerationCount = 0;
             try
             {
-                var result = await repository.Use(InsertEventStream)
+                var result = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                     .SetParameters(CreateParameters())
                     .ExecuteCommandAsync();
 
-                var count = await repository.Use(
+                var count = await repository.UseTest(
                         "SELECT count(*) FROM event_stream_id WHERE eventstream LIKE $1;")
                     .SetParameters(new BulkStreamPattern(prefix + "%"))
                     .ExecuteScalarAsync(static row => row.GetLong(0));
@@ -140,7 +140,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             }
             finally
             {
-                await repository.Use("DELETE FROM event_stream_id WHERE eventstream LIKE $1;")
+                await repository.UseTest("DELETE FROM event_stream_id WHERE eventstream LIKE $1;")
                     .SetParameters(new BulkStreamPattern(prefix + "%"))
                     .ExecuteCommandAsync();
             }
@@ -166,7 +166,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
 
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.Use(InsertEventStream)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                 .SetParameters(CreateParameters())
                 .ExecuteCommandAsync(cancellation.Token));
 
@@ -190,10 +190,10 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             var transaction = repository.BeginTransaction();
             Assert.NotNull(transaction);
 
-            await repository.Use(InsertEventStream)
+            await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                 .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
                 .ExecuteCommandAsync();
-            await repository.Use(InsertEventStream)
+            await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                 .SetParameters(new EventStreamParameters(scope.SecondEventStreamId, scope.SecondEventStream))
                 .ExecuteCommandAsync();
 
@@ -212,10 +212,10 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         {
             var queuedCommands = new List<object>
             {
-                repository.Use(InsertEventStream)
+                repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                     .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
                     .QueueCommand(),
-                repository.Use("UPDATE event_stream_id SET eventstream = $1 WHERE eventstreamid = $2;")
+                repository.UseTest("UPDATE event_stream_id SET eventstream = $1 WHERE eventstreamid = $2;")
                     .SetParameters(new UpdateEventStreamParameters(scope.SecondEventStream, scope.EventStreamId))
                     .QueueCommand()
             };
@@ -236,10 +236,10 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         {
             var queuedCommands = new List<object>
             {
-                repository.Use(InsertEventStream)
+                repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                     .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
                     .QueueCommand(),
-                repository.Use("UPDATE event_stream_id SET eventstream = $1 WHERE eventstreamid = $2;")
+                repository.UseTest("UPDATE event_stream_id SET eventstream = $1 WHERE eventstreamid = $2;")
                     .SetParameters(new UpdateEventStreamParameters(scope.SecondEventStream, scope.EventStreamId))
                     .QueueCommand()
             };
@@ -260,7 +260,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         {
             await InsertEventLogsAsync(repository, scope);
 
-            var rows = await repository.Use(SelectEventLogs)
+            var rows = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventLogs)}", SelectEventLogs)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteQueryAsync(MapEventLog);
 
@@ -279,7 +279,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         {
             await InsertEventLogsAsync(repository, scope);
 
-            var result = await repository.Use(SelectEventLogs)
+            var result = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventLogs)}", SelectEventLogs)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteQueryImmutableAsync(static row => new ImmutableEventRow(
                     row.GetLong(0), row.GetLong(2), row.GetGuid(4)));
@@ -316,7 +316,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             await InsertEventStreamAsync(repository, scope);
 
             var eventStreamId = await repository
-                .Use("SELECT eventstreamid AS deliberately_not_value FROM event_stream_id WHERE eventstreamid = $1;")
+                .UseTest("SELECT eventstreamid AS deliberately_not_value FROM event_stream_id WHERE eventstreamid = $1;")
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteScalarAsync(static row => row.GetInt(0));
 
@@ -338,7 +338,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
                            WHERE statement LIKE '%framework_storage_explicit_prepare_probe%')
                 /* framework_storage_explicit_prepare_probe */;
                 """;
-            var result = await repository.Use(preparedSql)
+            var result = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(preparedSql)}", preparedSql)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteSingleAsync(static row => (Value: row.GetInt(0), IsPrepared: row.GetBool(1)));
 
@@ -357,7 +357,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             var reducerCalls = 0;
             var versionSum = 0L;
 
-            await repository.Use("SELECT eventversion FROM event_log WHERE eventstreamid = $1 ORDER BY eventversion;")
+            await repository.UseTest("SELECT eventversion FROM event_log WHERE eventstreamid = $1 ORDER BY eventversion;")
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteMapReduceAsync(
                     static row => row.GetLong(0),
@@ -381,7 +381,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             await InsertEventLogsAsync(repository, scope);
             var versions = new List<long>();
 
-            await foreach (var row in repository.Use(SelectEventLogs)
+            await foreach (var row in repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventLogs)}", SelectEventLogs)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteStreamAsync(MapEventLog))
             {
@@ -399,7 +399,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             await InsertEventLogsAsync(repository, scope);
-            var stream = repository.Use(SelectEventLogs)
+            var stream = repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventLogs)}", SelectEventLogs)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteStreamAsync(MapEventLog);
 
@@ -410,7 +410,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             }
 
             var count = await repository
-                .Use("SELECT count(*) FROM event_log WHERE eventstreamid = $1;")
+                .UseTest("SELECT count(*) FROM event_log WHERE eventstreamid = $1;")
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteScalarAsync(static row => row.GetLong(0));
 
@@ -430,7 +430,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             {
-                await foreach (var _ in repository.Use(SelectEventLogs)
+                await foreach (var _ in repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventLogs)}", SelectEventLogs)
                     .SetParameters(new EventStreamLookup(scope.EventStreamId))
                     .ExecuteStreamAsync(MapEventLog, cancellation.Token))
                 {
@@ -441,7 +441,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
 
             Assert.Equal(1, rowsRead);
             var count = await repository
-                .Use("SELECT count(*) FROM event_log WHERE eventstreamid = $1;")
+                .UseTest("SELECT count(*) FROM event_log WHERE eventstreamid = $1;")
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteScalarAsync(static row => row.GetLong(0));
             Assert.Equal(2, count);
@@ -457,17 +457,17 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             await InsertCompleteEventSourceGraphAsync(repository, scope);
 
             var stream = await GetEventStreamAsync(repository, scope.EventStreamId);
-            var eventName = await repository.Use("""
+            var eventName = await repository.UseTest("""
                     SELECT eventnameid AS ignored_2, eventname AS ignored_1, eventtypename AS ignored_0
                     FROM event_name_id WHERE eventnameid = $1;
                     """)
                 .SetParameters(new EventNameLookup(scope.EventNameId))
                 .ExecuteSingleAsync(static row => new EventNameRow(
                     row.GetInt(0), row.GetString(1), row.GetString(2)));
-            var eventLog = await repository.Use(SelectEventLogs)
+            var eventLog = await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventLogs)}", SelectEventLogs)
                 .SetParameters(new EventStreamLookup(scope.EventStreamId))
                 .ExecuteSingleAsync(MapEventLog);
-            var command = await repository.Use("""
+            var command = await repository.UseTest("""
                     SELECT commandid, streamid, actorname, commandname, commandtimestamp::timestamp,
                            commandstatus, commanddata
                     FROM command_log WHERE commandid = $1;
@@ -481,7 +481,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
                     row.GetDateTime(4),
                     row.GetEnum<TestCommandStatus>(5),
                     row.GetString(6)));
-            var projector = await repository.Use("""
+            var projector = await repository.UseTest("""
                     SELECT eventid, actorname, projectorname, isreplay, attemptnumber, outcome, stage,
                            errormessage, createdtimestamp::timestamp, updatedtimestamp::timestamp
                     FROM event_projector_state WHERE eventid = $1 AND projectorname = $2;
@@ -528,7 +528,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         var scope = PostgresEventSourceTestData.Scope(12);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var context = repository.Use(SelectEventStream)
+            var context = repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream)
                 .SetParameters(new[]
                 {
                     new EventStreamLookup(scope.EventStreamId),
@@ -548,7 +548,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         var scope = PostgresEventSourceTestData.Scope(13);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var context = repository.Use("SELECT 1;");
+            var context = repository.UseTest("SELECT 1;");
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(
                 () => context.ExecuteQueuedCommandsAsync([]));
 
@@ -563,17 +563,17 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             Assert.Throws<ArgumentNullException>(
-                () => repository.Use(SelectEventStream).ExecuteStreamAsync<EventStreamRow>(null!));
+                () => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream).ExecuteStreamAsync<EventStreamRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
-                () => repository.Use(SelectEventStream).ExecuteQueryAsync<EventStreamRow>(null!));
+                () => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream).ExecuteQueryAsync<EventStreamRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
-                () => repository.Use(SelectEventStream).ExecuteSingleAsync<EventStreamRow>(null!));
+                () => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream).ExecuteSingleAsync<EventStreamRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
-                () => repository.Use(SelectEventStream).ExecuteQueryImmutableAsync<ImmutableEventRow>(null!));
+                () => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream).ExecuteQueryImmutableAsync<ImmutableEventRow>(null!));
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await repository.Use(SelectEventStream).ExecuteMapReduceAsync<int>(null!, _ => { }));
+                await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream).ExecuteMapReduceAsync<int>(null!, _ => { }));
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await repository.Use(SelectEventStream).ExecuteMapReduceAsync(static row => row.GetInt(0), null!));
+                await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream).ExecuteMapReduceAsync(static row => row.GetInt(0), null!));
         });
     }
 
@@ -585,10 +585,10 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         {
             var queuedCommands = new List<object>
             {
-                repository.Use(InsertEventStream)
+                repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                     .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
                     .QueueCommand(),
-                repository.Use(InsertEventStream)
+                repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
                     .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.SecondEventStream))
                     .QueueCommand()
             };
@@ -601,13 +601,13 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
     }
 
     static Task InsertEventStreamAsync(PostgresTestRepository repository, PostgresEventSourceTestScope scope)
-        => repository.Use(InsertEventStream)
+        => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventStream)}", InsertEventStream)
             .SetParameters(new EventStreamParameters(scope.EventStreamId, scope.EventStream))
             .ExecuteCommandAsync();
 
     static async Task InsertEventLogsAsync(PostgresTestRepository repository, PostgresEventSourceTestScope scope)
     {
-        await repository.Use(InsertEventLog)
+        await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventLog)}", InsertEventLog)
             .SetParameters(new[]
             {
                 CreateEventLogParameters(scope, scope.EventVersion, "{\"index\":1}"),
@@ -621,13 +621,13 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
         PostgresEventSourceTestScope scope)
     {
         await InsertEventStreamAsync(repository, scope);
-        await repository.Use(InsertEventName)
+        await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventName)}", InsertEventName)
             .SetParameters(new EventNameParameters(scope.EventNameId, scope.EventName, scope.EventTypeName))
             .ExecuteCommandAsync();
-        await repository.Use(InsertEventLog)
+        await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertEventLog)}", InsertEventLog)
             .SetParameters(CreateEventLogParameters(scope, scope.EventVersion, "{\"ordinal\":true}"))
             .ExecuteCommandAsync();
-        await repository.Use(InsertCommandLog)
+        await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertCommandLog)}", InsertCommandLog)
             .SetParameters(new CommandParameters(
                 scope.CommandId,
                 scope.EventStream,
@@ -637,7 +637,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
                 "Completed",
                 "{\"fundId\":1}"))
             .ExecuteCommandAsync();
-        await repository.Use(InsertProjectorState)
+        await repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(InsertProjectorState)}", InsertProjectorState)
             .SetParameters(new ProjectorParameters(
                 scope.EventVersion,
                 "FundActor",
@@ -669,7 +669,7 @@ public sealed class PostgresStorageProviderIntegrationTests(PostgresStorageProvi
             PostgresEventSourceTestData.Timestamp);
 
     static Task<EventStreamRow?> GetEventStreamAsync(PostgresTestRepository repository, int eventStreamId)
-        => repository.Use(SelectEventStream)
+        => repository.Use($"{nameof(PostgresStorageProviderIntegrationTests)}.{nameof(SelectEventStream)}", SelectEventStream)
             .SetParameters(new EventStreamLookup(eventStreamId))
             .ExecuteSingleAsync(MapEventStream);
 

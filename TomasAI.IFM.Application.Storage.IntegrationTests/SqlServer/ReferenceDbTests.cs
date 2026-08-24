@@ -33,16 +33,16 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             // insert test scheduled job into table...
             var db = TestFixture.Database;
             await db.InsertScheduledJobAsync(scheduledJob.ToViewModel());
-            var rowCount = await db.Use("select count(*) from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
+            var rowCount = await db.UseTest("select count(*) from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
             Assert.True(rowCount == 1);
 
             // get job id and check that row exists in scheduled job days table...
-            var jobId = await db.Use("select JobId from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
-            rowCount = await db.Use($"select count(*) from scheduled_job_days where JobId = {jobId}").ExecuteScalarAsync<int>();
+            var jobId = await db.UseTest("select JobId from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
+            rowCount = await db.UseTest($"select count(*) from scheduled_job_days where JobId = {jobId}").ExecuteScalarAsync<int>();
             rowCount.Should().Be(1);
 
             // delete test rows...
-            await db.Use($"delete from scheduled_job_days where JobId = {jobId}").ExecuteCommandAsync();
+            await db.UseTest($"delete from scheduled_job_days where JobId = {jobId}").ExecuteCommandAsync();
         }
 
         [Fact]
@@ -56,21 +56,21 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
 
             // make sure test jobs do not exists in scheduled jobs table...
             var db = TestFixture.Database;
-            await db.Use($"delete from scheduled_job").ExecuteCommandAsync();
+            await db.UseTest($"delete from scheduled_job").ExecuteCommandAsync();
 
             // insert test scheduled jobs into table...
             await db.InsertScheduledJobAsync(scheduledJob1.ToViewModel());
             await db.InsertScheduledJobAsync(scheduledJob2.ToViewModel());
-            var rowCount = await db.Use("select count(*) from scheduled_job where JobName in ('JobTestName1','JobTestName2')").ExecuteScalarAsync<int>();
+            var rowCount = await db.UseTest("select count(*) from scheduled_job where JobName in ('JobTestName1','JobTestName2')").ExecuteScalarAsync<int>();
             rowCount.Should().Be(2);
 
             // get job id and check that row exists in scheduled job days table...
-            var jobId1 = await db.Use("select JobId from scheduled_job where JobName = 'JobTestName1'").ExecuteScalarAsync<int>();
-            rowCount = await db.Use($"select count(*) from scheduled_job_days where JobId = {jobId1}").ExecuteScalarAsync<int>();
+            var jobId1 = await db.UseTest("select JobId from scheduled_job where JobName = 'JobTestName1'").ExecuteScalarAsync<int>();
+            rowCount = await db.UseTest($"select count(*) from scheduled_job_days where JobId = {jobId1}").ExecuteScalarAsync<int>();
             rowCount.Should().Be(1);
 
-            var jobId2 = await db.Use("select JobId from scheduled_job where JobName = 'JobTestName2'").ExecuteScalarAsync<int>();
-            rowCount = await db.Use($"select count(*) from scheduled_job_days where JobId = {jobId2}").ExecuteScalarAsync<int>();
+            var jobId2 = await db.UseTest("select JobId from scheduled_job where JobName = 'JobTestName2'").ExecuteScalarAsync<int>();
+            rowCount = await db.UseTest($"select count(*) from scheduled_job_days where JobId = {jobId2}").ExecuteScalarAsync<int>();
             rowCount.Should().Be(1);
 
             var scheduledJobs = await db.GetScheduledJobsAsync();
@@ -93,8 +93,8 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             scheduledJob.TaskEnabled.Should().Be(scheduledJob2.TaskEnabled);
 
             // delete test rows...
-            await db.Use($"delete from scheduled_job where JobId = {jobId1}").ExecuteCommandAsync();
-            await db.Use($"delete from scheduled_job where JobId = {jobId2}").ExecuteCommandAsync();
+            await db.UseTest($"delete from scheduled_job where JobId = {jobId1}").ExecuteCommandAsync();
+            await db.UseTest($"delete from scheduled_job where JobId = {jobId2}").ExecuteCommandAsync();
         }
 
         [Fact]
@@ -105,21 +105,21 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             scheduledJob.JobScheduleDaysOfWeek = new ScheduledJobDaysOfWeek(0, true, true, true, true, true, false, false);
 
             var db = TestFixture.Database;
-            await db.Use($"delete from scheduled_job").ExecuteCommandAsync();
+            await db.UseTest($"delete from scheduled_job").ExecuteCommandAsync();
 
             // insert test scheduled job into table...
             await db.InsertScheduledJobAsync(scheduledJob.ToViewModel());
-            var rowCount = await db.Use("select count(*) from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
+            var rowCount = await db.UseTest("select count(*) from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
             rowCount.Should().Be(1);
 
             // get job id and check that row exists in scheduled job days table...
-            var jobId = await db.Use("select JobId from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
-            rowCount = await db.Use($"select count(*) from scheduled_job_days where JobId = {jobId}").ExecuteScalarAsync<int>();
+            var jobId = await db.UseTest("select JobId from scheduled_job where JobName = 'JobTestName'").ExecuteScalarAsync<int>();
+            rowCount = await db.UseTest($"select count(*) from scheduled_job_days where JobId = {jobId}").ExecuteScalarAsync<int>();
             rowCount.Should().Be(1);
 
             // delete test rows...
             await db.DeleteScheduledJobAsync(jobId);
-            rowCount = await db.Use($"select count(*) from scheduled_job_days where JobId = {jobId}").ExecuteScalarAsync<int>();
+            rowCount = await db.UseTest($"select count(*) from scheduled_job_days where JobId = {jobId}").ExecuteScalarAsync<int>();
             rowCount.Should().Be(0);
         }
 

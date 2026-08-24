@@ -94,7 +94,7 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task DeleteOptionPricerDeviceAsync(OptionPricerDeviceEntityId e)
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.DeleteOptionPricerDevice)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteOptionPricerDevice)}", OptionPricerDbCql.DeleteOptionPricerDevice)
             .SetParameters(new DeleteOptionPricerDevice(e.DeviceId, e.DeviceName))
             .ExecuteCommandAsync();
 
@@ -106,7 +106,7 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task DeleteSpreadDistributionAsync(int tradeId, DateOnly valueDate)
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.DeleteSpreadDistribution)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistribution)}", OptionPricerDbCql.DeleteSpreadDistribution)
             .SetParameters(new DeleteSpreadDistribution(tradeId, valueDate))
             .ExecuteCommandAsync();
 
@@ -118,12 +118,12 @@ public class OptionPricerDbContext(
     {
         var db = _dbFactory.OptionPricerDb;
         var spreadDistributionJobIds = (await db
-            .Use(OptionPricerDbCql.GetSpreadDistributionIJobIds)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistributionIJobIds)}", OptionPricerDbCql.GetSpreadDistributionIJobIds)
             .ExecuteQueryAsync<SpreadDistributionJobEntityId>(MapToSpreadDistributionJobId!)).ToList();
         var spreadDistributionJobsToDelete = new List<SpreadDistributionJobEntityId>();
         foreach (var e in spreadDistributionJobIds)
         {
-            spreadDistributionJobIds.AddRange([.. (await db.Use(OptionPricerDbCql.GetSpreadDistributionJobs)
+            spreadDistributionJobIds.AddRange([.. (await db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistributionJobs)}", OptionPricerDbCql.GetSpreadDistributionJobs)
                 .SetParameters(new GetSpreadDistributionJobs(e.OrderId, e.TradeId))
                  .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob!)).Where(e =>
                     e.JobStatus == SpreadDistributionJobStatus.InProgress
@@ -131,7 +131,7 @@ public class OptionPricerDbContext(
         }
         foreach(var e in spreadDistributionJobsToDelete)
         {
-            await db.Use(OptionPricerDbCql.DeleteSpreadDistributionJobs)
+            await db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistributionJobs)}", OptionPricerDbCql.DeleteSpreadDistributionJobs)
                 .SetParameters(new DeleteSpreadDistributionJobs(e.OrderId, e.TradeId))
                 .ExecuteCommandAsync();
         }
@@ -145,7 +145,7 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task DeleteSpreadDistributionJobsAsync(int orderId, int tradeId)
          => await _dbFactory.OptionPricerDb
-                .Use(OptionPricerDbCql.DeleteSpreadDistributionJobs)
+                .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.DeleteSpreadDistributionJobs)}", OptionPricerDbCql.DeleteSpreadDistributionJobs)
                 .SetParameters(new DeleteSpreadDistributionJobs(orderId, tradeId))
                 .ExecuteCommandAsync();
 
@@ -155,13 +155,13 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task<ICollection<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync()
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.GetOptionPricerDevices)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetOptionPricerDevices)}", OptionPricerDbCql.GetOptionPricerDevices)
             .ExecuteQueryAsync<OptionPricerDeviceReadModel>(MapToOptionPricerDevice!);
 
     public async Task<ICollection<OptionPricerDeviceReadModel>> GetOptionPricerDevicesAsync(
         CancellationToken cancellationToken)
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.GetOptionPricerDevices)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetOptionPricerDevices)}", OptionPricerDbCql.GetOptionPricerDevices)
             .ExecuteQueryAsync<OptionPricerDeviceReadModel>(
                 MapToOptionPricerDevice!,
                 cancellationToken);
@@ -175,7 +175,7 @@ public class OptionPricerDbContext(
     public async Task<int> GetSpreadDistributionJobInProgressCountAsync(int orderId, int tradeId)
     {
         var db = _dbFactory.OptionPricerDb;
-        var spreadDistributionJobs = await db.Use(OptionPricerDbCql.GetSpreadDistributionJobs)
+        var spreadDistributionJobs = await db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistributionJobs)}", OptionPricerDbCql.GetSpreadDistributionJobs)
             .SetParameters(new GetSpreadDistributionJobs(orderId, tradeId))
              .ExecuteQueryAsync<SpreadDistributionJobReadModel>(MapToSpreadDistributionJob!);
         return spreadDistributionJobs.Count(e => 
@@ -189,7 +189,7 @@ public class OptionPricerDbContext(
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.OptionPricerDb;
-        var spreadDistributionJobs = await db.Use(OptionPricerDbCql.GetSpreadDistributionJobs)
+        var spreadDistributionJobs = await db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistributionJobs)}", OptionPricerDbCql.GetSpreadDistributionJobs)
             .SetParameters(new GetSpreadDistributionJobs(orderId, tradeId))
             .ExecuteQueryAsync<SpreadDistributionJobReadModel>(
                 MapToSpreadDistributionJob!,
@@ -211,7 +211,7 @@ public class OptionPricerDbContext(
     public async Task<SpreadDistributionReadModel?> GetSpreadDistributionAsync(
         int tradeId, TradeType tradeType, TradeStatus tradeStatus, DateOnly valueDate, int daysToExpiry)
         => await _dbFactory.OptionPricerDb
-                .Use(OptionPricerDbCql.GetSpreadDistribution)
+                .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistribution)}", OptionPricerDbCql.GetSpreadDistribution)
                 .SetParameters(new GetSpreadDistribution(tradeId, tradeType.ToStringFast(), tradeStatus.ToStringFast(), valueDate, daysToExpiry))
                 .ExecuteSingleAsync<SpreadDistributionReadModel>(MapToSpreadDistribution!);
 
@@ -223,7 +223,7 @@ public class OptionPricerDbContext(
         int daysToExpiry,
         CancellationToken cancellationToken)
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.GetSpreadDistribution)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.GetSpreadDistribution)}", OptionPricerDbCql.GetSpreadDistribution)
             .SetParameters(new GetSpreadDistribution(
                 tradeId,
                 tradeType.ToStringFast(),
@@ -240,7 +240,7 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task InsertOptionPricerDeviceAsync(OptionPricerDeviceReadModel e)
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.InsertIOptionPricerDevice)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertIOptionPricerDevice)}", OptionPricerDbCql.InsertIOptionPricerDevice)
             .SetParameters(new InsertOptionPricerDevice(e.DeviceId, e.DeviceName, e.SpreadPaths, e.VolatilityPaths, e.MaxBatchSize, e.OptionType.ToStringFast(), e.Enabled))
             .ExecuteCommandAsync();
 
@@ -259,13 +259,13 @@ public class OptionPricerDbContext(
             : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.SpreadDistribution_Id);
         var queuedCommands = new List<object>();
         var db = _dbFactory.OptionPricerDb;
-            queuedCommands.Add(db.Use(OptionPricerDbCql.InsertSpreadDistribution)
+            queuedCommands.Add(db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistribution)}", OptionPricerDbCql.InsertSpreadDistribution)
                 .SetParameters(new InsertSpreadDistribution(putId, ePut.TradeId, ePut.TradeType.ToStringFast(), ePut.TradeStatus.ToStringFast(), ePut.ValueDate, ePut.DaysToExpiry, ePut.ForwardPrice, ePut.LossProbability, ePut.ShortVolatility, ePut.LongVolatility, ePut.LossThreshold, ePut.LossThresholdCount, ePut.ForwardLossRatio, ePut.CreatedOn))
                 .QueueCommand());
 
         // insert call spread distribution...
         queuedCommands.Add(
-            db.Use(OptionPricerDbCql.InsertSpreadDistribution)
+            db.Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistribution)}", OptionPricerDbCql.InsertSpreadDistribution)
                .SetParameters(new InsertSpreadDistribution(callId, eCall.TradeId, eCall.TradeType.ToStringFast(), eCall.TradeStatus.ToStringFast(), eCall.ValueDate, eCall.DaysToExpiry, eCall.ForwardPrice, eCall.LossProbability, eCall.ShortVolatility, eCall.LongVolatility, eCall.LossThreshold, eCall.LossThresholdCount, eCall.ForwardLossRatio, eCall.CreatedOn))
                .QueueCommand());
 
@@ -279,7 +279,7 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task InsertSpreadDistributionJobAsync(SpreadDistributionJobReadModel e)
         => await _dbFactory.OptionPricerDb
-                    .Use(OptionPricerDbCql.InsertSpreadDistributionJob)
+                    .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.InsertSpreadDistributionJob)}", OptionPricerDbCql.InsertSpreadDistributionJob)
                     .SetParameters(new InsertSpreadDistributionJob(e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeStatus.ToStringFast(), e.ValueDate, e.DaysToExpiry, e.JobSubmitted, e.JobStatus.ToStringFast(), e.JobCompleted, e.JobFailed, e.JobStatus == SpreadDistributionJobStatus.InProgress, e.LossProbabilityFactor))
                  .ExecuteCommandAsync();
 
@@ -295,7 +295,7 @@ public class OptionPricerDbContext(
     /// <returns></returns>
     public async Task UpdateSpreadDistributionJobStatusAsync(int orderId, int tradeId, DateOnly valueDate, SpreadDistributionJobStatus jobStatus, DateTime jobCompleted, DateTime? jobFailed)
         => await _dbFactory.OptionPricerDb
-            .Use(OptionPricerDbCql.UpdateSreadDistributionJobStatus)
+            .Use($"{nameof(OptionPricerDbCql)}.{nameof(OptionPricerDbCql.UpdateSreadDistributionJobStatus)}", OptionPricerDbCql.UpdateSreadDistributionJobStatus)
             .SetParameters(new UpdateSpreadDistributionJobStatus(orderId, tradeId, valueDate, jobStatus.ToStringFast(), jobCompleted, jobFailed, jobStatus == SpreadDistributionJobStatus.InProgress))
             .ExecuteCommandAsync();
 

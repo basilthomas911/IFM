@@ -21,7 +21,7 @@ public class ScyllaDbQueuedCommandTests
         var bindValues = new List<object> { "value1", 42 };
 
         // Act
-        var command = new ScyllaDbObjectDataQueuedCommand(commandType, commandText, bindValues);
+        var command = new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", commandType, commandText, bindValues);
 
         // Assert
         command.CommandType.Should().Be(CommandType.Text);
@@ -33,8 +33,7 @@ public class ScyllaDbQueuedCommandTests
     public void Constructor_StoredProcedureType_SetsCorrectly()
     {
         // Arrange & Act
-        var command = new ScyllaDbObjectDataQueuedCommand(
-            CommandType.StoredProcedure,
+        var command = new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.StoredProcedure,
             "sp_my_procedure",
             null);
 
@@ -47,7 +46,7 @@ public class ScyllaDbQueuedCommandTests
     public void Constructor_NullBindValues_SetsBindValuesToNull()
     {
         // Arrange & Act
-        var command = new ScyllaDbObjectDataQueuedCommand(CommandType.Text, "SELECT 1", null);
+        var command = new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.Text, "SELECT 1", null);
 
         // Assert
         command.BindValues.Should().BeNull();
@@ -60,7 +59,7 @@ public class ScyllaDbQueuedCommandTests
         var bindValues = new List<object>();
 
         // Act
-        var command = new ScyllaDbObjectDataQueuedCommand(CommandType.Text, "SELECT 1", bindValues);
+        var command = new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.Text, "SELECT 1", bindValues);
 
         // Assert
         command.BindValues.Should().NotBeNull();
@@ -73,7 +72,7 @@ public class ScyllaDbQueuedCommandTests
     public void Constructor_NullCommandText_ThrowsStorageException()
     {
         // Arrange & Act
-        Action act = () => new ScyllaDbObjectDataQueuedCommand(CommandType.Text, null!, null);
+        Action act = () => new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.Text, null!, null);
 
         // Assert
         act.Should().Throw<StorageException>()
@@ -84,7 +83,7 @@ public class ScyllaDbQueuedCommandTests
     public void Constructor_EmptyCommandText_ThrowsStorageException()
     {
         // Arrange & Act
-        Action act = () => new ScyllaDbObjectDataQueuedCommand(CommandType.Text, string.Empty, null);
+        Action act = () => new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.Text, string.Empty, null);
 
         // Assert
         act.Should().Throw<StorageException>()
@@ -95,7 +94,7 @@ public class ScyllaDbQueuedCommandTests
     public void Constructor_WhitespaceCommandText_ThrowsStorageException()
     {
         // Arrange & Act
-        Action act = () => new ScyllaDbObjectDataQueuedCommand(CommandType.Text, "   ", null);
+        Action act = () => new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.Text, "   ", null);
 
         // Assert
         act.Should().Throw<StorageException>()
@@ -111,7 +110,7 @@ public class ScyllaDbQueuedCommandTests
         var bindValues = new List<object> { "text", 42, 3.14, true, DateTime.Now };
 
         // Act
-        var command = new ScyllaDbObjectDataQueuedCommand(CommandType.Text, "INSERT INTO t VALUES (?, ?, ?, ?, ?)", bindValues);
+        var command = new ScyllaDbObjectDataQueuedCommand($"{nameof(ScyllaDbQueuedCommandTests)}.Command", CommandType.Text, "INSERT INTO t VALUES (?, ?, ?, ?, ?)", bindValues);
 
         // Assert
         command.BindValues.Should().HaveCount(5);

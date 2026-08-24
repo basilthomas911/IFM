@@ -44,10 +44,10 @@ public class MarketDataDbLoadTests(MarketDataFixture testFixture) : IClassFixtur
         var rowCount = 0l;
         var db = TestFixture.DevDatabase;
         var dbMarketData = db as IMarketDataDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_eod_data.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_eod_data.csv"))
            .ReadAsync(MapToFuturesEodData, async reducer =>
            {
-               await db.Use($"truncate futures_eod_data").ExecuteCommandAsync();
+               await db.UseTest($"truncate futures_eod_data").ExecuteCommandAsync();
                rowCount = await dbMarketData.InsertFuturesEodDataAsync(reducer);
            });
 
@@ -90,10 +90,10 @@ public class MarketDataDbLoadTests(MarketDataFixture testFixture) : IClassFixtur
         var rowCount = 0l;
         var db = TestFixture.DevDatabase;
         var dbMarketData = db as IMarketDataDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_bar_data.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_bar_data.csv"))
            .ReadAsync(MapToFuturesBarData, async reducer =>
            {
-               await db.Use($"truncate futures_bar_data").ExecuteCommandAsync();
+               await db.UseTest($"truncate futures_bar_data").ExecuteCommandAsync();
                rowCount = await dbMarketData.InsertFuturesBarDataAsync(reducer);
            });
 
@@ -122,9 +122,9 @@ public class MarketDataDbLoadTests(MarketDataFixture testFixture) : IClassFixtur
     {
         var rowCount = 0l;
         var db = TestFixture.DevDatabase;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_trade_signal.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_trade_signal.csv"))
            .ReadAsync(MapToFuturesTradeSignal,  async futureTradeSignals => {
-               await db.Use($"truncate futures_trade_signal").ExecuteCommandAsync();
+               await db.UseTest($"truncate futures_trade_signal").ExecuteCommandAsync();
                rowCount = await db.InsertFuturesTradeSignalsAsync(futureTradeSignals);
            });
         var resultSet = await db.GetFuturesTradeSignalsAsync();

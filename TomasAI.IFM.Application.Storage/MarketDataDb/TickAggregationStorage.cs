@@ -76,7 +76,7 @@ public partial class MarketDataDbContext
     {
         var id = e.TickDataId;
         var data = e.TradeData;
-        return Use(MarketDataDbCql.InsertTickTradeData)
+        return Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickTradeData)}", MarketDataDbCql.InsertTickTradeData)
             .SetParameters(new InsertTickTradeData([
                 (sbyte)e.AssetTypeId, id.ContractId, id.ValueDate,
                 TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId,
@@ -93,7 +93,7 @@ public partial class MarketDataDbContext
     public Task InsertTickQuoteDataAsync(FuturesTickQuoteDataInsertedEvent e)
     {
         var id = e.TickDataId;
-        return Use(MarketDataDbCql.InsertTickQuoteData)
+        return Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertTickQuoteData)}", MarketDataDbCql.InsertTickQuoteData)
             .SetParameters(new InsertTickQuoteData([
                 (sbyte)e.AssetTypeId, id.ContractId, id.ValueDate,
                 TimeOnly.FromDateTime(id.TimestampUtc), id.SequenceId,

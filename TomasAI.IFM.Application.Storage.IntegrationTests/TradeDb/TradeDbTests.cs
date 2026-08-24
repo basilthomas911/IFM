@@ -222,7 +222,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var tradeType = SampleData.TradeSpreadData.TradeType;
 
         // First ensure we remove any existing data
-        await db.Use($"DELETE FROM option_trade_spread_data WHERE orderId = {orderId} AND tradeId = {tradeId}").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM option_trade_spread_data WHERE orderId = {orderId} AND tradeId = {tradeId}").ExecuteCommandAsync();
 
         // Insert sample data
         await db.InsertOptionTradeSpreadDataAsync(SampleData.TradeSpreadData);
@@ -675,7 +675,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var tradeId = SampleData.TradePlan.TradeId;
 
         // First ensure we remove any existing data
-        await db.Use($"DELETE FROM trade_plan WHERE orderId = {orderId} AND tradeId = {tradeId}").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan WHERE orderId = {orderId} AND tradeId = {tradeId}").ExecuteCommandAsync();
         await db.InsertTradePlanAsync(SampleData.TradePlan);
 
         // Act
@@ -716,7 +716,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var orderId = SampleData.TradePlan.OrderId;
 
         // First ensure we remove any existing data
-        await db.Use($"DELETE FROM trade_plan WHERE orderId = {orderId}").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan WHERE orderId = {orderId}").ExecuteCommandAsync();
 
         // Insert sample data
         await db.InsertTradePlanAsync(SampleData.TradePlan);
@@ -809,8 +809,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var orderId = SampleData.TradePlan.OrderId;
 
         // First ensure we remove any existing data
-        await db.Use($"DELETE FROM trade_plan_forward_loss_ratio where partitionId = 1").ExecuteCommandAsync();
-        await db.Use($"DELETE FROM trade_plan WHERE orderId = {orderId}").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan_forward_loss_ratio where partitionId = 1").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan WHERE orderId = {orderId}").ExecuteCommandAsync();
 
         // Insert sample data
         await db.InsertTradePlanAsync(SampleData.TradePlan);
@@ -835,7 +835,7 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 1, 31);
 
-        await db.Use("DELETE FROM trade_plan_forward_loss_ratio where partitionId = 1")
+        await db.UseTest("DELETE FROM trade_plan_forward_loss_ratio where partitionId = 1")
             .ExecuteCommandAsync();
 
         // Act
@@ -860,8 +860,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var valueDate = SampleData.TradePlan.ValueDate;
 
         // Clean up any existing data for this test date
-        await db.Use($"DELETE FROM trade_plan  WHERE orderId  = {SampleData.TradePlan.OrderId}").ExecuteCommandAsync();
-        await db.Use($"DELETE FROM trade_plan_forward_loss_ratio WHERE partitionId = 1 and valueDate = '{valueDate}'").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan  WHERE orderId  = {SampleData.TradePlan.OrderId}").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan_forward_loss_ratio WHERE partitionId = 1 and valueDate = '{valueDate}'").ExecuteCommandAsync();
 
         // Create sample forward loss ratio data
         var tradePlan = SampleData.TradePlan;
@@ -887,8 +887,8 @@ public class TradeDbTests : IClassFixture<TradeDbFixture>
         var nonExistentDate = new DateOnly(2026, 12, 31); // Use a date unlikely to exist in test data
 
         // Ensure the data doesn't exist
-        await db.Use($"DELETE FROM trade_plan  WHERE orderId  = {SampleData.TradePlan.OrderId}").ExecuteCommandAsync();
-        await db.Use($"DELETE FROM trade_plan_forward_loss_ratio WHERE partitionId = 1 and valueDate = '{valueDate}'").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan  WHERE orderId  = {SampleData.TradePlan.OrderId}").ExecuteCommandAsync();
+        await db.UseTest($"DELETE FROM trade_plan_forward_loss_ratio WHERE partitionId = 1 and valueDate = '{valueDate}'").ExecuteCommandAsync();
 
         // Act
         var result = await db.GetTradePlanForwardLossRatioAsync(nonExistentDate);

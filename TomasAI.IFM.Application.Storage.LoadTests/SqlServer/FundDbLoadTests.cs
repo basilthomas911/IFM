@@ -36,9 +36,9 @@ public class FundDbLoadTests(FundDatabaseFixture testFixture) : IClassFixture<Fu
         var rowCount = 0l;
         var db = _testFixture.DbFactory.FundDb;
         var dbFund = db as IFundDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\fund.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\fund.csv"))
            .ReadAsync(MapToFund, async funds => {
-               await db.Use($"truncate fund").ExecuteCommandAsync();
+               await db.UseTest($"truncate fund").ExecuteCommandAsync();
                rowCount = await dbFund.InsertFundsAsync(funds);
            });
         var resultSet = await dbFund.GetFundsAsync();
@@ -64,9 +64,9 @@ public class FundDbLoadTests(FundDatabaseFixture testFixture) : IClassFixture<Fu
         var rowCount = 0l;
         var db = _testFixture.DbFactory.FundDb;
         var dbFund = db as IFundDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\fund_order.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\fund_order.csv"))
            .ReadAsync(MapToFundOrder, async fundOrderTrades => {
-               await db.Use($"truncate fund_order").ExecuteCommandAsync();
+               await db.UseTest($"truncate fund_order").ExecuteCommandAsync();
                rowCount = await dbFund.InsertFundOrdersAsync(fundOrderTrades);
            });
         var resultSet = await dbFund.GetFundOrdersAsync();
@@ -97,9 +97,9 @@ public class FundDbLoadTests(FundDatabaseFixture testFixture) : IClassFixture<Fu
         var rowCount = 0l;
         var db = _testFixture.DbFactory.FundDb;
         var dbFund = db as IFundDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\fund_order_trade.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\fund_order_trade.csv"))
            .ReadAsync(MapToFundOrderTrade, async fundOrderTrades => {
-                await db.Use($"truncate fund_order_trade").ExecuteCommandAsync();
+                await db.UseTest($"truncate fund_order_trade").ExecuteCommandAsync();
                 rowCount = await dbFund.InsertFundOrderTradesAsync(fundOrderTrades);
            });
         var resultSet = await dbFund.GetFundOrderTradesAsync();
@@ -133,9 +133,9 @@ public class FundDbLoadTests(FundDatabaseFixture testFixture) : IClassFixture<Fu
         var rowCount = 0l;
         var db = _testFixture.DbFactory.FundDb;
         var dbFund = db as IFundDbContext;
-        await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\fund_transaction.csv"))
+        await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\fund_transaction.csv"))
            .ReadAsync(MapToFundTransaction, async fundTx => {
-               await db.Use($"truncate fund_transaction").ExecuteCommandAsync();
+               await db.UseTest($"truncate fund_transaction").ExecuteCommandAsync();
                rowCount = await dbFund.InsertFundTransactionsAsync(fundTx);
            });
         var resultSet = await dbFund.GetFundTransactionsAsync();

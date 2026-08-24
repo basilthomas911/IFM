@@ -34,11 +34,11 @@ public class SecuritiesDbLoadTests(SecuritiesDatabaseFixture testFixture) : ICla
     public async Task GetFuturesContractsFromCsvFileOk()
     {
         var db = _testFixture.Db;
-        var futuresContractDataFromCsv = await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_contract.csv"))
+        var futuresContractDataFromCsv = await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_contract.csv"))
            .ReadAsync<FuturesContractV2ReadModel>(MapToFuturesContract);
         futuresContractDataFromCsv.Should().NotBeNull();
         futuresContractDataFromCsv.Count.Should().BeGreaterThan(0);
-        await db.Use($"truncate futures_contract").ExecuteCommandAsync();
+        await db.UseTest($"truncate futures_contract").ExecuteCommandAsync();
         await db.InsertFuturesContractsAsync(futuresContractDataFromCsv);
 
         var resultSet = await db.GetFuturesContractsAsync();
@@ -65,11 +65,11 @@ public class SecuritiesDbLoadTests(SecuritiesDatabaseFixture testFixture) : ICla
     public async Task GetFuturesOptionContractsFromCsvFileOk()
     {
         var db = _testFixture.Db;
-        var futuresOptionContractDataFromCsv = await db.Use(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_option_contract.csv"))
+        var futuresOptionContractDataFromCsv = await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_option_contract.csv"))
            .ReadAsync<FuturesOptionContractReadModel>(MapToFuturesOptionContract);
         futuresOptionContractDataFromCsv.Should().NotBeNull();
         futuresOptionContractDataFromCsv.Count.Should().BeGreaterThan(0);
-        await db.Use($"truncate futures_option_contract").ExecuteCommandAsync();
+        await db.UseTest($"truncate futures_option_contract").ExecuteCommandAsync();
         await db.InsertFuturesOptionContractsAsync(futuresOptionContractDataFromCsv);
 
         var resultSet = await db.GetFuturesOptionContractsAsync();

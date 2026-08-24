@@ -94,7 +94,9 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
 
         // Act
-        var cmdTextCtx = dbProvider.CreateCommandTextContext("cmdText");
+        var cmdTextCtx = dbProvider.CreateCommandTextContext(
+            $"{nameof(DbProviderTests)}.{nameof(CreateCommandTextContextOk)}",
+            "cmdText");
 
         // Assert
         cmdTextCtx.Should().NotBeNull();
@@ -125,8 +127,8 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 1", null),
-            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 2", null)
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text, "SELECT 1", null),
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text, "SELECT 2", null)
         ];
 
         // Act
@@ -145,8 +147,8 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spProc1", null),
-            new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spProc2", null)
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.StoredProcedure, "spProc1", null),
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.StoredProcedure, "spProc2", null)
         ];
 
         // Act
@@ -183,8 +185,8 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 1", null),
-            new ObjectDataQueuedCommand(CommandType.StoredProcedure, "spProc1", null)
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text, "SELECT 1", null),
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.StoredProcedure, "spProc1", null)
         ];
 
         // Act
@@ -204,8 +206,7 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(
-                CommandType.Text,
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
                 null,
                 "System.Data.SqlServer",
@@ -236,8 +237,7 @@ public class DbProviderTests
             Substitute.For<ILogger<DbProvider>>());
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(
-                CommandType.Text,
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
                 null,
                 sourceRepo.ProviderName,
@@ -266,8 +266,7 @@ public class DbProviderTests
             Substitute.For<ILogger<DbProvider>>());
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(
-                CommandType.Text,
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text,
                 "SELECT 1",
                 null,
                 sourceRepo.ProviderName,
@@ -332,7 +331,10 @@ public class DbProviderTests
             var dataReaderOptions = new DataReaderOptions(connectionString);
 
             // Act
-            var fileCtx = dbProvider.CreateFileUriContext(uri, dataReaderOptions);
+            var fileCtx = dbProvider.CreateFileUriContext(
+                $"{nameof(DbProviderTests)}.{nameof(CreateBulkCopyContextOk)}",
+                uri,
+                dataReaderOptions);
 
             // Assert
             fileCtx.Should().NotBeNull();
@@ -352,11 +354,13 @@ public class DbProviderTests
         var dbProvider = new ObjectDataDbProvider(mockRepo, mockLogger);
         // These contexts can be created concurrently by unrelated callers and must
         // not become hidden input to execution of this explicit queue.
-        dbProvider.CreateCommandTextContext("SELECT 1");
+        dbProvider.CreateCommandTextContext(
+            $"{nameof(DbProviderTests)}.{nameof(CreateQueuedCommandsContextIgnoresUnrelatedContextCreation)}",
+            "SELECT 1");
         dbProvider.CreateStoredProcedureContext("spProc1");
         List<object> queuedCommands =
         [
-            new ObjectDataQueuedCommand(CommandType.Text, "SELECT 2", null)
+            new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", CommandType.Text, "SELECT 2", null)
         ];
 
         // Act
@@ -381,7 +385,7 @@ public class DbProviderTests
                 : CommandType.StoredProcedure;
             List<object> queue =
             [
-                new ObjectDataQueuedCommand(commandType, $"command-{index}", null)
+                new ObjectDataQueuedCommand($"{nameof(DbProviderTests)}.Command", commandType, $"command-{index}", null)
             ];
             await start.Task;
 

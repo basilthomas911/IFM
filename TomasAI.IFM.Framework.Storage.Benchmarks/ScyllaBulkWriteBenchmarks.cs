@@ -166,7 +166,7 @@ public class ScyllaBulkWriteBenchmarks
     [Benchmark(Description = "After: bounded concurrency")]
     public async Task RedesignedBoundedConcurrency()
         => await _repository
-            .Use(InsertRow)
+            .Use($"{nameof(ScyllaBulkWriteBenchmarks)}.{nameof(InsertRow)}", InsertRow)
             .SetParameters(_redesignedValues)
             .ExecuteCommandAsync();
 

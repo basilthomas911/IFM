@@ -370,7 +370,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<OptionTradeReadModel>> GetOptionTradesAsync(int orderId)
     {
         var db = _dbFactory.TradeDb;
-        var optionTrades = await db.Use(TradeDbCql.GetOptionTrades)
+        var optionTrades = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTrades)}", TradeDbCql.GetOptionTrades)
                 .SetParameters(new GetOptionTrades(orderId))
                 .ExecuteQueryAsync(MapToOptionTrade!);
 
@@ -392,7 +392,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="OptionTradeReadModel"/> representing the option trades.</returns>
     public async Task<ICollection<OptionTradeReadModel>> GetOptionTradesAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradesAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradesAll)}", TradeDbCql.GetOptionTradesAll)
             .ExecuteQueryAsync(MapToOptionTrade!);
 
     /// <summary>
@@ -404,7 +404,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<OptionTradeReadModel?> GetOptionTradeAsync(int orderId, int tradeId)
     {
         var db = _dbFactory.TradeDb;
-        var optionTrade = await db.Use(TradeDbCql.GetOptionTrade)
+        var optionTrade = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTrade)}", TradeDbCql.GetOptionTrade)
                .SetParameters(new GetOptionTrade(orderId, tradeId))
                .ExecuteSingleAsync(MapToOptionTrade!);
         if (optionTrade is not null)
@@ -422,7 +422,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<OptionTradeSpreadsDataModel?> GetOptionTradeSpreadDataAsync(int orderId, int tradeId, DateOnly valueDate, TradeType tradeType)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradeSpreadData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadData)}", TradeDbCql.GetOptionTradeSpreadData)
             .SetParameters(new GetOptionTradeSpreadData(orderId, tradeId, valueDate, tradeType.ToStringFast()))
             .ExecuteSingleAsync(MapToOptionTradeSpreadData!);
 
@@ -435,7 +435,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="OptionTradeSpreadsDataModel"/> representing the option trade spread data.</returns>
     public async Task<ICollection<OptionTradeSpreadsDataModel>> GetOptionTradeSpreadDataAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradeSpreadDataAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadDataAll)}", TradeDbCql.GetOptionTradeSpreadDataAll)
             .ExecuteQueryAsync(MapToOptionTradeSpreadData!);
 
     /// <summary>
@@ -451,7 +451,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<OptionTradeSpreadBarsDataModel>> GetOptionTradeSpreadBarDataAsync(
         int orderId, int tradeId, DateOnly valueDate, TradeType tradeType, DateTime startDate, DateTime endDate)
         => await  _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradeSpreadBarData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadBarData)}", TradeDbCql.GetOptionTradeSpreadBarData)
             .SetParameters(new GetOptionTradeSpreadBarData(orderId, tradeId, valueDate, tradeType.ToStringFast(), startDate, endDate))
             .ExecuteQueryAsync(MapToOptionTradeSpreadBarsData!);
 
@@ -464,7 +464,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="OptionTradeSpreadBarsDataModel"/> representing the option trade spread bar data.</returns>
     public async Task<ICollection<OptionTradeSpreadBarsDataModel>> GetOptionTradeSpreadBarDataAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradeSpreadBarDataAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadBarDataAll)}", TradeDbCql.GetOptionTradeSpreadBarDataAll)
             .ExecuteQueryAsync(MapToOptionTradeSpreadBarsData!);
 
     /// <summary>
@@ -475,7 +475,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<TradePriceReadModel?> GetIronCondorTradePriceAsync(int tradeId, DateOnly valueDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionLegs)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegsWithValueDate(tradeId, valueDate))
             .ExecuteSingleAsync(MapToTradePrice);
 
@@ -489,16 +489,16 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var entityId = optionTrade.EntityId;
         var db = _dbFactory.TradeDb;
         var tradePositionsTask = db
-            .Use(TradeDbCql.GetTradePositions)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
             .SetParameters(new GetTradePositions(entityId.OrderId, entityId.TradeId))
             .ExecuteQueryAsync(MapToTradePosition!);
         var optionLegsTask = db
-            .Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
             .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
             .ExecuteQueryAsync(MapToOptionLeg!);
         var tradeLimitTask = GetTradeLimitAsync(optionTrade.TradeId);
         var tradeTypeLimitsTask = db
-            .Use(TradeDbCql.GetTradeTypeLimits)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimits)}", TradeDbCql.GetTradeTypeLimits)
             .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
             .ExecuteQueryAsync(MapToTradeTypeLimit);
         var tradeFillsTask = GetTradeFillsAsync(optionTrade.OrderId, optionTrade.TradeId);
@@ -510,7 +510,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             Enumerable.Range(0, valueDates.Length),
             new ParallelOptions { MaxDegreeOfParallelism = 4 },
             async (dateIndex, _) => legDataByDate[dateIndex] = await db
-                .Use(TradeDbCql.GetOptionLegData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                 .SetParameters(new GetOptionLegData(entityId.OrderId, entityId.TradeId, valueDates[dateIndex]))
                 .ExecuteQueryAsync(MapToOptionLegData!));
 
@@ -542,7 +542,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<TradePositionReadModel>> GetTradePositionsAsync(int orderId, int tradeId)
     {
         var db = _dbFactory.TradeDb;
-        var tradePositionsTask = db.Use(TradeDbCql.GetTradePositions)
+        var tradePositionsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
              .SetParameters(new GetTradePositions(orderId, tradeId))
              .ExecuteQueryAsync(MapToTradePosition!);
 
@@ -550,7 +550,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         if (tradePositions.Count == 0)
             return tradePositions;
 
-        var optionLegsTask = db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+        var optionLegsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
             .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!);
         var valueDates = tradePositions.Select(position => position.ValueDate).Distinct().ToArray();
@@ -558,7 +558,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         await Parallel.ForEachAsync(
             Enumerable.Range(0, valueDates.Length),
             new ParallelOptions { MaxDegreeOfParallelism = 4 },
-            async (dateIndex, _) => legDataByDate[dateIndex] = await db.Use(TradeDbCql.GetOptionLegData)
+            async (dateIndex, _) => legDataByDate[dateIndex] = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                 .SetParameters(new GetOptionLegData(orderId, tradeId, valueDates[dateIndex]))
                 .ExecuteQueryAsync(MapToOptionLegData!));
 
@@ -617,7 +617,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="TradePositionReadModel"/> objects representing the trade positions.</returns>
     public async Task<ICollection<TradePositionReadModel>> GetTradePositionsAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePositionsAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositionsAll)}", TradeDbCql.GetTradePositionsAll)
             .ExecuteQueryAsync(MapToTradePosition!);
 
 
@@ -633,7 +633,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<string>> GetTradePositionTradeTypesAsync(
        int orderId, int tradeId, DateOnly valueDate,  TradeStatus tradeStatus, int daysToExpiry)
         => [.. (await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradePositionsById)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositionsById)}", TradeDbCql.GetTradePositionsById)
                 .SetParameters(new GetTradePositionsById(
                     orderId,
                     tradeId,
@@ -696,12 +696,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         return tradePosition;
 
         async Task<ICollection<OptionTradeLegReadModel>> GetOptionLegs()
-            => await db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+            => await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
                    .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
                    .ExecuteQueryAsync(MapToOptionLeg!);
 
         async Task<ICollection<OptionTradeLegDataReadModel>> GetOptionLegData()
-            => [.. (await db.Use(TradeDbCql.GetOptionLegData)
+            => [.. (await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                    .SetParameters(new GetOptionLegData(
                        orderId,
                        tradeId,
@@ -714,7 +714,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                         )];
 
         async Task<TradePositionReadModel?> GetTradePositionAsync()
-            => await db.Use(TradeDbCql.GetTradePosition)
+            => await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePosition)}", TradeDbCql.GetTradePosition)
                    .SetParameters(new GetTradePosition(
                        orderId,
                        tradeId,
@@ -733,7 +733,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradeHistoryReadModel>> GetTradeHistoryAsync(int orderId)
         => [.. (await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradeHistory)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeHistory)}", TradeDbCql.GetTradeHistory)
                 .SetParameters(new GetTradeHistory(orderId))
                 .ExecuteQueryAsync(MapToTradeHistory!)).OrderBy(e => e.ValueDate)];
 
@@ -745,7 +745,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradeOrderReadModel>> GetTradeOrdersAsync(DateOnly startDate, DateOnly endDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeOrders)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrders)}", TradeDbCql.GetTradeOrders)
             .SetParameters(new GetTradeOrders(startDate, endDate))
             .ExecuteQueryAsync(MapToTradeOrder!);
     
@@ -757,7 +757,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<string>> GetOptionLegContractIdsAsync(int tradeId)
     {
         var optionLegs = await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetOptionLegs)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
                 .SetParameters(new GetOptionLegs(tradeId))
                 .ExecuteQueryAsync(MapToOptionLeg!);
         var latestTradeLegs = optionLegs
@@ -778,7 +778,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="OptionTradeLegReadModel"/> representing all option legs.</returns>
     public async Task<ICollection<OptionTradeLegReadModel>> GetOptionLegsAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionLegsAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsAll)}", TradeDbCql.GetOptionLegsAll)
             .ExecuteQueryAsync(MapToOptionLeg!);
 
     /// <summary>
@@ -790,7 +790,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="OptionTradeLegDataReadModel"/> instances representing the option leg data.</returns>
     public async Task<ICollection<OptionTradeLegDataReadModel>> GetOptionLegDataAsync()
       => await _dbFactory.TradeDb
-          .Use(TradeDbCql.GetOptionLegDataAll)
+          .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegDataAll)}", TradeDbCql.GetOptionLegDataAll)
           .ExecuteQueryAsync(MapToOptionLegData!);
 
 
@@ -802,7 +802,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<int> GetTradeQuantityAsync(int tradeId)
     {
         var db = _dbFactory.TradeDb;
-        var optionLegs = await db.Use(TradeDbCql.GetOptionLegs)
+        var optionLegs = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegs(tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!);
         var latestTradeLegs = optionLegs
@@ -822,7 +822,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<TradeLimitReadModel?> GetTradeLimitAsync(int tradeId)
     {
         var db = _dbFactory.TradeDb;
-        var tradeLimit = await db.Use(TradeDbCql.GetTradeLimit)
+        var tradeLimit = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeLimit)}", TradeDbCql.GetTradeLimit)
                 .SetParameters(new GetTradeLimit(tradeId))
                 .ExecuteSingleAsync(MapToTradeLimit!);
 
@@ -845,7 +845,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="TradeLimitReadModel"/> objects representing the trade limits.</returns>
     public async Task<ICollection<TradeLimitReadModel>> GetTradeLimitsAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeLimitAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeLimitAll)}", TradeDbCql.GetTradeLimitAll)
             .ExecuteQueryAsync(MapToTradeLimit!);
 
     /// <summary>
@@ -856,7 +856,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<TradeTypeLimitReadModel?> GetTradeTypeLimitAsync( int tradeId,  TradeType tradeType)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeTypeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimit)}", TradeDbCql.GetTradeTypeLimit)
             .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()))
             .ExecuteSingleAsync(MapToTradeTypeLimit!);
 
@@ -867,7 +867,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradeTypeLimitReadModel>> GetTradeTypeLimitsAsync(int tradeId)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeTypeLimits)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimits)}", TradeDbCql.GetTradeTypeLimits)
             .SetParameters(new GetTradeTypeLimits(tradeId))
             .ExecuteQueryAsync(MapToTradeTypeLimit!);
 
@@ -878,7 +878,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="TradeTypeLimitReadModel"/> representing the trade type limits.</returns>
     public async Task<ICollection<TradeTypeLimitReadModel>> GetTradeTypeLimitsAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeTypeLimitAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimitAll)}", TradeDbCql.GetTradeTypeLimitAll)
             .ExecuteQueryAsync(MapToTradeTypeLimit!);
 
     /// <summary>
@@ -894,7 +894,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// if no signal is found.</returns>
     public async Task<TradePlacementSignalReadModel?> GetTradePlacementSignalAsync(string contractId, DateOnly valueDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlacementSignal)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlacementSignal)}", TradeDbCql.GetTradePlacementSignal)
             .SetParameters(new GetTradePlacementSignal(contractId, valueDate))
             .ExecuteSingleAsync(MapToTradePlacementSignal!);
 
@@ -907,7 +907,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// cref="TradeFillReadModel"/> instances representing the trade fill records.</returns>
     public async Task<ICollection<TradeFillReadModel>> GetTradeFillsAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeFillsAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillsAll)}", TradeDbCql.GetTradeFillsAll)
             .ExecuteQueryAsync(MapToTradeFill!);
 
     /// <summary>
@@ -918,13 +918,13 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<ICollection<TradeFillReadModel>> GetTradeFillsAsync(int orderId, int tradeId)
     {
         var db = _dbFactory.TradeDb;
-        var tradeFills = await db.Use(TradeDbCql.GetTradeFills)
+        var tradeFills = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFills)}", TradeDbCql.GetTradeFills)
             .SetParameters(new GetTradeFills(orderId, tradeId))
             .ExecuteQueryAsync(MapToTradeFill!);
         if (tradeFills.Count  > 0)
             foreach(var tf in tradeFills)
             {
-                var tradeFillData = await db.Use(TradeDbCql.GetTradeFillData)
+                var tradeFillData = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillData)}", TradeDbCql.GetTradeFillData)
                     .SetParameters(new GetTradeFillData(orderId, tradeId, tf.FillDate))
                     .ExecuteQueryAsync(MapToTradeFillData!);
                 if (tradeFillData.Count  > 0)
@@ -940,7 +940,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlans)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlans)}", TradeDbCql.GetTradePlans)
             .SetParameters(new GetTradePlans(orderId))
             .ExecuteQueryAsync(MapToTradePlan!);
 
@@ -950,7 +950,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradePlanReadModel>> GetTradePlansAsync()
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlansAll)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlansAll)}", TradeDbCql.GetTradePlansAll)
             .ExecuteQueryAsync(MapToTradePlan!);
 
     /// <summary>
@@ -962,7 +962,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradePlanReadModel>> GetTradePlansAsync(int orderId, int tradeId, DateOnly valueDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlansByValueDate)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlansByValueDate)}", TradeDbCql.GetTradePlansByValueDate)
             .SetParameters(new GetTradePlansByTradeId(orderId, tradeId, valueDate))
             .ExecuteQueryAsync(MapToTradePlan!);
 
@@ -976,7 +976,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// collection is empty if no trade plans are found.</returns>
     public async Task<ICollection<TradePlanReadModel>> GetLastTradePlansAsync(int orderId, int tradeId)
     => await _dbFactory.TradeDb
-        .Use(TradeDbCql.GetLastTradePlans)
+        .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetLastTradePlans)}", TradeDbCql.GetLastTradePlans)
         .SetParameters(new GetLastTradePlans(orderId, tradeId))
         .ExecuteQueryAsync(MapToTradePlan!);
 
@@ -989,7 +989,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<TradePlanStopLossLimitReadModel?> GetTradePlanStopLossLimitAsync(int orderId, int tradeId)
         => await  _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradePlanStopLossLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlanStopLossLimit)}", TradeDbCql.GetTradePlanStopLossLimit)
                 .SetParameters(new GetTradePlanStopLossLimit(orderId, tradeId))
                 .ExecuteSingleAsync(MapToTradePlanStopLossLimit!);
 
@@ -1006,7 +1006,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         DateOnly startDate, 
         DateOnly endDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlansByDateRange)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlansByDateRange)}", TradeDbCql.GetTradePlansByDateRange)
             .SetParameters(new GetTradePlansByDateRange(orderId, tradeId, startDate, endDate))
             .ExecuteQueryAsync(MapToTradePlan!);  
 
@@ -1018,7 +1018,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradePlanForwardLossRatioReadModel>> GetTradePlanForwardLossRatiosAsync(DateOnly startDate, DateOnly endDate)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlanForwardLossRatios)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlanForwardLossRatios)}", TradeDbCql.GetTradePlanForwardLossRatios)
             .SetParameters(new GetTradePlanForwardLossRatios(startDate, endDate))
             .ExecuteQueryAsync(MapToTradePlanForwardLossRatio!);    
 
@@ -1030,7 +1030,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     public async Task<TradePlanForwardLossRatioReadModel?> GetTradePlanForwardLossRatioAsync(DateOnly valueDate)
     {
         var rows = await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetLastTradePlanForwardLossRatio)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetLastTradePlanForwardLossRatio)}", TradeDbCql.GetLastTradePlanForwardLossRatio)
             .SetParameters(new GetLastTradePlanForwardLossRatio(valueDate))
             .ExecuteQueryAsync(MapToTradePlanForwardLossRatioRow!);
         var latest = rows.MaxBy(row => row.SequenceId);
@@ -1050,7 +1050,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         DateOnly valueDate,
         TradeType tradeType)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePlanForwardLossLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePlanForwardLossLimit)}", TradeDbCql.GetTradePlanForwardLossLimit)
             .SetParameters(new GetTradePlanForwardLossLimit(
                 orderId ,
                 tradeId,
@@ -1067,7 +1067,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradeLiveFeedReadModel>> GetTradeLiveFeedAsync(int orderId, int tradeId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradeLiveFeed)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeLiveFeed)}", TradeDbCql.GetTradeLiveFeed)
                 .SetParameters(new GetTradeLiveFeed(orderId, tradeId))
                 .ExecuteQueryAsync(MapToTradeLiveFeed!);
 
@@ -1079,7 +1079,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<TradeOrderReadModel?> GetTradeOrderAsync(DateOnly valueDate,  int tradeId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradeOrder)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrder)}", TradeDbCql.GetTradeOrder)
                 .SetParameters(new GetTradeOrder(valueDate, tradeId))
                 .ExecuteSingleAsync(MapToTradeOrder!);
 
@@ -1091,7 +1091,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradeOrderReadModel>> GetTradeOrdersByFundIdAsync(DateOnly valueDate, int fundId)
         => [.. (await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradeOrdersByValueDate)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeOrdersByValueDate)}", TradeDbCql.GetTradeOrdersByValueDate)
                 .SetParameters(new GetTradeOrdersByValueDate(valueDate))
                 .ExecuteQueryAsync(MapToTradeOrder!)).Where(e => e.FundId == fundId)];
 
@@ -1102,7 +1102,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task<ICollection<TradeFillDataReadModel>> GetTradeFillDataAsync(int tradeId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.GetTradeFillDataByTradeId)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillDataByTradeId)}", TradeDbCql.GetTradeFillDataByTradeId)
                 .SetParameters(new GetTradeFillDataByTradeId(tradeId))
                 .ExecuteQueryAsync(MapToTradeFillData!);    
 
@@ -1118,10 +1118,10 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var db = _dbFactory.TradeDb;
         List<object> queuedCommands = [
-            db.Use(TradeDbCql.DeleteOptionLegById)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegById)}", TradeDbCql.DeleteOptionLegById)
                 .SetParameters(new DeleteOptionLegById(e.OrderId, e.TradeId, e.ContractId))
                 .QueueCommand(),
-            db.Use(TradeDbCql.InsertOptionLeg)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLeg)}", TradeDbCql.InsertOptionLeg)
                 .SetParameters(new InsertOptionLeg(
                     e.OrderId,
                     e.TradeId,
@@ -1151,7 +1151,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertOptionLegsAsync(ICollection<OptionTradeLegReadModel> optionLegs)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertOptionLeg)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLeg)}", TradeDbCql.InsertOptionLeg)
             .SetParameters(optionLegs.Select(e => new InsertOptionLeg(
                 e.OrderId,
                 e.TradeId,
@@ -1182,7 +1182,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0l;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertOptionLeg)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLeg)}", TradeDbCql.InsertOptionLeg)
             .SetParameters(GetOptionLegs().Select(e => new InsertOptionLeg(
                 e.OrderId,
                 e.TradeId,
@@ -1221,7 +1221,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var db = _dbFactory.TradeDb;
         List<object> queuedCommands = [
-            db.Use(TradeDbCql.DeleteOptionLegDataById)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegDataById)}", TradeDbCql.DeleteOptionLegDataById)
                 .SetParameters(new DeleteOptionLegDataById(
                     e.OrderId, 
                     e.TradeId, 
@@ -1231,7 +1231,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                     e.TradeStatus.ToStringFast(), 
                     e.OptionLegId))
                 .QueueCommand(),
-            db.Use(TradeDbCql.InsertOptionLegData)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
                 .SetParameters(new InsertOptionLegData(
                     e.OrderId,
                     e.TradeId,
@@ -1270,7 +1270,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertOptionLegDataAsync(ICollection<OptionTradeLegDataReadModel> optionLegData)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertOptionLegData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
             .SetParameters(optionLegData.Select(e => new InsertOptionLegData(
                 e.OrderId,
                 e.TradeId,
@@ -1308,7 +1308,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         await _dbFactory.TradeDb
-        .Use(TradeDbCql.InsertOptionLegData)
+        .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
         .SetParameters(GetOptionLegData().Select(e => new InsertOptionLegData(
             e.OrderId,
             e.TradeId,
@@ -1356,7 +1356,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var dbWriter = db as ITradeDbWriteContext;
         await dbWriter!.DeleteOptionTradeAsync(e.OrderId, e.TradeId);
         queuedCommands.Add(
-        db.Use(TradeDbCql.InsertOptionTrade)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTrade)}", TradeDbCql.InsertOptionTrade)
             .SetParameters(new InsertOptionTrade(
                 e.TradeId,
                 e.OrderId,
@@ -1382,7 +1382,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         {
             foreach (var ol in e.OptionLegs)
                 queuedCommands.Add(
-                db.Use(TradeDbCql.InsertOptionLeg)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLeg)}", TradeDbCql.InsertOptionLeg)
                     .SetParameters(new InsertOptionLeg(
                         e.OrderId,
                         ol.TradeId,
@@ -1405,7 +1405,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             foreach (var o in e.TradePositions)
             {
                 queuedCommands.Add(
-                db.Use(TradeDbCql.InsertTradePosition)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePosition)}", TradeDbCql.InsertTradePosition)
                     .SetParameters(new InsertTradePosition(
                         e.OrderId,
                         o.TradeId,
@@ -1436,7 +1436,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 {
                     foreach (var old in o.OptionLegData)
                         queuedCommands.Add(
-                            db.Use(TradeDbCql.InsertOptionLegData)
+                            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
                                 .SetParameters(new InsertOptionLegData(
                                     e.OrderId,
                                     old.TradeId,
@@ -1467,7 +1467,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         if (e.TradeLimit is not null)
         {
             queuedCommands.Add(
-            db.Use(TradeDbCql.InsertTradeLimit)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
                 .SetParameters(new InsertTradeLimit(
                     e.TradeLimit.TradeId,
                     e.TradeLimit.TradeType.ToStringFast(),
@@ -1489,7 +1489,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
             // save trade type limits...
             queuedCommands.Add(
-            db.Use(TradeDbCql.InsertTradeTypeLimit)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeTypeLimit)}", TradeDbCql.InsertTradeTypeLimit)
                 .SetParameters(new InsertTradeTypeLimit(
                     e.TradeLimit.TradeId,
                     e.TradeLimit.TradeType.ToStringFast(),
@@ -1506,7 +1506,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         {
             foreach (var ttl in e.TradeTypeLimits)
                 queuedCommands.Add(
-                db.Use(TradeDbCql.InsertTradeTypeLimit)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeTypeLimit)}", TradeDbCql.InsertTradeTypeLimit)
                     .SetParameters(new InsertTradeTypeLimit(
                         ttl.TradeId,
                         ttl.TradeType.ToStringFast(),
@@ -1523,7 +1523,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             foreach (var tf in e.TradeFills)
             {
                 queuedCommands.Add(
-                db.Use(TradeDbCql.InsertTradeFill)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
                     .SetParameters(new InsertTradeFill(
                         tf.OrderId,
                         tf.TradeId,
@@ -1537,7 +1537,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 if (tf.TradeFillData is not null)
                     foreach (var tfd in tf.TradeFillData)
                         queuedCommands.Add(
-                        db.Use(TradeDbCql.InsertTradeFillData)
+                        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFillData)}", TradeDbCql.InsertTradeFillData)
                             .SetParameters(new InsertTradeFillData(
                                 tfd.OrderId,
                                 tfd.TradeId,
@@ -1568,7 +1568,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertOptionTradesAsync(ICollection<OptionTradeReadModel> optionTrades)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertOptionTrade)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTrade)}", TradeDbCql.InsertOptionTrade)
             .SetParameters(optionTrades.Select(e => new InsertOptionTrade(
                 e.TradeId,
                 e.OrderId,
@@ -1603,7 +1603,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertOptionTrade)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTrade)}", TradeDbCql.InsertOptionTrade)
             .SetParameters(GetOptionTrades().Select(e => new InsertOptionTrade(
                 e.TradeId,
                 e.OrderId,
@@ -1644,12 +1644,12 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var db = _dbFactory.TradeDb;
         List<object> queuedCommands = [
-         db.Use(TradeDbCql.DeleteTradePosition)
+         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePosition)}", TradeDbCql.DeleteTradePosition)
               .SetParameters(new DeleteTradePositionLowerCase(
                   e.OrderId,
                   e.TradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteOptionLegData)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegData)}", TradeDbCql.DeleteOptionLegData)
               .SetParameters(new DeleteOptionLegDataLowerCase(
                   e.OrderId,
                   e.TradeId
@@ -1659,7 +1659,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
         queuedCommands.Clear();
         queuedCommands.Add(
-        db.Use(TradeDbCql.InsertTradePosition)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePosition)}", TradeDbCql.InsertTradePosition)
             .SetParameters(new InsertTradePosition(
                 e.OrderId,
                 e.TradeId,
@@ -1688,7 +1688,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         if (e.OptionLegData is not null && e.OptionLegData.Length > 0)
             queuedCommands.AddRange(
                 e.OptionLegData.Select(old =>
-                    db.Use(TradeDbCql.InsertOptionLegData)
+                    db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
                     .SetParameters(new InsertOptionLegData(
                         e.OrderId,
                         old.TradeId,
@@ -1730,7 +1730,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         foreach (var e in tradePositions)
         {
             queuedCommands.Add(
-                db.Use(TradeDbCql.DeleteTradePosition)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePosition)}", TradeDbCql.DeleteTradePosition)
                 .SetParameters(new DeleteTradePositionLowerCase(
                     e.OrderId,
                     e.TradeId
@@ -1738,7 +1738,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 .QueueCommand());
 
             queuedCommands.Add(
-                db.Use(TradeDbCql.DeleteOptionLegData)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegData)}", TradeDbCql.DeleteOptionLegData)
                 .SetParameters(new DeleteOptionLegDataLowerCase(
                     e.OrderId,
                     e.TradeId
@@ -1746,7 +1746,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 .QueueCommand());
 
             queuedCommands.Add(
-            db.Use(TradeDbCql.InsertTradePosition)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePosition)}", TradeDbCql.InsertTradePosition)
                 .SetParameters(new InsertTradePosition(
                     e.OrderId,
                     e.TradeId,
@@ -1776,7 +1776,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             {
                 foreach (var old in e.OptionLegData)
                     queuedCommands.Add(
-                    db.Use(TradeDbCql.InsertOptionLegData)
+                    db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionLegData)}", TradeDbCql.InsertOptionLegData)
                     .SetParameters(new InsertOptionLegData(
                         e.OrderId,
                         old.TradeId,
@@ -1816,7 +1816,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertTradePositionsAsync(ICollection<TradePositionReadModel> tradePositions)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertTradePosition)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePosition)}", TradeDbCql.InsertTradePosition)
             .SetParameters(tradePositions.Select(e => new InsertTradePosition(
                 e.OrderId,
                 e.TradeId,
@@ -1859,7 +1859,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     { 
         var rowCount = 0L;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertTradePosition)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePosition)}", TradeDbCql.InsertTradePosition)
             .SetParameters(GetTradePositions().Select(e => new InsertTradePosition(
                 e.OrderId,
                 e.TradeId,
@@ -1911,7 +1911,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             {
                 var queuedCommands = new List<object>();
                 queuedCommands.Add(
-                db.Use(TradeDbCql.DeleteTradeFill)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFill)}", TradeDbCql.DeleteTradeFill)
                 .SetParameters(new DeleteTradeFill(
                     tf.OrderId,
                     tf.TradeId
@@ -1919,7 +1919,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 .QueueCommand());
 
                 queuedCommands.Add(
-                    db.Use(TradeDbCql.DeleteTradeFillData)
+                    db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFillData)}", TradeDbCql.DeleteTradeFillData)
                     .SetParameters(new DeleteTradeFillData(
                         tf.OrderId,
                         tf.TradeId
@@ -1927,7 +1927,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                     .QueueCommand());
 
                 queuedCommands.Add(
-                db.Use(TradeDbCql.InsertTradeFill)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
                     .SetParameters(new InsertTradeFill(
                         tf.OrderId,
                         tf.TradeId,
@@ -1940,7 +1940,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 if (tf.TradeFillData?.Length > 0)
                     foreach (var tfd in tf.TradeFillData!)
                         queuedCommands.Add(
-                        db.Use(TradeDbCql.InsertTradeFillData)
+                        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFillData)}", TradeDbCql.InsertTradeFillData)
                             .SetParameters(new InsertTradeFillData(
                                 tfd.OrderId,
                                 tfd.TradeId,
@@ -1971,7 +1971,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// inserted.</returns>
     public async Task InsertTradeFillsAsync(ICollection<TradeFillReadModel> tradeFills)
         => await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertTradeFill)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
             .SetParameters(tradeFills.Select(e => new InsertTradeFill(
                 e.OrderId,
                 e.TradeId,
@@ -1995,7 +1995,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertTradeFill)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
             .SetParameters(GetTradeFills().Select(e => new InsertTradeFill(
                 e.OrderId,
                 e.TradeId,
@@ -2030,7 +2030,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             ? e.SequenceId
             : await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.OptionTradeSpreadData_SequenceId);
         await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertOptionTradeSpreadData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTradeSpreadData)}", TradeDbCql.InsertOptionTradeSpreadData)
                 .SetParameters(new InsertOptionTradeSpreadData(
                     e.OrderId,
                     e.TradeId,
@@ -2068,7 +2068,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 batchData.Add((id, e));
             }
             await db
-                .Use(TradeDbCql.InsertOptionTradeSpreadData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTradeSpreadData)}", TradeDbCql.InsertOptionTradeSpreadData)
                 .SetParameters(batchData.Select(e => new InsertOptionTradeSpreadData(
                     e.Data.OrderId,
                     e.Data.TradeId,
@@ -2119,7 +2119,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             rowCount++;
         }
         await db
-            .Use(TradeDbCql.InsertOptionTradeSpreadData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTradeSpreadData)}", TradeDbCql.InsertOptionTradeSpreadData)
             .SetParameters(parameters)
             .ExecuteCommandAsync();
         return rowCount;
@@ -2132,7 +2132,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertOptionTradeSpreadBarDataAsync(OptionTradeSpreadBarsDataModel e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertOptionTradeSpreadBarData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTradeSpreadBarData)}", TradeDbCql.InsertOptionTradeSpreadBarData)
                 .SetParameters(new InsertOptionTradeSpreadBarData(
                     e.OrderId,
                     e.TradeId,
@@ -2159,7 +2159,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// inserted.</returns>
     public async Task InsertOptionTradeSpreadBarDataAsync(ICollection<OptionTradeSpreadBarsDataModel> optionTradeSpreadBarsData)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertOptionTradeSpreadBarData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTradeSpreadBarData)}", TradeDbCql.InsertOptionTradeSpreadBarData)
                 .SetParameters(optionTradeSpreadBarsData.Select(e => new InsertOptionTradeSpreadBarData(
                     e.OrderId,
                     e.TradeId,
@@ -2186,7 +2186,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertOptionTradeSpreadBarData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertOptionTradeSpreadBarData)}", TradeDbCql.InsertOptionTradeSpreadBarData)
             .SetParameters(GetOptionTradeSpreadBarData().Select(e => new InsertOptionTradeSpreadBarData(
                 e.OrderId,
                 e.TradeId,
@@ -2219,7 +2219,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertTradeLiveFeedAsync(TradeLiveFeedReadModel e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradeLiveFeed)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLiveFeed)}", TradeDbCql.InsertTradeLiveFeed)
                 .SetParameters(new InsertTradeLiveFeed(
                     e.OrderId,
                     e.TradeId,
@@ -2234,7 +2234,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertTradePositionStateAsync(TradePositionStateReadModel e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradePositionState)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePositionState)}", TradeDbCql.InsertTradePositionState)
                 .SetParameters(new InsertTradePositionState(
                     e.OrderId,
                     e.TradeId,
@@ -2253,18 +2253,18 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var db = _dbFactory.TradeDb;
         List<object> queuedCommands = [
-           db.Use(TradeDbCql.DeleteTradeOrder)
+           db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeOrder)}", TradeDbCql.DeleteTradeOrder)
               .SetParameters(new DeleteTradeOrder(
                     e.FundId,
                     e.OrderId,
                     e.TradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteTradeFill)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFill)}", TradeDbCql.DeleteTradeFill)
               .SetParameters(new DeleteTradeFill(
                     e.OrderId,
                     e.TradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteTradeFillData)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFillData)}", TradeDbCql.DeleteTradeFillData)
               .SetParameters(new DeleteTradeFillData(
                     e.OrderId,
                     e.TradeId
@@ -2275,7 +2275,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         // save trade order...
         queuedCommands.Clear();
         queuedCommands.Add(
-        db.Use(TradeDbCql.InsertTradeOrder)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeOrder)}", TradeDbCql.InsertTradeOrder)
             .SetParameters(new InsertTradeOrder(
                 e.FundId,
                 e.OrderId,
@@ -2309,7 +2309,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         foreach (var tf in e.TradeFills)
         {
             queuedCommands.Add( 
-            db.Use(TradeDbCql.InsertTradeFill)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFill)}", TradeDbCql.InsertTradeFill)
                 .SetParameters(new InsertTradeFill(
                     tf.OrderId,
                     tf.TradeId,
@@ -2322,7 +2322,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
 
             foreach (var tfd in tf.TradeFillData)
                 queuedCommands.Add(
-                db.Use(TradeDbCql.InsertTradeFillData)
+                db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeFillData)}", TradeDbCql.InsertTradeFillData)
                     .SetParameters(new InsertTradeFillData(
                         tfd.OrderId,
                         tfd.TradeId,
@@ -2353,7 +2353,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         var existingTradePlanForwardLossLimit = await dbReader!.GetTradePlanForwardLossLimitAsync(e.OrderId, e.TradeId, e.ValueDate, e.TradeType);
         if (existingTradePlanForwardLossLimit is not null)
         {
-            await db.Use(TradeDbCql.DeleteTradePlanForwardLossLimit)
+            await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePlanForwardLossLimit)}", TradeDbCql.DeleteTradePlanForwardLossLimit)
                 .SetParameters(new DeleteTradePlanForwardLossLimit(
                     e.OrderId,
                     e.TradeId,
@@ -2362,7 +2362,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 ))
                 .ExecuteCommandAsync();
         }
-        await db.Use(TradeDbCql.InsertTradePlanForwardLossLimit)
+        await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlanForwardLossLimit)}", TradeDbCql.InsertTradePlanForwardLossLimit)
             .SetParameters(new InsertTradePlanForwardLossLimit(
                 e.OrderId,
                 e.TradeId,
@@ -2380,7 +2380,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId);
         var db = _dbFactory.TradeDb;
-        await db.Use(TradeDbCql.InsertTradePlanForwardLossRatio)
+        await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlanForwardLossRatio)}", TradeDbCql.InsertTradePlanForwardLossRatio)
             .SetParameters(new InsertTradePlanForwardLossRatio(
                 1,
                 valueDate,
@@ -2402,7 +2402,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlacementSignal_SequenceId);
         await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradePlacementSignal)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlacementSignal)}", TradeDbCql.InsertTradePlacementSignal)
                 .SetParameters(new InsertTradePlacementSignal(
                     sequenceId,
                     e.ContractId,
@@ -2449,7 +2449,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         DateTime updatedOn,
         string updatedBy)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.UpdateTradePosition)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateTradePosition)}", TradeDbCql.UpdateTradePosition)
                 .SetParameters(new UpdateTradePosition(
                     key.OrderId,
                     key.TradeId,
@@ -2484,7 +2484,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task UpdateOptionTradeStateAsync(int orderId, int tradeId, TradeState tradeState, DateTime updatedOn, string updatedBy)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.UpdateOptionTradeState)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateOptionTradeState)}", TradeDbCql.UpdateOptionTradeState)
                 .SetParameters(new UpdateOptionTradeState(
                     orderId,
                     tradeId,
@@ -2501,7 +2501,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task UpdateTradeLiveFeedAsync(TradeLiveFeedReadModel tradeLiveFeed)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.UpdateTradeLiveFeed)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateTradeLiveFeed)}", TradeDbCql.UpdateTradeLiveFeed)
                 .SetParameters(new UpdateTradeLiveFeed(
                     tradeLiveFeed.OrderId,
                     tradeLiveFeed.TradeId,
@@ -2548,14 +2548,14 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         await dbTrade.InsertTradePositionAsync(updatedTradePosition);   
 
         var optionLegData = await db
-                .Use(TradeDbCql.GetOptionLegData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                 .SetParameters(new GetOptionLegData(orderId, tradeId, valueDate))
                 .ExecuteQueryAsync(MapToOptionLegData!);
         foreach (var o in optionLegData.Where(e => e.TradeType == tradeType
             && e.DaysToExpiry == daysToExpiry 
             && e.TradeStatus == oldTradeStatus))
         {
-            await db.Use(TradeDbCql.UpdateOptionLegDataStatus)
+            await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateOptionLegDataStatus)}", TradeDbCql.UpdateOptionLegDataStatus)
                 .SetParameters(new UpdateOptionLegDataStatus(
                     tradeId,
                     valueDate,
@@ -2575,7 +2575,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task UpdateOptionLegDataAsync(OptionTradeLegDataReadModel e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.UpdateOptionLegData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateOptionLegData)}", TradeDbCql.UpdateOptionLegData)
                 .SetParameters(new UpdateOptionLegData(
                     e.OrderId,
                     e.TradeId,
@@ -2604,7 +2604,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task UpdateTradeOrderStateAsync(TradeOrderEntityId e, TradeOrderState tradeOrderState, DateTime updatedOn, string updatedBy)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.UpdateTradeOrderState)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateTradeOrderState)}", TradeDbCql.UpdateTradeOrderState)
                 .SetParameters(new UpdateTradeOrderState(
                     e.TradeId,
                     e.ValueDate,
@@ -2624,7 +2624,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task UpdateTradeOrderOrderPriceAsync(TradeOrderEntityId e, decimal orderPrice, DateTime updatedOn, string updatedBy)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.UpdateTradeOrderOrderPrice)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.UpdateTradeOrderOrderPrice)}", TradeDbCql.UpdateTradeOrderOrderPrice)
                 .SetParameters(new UpdateTradeOrderOrderPrice(
                     e.TradeId,
                     e.ValueDate,
@@ -2641,7 +2641,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertTradeLimitAsync(TradeLimitReadModel e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradeLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
                 .SetParameters(new InsertTradeLimitNoMaxLoss(
                     e.TradeId,
                     e.TradeType.ToStringFast(),
@@ -2672,7 +2672,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// successfully inserted.</returns>
     public async Task InsertTradeLimitsAsync(ICollection<TradeLimitReadModel> tradeLimits)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradeLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
                 .SetParameters(tradeLimits.Select(e => new InsertTradeLimitNoMaxLoss(
                     e.TradeId,
                     e.TradeType.ToStringFast(),
@@ -2705,7 +2705,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertTradeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeLimit)}", TradeDbCql.InsertTradeLimit)
             .SetParameters(GetTradeLimits().Select(e => new InsertTradeLimitNoMaxLoss(
                 e.TradeId,
                 e.TradeType.ToStringFast(),
@@ -2742,7 +2742,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task InsertTradeTypeLimitAsync(TradeTypeLimitReadModel e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradeTypeLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeTypeLimit)}", TradeDbCql.InsertTradeTypeLimit)
                 .SetParameters(new InsertTradeTypeLimit(
                     e.TradeId,
                     e.TradeType.ToStringFast(),
@@ -2763,7 +2763,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task InsertTradeTypeLimitsAsync(ICollection<TradeTypeLimitReadModel> tradeTypeLimits)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.InsertTradeTypeLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeTypeLimit)}", TradeDbCql.InsertTradeTypeLimit)
                 .SetParameters(tradeTypeLimits.Select(e => new InsertTradeTypeLimit(
                     e.TradeId,
                     e.TradeType.ToStringFast(),
@@ -2787,7 +2787,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var rowCount = 0L;
         await _dbFactory.TradeDb
-            .Use(TradeDbCql.InsertTradeTypeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradeTypeLimit)}", TradeDbCql.InsertTradeTypeLimit)
             .SetParameters(GetTradeTypeLimits().Select(e => new InsertTradeTypeLimit(
                 e.TradeId,
                 e.TradeType.ToStringFast(),
@@ -2818,7 +2818,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var sequenceId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TradePlan_SequenceId);
         var db = _dbFactory.TradeDb;
-        await db.Use(TradeDbCql.InsertTradePlan)
+        await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlan)}", TradeDbCql.InsertTradePlan)
             .SetParameters(new InsertTradePlan(
                 sequenceId,
                 e.OrderId,
@@ -2870,7 +2870,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 e.CreatedBy))
            .ExecuteCommandAsync();
 
-        await db.Use(TradeDbCql.InsertTradePlanForwardLossRatio)
+        await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlanForwardLossRatio)}", TradeDbCql.InsertTradePlanForwardLossRatio)
             .SetParameters(new InsertTradePlanForwardLossRatio(
                 1,
                 e.ValueDate,
@@ -2910,7 +2910,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
                 tradePlanPage.Add(e with { Id = sequenceId });
             }
 
-            await db.Use(TradeDbCql.InsertTradePlan)
+            await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlan)}", TradeDbCql.InsertTradePlan)
             .SetParameters(tradePlanPage.Select(e => new InsertTradePlan(
                 e.Id,
                 e.OrderId,
@@ -2963,7 +2963,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
             )))
            .ExecuteCommandAsync();
 
-            await db.Use(TradeDbCql.InsertTradePlanForwardLossRatio)
+            await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlanForwardLossRatio)}", TradeDbCql.InsertTradePlanForwardLossRatio)
                 .SetParameters(tradePlanPage.Select(e => new InsertTradePlanForwardLossRatio(
                     1,
                     e.ValueDate,
@@ -2997,7 +2997,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         async Task InsertTradePlans()
         {
             var db = _dbFactory.TradeDb;
-            await db.Use(TradeDbCql.InsertTradePlan)
+            await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlan)}", TradeDbCql.InsertTradePlan)
                 .SetParameters(GetTradePlans().Select(e => new InsertTradePlan(
                     e.Id,
                     e.OrderId,
@@ -3055,7 +3055,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         async Task InsertTradePlanForwardLossRatio()
         {
             var db = _dbFactory.TradeDb;
-            await db.Use(TradeDbCql.InsertTradePlanForwardLossRatio)
+            await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.InsertTradePlanForwardLossRatio)}", TradeDbCql.InsertTradePlanForwardLossRatio)
                 .SetParameters(GetForwardLossRatios().Select(e => new InsertTradePlanForwardLossRatio(
                     1,
                     e.ValueDate,
@@ -3090,7 +3090,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradePositionStateAsync(OptionTradeEntityId e)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradePositionState)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePositionState)}", TradeDbCql.DeleteTradePositionState)
                 .SetParameters(new DeleteTradePositionState(
                     e.OrderId,
                     e.TradeId
@@ -3105,7 +3105,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradePositionAsync(int orderId, int tradeId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradePosition)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePosition)}", TradeDbCql.DeleteTradePosition)
                 .SetParameters(new DeleteTradePosition(orderId, tradeId))
                 .ExecuteCommandAsync();
 
@@ -3122,7 +3122,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
         int daysToExpiry,
         TradeStatus tradeStatus)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradePositionByPrimaryKey)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePositionByPrimaryKey)}", TradeDbCql.DeleteTradePositionByPrimaryKey)
                 .SetParameters(new DeleteTradePositionByPrimaryKey(
                     orderId, 
                     tradeId, 
@@ -3141,7 +3141,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradeLimitAsync(int tradeId, TradeType tradeType)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradeLimitByTradeType)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeLimitByTradeType)}", TradeDbCql.DeleteTradeLimitByTradeType)
                 .SetParameters(new DeleteTradeLimitByTradeType(tradeId, tradeType.ToStringFast()))
                 .ExecuteCommandAsync();
 
@@ -3157,7 +3157,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task DeleteTradePlacementSignalAsync(string contractId, DateOnly valueDate)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradePlacementSignal)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePlacementSignal)}", TradeDbCql.DeleteTradePlacementSignal)
                 .SetParameters(new DeleteTradePlacementSignal(contractId, valueDate))
                 .ExecuteCommandAsync();
 
@@ -3168,7 +3168,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradeTypeLimitAsync(int tradeId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradeTypeLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeTypeLimit)}", TradeDbCql.DeleteTradeTypeLimit)
                 .SetParameters(new DeleteTradeTypeLimit(tradeId))
                 .ExecuteCommandAsync();
 
@@ -3182,40 +3182,40 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     {
         var db = _dbFactory.TradeDb;
         List<object> queuedCommands = [
-            db.Use(TradeDbCql.DeleteOptionTrade)
+            db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionTrade)}", TradeDbCql.DeleteOptionTrade)
               .SetParameters(new DeleteOptionTrade(
                   orderId,
                   tradeId
               )).QueueCommand(),
-         db.Use(TradeDbCql.DeleteTradePosition)
+         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePosition)}", TradeDbCql.DeleteTradePosition)
               .SetParameters(new DeleteTradePosition(
                   orderId,
                   tradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteOptionLeg)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLeg)}", TradeDbCql.DeleteOptionLeg)
               .SetParameters(new DeleteOptionLeg(
                   orderId,
                   tradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteOptionLegData)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionLegData)}", TradeDbCql.DeleteOptionLegData)
               .SetParameters(new DeleteOptionLegData(
                   orderId,
                   tradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteTradeTypeLimit)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeTypeLimit)}", TradeDbCql.DeleteTradeTypeLimit)
               .SetParameters(new DeleteTradeTypeLimit(
                   tradeId
               )).QueueCommand(),  
-         db.Use(TradeDbCql.DeleteTradeLimit)
+         db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeLimit)}", TradeDbCql.DeleteTradeLimit)
               .SetParameters(new DeleteTradeLimit(
                   tradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteTradeFill)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFill)}", TradeDbCql.DeleteTradeFill)
               .SetParameters(new DeleteTradeFill(
                     orderId,
                     tradeId
               )).QueueCommand(),
-        db.Use(TradeDbCql.DeleteTradeFillData)
+        db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeFillData)}", TradeDbCql.DeleteTradeFillData)
               .SetParameters(new DeleteTradeFillData(
                     orderId,
                     tradeId
@@ -3234,7 +3234,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteOptionTradeSpreadBarDataAsync(int orderId, int tradeId,  DateOnly valueDate, TradeType tradeType)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteOptionTradeSpreadBarData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionTradeSpreadBarData)}", TradeDbCql.DeleteOptionTradeSpreadBarData)
                 .SetParameters(new DeleteOptionTradeSpreadBarData(
                     orderId,
                     tradeId,
@@ -3253,7 +3253,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteOptionTradeSpreadDataAsync(int orderId, int tradeId, DateOnly valueDate, TradeType tradeType)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteOptionTradeSpreadData)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteOptionTradeSpreadData)}", TradeDbCql.DeleteOptionTradeSpreadData)
                 .SetParameters(new DeleteOptionTradeSpreadData(
                     orderId,
                     tradeId,
@@ -3270,7 +3270,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradeLiveFeedAsync(int orderId, int tradeId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradeLiveFeed)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeLiveFeed)}", TradeDbCql.DeleteTradeLiveFeed)
                 .SetParameters(new DeleteTradeLiveFeed(
                     orderId,
                     tradeId
@@ -3284,7 +3284,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradeLiveFeedsAsync(int orderId)
         => await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradeLiveFeeds)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradeLiveFeeds)}", TradeDbCql.DeleteTradeLiveFeeds)
                 .SetParameters(new DeleteTradeLiveFeeds(
                     orderId
                 ))
@@ -3297,7 +3297,7 @@ static TradePriceReadModel MapToTradePrice<TDataRecord>(TDataRecord e) where TDa
     /// <returns></returns>
     public async Task DeleteTradePlanForwardLossLimitAsync(TradePlanForwardLossLimitEntityId id)
         =>  await _dbFactory.TradeDb
-                .Use(TradeDbCql.DeleteTradePlanForwardLossLimit)
+                .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.DeleteTradePlanForwardLossLimit)}", TradeDbCql.DeleteTradePlanForwardLossLimit)
                 .SetParameters(new DeleteTradePlanForwardLossLimit(
                     id.OrderId,
                     id.TradeId,

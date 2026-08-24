@@ -165,7 +165,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             _logger.LogDebug(
                 "{ClassName}.ExecuteCommandAsync: {CommandText} with {ParameterValuesCount} parameter values",
                 ClassName,
-                ctx.CommandText,
+                ctx.CommandLogText,
                 parameterCount ?? -1);
 
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -228,7 +228,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.ExecuteCommandAsync: {ctx.CommandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.ExecuteCommandAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
 
@@ -387,11 +387,18 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
     /// <param name="commandType"></param>
     /// <param name="bindValues"></param>
     /// <exception cref="ArgumentException"></exception>
-    public object QueueCommand(string commandText, CommandType commandType, List<object> bindValues)
+    public object QueueCommand(
+        string commandName,
+        string commandText,
+        CommandType commandType,
+        List<object> bindValues)
     {
+        if (string.IsNullOrWhiteSpace(commandName))
+            throw new StorageException($"{ClassName}.QueueCommand: command name parameter is empty");
         if (string.IsNullOrWhiteSpace(commandText))
             throw new StorageException($"{ClassName}.QueueCommand: command text parameter is empty");
         return new ScyllaDbObjectDataQueuedCommand(
+            commandName,
             commandType,
             commandText,
             bindValues,
@@ -414,6 +421,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (queuedCommands.Count == 0)
             throw new StorageException($"{ClassName}.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
         var commandText = string.Empty;
+        var commandLogText = string.Empty;
         try
         {
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -429,7 +437,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.ExecuteQueuedCommandAsync: {commandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.ExecuteQueuedCommandAsync: {commandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
 
@@ -439,8 +447,9 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (cmd is null) continue;
-                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
+                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandLogText, cmd.BindValues?.Count ?? 0);
                 commandText = cmd.CommandText;
+                commandLogText = cmd.CommandLogText;
                 if (cmd.BindValues!.Count > 0)
                 {
                     var ps = await GetOrPrepareAsync(session, commandText, cancellationToken).ConfigureAwait(false);
@@ -467,7 +476,8 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             foreach (ScyllaDbObjectDataQueuedCommand cmd in queuedCommands.Cast<ScyllaDbObjectDataQueuedCommand>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandText, cmd.BindValues?.Count ?? 0);
+                _logger.LogDebug("{ClassName}.ExecuteQueuedCommandsAsync: {CommandText} with {BindValuesCount} bind values", ClassName, cmd.CommandLogText, cmd.BindValues?.Count ?? 0);
+                commandLogText = cmd.CommandLogText;
                 var ps = await GetOrPrepareAsync(session, cmd.CommandText, cancellationToken).ConfigureAwait(false);
                 if (cmd.BindValues is { Count: > 0 })
                 {
@@ -516,7 +526,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ClassName}.ExecuteMapReduceAsync: only single parameter value accepted");
         try
         {
-            _logger.LogInformationEvent(ClassName, "GetObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
+            _logger.LogInformationEvent(ClassName, "GetObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandLogText, ctx.ParameterValues.Count);
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count > 0)
             {
@@ -542,7 +552,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.GetObjectsAsync: {ctx.CommandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.GetObjectsAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
 
@@ -635,7 +645,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ClassName}.GetObjectsAsync: only single parameter value accepted");
         try
         {
-            _logger.LogInformationEvent(ClassName, "GetObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
+            _logger.LogInformationEvent(ClassName, "GetObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandLogText, ctx.ParameterValues.Count);
             List<TResult> resultSet = [];
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count > 0)
@@ -663,7 +673,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.GetObjectsAsync: {ctx.CommandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.GetObjectsAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
     }
@@ -687,7 +697,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ClassName}.GetImmutableObjectsAsync: only single parameter value accepted");
         try
         {
-            _logger.LogInformationEvent(ClassName, "GetImmutableObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
+            _logger.LogInformationEvent(ClassName, "GetImmutableObjectsAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandLogText, ctx.ParameterValues.Count);
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count > 0)
             {
@@ -714,7 +724,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.GetImmutableObjectsAsync: {ctx.CommandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.GetImmutableObjectsAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
     }
@@ -737,7 +747,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ClassName}.GetObjectAsync: only single parameter value accepted");
         try
         {
-            _logger.LogInformationEvent(ClassName, "GetObjectAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
+            _logger.LogInformationEvent(ClassName, "GetObjectAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandLogText, ctx.ParameterValues.Count);
             var rowSet = default(RowSet);
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count == 1)
@@ -761,7 +771,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.GetObjectAsync: {ctx.CommandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.GetObjectAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
     }
@@ -782,7 +792,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
             throw new StorageException($"{ClassName}.ExecuteScalar: only single parameter value accepted");
         try
         {
-            _logger.LogInformationEvent(ClassName, "GetScalarAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandText, ctx.ParameterValues.Count);
+            _logger.LogInformationEvent(ClassName, "GetScalarAsync: {CommandText} with {ParameterValuesCount} parameter values", ctx.CommandLogText, ctx.ParameterValues.Count);
             var rowSet = default(RowSet);
             var session = await _conn.CreateSessionAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
             if (ctx.ParameterValues.Count == 1)
@@ -806,7 +816,7 @@ public class ScyllaDbObjectDataRepositoryProvider : IObjectRepositoryProvider
         catch (Exception ex)
         {
             while (ex.InnerException != null) ex = ex.InnerException;
-            var errorMessage = $"{ClassName}.GetScalarAsync: {ctx.CommandText} {ex.Message}";
+            var errorMessage = $"{ClassName}.GetScalarAsync: {ctx.CommandLogText} {ex.Message}";
             throw new StorageException(errorMessage, ex);
         }
     }

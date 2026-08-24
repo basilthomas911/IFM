@@ -59,7 +59,7 @@ public partial class MarketDataDbContext
         EconomicCalendarId id, CancellationToken cancellationToken)
     {
         var eventDate = NormalizeEconomicCalendarTimestamp(id.EventDate);
-        return await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarV2ById)
+        return await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2ById)}", MarketDataDbCql.GetEconomicCalendarV2ById)
             .SetParameters(new GetEconomicCalendarV2ById(
                 id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName))
             .ExecuteSingleAsync(MapToEconomicCalendar!, cancellationToken);
@@ -125,7 +125,7 @@ public partial class MarketDataDbContext
         {
             cancellationToken.ThrowIfCancellationRequested();
             var partition = partitions[partitionIndex];
-            var partitionRows = await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendars)
+            var partitionRows = await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendars)}", MarketDataDbCql.GetEconomicCalendars)
                 .SetParameters(new GetEconomicCalendars(
                     partition.CountryCode, partition.MonthBucket, request.StartDateUtc, request.EndDateUtc))
                 .ExecuteQueryAsync(MapToEconomicCalendar!, cancellationToken)
@@ -210,14 +210,14 @@ public partial class MarketDataDbContext
 
     public async Task<ICollection<EconomicCalendarCountryCodeReadModel>> GetEconomicCalendarCountryCodesAsync(
         CancellationToken cancellationToken)
-        => await _dbFactory.MarketDataDb.Use(MarketDataDbCql.GetEconomicCalendarCountryCodes)
+        => await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarCountryCodes)}", MarketDataDbCql.GetEconomicCalendarCountryCodes)
             .SetParameters(new GetEconomicCalendarCountryCodes(EconomicCalendarLookupId))
             .ExecuteQueryAsync(MapToEconomicCalendarCountryCode, cancellationToken);
 
     public async Task DeleteEconomicCalendarAsync(EconomicCalendarId id)
     {
         var eventDate = NormalizeEconomicCalendarTimestamp(id.EventDate);
-        await _dbFactory.MarketDataDb.Use(MarketDataDbCql.DeleteEconomicCalendarV2)
+        await _dbFactory.MarketDataDb.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteEconomicCalendarV2)}", MarketDataDbCql.DeleteEconomicCalendarV2)
             .SetParameters(new DeleteEconomicCalendarV2(
                 id.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, id.EventName))
             .ExecuteCommandAsync();
@@ -249,12 +249,12 @@ public partial class MarketDataDbContext
                 row.ChangePercentage, row.CreatedOn, row.CreatedBy, commandId);
             if (duplicatePolicy == ImportDuplicatePolicy.Reject)
             {
-                var applied = await db.Use(MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)
+                var applied = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)}", MarketDataDbCql.InsertEconomicCalendarV2IfNotExists)
                     .SetParameters(parameters)
                     .ExecuteScalarAsync(MapToBoolean!);
                 if (!applied)
                 {
-                    var owner = await db.Use(MarketDataDbCql.GetEconomicCalendarV2CommandId)
+                    var owner = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2CommandId)}", MarketDataDbCql.GetEconomicCalendarV2CommandId)
                         .SetParameters(new GetEconomicCalendarV2CommandId(
                             row.CountryCode, EconomicCalendarMonthBucket(eventDate), eventDate, row.EventName))
                         .ExecuteSingleAsync(MapToGuid!);
@@ -265,13 +265,13 @@ public partial class MarketDataDbContext
             }
             else
             {
-                commands.Add(db.Use(MarketDataDbCql.InsertEconomicCalendarV2)
+                commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2)}", MarketDataDbCql.InsertEconomicCalendarV2)
                     .SetParameters(parameters).QueueCommand());
             }
             countryCodes.Add(row.CountryCode);
         }
         commands.AddRange(countryCodes.Select(countryCode => db
-            .Use(MarketDataDbCql.InsertEconomicCalendarCountryCode)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarCountryCode)}", MarketDataDbCql.InsertEconomicCalendarCountryCode)
             .SetParameters(new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, countryCode))
             .QueueCommand()));
         if (commands.Count > 0) await db.ExecuteQueuedCommandsAsync(commands);
@@ -288,15 +288,15 @@ public partial class MarketDataDbContext
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         var db = _dbFactory.MarketDataDb;
-        await db.Use(MarketDataDbCql.TruncateEconomicCalendarV2)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateEconomicCalendarV2)}", MarketDataDbCql.TruncateEconomicCalendarV2)
             .ExecuteCommandAsync(cancellationToken);
-        await db.Use(MarketDataDbCql.TruncateEconomicCalendarCountryCode)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateEconomicCalendarCountryCode)}", MarketDataDbCql.TruncateEconomicCalendarCountryCode)
             .ExecuteCommandAsync(cancellationToken);
         long sourceRows = 0;
         var sourceIdentity = new ProjectionIdentityBuilder();
         var countries = new HashSet<string>(StringComparer.Ordinal);
         var batch = new List<InsertEconomicCalendarV2>(batchSize);
-        await foreach (var row in db.Use(MarketDataDbCql.GetEconomicCalendarLegacySource)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarLegacySource)}", MarketDataDbCql.GetEconomicCalendarLegacySource)
             .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
         {
             sourceRows++;
@@ -312,14 +312,14 @@ public partial class MarketDataDbContext
         await FlushCalendarBatchAsync();
         if (countries.Count > 0)
         {
-            await db.Use(MarketDataDbCql.InsertEconomicCalendarCountryCode)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarCountryCode)}", MarketDataDbCql.InsertEconomicCalendarCountryCode)
                 .SetParameters(countries.Select(country =>
                     new InsertEconomicCalendarCountryCode(EconomicCalendarLookupId, country)))
                 .ExecuteCommandAsync(cancellationToken);
         }
         long targetRows = 0;
         var targetIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use(MarketDataDbCql.GetEconomicCalendarV2All)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetEconomicCalendarV2All)}", MarketDataDbCql.GetEconomicCalendarV2All)
             .ExecuteStreamAsync(MapToEconomicCalendar!, cancellationToken))
         {
             targetRows++;
@@ -328,7 +328,7 @@ public partial class MarketDataDbContext
         var source = sourceIdentity.Build();
         var target = targetIdentity.Build();
         var verified = sourceRows == targetRows && source.Fingerprint == target.Fingerprint;
-        await db.Use(MarketDataDbCql.UpsertEconomicCalendarCutoverV2)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertEconomicCalendarCutoverV2)}", MarketDataDbCql.UpsertEconomicCalendarCutoverV2)
             .SetParameters(new UpsertEconomicCalendarCutoverV2(
                 EconomicCalendarCutoverId, sourceRows, targetRows, source.Fingerprint,
                 target.Fingerprint, verified, DateTime.UtcNow))
@@ -339,7 +339,7 @@ public partial class MarketDataDbContext
         async Task FlushCalendarBatchAsync()
         {
             if (batch.Count == 0) return;
-            await db.Use(MarketDataDbCql.InsertEconomicCalendarV2)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertEconomicCalendarV2)}", MarketDataDbCql.InsertEconomicCalendarV2)
                 .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
             batch.Clear();
         }
@@ -350,13 +350,13 @@ public partial class MarketDataDbContext
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         var db = _dbFactory.MarketDataDb;
-        await db.Use(MarketDataDbCql.TruncateYieldCurveRateByDate).ExecuteCommandAsync(cancellationToken);
-        await db.Use(MarketDataDbCql.TruncateYieldCurveRateYear).ExecuteCommandAsync(cancellationToken);
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateYieldCurveRateByDate)}", MarketDataDbCql.TruncateYieldCurveRateByDate).ExecuteCommandAsync(cancellationToken);
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateYieldCurveRateYear)}", MarketDataDbCql.TruncateYieldCurveRateYear).ExecuteCommandAsync(cancellationToken);
         long sourceRows = 0;
         var sourceIdentity = new ProjectionIdentityBuilder();
         var years = new HashSet<int>();
         var batch = new List<InsertYieldCurveRate>(batchSize);
-        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateProjectionSource)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateProjectionSource)}", MarketDataDbCql.GetYieldCurveRateProjectionSource)
             .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
         {
             sourceRows++;
@@ -371,19 +371,19 @@ public partial class MarketDataDbContext
         await FlushYieldBatchAsync();
         if (years.Count > 0)
         {
-            await db.Use(MarketDataDbCql.InsertYieldCurveRateYear)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateYear)}", MarketDataDbCql.InsertYieldCurveRateYear)
                 .SetParameters(years.Select(year => new InsertYieldCurveRateYear(YieldCurveLookupId, year)))
                 .ExecuteCommandAsync(cancellationToken);
         }
         long targetRows = 0;
         var targetIdentity = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use(MarketDataDbCql.GetYieldCurveRateByDateAll)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateByDateAll)}", MarketDataDbCql.GetYieldCurveRateByDateAll)
             .ExecuteStreamAsync(MapToYieldCurveRate!, cancellationToken))
         {
             targetRows++;
             targetIdentity.Add(GetYieldCurveProjectionIdentity(row));
         }
-        var projectedYears = await db.Use(MarketDataDbCql.GetYieldCurveRateYearAll)
+        var projectedYears = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetYieldCurveRateYearAll)}", MarketDataDbCql.GetYieldCurveRateYearAll)
             .ExecuteQueryAsync(MapToYearMonth, cancellationToken);
         var source = sourceIdentity.Build();
         var target = targetIdentity.Build();
@@ -396,7 +396,7 @@ public partial class MarketDataDbContext
         async Task FlushYieldBatchAsync()
         {
             if (batch.Count == 0) return;
-            await db.Use(MarketDataDbCql.InsertYieldCurveRateByDate)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertYieldCurveRateByDate)}", MarketDataDbCql.InsertYieldCurveRateByDate)
                 .SetParameters(batch).ExecuteCommandAsync(cancellationToken);
             batch.Clear();
         }

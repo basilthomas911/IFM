@@ -169,14 +169,14 @@ public class ReferenceDbContext(
         IObjectRepository db,
         string scheduledJobName,
         CancellationToken cancellationToken = default)
-        => (await db.Use(ReferenceDbCql.GetScheduledJobId)
+        => (await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobId)}", ReferenceDbCql.GetScheduledJobId)
             .SetParameters(new GetScheduledJobId(scheduledJobName))
             .ExecuteSingleAsync(MapToJobId!, cancellationToken))?.Value;
 
     static async Task<ScheduledJobReservation?> ReadScheduledJobReservationAsync(
         IObjectRepository db,
         string scheduledJobName)
-        => await db.Use(ReferenceDbCql.GetScheduledJobReservationV3)
+        => await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobReservationV3)}", ReferenceDbCql.GetScheduledJobReservationV3)
             .SetParameters(new GetScheduledJobReservationV3(scheduledJobName))
             .ExecuteSingleAsync<ScheduledJobReservation?>(
                 static row => MapToScheduledJobReservation(row));
@@ -195,7 +195,7 @@ public class ReferenceDbContext(
         IObjectRepository db,
         string scopeType,
         string scopeKey)
-        => await db.Use(ReferenceDbCql.GetScheduledJobWriteOwnershipV3)
+        => await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobWriteOwnershipV3)}", ReferenceDbCql.GetScheduledJobWriteOwnershipV3)
             .SetParameters(new GetScheduledJobWriteOwnershipV3(scopeType, scopeKey))
             .ExecuteSingleAsync<ScheduledJobWriteOwnership?>(
                 static row => MapToScheduledJobWriteOwnership(row));
@@ -224,7 +224,7 @@ public class ReferenceDbContext(
                 operation.StartedOn);
             try
             {
-                var applied = await db.Use(ReferenceDbCql.ClaimScheduledJobWriteOwnershipV3)
+                var applied = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ClaimScheduledJobWriteOwnershipV3)}", ReferenceDbCql.ClaimScheduledJobWriteOwnershipV3)
                     .SetParameters(new ClaimScheduledJobWriteOwnershipV3(
                         ownership.ScopeType,
                         ownership.ScopeKey,
@@ -256,7 +256,7 @@ public class ReferenceDbContext(
     {
         try
         {
-            var applied = await db.Use(ReferenceDbCql.ReleaseScheduledJobWriteOwnershipV3)
+            var applied = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseScheduledJobWriteOwnershipV3)}", ReferenceDbCql.ReleaseScheduledJobWriteOwnershipV3)
                 .SetParameters(new ReleaseScheduledJobWriteOwnershipV3(
                     ownership.ScopeType,
                     ownership.ScopeKey,
@@ -321,7 +321,7 @@ public class ReferenceDbContext(
         string projectionName,
         CancellationToken cancellationToken = default)
     {
-        var states = await db.Use(ReferenceDbCql.GetReferenceProjectionStateV3)
+        var states = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetReferenceProjectionStateV3)}", ReferenceDbCql.GetReferenceProjectionStateV3)
             .SetParameters(new GetReferenceProjectionStateV3(projectionName))
             .ExecuteQueryAsync(MapToReferenceProjectionState!, cancellationToken);
         return states.Count == 0 ? null : states.First();
@@ -378,7 +378,7 @@ public class ReferenceDbContext(
         IObjectRepository db,
         string projectionName,
         CancellationToken cancellationToken = default)
-        => db.Use(ReferenceDbCql.GetReferenceProjectionMutationsV3)
+        => db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetReferenceProjectionMutationsV3)}", ReferenceDbCql.GetReferenceProjectionMutationsV3)
             .SetParameters(new GetReferenceProjectionMutationsV3(projectionName))
             .ExecuteQueryAsync(MapToGuid, cancellationToken);
 
@@ -391,7 +391,7 @@ public class ReferenceDbContext(
             .Select(static projectionName => $"{projectionName}{ProjectionScopeSeparator}")
             .ToArray();
         var scopedStateNames = new List<string>();
-        await foreach (var stateName in db.Use(ReferenceDbCql.GetReferenceProjectionStateNamesV3All)
+        await foreach (var stateName in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetReferenceProjectionStateNamesV3All)}", ReferenceDbCql.GetReferenceProjectionStateNamesV3All)
             .ExecuteStreamAsync(MapToString, cancellationToken))
         {
             if (prefixes.Any(prefix => stateName.StartsWith(prefix, StringComparison.Ordinal)))
@@ -400,7 +400,7 @@ public class ReferenceDbContext(
 
         if (scopedStateNames.Count != 0)
         {
-            await db.Use(ReferenceDbCql.DeleteReferenceProjectionStateV3)
+            await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteReferenceProjectionStateV3)}", ReferenceDbCql.DeleteReferenceProjectionStateV3)
                 .SetParameters(scopedStateNames.Select(static stateName =>
                     new DeleteReferenceProjectionStateV3(stateName)))
                 .ExecuteCommandAsync(cancellationToken);
@@ -417,7 +417,7 @@ public class ReferenceDbContext(
             .Select(static projectionName => $"{projectionName}{ProjectionScopeSeparator}")
             .ToArray();
         var staleMutations = new List<ReferenceProjectionMutationJournalEntry>();
-        await foreach (var mutation in db.Use(ReferenceDbCql.GetReferenceProjectionMutationsV3All)
+        await foreach (var mutation in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetReferenceProjectionMutationsV3All)}", ReferenceDbCql.GetReferenceProjectionMutationsV3All)
             .ExecuteStreamAsync(MapToReferenceProjectionMutationJournalEntry, cancellationToken))
         {
             var isRelevant = projectionNames.Contains(mutation.ProjectionName, StringComparer.Ordinal) ||
@@ -435,7 +435,7 @@ public class ReferenceDbContext(
         // The caller has explicitly asserted these writers cannot resume. Invalidate every
         // journaled scope before removing its exact marker/ownership row; a partial cleanup
         // therefore remains on canonical fallback and is safe to replay.
-        await db.Use(ReferenceDbCql.InvalidateReferenceProjectionStateV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InvalidateReferenceProjectionStateV3)}", ReferenceDbCql.InvalidateReferenceProjectionStateV3)
             .SetParameters(staleMutations
                 .Select(static mutation => mutation.ProjectionName)
                 .Distinct(StringComparer.Ordinal)
@@ -447,14 +447,14 @@ public class ReferenceDbContext(
         foreach (var mutation in staleMutations)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _ = await db.Use(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
+            _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
                 .SetParameters(new ReleaseReferenceProjectionOwnershipV3(
                     mutation.ProjectionName,
                     mutation.MutationId))
                 .ExecuteScalarAsync(MapToBoolean!);
         }
 
-        await db.Use(ReferenceDbCql.DeleteReferenceProjectionMutationV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteReferenceProjectionMutationV3)}", ReferenceDbCql.DeleteReferenceProjectionMutationV3)
             .SetParameters(staleMutations.Select(static mutation =>
                 new DeleteReferenceProjectionMutationV3(
                     mutation.ProjectionName,
@@ -467,7 +467,7 @@ public class ReferenceDbContext(
         DateTime staleOperationCutoffUtc,
         CancellationToken cancellationToken)
     {
-        await foreach (var ownership in db.Use(ReferenceDbCql.GetScheduledJobWriteOwnershipsV3All)
+        await foreach (var ownership in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobWriteOwnershipsV3All)}", ReferenceDbCql.GetScheduledJobWriteOwnershipsV3All)
             .ExecuteStreamAsync(MapToScheduledJobWriteOwnership, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -487,7 +487,7 @@ public class ReferenceDbContext(
         var ownsWriteOwnership = false;
         var ownershipClaimSubmissionStarted = false;
         var stateActivationConfirmed = false;
-        await db.Use(ReferenceDbCql.InsertReferenceProjectionMutationV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertReferenceProjectionMutationV3)}", ReferenceDbCql.InsertReferenceProjectionMutationV3)
             .SetParameters(new InsertReferenceProjectionMutationV3(
                 projectionName,
                 generation,
@@ -496,7 +496,7 @@ public class ReferenceDbContext(
         try
         {
             ownershipClaimSubmissionStarted = true;
-            ownsWriteOwnership = await db.Use(ReferenceDbCql.ClaimReferenceProjectionOwnershipV3)
+            ownsWriteOwnership = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ClaimReferenceProjectionOwnershipV3)}", ReferenceDbCql.ClaimReferenceProjectionOwnershipV3)
                 .SetParameters(new ClaimReferenceProjectionOwnershipV3(
                     projectionName,
                     generation,
@@ -509,7 +509,7 @@ public class ReferenceDbContext(
             {
                 // Poison whichever owner is current. This also poisons a newly claimed epoch when
                 // an older contender's marker survives an ownership handoff.
-                _ = await db.Use(ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)
+                _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)}", ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)
                     .SetParameters(new FlagReferenceProjectionOwnershipConflictV3(projectionName))
                     .ExecuteScalarAsync(MapToBoolean!);
             }
@@ -521,7 +521,7 @@ public class ReferenceDbContext(
                 markerIsExclusive &&
                 (state is { Completed: true } || inheritedState is { Completed: true });
 
-            await db.Use(ReferenceDbCql.InvalidateReferenceProjectionStateV3)
+            await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InvalidateReferenceProjectionStateV3)}", ReferenceDbCql.InvalidateReferenceProjectionStateV3)
                 .SetParameters(new InvalidateReferenceProjectionStateV3(generation, projectionName))
                 .ExecuteCommandAsync();
             stateActivationConfirmed = true;
@@ -531,7 +531,7 @@ public class ReferenceDbContext(
         {
             try
             {
-                await db.Use(ReferenceDbCql.InvalidateReferenceProjectionStateV3)
+                await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InvalidateReferenceProjectionStateV3)}", ReferenceDbCql.InvalidateReferenceProjectionStateV3)
                     .SetParameters(new InvalidateReferenceProjectionStateV3(generation, projectionName))
                     .ExecuteCommandAsync(CancellationToken.None);
                 stateActivationConfirmed = true;
@@ -569,7 +569,7 @@ public class ReferenceDbContext(
         IObjectRepository db,
         string projectionName,
         Guid generation)
-        => await db.Use(ReferenceDbCql.CompleteReferenceProjectionStateV3)
+        => await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.CompleteReferenceProjectionStateV3)}", ReferenceDbCql.CompleteReferenceProjectionStateV3)
             .SetParameters(new CompleteReferenceProjectionStateV3(
                 DateTime.UtcNow,
                 projectionName,
@@ -589,7 +589,7 @@ public class ReferenceDbContext(
             return false;
         }
 
-        var releasedWithoutConflict = await db.Use(ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)
+        var releasedWithoutConflict = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)
             .SetParameters(new ReleaseReferenceProjectionOwnershipV3(projectionName, mutation.Generation))
             .ExecuteScalarAsync(MapToBoolean!);
         if (ProjectionMutationSafety.CanPublishReady(
@@ -605,7 +605,7 @@ public class ReferenceDbContext(
 
         // Completion happens while our marker still gates readers. A failed safe release means
         // another writer overlapped, so revoke completion before the marker can disappear.
-        await db.Use(ReferenceDbCql.InvalidateReferenceProjectionStateV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InvalidateReferenceProjectionStateV3)}", ReferenceDbCql.InvalidateReferenceProjectionStateV3)
             .SetParameters(new InvalidateReferenceProjectionStateV3(mutation.Generation, projectionName))
             .ExecuteCommandAsync(CancellationToken.None);
         await ReleaseProjectionOwnershipAsync(db, projectionName, mutation);
@@ -616,7 +616,7 @@ public class ReferenceDbContext(
         IObjectRepository db,
         string projectionName,
         Guid generation)
-        => db.Use(ReferenceDbCql.DeleteReferenceProjectionMutationV3)
+        => db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteReferenceProjectionMutationV3)}", ReferenceDbCql.DeleteReferenceProjectionMutationV3)
             .SetParameters(new DeleteReferenceProjectionMutationV3(projectionName, generation))
             .ExecuteCommandAsync();
 
@@ -629,7 +629,7 @@ public class ReferenceDbContext(
             await TryCompleteProjectionAsync(db, projectionName, mutation);
         if (!restored)
         {
-            await db.Use(ReferenceDbCql.InvalidateReferenceProjectionStateV3)
+            await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InvalidateReferenceProjectionStateV3)}", ReferenceDbCql.InvalidateReferenceProjectionStateV3)
                 .SetParameters(new InvalidateReferenceProjectionStateV3(mutation.Generation, projectionName))
                 .ExecuteCommandAsync(CancellationToken.None);
             await ReleaseProjectionOwnershipAsync(db, projectionName, mutation);
@@ -642,7 +642,7 @@ public class ReferenceDbContext(
         string projectionName,
         ReferenceProjectionMutation mutation)
     {
-        await db.Use(ReferenceDbCql.InvalidateReferenceProjectionStateV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InvalidateReferenceProjectionStateV3)}", ReferenceDbCql.InvalidateReferenceProjectionStateV3)
             .SetParameters(new InvalidateReferenceProjectionStateV3(mutation.Generation, projectionName))
             .ExecuteCommandAsync(CancellationToken.None);
         await ReleaseProjectionOwnershipAsync(db, projectionName, mutation);
@@ -657,7 +657,7 @@ public class ReferenceDbContext(
         if (!mutation.OwnsWriteOwnership)
             return;
 
-        _ = await db.Use(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
+        _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
             .SetParameters(new ReleaseReferenceProjectionOwnershipV3(
                 projectionName,
                 mutation.Generation))
@@ -673,7 +673,7 @@ public class ReferenceDbContext(
         {
             // A successful LWT response confirms that this mutation either released
             // ownership or was not the current owner. The applied value is immaterial.
-            _ = await db.Use(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
+            _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
                 .SetParameters(new ReleaseReferenceProjectionOwnershipV3(
                     projectionName,
                     mutationId))
@@ -702,7 +702,7 @@ public class ReferenceDbContext(
         var generation = Guid.NewGuid();
         var ownsWriteOwnership = false;
         var ownershipClaimSubmissionStarted = false;
-        await db.Use(ReferenceDbCql.InsertReferenceProjectionMutationV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertReferenceProjectionMutationV3)}", ReferenceDbCql.InsertReferenceProjectionMutationV3)
             .SetParameters(new InsertReferenceProjectionMutationV3(
                 projectionName,
                 generation,
@@ -711,7 +711,7 @@ public class ReferenceDbContext(
         try
         {
             ownershipClaimSubmissionStarted = true;
-            ownsWriteOwnership = await db.Use(ReferenceDbCql.ClaimReferenceProjectionOwnershipV3)
+            ownsWriteOwnership = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ClaimReferenceProjectionOwnershipV3)}", ReferenceDbCql.ClaimReferenceProjectionOwnershipV3)
                 .SetParameters(new ClaimReferenceProjectionOwnershipV3(
                     projectionName,
                     generation,
@@ -721,7 +721,7 @@ public class ReferenceDbContext(
             if (!ownsWriteOwnership ||
                 !ProjectionMutationSafety.HasExclusiveMarker(activeMutations, generation))
             {
-                _ = await db.Use(ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)
+                _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)}", ReferenceDbCql.FlagReferenceProjectionOwnershipConflictV3)
                     .SetParameters(new FlagReferenceProjectionOwnershipConflictV3(projectionName))
                     .ExecuteScalarAsync(MapToBoolean!);
             }
@@ -762,7 +762,7 @@ public class ReferenceDbContext(
         if (mutation.OwnsWriteOwnership)
         {
             var releasedWithoutConflict = await db
-                .Use(ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipIfSafeV3)
                 .SetParameters(new ReleaseReferenceProjectionOwnershipV3(
                     projectionName,
                     mutation.Generation))
@@ -771,7 +771,7 @@ public class ReferenceDbContext(
             {
                 // Await the exact LWT response before deleting the group journal.
                 // If this request is ambiguous, the journal must survive.
-                _ = await db.Use(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
+                _ = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)}", ReferenceDbCql.ReleaseReferenceProjectionOwnershipV3)
                     .SetParameters(new ReleaseReferenceProjectionOwnershipV3(
                         projectionName,
                         mutation.Generation))
@@ -874,7 +874,7 @@ public class ReferenceDbContext(
         CancellationToken cancellationToken = default)
     {
         var insertedReservationToken = Guid.NewGuid();
-        await db.Use(ReferenceDbCql.InsertScheduledJobByNameV3)
+        await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJobByNameV3)}", ReferenceDbCql.InsertScheduledJobByNameV3)
             .SetParameters(new InsertScheduledJobByNameV3(
                 scheduledJobName,
                 scheduledJobId,
@@ -902,7 +902,7 @@ public class ReferenceDbContext(
                 return insertedReservationToken;
 
             var replacementReservationToken = Guid.NewGuid();
-            var rotated = await db.Use(ReferenceDbCql.RotateScheduledJobNameV3Reservation)
+            var rotated = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.RotateScheduledJobNameV3Reservation)}", ReferenceDbCql.RotateScheduledJobNameV3Reservation)
                 .SetParameters(new RotateScheduledJobNameV3Reservation(
                     replacementReservationToken,
                     scheduledJobName,
@@ -925,7 +925,7 @@ public class ReferenceDbContext(
     {
         try
         {
-            var applied = await db.Use(ReferenceDbCql.ReleaseScheduledJobNameV3)
+            var applied = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.ReleaseScheduledJobNameV3)}", ReferenceDbCql.ReleaseScheduledJobNameV3)
                 .SetParameters(new ReleaseScheduledJobNameV3(
                     scheduledJobName,
                     scheduledJobId,
@@ -1004,7 +1004,7 @@ public class ReferenceDbContext(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var reservationToken = Guid.NewGuid();
-        var inserted = await db.Use(ReferenceDbCql.InsertScheduledJobByNameV3)
+        var inserted = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJobByNameV3)}", ReferenceDbCql.InsertScheduledJobByNameV3)
             .SetParameters(new InsertScheduledJobByNameV3(
                 scheduledJobName,
                 scheduledJobId,
@@ -1019,7 +1019,7 @@ public class ReferenceDbContext(
         // Do not let cancellation strand a candidate after its LWT was acknowledged.
         // A same-owner writer rotates to a new token, so this exact compensation can
         // never delete a newer reservation incarnation.
-        var canonical = await db.Use(ReferenceDbCql.GetScheduledJob)
+        var canonical = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
             .SetParameters(new GetScheduledJob(scheduledJobId))
             .ExecuteSingleAsync(MapToScheduledJob!);
         if (canonical is not null &&
@@ -1049,7 +1049,7 @@ public class ReferenceDbContext(
     public async Task DeleteLookupTypeAsync(LookupTypeId lookupTypeId)
     {
         await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.DeleteLookupType)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteLookupType)}", ReferenceDbCql.DeleteLookupType)
                .SetParameters(new DeleteLookupType(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
                .ExecuteCommandAsync();
 
@@ -1080,7 +1080,7 @@ public class ReferenceDbContext(
                 [GetScheduledJobIdOwnershipScope(scheduledJobId)]).ConfigureAwait(false);
 
             // The job-ID ownership is acquired before observing the canonical name.
-            var existing = await db.Use(ReferenceDbCql.GetScheduledJob)
+            var existing = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(scheduledJobId))
                 .ExecuteSingleAsync(MapToScheduledJob!);
             if (existing is null)
@@ -1095,7 +1095,7 @@ public class ReferenceDbContext(
                 writeOperation,
                 [GetScheduledJobNameOwnershipScope(existing.JobName)]).ConfigureAwait(false);
 
-            var confirmed = await db.Use(ReferenceDbCql.GetScheduledJob)
+            var confirmed = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(scheduledJobId))
                 .ExecuteSingleAsync(MapToScheduledJob!);
             if (confirmed is null ||
@@ -1119,10 +1119,10 @@ public class ReferenceDbContext(
 
                 var queuedCommands = new List<object>
                 {
-                    db.Use(ReferenceDbCql.DeleteScheduledJob)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJob)}", ReferenceDbCql.DeleteScheduledJob)
                         .SetParameters(new DeleteScheduledJob(scheduledJobId))
                         .QueueCommand(),
-                    db.Use(ReferenceDbCql.DeleteScheduledJobDays)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJobDays)}", ReferenceDbCql.DeleteScheduledJobDays)
                         .SetParameters(new DeleteScheduledJobDays(scheduledJobId))
                         .QueueCommand()
                 };
@@ -1197,13 +1197,13 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId)
        => await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.GetLookupTypeById)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeById)}", ReferenceDbCql.GetLookupTypeById)
                 .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
                 .ExecuteSingleAsync(MapToLookupType!);
 
     public async Task<LookupTypeReadModel?> GetLookupTypeAsync(LookupTypeId lookupTypeId, CancellationToken cancellationToken)
        => await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.GetLookupTypeById)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeById)}", ReferenceDbCql.GetLookupTypeById)
                 .SetParameters(new GetLookupTypeById(lookupTypeId.LookupTypeName, lookupTypeId.OrderId))
                 .ExecuteSingleAsync(MapToLookupType!, cancellationToken);
 
@@ -1214,13 +1214,13 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName)
        => await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.GetLookupType)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupType)}", ReferenceDbCql.GetLookupType)
                 .SetParameters(new GetLookupType(lookupTypeName))
                 .ExecuteQueryAsync(MapToLookupType!);
 
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypeAsync(string lookupTypeName, CancellationToken cancellationToken)
        => await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.GetLookupType)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupType)}", ReferenceDbCql.GetLookupType)
                 .SetParameters(new GetLookupType(lookupTypeName))
                 .ExecuteQueryAsync(MapToLookupType!, cancellationToken);
 
@@ -1230,12 +1230,12 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync()
        => await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetLookupTypes)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypes)}", ReferenceDbCql.GetLookupTypes)
                .ExecuteQueryAsync(MapToLookupType!);
 
     public async Task<ICollection<LookupTypeReadModel>> GetLookupTypesAsync(CancellationToken cancellationToken)
        => await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetLookupTypes)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypes)}", ReferenceDbCql.GetLookupTypes)
                .ExecuteQueryAsync(MapToLookupType!, cancellationToken);
 
     /// <summary>
@@ -1244,12 +1244,12 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<ICollection<string>> GetLookupTypeNamesAsync()
        => [.. (await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetLookupTypeNames)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeNames)}", ReferenceDbCql.GetLookupTypeNames)
                .ExecuteQueryAsync(MapToLookupTypeName!)).Select(e => e.LookupTypeName)];
 
     public async Task<ICollection<string>> GetLookupTypeNamesAsync(CancellationToken cancellationToken)
        => [.. (await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetLookupTypeNames)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeNames)}", ReferenceDbCql.GetLookupTypeNames)
                .ExecuteQueryAsync(MapToLookupTypeName!, cancellationToken)).Select(e => e.LookupTypeName)];
 
     /// <summary>
@@ -1258,13 +1258,13 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName)
        => await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.GetLookupTypeShortCodes)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeShortCodes)}", ReferenceDbCql.GetLookupTypeShortCodes)
                 .SetParameters(new GetLookupType(lookupTypeName))
                 .ExecuteQueryAsync(MapToLookupTypeShortCode!);
 
     public async Task<ICollection<LookupTypeShortCodeReadModel>> GetLookupTypeShortCodesAsync(string lookupTypeName, CancellationToken cancellationToken)
        => await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.GetLookupTypeShortCodes)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetLookupTypeShortCodes)}", ReferenceDbCql.GetLookupTypeShortCodes)
                 .SetParameters(new GetLookupType(lookupTypeName))
                 .ExecuteQueryAsync(MapToLookupTypeShortCode!, cancellationToken);
 
@@ -1316,7 +1316,7 @@ public class ReferenceDbContext(
                 return jobId ?? 0;
         }
 
-        var jobs = await db.Use(ReferenceDbCql.GetScheduledJobs)
+        var jobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
             .ExecuteQueryAsync(MapToScheduledJob!);
         var legacyMatches = jobs
             .Where(job => string.Equals(job.JobName, scheduledJobName, StringComparison.Ordinal))
@@ -1348,7 +1348,7 @@ public class ReferenceDbContext(
                 return jobId ?? 0;
         }
 
-        var jobs = await db.Use(ReferenceDbCql.GetScheduledJobs)
+        var jobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
             .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken);
         var legacyMatches = jobs
             .Where(job => string.Equals(job.JobName, scheduledJobName, StringComparison.Ordinal))
@@ -1369,7 +1369,7 @@ public class ReferenceDbContext(
     public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync()
     {
         var db =  _dbFactory.ReferenceDb;
-        var scheduledJobs = await db.Use(ReferenceDbCql.GetScheduledJobs)
+        var scheduledJobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
                .ExecuteQueryAsync(MapToScheduledJob!);
         foreach (var e in scheduledJobs)
         {
@@ -1380,7 +1380,7 @@ public class ReferenceDbContext(
         return scheduledJobs;
 
          Task<ScheduledJobDaysOfWeekReadModel?> GetScheduledJobDaysAsync(int jobId)
-            =>  db.Use(ReferenceDbCql.GetScheduledJobDays)
+            =>  db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobDays)}", ReferenceDbCql.GetScheduledJobDays)
                 .SetParameters(new GetScheduledJobDays(jobId))
                 .ExecuteSingleAsync(MapToScheduledJobDaysOfWeek!);
     }
@@ -1393,7 +1393,7 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task<ICollection<MDIForwardLossRatioReadModel>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType)
         => await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetMDIForwardLossRatios)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetMDIForwardLossRatios)}", ReferenceDbCql.GetMDIForwardLossRatios)
                .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()))
                .ExecuteQueryAsync(MapToMDIForwardLossRatio!);
 
@@ -1402,7 +1402,7 @@ public class ReferenceDbContext(
         TradeType tradeType,
         CancellationToken cancellationToken)
         => await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.GetMDIForwardLossRatios)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetMDIForwardLossRatios)}", ReferenceDbCql.GetMDIForwardLossRatios)
                .SetParameters(new GetMDIForwardLossRatios(trendDirection.ToStringFast(), tradeType.ToStringFast()))
                .ExecuteQueryAsync(MapToMDIForwardLossRatio!, cancellationToken);
 
@@ -1413,18 +1413,18 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task InsertLookupTypeAsync(LookupTypeReadModel e)
         => await _dbFactory.ReferenceDb
-               .Use(ReferenceDbCql.InsertLookupType)
+               .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertLookupType)}", ReferenceDbCql.InsertLookupType)
                .SetParameters(new InsertLookupType(e.LookupTypeName, e.ShortCode, e.OrderId, e.Description, e.CreatedOn, e.CreatedBy))
                .ExecuteCommandAsync();
 
     public async Task<ICollection<ScheduledJobReadModel>> GetScheduledJobsAsync(CancellationToken cancellationToken)
     {
         var db = _dbFactory.ReferenceDb;
-        var scheduledJobs = await db.Use(ReferenceDbCql.GetScheduledJobs)
+        var scheduledJobs = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
             .ExecuteQueryAsync(MapToScheduledJob!, cancellationToken);
         foreach (var e in scheduledJobs)
         {
-            var jobDaysOfWeek = await db.Use(ReferenceDbCql.GetScheduledJobDays)
+            var jobDaysOfWeek = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobDays)}", ReferenceDbCql.GetScheduledJobDays)
                 .SetParameters(new GetScheduledJobDays(e.JobId))
                 .ExecuteSingleAsync(MapToScheduledJobDaysOfWeek!, cancellationToken);
             if (jobDaysOfWeek is not null)
@@ -1475,7 +1475,7 @@ public class ReferenceDbContext(
                 writeOperation,
                 [GetScheduledJobIdOwnershipScope(jobId)]).ConfigureAwait(false);
 
-            var duplicate = await db.Use(ReferenceDbCql.GetScheduledJob)
+            var duplicate = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(jobId))
                 .ExecuteSingleAsync(MapToScheduledJob!);
             if (duplicate is not null)
@@ -1504,7 +1504,7 @@ public class ReferenceDbContext(
 
                 var queuedCommands = new List<object>
                 {
-                    db.Use(ReferenceDbCql.InsertScheduledJob)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJob)}", ReferenceDbCql.InsertScheduledJob)
                         .SetParameters(new InsertScheduledJob(jobId, e.JobName, e.JobSchedule.ToStringFast(), e.JobScheduleDate, e.JobScheduleInterval, e.TaskName, e.TaskEnabled, e.CreatedOn, e.CreatedBy))
                         .QueueCommand()
                 };
@@ -1512,7 +1512,7 @@ public class ReferenceDbContext(
                 if (e.DaysOfWeek is not null)
                 {
                     queuedCommands.Add(
-                    db.Use(ReferenceDbCql.InsertScheduledJobDays)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJobDays)}", ReferenceDbCql.InsertScheduledJobDays)
                           .SetParameters(new InsertScheduledJobDays(jobId, e.DaysOfWeek.Monday, e.DaysOfWeek.Tuesday, e.DaysOfWeek.Wednesday, e.DaysOfWeek.Thursday, e.DaysOfWeek.Friday, e.DaysOfWeek.Saturday, e.DaysOfWeek.Sunday))
                         .QueueCommand());
                 }
@@ -1570,7 +1570,7 @@ public class ReferenceDbContext(
                 writeOperation,
                 [GetScheduledJobIdOwnershipScope(e.JobId)]).ConfigureAwait(false);
 
-            var existing = await db.Use(ReferenceDbCql.GetScheduledJob)
+            var existing = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(e.JobId))
                 .ExecuteSingleAsync(MapToScheduledJob!);
             if (existing is null)
@@ -1586,7 +1586,7 @@ public class ReferenceDbContext(
                     .Distinct(StringComparer.Ordinal)
                     .Select(GetScheduledJobNameOwnershipScope)).ConfigureAwait(false);
 
-            var confirmed = await db.Use(ReferenceDbCql.GetScheduledJob)
+            var confirmed = await db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJob)}", ReferenceDbCql.GetScheduledJob)
                 .SetParameters(new GetScheduledJob(e.JobId))
                 .ExecuteSingleAsync(MapToScheduledJob!);
             if (confirmed is null ||
@@ -1625,13 +1625,13 @@ public class ReferenceDbContext(
 
                 var queuedCommands = new List<object>
                 {
-                    db.Use(ReferenceDbCql.DeleteScheduledJob)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJob)}", ReferenceDbCql.DeleteScheduledJob)
                         .SetParameters(new DeleteScheduledJob(e.JobId))
                         .QueueCommand(),
-                    db.Use(ReferenceDbCql.DeleteScheduledJobDays)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteScheduledJobDays)}", ReferenceDbCql.DeleteScheduledJobDays)
                         .SetParameters(new DeleteScheduledJobDays(e.JobId))
                         .QueueCommand(),
-                    db.Use(ReferenceDbCql.InsertScheduledJob)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJob)}", ReferenceDbCql.InsertScheduledJob)
                         .SetParameters(new InsertScheduledJob(e.JobId, e.JobName, e.JobSchedule.ToStringFast(), e.JobScheduleDate, e.JobScheduleInterval, e.TaskName, e.TaskEnabled, e.CreatedOn, e.CreatedBy))
                         .QueueCommand()
                 };
@@ -1639,7 +1639,7 @@ public class ReferenceDbContext(
                 if (e.DaysOfWeek != null)
                 {
                     queuedCommands.Add(
-                    db.Use(ReferenceDbCql.InsertScheduledJobDays)
+                    db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertScheduledJobDays)}", ReferenceDbCql.InsertScheduledJobDays)
                           .SetParameters(new InsertScheduledJobDays(e.JobId, e.DaysOfWeek.Monday, e.DaysOfWeek.Tuesday, e.DaysOfWeek.Wednesday, e.DaysOfWeek.Thursday, e.DaysOfWeek.Friday, e.DaysOfWeek.Saturday, e.DaysOfWeek.Sunday))
                            .QueueCommand());
                 }
@@ -1700,12 +1700,12 @@ public class ReferenceDbContext(
         var db = _dbFactory.ReferenceDb;
 
         queuedCommands.Add(
-        db.Use(ReferenceDbCql.DeleteLookupType)
+        db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteLookupType)}", ReferenceDbCql.DeleteLookupType)
                .SetParameters(new DeleteLookupType(id.LookupTypeName, id.OrderId))
                .QueueCommand());
 
         queuedCommands.Add(
-        db.Use(ReferenceDbCql.InsertLookupType)
+        db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertLookupType)}", ReferenceDbCql.InsertLookupType)
                .SetParameters(new InsertLookupType(e.LookupTypeName, e.ShortCode, e.OrderId, e.Description, e.CreatedOn, e.CreatedBy))
                .QueueCommand());
         await db.ExecuteQueuedCommandsAsync(queuedCommands);
@@ -1718,7 +1718,7 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task InsertMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel e)
         => await _dbFactory.ReferenceDb
-              .Use(ReferenceDbCql.InsertMDIForwardLossRatio)
+              .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", ReferenceDbCql.InsertMDIForwardLossRatio)
               .SetParameters(new InsertMDIForwardLossRatio(e.MDI, e.TrendDirection.ToStringFast(), e.TradeType.ToStringFast(), e.ForwardLossRatio, e.CreatedBy, e.CreatedOn, e.UpdatedBy, e.UpdatedOn))
               .ExecuteCommandAsync().ConfigureAwait(false);
 
@@ -1731,7 +1731,7 @@ public class ReferenceDbContext(
     {
         ValidateMdiForwardLossRatioLogicalKeys(mdiForwardLossRatios);
         await _dbFactory.ReferenceDb
-            .Use(ReferenceDbCql.InsertMDIForwardLossRatio)
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", ReferenceDbCql.InsertMDIForwardLossRatio)
             .SetParameters(mdiForwardLossRatios.Select(o => new InsertMDIForwardLossRatio(o.MDI, o.TrendDirection.ToStringFast(), o.TradeType.ToStringFast(), o.ForwardLossRatio, o.CreatedBy, o.CreatedOn, o.UpdatedBy, o.UpdatedOn)))
             .ExecuteCommandAsync();
     }
@@ -1744,7 +1744,7 @@ public class ReferenceDbContext(
     /// <returns></returns>
     public async Task DeleteMDIForwardLossRatioAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType)
         =>  await _dbFactory.ReferenceDb
-                .Use(ReferenceDbCql.DeleteMDIForwardLossRatio)
+                .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", ReferenceDbCql.DeleteMDIForwardLossRatio)
                 .SetParameters(new DeleteMDIForwardLossRatio(trendDirection.ToStringFast(), tradeType.ToStringFast()))
                 .ExecuteCommandAsync();
 
@@ -1760,13 +1760,13 @@ public class ReferenceDbContext(
 
         // Delete the existing record
         queuedCommands.Add(
-            db.Use(ReferenceDbCql.DeleteMDIForwardLossRatio)
+            db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.DeleteMDIForwardLossRatio)}", ReferenceDbCql.DeleteMDIForwardLossRatio)
                 .SetParameters(new DeleteMDIForwardLossRatio(mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast()))
                 .QueueCommand());
 
         // Insert the updated record
         queuedCommands.Add(
-            db.Use(ReferenceDbCql.InsertMDIForwardLossRatio)
+            db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertMDIForwardLossRatio)}", ReferenceDbCql.InsertMDIForwardLossRatio)
                 .SetParameters(new InsertMDIForwardLossRatio(mdiForwardLossRatio.MDI, mdiForwardLossRatio.TrendDirection.ToStringFast(), mdiForwardLossRatio.TradeType.ToStringFast(), mdiForwardLossRatio.ForwardLossRatio, mdiForwardLossRatio.CreatedBy, mdiForwardLossRatio.CreatedOn, mdiForwardLossRatio.UpdatedBy, mdiForwardLossRatio.UpdatedOn))
                 .QueueCommand());
         await db.ExecuteQueuedCommandsAsync(queuedCommands);
@@ -1811,7 +1811,7 @@ public class ReferenceDbContext(
 
             var scheduledJobs = new Dictionary<string, int>(StringComparer.Ordinal);
             var scheduledJobNamesById = new Dictionary<int, string>();
-            await foreach (var row in db.Use(ReferenceDbCql.GetScheduledJobs)
+            await foreach (var row in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
                 .ExecuteStreamAsync(MapToScheduledJob!, cancellationToken))
             {
                 if (scheduledJobs.TryGetValue(row.JobName, out var existingJobId)
@@ -1909,7 +1909,7 @@ public class ReferenceDbContext(
         var db = _dbFactory.ReferenceDb;
         long sourceJobCount = 0;
         var sourceJobs = new HashSet<ScheduledJobProjectionKey>();
-        await foreach (var row in db.Use(ReferenceDbCql.GetScheduledJobs)
+        await foreach (var row in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobs)}", ReferenceDbCql.GetScheduledJobs)
             .ExecuteStreamAsync(MapToScheduledJob!, cancellationToken))
         {
             sourceJobs.Add(new ScheduledJobProjectionKey(row.JobName, row.JobId));
@@ -1919,7 +1919,7 @@ public class ReferenceDbContext(
         long projectedJobCount = 0;
         long tokenlessScheduledJobReservations = 0;
         var projectedJobs = new HashSet<ScheduledJobProjectionKey>();
-        await foreach (var row in db.Use(ReferenceDbCql.GetScheduledJobsByNameV3All)
+        await foreach (var row in db.Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetScheduledJobsByNameV3All)}", ReferenceDbCql.GetScheduledJobsByNameV3All)
             .ExecuteStreamAsync(MapToScheduledJobProjectionRow, cancellationToken))
         {
             projectedJobs.Add(row.Key);

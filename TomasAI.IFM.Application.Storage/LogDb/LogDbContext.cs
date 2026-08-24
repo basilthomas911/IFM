@@ -37,7 +37,7 @@ public class LogDbContext(IDbConnectionSettings connectionSettings,
     /// <returns></returns>
     public async Task<ICollection<LogEventReadModel>> GetTelemetryLogsByDateRangeAsync(DateTime startDate, DateTime endDate)
         => await _dbFactory.LogDb
-                .Use(LogDbSql.GetTelemtryLogsByDateRange)
+                .Use($"{nameof(LogDbSql)}.{nameof(LogDbSql.GetTelemtryLogsByDateRange)}", LogDbSql.GetTelemtryLogsByDateRange)
                 .SetParameters(new GetTelemetryLogsByDateRange(startDate, endDate))
                 .ExecuteQueryAsync(MapToLogEvent);
 
@@ -54,7 +54,7 @@ public class LogDbContext(IDbConnectionSettings connectionSettings,
         {
             var logId = await _sequenceIdGenerator.GetSequenceIdAsync(SequenceName.TelemetryLog_SequenceId);
             var queuedCommand = db
-                .Use(LogDbSql.InsertTelemetryLog)
+                .Use($"{nameof(LogDbSql)}.{nameof(LogDbSql.InsertTelemetryLog)}", LogDbSql.InsertTelemetryLog)
                 .SetParameters(new InsertTelemetryLog(logId, e.Timestamp, e.LogLevel, e.Message, e.ServiceId))
                 .QueueCommand();
             queuedCommands.Add(queuedCommand);

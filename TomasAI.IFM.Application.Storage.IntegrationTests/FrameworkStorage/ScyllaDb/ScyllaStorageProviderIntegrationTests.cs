@@ -93,7 +93,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             await InsertFundAsync(repository, scope);
 
             var result = await repository
-                .Use($"DELETE FROM fund WHERE fundId = {scope.FundId};")
+                .UseTest($"DELETE FROM fund WHERE fundId = {scope.FundId};")
                 .ExecuteCommandAsync();
 
             Assert.Equal([-1L], result);
@@ -107,7 +107,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         var scope = ScyllaFundTestData.Scope(2);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var result = await repository.Use(InsertFund)
+            var result = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFund)}", InsertFund)
                 .SetParameters(new InsertFundBindValue(scope.FundId, 1200.50m))
                 .ExecuteCommandAsync();
 
@@ -130,7 +130,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
                 CreateOrderBindValues(scope, scope.SecondOrderId, "Closed")
             };
 
-            var result = await repository.Use(InsertFundOrder)
+            var result = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
                 .SetParameters(parameters)
                 .ExecuteCommandAsync();
 
@@ -154,7 +154,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
                     probe))
                 .ToArray();
 
-            await repository.Use(InsertFundOrder)
+            await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
                 .SetParameters(parameters)
                 .ExecuteCommandAsync();
 
@@ -172,7 +172,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             var enumerationCount = 0;
             var parameters = GetParameters();
 
-            await repository.Use(InsertFundOrder)
+            await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
                 .SetParameters(parameters)
                 .ExecuteCommandAsync();
 
@@ -201,7 +201,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
 
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.Use(InsertFundOrder)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
                 .SetParameters(GetParameters())
                 .ExecuteCommandAsync(cancellation.Token));
 
@@ -224,10 +224,10 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         {
             var queuedCommands = new List<object>
             {
-                repository.Use(InsertFund)
+                repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFund)}", InsertFund)
                     .SetParameters(CreateFundParameters(scope.FundId, 100m))
                     .QueueCommand(),
-                repository.Use("UPDATE fund SET balance = :balance WHERE fundId = :fundId;")
+                repository.UseTest("UPDATE fund SET balance = :balance WHERE fundId = :fundId;")
                     .SetParameters(new UpdateFundBalanceParameters(225m, scope.FundId))
                     .QueueCommand()
             };
@@ -248,10 +248,10 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         {
             var queuedCommands = new List<object>
             {
-                repository.Use(InsertFund)
+                repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFund)}", InsertFund)
                     .SetParameters(CreateFundParameters(scope.FundId, 300m))
                     .QueueCommand(),
-                repository.Use("UPDATE fund SET balance = :balance WHERE fundId = :fundId;")
+                repository.UseTest("UPDATE fund SET balance = :balance WHERE fundId = :fundId;")
                     .SetParameters(new UpdateFundBalanceParameters(450m, scope.FundId))
                     .QueueCommand()
             };
@@ -272,7 +272,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         {
             var queuedCommands = new List<object>
             {
-                repository.Use(InsertFundOrder)
+                repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
                     .SetParameters(new object?[][]
                     {
                         CreateOrderBindValues(scope, scope.OrderId, "Open"),
@@ -296,7 +296,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         {
             await InsertOrdersAsync(repository, scope);
 
-            var rows = await repository.Use(SelectFundOrders)
+            var rows = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteQueryAsync(MapOrder);
 
@@ -314,7 +314,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         {
             await InsertOrdersAsync(repository, scope);
 
-            var rows = await repository.Use(SelectFundOrders)
+            var rows = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteQueryImmutableAsync(static row => new ImmutableOrderRow(
                     row.GetInt(0), row.GetInt(1), row.GetEnum<TestOrderStatus>(3)));
@@ -348,7 +348,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         var scope = ScyllaFundTestData.Scope(8);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var missing = await repository.Use(SelectFund)
+            var missing = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteSingleAsync<FundIdentityRow?>(static row => new FundIdentityRow(row.GetInt(0)));
 
@@ -365,7 +365,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             await InsertFundAsync(repository, scope, 9876.54m);
 
             var balance = await repository
-                .Use("SELECT balance AS deliberately_not_value FROM fund WHERE fundId = :fundId;")
+                .UseTest("SELECT balance AS deliberately_not_value FROM fund WHERE fundId = :fundId;")
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteScalarAsync(static row => row.GetDecimal(0));
 
@@ -383,7 +383,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             var reducerCalls = 0;
             var orderIdSum = 0;
 
-            await repository.Use("SELECT orderId FROM fund_order WHERE fundId = :fundId;")
+            await repository.UseTest("SELECT orderId FROM fund_order WHERE fundId = :fundId;")
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteMapReduceAsync(
                     static row => row.GetInt(0),
@@ -407,7 +407,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             await InsertOrdersAsync(repository, scope);
             var orderIds = new List<int>();
 
-            await foreach (var row in repository.Use(SelectFundOrders)
+            await foreach (var row in repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteStreamAsync(MapOrder))
             {
@@ -431,7 +431,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            await repository.Use(InsertFundOrderKey)
+            await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrderKey)}", InsertFundOrderKey)
                 .SetParameters(Parameters())
                 .ExecuteCommandAsync(timeout.Token);
 
@@ -439,7 +439,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
             var lastSeen = 0;
             var distinctOrderIds = new HashSet<int>();
 
-            await foreach (var orderId in repository.Use(SelectFundOrderIds)
+            await foreach (var orderId in repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrderIds)}", SelectFundOrderIds)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteStreamAsync(static row => row.GetInt(0), timeout.Token))
             {
@@ -470,7 +470,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             await InsertOrdersAsync(repository, scope);
-            var stream = repository.Use(SelectFundOrders)
+            var stream = repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteStreamAsync(MapOrder);
 
@@ -496,7 +496,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             {
-                await foreach (var _ in repository.Use(SelectFundOrders)
+                await foreach (var _ in repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
                     .SetParameters(new FundLookup(scope.FundId))
                     .ExecuteStreamAsync(MapOrder, cancellation.Token))
                 {
@@ -517,24 +517,24 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             await InsertFundAsync(repository, scope, 5432.10m);
-            await repository.Use(InsertFundOrder)
+            await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
                 .SetParameters(CreateOrderParameters(scope, scope.OrderId, "Open"))
                 .ExecuteCommandAsync();
-            await repository.Use(InsertFundOrderTrade)
+            await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrderTrade)}", InsertFundOrderTrade)
                 .SetParameters(CreateTradeParameters(scope))
                 .ExecuteCommandAsync();
-            await repository.Use(InsertFundTransaction)
+            await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundTransaction)}", InsertFundTransaction)
                 .SetParameters(CreateTransactionParameters(scope))
                 .ExecuteCommandAsync();
 
             var fund = await GetFundAsync(repository, scope.FundId);
-            var order = await repository.Use(SelectFundOrders)
+            var order = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
                 .SetParameters(new FundLookup(scope.FundId))
                 .ExecuteSingleAsync(MapOrder);
-            var trade = await repository.Use(SelectFundOrderTrade)
+            var trade = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrderTrade)}", SelectFundOrderTrade)
                 .SetParameters(new FundOrderTradeLookup(scope.FundId, scope.OrderId, scope.TradeId))
                 .ExecuteSingleAsync(MapTrade);
-            var transaction = await repository.Use(SelectFundTransaction)
+            var transaction = await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundTransaction)}", SelectFundTransaction)
                 .SetParameters(new FundTransactionLookup(
                     scope.FundId,
                     ScyllaFundTestData.ValueDate,
@@ -574,7 +574,7 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         var scope = ScyllaFundTestData.Scope(12);
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
-            var context = repository.Use(SelectFund)
+            var context = repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund)
                 .SetParameters(new[] { new FundLookup(scope.FundId), new FundLookup(scope.FundId - 1) });
 
             var exception = await Assert.ThrowsAsync<StorageException>(
@@ -604,28 +604,28 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         return fixture.RunIsolatedAsync(scope, async repository =>
         {
             Assert.Throws<ArgumentNullException>(
-                () => repository.Use(SelectFund).ExecuteStreamAsync<FundRow>(null!));
+                () => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund).ExecuteStreamAsync<FundRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
-                () => repository.Use(SelectFund).ExecuteQueryAsync<FundRow>(null!));
+                () => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund).ExecuteQueryAsync<FundRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
-                () => repository.Use(SelectFund).ExecuteSingleAsync<FundRow>(null!));
+                () => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund).ExecuteSingleAsync<FundRow>(null!));
             await Assert.ThrowsAsync<StorageException>(
-                () => repository.Use(SelectFund).ExecuteQueryImmutableAsync<ImmutableOrderRow>(null!));
+                () => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund).ExecuteQueryImmutableAsync<ImmutableOrderRow>(null!));
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await repository.Use(SelectFund).ExecuteMapReduceAsync<int>(null!, _ => { }));
+                await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund).ExecuteMapReduceAsync<int>(null!, _ => { }));
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await repository.Use(SelectFund).ExecuteMapReduceAsync(static row => row.GetInt(0), null!));
+                await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund).ExecuteMapReduceAsync(static row => row.GetInt(0), null!));
         });
     }
 
     static Task InsertFundAsync(ScyllaTestRepository repository, ScyllaFundTestScope scope, decimal balance = 1000m)
-        => repository.Use(InsertFund)
+        => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFund)}", InsertFund)
             .SetParameters(CreateFundParameters(scope.FundId, balance))
             .ExecuteCommandAsync();
 
     static async Task InsertOrdersAsync(ScyllaTestRepository repository, ScyllaFundTestScope scope)
     {
-        await repository.Use(InsertFundOrder)
+        await repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(InsertFundOrder)}", InsertFundOrder)
             .SetParameters(new[]
             {
                 CreateOrderParameters(scope, scope.OrderId, "Open"),
@@ -676,12 +676,12 @@ public sealed class ScyllaStorageProviderIntegrationTests(ScyllaStorageProviderF
         => new(scope.TransactionId, scope.FundId, scope.OrderId, scope.TradeId);
 
     static Task<FundRow?> GetFundAsync(ScyllaTestRepository repository, int fundId)
-        => repository.Use(SelectFund)
+        => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFund)}", SelectFund)
             .SetParameters(new FundLookup(fundId))
             .ExecuteSingleAsync(MapFund);
 
     static Task<ICollection<OrderRow>> GetFundOrdersAsync(ScyllaTestRepository repository, int fundId)
-        => repository.Use(SelectFundOrders)
+        => repository.Use($"{nameof(ScyllaStorageProviderIntegrationTests)}.{nameof(SelectFundOrders)}", SelectFundOrders)
             .SetParameters(new FundLookup(fundId))
             .ExecuteQueryAsync(MapOrder);
 

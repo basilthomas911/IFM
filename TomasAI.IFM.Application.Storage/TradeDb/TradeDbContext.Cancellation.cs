@@ -11,7 +11,7 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.TradeDb;
-        var optionTrades = await db.Use(TradeDbCql.GetOptionTrades)
+        var optionTrades = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTrades)}", TradeDbCql.GetOptionTrades)
             .SetParameters(new GetOptionTrades(orderId))
             .ExecuteQueryAsync(MapToOptionTrade!, cancellationToken);
 
@@ -35,7 +35,7 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.TradeDb;
-        var optionTrade = await db.Use(TradeDbCql.GetOptionTrade)
+        var optionTrade = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTrade)}", TradeDbCql.GetOptionTrade)
             .SetParameters(new GetOptionTrade(orderId, tradeId))
             .ExecuteSingleAsync(MapToOptionTrade!, cancellationToken);
         return optionTrade is null
@@ -50,7 +50,7 @@ public partial class TradeDbContext
         TradeType tradeType,
         CancellationToken cancellationToken)
         => _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradeSpreadData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadData)}", TradeDbCql.GetOptionTradeSpreadData)
             .SetParameters(new GetOptionTradeSpreadData(
                 orderId,
                 tradeId,
@@ -67,7 +67,7 @@ public partial class TradeDbContext
         DateTime endDate,
         CancellationToken cancellationToken)
         => _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionTradeSpreadBarData)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionTradeSpreadBarData)}", TradeDbCql.GetOptionTradeSpreadBarData)
             .SetParameters(new GetOptionTradeSpreadBarData(
                 orderId,
                 tradeId,
@@ -82,7 +82,7 @@ public partial class TradeDbContext
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionLegs)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegsWithValueDate(tradeId, valueDate))
             .ExecuteSingleAsync(MapToTradePrice, cancellationToken);
 
@@ -92,13 +92,13 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.TradeDb;
-        var tradePositions = await db.Use(TradeDbCql.GetTradePositions)
+        var tradePositions = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
             .SetParameters(new GetTradePositions(orderId, tradeId))
             .ExecuteQueryAsync(MapToTradePosition!, cancellationToken);
         if (tradePositions.Count == 0)
             return tradePositions;
 
-        var optionLegsTask = db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+        var optionLegsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
             .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
         var valueDates = tradePositions
@@ -114,7 +114,7 @@ public partial class TradeDbContext
                 CancellationToken = cancellationToken
             },
             async (dateIndex, token) =>
-                legDataByDate[dateIndex] = await db.Use(TradeDbCql.GetOptionLegData)
+                legDataByDate[dateIndex] = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                     .SetParameters(new GetOptionLegData(orderId, tradeId, valueDates[dateIndex]))
                     .ExecuteQueryAsync(MapToOptionLegData!, token));
 
@@ -144,7 +144,7 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.TradeDb;
-        var tradePosition = await db.Use(TradeDbCql.GetTradePosition)
+        var tradePosition = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePosition)}", TradeDbCql.GetTradePosition)
             .SetParameters(new GetTradePosition(
                 orderId,
                 tradeId,
@@ -156,10 +156,10 @@ public partial class TradeDbContext
         if (tradePosition is null)
             return null;
 
-        var optionLegsTask = db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+        var optionLegsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
             .SetParameters(new GetOptionLegsByOrderAndTrade(orderId, tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
-        var optionLegDataTask = db.Use(TradeDbCql.GetOptionLegData)
+        var optionLegDataTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
             .SetParameters(new GetOptionLegData(orderId, tradeId, valueDate))
             .ExecuteQueryAsync(MapToOptionLegData!, cancellationToken);
         await Task.WhenAll(optionLegsTask, optionLegDataTask);
@@ -201,7 +201,7 @@ public partial class TradeDbContext
         int orderId,
         CancellationToken cancellationToken)
         => [.. (await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeHistory)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeHistory)}", TradeDbCql.GetTradeHistory)
             .SetParameters(new GetTradeHistory(orderId))
             .ExecuteQueryAsync(MapToTradeHistory!, cancellationToken))
             .OrderBy(e => e.ValueDate)];
@@ -212,12 +212,12 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.TradeDb;
-        var tradeFills = await db.Use(TradeDbCql.GetTradeFills)
+        var tradeFills = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFills)}", TradeDbCql.GetTradeFills)
             .SetParameters(new GetTradeFills(orderId, tradeId))
             .ExecuteQueryAsync(MapToTradeFill!, cancellationToken);
         foreach (var tradeFill in tradeFills)
         {
-            var tradeFillData = await db.Use(TradeDbCql.GetTradeFillData)
+            var tradeFillData = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeFillData)}", TradeDbCql.GetTradeFillData)
                 .SetParameters(new GetTradeFillData(
                     orderId,
                     tradeId,
@@ -233,7 +233,7 @@ public partial class TradeDbContext
         int tradeId,
         CancellationToken cancellationToken)
         => [.. (await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionLegs)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegs(tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken))
             .Select(e => e.ContractId)];
@@ -243,7 +243,7 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var optionLegs = await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetOptionLegs)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegs)}", TradeDbCql.GetOptionLegs)
             .SetParameters(new GetOptionLegs(tradeId))
             .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
         var latestTradeLegs = optionLegs
@@ -260,7 +260,7 @@ public partial class TradeDbContext
         CancellationToken cancellationToken)
     {
         var tradeLimit = await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeLimit)}", TradeDbCql.GetTradeLimit)
             .SetParameters(new GetTradeLimit(tradeId))
             .ExecuteSingleAsync(MapToTradeLimit!, cancellationToken);
         if (tradeLimit is null)
@@ -285,7 +285,7 @@ public partial class TradeDbContext
         TradeType tradeType,
         CancellationToken cancellationToken)
         => _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradeTypeLimit)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimit)}", TradeDbCql.GetTradeTypeLimit)
             .SetParameters(new GetTradeTypeLimit(tradeId, tradeType.ToStringFast()))
             .ExecuteSingleAsync(MapToTradeTypeLimit!, cancellationToken);
 
@@ -297,7 +297,7 @@ public partial class TradeDbContext
         int daysToExpiry,
         CancellationToken cancellationToken)
         => [.. (await _dbFactory.TradeDb
-            .Use(TradeDbCql.GetTradePositionsById)
+            .Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositionsById)}", TradeDbCql.GetTradePositionsById)
             .SetParameters(new GetTradePositionsById(
                 orderId,
                 tradeId,
@@ -313,14 +313,14 @@ public partial class TradeDbContext
     {
         var entityId = optionTrade.EntityId;
         var db = _dbFactory.TradeDb;
-        var tradePositionsTask = db.Use(TradeDbCql.GetTradePositions)
+        var tradePositionsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradePositions)}", TradeDbCql.GetTradePositions)
             .SetParameters(new GetTradePositions(entityId.OrderId, entityId.TradeId))
             .ExecuteQueryAsync(MapToTradePosition!, cancellationToken);
-        var optionLegsTask = db.Use(TradeDbCql.GetOptionLegsByOrderAndTrade)
+        var optionLegsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegsByOrderAndTrade)}", TradeDbCql.GetOptionLegsByOrderAndTrade)
             .SetParameters(new GetOptionLegsByOrderAndTrade(entityId.OrderId, entityId.TradeId))
             .ExecuteQueryAsync(MapToOptionLeg!, cancellationToken);
         var tradeLimitTask = GetTradeLimitAsync(optionTrade.TradeId, cancellationToken);
-        var tradeTypeLimitsTask = db.Use(TradeDbCql.GetTradeTypeLimits)
+        var tradeTypeLimitsTask = db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetTradeTypeLimits)}", TradeDbCql.GetTradeTypeLimits)
             .SetParameters(new GetTradeTypeLimits(optionTrade.TradeId))
             .ExecuteQueryAsync(MapToTradeTypeLimit, cancellationToken);
         var tradeFillsTask = GetTradeFillsAsync(
@@ -342,7 +342,7 @@ public partial class TradeDbContext
                 CancellationToken = cancellationToken
             },
             async (dateIndex, token) =>
-                legDataByDate[dateIndex] = await db.Use(TradeDbCql.GetOptionLegData)
+                legDataByDate[dateIndex] = await db.Use($"{nameof(TradeDbCql)}.{nameof(TradeDbCql.GetOptionLegData)}", TradeDbCql.GetOptionLegData)
                     .SetParameters(new GetOptionLegData(
                         entityId.OrderId,
                         entityId.TradeId,

@@ -22,7 +22,7 @@ public sealed class PostgresCommandLogBenchmarkStore(
     public override IObjectRepository Database => this;
 
     public async Task CreateSchemaAsync(CancellationToken cancellationToken = default)
-        => _ = await Database.Use(EventSourceSchemaSql.CreateCommandLog)
+        => _ = await Database.Use($"{nameof(EventSourceSchemaSql)}.{nameof(EventSourceSchemaSql.CreateCommandLog)}", EventSourceSchemaSql.CreateCommandLog)
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -31,7 +31,7 @@ public sealed class PostgresCommandLogBenchmarkStore(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return await Database.Use(EventSourceDbSql.TryInsertCommandLog)
+        return await Database.Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.TryInsertCommandLog)}", EventSourceDbSql.TryInsertCommandLog)
             .SetParameters(new InsertParameters(entry))
             .ExecuteScalarAsync(static row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false);
@@ -40,7 +40,7 @@ public sealed class PostgresCommandLogBenchmarkStore(
     public Task<PostgresCommandLogBenchmarkRecord?> GetAsync(
         Guid commandId,
         CancellationToken cancellationToken = default)
-        => Database.Use(CommandLogBenchmarkStatements.GetPostgres)
+        => Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.GetPostgres)}", CommandLogBenchmarkStatements.GetPostgres)
             .SetParameters(new CommandIdParameter(commandId))
             .ExecuteSingleAsync<PostgresCommandLogBenchmarkRecord?>(
                 static row => new PostgresCommandLogBenchmarkRecord(
@@ -53,7 +53,7 @@ public sealed class PostgresCommandLogBenchmarkStore(
                 cancellationToken);
 
     public async Task DeleteAsync(Guid commandId, CancellationToken cancellationToken = default)
-        => _ = await Database.Use(CommandLogBenchmarkStatements.DeletePostgres)
+        => _ = await Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.DeletePostgres)}", CommandLogBenchmarkStatements.DeletePostgres)
             .SetParameters(new CommandIdParameter(commandId))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);

@@ -224,7 +224,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     static async Task<FundOrderReservation?> ReadFundOrderReservationAsync(
         IObjectRepository db,
         int orderId)
-        => await db.Use(FundDbCql.GetFundOrderReservationV3)
+        => await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrderReservationV3)}", FundDbCql.GetFundOrderReservationV3)
             .SetParameters(new GetFundOrderReservationV3(orderId))
             .ExecuteSingleAsync<FundOrderReservation?>(
                 static row => MapToFundOrderReservation(row));
@@ -242,7 +242,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 DateTime.UtcNow);
             try
             {
-                var applied = await db.Use(FundDbCql.ClaimFundOrderWriteOwnershipV3)
+                var applied = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ClaimFundOrderWriteOwnershipV3)}", FundDbCql.ClaimFundOrderWriteOwnershipV3)
                     .SetParameters(new ClaimFundOrderWriteOwnershipV3(
                         ownership.OrderId,
                         ownership.OperationId,
@@ -273,7 +273,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     {
         foreach (var ownership in ownerships.Reverse())
         {
-            _ = await db.Use(FundDbCql.ReleaseFundOrderWriteOwnershipV3)
+            _ = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ReleaseFundOrderWriteOwnershipV3)}", FundDbCql.ReleaseFundOrderWriteOwnershipV3)
                 .SetParameters(new ReleaseFundOrderWriteOwnershipV3(
                     ownership.OrderId,
                     ownership.OperationId))
@@ -300,13 +300,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         DateTime staleOperationCutoffUtc,
         CancellationToken cancellationToken)
     {
-        await foreach (var ownership in db.Use(FundDbCql.GetFundOrderWriteOwnershipsV3All)
+        await foreach (var ownership in db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrderWriteOwnershipsV3All)}", FundDbCql.GetFundOrderWriteOwnershipsV3All)
             .ExecuteStreamAsync(MapToFundOrderWriteOwnership, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (ProjectionMutationSafety.AsUtc(ownership.StartedOn) > staleOperationCutoffUtc)
                 continue;
-            _ = await db.Use(FundDbCql.ReleaseFundOrderWriteOwnershipV3)
+            _ = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ReleaseFundOrderWriteOwnershipV3)}", FundDbCql.ReleaseFundOrderWriteOwnershipV3)
                 .SetParameters(new ReleaseFundOrderWriteOwnershipV3(
                     ownership.OrderId,
                     ownership.OperationId))
@@ -333,7 +333,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                     return await ReadBaseFundTransactionRangeAsync(fundId, range.StartDate, range.EndDate, cancellationToken).ConfigureAwait(false);
 
                 var projectedRows = await _dbFactory.FundDb
-                    .Use(FundDbCql.GetFundTransactionTimelineV3)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionTimelineV3)}", FundDbCql.GetFundTransactionTimelineV3)
                     .SetParameters(new GetFundTransactionTimelineV3(fundId, range.MonthBucket, range.StartDate, range.EndDate))
                     .ExecuteQueryAsync(MapToFundTransaction!, cancellationToken).ConfigureAwait(false);
 
@@ -353,7 +353,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         CancellationToken cancellationToken = default)
     {
         var states = await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundTransactionProjectionStateV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionStateV3)}", FundDbCql.GetFundTransactionProjectionStateV3)
             .SetParameters(new GetFundTransactionProjectionStateV3(fundId, monthBucket))
             .ExecuteQueryAsync(MapToFundTransactionProjectionState, cancellationToken).ConfigureAwait(false);
         return states.Count == 0 ? null : states.First();
@@ -364,7 +364,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         DateOnly monthBucket,
         CancellationToken cancellationToken = default)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundTransactionProjectionMutationsV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionMutationsV3)}", FundDbCql.GetFundTransactionProjectionMutationsV3)
             .SetParameters(new GetFundTransactionProjectionMutationsV3(fundId, monthBucket))
             .ExecuteQueryAsync(MapToGuid, cancellationToken).ConfigureAwait(false);
 
@@ -400,7 +400,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         DateOnly endDate,
         CancellationToken cancellationToken = default)
         => _dbFactory.FundDb
-            .Use(FundDbCql.GetFundTransactions)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactions)}", FundDbCql.GetFundTransactions)
             .SetParameters(new GetFundTransactions(fundId, startDate, endDate))
             .ExecuteQueryAsync(MapToFundTransaction!, cancellationToken);
 
@@ -435,7 +435,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             var partitionResults = await FundTransactionProjection.ReadBoundedPartitionsAsync<FundTransactionAmountPartition, FundTransactionAmountProjection>(
                 partitions,
                 partition => _dbFactory.FundDb
-                    .Use(FundDbCql.GetFundTransactionAmountsV3)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionAmountsV3)}", FundDbCql.GetFundTransactionAmountsV3)
                     .SetParameters(new GetFundTransactionAmountsV3(
                         fundId,
                         partition.Range.MonthBucket,
@@ -529,14 +529,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         if (ascending)
         {
             projectedBalances = await _dbFactory.FundDb
-                .Use(FundDbCql.GetOpeningFundBalanceV3)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetOpeningFundBalanceV3)}", FundDbCql.GetOpeningFundBalanceV3)
                 .SetParameters(new GetOpeningFundBalanceV3(fundId, monthBucket, valueDate, tradeStatusName))
                 .ExecuteQueryAsync(MapToFundBalance!, cancellationToken).ConfigureAwait(false);
         }
         else
         {
             projectedBalances = await _dbFactory.FundDb
-                .Use(FundDbCql.GetClosingFundBalanceV3)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetClosingFundBalanceV3)}", FundDbCql.GetClosingFundBalanceV3)
                 .SetParameters(new GetClosingFundBalanceV3(fundId, monthBucket, valueDate, tradeStatusName))
                 .ExecuteQueryAsync(MapToFundBalance!, cancellationToken).ConfigureAwait(false);
         }
@@ -606,7 +606,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             }
 
             targetMutationSubmissionStarted = true;
-            await db.Use(FundDbCql.InsertFundTransaction)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransaction)}", FundDbCql.InsertFundTransaction)
                 .SetParameters(writes.Select(CreateFundTransactionInsert))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
             await WriteFundTransactionProjectionBatchAsync(writes, cancellationToken).ConfigureAwait(false);
@@ -641,7 +641,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             {
                 var db = _dbFactory.FundDb;
                 var existingTask = db
-                    .Use(FundDbCql.GetFundTransaction)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransaction)}", FundDbCql.GetFundTransaction)
                     .SetParameters(new GetFundTransaction(
                         entry.Value.FundId,
                         entry.Value.ValueDate,
@@ -652,7 +652,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                         entry.Key.TransactionDate))
                     .ExecuteQueryAsync(MapToFundTransaction!);
                 var identityTask = db
-                    .Use(FundDbCql.GetFundTransactionIdentityV4)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionIdentityV4)}", FundDbCql.GetFundTransactionIdentityV4)
                     .SetParameters(CreateFundTransactionIdentityGet(entry.Key))
                     .ExecuteSingleAsync(MapToFundTransactionIdentity!);
                 await Task.WhenAll(existingTask, identityTask).ConfigureAwait(false);
@@ -750,7 +750,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 
     async Task<long?> GetFundTransactionIdentityAsync(FundTransactionLogicalKey key)
         => (await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundTransactionIdentityV4)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionIdentityV4)}", FundDbCql.GetFundTransactionIdentityV4)
             .SetParameters(CreateFundTransactionIdentityGet(key))
             .ExecuteSingleAsync(MapToFundTransactionIdentity!))?.TransactionId;
 
@@ -758,7 +758,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         FundTransactionLogicalKey key,
         long transactionId)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.ReserveFundTransactionIdentityV4)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ReserveFundTransactionIdentityV4)}", FundDbCql.ReserveFundTransactionIdentityV4)
             .SetParameters(CreateFundTransactionIdentityReservation(key, transactionId))
             .ExecuteScalarAsync(MapToBoolean!);
 
@@ -784,13 +784,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         var startedOn = DateTime.UtcNow;
         try
         {
-            await db.Use(FundDbCql.InsertFundTransactionWriteMutationV3)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionWriteMutationV3)}", FundDbCql.InsertFundTransactionWriteMutationV3)
                 .SetParameters(scopes.Select(scope => new InsertFundTransactionWriteMutationV3(
                     scope.FundId,
                     scope.MutationId,
                     startedOn)))
                 .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-            await db.Use(FundDbCql.InsertFundTransactionProjectionMutationV3)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionProjectionMutationV3)}", FundDbCql.InsertFundTransactionProjectionMutationV3)
                 .SetParameters(scopes
                     .SelectMany(scope => scope.Mutations)
                     .Select(mutation => new InsertFundTransactionProjectionMutationV3(
@@ -895,7 +895,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             return;
 
         await _dbFactory.FundDb
-            .Use(FundDbCql.MarkFundTransactionProjectionIncompleteV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.MarkFundTransactionProjectionIncompleteV3)}", FundDbCql.MarkFundTransactionProjectionIncompleteV3)
             .SetParameters(mutations.Select(mutation => new MarkFundTransactionProjectionIncompleteV3(
                 mutation.MutationId,
                 mutation.FundId,
@@ -905,7 +905,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 
     Task<ICollection<Guid>> GetFundTransactionWriteMutationsAsync(int fundId)
         => _dbFactory.FundDb
-            .Use(FundDbCql.GetFundTransactionWriteMutationsV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionWriteMutationsV3)}", FundDbCql.GetFundTransactionWriteMutationsV3)
             .SetParameters(new GetFundTransactionWriteMutationsV3(fundId))
             .ExecuteQueryAsync(MapToGuid);
 
@@ -913,7 +913,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         FundTransactionMutationScope scope,
         CancellationToken cancellationToken = default)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.ClaimFundTransactionWriteOwnershipV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ClaimFundTransactionWriteOwnershipV3)}", FundDbCql.ClaimFundTransactionWriteOwnershipV3)
             .SetParameters(new ClaimFundTransactionWriteOwnershipV3(
                 scope.FundId,
                 scope.MutationId,
@@ -922,14 +922,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 
     async Task FlagFundTransactionWriteOwnershipConflictAsync(int fundId)
         => _ = await _dbFactory.FundDb
-            .Use(FundDbCql.FlagFundTransactionWriteOwnershipConflictV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.FlagFundTransactionWriteOwnershipConflictV3)}", FundDbCql.FlagFundTransactionWriteOwnershipConflictV3)
             .SetParameters(new FlagFundTransactionWriteOwnershipConflictV3(fundId))
             .ExecuteScalarAsync(MapToBoolean!);
 
     async Task<bool> ReleaseFundTransactionWriteOwnershipIfSafeAsync(FundTransactionMutationScope scope)
     {
         var released = await _dbFactory.FundDb
-            .Use(FundDbCql.ReleaseFundTransactionWriteOwnershipIfSafeV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ReleaseFundTransactionWriteOwnershipIfSafeV3)}", FundDbCql.ReleaseFundTransactionWriteOwnershipIfSafeV3)
             .SetParameters(new ReleaseFundTransactionWriteOwnershipV3(scope.FundId, scope.MutationId))
             .ExecuteScalarAsync(MapToBoolean!);
         if (released)
@@ -942,7 +942,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         // Always issue the exact conditional release. A claim LWT can apply and then
         // time out before OwnsWriteOwnership is assigned locally.
         _ = await _dbFactory.FundDb
-            .Use(FundDbCql.ReleaseFundTransactionWriteOwnershipV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ReleaseFundTransactionWriteOwnershipV3)}", FundDbCql.ReleaseFundTransactionWriteOwnershipV3)
             .SetParameters(new ReleaseFundTransactionWriteOwnershipV3(scope.FundId, scope.MutationId))
             .ExecuteScalarAsync(MapToBoolean!);
         scope.OwnsWriteOwnership = false;
@@ -1144,7 +1144,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 
         var db = _dbFactory.FundDb;
         await db
-            .Use(FundDbCql.DeleteFundTransactionProjectionMutationV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionProjectionMutationV3)}", FundDbCql.DeleteFundTransactionProjectionMutationV3)
             .SetParameters(scopes
                 .SelectMany(scope => scope.Mutations)
                 .Select(mutation => new DeleteFundTransactionProjectionMutationV3(
@@ -1153,7 +1153,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                     mutation.MutationId)))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
         await db
-            .Use(FundDbCql.DeleteFundTransactionWriteMutationV3)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionWriteMutationV3)}", FundDbCql.DeleteFundTransactionWriteMutationV3)
             .SetParameters(scopes.Select(scope => new DeleteFundTransactionWriteMutationV3(
                 scope.FundId,
                 scope.MutationId)))
@@ -1163,7 +1163,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     async Task RecomputeFundBalanceAsync(int fundId, CancellationToken cancellationToken = default)
     {
         var lastValueDate = await _dbFactory.FundDb
-            .Use(FundDbCql.GetLastFundTransactionValueDate)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetLastFundTransactionValueDate)}", FundDbCql.GetLastFundTransactionValueDate)
             .SetParameters(new GetLastFundTransactionValueDate(fundId, DateOnly.MaxValue))
             .ExecuteScalarAsync(MapToValueDate!).ConfigureAwait(false);
         var balance = 0m;
@@ -1174,7 +1174,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         }
 
         await _dbFactory.FundDb
-            .Use(FundDbCql.UpdateFundBalance)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.UpdateFundBalance)}", FundDbCql.UpdateFundBalance)
             .SetParameters(new UpdateFundBalance(fundId, balance))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1187,13 +1187,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             return;
 
         var db = _dbFactory.FundDb;
-        await db.Use(FundDbCql.InsertFundTransactionTimelineV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionTimelineV3)}", FundDbCql.InsertFundTransactionTimelineV3)
             .SetParameters(writes.Select(CreateFundTransactionTimelineInsert))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-        await db.Use(FundDbCql.InsertFundBalanceByStatusDayV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundBalanceByStatusDayV3)}", FundDbCql.InsertFundBalanceByStatusDayV3)
             .SetParameters(writes.Select(CreateFundStatusBalanceInsert))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-        await db.Use(FundDbCql.InsertFundTransactionAmountV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundTransactionAmountV3)}", FundDbCql.InsertFundTransactionAmountV3)
             .SetParameters(writes.Select(CreateFundTransactionAmountInsert))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1278,7 +1278,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         var transactionType = transaction.TransactionType.ToStringFast();
         var transactionDate = FundTransactionProjection.NormalizeTransactionDate(transaction.TransactionDate);
 
-        queuedCommands.Add(db.Use(FundDbCql.DeleteFundTransactionTimelineV3)
+        queuedCommands.Add(db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionTimelineV3)}", FundDbCql.DeleteFundTransactionTimelineV3)
             .SetParameters(new DeleteFundTransactionTimelineV3(
                 transaction.FundId,
                 monthBucket,
@@ -1290,7 +1290,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 transactionDate,
                 transaction.TransactionId))
             .QueueCommand());
-        queuedCommands.Add(db.Use(FundDbCql.DeleteFundBalanceByStatusDayV3)
+        queuedCommands.Add(db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundBalanceByStatusDayV3)}", FundDbCql.DeleteFundBalanceByStatusDayV3)
             .SetParameters(new DeleteFundBalanceByStatusDayV3(
                 transaction.FundId,
                 monthBucket,
@@ -1303,7 +1303,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 transaction.TradeType.ToStringFast(),
                 transactionType))
             .QueueCommand());
-        queuedCommands.Add(db.Use(FundDbCql.DeleteFundTransactionAmountV3)
+        queuedCommands.Add(db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionAmountV3)}", FundDbCql.DeleteFundTransactionAmountV3)
             .SetParameters(new DeleteFundTransactionAmountV3(
                 transaction.FundId,
                 monthBucket,
@@ -1325,7 +1325,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task DeleteFundAsync(int fundId)
         => await _dbFactory.FundDb
-                .Use(FundDbCql.DeleteFund)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFund)}", FundDbCql.DeleteFund)
                 .SetParameters(new DeleteFund(fundId))
                 .ExecuteCommandAsync();
 
@@ -1342,7 +1342,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         var targetMutationSubmissionStarted = false;
         try
         {
-            var canonical = await db.Use(FundDbCql.GetFundOrder)
+            var canonical = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrder)}", FundDbCql.GetFundOrder)
                 .SetParameters(new GetFundOrder(fundId, orderId))
                 .ExecuteSingleAsync(MapToFundOrder!);
             if (canonical is null)
@@ -1364,7 +1364,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             // canonical row; never make the order ID reusable.
             _ = await ReserveFundOrderIdAsync(db, orderId, fundId).ConfigureAwait(false);
             targetMutationSubmissionStarted = true;
-            await db.Use(FundDbCql.DeleteFundOrder)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrder)}", FundDbCql.DeleteFundOrder)
                 .SetParameters(new DeleteFundOrder(fundId, orderId))
                 .ExecuteCommandAsync().ConfigureAwait(false);
             await ReleaseFundOrderWritesAsync(db, ownerships).ConfigureAwait(false);
@@ -1385,7 +1385,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <param name="tradeId">fund order trade id</param>
     /// <returns></returns>
     public async Task DeleteFundOrderTradeAsync(int fundId, int orderId, int tradeId)
-        => await _dbFactory.FundDb.Use(FundDbCql.DeleteFundOrderTrade)
+        => await _dbFactory.FundDb.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundOrderTrade)}", FundDbCql.DeleteFundOrderTrade)
                .SetParameters(new DeleteFundOrderTrade(fundId, orderId, tradeId))
                .ExecuteCommandAsync();
 
@@ -1417,7 +1417,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             await BeginFundTransactionProjectionMutationsAsync(scopes).ConfigureAwait(false);
             mutationsStarted = true;
             var matchingTransactions = await db
-                .Use(FundDbCql.GetFundTransaction)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransaction)}", FundDbCql.GetFundTransaction)
                 .SetParameters(new GetFundTransaction(
                     fundId,
                     valueDate,
@@ -1429,7 +1429,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 .ExecuteQueryAsync(MapToFundTransaction!).ConfigureAwait(false);
 
             var projectedTransactions = await db
-                .Use(FundDbCql.GetFundTransactionTimelineV3)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionTimelineV3)}", FundDbCql.GetFundTransactionTimelineV3)
                 .SetParameters(new GetFundTransactionTimelineV3(fundId, monthBucket, valueDate, valueDate))
                 .ExecuteQueryAsync(MapToFundTransaction!).ConfigureAwait(false);
 
@@ -1447,7 +1447,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             foreach (var transaction in transactionsToDelete)
                 QueueFundTransactionProjectionDeleteCommands(db, queuedCommands, transaction);
 
-            queuedCommands.Add(db.Use(FundDbCql.DeleteFundTransaction)
+            queuedCommands.Add(db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransaction)}", FundDbCql.DeleteFundTransaction)
                 .SetParameters(new DeleteFundTransaction(
                     fundId,
                     valueDate,
@@ -1480,7 +1480,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<FundReadModel?> GetFundAsync(int fundId)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundByFundId)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundByFundId)}", FundDbCql.GetFundByFundId)
             .SetParameters(new GetFundByFundId(fundId))
             .ExecuteSingleAsync(MapToFund);
 
@@ -1490,12 +1490,12 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<ICollection<FundReadModel>> GetFundsAsync()
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFunds)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFunds)}", FundDbCql.GetFunds)
             .ExecuteQueryAsync(MapToFund!);
 
     public async Task<ICollection<FundReadModel>> GetFundsAsync(CancellationToken cancellationToken)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFunds)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFunds)}", FundDbCql.GetFunds)
             .ExecuteQueryAsync(MapToFund!, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
@@ -1506,7 +1506,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<FundOrderReadModel?> GetFundOrderAsync(int fundId, int orderId)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundOrder)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrder)}", FundDbCql.GetFundOrder)
             .SetParameters(new GetFundOrder(fundId, orderId))
             .ExecuteSingleAsync(MapToFundOrder);
 
@@ -1516,12 +1516,12 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<ICollection<FundOrderReadModel>> GetFundOrdersAsync()
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundOrders)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrders)}", FundDbCql.GetFundOrders)
             .ExecuteQueryAsync(MapToFundOrder);
 
     public async Task<ICollection<FundOrderReadModel>> GetFundOrdersAsync(CancellationToken cancellationToken)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundOrders)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrders)}", FundDbCql.GetFundOrders)
             .ExecuteQueryAsync(MapToFundOrder, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
@@ -1530,12 +1530,12 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<ICollection<FundOrderTradeReadModel>> GetFundOrderTradesAsync()
         => await _dbFactory.FundDb
-                .Use(FundDbCql.GetFundOrderTrades)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrderTrades)}", FundDbCql.GetFundOrderTrades)
                 .ExecuteQueryAsync(MapToFundOrderTrade);
 
     public async Task<ICollection<FundOrderTradeReadModel>> GetFundOrderTradesAsync(CancellationToken cancellationToken)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundOrderTrades)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrderTrades)}", FundDbCql.GetFundOrderTrades)
             .ExecuteQueryAsync(MapToFundOrderTrade, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
@@ -1548,7 +1548,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// 
     public async Task<FundOrderTradeReadModel?> GetFundOrderTradeAsync(int fundId, int orderId, int tradeId)
     => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundOrderTrade)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrderTrade)}", FundDbCql.GetFundOrderTrade)
             .SetParameters(new GetFundOrderTrade(fundId, orderId, tradeId))
             .ExecuteSingleAsync(MapToFundOrderTrade!);
 
@@ -1565,7 +1565,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     public async Task<FundTransactionReadModel?> GetFundTransactionAsync(int fundId, DateOnly valueDate, int orderId, int tradeId, TradeType tradeType,
         FundTransactionType transactionType, DateTime transactionDate)
         => await _dbFactory.FundDb
-                .Use(FundDbCql.GetFundTransaction)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransaction)}", FundDbCql.GetFundTransaction)
                 .SetParameters(new GetFundTransaction(
                     fundId,
                     valueDate,
@@ -1607,7 +1607,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<ICollection<FundTransactionReadModel>> GetFundTransactionsAsync()
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundTransactionsAll)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionsAll)}", FundDbCql.GetFundTransactionsAll)
             .ExecuteQueryAsync(MapToFundTransaction!);
 
     /// <summary>
@@ -1654,13 +1654,13 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task<decimal> GetFundBalanceAsync(int fundId)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundBalance)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundBalance)}", FundDbCql.GetFundBalance)
             .SetParameters(new GetFundBalance(fundId))
             .ExecuteScalarAsync(MapToFundBalance!);
 
     public async Task<decimal> GetFundBalanceAsync(int fundId, CancellationToken cancellationToken)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.GetFundBalance)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundBalance)}", FundDbCql.GetFundBalance)
             .SetParameters(new GetFundBalance(fundId))
             .ExecuteScalarAsync(MapToFundBalance!, cancellationToken).ConfigureAwait(false);
 
@@ -1706,7 +1706,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         // tie-breaker inside the first eligible day because imported/backfilled rows may
         // carry explicit IDs that are not chronological across value dates.
         var firstValueDate = await _dbFactory.FundDb
-            .Use(FundDbCql.GetFirstFundTransactionValueDate)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFirstFundTransactionValueDate)}", FundDbCql.GetFirstFundTransactionValueDate)
             .SetParameters(new GetFirstFundTransactionValueDate(fundId, startDate))
             .ExecuteScalarAsync(MapToValueDate!).ConfigureAwait(false);
 
@@ -1726,7 +1726,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         CancellationToken cancellationToken)
     {
         var firstValueDate = await _dbFactory.FundDb
-            .Use(FundDbCql.GetFirstFundTransactionValueDate)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFirstFundTransactionValueDate)}", FundDbCql.GetFirstFundTransactionValueDate)
             .SetParameters(new GetFirstFundTransactionValueDate(fundId, startDate))
             .ExecuteScalarAsync(MapToValueDate!, cancellationToken).ConfigureAwait(false);
 
@@ -1755,7 +1755,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         // Keep the boundary symmetric with the starting balance: choose the last eligible
         // financial day first, then its greatest transaction ID.
         var lastValueDate = await _dbFactory.FundDb
-            .Use(FundDbCql.GetLastFundTransactionValueDate)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetLastFundTransactionValueDate)}", FundDbCql.GetLastFundTransactionValueDate)
             .SetParameters(new GetLastFundTransactionValueDate(fundId, endDate))
             .ExecuteScalarAsync(MapToValueDate!).ConfigureAwait(false);
 
@@ -1775,7 +1775,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         CancellationToken cancellationToken)
     {
         var lastValueDate = await _dbFactory.FundDb
-            .Use(FundDbCql.GetLastFundTransactionValueDate)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetLastFundTransactionValueDate)}", FundDbCql.GetLastFundTransactionValueDate)
             .SetParameters(new GetLastFundTransactionValueDate(fundId, endDate))
             .ExecuteScalarAsync(MapToValueDate!, cancellationToken).ConfigureAwait(false);
 
@@ -1904,12 +1904,12 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     public async Task<int> GetFundIdFromOrderIdAsync(int orderId)
     {
         var db = _dbFactory.FundDb;
-        var projectedFundId = await db.Use(FundDbCql.GetFundIdFromOrderId)
+        var projectedFundId = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundIdFromOrderId)}", FundDbCql.GetFundIdFromOrderId)
             .SetParameters(new GetFundIdFromOrderId(orderId))
             .ExecuteScalarAsync(MapToFundId!);
         if (projectedFundId != 0)
         {
-            var canonical = await db.Use(FundDbCql.GetFundOrder)
+            var canonical = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrder)}", FundDbCql.GetFundOrder)
                 .SetParameters(new GetFundOrder(projectedFundId, orderId))
                 .ExecuteSingleAsync(MapToFundOrder!);
             if (canonical is not null)
@@ -1919,7 +1919,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         // Migration-safe fallback: a full table stream is legal CQL and retains only the
         // requested key. It is used only until the additive projection has been backfilled.
         var matchedFundId = 0;
-        await foreach (var order in db.Use(FundDbCql.GetFundOrders)
+        await foreach (var order in db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrders)}", FundDbCql.GetFundOrders)
             .ExecuteStreamAsync(MapToFundOrder!))
         {
             if (order.OrderId != orderId)
@@ -1937,12 +1937,12 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     public async Task<int> GetFundIdFromOrderIdAsync(int orderId, CancellationToken cancellationToken)
     {
         var db = _dbFactory.FundDb;
-        var projectedFundId = await db.Use(FundDbCql.GetFundIdFromOrderId)
+        var projectedFundId = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundIdFromOrderId)}", FundDbCql.GetFundIdFromOrderId)
             .SetParameters(new GetFundIdFromOrderId(orderId))
             .ExecuteScalarAsync(MapToFundId!, cancellationToken).ConfigureAwait(false);
         if (projectedFundId != 0)
         {
-            var canonical = await db.Use(FundDbCql.GetFundOrder)
+            var canonical = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrder)}", FundDbCql.GetFundOrder)
                 .SetParameters(new GetFundOrder(projectedFundId, orderId))
                 .ExecuteSingleAsync(MapToFundOrder!, cancellationToken).ConfigureAwait(false);
             if (canonical is not null)
@@ -1950,7 +1950,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         }
 
         var matchedFundId = 0;
-        await foreach (var order in db.Use(FundDbCql.GetFundOrders)
+        await foreach (var order in db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrders)}", FundDbCql.GetFundOrders)
             .ExecuteStreamAsync(MapToFundOrder!, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1973,7 +1973,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task InsertFundAsync(FundReadModel e)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.InsertFund)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFund)}", FundDbCql.InsertFund)
             .SetParameters(new InsertFund(e.FundId, e.Name, e.Description, e.Balance, e.IsProduction, e.CreatedOn, e.CreatedBy))
             .ExecuteCommandAsync();
 
@@ -1989,7 +1989,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// inserted.</returns>
     public async Task InsertFundsAsync(ICollection<FundReadModel> funds)
         => await _dbFactory.FundDb
-            .Use(FundDbCql.InsertFund)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFund)}", FundDbCql.InsertFund)
             .SetParameters(funds.Select(e => new InsertFund(e.FundId, e.Name, e.Description, e.Balance, e.IsProduction, e.CreatedOn, e.CreatedBy)))
             .ExecuteCommandAsync();
 
@@ -2006,7 +2006,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     {
         var rowCount = 0l;
         await _dbFactory.FundDb
-            .Use(FundDbCql.InsertFund)
+            .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFund)}", FundDbCql.InsertFund)
             .SetParameters(GetFunds().Select(e => new InsertFund(e.FundId, e.Name, e.Description, e.Balance, e.IsProduction, e.CreatedOn, e.CreatedBy)))
             .ExecuteCommandAsync();
         return rowCount;
@@ -2096,7 +2096,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 await mutationSubmitting().ConfigureAwait(false);
 
             targetMutationSubmissionStarted = true;
-            await db.Use(FundDbCql.InsertFundOrder)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrder)}", FundDbCql.InsertFundOrder)
                 .SetParameters(distinctOrders.Values.Select(CreateFundOrderInsert))
                 .ExecuteCommandAsync().ConfigureAwait(false);
             await ReleaseFundOrderWritesAsync(db, ownerships).ConfigureAwait(false);
@@ -2127,7 +2127,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     static async Task<Guid> ReserveFundOrderIdAsync(IObjectRepository db, int orderId, int fundId)
     {
         var insertedReservationToken = Guid.NewGuid();
-        await db.Use(FundDbCql.InsertFundOrderByOrderIdV3)
+        await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrderByOrderIdV3)}", FundDbCql.InsertFundOrderByOrderIdV3)
             .SetParameters(new InsertFundOrderByOrderIdV3(
                 orderId,
                 fundId,
@@ -2154,7 +2154,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 return insertedReservationToken;
 
             var replacementReservationToken = Guid.NewGuid();
-            var rotated = await db.Use(FundDbCql.RotateFundOrderByOrderIdV3Reservation)
+            var rotated = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.RotateFundOrderByOrderIdV3Reservation)}", FundDbCql.RotateFundOrderByOrderIdV3Reservation)
                 .SetParameters(new RotateFundOrderByOrderIdV3Reservation(
                     replacementReservationToken,
                     orderId,
@@ -2192,7 +2192,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         long sourceRows = 0;
         long missingRows = 0;
         long conflictingRows = 0;
-        await foreach (var order in db.Use(FundDbCql.GetFundOrders)
+        await foreach (var order in db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrders)}", FundDbCql.GetFundOrders)
             .ExecuteStreamAsync(MapToFundOrder!, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -2201,7 +2201,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             // The projection is a permanent identity registry, not a mirror of the
             // current canonical rows. Insert-if-absent, then point-check the exact
             // owner so memory remains bounded regardless of table size.
-            await db.Use(FundDbCql.InsertFundOrderByOrderIdV3)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrderByOrderIdV3)}", FundDbCql.InsertFundOrderByOrderIdV3)
                 .SetParameters(new InsertFundOrderByOrderIdV3(
                     order.OrderId,
                     order.FundId,
@@ -2218,7 +2218,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 
         long projectedRows = 0;
         long tokenlessRows = 0;
-        await foreach (var projection in db.Use(FundDbCql.GetFundOrderByOrderIdKeysV3All)
+        await foreach (var projection in db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrderByOrderIdKeysV3All)}", FundDbCql.GetFundOrderByOrderIdKeysV3All)
             .ExecuteStreamAsync(MapToFundOrderProjectionRow, cancellationToken))
         {
             projectedRows++;
@@ -2241,7 +2241,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task InsertFundOrderTradeAsync(FundOrderTradeReadModel e)
             => await _dbFactory.FundDb
-                    .Use(FundDbCql.InsertFundOrderTrade)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrderTrade)}", FundDbCql.InsertFundOrderTrade)
                    .SetParameters(new InsertFundOrderTrade(e.FundId, e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeDate, e.MaturityDate, e.TradeState.ToStringFast(), e.TradeAction.ToStringFast(), e.Reference ?? string.Empty, e.PrimaryTrade, e.BaseContractSymbol, e.CreatedOn, e.CreatedBy))
                    .ExecuteCommandAsync();
 
@@ -2252,7 +2252,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <returns></returns>
     public async Task InsertFundOrderTradesAsync(ICollection<FundOrderTradeReadModel> fundOrderTrades)
             => await _dbFactory.FundDb
-                    .Use(FundDbCql.InsertFundOrderTrade)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrderTrade)}", FundDbCql.InsertFundOrderTrade)
                    .SetParameters(fundOrderTrades.Select(e => new InsertFundOrderTrade(e.FundId, e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeDate, e.MaturityDate, e.TradeState.ToStringFast(), e.TradeAction.ToStringFast(), e.Reference ?? string.Empty, e.PrimaryTrade, e.BaseContractSymbol, e.CreatedOn, e.CreatedBy)))
                    .ExecuteCommandAsync();
 
@@ -2271,7 +2271,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     {
         var rowCount = 0l;
         await _dbFactory.FundDb
-           .Use(FundDbCql.InsertFundOrderTrade)
+           .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.InsertFundOrderTrade)}", FundDbCql.InsertFundOrderTrade)
            .SetParameters(GetFundOrderTrades().Select(e => new InsertFundOrderTrade(e.FundId, e.OrderId, e.TradeId, e.TradeType.ToStringFast(), e.TradeDate, e.MaturityDate, e.TradeState.ToStringFast(), e.TradeAction.ToStringFast(), e.Reference ?? string.Empty, e.PrimaryTrade, e.BaseContractSymbol, e.CreatedOn, e.CreatedBy)))
            .ExecuteCommandAsync();
         return rowCount;
@@ -2329,7 +2329,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         CancellationToken cancellationToken)
     {
         var db = _dbFactory.FundDb;
-        var writeJournal = await db.Use(FundDbCql.GetFundTransactionWriteMutationJournalV3)
+        var writeJournal = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionWriteMutationJournalV3)}", FundDbCql.GetFundTransactionWriteMutationJournalV3)
             .SetParameters(new GetFundTransactionWriteMutationsV3(fundId))
             .ExecuteQueryAsync(MapToFundTransactionWriteMutationJournalEntry).ConfigureAwait(false);
         var staleWrites = writeJournal
@@ -2337,7 +2337,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
             .ToArray();
 
         var staleProjectionMutations = new List<FundTransactionProjectionMutationJournalEntry>();
-        await foreach (var entry in db.Use(FundDbCql.GetFundTransactionProjectionMutationJournalV3All)
+        await foreach (var entry in db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionProjectionMutationJournalV3All)}", FundDbCql.GetFundTransactionProjectionMutationJournalV3All)
             .ExecuteStreamAsync(MapToFundTransactionProjectionMutationJournalEntry, cancellationToken))
         {
             if (entry.FundId == fundId &&
@@ -2370,14 +2370,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         foreach (var mutationId in staleMutationIds)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _ = await db.Use(FundDbCql.ReleaseFundTransactionWriteOwnershipV3)
+            _ = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.ReleaseFundTransactionWriteOwnershipV3)}", FundDbCql.ReleaseFundTransactionWriteOwnershipV3)
                 .SetParameters(new ReleaseFundTransactionWriteOwnershipV3(fundId, mutationId))
                 .ExecuteScalarAsync(MapToBoolean!);
         }
 
         if (staleProjectionMutations.Count != 0)
         {
-            await db.Use(FundDbCql.DeleteFundTransactionProjectionMutationV3)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionProjectionMutationV3)}", FundDbCql.DeleteFundTransactionProjectionMutationV3)
                 .SetParameters(staleProjectionMutations.Select(static entry =>
                     new DeleteFundTransactionProjectionMutationV3(
                         entry.FundId,
@@ -2387,7 +2387,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         }
         if (staleWrites.Length != 0)
         {
-            await db.Use(FundDbCql.DeleteFundTransactionWriteMutationV3)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionWriteMutationV3)}", FundDbCql.DeleteFundTransactionWriteMutationV3)
                 .SetParameters(staleWrites.Select(static entry =>
                     new DeleteFundTransactionWriteMutationV3(
                         entry.FundId,
@@ -2470,20 +2470,20 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 var mutation = mutationByMonth[range.MonthBucket];
                 var partition = new FundTransactionProjectionPartition(fundId, range.MonthBucket);
                 targetMutationSubmissionStarted = true;
-                await db.Use(FundDbCql.DeleteFundTransactionTimelinePartitionV3)
+                await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionTimelinePartitionV3)}", FundDbCql.DeleteFundTransactionTimelinePartitionV3)
                     .SetParameters(partition)
                     .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-                await db.Use(FundDbCql.DeleteFundBalanceByStatusMonthPartitionV3)
+                await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundBalanceByStatusMonthPartitionV3)}", FundDbCql.DeleteFundBalanceByStatusMonthPartitionV3)
                     .SetParameters(partition)
                     .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
-                await db.Use(FundDbCql.DeleteFundTransactionAmountPartitionV3)
+                await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.DeleteFundTransactionAmountPartitionV3)}", FundDbCql.DeleteFundTransactionAmountPartitionV3)
                     .SetParameters(partition)
                     .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
 
                 var monthSourceFingerprint = new FundTransactionKeyFingerprint();
                 var identityExpectations = new Dictionary<FundTransactionLogicalKey, FundTransactionIdentityExpectation>();
                 var stream = db
-                    .Use(FundDbCql.GetFundTransactions)
+                    .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactions)}", FundDbCql.GetFundTransactions)
                     .SetParameters(new GetFundTransactions(fundId, range.StartDate, range.EndDate))
                     .ExecuteStreamAsync(MapToFundTransaction!, cancellationToken);
 
@@ -2523,14 +2523,17 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 conflictingIdentityRows += identityReconciliation.ConflictingIdentityRows;
                 duplicateCanonicalRows += identityReconciliation.DuplicateCanonicalRows;
                 var monthTimelineFingerprint = await ReadFundTransactionProjectionFingerprintAsync(
+                    $"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionTimelineKeysV3)}",
                     FundDbCql.GetFundTransactionTimelineKeysV3,
                     partition,
                     cancellationToken).ConfigureAwait(false);
                 var monthStatusBalanceFingerprint = await ReadFundTransactionProjectionFingerprintAsync(
+                    $"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundBalanceByStatusMonthKeysV3)}",
                     FundDbCql.GetFundBalanceByStatusMonthKeysV3,
                     partition,
                     cancellationToken).ConfigureAwait(false);
                 var monthTransactionAmountFingerprint = await ReadFundTransactionProjectionFingerprintAsync(
+                    $"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundTransactionAmountKeysV3)}",
                     FundDbCql.GetFundTransactionAmountKeysV3,
                     partition,
                     cancellationToken).ConfigureAwait(false);
@@ -2577,7 +2580,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
                 if (activeMutations.Count != 1 || !activeMutations.Contains(mutation.MutationId))
                     continue;
 
-                await db.Use(FundDbCql.MarkFundTransactionProjectionCompleteV3)
+                await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.MarkFundTransactionProjectionCompleteV3)}", FundDbCql.MarkFundTransactionProjectionCompleteV3)
                     .SetParameters(new MarkFundTransactionProjectionCompleteV3(
                         reconciliation.SourceCount,
                         reconciliation.SourceFingerprint,
@@ -2691,13 +2694,14 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     }
 
     async Task<FundTransactionKeyFingerprint> ReadFundTransactionProjectionFingerprintAsync(
+        string commandName,
         string cql,
         FundTransactionProjectionPartition partition,
         CancellationToken cancellationToken)
     {
         var fingerprint = new FundTransactionKeyFingerprint();
         var stream = _dbFactory.FundDb
-            .Use(cql)
+            .Use(commandName, cql)
             .SetParameters(partition)
             .ExecuteStreamAsync(MapToFundTransactionProjectionKey, cancellationToken);
         await foreach (var key in stream.ConfigureAwait(false))
@@ -2720,7 +2724,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
     /// <param name="updatedBy"></param>
     public async Task UpdateFundOrderTradeStateAsync(int fundId, int orderId, int tradeId, TradeState tradeState, DateTime updatedOn, string updatedBy)
         => await _dbFactory.FundDb
-                .Use(FundDbCql.UpdateFundOrderTradeState)
+                .Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.UpdateFundOrderTradeState)}", FundDbCql.UpdateFundOrderTradeState)
                .SetParameters(new UpdateFundOrderTradeState(fundId, orderId, tradeId, tradeState.ToStringFast(), updatedOn, updatedBy))
                .ExecuteCommandAsync();
 
@@ -2737,7 +2741,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
         var targetMutationSubmissionStarted = false;
         try
         {
-            var canonical = await db.Use(FundDbCql.GetFundOrder)
+            var canonical = await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.GetFundOrder)}", FundDbCql.GetFundOrder)
                 .SetParameters(new GetFundOrder(fundId, orderId))
                 .ExecuteSingleAsync(MapToFundOrder!);
             if (canonical is null)
@@ -2748,7 +2752,7 @@ public class FundDbContext : ObjectDataRepository<FundDbContext>, IFundDbContext
 
             _ = await ReserveFundOrderIdAsync(db, orderId, fundId).ConfigureAwait(false);
             targetMutationSubmissionStarted = true;
-            await db.Use(FundDbCql.UpdateFundOrderStatus)
+            await db.Use($"{nameof(FundDbCql)}.{nameof(FundDbCql.UpdateFundOrderStatus)}", FundDbCql.UpdateFundOrderStatus)
                 .SetParameters(new UpdateFundOrderStatus(fundId, orderId, orderStatus.ToStringFast()))
                 .ExecuteCommandAsync().ConfigureAwait(false);
             await ReleaseFundOrderWritesAsync(db, ownerships).ConfigureAwait(false);

@@ -96,7 +96,7 @@ public class LogDbTests : IClassFixture<LogFixture>
         var startDate = SampleData.LogEvent.Timestamp.AddDays(-1);
         var endDate = SampleData.LogEvent.Timestamp.AddDays(1);
         var db = _testFixture.DbFactory.LogDb as LogDbContext;
-        await db.Use("delete from telemetry_log").ExecuteCommandAsync();
+        await db.UseTest("delete from telemetry_log").ExecuteCommandAsync();
         await db.InsertTelemetryLogsAsync( [SampleData.LogEvent]);
         var result = await db.GetTelemetryLogsByDateRangeAsync(startDate, endDate);
         result.Should().NotBeNull();

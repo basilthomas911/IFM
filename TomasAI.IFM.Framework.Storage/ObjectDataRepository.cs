@@ -1,4 +1,3 @@
-﻿using System.Linq.Expressions;
 using System.Data;
 using System.Data.Common;
 using TomasAI.IFM.Shared.Storage;
@@ -60,87 +59,37 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
         => _provider.CreateParameter().Parameter;
 
     /// <summary>
-    /// set stored procedure name
-    /// </summary>
-    /// <param name="storedProcedure"></param>
-    /// <returns></returns>
-    public IObjectRepositoryContext Use<TStoredProc>(Expression<Func<TStoredProc,object>> spPropertyNameExpr, bool useParamNameAsDbName = true) where TStoredProc : class
-    {
-        if (spPropertyNameExpr.Body is not MemberExpression memberExpr)
-            throw new ArgumentException($"ObjectDataRepository.UseStoredProcedure: parameter MUST be a property from '{typeof(TStoredProc).Name}'");
-        var paramExpr = spPropertyNameExpr.Parameters[0];
-        var storedProcName = useParamNameAsDbName
-            ? $"{paramExpr.Name}.{memberExpr.Member.Name}"
-            : $"{memberExpr.Member.Name}";
-        return _provider.CreateStoredProcedureContext(storedProcName);
-    }
-
-    /// <summary>
-    /// set stored procedure name from enumeration expression
-    /// </summary>
-    /// <param name="spPropertyNameExpr"></param>
-    /// <returns></returns>
-    public IObjectRepositoryContext Use<TStoredProc>(Expression<Func<TStoredProc, Enum>> spPropertyNameExpr) where TStoredProc:Enum
-    {
-        if (spPropertyNameExpr.Body is not UnaryExpression enumExpr)
-            throw new ArgumentException($"ObjectDataRepository.UseStoredProcedure: parameter MUST be an enumeration property from '{typeof(TStoredProc).Name}'");
-        var paramExpr = spPropertyNameExpr.Parameters[0];
-        var storedProcName = $"{paramExpr.Name}.{enumExpr.Operand}";
-        return _provider.CreateStoredProcedureContext(storedProcName);
-    }
-
-    /// <summary>
-    /// set stored procedure name from enumeration
-    /// </summary>
-    /// <param name="spPropertyNameEnum"></param>
-    /// <returns></returns>
-    public IObjectRepositoryContext Use<TStoredProc>(TStoredProc spPropertyNameEnum) where TStoredProc : Enum
-    {
-        var storedProcName = $"{spPropertyNameEnum}";
-        return _provider.CreateStoredProcedureContext(storedProcName);
-    }
-
-    /// <summary>
     /// use command text context
     /// </summary>
-    /// <param name="commandText">command text</param>
+    /// <param name="commandName">Globally identifiable command name.</param>
+    /// <param name="commandText">Command text.</param>
     /// <returns></returns>
-    public IObjectRepositoryContext Use(string commandText)
+    public IObjectRepositoryContext Use(string commandName, string commandText)
     {
+        if (string.IsNullOrWhiteSpace(commandName))
+            throw new ArgumentException("ObjectDataRepository.UseCommandText: commandName parameter is empty");
         if (string.IsNullOrWhiteSpace(commandText))
             throw new ArgumentException("ObjectDataRepository.UseCommandText: commandText parameter is empty");
-        _logger.LogDebug($"ObjectDataRepository.UseCommandText: command text '{commandText}'");
-        return _provider.CreateCommandTextContext(commandText);
+        _logger.LogDebug(
+            "ObjectDataRepository.UseCommandText: command name: {CommandName}{NewLine}{CommandText}",
+            commandName,
+            Environment.NewLine,
+            commandText);
+        return _provider.CreateCommandTextContext(commandName, commandText);
     }
 
-    /// <summary>
-    /// use bulk copy context
-    /// </summary>
-    /// <param name="commandText">command text</param>
-    /// <returns></returns>
-    public IObjectBulkCopyContext Use(DataTable bulkCopyDataTable)
+    public IObjectUriContext Use(string commandName, Uri uriObject)
     {
-        if (bulkCopyDataTable is null)
-            throw new ArgumentException("ObjectDataRepository.Use: bulkCopyDataTable parameter is empty");
-        return _provider.CreateBulkCopyContext(bulkCopyDataTable);
-    }
-
-    /// <summary>
-    /// use data reader context
-    /// </summary>
-    /// <param name="getReaderOptions"></param>
-    /// <returns></returns>
-    public IObjectDataReaderContext Use(Func<string, IDataReaderOptions> getReaderOptions)
-    {
-        if (getReaderOptions is null)
-            throw new ArgumentException("ObjectDataRepository.Use: getReaderOptions parameter is empty");
-        return _provider.CreateDataReaderContext(getReaderOptions(this.ConnectionString));
-    }
-
-    public IObjectUriContext Use(Uri uriObject)
-    {
+        if (string.IsNullOrWhiteSpace(commandName))
+            throw new ArgumentException("ObjectDataRepository.Use: commandName parameter is empty");
         if (uriObject is null)
             throw new ArgumentException("ObjectDataRepository.Use: Uri parameter is empty");
+
+        _logger.LogDebug(
+            "ObjectDataRepository.UseUri: command name: {CommandName}{NewLine}{Uri}",
+            commandName,
+            Environment.NewLine,
+            uriObject);
 
         // get uri type..
         var uriContext = uriObject.Scheme.ToLowerInvariant() switch
@@ -156,7 +105,7 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
             if (uriObject is null)
                 throw new ArgumentException("ObjectDataRepository.Use: Uri parameter is empty");
             var dataReaderOptions = new DataReaderOptions(ConnectionSetting.ConnectionString);
-            return _provider.CreateFileUriContext(uriObject, dataReaderOptions!);
+            return _provider.CreateFileUriContext(commandName, uriObject, dataReaderOptions!);
         }
     }
     /// <summary>
@@ -177,11 +126,6 @@ public abstract class ObjectDataRepository<TRepo> : IObjectRepository<TRepo> whe
             .ExecuteQueuedCommandsAsync(queuedCommands, useTransaction);
     }
     
-    public IObjectRepositoryContext Use(Expression<Func<TRepo, IEnumerable<object>>> commandExpr)
-    {
-        throw new NotImplementedException();
-    }
-
     /// <summary>
     /// start database transaction that will span over multiple object repo execution/query calls
     /// </summary>

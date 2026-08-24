@@ -5,19 +5,21 @@ namespace TomasAI.IFM.Framework.Storage
 {
     public class ObjectDataCommandTextContext : ObjectDataRepositoryContext
     {
-        string _cmdText;
+        readonly string _cmdText;
 
         /// <summary>
         /// create object command text context
         /// </summary>
         /// <param name="db"></param>
-        public ObjectDataCommandTextContext(IObjectRepository db, ILogger<DbProvider> logger, string cmdText = null!)
-            :base(db, logger)
+        public ObjectDataCommandTextContext(
+            IObjectRepository db,
+            ILogger<DbProvider> logger,
+            string commandName,
+            string commandText)
+            : base(db, logger, commandName)
         {
-            _cmdText = cmdText;
+            _cmdText = commandText;
         }
-
-        public string CommandText => _cmdText;
 
         /// <summary>
         /// set command type to command text

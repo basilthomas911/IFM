@@ -82,22 +82,22 @@ public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
 
     async Task CleanupAndVerifyAsync(ScyllaFundTestScope scope)
     {
-        await Repository.Use(DeleteFundTransactions)
+        await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFundTransactions)}", DeleteFundTransactions)
             .SetParameters(new FundKey(scope.FundId))
             .ExecuteCommandAsync();
 
         foreach (var orderId in scope.OrderIds)
         {
-            await Repository.Use(DeleteFundOrderTrades)
+            await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFundOrderTrades)}", DeleteFundOrderTrades)
                 .SetParameters(new FundOrderKey(scope.FundId, orderId))
                 .ExecuteCommandAsync();
         }
 
-        await Repository.Use(DeleteFundOrders)
+        await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFundOrders)}", DeleteFundOrders)
             .SetParameters(new FundKey(scope.FundId))
             .ExecuteCommandAsync();
 
-        await Repository.Use(DeleteFund)
+        await Repository.Use($"{nameof(ScyllaStorageProviderFixture)}.{nameof(DeleteFund)}", DeleteFund)
             .SetParameters(new FundKey(scope.FundId))
             .ExecuteCommandAsync();
 
@@ -111,7 +111,9 @@ public sealed class ScyllaStorageProviderFixture : IAsyncLifetime
     async Task EnsureEmptyAsync<TParam>(string cql, TParam parameters, string table)
         where TParam : struct, IBindValue
     {
-        var count = await Repository.Use(cql)
+        var count = await Repository.Use(
+                $"{nameof(ScyllaStorageProviderFixture)}.{nameof(EnsureEmptyAsync)}.{table}",
+                cql)
             .SetParameters(parameters)
             .ExecuteScalarAsync(static row => row.GetLong(0));
 

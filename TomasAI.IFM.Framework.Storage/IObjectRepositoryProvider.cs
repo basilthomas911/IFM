@@ -11,7 +11,11 @@ public interface IObjectRepositoryProvider
         CancellationToken cancellationToken,
         Action<string> onInfoMessage = null)
         => await ExecuteCommandAsync(ctx, onInfoMessage).WaitAsync(cancellationToken).ConfigureAwait(false);
-    object QueueCommand(string commandText, CommandType commandType, List<object> parameterValues);
+    object QueueCommand(
+        string commandName,
+        string commandText,
+        CommandType commandType,
+        List<object> parameterValues);
     Task ExecuteQueuedCommandsAsync(List<object> queuedCommands, bool useTransaction = false);
     async Task ExecuteQueuedCommandsAsync(
         List<object> queuedCommands,

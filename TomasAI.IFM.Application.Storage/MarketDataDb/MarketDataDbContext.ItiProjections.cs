@@ -179,7 +179,7 @@ public partial class MarketDataDbContext
         foreach (var batch in contractIds.Chunk(ProjectionReadConcurrency))
         {
             var reads = batch.Select(async contractId => await db
-                .Use(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
+                .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
                 .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
                 .ExecuteQueryAsync(MapToFuturesItiSignal!));
             foreach (var values in await Task.WhenAll(reads))
@@ -216,7 +216,7 @@ public partial class MarketDataDbContext
             {
                 var monthStart = GetMonthStart(partition.yearMonth);
                 var monthEnd = GetMonthEnd(partition.yearMonth);
-                return await db.Use(MarketDataDbCql.GetFuturesItiSignalsByContractMonthV2)
+                return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractMonthV2)}", MarketDataDbCql.GetFuturesItiSignalsByContractMonthV2)
                     .SetParameters(new GetFuturesItiSignalsByContractMonthV2(
                         partition.contractId,
                         partition.yearMonth,
@@ -250,11 +250,11 @@ public partial class MarketDataDbContext
             var mode = intrinsicTimeMode.ToStringFast();
             var query = afterSequenceId.HasValue
                 ? _dbFactory.MarketDataDb
-                    .Use(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequenceV2)
+                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequenceV2)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequenceV2)
                     .SetParameters(new GetFuturesItiSignalsByContractDayModeAfterSequenceV2(
                         contractId, valueDate, mode, afterSequenceId.Value))
                 : _dbFactory.MarketDataDb
-                    .Use(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeV2)
+                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeV2)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeV2)
                     .SetParameters(new GetFuturesItiSignalsByContractDayModeV2(contractId, valueDate, mode));
             var projected = await query.ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
                 .ConfigureAwait(false);
@@ -263,7 +263,7 @@ public partial class MarketDataDbContext
         }
 
         var canonical = await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContractDay)
             .SetParameters(new GetFuturesItiSignalsCanonicalByContractDay(contractId, valueDate))
             .ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
             .ConfigureAwait(false);
@@ -282,7 +282,7 @@ public partial class MarketDataDbContext
     {
         var db = _dbFactory.MarketDataDb;
         var targetMonth = ToYearMonth(valueDate);
-        var months = (await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+        var months = (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
             .SetParameters(new GetMarketDataProjectionMonths(FuturesItiSignalQueryProjection, targetMonth))
             .ExecuteQueryAsync(MapToYearMonth, cancellationToken)
             .ConfigureAwait(false)).ToArray();
@@ -298,7 +298,7 @@ public partial class MarketDataDbContext
             FuturesItiSignalV2ReadModel? projected = null;
             foreach (var yearMonth in months)
             {
-                projected = await db.Use(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonthV2)
+                projected = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonthV2)}", MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonthV2)
                     .SetParameters(new GetLastFuturesItiSignalByTrendModeMonthV2(
                         contractId, trend, mode, yearMonth,
                         yearMonth == targetMonth ? valueDate : GetMonthEnd(yearMonth)))
@@ -311,7 +311,7 @@ public partial class MarketDataDbContext
                 return projected;
         }
 
-        return (await db.Use(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
+        return (await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
                 .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
                 .ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
                 .ConfigureAwait(false))

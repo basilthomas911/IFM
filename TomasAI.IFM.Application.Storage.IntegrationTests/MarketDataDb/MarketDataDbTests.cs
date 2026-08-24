@@ -175,7 +175,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     async Task DeleteFuturesItiSignalsAsync(string contractId, DateOnly? valueDate = null)
     {
         var rows = await TestFixture.DevDatabase
-            .Use(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)}", MarketDataDbCql.GetFuturesItiSignalsCanonicalByContract)
             .SetParameters(new GetFuturesItiSignalsCanonicalByContract(contractId))
             .ExecuteQueryAsync(record => (
                 ValueDate: record.GetDateOnly(1),
@@ -192,7 +192,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     public async Task InsertFuturesTickDataFromProdToDev_Ok()
     {
         var db = TestFixture.ProdDatabase;
-        var tickData = await db.Use($"select ContractId, ValueDate, TickDate, TickTime, Price, Size from dbo.futures_tick_data")
+        var tickData = await db.UseTest($"select ContractId, ValueDate, TickDate, TickTime, Price, Size from dbo.futures_tick_data")
             .ExecuteQueryAsync<FuturesTickDataV2ReadModel>(MapToFuturesTickData);
         var counter = 0;
         var v2TickDataList = new LinkedList<FuturesTickDataV2ReadModel>();
@@ -256,7 +256,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     public async Task InsertFuturesOptionTickDataFromProdToDev_Ok()
     {
         var db = TestFixture.ProdDatabase;
-        var tickData = await db.Use($"SELECT OptionTickId, ContractId, TickDate, TickTime, OptionPrice, BidPrice, AskPrice, BidSize, AskSize, ImpliedVolatility, Delta, Gamma, Vega, Theta, Rho,UnderlyingPrice  FROM marketdatadb.dbo.futures_option_tick_data")
+        var tickData = await db.UseTest($"SELECT OptionTickId, ContractId, TickDate, TickTime, OptionPrice, BidPrice, AskPrice, BidSize, AskSize, ImpliedVolatility, Delta, Gamma, Vega, Theta, Rho,UnderlyingPrice  FROM marketdatadb.dbo.futures_option_tick_data")
             .ExecuteQueryAsync<FuturesOptionTickDataV2ReadModel>(MapToFuturesOptionTickData);
         var v2TickDataList = new LinkedList<FuturesOptionTickDataV2ReadModel>();
         foreach (var e in tickData)
@@ -402,7 +402,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var futuresClosingPrice = SampleData.FuturesClosingPrice;
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{futuresClosingPrice.ContractId}' and valueDate = '{futuresClosingPrice.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_closing_price where contractId = '{futuresClosingPrice.ContractId}' and valueDate = '{futuresClosingPrice.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(futuresClosingPrice);
 
         // Assert: Verify that the data was inserted by retrieving it and checking the values
@@ -424,8 +424,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice;
 
         // Act: Insert the FuturesClosingPriceReadModel into the database
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
 
         // Assert: Verify that the data was inserted by retrieving it and checking the values
@@ -452,13 +452,13 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var futuresClosingPrice = SampleData.FuturesClosingPrice;
         var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(futuresClosingPrice);
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
 
         var futuresTickData = SampleData.FuturesTickData;
-        await TestFixture.DevDatabase.Use($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickData);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickDataHighPrice);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickDataLowPrice);
@@ -585,8 +585,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var futuresEodData = SampleData.VixFuturesEodData;
 
         var futuresTickData = SampleData.VixFuturesTickData;
-        await TestFixture.DevDatabase.Use($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickData);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickDataHighPrice);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.VixFuturesTickDataLowPrice);
@@ -623,7 +623,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             ContractId = contractId,
             TickId = futuresTickData.TickId + 2
         };
-        await TestFixture.DevDatabase.Use($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from vix_futures_eod_data where contractId = '{futuresEodData.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(futuresTickData);
         await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(highTickData);
         await TestFixture.DevDatabase.InsertVixFuturesEodDataAsync(lowTickData);
@@ -914,14 +914,14 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var conflictingOperations = new HashSet<Guid> { conflictingOperationId };
 
         await db.BackfillQueryProjectionsV2Async(batchSize: 64);
-        await db.Use(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.InsertMarketDataProjectionScopeMutationV3)
             .SetParameters(new InsertMarketDataProjectionScopeMutationV3(
                 projectionName,
                 guardScope,
                 conflictingOperationId,
                 DateTime.UtcNow))
             .ExecuteCommandAsync();
-        await db.Use(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.BeginMarketDataProjectionScopeOperationV3)
             .SetParameters(new BeginMarketDataProjectionScopeOperationV3(
                 projectionName,
                 guardScope,
@@ -939,13 +939,13 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         }
         finally
         {
-            await db.Use(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)}", MarketDataDbCql.RemoveMarketDataProjectionScopeOperationV3)
                 .SetParameters(new RemoveMarketDataProjectionScopeOperationV3(
                     projectionName,
                     guardScope,
                     conflictingOperationId))
                 .ExecuteCommandAsync();
-            await db.Use(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)}", MarketDataDbCql.DeleteMarketDataProjectionScopeMutationV3)
                 .SetParameters(new DeleteMarketDataProjectionScopeMutationV3(
                     projectionName,
                     guardScope,
@@ -981,7 +981,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             List<(string ProjectionName, DateTime StartedOn)> globalMarkers = [];
             foreach (var projectionName in projectionNames)
             {
-                var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
+                var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutations)}", MarketDataDbCql.GetMarketDataProjectionMutations)
                     .SetParameters(new GetMarketDataProjectionMutation(projectionName))
                     .ExecuteQueryAsync(record => (
                         ProjectionName: projectionName,
@@ -991,7 +991,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             globalMarkers.Should().HaveCount(projectionNames.Length)
                 .And.OnlyContain(static marker => marker.StartedOn != DateTime.UnixEpoch);
 
-            var scopedMarkers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var scopedMarkers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1042,14 +1042,14 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 db.InsertFuturesTickDataAsync(new[] { row }));
 
-            var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+            var states = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
                 .SetParameters(new GetMarketDataProjectionScopeStatesV3(
                     "futures_tick_data_by_time",
                     new[] { guardScope }))
                 .ExecuteQueryAsync(record => record.IsCollectionEmpty(5));
             states.Should().ContainSingle().Which.Should().BeFalse();
 
-            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1096,7 +1096,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 db.InsertFuturesTickDataAsync(new[] { row }));
 
-            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1144,7 +1144,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 db.InsertFuturesEodDataAsync(new[] { row }));
 
-            var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+            var states = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
                 .SetParameters(new GetMarketDataProjectionScopeStatesV3(
                     projectionName,
                     new[] { scopeKey, guardScope }))
@@ -1154,7 +1154,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             states.Should().HaveCount(2)
                 .And.OnlyContain(static state => state.Blocked && !state.ActiveOperationsEmpty);
 
-            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1195,7 +1195,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 db.BackfillQueryProjectionsV2Async(batchSize: 64));
 
-            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionMutations)
+            var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMutations)}", MarketDataDbCql.GetMarketDataProjectionMutations)
                 .SetParameters(new GetMarketDataProjectionMutation(projectionName))
                 .ExecuteQueryAsync(record => record.GetDateTime(1));
             markers.Where(static startedOn => startedOn != DateTime.UnixEpoch)
@@ -1230,7 +1230,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 db.BackfillQueryProjectionsV2Async(batchSize: 64));
 
-            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1301,7 +1301,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             releaseTickData.TrySetResult(true);
             await tickWrite.WaitAsync(TimeSpan.FromSeconds(30));
 
-            var failedGuardMarkers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var failedGuardMarkers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1367,7 +1367,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             await Assert.ThrowsAsync<TimeoutException>(() =>
                 db.InsertFuturesEodDataAsync(new[] { row }));
 
-            var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+            var states = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
                 .SetParameters(new GetMarketDataProjectionScopeStatesV3(
                     projectionName,
                     new[] { scopeKey, guardScope }))
@@ -1379,7 +1379,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             states.Should().OnlyContain(static state =>
                 state.Blocked && !state.ActiveOperationsEmpty);
 
-            var markers = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
+            var markers = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)}", MarketDataDbCql.GetMarketDataProjectionScopeMutationsV3All)
                 .ExecuteQueryAsync(record => (
                     ProjectionName: record.GetString(0),
                     ScopeKey: record.GetString(1),
@@ -1480,7 +1480,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         const string projectionName = "futures_eod_data_by_month";
         await db.BackfillQueryProjectionsV2Async(batchSize: 64);
 
-        var indexedMonths = await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+        var indexedMonths = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
             .SetParameters(new GetMarketDataProjectionMonths(projectionName, 999912))
             .ExecuteQueryAsync(record => record.GetInt(0));
         var valueDate = FindMonthWhoseGuardIsAbsentFromEarlierInventory(indexedMonths);
@@ -1508,7 +1508,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             write = db.InsertFuturesEodDataAsync(new[] { row });
             await projectionWritten.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
-            var monthsBeforeInventoryInsert = await db.Use(MarketDataDbCql.GetMarketDataProjectionMonths)
+            var monthsBeforeInventoryInsert = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionMonths)}", MarketDataDbCql.GetMarketDataProjectionMonths)
                 .SetParameters(new GetMarketDataProjectionMonths(projectionName, yearMonth))
                 .ExecuteQueryAsync(record => record.GetInt(0));
             monthsBeforeInventoryInsert.Should().NotContain(yearMonth);
@@ -1536,7 +1536,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             }
 
             await db.DeleteFuturesEodDataAsync(row.ContractId, row.ValueDate);
-            await db.Use("DELETE FROM market_data_projection_month " +
+            await db.UseTest("DELETE FROM market_data_projection_month " +
                     "WHERE projectionName = :projectionName AND yearMonth = :yearMonth;")
                 .SetParameters(new InsertMarketDataProjectionMonth(projectionName, yearMonth))
                 .ExecuteCommandAsync();
@@ -1596,7 +1596,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             batchSize: 64,
             staleOperationCutoffUtc: DateTime.UtcNow);
         var missingTickScope = GetTestTickScope($"SCOPED-MISSING-{suffix}", tickDate);
-        var missingState = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+        var missingState = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
             .SetParameters(new GetMarketDataProjectionScopeStatesV3(
                 "futures_tick_data_by_time",
                 new[] { missingTickScope }))
@@ -1667,7 +1667,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         IEnumerable<string> scopeKeys)
     {
         var expectedScopes = scopeKeys.Distinct(StringComparer.Ordinal).ToArray();
-        var states = await db.Use(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
+        var states = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)}", MarketDataDbCql.GetMarketDataProjectionScopeStatesV3)
             .SetParameters(new GetMarketDataProjectionScopeStatesV3(projectionName, expectedScopes))
             .ExecuteQueryAsync(record => (
                 ScopeKey: record.GetString(1),
@@ -1746,8 +1746,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var yesterdayClosingPrice = SampleData.YesterdaysFuturesClosingPrice;
 
         // Insert the sample data for today and yesterday into the database
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{todayClosingPrice.ContractId}' and valueDate = '{todayClosingPrice.ValueDate}'").ExecuteCommandAsync();
-        await TestFixture.DevDatabase.Use($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' and valueDate = '{yesterdayClosingPrice.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_closing_price where contractId = '{todayClosingPrice.ContractId}' and valueDate = '{todayClosingPrice.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_closing_price where contractId = '{yesterdayClosingPrice.ContractId}' and valueDate = '{yesterdayClosingPrice.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(todayClosingPrice);
         await TestFixture.DevDatabase.InsertFuturesClosingPriceAsync(yesterdayClosingPrice);
 
@@ -1773,7 +1773,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var lowPrice = SampleData.FuturesTickDataLowPrice.Price;
         var volume = SampleData.FuturesTickData.Size + SampleData.FuturesTickDataHighPrice.Size + SampleData.FuturesTickDataLowPrice.Size;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_tick_data where contractId = '{futuresTickData.ContractId}' and valueDate = '{futuresTickData.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickData);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickDataLowPrice);
         await TestFixture.DevDatabase.InsertFuturesTickDataAsync(SampleData.FuturesTickDataHighPrice);
@@ -1850,7 +1850,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var startDate = SampleData.YesterdaysFuturesEodData.ValueDate;
         var endDate = SampleData.FuturesEodData.ValueDate;
         var futuresDataId = SampleData.FuturesEodData.DataId;
-        await TestFixture.DevDatabase.Use($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_eod_data where contractId = '{futuresDataId.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.FuturesEodData);
         await TestFixture.DevDatabase.InsertFuturesEodDataAsync(SampleData.YesterdaysFuturesEodData);
 
@@ -1872,7 +1872,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var symbol = SampleData.FuturesContract1.Symbol;
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 1, 31);
-        await TestFixture.SecDatabase.Use($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
@@ -1901,7 +1901,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var symbol = SampleData.FuturesContract1.Symbol;
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 1, 31);
-        await TestFixture.SecDatabase.Use($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
@@ -1928,7 +1928,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var symbol = SampleData.FuturesContract1.Symbol;
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 1, 31);
-        await TestFixture.SecDatabase.Use($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
         var resultFuturesItiSignal = SampleData.FuturesItiSignal1 with { ValueDate = SampleData.FuturesItiSignal1.ValueDate.AddDays(-4) };
@@ -1958,7 +1958,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var symbol = SampleData.FuturesContract1.Symbol;
-        await TestFixture.SecDatabase.Use($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
@@ -1992,7 +1992,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var symbol = SampleData.FuturesContract1.Symbol;
         var startDate = new DateOnly(2025, 1, 1);
         var endDate = new DateOnly(2025, 1, 31);
-        await TestFixture.SecDatabase.Use($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
@@ -2024,12 +2024,12 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var futuresItiSignal1 = SampleData.FuturesItiSignal1;
         var futuresItiSignal2 = SampleData.FuturesItiSignal2;
 
-        await TestFixture.SecDatabase.Use("truncate futures_contract").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest("truncate futures_contract").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
         await DeleteFuturesItiSignalsAsync(futuresItiSignal1.ContractId);
         await DeleteFuturesItiSignalsAsync(futuresItiSignal2.ContractId);
-        await TestFixture.DevDatabase.Use($"truncate futures_iti_trend_class_data").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"truncate futures_iti_trend_class_data").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(futuresItiSignal1);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(futuresItiSignal2);
 
@@ -2060,10 +2060,10 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var futuresItiSignal1 = SampleData.FuturesItiSignal1;
         var futuresItiSignal2 = SampleData.FuturesItiSignal2;
 
-        await TestFixture.SecDatabase.Use("truncate futures_contract").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest("truncate futures_contract").ExecuteCommandAsync();
         await DeleteFuturesItiSignalsAsync(futuresItiSignal1.ContractId);
         await DeleteFuturesItiSignalsAsync(futuresItiSignal2.ContractId);
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_trend_delta_data where symbol = '{symbol}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_iti_trend_delta_data where symbol = '{symbol}' ").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(futuresContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(futuresContract2);
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiSignalAsync(futuresItiSignal1);
@@ -2095,7 +2095,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var symbol = expectedModel.Symbol;
         var valueDate = expectedModel.ValueDate;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_trend_class_model where symbol = '{symbol}' and valueDate = '{valueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_iti_trend_class_model where symbol = '{symbol}' and valueDate = '{valueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiTrendClassModelAsync(expectedModel);
 
         // Act
@@ -2134,7 +2134,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var symbol = expectedModel.Symbol;
         var valueDate = expectedModel.ValueDate;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_iti_trend_delta_model where symbol = '{symbol}' and valueDate = '{valueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_iti_trend_delta_model where symbol = '{symbol}' and valueDate = '{valueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DbWriter.InsertFuturesItiTrendDeltaModelAsync(expectedModel);
 
         // Act
@@ -2427,7 +2427,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var entityId = SampleData.FuturesOptionTickData.EntityId;
         var expectedData = SampleData.FuturesOptionTickData;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_option_tick_data where contractId = '{expectedData.ContractId}' ").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_option_tick_data where contractId = '{expectedData.ContractId}' ").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesOptionTickDataAsync(expectedData);
         await TestFixture.DevDatabase.InsertFuturesOptionTickDataAsync(expectedData);
 
@@ -2466,7 +2466,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var signalType = SampleData.FuturesRsiSignal.TimePeriod;
         var expectedSignal = SampleData.FuturesRsiSignal;
 
-        await TestFixture.DevDatabase.Use(
+        await TestFixture.DevDatabase.UseTest(
             $"delete from futures_rsi_signal where contractId = '{expectedSignal.ContractId}' " +
             $"and timePeriod = '{expectedSignal.TimePeriod}' and periodLength = {expectedSignal.PeriodLength}")
             .ExecuteCommandAsync();
@@ -2505,7 +2505,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var entityId = SampleData.FuturesTdiSignal.EntityId;
         var expectedSignal = SampleData.FuturesTdiSignal;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_traders_dynamic_index_signal where contractId = '{expectedSignal.ContractId}' and timePeriod = '{expectedSignal.TimePeriod}' and configurationId = '{expectedSignal.ConfigurationId}' and valueDate = '{expectedSignal.ValueDate:yyyy-MM-dd}' and timestamp = '{expectedSignal.Timestamp:HH:mm:ss}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_traders_dynamic_index_signal where contractId = '{expectedSignal.ContractId}' and timePeriod = '{expectedSignal.TimePeriod}' and configurationId = '{expectedSignal.ConfigurationId}' and valueDate = '{expectedSignal.ValueDate:yyyy-MM-dd}' and timestamp = '{expectedSignal.Timestamp:HH:mm:ss}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTdiSignalAsync(expectedSignal);
 
         // Act
@@ -2588,7 +2588,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var entityId = SampleData.FuturesTradeSignal.EntityId;
         var expectedSignal = SampleData.FuturesTradeSignal;
 
-        await TestFixture.DevDatabase.Use($"delete from futures_trade_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_trade_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTradeSignalAsync(expectedSignal);
         await TestFixture.DevDatabase.InsertFuturesTradeSignalAsync(expectedSignal);
 
@@ -2681,11 +2681,11 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var valueDate = SampleData.FuturesTradeSignal.ValueDate;
         var expectedSignal = SampleData.FuturesTradeSignal;
 
-        await TestFixture.SecDatabase.Use($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
+        await TestFixture.SecDatabase.UseTest($"delete from futures_contract where contractId in ('{SampleData.FuturesContract1.ContractId}','{SampleData.FuturesContract2.ContractId}')").ExecuteCommandAsync();
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract1);
         await TestFixture.SecDatabase.DbWriter.InsertFuturesContractAsync(SampleData.FuturesContract2);
 
-        await TestFixture.DevDatabase.Use($"delete from futures_trade_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from futures_trade_signal where contractId = '{expectedSignal.ContractId}' and valueDate = '{expectedSignal.ValueDate}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertFuturesTradeSignalAsync(expectedSignal);
 
         // Act
@@ -2736,7 +2736,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var expectedRateOfReturn = SampleData.RateOfReturn;
         var symbol = expectedRateOfReturn.Symbol;
 
-        await TestFixture.DevDatabase.Use($"delete from rate_of_return where symbol = '{symbol}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"delete from rate_of_return where symbol = '{symbol}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.InsertRateOfReturnAsync(expectedRateOfReturn);
 
         // Act
@@ -2840,7 +2840,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     {
         // Arrange
         var expectedYear = SampleData.YieldCurveRate.ValueDate.Year; // Example year from SampleData.YieldCurveRateReadModel or any other known year data point
-        await TestFixture.DevDatabase.Use($"DELETE FROM market_holiday WHERE currencyType = '{CurrencyType.USD}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"DELETE FROM market_holiday WHERE currencyType = '{CurrencyType.USD}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DeleteYieldCurveRateAsync(SampleData.YieldCurveRate.ValueDate);
 
         // Insert sample data for the expected year
@@ -2905,7 +2905,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var marketHoliday1 = SampleData.MarketHoliday1;
         var marketHoliday2 = SampleData.MarketHoliday2;
 
-        await TestFixture.DevDatabase.Use($"DELETE FROM market_holiday WHERE currencyType = '{expectedCurrency}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"DELETE FROM market_holiday WHERE currencyType = '{expectedCurrency}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DbWriter.InsertMarketHolidayAsync(marketHoliday1);
         await TestFixture.DevDatabase.DbWriter.InsertMarketHolidayAsync(marketHoliday2);
 
@@ -2932,7 +2932,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         var marketHoliday1 = SampleData.MarketHoliday1 with { HolidayDate = startDate };
         var marketHoliday2 = SampleData.MarketHoliday2 with { HolidayDate = endDate };
 
-        await TestFixture.DevDatabase.Use($"DELETE FROM market_holiday WHERE currencyType = '{expectedCurrency}'").ExecuteCommandAsync();
+        await TestFixture.DevDatabase.UseTest($"DELETE FROM market_holiday WHERE currencyType = '{expectedCurrency}'").ExecuteCommandAsync();
         await TestFixture.DevDatabase.DbWriter.InsertMarketHolidayAsync(marketHoliday1);
         await TestFixture.DevDatabase.DbWriter.InsertMarketHolidayAsync(marketHoliday2);
 

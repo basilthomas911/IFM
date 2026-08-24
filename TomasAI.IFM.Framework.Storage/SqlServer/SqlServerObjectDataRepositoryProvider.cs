@@ -96,7 +96,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                 catch (Exception ex)
                 {
                     tx.Rollback();
-                    var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteCommandAsync: {cmd.CommandText} {ex.Message}";
+                    var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteCommandAsync: {ctx.CommandLogText} {ex.Message}";
                     throw new StorageException(errorMessage, ex);
                 }
             }
@@ -114,7 +114,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
             }
             catch (Exception ex)
             {
-                var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteCommandAsync: {cmd.CommandText} {ex.Message}";
+                var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteCommandAsync: {ctx.CommandLogText} {ex.Message}";
                 throw new StorageException(errorMessage, ex);
             }
         }
@@ -151,12 +151,19 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
         }
     }
 
-    public object QueueCommand(string commandText, CommandType commandType, List<object> parameterValues)
+    public object QueueCommand(
+        string commandName,
+        string commandText,
+        CommandType commandType,
+        List<object> parameterValues)
     {
+        if (string.IsNullOrWhiteSpace(commandName))
+            throw new ArgumentException("ObjectDataRepository.QueueCommand: command name parameter is empty");
         if (string.IsNullOrWhiteSpace(commandText))
             throw new ArgumentException("ObjectDataRepository.QueueCommand: command text parameter is empty");
         var dbParameters = GetParameters(parameterValues).FirstOrDefault();
         return new ObjectDataQueuedCommand(
+            commandName,
             commandType,
             commandText,
             dbParameters,
@@ -173,6 +180,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
         if (queuedCommands.Count == 0)
             throw new InvalidOperationException("SqlServerObjectRepositoryProvider.ExecuteQueuedCommandsAsync: no commands have been queued for execution");
         var commandText = string.Empty;
+        var commandLogText = string.Empty;
         using (var conn = _ctx.Repository.CreateConnection().As<SqlConnection>(_ctx.Repository.ConnectionString))
         {
             await conn.OpenAsync();
@@ -191,6 +199,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                             cmd.CommandType = queuedCommand.CommandType;
                             cmd.CommandText = queuedCommand.CommandText;
                             commandText = cmd.CommandText;
+                            commandLogText = queuedCommand.CommandLogText;
                             cmd.Parameters.Clear();
                             if (queuedCommand.Parameters != null && queuedCommand.Parameters.Length > 0)
                                 foreach (var spParameter in queuedCommand.Parameters)
@@ -204,7 +213,7 @@ public class SqlServerObjectDataRepositoryProvider : IObjectRepositoryProvider
                 {
                     tx.Rollback();
                     while (ex.InnerException != null) ex = ex.InnerException;
-                    var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteQueuedCommandAsync: {commandText} {ex.Message}";
+                    var errorMessage = $"SqlServerObjectRepositoryProvider.ExecuteQueuedCommandAsync: {commandLogText} {ex.Message}";
                     throw new StorageException(errorMessage, ex);
                 }
             }

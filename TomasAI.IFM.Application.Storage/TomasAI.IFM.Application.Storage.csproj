@@ -8,11 +8,8 @@
 
   <ItemGroup>
     <Compile Remove="SqlServer\**" />
-    <Compile Remove="TradePlanDb\**" />
     <EmbeddedResource Remove="SqlServer\**" />
-    <EmbeddedResource Remove="TradePlanDb\**" />
     <None Remove="SqlServer\**" />
-    <None Remove="TradePlanDb\**" />
   </ItemGroup>
 
   <ItemGroup>

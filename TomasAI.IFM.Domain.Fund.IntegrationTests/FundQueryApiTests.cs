@@ -26,7 +26,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var valueDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var fundTx = SampleData.FundTransaction with { TradeStatus = TradeStatus.Close, ValueDate = valueDate };
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
@@ -49,7 +49,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var valueDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var fundTx = SampleData.FundTransaction with { TradeStatus = TradeStatus.Open, ValueDate =  valueDate };
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
@@ -71,7 +71,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var fund = SampleData.NewFund;
         var fundTx = SampleData.FundTransaction;
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
@@ -113,7 +113,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var fund = SampleData.NewFund;
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_order where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_order where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundOrderAsync(fundOrder);
 
@@ -137,8 +137,8 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var fundOrder = SampleData.FundOrder;
         var fundOrderTrade = SampleData.FundOrderTrade;
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_order where fundid = {fund.FundId}").ExecuteCommandAsync();
-        await dbFixture.FundDb.Use($"delete from fund_order_trade where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_order where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_order_trade where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundOrderAsync(fundOrder);
         await dbFixture.FundDb.InsertFundOrderTradeAsync(fundOrderTrade);
@@ -164,7 +164,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var startDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7));
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
@@ -186,7 +186,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var fund = SampleData.NewFund;
         var fundOrder = SampleData.FundOrder;
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_order where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_order where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundOrderAsync(fundOrder);
 
@@ -210,7 +210,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var startDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7));
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 
@@ -233,7 +233,7 @@ public class FundQueryApiTests(WebApplicationFactory<Program> factory, FundDatab
         var startDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7));
         var endDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
         await dbFixture.FundDb.DeleteFundAsync(fund.FundId);
-        await dbFixture.FundDb.Use($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
+        await dbFixture.FundDb.UseTest($"delete from fund_transaction where fundid = {fund.FundId}").ExecuteCommandAsync();
         await dbFixture.FundDb.InsertFundAsync(fund);
         await dbFixture.FundDb.InsertFundTransactionAsync(fundTx);
 

@@ -103,7 +103,7 @@ public class ObjectDataRepositoryTransactionTests(EventDatabaseFixture fixture) 
     }
 
     async Task InsertCommandAsync(Guid commandId)
-        => await _fixture.Db.Use($"""
+        => await _fixture.Db.UseTest($"""
             insert into command_log (
                 commandid, streamid, actorname, commandname,
                 commandtimestamp, commandstatus, commanddata
@@ -114,10 +114,10 @@ public class ObjectDataRepositoryTransactionTests(EventDatabaseFixture fixture) 
             """).ExecuteCommandAsync();
 
     async Task DeleteCommandAsync(Guid commandId)
-        => await _fixture.Db.Use($"delete from command_log where commandid = '{commandId}'").ExecuteCommandAsync();
+        => await _fixture.Db.UseTest($"delete from command_log where commandid = '{commandId}'").ExecuteCommandAsync();
 
     Task<int> CountCommandAsync(Guid commandId)
-        => _fixture.Db.Use($"select count(*) from command_log where commandid = '{commandId}'")
+        => _fixture.Db.UseTest($"select count(*) from command_log where commandid = '{commandId}'")
             .ExecuteScalarAsync(MapToInt);
 
     static int MapToInt(IObjectDataRecord record)

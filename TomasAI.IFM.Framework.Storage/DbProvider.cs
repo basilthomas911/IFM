@@ -52,10 +52,11 @@ namespace TomasAI.IFM.Framework.Storage
         /// <summary>
         /// create command text context
         /// </summary>
-        /// <param name="cmdText"></param>
+        /// <param name="commandName"></param>
+        /// <param name="commandText"></param>
         /// <returns></returns>
-        public IObjectRepositoryContext CreateCommandTextContext(string cmdText)
-            => new ObjectDataCommandTextContext(_repo, _logger, cmdText);
+        public IObjectRepositoryContext CreateCommandTextContext(string commandName, string commandText)
+            => new ObjectDataCommandTextContext(_repo, _logger, commandName, commandText);
 
         /// <summary>
         /// create queued commands context
@@ -64,7 +65,7 @@ namespace TomasAI.IFM.Framework.Storage
         /// <returns></returns>
         [Obsolete("Use CreateQueuedCommandsContext(IReadOnlyCollection<object>) so queue metadata can be validated.")]
         public virtual IObjectRepositoryContext CreateQueuedCommandsContext()
-            => new ObjectDataCommandTextContext(_repo, _logger);
+            => new ObjectDataCommandTextContext(_repo, _logger, "LegacyQueuedCommands", string.Empty);
 
         /// <summary>
         /// Creates an execution context from metadata carried by the supplied queue.
@@ -108,7 +109,11 @@ namespace TomasAI.IFM.Framework.Storage
 
             return commandType switch
             {
-                CommandType.Text => new ObjectDataCommandTextContext(_repo, _logger),
+                CommandType.Text => new ObjectDataCommandTextContext(
+                    _repo,
+                    _logger,
+                    "QueuedCommands",
+                    string.Empty),
                 CommandType.StoredProcedure => new ObjectDataStoredProcedureContext(_repo, _logger),
                 _ => throw new ArgumentException(
                     "DbProvider.CreateQueuedCommandsContext: unsupported queued command context type")
@@ -126,10 +131,16 @@ namespace TomasAI.IFM.Framework.Storage
         public IObjectDataReaderContext CreateDataReaderContext(IDataReaderOptions dataReaderOptions)
             => new ObjectDataReaderContext(_repo, dataReaderOptions);
 
-        public IObjectUriContext CreateFileUriContext(Uri uriObject, IDataReaderOptions dataReaderOptions)
-            =>  new ObjectFileUriContext(uriObject, dataReaderOptions);
+        public IObjectUriContext CreateFileUriContext(
+            string commandName,
+            Uri uriObject,
+            IDataReaderOptions dataReaderOptions)
+            => new ObjectFileUriContext(commandName, uriObject, dataReaderOptions);
 
-        public IObjectUriContext CreateHttpUriContext(Uri uriObject, IDataReaderOptions dataReaderOptions)
+        public IObjectUriContext CreateHttpUriContext(
+            string commandName,
+            Uri uriObject,
+            IDataReaderOptions dataReaderOptions)
             => default!; // new ObjectDataReaderContext(_repo, dataReaderOptions, fileUri);
 
         public IObjectRepositoryTransaction<TRepo>? CreateTransaction<TRepo>() where TRepo : IObjectRepository

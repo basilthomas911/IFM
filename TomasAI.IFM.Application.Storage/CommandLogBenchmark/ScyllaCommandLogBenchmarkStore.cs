@@ -20,7 +20,7 @@ public sealed class ScyllaCommandLogBenchmarkStore(
     public override IObjectRepository Database => this;
 
     public Task CreateSchemaAsync(CancellationToken cancellationToken = default)
-        => Database.Use(CommandLogBenchmarkStatements.CreateScyllaTable)
+        => Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.CreateScyllaTable)}", CommandLogBenchmarkStatements.CreateScyllaTable)
             .ExecuteCommandAsync(cancellationToken);
 
     public async Task<bool> TryInsertAsync(
@@ -28,7 +28,7 @@ public sealed class ScyllaCommandLogBenchmarkStore(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return await Database.Use(CommandLogBenchmarkStatements.TryInsertScylla)
+        return await Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.TryInsertScylla)}", CommandLogBenchmarkStatements.TryInsertScylla)
             .SetParameters(new InsertParameters(entry))
             .ExecuteSingleAsync(static row => row.GetBool(0), cancellationToken)
             .ConfigureAwait(false) == true;
@@ -37,7 +37,7 @@ public sealed class ScyllaCommandLogBenchmarkStore(
     public Task<ScyllaCommandLogBenchmarkRecord?> GetAsync(
         Guid commandId,
         CancellationToken cancellationToken = default)
-        => Database.Use(CommandLogBenchmarkStatements.GetScylla)
+        => Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.GetScylla)}", CommandLogBenchmarkStatements.GetScylla)
             .SetParameters(new CommandIdParameter(commandId))
             .ExecuteSingleAsync<ScyllaCommandLogBenchmarkRecord?>(
                 static row => new ScyllaCommandLogBenchmarkRecord(
@@ -50,7 +50,7 @@ public sealed class ScyllaCommandLogBenchmarkStore(
                 cancellationToken);
 
     public async Task DeleteAsync(Guid commandId, CancellationToken cancellationToken = default)
-        => _ = await Database.Use(CommandLogBenchmarkStatements.DeleteScylla)
+        => _ = await Database.Use($"{nameof(CommandLogBenchmarkStatements)}.{nameof(CommandLogBenchmarkStatements.DeleteScylla)}", CommandLogBenchmarkStatements.DeleteScylla)
             .SetParameters(new CommandIdParameter(commandId))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);

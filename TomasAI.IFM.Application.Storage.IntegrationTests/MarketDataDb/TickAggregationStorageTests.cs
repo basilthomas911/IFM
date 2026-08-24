@@ -40,22 +40,22 @@ public sealed class TickAggregationStorageTests(MarketDataFixture fixture) : ICl
         await fixture.DevDatabase.InsertTickQuoteDataAsync(quote);
 
         var tradeRows = await fixture.DevDatabase
-            .Use("SELECT sequence_id FROM tick_trade_data WHERE asset_type_id=? AND contract_id=? AND value_date>=? AND value_date<=?;")
+            .UseTest("SELECT sequence_id FROM tick_trade_data WHERE asset_type_id=? AND contract_id=? AND value_date>=? AND value_date<=?;")
             .SetParameters((object)new object[] { (sbyte)AssetTypeId.Futures, contractId, valueDate, valueDate })
             .ExecuteQueryImmutableAsync(static row => row.GetLong(0));
         var quoteRows = await fixture.DevDatabase
-            .Use("SELECT sequence_id, quote_count FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date>=? AND value_date<=?;")
+            .UseTest("SELECT sequence_id, quote_count FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND value_date>=? AND value_date<=?;")
             .SetParameters((object)new object[] { (sbyte)AssetTypeId.Futures, contractId, valueDate, valueDate })
             .ExecuteQueryImmutableAsync(static row => new QuoteResult(row.GetLong(0), row.GetShort(1)));
         var startTime = TimeOnly.FromDateTime(timestamp.AddSeconds(-1));
         var endTime = TimeOnly.FromDateTime(timestamp.AddSeconds(1));
         var intradayTrades = await fixture.DevDatabase
-            .Use("SELECT sequence_id FROM tick_trade_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time>=? AND aggregation_time<=?;")
+            .UseTest("SELECT sequence_id FROM tick_trade_data WHERE asset_type_id=? AND contract_id=? AND value_date=? AND aggregation_time>=? AND aggregation_time<=?;")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId, valueDate, startTime, endTime })
             .ExecuteQueryImmutableAsync(static row => row.GetLong(0));
         var exactQuotes = await fixture.DevDatabase
-            .Use("SELECT sequence_id FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND (value_date, aggregation_time)>=(?, ?) AND (value_date, aggregation_time)<=(?, ?);")
+            .UseTest("SELECT sequence_id FROM tick_quote_data WHERE asset_type_id=? AND contract_id=? AND (value_date, aggregation_time)>=(?, ?) AND (value_date, aggregation_time)<=(?, ?);")
             .SetParameters((object)new object[] {
                 (sbyte)AssetTypeId.Futures, contractId,
                 valueDate, startTime, valueDate, endTime })

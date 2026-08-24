@@ -74,7 +74,7 @@ public partial class MarketDataDbContext
     {
         var db = _dbFactory.MarketDataDb;
         var rsiValues = await db
-            .Use(MarketDataDbCql.GetFuturesRsiSignalsForTrend)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesRsiSignalsForTrend)}", MarketDataDbCql.GetFuturesRsiSignalsForTrend)
             .SetParameters(new GetFuturesRsiSignalsForTrend(
                 contractId,
                 timePeriod.ToStringFast(),
@@ -115,7 +115,7 @@ public partial class MarketDataDbContext
         List<string> contractIds = [.. contracts.Select(static contract => contract.ContractId)];
 
         return await _dbFactory.MarketDataDb
-            .Use(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)}", MarketDataDbCql.GetLastFuturesTradeSignalBySymbol)
             .SetParameters(new GetLastFuturesTradeSignalBySymbol(contractIds, valueDate))
             .ExecuteSingleAsync(MapToFuturesTradeSignal, cancellationToken)
             .ConfigureAwait(false);
