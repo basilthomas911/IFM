@@ -40,8 +40,8 @@ public class FuturesContractCommandActor(
     : BaseEventSourceCommandActor<FuturesContractCommandActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesContractCommand";
-    readonly ILogger<FuturesContractCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
+    CommandAuditTracker? _commandAudit;
+    CommandAuditTracker CommandAudit => _commandAudit ??= new CommandAuditTracker(Context.DbEventSource);
     readonly IEventProjector<FuturesContractCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesContractCommandState> _repo = default!;
 
@@ -83,7 +83,7 @@ public class FuturesContractCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
+        CommandAudit.Start(command);
         return command;
     }
 
@@ -157,8 +157,8 @@ public class FuturesContractCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
-        var refLookupService = actorContext.ReferenceLookupService;
+        await CommandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
+        var refLookupService = Context.ReferenceLookupService;
         await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
@@ -283,7 +283,7 @@ public class FuturesContractCommandActor(
         }
         catch (Exception innerEx)
         {
-            _logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

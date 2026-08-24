@@ -32,12 +32,12 @@ public class SpreadDistributionJobCommandActor(
     : BaseEventSourceCommandActor<SpreadDistributionJobCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected ISpreadDistributionJobCommandContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ISpreadDistributionJobCommandContext, nameof(actorContext))!;
+    protected ISpreadDistributionJobCommandContext ActorContext =>
+        IsArgumentNull.Set(Context as ISpreadDistributionJobCommandContext, nameof(Context))!;
 
     public const string ActorName = "SpreadDistributionJobCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
-    readonly IEventProjector<SpreadDistributionJobCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
+    CommandAuditTracker? _commandAudit;
+    CommandAuditTracker CommandAudit => _commandAudit ??= new CommandAuditTracker(ActorContext.DbEventSource);
     IEventSourceActorStateRepository<SpreadDistributionJobCommandState> _repo = default!;
 
     /// <summary>
@@ -52,11 +52,11 @@ public class SpreadDistributionJobCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<SpreadDistributionJobCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnShutdown(ICommandActorContext<SpreadDistributionJobCommandActor> context)
-        => await _eventProjector.StopAsync().ConfigureAwait(false);
+        => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -78,7 +78,7 @@ public class SpreadDistributionJobCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
+        CommandAudit.Start(command);
         return command;
     }
 
@@ -150,7 +150,7 @@ public class SpreadDistributionJobCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
+        await CommandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
@@ -256,7 +256,7 @@ public class SpreadDistributionJobCommandActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

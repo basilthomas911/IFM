@@ -20,8 +20,8 @@ public class DatabaseBackupCommandActor(
     : BaseEventSourceCommandActor<DatabaseBackupCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IDatabaseBackupCommandContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IDatabaseBackupCommandContext, nameof(actorContext))!;
+    protected IDatabaseBackupCommandContext ActorContext =>
+        IsArgumentNull.Set(Context as IDatabaseBackupCommandContext, nameof(Context))!;
 
     public const string Actor = DatabaseBackupCommand.Actor;
     IEventSourceActorStateRepository<DatabaseBackupCommandState> _repository = default!;

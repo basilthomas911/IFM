@@ -17,8 +17,8 @@ public class OptionTradeEventActor(
     : BaseEventActor<OptionTradeEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IOptionTradeEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IOptionTradeEventContext, nameof(actorContext))!;
+    protected IOptionTradeEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IOptionTradeEventContext, nameof(Context))!;
 
     public const string Actor = "OptionTradeEvent";
     static readonly Dictionary<string, Func<IEvent, IEventActorContext<OptionTradeEventActor>, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
@@ -82,8 +82,8 @@ public class OptionTradeEventActor(
             @event,
             dispatchContext,
             dispatchContext,
-            actorContext.StatusConsoleWriter,
-            actorContext.Logger));
+            ActorContext.StatusConsoleWriter,
+            ActorContext.Logger));
 
         static async ValueTask AwaitHandlerAsync(ValueTask<bool> operation)
             => _ = await operation.ConfigureAwait(false);
@@ -109,7 +109,7 @@ public class OptionTradeEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

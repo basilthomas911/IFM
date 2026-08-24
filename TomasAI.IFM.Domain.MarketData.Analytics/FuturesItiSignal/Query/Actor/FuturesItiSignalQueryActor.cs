@@ -25,8 +25,8 @@ public class FuturesItiSignalQueryActor(
     : BaseQueryActor<FuturesItiSignalQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesItiSignalQueryContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesItiSignalQueryContext, nameof(actorContext))!;
+    protected IFuturesItiSignalQueryContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesItiSignalQueryContext, nameof(Context))!;
 
     public const string ActorName = "FuturesItiSignalQuery";
 
@@ -85,7 +85,7 @@ public class FuturesItiSignalQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
+        await receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -152,7 +152,7 @@ public class FuturesItiSignalQueryActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

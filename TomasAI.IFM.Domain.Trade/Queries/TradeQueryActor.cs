@@ -29,8 +29,8 @@ public class TradeQueryActor(
     : BaseQueryActor<TradeQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected ITradeQueryContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITradeQueryContext, nameof(actorContext))!;
+    protected ITradeQueryContext ActorContext =>
+        IsArgumentNull.Set(Context as ITradeQueryContext, nameof(Context))!;
 
     public const string ActorName = "TradeQuery";
 
@@ -91,7 +91,7 @@ public class TradeQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        return receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken);
+        return receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken);
     }
 
     /// <summary>
@@ -178,7 +178,7 @@ public class TradeQueryActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

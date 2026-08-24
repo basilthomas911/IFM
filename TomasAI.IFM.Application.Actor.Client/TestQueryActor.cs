@@ -20,8 +20,8 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
     : BaseQueryActor<TestQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
-    protected ITestQueryContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITestQueryContext, nameof(actorContext))!;
+    protected ITestQueryContext ActorContext =>
+        IsArgumentNull.Set(Context as ITestQueryContext, nameof(Context))!;
 
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "Test";
@@ -69,7 +69,7 @@ public class TestQueryActor(IQueryActorContext<TestQueryActor> actorContext)
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 }

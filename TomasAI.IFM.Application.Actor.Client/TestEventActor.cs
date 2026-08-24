@@ -19,8 +19,8 @@ public class TestEventActor(IEventActorContext<TestEventActor> actorContext)
     : BaseEventActor<TestEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
-    protected ITestEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITestEventContext, nameof(actorContext))!;
+    protected ITestEventContext ActorContext =>
+        IsArgumentNull.Set(Context as ITestEventContext, nameof(Context))!;
 
     /// <summary>Gets the event name parsed by this actor.</summary>
     public const string ActorName = "TestEvent";

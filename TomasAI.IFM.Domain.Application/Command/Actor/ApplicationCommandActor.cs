@@ -30,12 +30,10 @@ public sealed class ApplicationCommandActor(
     : BaseEventSourceCommandActor<ApplicationCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    private IApplicationCommandContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IApplicationCommandContext, nameof(actorContext))!;
+    private IApplicationCommandContext ActorContext =>
+        IsArgumentNull.Set(Context as IApplicationCommandContext, nameof(Context))!;
 
     public const string ActorName = "ApplicationCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
-    readonly IEventProjector<ApplicationCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
     IEventSourceActorStateRepository<ApplicationCommandState> _repo = default!;
 
     /// <summary>
@@ -47,7 +45,7 @@ public sealed class ApplicationCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<ApplicationCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -95,7 +93,7 @@ public sealed class ApplicationCommandActor(
         // ParseMessage is synchronous because the actor contract must release its pooled
         // payload immediately after materialization. Persist the log here so storage I/O
         // remains asynchronous and never blocks the mailbox worker thread.
-        await _dbEventSource
+        await ActorContext.DbEventSource
             .InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd))
             .ConfigureAwait(false);
 
@@ -134,7 +132,7 @@ public sealed class ApplicationCommandActor(
     }
 
     protected override async ValueTask OnShutdown(ICommandActorContext<ApplicationCommandActor> context)
-        => await _eventProjector.StopAsync().ConfigureAwait(false);
+        => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.
@@ -197,7 +195,7 @@ public sealed class ApplicationCommandActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             return CommandFailed(innerEx, command);
         }
     }

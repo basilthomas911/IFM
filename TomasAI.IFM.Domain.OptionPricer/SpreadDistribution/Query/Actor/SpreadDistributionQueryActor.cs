@@ -19,8 +19,8 @@ public class SpreadDistributionQueryActor(
     : BaseQueryActor<SpreadDistributionQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected ISpreadDistributionQueryContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ISpreadDistributionQueryContext, nameof(actorContext))!;
+    protected ISpreadDistributionQueryContext ActorContext =>
+        IsArgumentNull.Set(Context as ISpreadDistributionQueryContext, nameof(Context))!;
 
     public const string ActorName = "SpreadDistributionQuery";
 
@@ -77,7 +77,7 @@ public class SpreadDistributionQueryActor(
         var qryName = query.GetType().Name;
         if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await receiveFunc.Invoke(dispatchContext, actorContext.DbFactory, query, cancellationToken);
+        await receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken);
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public class SpreadDistributionQueryActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
         }
     }
 

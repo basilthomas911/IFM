@@ -17,8 +17,8 @@ public class FuturesTradeSignalEventActor(
     : BaseEventActor<FuturesTradeSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesTradeSignalEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesTradeSignalEventContext, nameof(actorContext))!;
+    protected IFuturesTradeSignalEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesTradeSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesTradeSignalEvent";
 
@@ -27,12 +27,12 @@ public class FuturesTradeSignalEventActor(
         [typeof(FuturesTradeSignalUpdatedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTradeSignalUpdatedCompleteEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
         [typeof(FuturesItiSignalHoldTradeChangedEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalHoldTradeChangedEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         }
     };
 
@@ -80,7 +80,7 @@ public class FuturesTradeSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, actorContext.StatusConsoleWriter, actorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public class FuturesTradeSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

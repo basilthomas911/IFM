@@ -20,8 +20,8 @@ public class DatabaseBackupEventActor(
     : BaseEventActor<DatabaseBackupEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IDatabaseBackupEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IDatabaseBackupEventContext, nameof(actorContext))!;
+    protected IDatabaseBackupEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IDatabaseBackupEventContext, nameof(Context))!;
 
     public const string Actor = "DatabaseBackupEvent";
 
@@ -95,7 +95,7 @@ public class DatabaseBackupEventActor(
 
     protected override ValueTask OnExceptionAsync(IEventActorContext<DatabaseBackupEventActor> context, ActorThreadId threadId, IEvent @event, Exception exception)
     {
-        actorContext.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
+        Context.Logger.LogError(exception, "DatabaseBackup service event {EventName} failed.", @event?.EventName);
         return ValueTask.CompletedTask;
     }
 }

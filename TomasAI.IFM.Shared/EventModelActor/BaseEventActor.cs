@@ -32,6 +32,10 @@ public abstract class BaseEventActor<TActor>(
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
+    /// <summary>
+    /// Gets the closed-generic event context retained for the lifetime of this actor.
+    /// </summary>
+    protected IEventActorContext<TActor> Context => _context;
     public IActorMailbox Mailbox { get; private set; }
     public bool IsRunning
     {

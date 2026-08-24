@@ -28,8 +28,8 @@ public class FuturesMacdSignalEventActor(
     : BaseEventActor<FuturesMacdSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesMacdSignalEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesMacdSignalEventContext, nameof(actorContext))!;
+    protected IFuturesMacdSignalEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesMacdSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesMacdSignalEvent";
     readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesMacdSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
@@ -37,12 +37,12 @@ public class FuturesMacdSignalEventActor(
         [typeof(FuturesMacdSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesMacdSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
         [typeof(FuturesMacdDailySignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesMacdDailySignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         }
     };
 
@@ -91,18 +91,18 @@ public class FuturesMacdSignalEventActor(
         IsArgumentNull.Check(@event);
         if (@event is FuturesMacdSignalStartedEvent started)
         {
-            _ = await started.ExecuteAsync(context, context, actorContext.MarketDataApi, actorContext.StatusConsoleWriter, actorContext.Logger);
+            _ = await started.ExecuteAsync(context, context, ActorContext.MarketDataApi, ActorContext.StatusConsoleWriter, ActorContext.Logger);
             return;
         }
         if (@event is FuturesMacdSignalStoppedEvent stopped)
         {
-            _ = await stopped.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            _ = await stopped.ExecuteAsync(context, ActorContext.StatusConsoleWriter, ActorContext.Logger);
             return;
         }
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, actorContext.StatusConsoleWriter, actorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
     protected override ValueTask OnShutdown(IEventActorContext<FuturesMacdSignalEventActor> context) => FuturesMacdSignalTimer.StopAllAsync();
@@ -128,7 +128,7 @@ public class FuturesMacdSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

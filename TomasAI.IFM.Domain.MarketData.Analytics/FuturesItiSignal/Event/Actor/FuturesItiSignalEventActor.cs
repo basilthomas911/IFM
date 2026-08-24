@@ -25,8 +25,8 @@ public class FuturesItiSignalEventActor(
     : BaseEventActor<FuturesItiSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesItiSignalEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesItiSignalEventContext, nameof(actorContext))!;
+    protected IFuturesItiSignalEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesItiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesItiSignalEvent";
     readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
@@ -34,7 +34,7 @@ public class FuturesItiSignalEventActor(
         [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, commandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, commandApi, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
         }
     };
 
@@ -108,7 +108,7 @@ public class FuturesItiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, context, actorContext.StatusConsoleWriter, actorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, context, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public class FuturesItiSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

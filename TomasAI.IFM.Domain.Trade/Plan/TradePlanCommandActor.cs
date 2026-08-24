@@ -19,8 +19,8 @@ public sealed class TradePlanCommandActor(
     : BaseEventSourceCommandActor<TradePlanCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    private ITradePlanCommandActorContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITradePlanCommandActorContext, nameof(actorContext))!;
+    private ITradePlanCommandActorContext ActorContext =>
+        IsArgumentNull.Set(Context as ITradePlanCommandActorContext, nameof(Context))!;
 
     public const string ActorName = "TradePlanCommand";
 
@@ -37,8 +37,8 @@ public sealed class TradePlanCommandActor(
         ICommand command)
     {
         var update = (UpdateTradePlanCommand)command;
-        await actorContext.DbFactory.TradeDb.InsertTradePlanAsync(update.TradePlan);
-        await actorContext.EventProducer.PostEventAsync(new TradePlanUpdatedEvent
+        await ActorContext.DbFactory.TradeDb.InsertTradePlanAsync(update.TradePlan);
+        await ActorContext.EventProducer.PostEventAsync(new TradePlanUpdatedEvent
         {
             CommandId = update.CommandId,
             EntityId = update.EntityId,

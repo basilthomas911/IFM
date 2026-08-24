@@ -19,8 +19,8 @@ public class DatabaseBackupQueryActor(
     : BaseQueryActor<DatabaseBackupQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IDatabaseBackupQueryContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IDatabaseBackupQueryContext, nameof(actorContext))!;
+    protected IDatabaseBackupQueryContext ActorContext =>
+        IsArgumentNull.Set(Context as IDatabaseBackupQueryContext, nameof(Context))!;
 
     public const string Actor = DatabaseBackupQuery.Actor;
     readonly ISystemAdminDbContext _dbContext = actorContext.DbContext;

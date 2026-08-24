@@ -19,8 +19,8 @@ public sealed class TradePlanForwardLossLimitCommandActor(
     : BaseEventSourceCommandActor<TradePlanForwardLossLimitCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    private ITradePlanForwardLossLimitCommandActorContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITradePlanForwardLossLimitCommandActorContext, nameof(actorContext))!;
+    private ITradePlanForwardLossLimitCommandActorContext ActorContext =>
+        IsArgumentNull.Set(Context as ITradePlanForwardLossLimitCommandActorContext, nameof(Context))!;
 
     public const string ActorName = "TradePlanForwardLossLimitCommand";
 
@@ -43,8 +43,8 @@ public sealed class TradePlanForwardLossLimitCommandActor(
         switch (command)
         {
             case UpdateTradePlanForwardLossLimitCommand update:
-                await actorContext.DbFactory.TradeDb.InsertTradePlanForwardLossLimitAsync(update.TradePlanForwardLossLimit);
-                await actorContext.EventProducer.PostEventAsync(new TradePlanForwardLossLimitUpdatedEvent
+                await ActorContext.DbFactory.TradeDb.InsertTradePlanForwardLossLimitAsync(update.TradePlanForwardLossLimit);
+                await ActorContext.EventProducer.PostEventAsync(new TradePlanForwardLossLimitUpdatedEvent
                 {
                     CommandId = update.CommandId,
                     EntityId = update.EntityId.Format(),
@@ -54,8 +54,8 @@ public sealed class TradePlanForwardLossLimitCommandActor(
                 });
                 break;
             case ClearTradePlanForwardLossLimitCommand clear:
-                await actorContext.DbFactory.TradeDb.DeleteTradePlanForwardLossLimitAsync(clear.EntityId);
-                await actorContext.EventProducer.PostEventAsync(new TradePlanForwardLossLimitClearedEvent
+                await ActorContext.DbFactory.TradeDb.DeleteTradePlanForwardLossLimitAsync(clear.EntityId);
+                await ActorContext.EventProducer.PostEventAsync(new TradePlanForwardLossLimitClearedEvent
                 {
                     CommandId = clear.CommandId,
                     EntityId = clear.EntityId.Format(),

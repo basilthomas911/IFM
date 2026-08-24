@@ -33,6 +33,10 @@ public abstract class BaseEventSourceCommandActor<TActor>(
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
+    /// <summary>
+    /// Gets the closed-generic command context retained for the lifetime of this actor.
+    /// </summary>
+    protected ICommandActorContext<TActor> Context => _context;
     protected ILogger Logger => _logger;
 
     public IActorMailbox Mailbox { get; private set; } 

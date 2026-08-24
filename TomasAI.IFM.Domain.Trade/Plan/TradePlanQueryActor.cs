@@ -18,8 +18,8 @@ public sealed class TradePlanQueryActor(
     : BaseQueryActor<TradePlanQueryActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    private ITradePlanQueryContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITradePlanQueryContext, nameof(actorContext))!;
+    private ITradePlanQueryContext ActorContext =>
+        IsArgumentNull.Set(Context as ITradePlanQueryContext, nameof(Context))!;
 
     public const string ActorName = "TradePlanQuery";
 
@@ -60,32 +60,32 @@ public sealed class TradePlanQueryActor(
             case GetStopLossLimitQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanStopLossLimitReadModel>(
-                        await new GetStopLossLimitQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetStopLossLimitQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetTradePlanForwardLossRatiosQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanForwardLossRatioReadModel[]>(
-                        await new GetTradePlanForwardLossRatiosQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlanForwardLossRatiosQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetTradePlanForwardLossRatioQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanForwardLossRatioReadModel>(
-                        await new GetTradePlanForwardLossRatioQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlanForwardLossRatioQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetTradePlansQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanReadModel[]>(
-                        await new GetTradePlansQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlansQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             case GetIronCondorForwardDeltaQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<IronCondorForwardDeltaDataModel>(
-                        await new GetIronCondorForwardDeltaQueryHandler(actorContext.DbFactory.MarketDataDb).ExecuteAsync(q)));
+                        await new GetIronCondorForwardDeltaQueryHandler(ActorContext.DbFactory.MarketDataDb).ExecuteAsync(q)));
                 break;
             case GetTradePlanForwardLossLimitQuery q:
                 await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
                     new ServiceResult<TradePlanForwardLossLimitReadModel>(
-                        await new GetTradePlanForwardLossLimitQueryHandler(actorContext.DbFactory.TradeDb).ExecuteAsync(q)));
+                        await new GetTradePlanForwardLossLimitQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
                 break;
             default:
                 throw new InvalidOperationException($"Unable to process {ActorName} query: {query.GetType().Name}");

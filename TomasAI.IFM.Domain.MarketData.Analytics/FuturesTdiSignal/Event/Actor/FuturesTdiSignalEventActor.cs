@@ -23,8 +23,8 @@ public class FuturesTdiSignalEventActor(
     : BaseEventActor<FuturesTdiSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesTdiSignalEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesTdiSignalEventContext, nameof(actorContext))!;
+    protected IFuturesTdiSignalEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesTdiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesTdiSignalEvent";
     static readonly ActorTypeId RsiSignalsRoute = new(
@@ -37,12 +37,12 @@ public class FuturesTdiSignalEventActor(
         [typeof(FuturesTdiSignalGeneratedCompleteEvent).Name] = async (evt, context, _, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTdiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
         [typeof(FuturesRsiSignalsGeneratedEvent).Name] = async (evt, context, commandApi, _, logger) =>
         {
             var e = (evt as FuturesRsiSignalsGeneratedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, actorContext.Logger);
+            return await e.ExecuteAsync(context, commandApi, logger);
         }
     };
 
@@ -103,7 +103,7 @@ public class FuturesTdiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, context, actorContext.StatusConsoleWriter, actorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, context, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
     /// <summary>
@@ -127,7 +127,7 @@ public class FuturesTdiSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

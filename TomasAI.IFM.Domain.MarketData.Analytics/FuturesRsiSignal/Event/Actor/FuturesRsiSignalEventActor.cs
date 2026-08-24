@@ -21,8 +21,8 @@ public class FuturesRsiSignalEventActor(
     : BaseEventActor<FuturesRsiSignalEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesRsiSignalEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesRsiSignalEventContext, nameof(actorContext))!;
+    protected IFuturesRsiSignalEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesRsiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesRsiSignalEvent";
     readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesRsiSignalEventActor>, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
@@ -30,17 +30,17 @@ public class FuturesRsiSignalEventActor(
         [typeof(FuturesRsiSignalStartedEvent).Name] = async (evt, context, commandApi) =>
         {
             var e = (evt as FuturesRsiSignalStartedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, actorContext.MarketDataApi, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, commandApi, context.MarketDataApi, context.StatusConsoleWriter, context.Logger);
         },
         [typeof(FuturesRsiSignalStoppedEvent).Name] = async (evt, context, _) =>
         {
             var e = (evt as FuturesRsiSignalStoppedEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger);
+            return await e.ExecuteAsync(context, context.StatusConsoleWriter, context.Logger);
         },
         [typeof(FuturesRsiSignalGeneratedEvent).Name] = async (evt, context, _) =>
         {
             var e = (evt as FuturesRsiSignalGeneratedEvent)!;
-            return await e.ExecuteAsync(context, actorContext.StatusConsoleWriter, actorContext.Logger, actorContext.BlackboardService);
+            return await e.ExecuteAsync(context, context.StatusConsoleWriter, context.Logger, context.BlackboardService);
         },
         [typeof(FuturesRsiDailySignalGeneratedCompleteEvent).Name] = (_, _, _) => ValueTask.FromResult(true)
     };
@@ -126,7 +126,7 @@ public class FuturesRsiSignalEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

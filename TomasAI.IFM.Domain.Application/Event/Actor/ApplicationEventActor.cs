@@ -21,8 +21,8 @@ public sealed class ApplicationEventActor(
     : BaseEventActor<ApplicationEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    private IApplicationEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IApplicationEventContext, nameof(actorContext))!;
+    private IApplicationEventContext ActorContext =>
+        IsArgumentNull.Set(Context as IApplicationEventContext, nameof(Context))!;
 
     public const string Actor = ApplicationStartupEvent.Actor;
 
@@ -100,7 +100,7 @@ public sealed class ApplicationEventActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

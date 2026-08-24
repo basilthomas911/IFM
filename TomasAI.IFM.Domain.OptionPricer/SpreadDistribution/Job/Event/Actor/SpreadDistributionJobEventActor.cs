@@ -26,8 +26,8 @@ public class SpreadDistributionJobEventActor(
     : BaseEventActor<SpreadDistributionJobEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected ISpreadDistributionJobEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ISpreadDistributionJobEventContext, nameof(actorContext))!;
+    protected ISpreadDistributionJobEventContext ActorContext =>
+        IsArgumentNull.Set(Context as ISpreadDistributionJobEventContext, nameof(Context))!;
 
     public const string Actor = "SpreadDistributionJobEvent";
     static readonly Dictionary<string, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
@@ -103,8 +103,8 @@ public class SpreadDistributionJobEventActor(
             dispatchContext,
             dispatchContext,
             dispatchContext,
-            actorContext.StatusConsoleWriter,
-            actorContext.Logger);
+            ActorContext.StatusConsoleWriter,
+            ActorContext.Logger);
     }
 
     /// <summary>
@@ -130,7 +130,7 @@ public class SpreadDistributionJobEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

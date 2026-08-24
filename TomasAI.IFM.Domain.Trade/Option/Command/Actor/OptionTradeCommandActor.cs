@@ -33,12 +33,12 @@ public class OptionTradeCommandActor(
     : BaseEventSourceCommandActor<OptionTradeCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IOptionTradeCommandContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IOptionTradeCommandContext, nameof(actorContext))!;
+    protected IOptionTradeCommandContext ActorContext =>
+        IsArgumentNull.Set(Context as IOptionTradeCommandContext, nameof(Context))!;
 
     public const string ActorName = "OptionTradeCommand";
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
-    readonly IEventProjector<OptionTradeCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
+    CommandAuditTracker? _commandAudit;
+    CommandAuditTracker CommandAudit => _commandAudit ??= new CommandAuditTracker(ActorContext.DbEventSource);
     IEventSourceActorStateRepository<OptionTradeCommandState> _repo = default!;
 
     /// <summary>
@@ -53,10 +53,10 @@ public class OptionTradeCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<OptionTradeCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
     }
     protected override async ValueTask OnShutdown(ICommandActorContext<OptionTradeCommandActor> context)
-        => await _eventProjector.StopAsync().ConfigureAwait(false);
+        => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -78,7 +78,7 @@ public class OptionTradeCommandActor(
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
         var command = messageParser.Invoke(message);
         IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
+        CommandAudit.Start(command);
         return command;
     }
 
@@ -124,7 +124,7 @@ public class OptionTradeCommandActor(
 
         if (cmd is DeleteOptionTradesCommand deleteAll)
         {
-            var db = actorContext.DbFactory.TradeDb;
+            var db = ActorContext.DbFactory.TradeDb;
             var trades = await db.GetOptionTradesAsync(deleteAll.OrderId.Id).ConfigureAwait(false);
             foreach (var trade in trades)
                 await db.DeleteOptionTradeAsync(trade.OrderId, trade.TradeId).ConfigureAwait(false);
@@ -180,7 +180,7 @@ public class OptionTradeCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
+        await CommandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
@@ -330,7 +330,7 @@ public class OptionTradeCommandActor(
 
     protected override async ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<OptionTradeCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex)
     {
-        actorContext.Logger.LogError(ex, "Error processing {CommandName} in {Actor} for thread {ThreadId}", command.CommandName, ActorName, threadId);
+        Context.Logger.LogError(ex, "Error processing {CommandName} in {Actor} for thread {ThreadId}", command.CommandName, ActorName, threadId);
         try
         {
             IsArgumentNull.Check(context);
@@ -341,7 +341,7 @@ public class OptionTradeCommandActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

@@ -100,6 +100,8 @@ Architecture tests reject `DateTime.Now`, `DateTime.Today`, `TimeProvider.GetLoc
 
 ## Project structure
 
+> **Incremental boundary refactor:** The table below describes the current implementation. UIR-0 accepted a target architecture that moves backend command, query, event, and subscription adapters into `TomasAI.IFM.UI.Net.Services`, keeps UI-owned state in Models, and replaces `GetModel<TModel>()` with explicit service dependencies. See the [decision record](UI-Service-Model-Refactor-Decision-Record.md) and [implementation gates](UI-Service-Model-Refactor-Plan.md). No production class moves occur in UIR-0.
+
 The hand-written UI code is divided across four projects with one-way dependencies: Models ← ViewModels ← Views ← UI.Net.
 
 | Project | Responsibility |

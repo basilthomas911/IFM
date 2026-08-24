@@ -31,6 +31,10 @@ public abstract class BaseQueryActor<TActor>(
 
     // IActor properties
     public ActorMailboxId Id => _actorId;
+    /// <summary>
+    /// Gets the closed-generic query context retained for the lifetime of this actor.
+    /// </summary>
+    protected IQueryActorContext<TActor> Context => _context;
     protected IQuery Query { get; set; }
     protected ILogger Logger => _logger;
 

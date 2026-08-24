@@ -31,12 +31,12 @@ public class FuturesItiSignalCommandActor(
     : BaseEventSourceCommandActor<FuturesItiSignalCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesItiSignalCommandContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesItiSignalCommandContext, nameof(actorContext))!;
+    protected IFuturesItiSignalCommandContext ActorContext =>
+        IsArgumentNull.Set(Context as IFuturesItiSignalCommandContext, nameof(Context))!;
 
     public const string ActorName = "FuturesItiSignalCommand";
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
-    readonly IEventProjector<FuturesItiSignalCommandActor> _eventProjector = IsArgumentNull.Set(actorContext.EventProjector);
+    IEventSourceActorDbContext DbEventSource => ActorContext.DbEventSource;
+    IEventProjector<FuturesItiSignalCommandActor> EventProjector => ActorContext.EventProjector;
     IEventSourceActorStateRepository<FuturesItiSignalCommandState> _repo = default!;
 
     /// <summary>
@@ -48,11 +48,11 @@ public class FuturesItiSignalCommandActor(
     {
         IsArgumentNull.Check(context);
         _repo = IsArgumentNull.Set(context.Container.Resolve<IEventSourceActorStateRepository<FuturesItiSignalCommandState>>());
-        await _eventProjector.StartAsync(context).ConfigureAwait(false);
+        await EventProjector.StartAsync(context).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesItiSignalCommandActor> context)
-        => await _eventProjector.StopAsync().ConfigureAwait(false);
+        => await EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
@@ -133,9 +133,9 @@ public class FuturesItiSignalCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
         if (cancellationToken.CanBeCanceled)
-            await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd), cancellationToken).ConfigureAwait(false);
+            await DbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd), cancellationToken).ConfigureAwait(false);
         else
-            await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
+            await DbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var cmdName = cmd.GetType().Name;
         if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
@@ -239,7 +239,7 @@ public class FuturesItiSignalCommandActor(
         }
         catch (Exception innerEx)
         {
-            actorContext.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
+            Context.Logger.LogError(innerEx, "Error handling exception for {Actor} command in thread {ThreadId}: {OriginalExceptionMessage}", ActorName, threadId, ex.Message);
             try
             {
                 var cmdErrorEvent = await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.CommandExceptionEvent, ActorEntityId>(ErrorType.Command, context);

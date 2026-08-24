@@ -15,8 +15,8 @@ public class SpreadDistributionEventActor(
     : BaseEventActor<SpreadDistributionEventActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected ISpreadDistributionEventContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ISpreadDistributionEventContext, nameof(actorContext))!;
+    protected ISpreadDistributionEventContext ActorContext =>
+        IsArgumentNull.Set(Context as ISpreadDistributionEventContext, nameof(Context))!;
 
     public const string Actor = "SpreadDistributionEvent";
     static readonly Dictionary<string, Func<IEvent, IEventActorContext<SpreadDistributionEventActor>, ILogger, ValueTask<bool>>> _receiveMap = [];
@@ -59,7 +59,7 @@ public class SpreadDistributionEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, actorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, Context.Logger);
     }
 
     /// <summary>
@@ -82,7 +82,7 @@ public class SpreadDistributionEventActor(
         catch (Exception innerEx)
         {
             await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            actorContext.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -16,8 +16,8 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     : BaseEventSourceCommandActor<TestCommandActor>(actorContext, actorContext.Logger)
 {
     /// <summary>Gets the typed context owned by this actor.</summary>
-    protected ITestCommandContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as ITestCommandContext, nameof(actorContext))!;
+    protected ITestCommandContext ActorContext =>
+        IsArgumentNull.Set(Context as ITestCommandContext, nameof(Context))!;
 
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "TestCommand";
