@@ -76,6 +76,25 @@ public sealed class AwsScyllaProtectionSetPolicyTests
     }
 
     [Fact]
+    [Trait("Category", "Gate11")]
+    public void Native_snapshot_node_count_must_match_the_signed_live_topology()
+    {
+        var snapshot = Snapshot() with { NodeCount = 2 };
+
+        var action = () => AwsScyllaProtectionSetPolicy.ValidatePublication(
+            [],
+            new DatabaseBackupLineage
+            {
+                RequestedMode = DatabaseBackupMode.Full,
+                ResolvedMode = DatabaseBackupMode.Full,
+                NativeKind = DatabaseNativeBackupKind.ScyllaManagerSnapshot
+            },
+            Topology(), snapshot);
+
+        action.Should().Throw<InvalidDataException>().WithMessage("*complete Manager snapshot evidence*");
+    }
+
+    [Fact]
     [Trait("Category", "Gate12")]
     public void Signed_publication_creates_an_exact_restore_expectation()
     {
@@ -115,6 +134,7 @@ public sealed class AwsScyllaProtectionSetPolicyTests
         new string('B', 64),
         2,
         12,
+        3,
         48,
         "2025.1.4",
         "3.11.2");

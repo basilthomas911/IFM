@@ -40,14 +40,19 @@ public sealed class AwsDatabaseBackupRuntimeService(
                 }
 
                 var work = 0;
+                var outboxBacklog = 0;
                 await foreach (var pending in journal.ReadPendingServiceEventsAsync(hostOptions.OutboxBatchSize, stoppingToken).ConfigureAwait(false))
                 {
+                    outboxBacklog++;
                     await transport.PublishAsync(pending.Event, stoppingToken).ConfigureAwait(false);
                     await journal.MarkServiceEventPublishedAsync(pending.EventId, DateTimeOffset.UtcNow, stoppingToken).ConfigureAwait(false);
                     work++;
                 }
+                telemetry.RecordOutboxBacklog(outboxBacklog);
                 await foreach (var operation in journal.ReadRecoverableOperationsAsync(stoppingToken).ConfigureAwait(false))
                 {
+                    var age = DateTimeOffset.UtcNow - operation.Intent.ExecutionEvent.Source.ObservedUtc;
+                    telemetry.RecordIntentAge(age < TimeSpan.Zero ? TimeSpan.Zero : age);
                     await processor.ExecuteAsync(operation, stoppingToken).ConfigureAwait(false);
                     work++;
                 }

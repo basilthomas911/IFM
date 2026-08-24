@@ -22,7 +22,9 @@ $required = @(
     'AWSConfigBucketPermissionsCheck', 'AWSConfigBucketExistenceCheck', 'AWSConfigBucketDelivery',
     'AWSConfigRoleBucketCheck', 'AWSConfigRoleBucketDelivery', 'DependsOn: AuditBucketPolicy',
     'DependsOn: ConfigBucketPolicy', 'ConfigDeliveryBucketMustBeSeparate', 'SecurityAuditPrincipalArn:',
-    'SecurityAuditList', 'SecurityAuditRead'
+    'SecurityAuditList', 'SecurityAuditRead', 'AWS::CloudWatch::Dashboard', 'IFM/DatabaseBackup',
+    'ifm.database_backup.aws.intent.age', 'ifm.database_backup.aws.restore.verifications',
+    'ifm.database_backup.aws.estimated_cost'
 )
 $all = ($templates | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
 foreach ($token in $required) {

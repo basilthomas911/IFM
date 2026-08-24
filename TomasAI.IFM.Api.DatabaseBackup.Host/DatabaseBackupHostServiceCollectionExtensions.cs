@@ -191,6 +191,11 @@ public static class DatabaseBackupHostServiceCollectionExtensions
         {
             services.AddSingleton<AwsDatabaseBackupRuntimeService>();
             services.AddHostedService(static provider => provider.GetRequiredService<AwsDatabaseBackupRuntimeService>());
+            if (awsOptions.CloudWatchMetricsEnabled)
+            {
+                services.AddSingleton<AwsCloudWatchMetricExportService>();
+                services.AddHostedService(static provider => provider.GetRequiredService<AwsCloudWatchMetricExportService>());
+            }
         }
         services.AddSingleton<DatabaseBackupInboundListener>();
         services.AddHostedService(static provider => provider.GetRequiredService<DatabaseBackupInboundListener>());

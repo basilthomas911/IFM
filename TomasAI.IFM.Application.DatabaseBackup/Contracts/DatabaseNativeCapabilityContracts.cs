@@ -131,6 +131,7 @@ public sealed record ScyllaSnapshotEvidence(
     string NativeManifestSha256,
     int KeyspaceCount,
     int TableCount,
+    int NodeCount,
     int ArtifactCount,
     string ScyllaVersion,
     string ManagerVersion);

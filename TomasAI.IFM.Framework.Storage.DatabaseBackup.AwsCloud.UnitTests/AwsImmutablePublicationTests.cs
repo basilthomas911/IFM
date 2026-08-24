@@ -83,6 +83,7 @@ public sealed class AwsImmutablePublicationTests
         result.Sha256.Should().Be(Convert.ToHexString(hash));
         put!.ServerSideEncryptionKeyManagementServiceKeyId.Should().Be(options.PrimaryEncryptionKeyArn);
         put.ObjectLockMode.Should().Be(ObjectLockMode.Governance);
+        put.ChecksumAlgorithm.Should().Be(ChecksumAlgorithm.SHA256);
         put.ChecksumSHA256.Should().Be(Convert.ToBase64String(hash));
     }
 

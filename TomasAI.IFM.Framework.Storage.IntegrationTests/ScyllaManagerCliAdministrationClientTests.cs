@@ -39,7 +39,7 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
         capture.Topology.SchemaAgreement.Should().BeTrue();
         capture.ScyllaVersion.Should().Be("2025.1.4");
         capture.ManagerVersion.Should().Contain("3.11.2");
-        capture.ArtifactReferences.Should().HaveCount(2);
+        capture.ArtifactReferences.Should().HaveCount(3);
         capture.KeyspaceCount.Should().Be(1);
         capture.TableCount.Should().Be(1);
         verification.Succeeded.Should().BeTrue();
@@ -61,6 +61,22 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
             && value.Arguments.SequenceEqual(new[] { "tasks", "--cluster", "gate7-source" }));
         runner.Invocations.SelectMany(static value => value.Arguments)
             .Should().NotContain(static argument => argument.Contains(';') || argument.Contains("password", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    [Trait("Category", "Gate11")]
+    public async Task Manager_adapter_rejects_a_completed_snapshot_missing_a_live_node()
+    {
+        var options = Options();
+        var client = new ScyllaManagerCliAdministrationClient(options, new DeterministicManagerRunner(omitThirdNode: true));
+        var native = Directory.CreateDirectory(Path.Combine(_root, "incomplete-native")).FullName;
+
+        await client.ValidateAsync(CancellationToken.None);
+        var action = async () => await client.CaptureAsync(
+            new DatabaseRecoveryOperationId(Guid.NewGuid()), options.ProtectionSets["read-model-scylla"], native,
+            new Progress<DatabaseNativeProgress>(), CancellationToken.None);
+
+        await action.Should().ThrowAsync<InvalidDataException>().WithMessage("*does not cover every live topology node*");
     }
 
     ScyllaBackupOptions Options() => new()
@@ -98,7 +114,7 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    sealed class DeterministicManagerRunner : IScyllaManagerProcessRunner
+    sealed class DeterministicManagerRunner(bool omitThirdNode = false) : IScyllaManagerProcessRunner
     {
         public List<ScyllaManagerInvocation> Invocations { get; } = [];
 
@@ -115,7 +131,7 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
                 ScyllaManagerOperation.Backup => "backup/11111111-1111-1111-1111-111111111111",
                 ScyllaManagerOperation.Tasks => Tasks,
                 ScyllaManagerOperation.BackupList => "sm_20260812010203UTC",
-                ScyllaManagerOperation.BackupFiles => Artifacts,
+                ScyllaManagerOperation.BackupFiles => omitThirdNode ? IncompleteArtifacts : Artifacts,
                 ScyllaManagerOperation.RestoreSchema => "restore/22222222-2222-2222-2222-222222222222",
                 ScyllaManagerOperation.RestoreTables => "restore/33333333-3333-3333-3333-333333333333",
                 _ => throw new ArgumentOutOfRangeException()
@@ -131,8 +147,14 @@ public sealed class ScyllaManagerCliAdministrationClientTests : IDisposable
             """;
 
         const string Artifacts = """
-            s3/gate7/schema.cql|gate7_keyspace|probe
-            s3/gate7/me-1-big-Data.db|gate7_keyspace|probe
+            s3://gate7-backups/backup/schema/node/11111111-1111-1111-1111-111111111111/schema.cql|gate7_keyspace|probe
+            s3://gate7-backups/backup/sst/node/22222222-2222-2222-2222-222222222222/me-1-big-Data.db|gate7_keyspace|probe
+            s3://gate7-backups/backup/sst/node/33333333-3333-3333-3333-333333333333/me-2-big-Data.db|gate7_keyspace|probe
+            """;
+
+        const string IncompleteArtifacts = """
+            s3://gate7-backups/backup/schema/node/11111111-1111-1111-1111-111111111111/schema.cql|gate7_keyspace|probe
+            s3://gate7-backups/backup/sst/node/22222222-2222-2222-2222-222222222222/me-1-big-Data.db|gate7_keyspace|probe
             """;
 
         const string Tasks = """

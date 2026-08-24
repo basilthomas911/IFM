@@ -38,7 +38,8 @@ public static class AwsScyllaProtectionSetPolicy
         if (snapshot is null || string.IsNullOrWhiteSpace(snapshot.SnapshotTag)
             || string.IsNullOrWhiteSpace(snapshot.ManagerTaskReference)
             || snapshot.SchemaSha256?.Length != 64 || snapshot.NativeManifestSha256?.Length != 64
-            || snapshot.KeyspaceCount <= 0 || snapshot.TableCount <= 0 || snapshot.ArtifactCount <= 0
+            || snapshot.KeyspaceCount <= 0 || snapshot.TableCount <= 0 || snapshot.NodeCount <= 0
+            || snapshot.NodeCount != topology.LiveNodeCount || snapshot.ArtifactCount <= 0
             || string.IsNullOrWhiteSpace(snapshot.ScyllaVersion) || string.IsNullOrWhiteSpace(snapshot.ManagerVersion))
             throw new InvalidDataException("The Scylla publication does not contain complete Manager snapshot evidence.");
     }

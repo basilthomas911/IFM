@@ -6,7 +6,7 @@ services:
     container_name: ifm-scylla-aio-init
     privileged: true
     entrypoint: [ "/usr/sbin/sysctl" ]
-    command: [ "-w", "fs.aio-max-nr=${IFM_SCYLLA_AIO_MAX_NR:-262144}" ]
+    command: [ "-w", "fs.aio-max-nr=${IFM_SCYLLA_AIO_MAX_NR:-1048576}" ]
     restart: "no"
 
   scylla-backup-s3:
@@ -48,7 +48,10 @@ services:
         mc mb --ignore-existing ifm/ifm-development &&
         mc mb --ignore-existing ifm/ifm-development-restore &&
         mc mb --ignore-existing ifm/ifm-development-restore-primary &&
-        mc mb --ignore-existing ifm/ifm-development-restore-recovery
+        mc mb --ignore-existing ifm/ifm-development-restore-recovery &&
+        mc mb --ignore-existing ifm/ifm-gate11-development &&
+        mc mb --ignore-existing ifm/ifm-gate11-restore-primary &&
+        mc mb --ignore-existing ifm/ifm-gate11-restore-recovery
     networks:
       - scylla-management
     restart: "no"
@@ -84,6 +87,11 @@ services:
     ports:
       - "127.0.0.1:5080:5080"
       - "127.0.0.1:5090:5090"
+    volumes:
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /run/ifm/scylla-manager-agent.yaml
+        read_only: true
     networks:
       scylla-management:
         ipv4_address: 172.30.20.20
@@ -143,11 +151,203 @@ services:
       start_period: 90s
       retries: 20
 
+  scylla-gate11-source-1:
+    profiles: [ "gate11" ]
+    image: ifm/scylla-with-manager-agent:6.2.2-3.4.2
+    build:
+      context: ../ScyllaDb
+      dockerfile: Dockerfile
+    container_name: ifm-scylla-gate11-source-1
+    depends_on:
+      aio-init:
+        condition: service_completed_successfully
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --overprovisioned
+      - "1"
+      - --developer-mode
+      - "1"
+      - --cluster-name
+      - ifm-gate11-source
+      - --seeds
+      - 172.30.20.12
+      - --listen-address
+      - 172.30.20.12
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - 172.30.20.12
+    volumes:
+      - gate11-source-1-data:/var/lib/scylla
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /etc/scylla-manager-agent/scylla-manager-agent.yaml
+        read_only: true
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.12
+    stop_grace_period: 2m
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
+  scylla-gate11-source-2:
+    profiles: [ "gate11" ]
+    image: ifm/scylla-with-manager-agent:6.2.2-3.4.2
+    build:
+      context: ../ScyllaDb
+      dockerfile: Dockerfile
+    container_name: ifm-scylla-gate11-source-2
+    depends_on:
+      scylla-gate11-source-1:
+        condition: service_healthy
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --overprovisioned
+      - "1"
+      - --developer-mode
+      - "1"
+      - --cluster-name
+      - ifm-gate11-source
+      - --seeds
+      - 172.30.20.12
+      - --listen-address
+      - 172.30.20.13
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - 172.30.20.13
+    volumes:
+      - gate11-source-2-data:/var/lib/scylla
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /etc/scylla-manager-agent/scylla-manager-agent.yaml
+        read_only: true
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.13
+    stop_grace_period: 2m
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
+  scylla-gate12-restore-1:
+    profiles: [ "gate11" ]
+    image: ifm/scylla-with-manager-agent:6.2.2-3.4.2
+    build:
+      context: ../ScyllaDb
+      dockerfile: Dockerfile
+    container_name: ifm-scylla-gate12-restore-1
+    depends_on:
+      aio-init:
+        condition: service_completed_successfully
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --overprovisioned
+      - "1"
+      - --developer-mode
+      - "1"
+      - --cluster-name
+      - ifm-gate12-restore
+      - --seeds
+      - 172.30.20.14
+      - --listen-address
+      - 172.30.20.14
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - 172.30.20.14
+    volumes:
+      - gate12-restore-1-data:/var/lib/scylla
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /etc/scylla-manager-agent/scylla-manager-agent.yaml
+        read_only: true
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.14
+    stop_grace_period: 2m
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
+  scylla-gate12-restore-2:
+    profiles: [ "gate11" ]
+    image: ifm/scylla-with-manager-agent:6.2.2-3.4.2
+    build:
+      context: ../ScyllaDb
+      dockerfile: Dockerfile
+    container_name: ifm-scylla-gate12-restore-2
+    depends_on:
+      scylla-gate12-restore-1:
+        condition: service_healthy
+    command:
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --overprovisioned
+      - "1"
+      - --developer-mode
+      - "1"
+      - --cluster-name
+      - ifm-gate12-restore
+      - --seeds
+      - 172.30.20.14
+      - --listen-address
+      - 172.30.20.15
+      - --rpc-address
+      - 0.0.0.0
+      - --broadcast-rpc-address
+      - 172.30.20.15
+    volumes:
+      - gate12-restore-2-data:/var/lib/scylla
+      - type: bind
+        source: ${IFM_SCYLLA_MANAGER_AGENT_CONFIG:-E:/IFM/DatabaseBackup/secrets/scylla-manager-agent.yaml}
+        target: /etc/scylla-manager-agent/scylla-manager-agent.yaml
+        read_only: true
+    networks:
+      scylla-management:
+        ipv4_address: 172.30.20.15
+    stop_grace_period: 2m
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "--silent", "http://127.0.0.1:10000/storage_service/scylla_release_version" ]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 20
+
 volumes:
   manager-db-data:
     name: ifm_scylla_manager_db_data
   restore-validation-data:
     name: ifm_scylla_restore_validation_data
+  gate11-source-1-data:
+    name: ifm_scylla_gate11_source_1_data
+  gate11-source-2-data:
+    name: ifm_scylla_gate11_source_2_data
+  gate12-restore-1-data:
+    name: ifm_scylla_gate12_restore_1_data
+  gate12-restore-2-data:
+    name: ifm_scylla_gate12_restore_2_data
 
 networks:
   scylla-management:

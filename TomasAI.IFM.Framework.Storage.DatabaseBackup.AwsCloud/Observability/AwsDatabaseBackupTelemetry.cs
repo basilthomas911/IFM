@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using Amazon.CloudWatch;
 using TomasAI.IFM.Domain.SystemAdmin.Shared.DatabaseBackup.Contracts;
 
 namespace TomasAI.IFM.Framework.Storage.DatabaseBackup.AwsCloud.Observability;
@@ -43,6 +44,7 @@ public sealed class AwsDatabaseBackupTelemetry : IDisposable
     readonly Counter<long> _restoreVerifications;
     readonly Counter<long> _retentionDrift;
     readonly Histogram<double> _phaseAge;
+    readonly Histogram<double> _intentAge;
     readonly Histogram<double> _uploadThroughput;
     readonly Histogram<double> _walLag;
     readonly Histogram<double> _replicationLag;
@@ -51,9 +53,11 @@ public sealed class AwsDatabaseBackupTelemetry : IDisposable
     readonly Histogram<double> _estimatedCost;
     readonly Histogram<long> _outboxBacklog;
     readonly Histogram<long> _staleMultipart;
+    readonly AwsCloudWatchMetricBuffer? _cloudWatch;
 
-    public AwsDatabaseBackupTelemetry()
+    public AwsDatabaseBackupTelemetry(AwsCloudWatchMetricBuffer? cloudWatch = null)
     {
+        _cloudWatch = cloudWatch;
         _runtimeFailures = _meter.CreateCounter<long>("ifm.database_backup.aws.runtime.failures", "{failure}");
         _journalConflicts = _meter.CreateCounter<long>("ifm.database_backup.aws.journal.conflicts", "{conflict}");
         _walGaps = _meter.CreateCounter<long>("ifm.database_backup.aws.wal.gaps", "{gap}");
@@ -62,6 +66,7 @@ public sealed class AwsDatabaseBackupTelemetry : IDisposable
         _restoreVerifications = _meter.CreateCounter<long>("ifm.database_backup.aws.restore.verifications", "{verification}");
         _retentionDrift = _meter.CreateCounter<long>("ifm.database_backup.aws.retention.drift", "{drift}");
         _phaseAge = _meter.CreateHistogram<double>("ifm.database_backup.aws.operation.phase_age", "s");
+        _intentAge = _meter.CreateHistogram<double>("ifm.database_backup.aws.intent.age", "s");
         _uploadThroughput = _meter.CreateHistogram<double>("ifm.database_backup.aws.upload.throughput", "By/s");
         _walLag = _meter.CreateHistogram<double>("ifm.database_backup.aws.wal.lag", "s");
         _replicationLag = _meter.CreateHistogram<double>("ifm.database_backup.aws.replication.lag", "s");
@@ -72,30 +77,126 @@ public sealed class AwsDatabaseBackupTelemetry : IDisposable
         _staleMultipart = _meter.CreateHistogram<long>("ifm.database_backup.aws.multipart.stale", "{upload}");
     }
 
-    public void RecordRuntimeFailure(string category) => _runtimeFailures.Add(1, Tag("category", category));
-    public void RecordJournalConflict(string category) => _journalConflicts.Add(1, Tag("category", category));
-    public void RecordWalGap() => _walGaps.Add(1);
-    public void RecordReplicationFailure(string category) => _replicationFailures.Add(1, Tag("category", category));
-    public void RecordKmsDenial(string operation) => _kmsDenials.Add(1, Tag("operation", operation));
+    public void RecordRuntimeFailure(string category)
+    {
+        var tag = Tag("category", category);
+        _runtimeFailures.Add(1, tag);
+        RecordCloudWatch("ifm.database_backup.aws.runtime.failures", 1, StandardUnit.Count, tag);
+    }
+
+    public void RecordJournalConflict(string category)
+    {
+        var tag = Tag("category", category);
+        _journalConflicts.Add(1, tag);
+        RecordCloudWatch("ifm.database_backup.aws.journal.conflicts", 1, StandardUnit.Count, tag);
+    }
+
+    public void RecordWalGap()
+    {
+        _walGaps.Add(1);
+        RecordCloudWatch("ifm.database_backup.aws.wal.gaps", 1, StandardUnit.Count);
+    }
+
+    public void RecordReplicationFailure(string category)
+    {
+        var tag = Tag("category", category);
+        _replicationFailures.Add(1, tag);
+        RecordCloudWatch("ifm.database_backup.aws.replication.failures", 1, StandardUnit.Count, tag);
+    }
+
+    public void RecordKmsDenial(string operation)
+    {
+        var tag = Tag("operation", operation);
+        _kmsDenials.Add(1, tag);
+        RecordCloudWatch("ifm.database_backup.aws.kms.denials", 1, StandardUnit.Count, tag);
+    }
+
     public void RecordRestoreVerification(DatabaseEngine engine, bool succeeded)
-        => _restoreVerifications.Add(1, EngineTag(engine), new("outcome", succeeded ? "succeeded" : "failed"));
-    public void RecordRetentionDrift(string category) => _retentionDrift.Add(1, Tag("category", category));
+    {
+        var engineTag = EngineTag(engine);
+        var outcomeTag = new KeyValuePair<string, object?>("outcome", succeeded ? "succeeded" : "failed");
+        _restoreVerifications.Add(1, engineTag, outcomeTag);
+        RecordCloudWatch("ifm.database_backup.aws.restore.verifications", 1, StandardUnit.Count, engineTag, outcomeTag);
+    }
+
+    public void RecordRetentionDrift(string category)
+    {
+        var tag = Tag("category", category);
+        _retentionDrift.Add(1, tag);
+        RecordCloudWatch("ifm.database_backup.aws.retention.drift", 1, StandardUnit.Count, tag);
+    }
+
     public void RecordPhaseAge(DatabaseEngine engine, string phase, TimeSpan age)
-        => _phaseAge.Record(Seconds(age), EngineTag(engine), Tag("phase", phase));
+    {
+        var engineTag = EngineTag(engine);
+        var phaseTag = Tag("phase", phase);
+        var seconds = Seconds(age);
+        _phaseAge.Record(seconds, engineTag, phaseTag);
+        RecordCloudWatch("ifm.database_backup.aws.operation.phase_age", seconds, StandardUnit.Seconds, engineTag, phaseTag);
+    }
+
+    public void RecordIntentAge(TimeSpan age)
+    {
+        var seconds = Seconds(age);
+        _intentAge.Record(seconds);
+        RecordCloudWatch("ifm.database_backup.aws.intent.age", seconds, StandardUnit.Seconds);
+    }
+
     public void RecordUpload(DatabaseEngine engine, long bytes, TimeSpan elapsed)
-        => _uploadThroughput.Record(elapsed > TimeSpan.Zero ? bytes / elapsed.TotalSeconds : 0, EngineTag(engine));
-    public void RecordWalLag(TimeSpan lag) => _walLag.Record(Seconds(lag));
+    {
+        var engineTag = EngineTag(engine);
+        var throughput = elapsed > TimeSpan.Zero ? bytes / elapsed.TotalSeconds : 0;
+        _uploadThroughput.Record(throughput, engineTag);
+        RecordCloudWatch("ifm.database_backup.aws.upload.throughput", throughput, StandardUnit.BytesSecond, engineTag);
+    }
+
+    public void RecordWalLag(TimeSpan lag)
+    {
+        var seconds = Seconds(lag);
+        _walLag.Record(seconds);
+        RecordCloudWatch("ifm.database_backup.aws.wal.lag", seconds, StandardUnit.Seconds);
+    }
+
     public void RecordReplicationLag(DatabaseEngine engine, TimeSpan lag)
-        => _replicationLag.Record(Seconds(lag), EngineTag(engine));
+    {
+        var engineTag = EngineTag(engine);
+        var seconds = Seconds(lag);
+        _replicationLag.Record(seconds, engineTag);
+        RecordCloudWatch("ifm.database_backup.aws.replication.lag", seconds, StandardUnit.Seconds, engineTag);
+    }
+
     public void RecordRecoveryObjectives(DatabaseEngine engine, TimeSpan rpo, TimeSpan rto)
     {
-        _rpo.Record(Seconds(rpo), EngineTag(engine));
-        _rto.Record(Seconds(rto), EngineTag(engine));
+        var engineTag = EngineTag(engine);
+        var rpoSeconds = Seconds(rpo);
+        var rtoSeconds = Seconds(rto);
+        _rpo.Record(rpoSeconds, engineTag);
+        _rto.Record(rtoSeconds, engineTag);
+        RecordCloudWatch("ifm.database_backup.aws.rpo", rpoSeconds, StandardUnit.Seconds, engineTag);
+        RecordCloudWatch("ifm.database_backup.aws.rto", rtoSeconds, StandardUnit.Seconds, engineTag);
     }
+
     public void RecordEstimatedCost(string category, decimal usd)
-        => _estimatedCost.Record((double)Math.Max(0, usd), Tag("category", category));
-    public void RecordOutboxBacklog(long count) => _outboxBacklog.Record(Math.Max(0, count));
-    public void RecordStaleMultipart(long count) => _staleMultipart.Record(Math.Max(0, count));
+    {
+        var tag = Tag("category", category);
+        var value = (double)Math.Max(0, usd);
+        _estimatedCost.Record(value, tag);
+        RecordCloudWatch("ifm.database_backup.aws.estimated_cost", value, StandardUnit.None, tag);
+    }
+
+    public void RecordOutboxBacklog(long count)
+    {
+        var value = Math.Max(0, count);
+        _outboxBacklog.Record(value);
+        RecordCloudWatch("ifm.database_backup.aws.outbox.backlog", value, StandardUnit.Count);
+    }
+
+    public void RecordStaleMultipart(long count)
+    {
+        var value = Math.Max(0, count);
+        _staleMultipart.Record(value);
+        RecordCloudWatch("ifm.database_backup.aws.multipart.stale", value, StandardUnit.Count);
+    }
 
     static KeyValuePair<string, object?> EngineTag(DatabaseEngine engine)
         => new("engine", engine == DatabaseEngine.ScyllaDb ? "scylladb" : "postgresql");
@@ -112,6 +213,21 @@ public sealed class AwsDatabaseBackupTelemetry : IDisposable
     {
         if (value < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(value));
         return value.TotalSeconds;
+    }
+
+    void RecordCloudWatch(
+        string name,
+        double value,
+        StandardUnit unit,
+        params KeyValuePair<string, object?>[] tags)
+    {
+        if (_cloudWatch is null) return;
+        var dimensions = tags.ToDictionary(
+            static tag => tag.Key,
+            static tag => Convert.ToString(tag.Value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            StringComparer.Ordinal);
+        _cloudWatch.Record(new AwsCloudWatchMetricSample(
+            name, value, unit, DateTime.UtcNow, dimensions));
     }
 
     public void Dispose() => _meter.Dispose();

@@ -9,10 +9,12 @@ $executionRoleArn = "arn:aws:iam::$accountId`:role/IFM-Gate4-CloudFormationExecu
 $paths = [ordered]@{
     Trust = Join-Path $PolicyRoot 'cloudformation-execution-role-trust-policy.json'
     Execution = Join-Path $PolicyRoot 'cloudformation-execution-policy.json'
+    Gate15Execution = Join-Path $PolicyRoot 'gate15-cloudformation-execution-policy.json'
     Deployer = Join-Path $PolicyRoot 'gate4-deployer-policy.json'
     Inputs = Join-Path $PolicyRoot 'deployment-inputs.json'
     Outputs = Join-Path $PolicyRoot 'deployed-stack-outputs.json'
     Qualification = Join-Path $PolicyRoot 'gate4-live-qualification.json'
+    LiveQualification = Join-Path $PolicyRoot 'gate5-10-live-qualification-policy.json'
 }
 
 foreach ($path in $paths.Values) {
@@ -21,10 +23,12 @@ foreach ($path in $paths.Values) {
 
 $trust = Get-Content -LiteralPath $paths.Trust -Raw | ConvertFrom-Json
 $execution = Get-Content -LiteralPath $paths.Execution -Raw | ConvertFrom-Json
+$gate15Execution = Get-Content -LiteralPath $paths.Gate15Execution -Raw | ConvertFrom-Json
 $deployer = Get-Content -LiteralPath $paths.Deployer -Raw | ConvertFrom-Json
 $inputs = Get-Content -LiteralPath $paths.Inputs -Raw | ConvertFrom-Json
 $outputs = Get-Content -LiteralPath $paths.Outputs -Raw | ConvertFrom-Json
 $qualification = Get-Content -LiteralPath $paths.Qualification -Raw | ConvertFrom-Json
+$liveQualification = Get-Content -LiteralPath $paths.LiveQualification -Raw | ConvertFrom-Json
 
 if (@($trust.Statement).Count -ne 1 -or $trust.Statement[0].Effect -ne 'Allow' -or
     $trust.Statement[0].Principal.Service -ne 'cloudformation.amazonaws.com' -or
@@ -33,8 +37,10 @@ if (@($trust.Statement).Count -ne 1 -or $trust.Statement[0].Effect -ne 'Allow' -
 }
 
 $executionActions = @($execution.Statement | ForEach-Object { @($_.Action) })
+$gate15ExecutionActions = @($gate15Execution.Statement | ForEach-Object { @($_.Action) })
+$cloudFormationExecutionActions = @($executionActions + $gate15ExecutionActions)
 $deployerActions = @($deployer.Statement | ForEach-Object { @($_.Action) })
-$allActions = @($executionActions + $deployerActions)
+$allActions = @($cloudFormationExecutionActions + $deployerActions)
 if ($allActions | Where-Object { $_ -eq '*' -or $_ -match ':\*$' }) {
     throw 'Wildcard IAM actions are prohibited in Gate 4 deployment policies.'
 }
@@ -49,6 +55,31 @@ foreach ($action in $prohibited) {
 }
 if ($deployerActions | Where-Object { $_ -match '^s3:Delete' }) {
     throw 'The Gate 4 deployer must not receive any S3 deletion permission.'
+}
+
+$liveQualificationActions = @($liveQualification.Statement | ForEach-Object { @($_.Action) })
+foreach ($action in @('s3:DeleteObject', 's3:DeleteObjectVersion', 's3:BypassGovernanceRetention',
+    's3:PutObjectLegalHold', 'iam:AttachUserPolicy', 'iam:CreatePolicyVersion', 'kms:ScheduleKeyDeletion')) {
+    if ($liveQualificationActions -contains $action) {
+        throw "The temporary live-qualification policy contains prohibited action '$action'."
+    }
+}
+foreach ($action in @('kms:Decrypt', 'kms:GenerateDataKey', 'cloudwatch:PutMetricData', 'sts:AssumeRole')) {
+    if ($liveQualificationActions -notcontains $action) {
+        throw "The temporary live-qualification policy is missing '$action'."
+    }
+}
+$metricPublication = @($liveQualification.Statement | Where-Object { @($_.Action) -contains 'cloudwatch:PutMetricData' })
+if ($metricPublication.Count -ne 1 -or
+    $metricPublication[0].Condition.StringEquals.'cloudwatch:namespace' -ne 'IFM/DatabaseBackup') {
+    throw 'CloudWatch metric publication must be restricted to the IFM/DatabaseBackup namespace.'
+}
+$retentionAssumption = @($liveQualification.Statement | Where-Object {
+    @($_.Action) -contains 'sts:AssumeRole' -and
+    $_.Resource -eq "arn:aws:iam::$accountId`:role/ifm-database-backup-retention-execution-development"
+})
+if ($retentionAssumption.Count -ne 1) {
+    throw 'Gate 14 may assume only the exact MFA-gated Development retention execution role.'
 }
 
 $approvedQualificationActions = @(
@@ -74,6 +105,15 @@ foreach ($driftAction in @('cloudformation:DetectStackDrift', 'cloudformation:De
 if ($executionActions -notcontains 'cloudwatch:ListTagsForResource') {
     throw 'The execution role must be able to read CloudWatch alarm tags for drift detection.'
 }
+if ($gate15ExecutionActions -notcontains 'cloudwatch:PutDashboard') {
+    throw 'The execution role must be able to deploy the exact Development backup dashboard.'
+}
+if ($gate15ExecutionActions -notcontains 'sns:CreateTopic') {
+    throw 'The execution role must be able to deploy the exact Development backup alarm topic.'
+}
+if ($gate15ExecutionActions -notcontains 'sns:ListTagsForResource') {
+    throw 'The execution role must be able to read the exact Development backup alarm-topic tags for drift detection.'
+}
 if ($executionActions -notcontains 'config:DescribeComplianceByConfigRule') {
     throw 'The execution role must be able to read AWS Config rule compliance for drift detection.'
 }
@@ -82,9 +122,23 @@ $approvedWildcardResourceSids = @(
     'CreateTaggedBackupKeys', 'ManageDevelopmentConfig', 'PermitRequiredBillingApiForDevelopmentBudget',
     'ReadGate4StackListsAndDrift', 'ValidateGate4Templates'
 )
-foreach ($statement in @($execution.Statement) + @($deployer.Statement)) {
+foreach ($statement in @($execution.Statement) + @($gate15Execution.Statement) + @($deployer.Statement)) {
     if (@($statement.Resource) -contains '*' -and $approvedWildcardResourceSids -notcontains $statement.Sid) {
         throw "Unapproved wildcard resource scope found in statement '$($statement.Sid)'."
+    }
+}
+
+$managedPolicyPaths = @(
+    $paths.Execution,
+    $paths.Gate15Execution,
+    $paths.Deployer,
+    $paths.LiveQualification
+)
+foreach ($managedPolicyPath in $managedPolicyPaths) {
+    $policy = Get-Content -LiteralPath $managedPolicyPath -Raw | ConvertFrom-Json
+    $policyCharacterCount = ($policy | ConvertTo-Json -Depth 100 -Compress).Length
+    if ($policyCharacterCount -gt 6144) {
+        throw "Customer-managed policy '$managedPolicyPath' contains $policyCharacterCount non-whitespace characters; the IAM limit is 6144."
     }
 }
 
@@ -155,7 +209,7 @@ if ($allowlist.environments.Staging.awsMutationAuthorized -or
 
 [pscustomobject]@{
     Result = 'Passed'
-    PolicyCount = 3
+    PolicyCount = 5
     Environment = $inputs.environment
     AccountId = $inputs.accountId
     MutationPerformed = $false

@@ -81,6 +81,8 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
             throw new InvalidDataException("Scylla Manager did not publish a snapshot tag for the completed backup.");
         var snapshotTag = tags[^1];
         var manifest = await ReadManifestAsync(protectionSet, snapshotTag, cancellationToken).ConfigureAwait(false);
+        if (manifest.NodeCount != topology.LiveNodeCount)
+            throw new InvalidDataException("The completed Scylla Manager snapshot does not cover every live topology node.");
         await File.WriteAllTextAsync(Path.Combine(nativeDirectory, "manager-artifacts.txt"),
             string.Join(Environment.NewLine, manifest.Artifacts), cancellationToken).ConfigureAwait(false);
         await File.WriteAllTextAsync(Path.Combine(nativeDirectory, "schema.sha256"), manifest.SchemaSha256, cancellationToken)
@@ -109,7 +111,8 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
             && string.Equals(manifest.SchemaSha256, capture.SchemaSha256, StringComparison.Ordinal)
             && string.Equals(Sha256(localArtifacts.Replace("\r\n", "\n", StringComparison.Ordinal)), capture.NativeManifestSha256, StringComparison.Ordinal)
             && string.Equals(localSchema, capture.SchemaSha256, StringComparison.Ordinal)
-            && capture.Topology.SchemaAgreement;
+            && capture.Topology.SchemaAgreement
+            && manifest.NodeCount == capture.Topology.LiveNodeCount;
         return new ScyllaNativeVerification(succeeded, capture.Topology, manifest.ManifestSha256, 0, Stopwatch.GetElapsedTime(started));
     }
 
@@ -230,7 +233,7 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         throw new TimeoutException("The Scylla Manager task exceeded its configured timeout.");
     }
 
-    async ValueTask<(string[] Artifacts, string SchemaSha256, string ManifestSha256, int KeyspaceCount, int TableCount)>
+    async ValueTask<(string[] Artifacts, string SchemaSha256, string ManifestSha256, int KeyspaceCount, int TableCount, int NodeCount)>
         ReadManifestAsync(
             ScyllaProtectionSetOptions protectionSet,
             string snapshotTag,
@@ -250,8 +253,12 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         if (schemaLines.Length == 0) schemaLines = artifacts;
         var tables = artifacts.Select(ParseUnit).Where(static value => value is not null).Select(static value => value!.Value)
             .Distinct().ToArray();
+        var nodes = artifacts.Select(ParseNodeId).Where(static value => value is not null)
+            .Distinct(StringComparer.Ordinal).Count();
+        if (nodes == 0)
+            throw new InvalidDataException("Scylla Manager returned no node identity in the native backup manifest.");
         return (artifacts, Sha256(string.Join('\n', schemaLines)), Sha256(string.Join('\n', artifacts)),
-            tables.Select(static value => value.Keyspace).Distinct(StringComparer.Ordinal).Count(), tables.Length);
+            tables.Select(static value => value.Keyspace).Distinct(StringComparer.Ordinal).Count(), tables.Length, nodes);
     }
 
     ValueTask<ScyllaManagerProcessResult> RunAsync(
@@ -266,6 +273,16 @@ internal sealed partial class ScyllaManagerCliAdministrationClient : IScyllaAdmi
         var values = line.Split('|', StringSplitOptions.TrimEntries);
         if (values.Length < 3 || string.IsNullOrWhiteSpace(values[^2]) || string.IsNullOrWhiteSpace(values[^1])) return null;
         return (values[^2], values[^1]);
+    }
+
+    static string? ParseNodeId(string line)
+    {
+        const string marker = "/node/";
+        var start = line.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0) return null;
+        start += marker.Length;
+        var end = line.IndexOf('/', start);
+        return end > start ? line[start..end] : null;
     }
 
     static string Sha256(string value)

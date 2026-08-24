@@ -1,4 +1,5 @@
 using Amazon;
+using Amazon.CloudWatch;
 using Amazon.DynamoDBv2;
 using Amazon.KeyManagementService;
 using Amazon.Runtime;
@@ -31,7 +32,11 @@ public static class AwsCloudServiceCollectionExtensions
         if (!options.Enabled) return services;
 
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<AwsDatabaseBackupTelemetry>();
+        services.AddSingleton(provider => new AwsCloudWatchMetricBuffer(options.CloudWatchMetricBufferCapacity));
+        services.AddSingleton(provider => new AwsDatabaseBackupTelemetry(
+            options.CloudWatchMetricsEnabled
+                ? provider.GetRequiredService<AwsCloudWatchMetricBuffer>()
+                : null));
         services.AddSingleton<AWSCredentials>(_ => CreateCredentials(options));
         services.AddSingleton<IAmazonSecurityTokenService>(provider => new AmazonSecurityTokenServiceClient(
             provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonSecurityTokenServiceConfig>(options.PrimaryRegion, options)));
@@ -53,6 +58,12 @@ public static class AwsCloudServiceCollectionExtensions
             provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonDynamoDBConfig>(options.PrimaryRegion, options)));
         services.AddSingleton<IAmazonKeyManagementService>(provider => new AmazonKeyManagementServiceClient(
             provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonKeyManagementServiceConfig>(options.PrimaryRegion, options)));
+        if (options.CloudWatchMetricsEnabled)
+        {
+            services.AddSingleton<IAmazonCloudWatch>(provider => new AmazonCloudWatchClient(
+                provider.GetRequiredService<AWSCredentials>(), ServiceConfig<AmazonCloudWatchConfig>(options.PrimaryRegion, options)));
+            services.AddSingleton<AwsCloudWatchMetricExporter>();
+        }
         services.AddSingleton<IAwsIdentityPreflight, AwsIdentityPreflight>();
         services.AddSingleton<AwsCredentialSessionInspector>();
         services.AddSingleton<DynamoDbDatabaseBackupExecutionJournal>();

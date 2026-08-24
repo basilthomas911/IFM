@@ -96,6 +96,7 @@ public sealed class S3ImmutableObjectStore(
             {
                 BucketName = options.PrimaryBucketName, Key = key.Value, InputStream = source,
                 AutoCloseStream = false,
+                ChecksumAlgorithm = ChecksumAlgorithm.SHA256,
                 ChecksumSHA256 = checksum,
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AWSKMS,
                 ServerSideEncryptionKeyManagementServiceKeyId = options.PrimaryEncryptionKeyArn,

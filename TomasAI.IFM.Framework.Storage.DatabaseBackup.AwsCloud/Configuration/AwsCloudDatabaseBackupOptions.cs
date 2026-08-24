@@ -51,6 +51,10 @@ public sealed class AwsCloudDatabaseBackupOptions
     public long MinimumStagingFreeBytes { get; set; } = 4L * 1024 * 1024 * 1024;
     public long MaximumScyllaProtectionSetBytes { get; set; } = 512L * 1024 * 1024 * 1024;
     public decimal MonthlyCostBudgetUsd { get; set; } = 100m;
+    public bool CloudWatchMetricsEnabled { get; set; } = true;
+    public string CloudWatchMetricNamespace { get; set; } = "IFM/DatabaseBackup";
+    public TimeSpan CloudWatchExportInterval { get; set; } = TimeSpan.FromMinutes(1);
+    public int CloudWatchMetricBufferCapacity { get; set; } = 4096;
 
     public void Validate()
     {
@@ -105,6 +109,12 @@ public sealed class AwsCloudDatabaseBackupOptions
             || MaximumScyllaProtectionSetBytes < MinimumStagingFreeBytes
             || MonthlyCostBudgetUsd <= 0)
             throw Invalid("AWS capacity, concurrency, or cost bounds are unsafe");
+        if (CloudWatchMetricsEnabled &&
+            (!CloudWatchMetricNamespace.Equals("IFM/DatabaseBackup", StringComparison.Ordinal)
+             || CloudWatchExportInterval < TimeSpan.FromSeconds(10)
+             || CloudWatchExportInterval > TimeSpan.FromMinutes(5)
+             || CloudWatchMetricBufferCapacity is < 1000 or > 10000))
+            throw Invalid("CloudWatch metric export settings are unsafe");
         if (DestructiveTestsEnabled && !LiveAwsTestsEnabled)
             throw Invalid("destructive tests require live AWS tests to be explicitly enabled");
         if (AcceptBackupRequests && !LiveAwsTestsEnabled && Environment == AwsBackupEnvironment.Development)

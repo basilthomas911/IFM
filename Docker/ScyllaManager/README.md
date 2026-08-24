@@ -69,6 +69,22 @@ docker compose -f Docker/ScyllaManager/docker-compose.yml --profile validation u
 docker compose -f Docker/ScyllaManager/docker-compose.yml --profile validation stop --timeout 120 scylla-restore-validation
 ```
 
+Gates 11-12 use separate two-node source and restore clusters so node completeness can be qualified without touching
+the application cluster. Docker Desktop needs the higher temporary AIO limit while all four isolated nodes run:
+
+```powershell
+$env:IFM_SCYLLA_AIO_MAX_NR = '1048576'
+docker compose -f Docker/ScyllaManager/docker-compose.yml --profile gate11 `
+  up --detach --wait scylla-gate11-source-1 scylla-gate11-source-2 `
+  scylla-gate12-restore-1 scylla-gate12-restore-2
+
+docker compose -f Docker/ScyllaManager/docker-compose.yml --profile gate11 `
+  stop --timeout 120 scylla-gate12-restore-1 scylla-gate12-restore-2
+```
+
+The Gate 11 source volumes and Manager metadata are persistent. Never use `down --volumes`. A Manager snapshot is
+eligible only when its native manifest contains every node recorded in the signed live topology.
+
 Export the client binary consumed by the Database Backup Host whenever the Manager version changes:
 
 ```powershell
@@ -82,10 +98,11 @@ backup/restore proof and rollback evidence.
 ## Docker Desktop AIO prerequisite
 
 Docker Desktop's Linux VM defaults `fs.aio-max-nr` to 65,536, which is insufficient when the application Scylla node,
-Manager metadata node, and restore-validation node run together. The `aio-init` one-shot service raises the shared
-Docker VM limit to 262,144 before either Manager-owned Scylla service starts. It requires Docker's `privileged` mode,
-changes only the temporary Linux VM kernel setting, and is reset when Docker Desktop restarts. Override
-`IFM_SCYLLA_AIO_MAX_NR` in `.env` only when the development VM runs a different number of Scylla nodes.
+Manager metadata node, and isolated Gate 11-12 source/restore nodes run together. The `aio-init` one-shot service
+raises the shared Docker VM limit to 1,048,576 before either Manager-owned Scylla service starts. It requires Docker's
+`privileged` mode, changes only the temporary Linux VM kernel maximum, does not preallocate that capacity, and resets
+when Docker Desktop restarts. Override `IFM_SCYLLA_AIO_MAX_NR` only when the development VM has a separately qualified
+limit.
 
 This service is a Windows/Docker Desktop development workaround. Do not deploy it in production. Set the production
 Linux host's AIO limit through the operating-system provisioning and monitoring configuration instead.

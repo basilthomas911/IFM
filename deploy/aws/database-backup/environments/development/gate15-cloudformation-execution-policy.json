@@ -1,0 +1,34 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ManageDevelopmentDashboard",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DeleteDashboards",
+        "cloudwatch:GetDashboard",
+        "cloudwatch:PutDashboard"
+      ],
+      "Resource": "arn:aws:cloudwatch::107651266250:dashboard/ifm-database-backup-development"
+    },
+    {
+      "Sid": "ManageDevelopmentBackupAlarmTopic",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:DeleteTopic",
+        "sns:GetSubscriptionAttributes",
+        "sns:GetTopicAttributes",
+        "sns:ListSubscriptionsByTopic",
+        "sns:ListTagsForResource",
+        "sns:SetSubscriptionAttributes",
+        "sns:SetTopicAttributes",
+        "sns:Subscribe",
+        "sns:TagResource",
+        "sns:Unsubscribe",
+        "sns:UntagResource"
+      ],
+      "Resource": "arn:aws:sns:ca-central-1:107651266250:ifm-database-backup-operations-development*"
+    }
+  ]
+}

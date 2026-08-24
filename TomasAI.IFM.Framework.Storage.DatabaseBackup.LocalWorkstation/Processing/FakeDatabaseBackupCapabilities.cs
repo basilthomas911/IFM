@@ -83,7 +83,7 @@ public sealed class FakeScyllaBackupCapability : IScyllaBackupCapability
             Topology = new ScyllaTopologyEvidence("fake-scylla", 1, 1, true),
             Snapshot = new ScyllaSnapshotEvidence(
                 "sm_20000101000000UTC", "backup/fake", new string('a', 64), new string('b', 64),
-                1, 1, 1, "fake", "fake"),
+                1, 1, 1, 1, "fake", "fake"),
             Statistics = Statistics(DatabaseRecoveryPhase.Capturing, sourceBytes: 1024),
             BackupLineage = request.BackupLineage?.NormalizeLegacyFull(DatabaseEngine.ScyllaDb)
         });

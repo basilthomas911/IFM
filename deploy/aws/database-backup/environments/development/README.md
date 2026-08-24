@@ -16,7 +16,8 @@ not grant their own permissions.
    `cloudformation-execution-policy.json`.
 2. Create a role using **Custom trust policy**, paste `cloudformation-execution-role-trust-policy.json`, and name the
    role `IFM-Gate4-CloudFormationExecutionRole`.
-3. Attach only `IFM-Gate4-CloudFormationExecution` to that role.
+3. Attach `IFM-Gate4-CloudFormationExecution` to that role. Gate 15 adds one supplemental execution policy as
+   described below because an IAM customer-managed policy is limited to 6,144 non-whitespace characters.
 4. Confirm its ARN is
    `arn:aws:iam::107651266250:role/IFM-Gate4-CloudFormationExecutionRole`.
 
@@ -79,6 +80,64 @@ DynamoDB or general vault permissions.
 The policy cannot delete S3 object versions, bypass or shorten retention, administer KMS keys, mutate recovery-vault
 objects, or access staging/production. The live journal test currently stops safely at `dynamodb:DescribeTable` until
 this policy is attached; no journal mutation occurs in that denied run.
+
+## Install the Development Gates 11-16 policy updates
+
+The updated qualification file deliberately reuses the existing customer-managed policy object
+`IFM-Gates5-10-LiveQualification`; this avoids accumulating overlapping temporary user policies. Its new default
+version adds the exact KMS checksum-read permissions, Development CloudWatch namespace/read access, Cost Explorer
+read access, and permission to request the separately MFA-gated retention execution role. It still grants no direct
+delete, retention bypass, legal-hold mutation, IAM administration, or staging/production access.
+
+Sign in to the AWS console as the account root only for these IAM bootstrap actions:
+
+1. Open **IAM > Policies > IFM-Gates5-10-LiveQualification > Policy versions > Create version**.
+2. Paste the complete contents of `gate5-10-live-qualification-policy.json`, create the version, and select
+   **Set this version as default**. Do not edit an old version in place.
+3. On the policy's **Entities attached** tab, attach it to `basil.thomas@live.ca` for the qualification window if it is
+   not already attached.
+4. Open **IFM-Gate4-CloudFormationExecution > Policy versions > Create version**.
+5. Paste the complete contents of `cloudformation-execution-policy.json`, create it, and set it as default. This base
+   policy is 5,960 non-whitespace characters, below IAM's 6,144-character customer-managed-policy limit.
+6. Create a customer-managed policy named `IFM-Gate15-CloudFormationExecution` from
+   `gate15-cloudformation-execution-policy.json`. Its bounded contents contain only the deterministic
+   Development dashboard and alarm-topic permissions.
+7. Attach `IFM-Gate15-CloudFormationExecution` to `IFM-Gate4-CloudFormationExecutionRole`. Keep both execution
+   policies attached only to that role; never attach either one to the IAM user.
+8. If AWS reports the five-version limit while promoting an existing policy, delete only the oldest **non-default** policy version after comparing it with
+   the repository history. Never delete the current default version.
+9. Sign out of the root session. Continue all qualification commands with the Development IAM user's environment
+   credentials.
+
+The base execution-policy promotion widens the deterministic Development alarm name boundary for Gate 15. The
+supplemental policy permits CloudFormation to deploy only the deterministic Development dashboard and SNS topic.
+Splitting those permissions keeps both documents below IAM's per-policy limit without granting the IAM user those
+infrastructure permissions directly.
+
+If this policy was created from an earlier Gate 15 file that omitted `sns:ListTagsForResource`, create and promote a
+new default version from the current file. This read-only action lets CloudFormation compare the deterministic topic
+tags during drift detection; it does not grant topic access to the IAM user.
+
+After both updated versions are default and the supplemental policy is attached, validate the workload template and
+prepare (but do not execute) its reviewed update:
+
+```powershell
+aws cloudformation validate-template --region ca-central-1 `
+  --template-body file://deploy/aws/database-backup/workload/template.yaml
+
+.\scripts\AwsBackup\New-AwsBackupDevelopmentChangeSet.ps1 `
+  -Stack Workload -ChangeSetType UPDATE `
+  -PrimaryEncryptionKeyArn 'arn:aws:kms:ca-central-1:107651266250:key/4772d4b1-82d9-49fc-acca-b97e73fe93df' `
+  -Confirm
+```
+
+Review that the change set adds only the bounded dashboard, alarms, SNS route/subscription, runtime metric permission,
+and outputs. Execute it separately only after that review. Confirm the subscription email before running:
+
+```powershell
+.\scripts\AwsBackup\Invoke-AwsBackupGate15AlertDrill.ps1
+.\scripts\AwsBackup\Invoke-AwsBackupGate15AlertDrill.ps1 -Execute -Confirm
+```
 
 For the Gate 5 PITR exercise, first preview and then explicitly execute the retained restore-to-new-table runbook:
 

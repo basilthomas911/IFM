@@ -29,7 +29,7 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
     [Trait("Category", "LiveAwsMutation")]
     [Trait("Category", "Gate11ScyllaDevelopment")]
     [Trait("Category", "Gate12ScyllaDevelopment")]
-    public async Task Manager_snapshot_round_trips_through_each_immutable_AWS_vault_and_fresh_target()
+    public async Task Multi_node_Manager_snapshot_round_trips_through_each_immutable_AWS_vault_and_fresh_target()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("IFM_AWS_LIVE_TESTS"), "1", StringComparison.Ordinal)
             || !string.Equals(Environment.GetEnvironmentVariable("IFM_SCYLLA_DEVELOPMENT_LIVE_TESTS"), "1", StringComparison.Ordinal))
@@ -39,16 +39,18 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
             throw new InvalidOperationException("IFM_SCYLLA_DEVELOPMENT_SNAPSHOT_TAG is required for the live Scylla qualification.");
 
         Directory.CreateDirectory(_root);
+        var qualification = Stopwatch.StartNew();
         var operation = new DatabaseRecoveryOperationId(Guid.NewGuid());
         var sourceRoot = Path.Combine(_root, "source", operation.Format());
         Directory.CreateDirectory(sourceRoot);
         var references = (await DockerAsync([
                 "exec", "ifm-scylla-manager", "sctool", "backup", "files",
-                "--cluster", "ifm-development", "--location", "s3:ifm-development",
+                "--cluster", "ifm-gate11-source", "--location", "s3:ifm-gate11-development",
                 "--snapshot-tag", snapshotTag, "--delimiter", "|", "--with-version"])).Split(['\r', '\n'],
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(static line => line.StartsWith("s3://", StringComparison.Ordinal)).Order(StringComparer.Ordinal).ToArray();
         references.Should().NotBeEmpty();
+        references.Select(ParseNodeId).Where(static value => value is not null).Distinct().Should().HaveCount(2);
 
         var scyllaOptions = new ScyllaBackupOptions
         {
@@ -64,7 +66,7 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         };
         using var transport = new S3ScyllaSnapshotArtifactTransport(scyllaOptions);
         var exportedBytes = await transport.ExportAsync(
-            "s3:ifm-development", snapshotTag, references, sourceRoot, CancellationToken.None);
+            "s3:ifm-gate11-development", snapshotTag, references, sourceRoot, CancellationToken.None);
         exportedBytes.Should().BeGreaterThan(0);
 
         var aws = LiveOptions();
@@ -78,16 +80,17 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
             new DirectoryArtifactSource(sourceRoot), objects, signer, aws,
             new DatabaseBackupHostOptions { HostId = "scylla-development-live-qualification" }, TimeProvider.System);
         var restorePoint = new DatabaseRestorePointId(operation.Format());
-        var topology = new ScyllaTopologyEvidence("ifm-development", 1, 1, true);
+        var topology = new ScyllaTopologyEvidence("ifm-gate11-source", 2, 2, true);
         var schemaLines = references.Where(static line => line.Contains("/backup/schema/", StringComparison.Ordinal)).ToArray();
         var snapshot = new ScyllaSnapshotEvidence(
             snapshotTag,
-            "backup/gate11-development-aws-clean",
+            "backup/gate11-multinode-live",
             Sha256(string.Join('\n', schemaLines.Length == 0 ? references : schemaLines)),
             Sha256(string.Join('\n', references)),
             references.Select(ParseUnit).Where(static value => value is not null)
                 .Select(static value => value!.Value.Keyspace).Distinct(StringComparer.Ordinal).Count(),
             references.Select(ParseUnit).Where(static value => value is not null).Distinct().Count(),
+            2,
             references.Length,
             "6.2.2",
             "3.4.2");
@@ -95,14 +98,14 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         {
             RequestedMode = DatabaseBackupMode.Automatic,
             ResolvedMode = DatabaseBackupMode.Full,
-            NativeKind = DatabaseNativeBackupKind.ScyllaManagerDeduplicatedSnapshot,
-            NativeIdentity = "ifm-development:ifm_manager_validation",
+            NativeKind = DatabaseNativeBackupKind.ScyllaManagerSnapshot,
+            NativeIdentity = "ifm-gate11-source:ifm_gate11_validation",
             BaseRestorePointId = restorePoint,
             ChainDepth = 0
         };
         var publication = await publisher.PublishAsync(new DatabaseBackupPublicationRequest(
             operation,
-            new DatabaseProtectionSetId("scylla-development-validation"),
+            new DatabaseProtectionSetId("scylla-gate11-multinode-validation"),
             DatabaseEngine.ScyllaDb,
             "scylla-snapshot-" + snapshot.NativeManifestSha256[..16],
             [new DatabaseLogicalDestination("aws-primary", true), new DatabaseLogicalDestination("aws-recovery", true)],
@@ -127,14 +130,18 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         using var recoveryVault = new AwsRecoveryVaultClient(recoveryS3);
 
         await StartRestoreTargetAsync();
+        var restoreDurations = new Dictionary<string, TimeSpan>(StringComparer.Ordinal);
         try
         {
             foreach (var drill in new[]
                      {
-                         (Replica: "aws-primary", Bucket: "ifm-development-restore-primary"),
-                         (Replica: "aws-recovery", Bucket: "ifm-development-restore-recovery")
+                         (Replica: "aws-primary", Bucket: "ifm-gate11-restore-primary"),
+                         (Replica: "aws-recovery", Bucket: "ifm-gate11-restore-recovery")
                      })
             {
+                // The recovery drill runs after the primary client is disposed. Any accidental
+                // primary-vault dependency therefore fails instead of weakening recovery-only proof.
+                if (drill.Replica == "aws-recovery") primaryS3.Dispose();
                 var stagedRoot = Path.Combine(_root, drill.Replica);
                 var sink = new DirectoryArtifactSink(stagedRoot);
                 var restoreSource = new S3DatabaseRestoreSourceCapability(
@@ -162,9 +169,12 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
                     throw new TimeoutException($"The {drill.Replica} Scylla publication did not become restore-ready.", transient);
                 prepared.ScyllaRecovery.Should().Be(new ScyllaRecoveryExpectation(topology, snapshot));
                 var staged = Path.Combine(stagedRoot, restorePoint.Value);
+                var restore = Stopwatch.StartNew();
                 _ = await transport.EnsureAvailableAsync(
-                    "s3:ifm-development", "s3:" + drill.Bucket, snapshotTag, staged, CancellationToken.None);
+                    "s3:ifm-gate11-development", "s3:" + drill.Bucket, snapshotTag, staged, CancellationToken.None);
                 await RestoreAndValidateAsync(drill.Bucket, snapshotTag, drill.Replica);
+                restore.Stop();
+                restoreDurations.Add(drill.Replica, restore.Elapsed);
             }
         }
         finally
@@ -177,26 +187,35 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         output.WriteLine("SnapshotTag={0}", snapshotTag);
         output.WriteLine("PortableBytes={0}", exportedBytes);
         output.WriteLine("ArtifactReferences={0}", references.Length);
+        output.WriteLine("SourceNodeCount=2");
+        var snapshotUtc = DateTimeOffset.ParseExact(
+            snapshotTag, "'sm_'yyyyMMddHHmmss'UTC'", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal);
+        output.WriteLine("MeasuredRpo={0}", DateTimeOffset.UtcNow - snapshotUtc);
+        output.WriteLine("PrimaryRestoreRto={0}", restoreDurations["aws-primary"]);
+        output.WriteLine("RecoveryRestoreRto={0}", restoreDurations["aws-recovery"]);
+        output.WriteLine("QualificationElapsed={0}", qualification.Elapsed);
     }
 
     async Task RestoreAndValidateAsync(string bucket, string snapshotTag, string replica)
     {
-        _ = await DockerAsync(["exec", "ifm-scylla-restore-validation", "cqlsh", "-e",
-            "DROP KEYSPACE IF EXISTS ifm_manager_validation;"]);
+        _ = await DockerAsync(["exec", "ifm-scylla-gate12-restore-1", "cqlsh", "-e",
+            "DROP KEYSPACE IF EXISTS ifm_gate11_validation;"]);
         var suffix = Guid.NewGuid().ToString("N")[..12];
         var schemaTask = (await DockerAsync([
-            "exec", "ifm-scylla-manager", "sctool", "restore", "--cluster", "ifm-restore-validation",
+            "exec", "ifm-scylla-manager", "sctool", "restore", "--cluster", "ifm-gate12-restore",
             "--location", "s3:" + bucket, "--snapshot-tag", snapshotTag, "--num-retries=0",
             "--restore-schema", "--name", "ifm-schema-" + suffix])).Trim();
         await AwaitManagerTaskAsync(schemaTask);
         var tableTask = (await DockerAsync([
-            "exec", "ifm-scylla-manager", "sctool", "restore", "--cluster", "ifm-restore-validation",
+            "exec", "ifm-scylla-manager", "sctool", "restore", "--cluster", "ifm-gate12-restore",
             "--location", "s3:" + bucket, "--snapshot-tag", snapshotTag, "--num-retries=0",
-            "--keyspace", "ifm_manager_validation", "--restore-tables", "--name", "ifm-tables-" + suffix])).Trim();
+            "--keyspace", "ifm_gate11_validation", "--restore-tables", "--name", "ifm-tables-" + suffix])).Trim();
         await AwaitManagerTaskAsync(tableTask);
-        var query = await DockerAsync(["exec", "ifm-scylla-restore-validation", "cqlsh", "-e",
-            "SELECT payload FROM ifm_manager_validation.restore_probe WHERE id = 11111111-1111-1111-1111-111111111111;"]);
-        query.Should().Contain("scylla-manager-aws-development-restore-ok");
+        _ = await DockerAsync(["exec", "ifm-scylla-gate12-restore-1", "nodetool", "repair", "ifm_gate11_validation"]);
+        var query = await DockerAsync(["exec", "ifm-scylla-gate12-restore-1", "cqlsh", "-e",
+            "CONSISTENCY ALL; SELECT payload FROM ifm_gate11_validation.restore_probe WHERE id = 11111111-1111-1111-1111-111111111111;"]);
+        query.Should().Contain("scylla-manager-aws-development-multinode-restore-ok");
         output.WriteLine("{0}SchemaTask={1}", replica, schemaTask);
         output.WriteLine("{0}TableTask={1}", replica, tableTask);
     }
@@ -209,7 +228,7 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         while (DateTimeOffset.UtcNow < deadline)
         {
             var tasks = await DockerAsync(["exec", "ifm-scylla-manager", "sctool", "tasks",
-                "--cluster", "ifm-restore-validation"]);
+            "--cluster", "ifm-gate12-restore"]);
             var row = tasks.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                 .SingleOrDefault(line => line.Contains(taskReference, StringComparison.Ordinal));
             if (row?.Contains("DONE", StringComparison.Ordinal) == true) return;
@@ -222,13 +241,19 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         throw new TimeoutException("The Scylla Manager restore task exceeded ten minutes.");
     }
 
-    static Task StartRestoreTargetAsync() => DockerAsync([
-        "compose", "-f", "Docker/ScyllaManager/docker-compose.yml", "--profile", "validation",
-        "up", "--detach", "--wait", "scylla-restore-validation"]);
+    static async Task StartRestoreTargetAsync()
+    {
+        _ = await DockerAsync([
+            "compose", "-f", "Docker/ScyllaManager/docker-compose.yml", "--profile", "gate11",
+            "run", "--rm", "aio-init", "fs.aio-max-nr=1048576"]);
+        _ = await DockerAsync([
+            "compose", "-f", "Docker/ScyllaManager/docker-compose.yml", "--profile", "gate11",
+            "up", "--detach", "--wait", "scylla-gate12-restore-1", "scylla-gate12-restore-2"]);
+    }
 
     static Task StopRestoreTargetAsync() => DockerAsync([
-        "compose", "-f", "Docker/ScyllaManager/docker-compose.yml", "--profile", "validation",
-        "stop", "--timeout", "120", "scylla-restore-validation"], allowFailure: true);
+        "compose", "-f", "Docker/ScyllaManager/docker-compose.yml", "--profile", "gate11",
+        "stop", "--timeout", "120", "scylla-gate12-restore-1", "scylla-gate12-restore-2"], allowFailure: true);
 
     static async Task<string> DockerAsync(IReadOnlyList<string> arguments, bool allowFailure = false)
     {
@@ -267,6 +292,16 @@ public sealed class LiveAwsScyllaDevelopmentIntegrationTests(ITestOutputHelper o
         if (values.Length < 2 || values[^1] == "./") return null;
         var unit = values[^1].Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return unit.Length == 2 ? (unit[0], unit[1]) : null;
+    }
+
+    static string? ParseNodeId(string line)
+    {
+        const string marker = "/node/";
+        var start = line.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0) return null;
+        start += marker.Length;
+        var end = line.IndexOf('/', start);
+        return end > start ? line[start..end] : null;
     }
 
     static string Sha256(string value)

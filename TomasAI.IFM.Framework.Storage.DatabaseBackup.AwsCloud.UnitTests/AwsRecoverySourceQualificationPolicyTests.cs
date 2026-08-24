@@ -107,7 +107,7 @@ public sealed class AwsRecoverySourceQualificationPolicyTests
             Dependencies = [],
             ScyllaTopology = new ScyllaTopologyEvidence("cluster-a", 3, 768, true),
             ScyllaSnapshot = new ScyllaSnapshotEvidence(
-                "snapshot-1", "backup/task-1", new string('A', 64), new string('B', 64), 1, 1, 1, "2025.1", "3.11"),
+                "snapshot-1", "backup/task-1", new string('A', 64), new string('B', 64), 1, 1, 3, 1, "2025.1", "3.11"),
             ProducingHostId = "host-1",
             BuildIdentity = "test",
             PublishedUtc = now,

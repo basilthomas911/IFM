@@ -138,6 +138,57 @@
         "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-replication-failure-development",
         "arn:aws:cloudwatch:ca-west-1:107651266250:alarm:ifm-database-backup-replication-lag-development"
       ]
+    },
+    {
+      "Sid": "PublishDevelopmentBackupMetrics",
+      "Effect": "Allow",
+      "Action": "cloudwatch:PutMetricData",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "cloudwatch:namespace": "IFM/DatabaseBackup"
+        }
+      }
+    },
+    {
+      "Sid": "QualifyDevelopmentBackupObservability",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:SetAlarmState"
+      ],
+      "Resource": "arn:aws:cloudwatch:ca-central-1:107651266250:alarm:ifm-database-backup-*-development"
+    },
+    {
+      "Sid": "ReadDevelopmentBackupDashboard",
+      "Effect": "Allow",
+      "Action": "cloudwatch:GetDashboard",
+      "Resource": "arn:aws:cloudwatch::107651266250:dashboard/ifm-database-backup-development"
+    },
+    {
+      "Sid": "ReadDevelopmentBackupMetrics",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadDevelopmentBackupCost",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AssumeMfaGatedDevelopmentRetentionExecutor",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::107651266250:role/ifm-database-backup-retention-execution-development"
     }
   ]
 }

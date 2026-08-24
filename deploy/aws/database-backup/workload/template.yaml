@@ -23,6 +23,10 @@ Parameters:
   BudgetNotificationEmail:
     Type: String
     AllowedPattern: '^[^@ ]+@[^@ ]+$'
+  RunbookUrl:
+    Type: String
+    Default: https://github.com/basilthomas911/IFM/blob/main/TomasAI.IFM.Application.Storage.Backup/Docs/AWS-Cloud-Backup-Restore-Operations-Runbook.md
+    AllowedPattern: '^https://github\.com/basilthomas911/IFM/blob/[A-Za-z0-9._/-]+$'
 Resources:
   JournalKey:
     Type: AWS::KMS::Key
@@ -173,6 +177,12 @@ Resources:
               - Effect: Allow
                 Action: [kms:Encrypt, kms:GenerateDataKey]
                 Resource: !Ref PrimaryEncryptionKeyArn
+              - Effect: Allow
+                Action: [cloudwatch:PutMetricData]
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'cloudwatch:namespace': IFM/DatabaseBackup
   VerificationRole:
     Type: AWS::IAM::Role
     Properties:
@@ -284,6 +294,326 @@ Resources:
               - Effect: Allow
                 Action: [kms:DescribeKey, kms:GetKeyPolicy, kms:GetKeyRotationStatus, kms:GetPublicKey]
                 Resource: [!GetAtt JournalKey.Arn, !GetAtt SigningKey.Arn, !Ref PrimaryEncryptionKeyArn]
+  BackupOperationsAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ifm-database-backup-operations-${EnvironmentName}
+      DisplayName: IFM database backup
+      Tags:
+        - { Key: Application, Value: IFM }
+        - { Key: Component, Value: DatabaseBackup }
+        - { Key: Environment, Value: !Ref EnvironmentName }
+  BackupOperationsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: !Ref BudgetNotificationEmail
+      TopicArn: !Ref BackupOperationsAlarmTopic
+  BackupOperationsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ifm-database-backup-${EnvironmentName}
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 12,
+              "properties": {
+                "region": "${AWS::Region}",
+                "title": "IFM database backup operational metrics",
+                "view": "timeSeries",
+                "period": 60,
+                "stat": "Maximum",
+                "metrics": [
+                  ["IFM/DatabaseBackup", "ifm.database_backup.aws.intent.age", "environment", "${EnvironmentName}"],
+                  [".", "ifm.database_backup.aws.operation.phase_age", ".", "."],
+                  [".", "ifm.database_backup.aws.journal.conflicts", ".", "."],
+                  [".", "ifm.database_backup.aws.outbox.backlog", ".", "."],
+                  [".", "ifm.database_backup.aws.upload.throughput", ".", "."],
+                  [".", "ifm.database_backup.aws.multipart.stale", ".", "."],
+                  [".", "ifm.database_backup.aws.wal.lag", ".", "."],
+                  [".", "ifm.database_backup.aws.wal.gaps", ".", "."],
+                  [".", "ifm.database_backup.aws.replication.lag", ".", "."],
+                  [".", "ifm.database_backup.aws.replication.failures", ".", "."],
+                  [".", "ifm.database_backup.aws.kms.denials", ".", "."],
+                  [".", "ifm.database_backup.aws.restore.verifications", ".", "."],
+                  [".", "ifm.database_backup.aws.retention.drift", ".", "."],
+                  [".", "ifm.database_backup.aws.rpo", ".", "."],
+                  [".", "ifm.database_backup.aws.rto", ".", "."],
+                  [".", "ifm.database_backup.aws.estimated_cost", ".", "."]
+                ]
+              }
+            }
+          ]
+        }
+  IntentAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-intent-age-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}; inspect the operation journal, never credentials.'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.intent.age
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  OperationPhaseAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-phase-age-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}; inspect the operation ID and phase in the journal.'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.operation.phase_age
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 900
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  JournalConflictAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-journal-conflict-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#journal-pitr'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.journal.conflicts
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  OutboxBacklogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-outbox-backlog-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#credential-failure'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.outbox.backlog
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  UploadThroughputAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-upload-throughput-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}; inspect throttling, disk pressure, and network capacity.'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.upload.throughput
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1048576
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+  StaleMultipartAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-stale-multipart-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#multipart-reconciliation'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.multipart.stale
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  WalLagAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-wal-lag-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#wal-gap'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.wal.lag
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  WalGapAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-wal-gap-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#wal-gap'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.wal.gaps
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  RuntimeReplicationLagAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-runtime-replication-lag-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#replication-failure'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.replication.lag
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 900
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  RuntimeReplicationFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-runtime-replication-failure-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#replication-failure'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.replication.failures
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  KmsDenialAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-kms-denial-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#kmskey-recovery'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.kms.denials
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  RestoreVerificationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-restore-verification-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#fresh-target-cleanup'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Metrics:
+        - Id: failed
+          Expression: scylla + postgresql
+          Label: Failed restore verifications
+          ReturnData: true
+        - Id: scylla
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: IFM/DatabaseBackup
+              MetricName: ifm.database_backup.aws.restore.verifications
+              Dimensions:
+                - { Name: engine, Value: scylladb }
+                - { Name: environment, Value: !Ref EnvironmentName }
+                - { Name: outcome, Value: failed }
+            Period: 300
+            Stat: Sum
+        - Id: postgresql
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: IFM/DatabaseBackup
+              MetricName: ifm.database_backup.aws.restore.verifications
+              Dimensions:
+                - { Name: engine, Value: postgresql }
+                - { Name: environment, Value: !Ref EnvironmentName }
+                - { Name: outcome, Value: failed }
+            Period: 300
+            Stat: Sum
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  RetentionDriftAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-retention-drift-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#retention-plan-failure'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.retention.drift
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  RpoAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-rpo-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}; select a complete restore point and investigate publication lag.'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.rpo
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  RtoAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-rto-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}#primary-vault-loss-and-recovery-only-restore'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.rto
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3600
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  CostAnomalyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ifm-database-backup-cost-anomaly-${EnvironmentName}
+      AlarmDescription: !Sub '${RunbookUrl}; review measured storage, requests, replication, retrieval, and drill usage.'
+      AlarmActions: [!Ref BackupOperationsAlarmTopic]
+      Namespace: IFM/DatabaseBackup
+      MetricName: ifm.database_backup.aws.estimated_cost
+      Dimensions: [{ Name: environment, Value: !Ref EnvironmentName }]
+      Statistic: Maximum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: !Ref MonthlyBudgetUsd
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
   MonthlyBudget:
     Type: AWS::Budgets::Budget
     Properties:
@@ -306,3 +636,5 @@ Outputs:
   RetentionExecutionRoleArn: { Value: !GetAtt RetentionExecutionRole.Arn }
   LegalHoldRoleArn: { Value: !GetAtt LegalHoldRole.Arn }
   AuditRoleArn: { Value: !GetAtt AuditRole.Arn }
+  BackupOperationsDashboardName: { Value: !Ref BackupOperationsDashboard }
+  BackupOperationsAlarmTopicArn: { Value: !Ref BackupOperationsAlarmTopic }

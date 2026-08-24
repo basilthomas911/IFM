@@ -237,6 +237,7 @@ public sealed class ScyllaBackupCapability : IScyllaBackupCapability, IDatabaseN
             capture.NativeManifestSha256,
             capture.KeyspaceCount,
             capture.TableCount,
+            capture.Topology.LiveNodeCount,
             capture.ArtifactReferences.Length,
             capture.ScyllaVersion,
             capture.ManagerVersion);
