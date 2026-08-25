@@ -615,7 +615,22 @@ Reserved. This section will be written after reviewing representative QueryActor
 
 ### 13.3 Cross-actor conventions
 
-Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature, this section will identify behavior that is genuinely common across actor types and determine whether it belongs in shared base classes, reusable helpers, or conformance tests.
+Most cross-actor conventions remain reserved. Once the EventActor, CommandActor, and QueryActor sections are mature, this section will identify behavior that is genuinely common across actor types and determine whether it belongs in shared base classes, reusable helpers, or conformance tests.
+
+#### 13.3.1 Entity-ID representation preference
+
+An immutable `readonly record struct` is the preferred representation for a new entity-ID type when the identity has genuine value semantics and all of its fields are suitable for value-type storage. This is a convention preference only. It is not a system-wide requirement, and it does not authorize converting existing entity-ID types as part of unrelated work.
+
+Existing entity-ID types retain their current representation until a separate system-wide inventory and eligibility review is completed. That review must:
+
+1. Inventory every direct and indirect implementation of the entity-ID contracts, plus conventionally named entity-ID types that may not implement the expected interface.
+2. Record each identity's fields, inheritance requirements, null semantics, mutability, construction patterns, generic constraints, reflection or dependency-injection activation, and use as a dictionary or set key.
+3. Verify compatibility with message serialization, persistence mapping, routing and subject formatting, equality and hashing, logging, parsing, and public API contracts.
+4. Determine whether `default(TEntityId)` can be rejected reliably before routing or persistence, and identify the validation changes and tests required to enforce that boundary.
+5. Classify every identity as eligible, ineligible, or requiring a design decision. Reference identity, required inheritance, meaningful null state, incompatible framework constraints, or excessive value-copy cost are reasons to retain a reference type unless deliberately redesigned.
+6. Produce a reviewed conversion plan grouped into incremental root-domain gates. No bulk or mechanical conversion begins until that plan is approved.
+
+For each approved conversion, validation must cover compilation, equality and hashing, default-value rejection, formatting and parsing, message round trips, storage round trips, actor routing, and the affected unit, BDD, and integration suites. A conversion must preserve the externally observable identity format and behavior unless a separately approved migration explicitly changes them.
 
 ## 14. Related documents
 
@@ -635,3 +650,4 @@ Reserved. Once the EventActor, CommandActor, and QueryActor sections are mature,
 | 2026-08-14 | Defined the TickAggregation normalized last-price cache: stream-independent tick/option snapshot reads, explicit stream-activity checks, allocation-free versioned snapshot reads, quote-side cache refresh, trade-triggered Core realtime publication, stale-update rejection, and timer-derived signal sampling. |
 | 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |
 | 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |
+| 2026-08-25 | Recorded `readonly record struct` as a convention preference for eligible entity IDs and required a separate system-wide identity inventory, compatibility assessment, classification, and approved domain-gated plan before converting existing types. |

@@ -41,4 +41,16 @@ public enum BoundedContextName
     FuturesMacdSignalBoundedContext,
     FuturesAtrSignalBoundedContext,
     FuturesAdxSignalBoundedContext,
+    /// <summary>Routes Intrinsic Time Strategy workflow orchestration commands.</summary>
+    IntrinsicTimeStrategyWorkflowBoundedContext,
+    /// <summary>Routes Regime Discovery strategy pipeline commands.</summary>
+    RegimeDiscoveryPipelineBoundedContext,
+    /// <summary>Routes Market Condition strategy pipeline commands.</summary>
+    MarketConditionPipelineBoundedContext,
+    /// <summary>Routes Trade Selection strategy pipeline commands.</summary>
+    TradeSelectionPipelineBoundedContext,
+    /// <summary>Routes Order Composition strategy pipeline commands.</summary>
+    OrderCompositionPipelineBoundedContext,
+    /// <summary>Routes Risk Management strategy pipeline commands.</summary>
+    RiskManagementPipelineBoundedContext,
 }
