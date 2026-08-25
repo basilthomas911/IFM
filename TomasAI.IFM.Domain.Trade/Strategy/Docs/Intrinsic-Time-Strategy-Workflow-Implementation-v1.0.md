@@ -2197,16 +2197,21 @@ Implemented eight MessagePack query contracts, the closed-generic Query context/
 - run Trade BDD/unit/integrated tests, application actor integration tests, storage integration tests, and full solution build;
 - keep live feature configuration disabled until a real first-stage actor exists.
 
-Test-only scripted responders exercise the event/reducer boundary without registering fake pipeline actors in production. Daily, Weekly, and Monthly scenarios each execute Regime Discovery, Market Condition, Trade Selection, Order Composition, and Risk Management through terminal completion and byte-equivalent MessagePack replay. Additional scenarios cover pipeline failure, timeout identity/deduplication, and duplicate trigger eligibility.
+Test-only scripted responders exercise the event/reducer boundary without registering fake pipeline actors in production. Dedicated runtime integration tests also attach five test-only dummy Command actors and five realtime source mailboxes dynamically to the production integration host. They drive real NATS routing, the production Workflow Realtime/Command/EventProjector/Query actors, PostgreSQL event persistence and replay, and ScyllaDB projection. Daily, Weekly, and Monthly workflows execute concurrently through Regime Discovery, Market Condition, Trade Selection, Order Composition, and Risk Management to terminal completion; a fourth workflow injects a Trade Selection failure and proves that no downstream pipeline is started. A busy-entity scenario holds Regime Discovery open, submits a second ITI trigger for the same Daily entity, and proves that a durable `StrategyWorkflowStartRejectedEvent` with `ActiveWorkflowExists` is committed and projected without dispatching a second pipeline execution or replacing the active workflow. The harness is removed during test cleanup and is never registered in production DI.
+
+Runtime qualification exposed and corrected three cross-boundary defects: workflow options are now constructor-injected into the closed-generic realtime context; the ITI route uses the actual `FuturesItiSignal` realtime source mailbox rather than the durable event-contract actor name; and opaque result payload bytes now round-trip through the JSON PostgreSQL event log while retaining the readonly `ReadOnlyMemory<byte>` public contract. Exact MessagePack comparison proves PostgreSQL replay and the projected ScyllaDB state are byte-equivalent. Existing reducer scenarios continue to cover timeout identity/deduplication and duplicate trigger eligibility.
 
 Qualification evidence:
 
 | Check | Result |
 |---|---:|
-| Trade unit suite | `109` passed, `0` failed, `0` skipped |
+| Trade unit suite | `110` passed, `0` failed, `0` skipped |
 | Trade BDD suite | `6` passed, `0` failed, `0` skipped |
-| Trade integrated suite | `37` passed, `0` failed, `2` pre-existing skipped |
+| Dedicated real-host dummy-pipeline workflow integrations | `2` passed, `0` failed, `0` skipped |
+| Trade integrated suite | `39` passed, `0` failed, `2` pre-existing skipped |
 | ITSW ScyllaDB storage integration | `3` passed, `0` failed, `0` skipped |
+| Market Data Analytics unit suite | `876` passed, `0` failed, `0` skipped |
+| Market Data Analytics integration suite | `39` passed, `0` failed, `0` skipped |
 | Application actor unit suite | `5` passed, `0` failed, `0` skipped |
 | Application actor BDD suite | `1` passed, `0` failed, `0` skipped |
 | Application actor integrated suite | `1` passed, `0` failed, `0` skipped |

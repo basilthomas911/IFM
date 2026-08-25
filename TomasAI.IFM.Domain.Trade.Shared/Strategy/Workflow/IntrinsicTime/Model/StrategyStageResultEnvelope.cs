@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using FluentValidation;
 using MessagePack;
+using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -19,6 +20,7 @@ public sealed record StrategyStageResultEnvelope
     public const int DefaultMaximumPayloadBytes = 64 * 1024;
 
     [IgnoreMember]
+    [JsonProperty(nameof(Payload))]
     byte[] _payload = [];
 
     /// <summary>Gets the unique result identifier.</summary>
@@ -39,6 +41,7 @@ public sealed record StrategyStageResultEnvelope
 
     /// <summary>Gets a defensive copy of the exact serialized stage payload.</summary>
     [Key(4)]
+    [JsonIgnore]
     public ReadOnlyMemory<byte> Payload
     {
         get => _payload.ToArray();

@@ -84,6 +84,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Contracts;
 using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Reference;
 using TomasAI.IFM.Domain.Reference.Services;
@@ -245,6 +246,10 @@ public static class Startup
             services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
 
             services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
+            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+            {
+                Enabled = config.GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false)
+            });
             //services.AddSingleton<IAlgorithmBuilder, AlgorithmBuilder>();
             //services.AddSingleton<IExceptionDecoratorFactory>(_ => new ExceptionDecoratorFactory(e => GetContainerInstance(e)!));
             //services.AddSingleton<IValidationDecoratorFactory>(_ => new ValidationDecoratorFactory(e => GetContainerInstance(e)!));

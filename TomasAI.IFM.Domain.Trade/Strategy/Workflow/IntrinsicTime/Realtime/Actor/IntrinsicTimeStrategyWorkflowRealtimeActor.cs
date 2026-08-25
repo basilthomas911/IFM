@@ -26,7 +26,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
 {
     static readonly ActorTypeId[] ExternalRoutes =
     [
-        Route(FuturesItiSignalGeneratedEvent.Actor, FuturesItiSignalGeneratedEvent.Verb),
+        Route(FuturesItiSignalGeneratedEvent.RealtimeActor, FuturesItiSignalGeneratedEvent.Verb),
         Route(RegimeDiscoveryPipelineProcessingEvent.Actor, RegimeDiscoveryPipelineProcessingEvent.Verb),
         Route(RegimeDiscoveryPipelineCompletedEvent.Actor, RegimeDiscoveryPipelineCompletedEvent.Verb),
         Route(RegimeDiscoveryPipelineFailedEvent.Actor, RegimeDiscoveryPipelineFailedEvent.Verb),

@@ -25,16 +25,16 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
       IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>,
       IIntrinsicTimeStrategyWorkflowRealtimeContext
 {
-    static readonly IntrinsicTimeStrategyWorkflowOptions DisabledOptions = new();
-
     /// <summary>Initializes the realtime context.</summary>
     public IntrinsicTimeStrategyWorkflowRealtimeContext(
         IActorSupervisor supervisor,
-        ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> logger)
+        ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> logger,
+        IntrinsicTimeStrategyWorkflowOptions options)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, IntrinsicTimeStrategyWorkflowRealtimeActor.ActorName))
     {
         TimeProvider = TimeProvider.System;
         Logger = IsArgumentNull.Set(logger);
+        Options = IsArgumentNull.Set(options);
     }
 
     /// <inheritdoc />
@@ -44,20 +44,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
     public ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> Logger { get; }
 
     /// <inheritdoc />
-    public IntrinsicTimeStrategyWorkflowOptions Options
-    {
-        get
-        {
-            try
-            {
-                return Container.Resolve<IntrinsicTimeStrategyWorkflowOptions>() ?? DisabledOptions;
-            }
-            catch (InvalidOperationException)
-            {
-                return DisabledOptions;
-            }
-        }
-    }
+    public IntrinsicTimeStrategyWorkflowOptions Options { get; }
 }
 
 /// <summary>Controls live automatic ITI-trigger routing for the workflow skeleton.</summary>

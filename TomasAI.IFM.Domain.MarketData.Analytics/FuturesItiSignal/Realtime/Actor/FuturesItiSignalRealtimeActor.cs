@@ -34,7 +34,7 @@ public class FuturesItiSignalRealtimeActor(
         IsArgumentNull.Set(actorContext as IFuturesItiSignalRealtimeContext, nameof(actorContext))!;
 
     /// <summary>Identifies the futures ITI realtime actor mailbox.</summary>
-    public const string ActorName = "FuturesItiSignal";
+    public const string ActorName = FuturesItiSignalGeneratedEvent.RealtimeActor;
     public const string TradeSignalUpdatedVerb = "TradeSignalUpdated";
 
     static readonly ActorTypeId MarketPriceRoute = new(

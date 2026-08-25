@@ -13,6 +13,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 public record FuturesItiSignalGeneratedEvent : IEvent<FuturesItiSignalEntityId>
 {
     [IgnoreMember] public const string Actor = "FuturesItiSignalEvent";
+    /// <summary>Stable realtime actor mailbox that publishes generated signals.</summary>
+    [IgnoreMember] public const string RealtimeActor = "FuturesItiSignal";
     [IgnoreMember] public const string Verb = "Generated";
     [IgnoreMember] public const int ErrorCode = 19002;
 

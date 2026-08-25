@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using MessagePack;
+using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -40,6 +41,22 @@ public sealed class IntrinsicTimeStrategyWorkflowStateTests
 
         envelope.Payload.ToArray().Should().Equal(1, 2, 3);
         envelope.HasValidPayloadSha256().Should().BeTrue();
+    }
+
+    /// <summary>Confirms PostgreSQL event-log JSON preserves the readonly opaque payload bytes.</summary>
+    [Fact]
+    public void Result_envelope_round_trips_payload_through_event_log_json()
+    {
+        byte[] payload = [0x00, 0x01, 0x7F, 0x80, 0xFF];
+        var envelope = CreateEnvelope(payload);
+
+        var replayed = JsonConvert.DeserializeObject<StrategyStageResultEnvelope>(
+            JsonConvert.SerializeObject(envelope));
+
+        replayed.Should().NotBeNull();
+        replayed!.Payload.ToArray().Should().Equal(payload);
+        replayed.PayloadSha256.Should().Be(envelope.PayloadSha256);
+        replayed.HasValidPayloadSha256().Should().BeTrue();
     }
 
     /// <summary>Confirms the default and configurable payload limits are enforced.</summary>
