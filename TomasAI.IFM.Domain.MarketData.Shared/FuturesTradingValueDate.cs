@@ -66,6 +66,22 @@ public static class FuturesTradingValueDate
         return new DateTimeOffset(utcStart, TimeSpan.Zero);
     }
 
+    /// <summary>
+    /// Returns the UTC end of the regular futures trading session represented by a value date.
+    /// The session ends at 17:00 US Eastern on the value date.
+    /// </summary>
+    public static DateTimeOffset GetSessionEndUtc(DateOnly valueDate)
+    {
+        if (valueDate == default)
+            throw new ArgumentOutOfRangeException(nameof(valueDate));
+
+        var localEnd = valueDate.ToDateTime(
+            new TimeOnly(17, 0),
+            DateTimeKind.Unspecified);
+        var utcEnd = TimeZoneInfo.ConvertTimeToUtc(localEnd, MarketTimeZone);
+        return new DateTimeOffset(utcEnd, TimeSpan.Zero);
+    }
+
     static TimeZoneInfo ResolveEasternTimeZone()
     {
         foreach (var id in new[] { "America/New_York", "Eastern Standard Time" })

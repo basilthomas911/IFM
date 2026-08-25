@@ -22,6 +22,8 @@ partial class OperationsView
         lblTimeFrame = new Label();
         ddlTimeFrame = new ComboBox();
         strategySplitter = new SplitContainer();
+        strategyContentSplitter = new SplitContainer();
+        itiChart = new System.Windows.Forms.DataVisualization.Charting.Chart();
         lstItiEvents = new ListView();
         colTime = new ColumnHeader();
         colMode = new ColumnHeader();
@@ -40,6 +42,11 @@ partial class OperationsView
         strategySplitter.Panel1.SuspendLayout();
         strategySplitter.Panel2.SuspendLayout();
         strategySplitter.SuspendLayout();
+        ((System.ComponentModel.ISupportInitialize)strategyContentSplitter).BeginInit();
+        strategyContentSplitter.Panel1.SuspendLayout();
+        strategyContentSplitter.Panel2.SuspendLayout();
+        strategyContentSplitter.SuspendLayout();
+        ((System.ComponentModel.ISupportInitialize)itiChart).BeginInit();
         SuspendLayout();
         //
         // pnlTitle
@@ -148,8 +155,8 @@ partial class OperationsView
         strategySplitter.Location = new Point(3, 32);
         strategySplitter.Name = "strategySplitter";
         strategySplitter.Orientation = Orientation.Horizontal;
-        strategySplitter.Panel1.Controls.Add(lstItiEvents);
-        strategySplitter.Panel1MinSize = 180;
+        strategySplitter.Panel1.Controls.Add(strategyContentSplitter);
+        strategySplitter.Panel1MinSize = 260;
         strategySplitter.Panel2.Controls.Add(itiPropertyGrid);
         strategySplitter.Panel2MinSize = 120;
         strategySplitter.Size = new Size(513, 733);
@@ -157,6 +164,33 @@ partial class OperationsView
         strategySplitter.SplitterWidth = 5;
         strategySplitter.TabIndex = 1;
         strategySplitter.Resize += strategySplitter_Resize;
+        //
+        // strategyContentSplitter
+        //
+        strategyContentSplitter.BackColor = Color.FromArgb(64, 64, 64);
+        strategyContentSplitter.Dock = DockStyle.Fill;
+        strategyContentSplitter.Location = new Point(0, 0);
+        strategyContentSplitter.Name = "strategyContentSplitter";
+        strategyContentSplitter.Orientation = Orientation.Horizontal;
+        strategyContentSplitter.Panel1.Controls.Add(itiChart);
+        strategyContentSplitter.Panel1MinSize = 120;
+        strategyContentSplitter.Panel2.Controls.Add(lstItiEvents);
+        strategyContentSplitter.Panel2MinSize = 120;
+        strategyContentSplitter.Size = new Size(513, 490);
+        strategyContentSplitter.SplitterDistance = 243;
+        strategyContentSplitter.SplitterWidth = 5;
+        strategyContentSplitter.TabIndex = 0;
+        strategyContentSplitter.Resize += strategyContentSplitter_Resize;
+        //
+        // itiChart
+        //
+        itiChart.BackColor = Color.Black;
+        itiChart.Dock = DockStyle.Fill;
+        itiChart.Location = new Point(0, 0);
+        itiChart.Name = "itiChart";
+        itiChart.Size = new Size(513, 243);
+        itiChart.TabIndex = 0;
+        itiChart.MouseClick += itiChart_MouseClick;
         //
         // lstItiEvents
         //
@@ -170,7 +204,7 @@ partial class OperationsView
         lstItiEvents.Location = new Point(0, 0);
         lstItiEvents.MultiSelect = false;
         lstItiEvents.Name = "lstItiEvents";
-        lstItiEvents.Size = new Size(513, 490);
+        lstItiEvents.Size = new Size(513, 242);
         lstItiEvents.TabIndex = 1;
         lstItiEvents.UseCompatibleStateImageBehavior = false;
         lstItiEvents.View = View.Details;
@@ -229,6 +263,11 @@ partial class OperationsView
         strategySplitter.Panel2.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)strategySplitter).EndInit();
         strategySplitter.ResumeLayout(false);
+        strategyContentSplitter.Panel1.ResumeLayout(false);
+        strategyContentSplitter.Panel2.ResumeLayout(false);
+        ((System.ComponentModel.ISupportInitialize)strategyContentSplitter).EndInit();
+        strategyContentSplitter.ResumeLayout(false);
+        ((System.ComponentModel.ISupportInitialize)itiChart).EndInit();
         ResumeLayout(false);
     }
 
@@ -259,6 +298,8 @@ partial class OperationsView
     ComboBox ddlTimeFrame = null!;
     TableLayoutPanel pnlStrategyHeader = null!;
     SplitContainer strategySplitter = null!;
+    SplitContainer strategyContentSplitter = null!;
+    System.Windows.Forms.DataVisualization.Charting.Chart itiChart = null!;
     ListView lstItiEvents = null!;
     ColumnHeader colTime = null!;
     ColumnHeader colMode = null!;

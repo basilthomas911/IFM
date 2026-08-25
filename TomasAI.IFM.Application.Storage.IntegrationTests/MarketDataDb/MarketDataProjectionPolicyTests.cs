@@ -83,11 +83,11 @@ public sealed class MarketDataProjectionPolicyTests
     [Fact]
     public void FuturesItiProjections_UseBoundedQueryShapedPartitions()
     {
-        GetSchemaCql("CreateFuturesItiSignalByContractDayV2Table")
+        GetSchemaCql("CreateFuturesItiSignalByContractDayTable")
             .ShouldContain("PRIMARY KEY ((contractId, valueDate), intrinsicTimeMode, sequenceId");
-        GetSchemaCql("CreateFuturesItiSignalByContractMonthV2Table")
+        GetSchemaCql("CreateFuturesItiSignalByContractMonthTable")
             .ShouldContain("PRIMARY KEY ((contractId, yearMonth), valueDate, sequenceId");
-        GetSchemaCql("CreateFuturesItiSignalByTrendModeMonthV2Table")
+        GetSchemaCql("CreateFuturesItiSignalByTrendModeMonthTable")
             .ShouldContain("PRIMARY KEY ((contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)");
         GetSchemaCql("CreateFuturesItiTimeFrameStateTable")
             .ShouldContain("PRIMARY KEY ((contractId, timePeriod, calendarBucketStart))");
@@ -99,11 +99,11 @@ public sealed class MarketDataProjectionPolicyTests
             .ShouldContain(":timeFrameStartValueDate");
         GetCql("GetFuturesItiTimeFrameState")
             .ShouldContain("calendarBucketStart = :calendarBucketStart");
-        GetCql("GetFuturesItiSignalsByContractMonthV2")
+        GetCql("GetFuturesItiSignalsByContractMonth")
             .ShouldContain("contractId = :contractId AND yearMonth = :yearMonth");
-        GetCql("GetLastFuturesItiSignalByTrendModeMonthV2")
+        GetCql("GetLastFuturesItiSignalByTrendModeMonth")
             .ShouldContain("AND yearMonth = :yearMonth");
-        GetCql("GetFuturesItiSignalsByContractDayModeAfterSequenceV2")
+        GetCql("GetFuturesItiSignalsByContractDayModeAfterSequence")
             .ShouldContain("intrinsicTimeMode = :intrinsicTimeMode AND sequenceId > :sequenceId");
     }
 

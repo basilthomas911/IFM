@@ -12,6 +12,20 @@ public partial class MarketDataView : UserControl
     public MarketDataView()
     {
         InitializeComponent();
+        ConfigureChartGrid(graphES);
+        ConfigureChartGrid(graphVIX);
+    }
+
+    static void ConfigureChartGrid(Chart chart)
+    {
+        var area = chart.ChartAreas[0];
+        foreach (var axis in new[] { area.AxisX, area.AxisY2 })
+        {
+            axis.LineColor = Color.DimGray;
+            axis.MajorGrid.Enabled = true;
+            axis.MajorGrid.LineColor = Color.FromArgb(45, 45, 45);
+            axis.MajorTickMark.LineColor = Color.DimGray;
+        }
     }
 
     /// <summary>

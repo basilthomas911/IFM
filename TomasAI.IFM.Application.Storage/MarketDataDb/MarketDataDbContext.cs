@@ -1807,8 +1807,8 @@ public partial class MarketDataDbContext(
                     var rowMode = row.IntrinsicTimeMode.ToStringFast();
                     var rowTimePeriod = row.TimePeriod.ToStringFast();
                     var yearMonth = ToYearMonth(row.ValueDate);
-                    commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByContractDayV2)}", MarketDataDbCql.DeleteFuturesItiSignalByContractDayV2)
-                        .SetParameters(new DeleteFuturesItiSignalByContractDayV2(
+                    commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByContractDay)}", MarketDataDbCql.DeleteFuturesItiSignalByContractDay)
+                        .SetParameters(new DeleteFuturesItiSignalByContractDay(
                             row.ContractId,
                             row.ValueDate,
                             rowMode,
@@ -1817,8 +1817,8 @@ public partial class MarketDataDbContext(
                             rowTrend,
                             row.IntrinsicTimeGroupId))
                         .QueueCommand());
-                    commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByContractMonthV2)}", MarketDataDbCql.DeleteFuturesItiSignalByContractMonthV2)
-                        .SetParameters(new DeleteFuturesItiSignalByContractMonthV2(
+                    commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByContractMonth)}", MarketDataDbCql.DeleteFuturesItiSignalByContractMonth)
+                        .SetParameters(new DeleteFuturesItiSignalByContractMonth(
                             row.ContractId,
                             yearMonth,
                             row.ValueDate,
@@ -1828,8 +1828,8 @@ public partial class MarketDataDbContext(
                             rowTrend,
                             row.IntrinsicTimeGroupId))
                         .QueueCommand());
-                    commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByTrendModeMonthV2)}", MarketDataDbCql.DeleteFuturesItiSignalByTrendModeMonthV2)
-                        .SetParameters(new DeleteFuturesItiSignalByTrendModeMonthV2(
+                    commands.Add(db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.DeleteFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.DeleteFuturesItiSignalByTrendModeMonth)
+                        .SetParameters(new DeleteFuturesItiSignalByTrendModeMonth(
                             row.ContractId,
                             rowTrend,
                             rowMode,
@@ -2367,13 +2367,13 @@ public partial class MarketDataDbContext(
                     db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignal)}", MarketDataDbCql.InsertFuturesItiSignal)
                         .SetParameters(canonicalParameters)
                         .QueueCommand(),
-                    db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractDayV2)}", MarketDataDbCql.InsertFuturesItiSignalByContractDayV2)
+                    db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractDay)}", MarketDataDbCql.InsertFuturesItiSignalByContractDay)
                         .SetParameters(canonicalParameters)
                         .QueueCommand(),
-                    db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractMonthV2)}", MarketDataDbCql.InsertFuturesItiSignalByContractMonthV2)
+                    db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractMonth)}", MarketDataDbCql.InsertFuturesItiSignalByContractMonth)
                         .SetParameters(monthParameters)
                         .QueueCommand(),
-                    db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonthV2)}", MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonthV2)
+                    db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)
                         .SetParameters(monthParameters)
                         .QueueCommand(),
                     db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertFuturesItiTimeFrameState)}", MarketDataDbCql.UpsertFuturesItiTimeFrameState)
@@ -5075,11 +5075,11 @@ public partial class MarketDataDbContext(
             .ExecuteCommandAsync(cancellationToken);
         await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateVixFuturesContractIndex)}", MarketDataDbCql.TruncateVixFuturesContractIndex)
             .ExecuteCommandAsync(cancellationToken);
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByContractDayV2)}", MarketDataDbCql.TruncateFuturesItiSignalByContractDayV2)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByContractDay)}", MarketDataDbCql.TruncateFuturesItiSignalByContractDay)
             .ExecuteCommandAsync(cancellationToken);
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByContractMonthV2)}", MarketDataDbCql.TruncateFuturesItiSignalByContractMonthV2)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByContractMonth)}", MarketDataDbCql.TruncateFuturesItiSignalByContractMonth)
             .ExecuteCommandAsync(cancellationToken);
-        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByTrendModeMonthV2)}", MarketDataDbCql.TruncateFuturesItiSignalByTrendModeMonthV2)
+        await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.TruncateFuturesItiSignalByTrendModeMonth)
             .ExecuteCommandAsync(cancellationToken);
         await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.TruncateMarketDataProjectionMonth)}", MarketDataDbCql.TruncateMarketDataProjectionMonth)
             .ExecuteCommandAsync(cancellationToken);
@@ -5118,7 +5118,7 @@ public partial class MarketDataDbContext(
 
         var futuresItiSourceIdentityBuilder = new ProjectionIdentityBuilder();
         var itiDayBatch = new List<InsertFuturesItiSignal>(batchSize);
-        var itiMonthBatch = new List<InsertFuturesItiSignalByContractMonthV2>(batchSize);
+        var itiMonthBatch = new List<InsertFuturesItiSignalByContractMonth>(batchSize);
         var itiMonths = new HashSet<int>();
         await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsAll)}", MarketDataDbCql.GetFuturesItiSignalsAll)
             .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
@@ -5169,21 +5169,21 @@ public partial class MarketDataDbContext(
         }
 
         var futuresItiDayIdentityBuilder = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByContractDayV2All)}", MarketDataDbCql.GetFuturesItiSignalByContractDayV2All)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByContractDayAll)}", MarketDataDbCql.GetFuturesItiSignalByContractDayAll)
             .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
         {
             futuresItiDayIdentityBuilder.Add(GetFuturesItiSignalIdentity(row));
         }
 
         var futuresItiMonthIdentityBuilder = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByContractMonthV2All)}", MarketDataDbCql.GetFuturesItiSignalByContractMonthV2All)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByContractMonthAll)}", MarketDataDbCql.GetFuturesItiSignalByContractMonthAll)
             .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
         {
             futuresItiMonthIdentityBuilder.Add(GetFuturesItiSignalIdentity(row));
         }
 
         var futuresItiTrendModeIdentityBuilder = new ProjectionIdentityBuilder();
-        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByTrendModeMonthV2All)}", MarketDataDbCql.GetFuturesItiSignalByTrendModeMonthV2All)
+        await foreach (var row in db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalByTrendModeMonthAll)}", MarketDataDbCql.GetFuturesItiSignalByTrendModeMonthAll)
             .ExecuteStreamAsync(MapToFuturesItiSignal!, cancellationToken))
         {
             futuresItiTrendModeIdentityBuilder.Add(GetFuturesItiSignalIdentity(row));
@@ -5399,13 +5399,13 @@ public partial class MarketDataDbContext(
         {
             if (itiDayBatch.Count == 0)
                 return;
-            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractDayV2)}", MarketDataDbCql.InsertFuturesItiSignalByContractDayV2)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractDay)}", MarketDataDbCql.InsertFuturesItiSignalByContractDay)
                 .SetParameters(itiDayBatch)
                 .ExecuteCommandAsync(cancellationToken);
-            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractMonthV2)}", MarketDataDbCql.InsertFuturesItiSignalByContractMonthV2)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByContractMonth)}", MarketDataDbCql.InsertFuturesItiSignalByContractMonth)
                 .SetParameters(itiMonthBatch)
                 .ExecuteCommandAsync(cancellationToken);
-            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonthV2)}", MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonthV2)
+            await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.InsertFuturesItiSignalByTrendModeMonth)
                 .SetParameters(itiMonthBatch)
                 .ExecuteCommandAsync(cancellationToken);
             await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertMarketDataProjectionMonth)}", MarketDataDbCql.InsertMarketDataProjectionMonth)

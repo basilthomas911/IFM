@@ -21,15 +21,15 @@ public sealed class StrategyOperationsService(
     readonly IFuturesItiSignalUIEventConsumer _eventConsumer = eventConsumer
         ?? throw new ArgumentNullException(nameof(eventConsumer));
 
-    /// <summary>Gets the latest typed ITI snapshot for a strategy row.</summary>
-    public async ValueTask<UiOperationResult<FuturesItiSignalV2ReadModel>> GetLatestFuturesItiSignalAsync(
+    /// <summary>Gets every durable ITI signal in the requested display timeframe.</summary>
+    public async ValueTask<UiOperationResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(
         string contractId,
         DateOnly valueDate,
         TimeFrameType timePeriod,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await _queryApi.GetFuturesItiSignalAsync(contractId, valueDate, timePeriod);
+        var result = await _queryApi.GetFuturesItiSignalHistoryAsync(contractId, valueDate, timePeriod);
         return result.ToUiResult(value => value);
     }
 

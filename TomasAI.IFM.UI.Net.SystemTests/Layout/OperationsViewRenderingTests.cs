@@ -2,6 +2,7 @@ using FluentAssertions;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.UI.Net.Views.App;
 
@@ -38,6 +39,45 @@ public sealed class OperationsViewRenderingTests
             .Should().Equal("Time", "Change", "Trend", "Price");
         eventList.Columns[0].Width.Should().BeGreaterThanOrEqualTo(185);
 
+    }
+
+    [Fact]
+    public void StrategyComposesChartAndHistoryAbovePropertyGrid()
+    {
+        using var operations = new OperationsView();
+        var chart = operations.Controls.Find("itiChart", true)
+            .OfType<Chart>()
+            .Single();
+        var history = operations.Controls.Find("lstItiEvents", true)
+            .OfType<ListView>()
+            .Single();
+        var propertyGrid = operations.Controls.Find("itiPropertyGrid", true)
+            .OfType<PropertyGrid>()
+            .Single();
+        var contentSplitter = operations.Controls.Find("strategyContentSplitter", true)
+            .OfType<SplitContainer>()
+            .Single();
+        var detailSplitter = operations.Controls.Find("strategySplitter", true)
+            .OfType<SplitContainer>()
+            .Single();
+
+        contentSplitter.Orientation.Should().Be(Orientation.Horizontal);
+        contentSplitter.Panel1.Controls.Cast<Control>().Should().Contain(chart);
+        contentSplitter.Panel2.Controls.Cast<Control>().Should().Contain(history);
+        detailSplitter.Panel1.Controls.Cast<Control>().Should().Contain(contentSplitter);
+        detailSplitter.Panel2.Controls.Cast<Control>().Should().Contain(propertyGrid);
+        chart.ChartAreas.Single().AxisX.Title.Should().Be("Market Time (ET)");
+        chart.ChartAreas.Single().AxisY.Title.Should().Be("ITI Signal Price");
+        chart.Titles.Should().BeEmpty();
+        chart.Series["Other ITI Event"].Color.ToArgb().Should().Be(Color.Navy.ToArgb());
+        chart.Series.Select(series => series.Name).Should().Contain(
+        [
+            "ITI Price",
+            "Other ITI Event",
+            "Direction Up",
+            "Direction Down",
+            "Selection"
+        ]);
     }
 
     [Theory]
@@ -79,17 +119,27 @@ public sealed class OperationsViewRenderingTests
     }
 
     [Fact]
-    public void MarketDataEsAndVxTabsUseDarkChromeAndBlackPages()
+    public void MarketDataEsAndVxTabsUseDarkChromeBlackPagesAndSubtleGridlines()
     {
         using var view = new MarketDataView();
         var tabs = view.Controls.Find("tabMarketData", true)
             .OfType<TabControl>()
             .Single();
+        var charts = new[] { "graphES", "graphVIX" }
+            .Select(name => view.Controls.Find(name, true).OfType<Chart>().Single())
+            .ToArray();
 
         tabs.GetType().Name.Should().Be("DarkTabControl");
         tabs.TabPages.Cast<TabPage>().Should().OnlyContain(page =>
             page.BackColor.ToArgb() == Color.Black.ToArgb()
             && !page.UseVisualStyleBackColor);
+        charts.Should().OnlyContain(chart =>
+            chart.ChartAreas.Single().AxisX.MajorGrid.Enabled
+            && chart.ChartAreas.Single().AxisX.MajorGrid.LineColor.ToArgb()
+                == Color.FromArgb(45, 45, 45).ToArgb()
+            && chart.ChartAreas.Single().AxisY2.MajorGrid.Enabled
+            && chart.ChartAreas.Single().AxisY2.MajorGrid.LineColor.ToArgb()
+                == Color.FromArgb(45, 45, 45).ToArgb());
     }
 
     [Fact]

@@ -25,6 +25,24 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
     }
 
     [Fact]
+    public async Task GetFuturesItiSignalHistory_Ok()
+    {
+        var queryServiceApi = new QueryServiceApiClient(
+            _httpClientFactory,
+            _jsonSerializer,
+            new QueryServiceApiOptions("http://localhost"));
+        var queryApi = new MarketDataAnalyticsQueryApi(queryServiceApi);
+
+        var response = await queryApi.GetFuturesItiSignalHistoryAsync(
+            "ESU25",
+            new DateOnly(2025, 9, 10),
+            TimeFrameType.Weekly);
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBeNull().And.NotBeEmpty();
+    }
+
+    [Fact]
     public async Task GetFuturesItiTrendDirectionChangedSignals_Ok()
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));

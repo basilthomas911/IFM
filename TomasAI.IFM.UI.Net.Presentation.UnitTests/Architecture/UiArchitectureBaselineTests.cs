@@ -291,11 +291,16 @@ public class UiArchitectureBaselineTests
         operationsDesigner.Should().Contain("operationsTabs.Controls.Add(tabSaturation)");
         operationsDesigner.Should().Contain("operationsTabs.SelectedIndex = 0");
         operationsDesigner.Should().Contain("lblTitle.Text = \"Operations\"");
-        operationsDesigner.Should().Contain("strategySplitter.Panel1.Controls.Add(lstItiEvents)");
+        operationsDesigner.Should().Contain("strategySplitter.Panel1.Controls.Add(strategyContentSplitter)");
+        operationsDesigner.Should().Contain("strategyContentSplitter.Panel1.Controls.Add(itiChart)");
+        operationsDesigner.Should().Contain("strategyContentSplitter.Panel2.Controls.Add(lstItiEvents)");
         operationsDesigner.Should().Contain("strategySplitter.Panel2.Controls.Add(itiPropertyGrid)");
         operationsDesigner.Should().Contain("itiPropertyGrid.PropertySort = PropertySort.NoSort");
         operationsDesigner.Should().Contain("itiPropertyGrid.ViewBackColor = Color.Black");
         operationsView.Should().Contain("const double StrategyDetailHeightRatio = 0.33");
+        operationsView.Should().Contain("Futures ITI - {strategy.ContractId}");
+        operationsView.Should().Contain("area.AxisX.Title = \"Market Time (ET)\"");
+        operationsView.Should().Contain("area.AxisY.Title = \"ITI Signal Price\"");
         operationsView.Should().Contain("itiPropertyGrid.SelectedObject = new ItiSignalPropertyGridModel(row)");
 
         var shellDesigner = File.ReadAllText(Path.Combine(

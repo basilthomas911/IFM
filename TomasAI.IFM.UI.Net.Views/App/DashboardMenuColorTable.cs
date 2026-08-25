@@ -3,6 +3,8 @@ namespace TomasAI.IFM.UI.Net.Views.App;
 /// <summary>Draws navigation text according to the ToolStrip's current selection.</summary>
 sealed class DashboardMenuRenderer() : ToolStripProfessionalRenderer(new DashboardMenuColorTable())
 {
+    const string MarketDataFeedButtonName = "marketDataFeedButton";
+    const string MarketDataFeedHealthIndicatorName = "marketDataFeedHealthIndicator";
     static readonly HashSet<string> NavigationItemNames = new(StringComparer.Ordinal)
     {
         "tradeButton",
@@ -12,8 +14,40 @@ sealed class DashboardMenuRenderer() : ToolStripProfessionalRenderer(new Dashboa
         "systemAdminButton"
     };
 
+    protected override void OnRenderButtonBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (!string.Equals(e.Item.Name, MarketDataFeedButtonName, StringComparison.Ordinal))
+        {
+            base.OnRenderButtonBackground(e);
+            return;
+        }
+
+        using var background = new SolidBrush(e.Item.BackColor);
+        e.Graphics.FillRectangle(background, new Rectangle(Point.Empty, e.Item.Size));
+    }
+
+    protected override void OnRenderLabelBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (!string.Equals(e.Item.Name, MarketDataFeedHealthIndicatorName, StringComparison.Ordinal))
+        {
+            base.OnRenderLabelBackground(e);
+            return;
+        }
+
+        using var background = new SolidBrush(e.Item.BackColor);
+        e.Graphics.FillRectangle(background, new Rectangle(Point.Empty, e.Item.Size));
+    }
+
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
+        if (string.Equals(e.Item.Name, MarketDataFeedButtonName, StringComparison.Ordinal)
+            || string.Equals(e.Item.Name, MarketDataFeedHealthIndicatorName, StringComparison.Ordinal))
+        {
+            e.TextColor = e.Item.ForeColor;
+            base.OnRenderItemText(e);
+            return;
+        }
+
         if (!NavigationItemNames.Contains(e.Item.Name))
         {
             base.OnRenderItemText(e);

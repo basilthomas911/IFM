@@ -18,25 +18,26 @@ public sealed class StrategyOperationsViewModelTests
     static readonly DateOnly ValueDate = new(2026, 8, 21);
 
     [Fact]
-    public async Task Initialize_SubscribesBeforeSnapshotsAndPublishesSelectedTimeFrame()
+    public async Task Initialize_SubscribesBeforeHistoryAndPublishesCompleteSelectedTimeFrame()
     {
         var daily = Signal(TimeFrameType.Daily, 1, IntrinsicTimeModeType.Trending);
+        var dailyDirection = Signal(TimeFrameType.Daily, 4, IntrinsicTimeModeType.TrendDirectionChanged);
         var weekly = Signal(TimeFrameType.Weekly, 2, IntrinsicTimeModeType.TrendDirectionChanged);
         var monthly = Signal(TimeFrameType.Monthly, 3, IntrinsicTimeModeType.TrendExtremeChanged);
         var subject = CreateSubject();
-        subject.QueryApi.GetFuturesItiSignalAsync(ContractId, ValueDate, TimeFrameType.Daily)
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(ContractId, ValueDate, TimeFrameType.Daily)
             .Returns(_ =>
             {
                 subject.EventSource.Publish(daily);
-                return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
-                    new ServiceOk<FuturesItiSignalV2ReadModel>(daily));
+                return Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                    new ServiceOk<FuturesItiSignalV2ReadModel[]>([daily, dailyDirection]));
             });
-        subject.QueryApi.GetFuturesItiSignalAsync(ContractId, ValueDate, TimeFrameType.Weekly)
-            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
-                new ServiceOk<FuturesItiSignalV2ReadModel>(weekly)));
-        subject.QueryApi.GetFuturesItiSignalAsync(ContractId, ValueDate, TimeFrameType.Monthly)
-            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
-                new ServiceOk<FuturesItiSignalV2ReadModel>(monthly)));
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(ContractId, ValueDate, TimeFrameType.Weekly)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([weekly])));
+        subject.QueryApi.GetFuturesItiSignalHistoryAsync(ContractId, ValueDate, TimeFrameType.Monthly)
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([monthly])));
 
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
 
@@ -47,10 +48,12 @@ public sealed class StrategyOperationsViewModelTests
             TimeFrameType.Monthly);
         subject.ViewModel.SelectedTimeFrame.Should().Be(TimeFrameType.Daily);
         subject.ViewModel.StatusText.Should().StartWith("Intrinsic Time Daily:");
-        subject.ViewModel.Events.Should().ContainSingle()
-            .Which.TimePeriod.Should().Be(TimeFrameType.Daily);
-        subject.ViewModel.Events.Single()
-            .IsInitialSnapshot.Should().BeFalse("the live overlap arrived after subscription and won deduplication");
+        subject.ViewModel.Events.Should().HaveCount(2)
+            .And.OnlyContain(row => row.TimePeriod == TimeFrameType.Daily);
+        subject.ViewModel.Events.Single(row => row.SequenceId == daily.SequenceId)
+            .IsHistorical.Should().BeFalse("the live overlap arrived after subscription and won deduplication");
+        subject.ViewModel.Events.Single(row => row.SequenceId == dailyDirection.SequenceId)
+            .IsHistorical.Should().BeTrue();
 
         subject.ViewModel.SelectedTimeFrame = TimeFrameType.Weekly;
         subject.ViewModel.StatusText.Should().StartWith("Intrinsic Time Weekly:");
@@ -103,7 +106,7 @@ public sealed class StrategyOperationsViewModelTests
     }
 
     [Fact]
-    public async Task Listener_FiltersContextDeduplicatesAndBoundsHistory()
+    public async Task Listener_FiltersContextDeduplicatesAndRetainsCompleteHistory()
     {
         var subject = CreateSubject();
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
@@ -117,7 +120,7 @@ public sealed class StrategyOperationsViewModelTests
         var duplicate = Signal(TimeFrameType.Daily, 3, IntrinsicTimeModeType.Trending);
         subject.EventSource.Publish(duplicate);
         subject.EventSource.Publish(duplicate);
-        for (var sequence = 4; sequence <= StrategyOperationsViewModel.EventCapacity + 10; sequence++)
+        for (var sequence = 4; sequence <= 520; sequence++)
         {
             subject.EventSource.Publish(Signal(
                 TimeFrameType.Daily,
@@ -125,7 +128,7 @@ public sealed class StrategyOperationsViewModelTests
                 IntrinsicTimeModeType.PredictedIntervalChanged));
         }
 
-        subject.ViewModel.Events.Should().HaveCount(StrategyOperationsViewModel.EventCapacity);
+        subject.ViewModel.Events.Should().HaveCount(518);
         subject.ViewModel.Events.Should().OnlyContain(row =>
             row.ContractId == ContractId
             && row.ValueDate == ValueDate
@@ -154,12 +157,12 @@ public sealed class StrategyOperationsViewModelTests
     static Subject CreateSubject()
     {
         var queryApi = Substitute.For<IMarketDataAnalyticsQueryApi>();
-        queryApi.GetFuturesItiSignalAsync(
+        queryApi.GetFuturesItiSignalHistoryAsync(
                 Arg.Any<string>(),
                 Arg.Any<DateOnly>(),
                 Arg.Any<TimeFrameType>())
-            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel>>(
-                new ServiceOk<FuturesItiSignalV2ReadModel>(null!)));
+            .Returns(Task.FromResult<ServiceResult<FuturesItiSignalV2ReadModel[]>>(
+                new ServiceOk<FuturesItiSignalV2ReadModel[]>([])));
 
         var consumer = Substitute.For<IFuturesItiSignalUIEventConsumer>();
         var eventSource = new TestEventSource(consumer);

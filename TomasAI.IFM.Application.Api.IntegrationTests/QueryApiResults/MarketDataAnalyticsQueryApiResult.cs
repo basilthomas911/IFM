@@ -87,6 +87,9 @@ public static class MarketDataAnalyticsQueryApiResult
         tradeState: IntrinsicTimeTradeState.Ready
     ) });
 
+    public static Task FromGetFuturesItiSignalHistoryAsync(HttpResponse resp)
+        => FromGetFuturesItiTrendDirectionChangedSignalsAsync(resp);
+
     public static Task FromGetFuturesItiSignalDataAsync(HttpResponse resp)
         => resp.SetResult(new FuturesItiSignalDataReadModel(
             new FuturesItiSignalV2ReadModel(

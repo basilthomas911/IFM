@@ -108,5 +108,82 @@ public class FuturesItiSignalQueryApiTests(WebApplicationFactory<Program> factor
         response.Value.First().ValueDate.Should().Be(SampleData.ValueDate);
         response.Value.First().IntrinsicTimeMode.Should().Be(IntrinsicTimeModeType.TrendDirectionChanged);
     }
+
+    [Fact]
+    public async Task GetFuturesItiSignalHistory_ReturnsCompleteWeeklyWindowInOrder()
+    {
+        const string contractId = "ES-HISTORY-API";
+        var monday = new DateOnly(2026, 9, 7);
+        var wednesday = monday.AddDays(2);
+        var seeded = new[]
+        {
+            CreateHistorySignal(contractId, wednesday, TimeFrameType.Weekly, 2, hour: 15),
+            CreateHistorySignal(contractId, monday, TimeFrameType.Weekly, 1, hour: 13),
+            CreateHistorySignal(contractId, wednesday, TimeFrameType.Daily, 3, hour: 14)
+        };
+
+        try
+        {
+            foreach (var signal in seeded)
+            {
+                await dbFixture.MarketDataDb.DeleteFuturesItiSignalAsync(
+                    signal.ContractId,
+                    signal.ValueDate,
+                    signal.TimePeriod);
+                await dbFixture.MarketDataDb.InsertFuturesItiSignalAsync(signal);
+            }
+
+            var analyticsApi = new MarketDataAnalyticsQueryApi(_actorProducer);
+            var response = await analyticsApi.GetFuturesItiSignalHistoryAsync(
+                contractId,
+                wednesday,
+                TimeFrameType.Weekly);
+
+            response.Success.Should().BeTrue();
+            response.Value.Should().NotBeNull();
+            response.Value!.Select(signal => signal.SequenceId).Should().Equal(1, 2);
+            response.Value.Should().OnlyContain(signal => signal.TimePeriod == TimeFrameType.Weekly);
+        }
+        finally
+        {
+            foreach (var signal in seeded)
+            {
+                await dbFixture.MarketDataDb.DeleteFuturesItiSignalAsync(
+                    signal.ContractId,
+                    signal.ValueDate,
+                    signal.TimePeriod);
+            }
+        }
+    }
+
+    static FuturesItiSignalV2ReadModel CreateHistorySignal(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod,
+        long sequenceId,
+        int hour)
+        => new(
+            contractId,
+            valueDate,
+            timePeriod,
+            sequenceId,
+            valueDate.ToDateTime(new TimeOnly(hour, 0), DateTimeKind.Utc),
+            0,
+            0,
+            5_000 + sequenceId,
+            IntrinsicTimeTrendType.UpTrend,
+            IntrinsicTimeModeType.Trending,
+            5_000,
+            5_001,
+            5_000,
+            1,
+            1,
+            0.003,
+            5,
+            10,
+            5_010,
+            4_990,
+            IntrinsicTimeTradeState.Ready,
+            timeFrameStartValueDate: valueDate);
 }
 

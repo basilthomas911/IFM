@@ -966,7 +966,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             "futures_tick_data_by_time",
             "futures_eod_data_by_month",
             "vix_futures_contract_index",
-            "futures_iti_signal_queries_v2"
+            "futures_iti_signal_queries"
         ];
 
         await db.BackfillQueryProjectionsV2Async(batchSize: 64);

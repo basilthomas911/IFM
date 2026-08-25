@@ -331,6 +331,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Framework.Stora
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.UI.Net.Services", "TomasAI.IFM.UI.Net.Services\TomasAI.IFM.UI.Net.Services.csproj", "{0952CEC9-7D37-4ECB-A56C-0978C9099E47}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.Storage.DevelopmentData", "TomasAI.IFM.Application.Storage.DevelopmentData\TomasAI.IFM.Application.Storage.DevelopmentData.csproj", "{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -3325,6 +3327,26 @@ Global
 		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x64.Build.0 = Release|Any CPU
 		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x86.ActiveCfg = Release|Any CPU
 		{0952CEC9-7D37-4ECB-A56C-0978C9099E47}.Release|x86.Build.0 = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|ARM.Build.0 = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|x64.Build.0 = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Debug|x86.Build.0 = Debug|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|ARM.ActiveCfg = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|ARM.Build.0 = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|ARM64.Build.0 = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|x64.ActiveCfg = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|x64.Build.0 = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|x86.ActiveCfg = Release|Any CPU
+		{7314D8CB-C2B7-490C-9971-E5B8AA39C3C7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -116,6 +116,19 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
         return await _querySvc.ExecuteQueryAsync<FuturesItiSignalV2ReadModel>(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignal, qryParam, 1021);
     }
 
+    /// <summary>Gets the complete Futures ITI signal history represented by a display timeframe.</summary>
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod)
+    {
+        var qryParam = new GetFuturesItiSignalHistoryParameter(contractId, valueDate, timePeriod);
+        return await _querySvc.ExecuteQueryAsync<FuturesItiSignalV2ReadModel[]>(
+            MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalHistory,
+            qryParam,
+            GetFuturesItiSignalHistoryQuery.ErrorId);
+    }
+
     /// <summary>
     /// Gets the futures ITI trend direction changed signals for a contract and value date.
     /// </summary>

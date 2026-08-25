@@ -211,6 +211,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case nameof(IFMAppViewModel.CanToggleMarketDataFeed):
             case nameof(IFMAppViewModel.MarketDataFeedActionText):
             case nameof(IFMAppViewModel.MarketDataFeedStateText):
+            case nameof(IFMAppViewModel.MarketDataFeedHealthIndicatorText):
             case nameof(IFMAppViewModel.MarketDataFeedHealthState):
                 RenderMarketDataFeedState();
                 break;
@@ -286,19 +287,32 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         marketDataFeedButton.ToolTipText = _viewModel.MarketDataFeedStateText;
         marketDataFeedButton.Enabled = _viewModel.CanToggleMarketDataFeed;
         (marketDataFeedButton.BackColor, marketDataFeedButton.ForeColor) =
-            MarketDataFeedColors(_viewModel.MarketDataFeedHealthState);
+            MarketDataFeedColors(_viewModel.IsMarketDataFeedActive);
+        marketDataFeedHealthIndicator.Text = _viewModel.MarketDataFeedHealthIndicatorText;
+        marketDataFeedHealthIndicator.AccessibleName = _viewModel.MarketDataFeedHealthIndicatorText;
+        marketDataFeedHealthIndicator.AccessibleDescription = _viewModel.MarketDataFeedStateText;
+        marketDataFeedHealthIndicator.ToolTipText = _viewModel.MarketDataFeedStateText;
+        (marketDataFeedHealthIndicator.BackColor, marketDataFeedHealthIndicator.ForeColor) =
+            MarketDataFeedHealthColors(_viewModel.MarketDataFeedHealthState);
     }
 
     internal static (Color Background, Color Foreground) MarketDataFeedColors(
+        bool isMarketDataFeedActive)
+        => isMarketDataFeedActive
+            ? (Color.Black, Color.Red)
+            : (Color.Black, Color.LimeGreen);
+
+    internal static (Color Background, Color Foreground) MarketDataFeedHealthColors(
         MarketDataFeedHealthState state)
         => state switch
         {
-            MarketDataFeedHealthState.Healthy => (Color.Black, Color.LimeGreen),
-            MarketDataFeedHealthState.Intermittent => (Color.Black, Color.Yellow),
-            MarketDataFeedHealthState.Failed => (Color.Black, Color.Orange),
-            MarketDataFeedHealthState.Critical => (Color.Black, Color.Red),
-            MarketDataFeedHealthState.OutsidePositionEntryWindow => (Color.Black, Color.Gray),
-            _ => (Color.Black, Color.DarkRed)
+            MarketDataFeedHealthState.Healthy => (Color.LimeGreen, Color.Black),
+            MarketDataFeedHealthState.Intermittent => (Color.Yellow, Color.Black),
+            MarketDataFeedHealthState.Failed or MarketDataFeedHealthState.Critical
+                => (Color.Red, Color.White),
+            MarketDataFeedHealthState.OutsidePositionEntryWindow
+                => (Color.SteelBlue, Color.White),
+            _ => (Color.DimGray, Color.White)
         };
 
     private void RenderStatusLine()

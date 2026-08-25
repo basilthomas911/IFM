@@ -49,6 +49,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             tradeButton = new ToolStripButton();
             marketDataButton = new ToolStripButton();
             marketDataFeedButton = new ToolStripButton();
+            marketDataFeedHealthIndicator = new ToolStripLabel();
             toolStripSeparator = new ToolStripSeparator();
             btnCloseOrder = new ToolStripButton();
             toolStrip1 = new ToolStrip();
@@ -304,13 +305,24 @@ namespace TomasAI.IFM.UI.Net.Views.App
             marketDataFeedButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
             marketDataFeedButton.Enabled = false;
             marketDataFeedButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            marketDataFeedButton.ForeColor = Color.DarkRed;
+            marketDataFeedButton.ForeColor = Color.LimeGreen;
             marketDataFeedButton.Name = "marketDataFeedButton";
             marketDataFeedButton.Size = new Size(126, 24);
-            marketDataFeedButton.Text = "Start Market Feed";
-            marketDataFeedButton.AccessibleName = "Start Market Feed";
+            marketDataFeedButton.Text = "Start Market Feeds";
+            marketDataFeedButton.AccessibleName = "Start Market Feeds";
             marketDataFeedButton.ToolTipText = "Market Feed: Inactive";
             marketDataFeedButton.Click += marketDataFeedButton_Click;
+            //
+            // marketDataFeedHealthIndicator
+            //
+            marketDataFeedHealthIndicator.BackColor = Color.DimGray;
+            marketDataFeedHealthIndicator.Font = new Font("Segoe UI", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            marketDataFeedHealthIndicator.ForeColor = Color.White;
+            marketDataFeedHealthIndicator.Margin = new Padding(4, 1, 0, 2);
+            marketDataFeedHealthIndicator.Name = "marketDataFeedHealthIndicator";
+            marketDataFeedHealthIndicator.Text = "Feed Health: Stopped";
+            marketDataFeedHealthIndicator.AccessibleName = "Feed Health: Stopped";
+            marketDataFeedHealthIndicator.ToolTipText = "Market Feed: Inactive";
             // 
             // toolStripSeparator
             // 
@@ -336,7 +348,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             toolStrip1.ForeColor = Color.White;
             toolStrip1.GripStyle = ToolStripGripStyle.Hidden;
             toolStrip1.ImageScalingSize = new Size(24, 24);
-            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, btnCloseOrder });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, marketDataFeedHealthIndicator, btnCloseOrder });
             toolStrip1.Location = new Point(0, 0);
             toolStrip1.Name = "toolStrip1";
             toolStrip1.Renderer = new DashboardMenuRenderer()
@@ -455,6 +467,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.ToolStripButton tradeButton;
         private System.Windows.Forms.ToolStripButton marketDataButton;
         private System.Windows.Forms.ToolStripButton marketDataFeedButton;
+        private System.Windows.Forms.ToolStripLabel marketDataFeedHealthIndicator;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator;
         private System.Windows.Forms.ToolStripButton btnCloseOrder;
         private System.Windows.Forms.ToolStrip toolStrip1;

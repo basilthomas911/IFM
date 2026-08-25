@@ -113,12 +113,12 @@ public sealed class G1UiAutomationSession : IDisposable
     public G2MarketDataFeedUiState ReadMarketDataFeedState()
     {
         var button = FindDescendant(MainWindow, "marketDataFeedButton", null)
-            ?? FindDescendant(MainWindow, null, "Start Market Feed")
-            ?? FindDescendant(MainWindow, null, "Stop Market Feed")
+            ?? FindDescendant(MainWindow, null, "Start Market Feeds")
+            ?? FindDescendant(MainWindow, null, "Stop Market Feeds")
             ?? throw new InvalidOperationException("The shell market-data feed control was not found.");
         var action = button.Name;
-        var isActive = string.Equals(action, "Stop Market Feed", StringComparison.Ordinal);
-        if (!isActive && !string.Equals(action, "Start Market Feed", StringComparison.Ordinal))
+        var isActive = string.Equals(action, "Stop Market Feeds", StringComparison.Ordinal);
+        if (!isActive && !string.Equals(action, "Start Market Feeds", StringComparison.Ordinal))
             throw new InvalidOperationException($"Unexpected market-data feed action '{action}'.");
         return new G2MarketDataFeedUiState(isActive, action, button.IsEnabled);
     }
@@ -140,8 +140,8 @@ public sealed class G1UiAutomationSession : IDisposable
     public void InvokeMarketDataFeedAction()
     {
         var button = FindDescendant(MainWindow, "marketDataFeedButton", null)
-            ?? FindDescendant(MainWindow, null, "Start Market Feed")
-            ?? FindDescendant(MainWindow, null, "Stop Market Feed")
+            ?? FindDescendant(MainWindow, null, "Start Market Feeds")
+            ?? FindDescendant(MainWindow, null, "Stop Market Feeds")
             ?? throw new InvalidOperationException("The shell market-data feed control was not found.");
         if (!button.IsEnabled)
             throw new InvalidOperationException($"The market-data feed action '{button.Name}' is disabled.");

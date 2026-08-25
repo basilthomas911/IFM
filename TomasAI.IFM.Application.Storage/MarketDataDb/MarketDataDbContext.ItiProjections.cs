@@ -9,7 +9,7 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public partial class MarketDataDbContext
 {
-    const string FuturesItiSignalQueryProjection = "futures_iti_signal_queries_v2";
+    const string FuturesItiSignalQueryProjection = "futures_iti_signal_queries";
 
     static FuturesItiProjectionScopeData MapToFuturesItiProjectionScope<TDataRecord>(TDataRecord row)
         where TDataRecord : IObjectDataRecord
@@ -103,7 +103,7 @@ public partial class MarketDataDbContext
             e.BandLevel,
             e.ReversalLevel);
 
-    static InsertFuturesItiSignalByContractMonthV2 CreateFuturesItiSignalMonthParameters(
+    static InsertFuturesItiSignalByContractMonth CreateFuturesItiSignalMonthParameters(
         FuturesItiSignalV2ReadModel e,
         long sequenceId)
         => new(
@@ -224,8 +224,8 @@ public partial class MarketDataDbContext
             {
                 var monthStart = GetMonthStart(partition.yearMonth);
                 var monthEnd = GetMonthEnd(partition.yearMonth);
-                return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractMonthV2)}", MarketDataDbCql.GetFuturesItiSignalsByContractMonthV2)
-                    .SetParameters(new GetFuturesItiSignalsByContractMonthV2(
+                return await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractMonth)}", MarketDataDbCql.GetFuturesItiSignalsByContractMonth)
+                    .SetParameters(new GetFuturesItiSignalsByContractMonth(
                         partition.contractId,
                         partition.yearMonth,
                         startDate > monthStart ? startDate : monthStart,
@@ -258,12 +258,12 @@ public partial class MarketDataDbContext
             var mode = intrinsicTimeMode.ToStringFast();
             var query = afterSequenceId.HasValue
                 ? _dbFactory.MarketDataDb
-                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequenceV2)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequenceV2)
-                    .SetParameters(new GetFuturesItiSignalsByContractDayModeAfterSequenceV2(
+                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeAfterSequence)
+                    .SetParameters(new GetFuturesItiSignalsByContractDayModeAfterSequence(
                         contractId, valueDate, mode, afterSequenceId.Value))
                 : _dbFactory.MarketDataDb
-                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayModeV2)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayModeV2)
-                    .SetParameters(new GetFuturesItiSignalsByContractDayModeV2(contractId, valueDate, mode));
+                    .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)}", MarketDataDbCql.GetFuturesItiSignalsByContractDayMode)
+                    .SetParameters(new GetFuturesItiSignalsByContractDayMode(contractId, valueDate, mode));
             var projected = await query.ExecuteQueryAsync(MapToFuturesItiSignal!, cancellationToken)
                 .ConfigureAwait(false);
             if (await IsProjectionScopeReadStampValidAsync(stamp.Value))
@@ -306,8 +306,8 @@ public partial class MarketDataDbContext
             FuturesItiSignalV2ReadModel? projected = null;
             foreach (var yearMonth in months)
             {
-                projected = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonthV2)}", MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonthV2)
-                    .SetParameters(new GetLastFuturesItiSignalByTrendModeMonthV2(
+                projected = await db.Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)}", MarketDataDbCql.GetLastFuturesItiSignalByTrendModeMonth)
+                    .SetParameters(new GetLastFuturesItiSignalByTrendModeMonth(
                         contractId, trend, mode, yearMonth,
                         yearMonth == targetMonth ? valueDate : GetMonthEnd(yearMonth)))
                     .ExecuteSingleAsync(MapToFuturesItiSignal!, cancellationToken)

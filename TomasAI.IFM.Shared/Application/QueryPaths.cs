@@ -40,6 +40,7 @@ public class MarketDataAnalyticsQueryUriPath
     public const string GetFuturesTrendDirectionFromRSISignal = "/api/marketdata/analytics/futures/rsisignal/trenddirection";
     public const string GetFuturesTdiSignal = "/api/marketdata/analytics/futures/tdisignal";
     public const string GetFuturesItiSignal = "/api/marketdata/analytics/futures/itisignal";
+    public const string GetFuturesItiSignalHistory = "/api/marketdata/analytics/futures/itisignal/history";
     public const string GetFuturesItiTrendDirectionChangedSignals = "/api/marketdata/analytics/futures/ititrend/directionchangedsignals";
     public const string GetFuturesItiSignalData = "/api/marketdata/analytics/futures/itisignaldata";
     public const string GetFuturesItiMDIDistribution = "/api/marketdata/analytics/futures/itimdidistribution";

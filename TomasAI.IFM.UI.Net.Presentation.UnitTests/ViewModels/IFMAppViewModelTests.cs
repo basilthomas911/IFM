@@ -17,6 +17,28 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.ViewModels;
 
 public class IFMAppViewModelTests
 {
+    [Theory]
+    [InlineData(false, "Start Market Feeds")]
+    [InlineData(true, "Stop Market Feeds")]
+    public void MarketDataFeedActionText_ReflectsFeedLifecycle(
+        bool isMarketDataFeedActive,
+        string expected)
+        => IFMAppViewModel.GetMarketDataFeedActionText(isMarketDataFeedActive)
+            .Should().Be(expected);
+
+    [Theory]
+    [InlineData(MarketDataFeedHealthState.Inactive, "Feed Health: Stopped")]
+    [InlineData(MarketDataFeedHealthState.Healthy, "Feed Health: Healthy")]
+    [InlineData(MarketDataFeedHealthState.Intermittent, "Feed Health: Intermittent")]
+    [InlineData(MarketDataFeedHealthState.Failed, "Feed Health: Failed")]
+    [InlineData(MarketDataFeedHealthState.Critical, "Feed Health: Critical")]
+    [InlineData(MarketDataFeedHealthState.OutsidePositionEntryWindow, "Feed Health: Monitoring Paused")]
+    public void MarketDataFeedHealthIndicatorText_ReflectsHealthState(
+        MarketDataFeedHealthState state,
+        string expected)
+        => IFMAppViewModel.GetMarketDataFeedHealthIndicatorText(state)
+            .Should().Be(expected);
+
     [Fact]
     public void StatusLogState_IsNewestFirstAndBounded()
     {
@@ -63,7 +85,8 @@ public class IFMAppViewModelTests
         viewModel.MarketDataFeedHealthState.Should().Be(MarketDataFeedHealthState.Inactive);
         viewModel.IsMarketDataFeedOperationInProgress.Should().BeFalse();
         viewModel.CanToggleMarketDataFeed.Should().BeFalse();
-        viewModel.MarketDataFeedActionText.Should().Be("Start Market Feed");
+        viewModel.MarketDataFeedActionText.Should().Be("Start Market Feeds");
+        viewModel.MarketDataFeedHealthIndicatorText.Should().Be("Feed Health: Stopped");
         viewModel.MarketDataFeedStateText.Should().Be("Market Feed: Inactive");
         viewModel.IsCloseRequested.Should().BeFalse();
         viewModel.StartupOperation.Should().NotBeNull();

@@ -60,6 +60,7 @@ public class FuturesItiSignalQueryActor(
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetFuturesItiSignalDataQuery.Verb] = msg => msg.AsQuery<GetFuturesItiSignalDataQuery, FuturesItiSignalDataReadModel>()!,
+        [GetFuturesItiSignalHistoryQuery.Verb] = msg => msg.AsQuery<GetFuturesItiSignalHistoryQuery, FuturesItiSignalV2ReadModel[]>()!,
         [GetFuturesItiSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesItiSignalQuery, FuturesItiSignalV2ReadModel>()!,
         [GetFuturesItiTrendDirectionChangedSignalsQuery.Verb] = msg => msg.AsQuery<GetFuturesItiTrendDirectionChangedSignalsQuery, FuturesItiSignalV2ReadModel[]>()!
     };
@@ -110,6 +111,14 @@ public class FuturesItiSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalQuery.Verb,
                 new ServiceResult<FuturesItiSignalV2ReadModel?>(result)).ConfigureAwait(false);
         },
+        [typeof(GetFuturesItiSignalHistoryQuery).Name] = async (ctx, db, q, cancellationToken) =>
+        {
+            var query = (q as GetFuturesItiSignalHistoryQuery)!;
+            var result = await query.GetFuturesItiSignalHistoryAsync(db, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesItiSignalHistoryQuery.Verb,
+                new ServiceResult<FuturesItiSignalV2ReadModel[]>(result)).ConfigureAwait(false);
+        },
         [typeof(GetFuturesItiTrendDirectionChangedSignalsQuery).Name] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesItiTrendDirectionChangedSignalsQuery)!;
@@ -144,6 +153,8 @@ public class FuturesItiSignalQueryActor(
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesItiSignalDataReadModel?>(query.ErrorCode, ex!.Message)),
                 _ when query is GetFuturesItiSignalQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesItiSignalV2ReadModel?>(query.ErrorCode, ex!.Message)),
+                _ when query is GetFuturesItiSignalHistoryQuery
+                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesItiSignalV2ReadModel[]>(query.ErrorCode, ex!.Message)),
                 _ when query is GetFuturesItiTrendDirectionChangedSignalsQuery
                     => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesItiSignalV2ReadModel[]>(query.ErrorCode, ex!.Message)),
                 _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))

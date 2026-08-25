@@ -29,9 +29,11 @@ public sealed record FuturesItiSignalEventRow(
     double Threshold,
     double UpTrendTrigger,
     double DownTrendTrigger,
+    double BandLevel,
+    double ReversalLevel,
     IntrinsicTimeTradeState TradeState,
     DateOnly TimeFrameStartValueDate,
-    bool IsInitialSnapshot)
+    bool IsHistorical)
 {
     public string StableIdentity => string.Join(
         '|',
@@ -53,6 +55,8 @@ public sealed record FuturesItiSignalEventRow(
         Threshold,
         UpTrendTrigger,
         DownTrendTrigger,
+        BandLevel,
+        ReversalLevel,
         TradeState);
 
     internal static FuturesItiSignalEventRow FromNotification(
@@ -64,9 +68,9 @@ public sealed record FuturesItiSignalEventRow(
             notification.EventId,
             notification.CommandId,
             notification.ReceivedOn,
-            isInitialSnapshot: false);
+            isHistorical: false);
 
-    internal static FuturesItiSignalEventRow FromInitialSnapshot(FuturesItiSignalV2ReadModel signal)
+    internal static FuturesItiSignalEventRow FromHistory(FuturesItiSignalV2ReadModel signal)
         => FromSignal(
             signal,
             Guid.Empty,
@@ -74,7 +78,7 @@ public sealed record FuturesItiSignalEventRow(
             0,
             Guid.Empty,
             signal.IntrinsicTime,
-            isInitialSnapshot: true);
+            isHistorical: true);
 
     static FuturesItiSignalEventRow FromSignal(
         FuturesItiSignalV2ReadModel signal,
@@ -83,7 +87,7 @@ public sealed record FuturesItiSignalEventRow(
         long eventId,
         Guid commandId,
         DateTime receivedOn,
-        bool isInitialSnapshot)
+        bool isHistorical)
         => new(
             notificationId,
             sourceEventId,
@@ -108,9 +112,11 @@ public sealed record FuturesItiSignalEventRow(
             signal.Threshold,
             signal.UpTrendTrigger,
             signal.DownTrendTrigger,
+            signal.BandLevel,
+            signal.ReversalLevel,
             signal.TradeState,
             signal.TimeFrameStartValueDate == default
                 ? signal.ValueDate
                 : signal.TimeFrameStartValueDate,
-            isInitialSnapshot);
+            isHistorical);
 }

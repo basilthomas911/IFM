@@ -151,6 +151,28 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     }
 
     /// <summary>
+    /// Gets the complete Futures ITI signal history represented by a display timeframe.
+    /// </summary>
+    public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiSignalHistoryAsync(
+        string contractId,
+        DateOnly valueDate,
+        TimeFrameType timePeriod)
+    {
+        var entityId = new GetFuturesItiSignalHistoryParameter(contractId, valueDate, timePeriod);
+        var query = new GetFuturesItiSignalHistoryQuery(contractId, valueDate, timePeriod)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetFuturesItiSignalHistoryQuery.Actor,
+                GetFuturesItiSignalHistoryQuery.Verb,
+                entityId.Format())
+        };
+        return await RequestAsync<GetFuturesItiSignalHistoryQuery, FuturesItiSignalV2ReadModel[]>(
+            query.Subject,
+            query);
+    }
+
+    /// <summary>
     /// Gets the futures ITI trend direction changed signals for a contract and value date.
     /// </summary>
     public async Task<ServiceResult<FuturesItiSignalV2ReadModel[]>> GetFuturesItiTrendDirectionChangedSignalsAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod)

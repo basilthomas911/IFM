@@ -268,7 +268,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         private set
         {
             if (SetProperty(ref _marketDataFeedHealthState, value))
+            {
                 OnPropertyChanged(nameof(MarketDataFeedStateText));
+                OnPropertyChanged(nameof(MarketDataFeedHealthIndicatorText));
+            }
         }
     }
 
@@ -291,7 +294,25 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     /// <summary>Gets the operator action that will be performed by the shell feed control.</summary>
     public string MarketDataFeedActionText
-        => IsMarketDataFeedActive ? "Stop Market Feed" : "Start Market Feed";
+        => GetMarketDataFeedActionText(IsMarketDataFeedActive);
+
+    internal static string GetMarketDataFeedActionText(bool isMarketDataFeedActive)
+        => isMarketDataFeedActive ? "Stop Market Feeds" : "Start Market Feeds";
+
+    /// <summary>Gets the concise health text displayed beside the market-data feed action.</summary>
+    public string MarketDataFeedHealthIndicatorText
+        => GetMarketDataFeedHealthIndicatorText(MarketDataFeedHealthState);
+
+    internal static string GetMarketDataFeedHealthIndicatorText(MarketDataFeedHealthState state)
+        => state switch
+        {
+            MarketDataFeedHealthState.Healthy => "Feed Health: Healthy",
+            MarketDataFeedHealthState.Intermittent => "Feed Health: Intermittent",
+            MarketDataFeedHealthState.Failed => "Feed Health: Failed",
+            MarketDataFeedHealthState.Critical => "Feed Health: Critical",
+            MarketDataFeedHealthState.OutsidePositionEntryWindow => "Feed Health: Monitoring Paused",
+            _ => "Feed Health: Stopped"
+        };
 
     /// <summary>Gets the visible current market-data feed state.</summary>
     public string MarketDataFeedStateText
@@ -1438,6 +1459,19 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await model.StartMarketDataFeedStatusListenerAsync(@event =>
             {
                 _marketDataFeedTerminalCorrelation.TryPublish(@event);
+                switch (@event)
+                {
+                    case MarketDataFeedStartedCompleteEvent:
+                        IsMarketDataFeedActive = true;
+                        ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Activate(
+                            _baseContracts.Select(contract => contract.ContractId),
+                            _timeProvider.GetUtcNow()));
+                        break;
+                    case MarketDataFeedStoppedCompleteEvent:
+                        IsMarketDataFeedActive = false;
+                        ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Deactivate());
+                        break;
+                }
                 return ValueTask.CompletedTask;
             });
         });
@@ -1495,7 +1529,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             ? "currently traded contracts"
             : string.Join(", ", snapshot.StaleContractIds);
         var message = $"Currently traded market-data feeds have failed ({contracts}). "
-            + "Select Stop Market Feed, then Start Market Feed to reconnect.";
+            + "Select Stop Market Feeds, then Start Market Feeds to reconnect.";
         PublishError(0, message, "Market Data Feed Problem");
         await WriteStatusConsoleAsync(message);
     }

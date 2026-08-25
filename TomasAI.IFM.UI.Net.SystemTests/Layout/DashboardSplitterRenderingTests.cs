@@ -25,6 +25,9 @@ public sealed class DashboardSplitterRenderingTests
         menuBar.GripStyle.Should().Be(ToolStripGripStyle.Hidden);
         menuBar.Renderer.Should().BeAssignableTo<ToolStripProfessionalRenderer>();
         menuBar.Renderer.GetType().Name.Should().Be("DashboardMenuRenderer");
+        var feedButtonIndex = menuBar.Items.IndexOfKey("marketDataFeedButton");
+        menuBar.Items[feedButtonIndex + 1].Should().BeOfType<ToolStripLabel>();
+        menuBar.Items[feedButtonIndex + 1].Name.Should().Be("marketDataFeedHealthIndicator");
 
         var textColor = menuBar.Renderer.GetType().GetMethod(
             "NavigationTextColor",
@@ -84,29 +87,64 @@ public sealed class DashboardSplitterRenderingTests
     }
 
     [Fact]
-    public void MarketFeedButtonKeepsBlackBackgroundForEveryHealthState()
+    public void MarketFeedButtonUsesBlackBackgroundAndBrightLifecycleText()
     {
         var colorMethod = typeof(IFMAppView).GetMethod(
             "MarketDataFeedColors",
             BindingFlags.Static | BindingFlags.NonPublic)!;
-        var expectedForegrounds = new Dictionary<MarketDataFeedHealthState, Color>
+        var expected = new Dictionary<bool, (Color Background, Color Foreground)>
         {
-            [MarketDataFeedHealthState.Inactive] = Color.DarkRed,
-            [MarketDataFeedHealthState.Healthy] = Color.LimeGreen,
-            [MarketDataFeedHealthState.Intermittent] = Color.Yellow,
-            [MarketDataFeedHealthState.Failed] = Color.Orange,
-            [MarketDataFeedHealthState.Critical] = Color.Red,
-            [MarketDataFeedHealthState.OutsidePositionEntryWindow] = Color.Gray
+            [false] = (Color.Black, Color.LimeGreen),
+            [true] = (Color.Black, Color.Red)
         };
 
-        foreach (var expected in expectedForegrounds)
+        foreach (var lifecycleState in expected)
         {
             var colors = ((Color Background, Color Foreground))colorMethod.Invoke(
                 null,
-                [expected.Key])!;
-            colors.Background.ToArgb().Should().Be(Color.Black.ToArgb());
-            colors.Foreground.ToArgb().Should().Be(expected.Value.ToArgb());
+                [lifecycleState.Key])!;
+            colors.Background.ToArgb().Should().Be(lifecycleState.Value.Background.ToArgb());
+            colors.Foreground.ToArgb().Should().Be(lifecycleState.Value.Foreground.ToArgb());
         }
+
+        using var form = CreateForm();
+        var menuBar = form.Controls.Find("toolStrip1", true).OfType<ToolStrip>().Single();
+        var button = menuBar.Items.Find("marketDataFeedButton", false).Single();
+        button.Enabled = true;
+        button.BackColor = Color.Black;
+        button.ForeColor = Color.Red;
+        using var bitmap = new Bitmap(menuBar.ClientSize.Width, menuBar.ClientSize.Height);
+        menuBar.DrawToBitmap(bitmap, menuBar.ClientRectangle);
+        bitmap.GetPixel(button.Bounds.Left + 2, button.Bounds.Top + 2).ToArgb()
+            .Should().Be(Color.Black.ToArgb());
+
+        var healthColorMethod = typeof(IFMAppView).GetMethod(
+            "MarketDataFeedHealthColors",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var expectedHealthColors = new Dictionary<MarketDataFeedHealthState, (Color Background, Color Foreground)>
+        {
+            [MarketDataFeedHealthState.Inactive] = (Color.DimGray, Color.White),
+            [MarketDataFeedHealthState.Healthy] = (Color.LimeGreen, Color.Black),
+            [MarketDataFeedHealthState.Intermittent] = (Color.Yellow, Color.Black),
+            [MarketDataFeedHealthState.Failed] = (Color.Red, Color.White),
+            [MarketDataFeedHealthState.Critical] = (Color.Red, Color.White),
+            [MarketDataFeedHealthState.OutsidePositionEntryWindow] = (Color.SteelBlue, Color.White)
+        };
+        foreach (var healthState in expectedHealthColors)
+        {
+            var colors = ((Color Background, Color Foreground))healthColorMethod.Invoke(
+                null,
+                [healthState.Key])!;
+            colors.Background.ToArgb().Should().Be(healthState.Value.Background.ToArgb());
+            colors.Foreground.ToArgb().Should().Be(healthState.Value.Foreground.ToArgb());
+        }
+
+        var indicator = menuBar.Items.Find("marketDataFeedHealthIndicator", false).Single();
+        indicator.BackColor = Color.Yellow;
+        indicator.ForeColor = Color.Black;
+        menuBar.DrawToBitmap(bitmap, menuBar.ClientRectangle);
+        bitmap.GetPixel(indicator.Bounds.Left + 2, indicator.Bounds.Top + 2).ToArgb()
+            .Should().Be(Color.Yellow.ToArgb());
     }
 
     [Fact]

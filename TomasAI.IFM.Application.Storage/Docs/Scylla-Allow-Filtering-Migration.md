@@ -20,9 +20,9 @@ deployment, repair, and rollback. `ScyllaCqlPolicyTests` now rejects every appli
 
 | Table | Partition | Purpose |
 | --- | --- | --- |
-| `futures_iti_signal_by_contract_day_v2` | `(contractId, valueDate)` | Bounded day/mode reads, latest direction/reversal/extreme events, and sequence-after-direction-change reads. |
-| `futures_iti_signal_by_contract_month_v2` | `(contractId, yearMonth)` | Symbol/contract date ranges with bounded month fan-out. |
-| `futures_iti_signal_by_trend_mode_month_v2` | `(contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)` | Latest trend/mode discovery without filtering or an unbounded lifetime partition. |
+| `futures_iti_signal_by_contract_day` | `(contractId, valueDate)` | Bounded day/mode reads, latest direction/reversal/extreme events, and sequence-after-direction-change reads. |
+| `futures_iti_signal_by_contract_month` | `(contractId, yearMonth)` | Symbol/contract date ranges with bounded month fan-out. |
+| `futures_iti_signal_by_trend_mode_month` | `(contractId, intrinsicTimeTrend, intrinsicTimeMode, yearMonth)` | Latest trend/mode discovery without filtering or an unbounded lifetime partition. |
 
 All three tables duplicate the canonical ITI payload so reads do not require joins. A normal insert writes the canonical
 row, the existing date index, all three projections, and the ITI month inventory under one scoped mutation fence. A

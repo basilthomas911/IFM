@@ -19,6 +19,28 @@ public sealed class FuturesItiSignalTimeFrameTests
     static readonly DateOnly Tuesday = new(2026, 9, 8);
     static readonly DateTime Timestamp = new(2026, 9, 8, 14, 30, 0, DateTimeKind.Utc);
 
+    [Theory]
+    [InlineData(TimeFrameType.Daily, "2026-09-08", "2026-09-08")]
+    [InlineData(TimeFrameType.Weekly, "2026-09-02", "2026-09-08")]
+    [InlineData(TimeFrameType.Monthly, "2026-08-08", "2026-09-08")]
+    public void HistoryWindow_ResolvesTrailingDisplayPeriod(
+        TimeFrameType timePeriod,
+        string expectedStart,
+        string expectedEnd)
+    {
+        var window = FuturesItiSignalHistoryWindow.Resolve(Tuesday, timePeriod);
+
+        window.StartValueDate.Should().Be(DateOnly.Parse(expectedStart));
+        window.EndValueDate.Should().Be(DateOnly.Parse(expectedEnd));
+    }
+
+    [Fact]
+    public void HistoryWindow_RejectsUnsupportedTimeFrame()
+        => FluentActions.Invoking(() => FuturesItiSignalHistoryWindow.Resolve(
+                Tuesday,
+                TimeFrameType.OneMinute))
+            .Should().Throw<ArgumentOutOfRangeException>();
+
     [Fact]
     public async Task FirstObservedTick_StartsIndependentDailyWeeklyAndMonthlyGroupZeroStreams()
     {

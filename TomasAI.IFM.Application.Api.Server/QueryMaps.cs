@@ -705,6 +705,13 @@ public static class MarketDataAnalyticsQueries
             return await e.RequestAsync<FuturesItiSignalV2ReadModel, GetFuturesItiSignalQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalHistory, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod) =>
+        {
+            var query = new GetFuturesItiSignalHistoryQuery(contractId, valueDate, timePeriod);
+            query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesItiSignalHistoryQuery.Actor, GetFuturesItiSignalHistoryQuery.Verb, query.EntityId.Format()) };
+            return await e.RequestAsync<FuturesItiSignalV2ReadModel[], GetFuturesItiSignalHistoryQuery>(query);
+        });
+
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalData, async (IActorService e, string contractId, DateOnly valueDate, TimeFrameType timePeriod) =>
         {
             var query = new GetFuturesItiSignalDataQuery(contractId, valueDate, timePeriod);

@@ -31,6 +31,7 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTrendDirectionFromRSISignal, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesTrendDirectionFromRSISignalAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTdiSignal, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesTdiSignalAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignal, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesItiSignalAsync(resp));
+        app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalHistory, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesItiSignalHistoryAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiTrendDirectionChangedSignals, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesItiTrendDirectionChangedSignalsAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiSignalData, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesItiSignalDataAsync(resp));
         app.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesItiMDIDistribution, async (HttpResponse resp) => await MarketDataAnalyticsQueryApiResult.FromGetFuturesItiMDIDistributionAsync(resp));

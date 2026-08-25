@@ -193,36 +193,6 @@ internal static class MarketDataSchemaCql
         ADD twoHundredDMA DECIMAL;
         """;
 
-    public const string AddFuturesItiSignalBandLevelColumn =
-        "ALTER TABLE futures_iti_signal ADD bandLevel double;";
-
-    public const string AddFuturesItiSignalReversalLevelColumn =
-        "ALTER TABLE futures_iti_signal ADD reversalLevel double;";
-
-    public const string AddFuturesItiSignalByContractDayV2BandLevelColumn =
-        "ALTER TABLE futures_iti_signal_by_contract_day_v2 ADD bandLevel double;";
-
-    public const string AddFuturesItiSignalByContractDayV2ReversalLevelColumn =
-        "ALTER TABLE futures_iti_signal_by_contract_day_v2 ADD reversalLevel double;";
-
-    public const string AddFuturesItiSignalByContractMonthV2BandLevelColumn =
-        "ALTER TABLE futures_iti_signal_by_contract_month_v2 ADD bandLevel double;";
-
-    public const string AddFuturesItiSignalByContractMonthV2ReversalLevelColumn =
-        "ALTER TABLE futures_iti_signal_by_contract_month_v2 ADD reversalLevel double;";
-
-    public const string AddFuturesItiSignalByTrendModeMonthV2BandLevelColumn =
-        "ALTER TABLE futures_iti_signal_by_trend_mode_month_v2 ADD bandLevel double;";
-
-    public const string AddFuturesItiSignalByTrendModeMonthV2ReversalLevelColumn =
-        "ALTER TABLE futures_iti_signal_by_trend_mode_month_v2 ADD reversalLevel double;";
-
-    public const string AddFuturesItiTimeFrameStateBandLevelColumn =
-        "ALTER TABLE futures_iti_timeframe_state ADD bandLevel double;";
-
-    public const string AddFuturesItiTimeFrameStateReversalLevelColumn =
-        "ALTER TABLE futures_iti_timeframe_state ADD reversalLevel double;";
-
     public const string CreateFuturesTdiSignalTable = """
         CREATE TABLE IF NOT EXISTS futures_tdi_signal (
             contractId TEXT,
@@ -395,8 +365,8 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate desc, timePeriod desc, intrinsicTimeMode desc, intrinsicTimeTrend desc,intrinsicTimeGroupId desc, sequenceId desc);
     """;
 
-    public const string CreateFuturesItiSignalByContractDayV2Table = """
-    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_contract_day_v2 (
+    public const string CreateFuturesItiSignalByContractDayTable = """
+    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_contract_day (
     contractId text,
     valueDate date,
     timePeriod text,
@@ -424,8 +394,8 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (intrinsicTimeMode ASC, sequenceId DESC, timePeriod ASC, intrinsicTimeTrend ASC, intrinsicTimeGroupId ASC);
     """;
 
-    public const string CreateFuturesItiSignalByContractMonthV2Table = """
-    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_contract_month_v2 (
+    public const string CreateFuturesItiSignalByContractMonthTable = """
+    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_contract_month (
     contractId text,
     yearMonth int,
     valueDate date,
@@ -454,8 +424,8 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate DESC, sequenceId DESC, timePeriod ASC, intrinsicTimeMode ASC, intrinsicTimeTrend ASC, intrinsicTimeGroupId ASC);
     """;
 
-    public const string CreateFuturesItiSignalByTrendModeMonthV2Table = """
-    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_trend_mode_month_v2 (
+    public const string CreateFuturesItiSignalByTrendModeMonthTable = """
+    CREATE TABLE IF NOT EXISTS futures_iti_signal_by_trend_mode_month (
     contractId text,
     yearMonth int,
     valueDate date,

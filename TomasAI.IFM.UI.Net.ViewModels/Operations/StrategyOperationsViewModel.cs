@@ -13,7 +13,6 @@ namespace TomasAI.IFM.UI.Net.ViewModels.Operations;
 /// </summary>
 public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecycle, IAsyncDisposable
 {
-    public const int EventCapacity = 500;
     static readonly IReadOnlyList<TimeFrameType> SupportedPeriods = Array.AsReadOnly(
         new[] { TimeFrameType.Daily, TimeFrameType.Weekly, TimeFrameType.Monthly });
     readonly object _stateGate = new();
@@ -120,10 +119,10 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
             IsListening = true;
             PublishStatus();
 
-            // Subscribe before loading snapshots so a change that occurs during startup
+            // Subscribe before loading history so a change that occurs during startup
             // is merged rather than lost. Stable identities remove the overlap.
             foreach (var period in SupportedPeriods)
-                await LoadInitialSnapshotAsync(period, cancellationToken);
+                await LoadInitialHistoryAsync(period, cancellationToken);
         }
         catch
         {
@@ -149,13 +148,13 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         }
     }
 
-    async Task LoadInitialSnapshotAsync(
+    async Task LoadInitialHistoryAsync(
         TimeFrameType period,
         CancellationToken cancellationToken)
     {
         try
         {
-            var result = await _model.GetLatestFuturesItiSignalAsync(
+            var result = await _model.GetFuturesItiSignalHistoryAsync(
                     _contractId,
                     _valueDate,
                     period,
@@ -165,12 +164,12 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                 PublishError(
                     result.Error!.Code,
                     result.Error.Message,
-                    $"{period} ITI Snapshot Unavailable");
+                    $"{period} ITI History Unavailable");
                 return;
             }
 
-            if (result.Value is { } signal)
-                Add(FuturesItiSignalEventRow.FromInitialSnapshot(signal));
+            AddRange((result.Value ?? [])
+                .Select(FuturesItiSignalEventRow.FromHistory));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -178,7 +177,7 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         }
         catch (Exception exception)
         {
-            PublishError(0, exception.Message, $"{period} ITI Snapshot Unavailable");
+            PublishError(0, exception.Message, $"{period} ITI History Unavailable");
         }
     }
 
@@ -195,13 +194,23 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
         if (!IsRelevant(row))
             return;
 
+        AddRange([row]);
+    }
+
+    void AddRange(IEnumerable<FuturesItiSignalEventRow> rows)
+    {
+        var accepted = rows.Where(IsRelevant).ToArray();
+        if (accepted.Length == 0)
+            return;
+
         FuturesItiSignalEventRow[] published;
         lock (_stateGate)
         {
-            if (!_eventIdentities.Add(row.StableIdentity))
-                return;
-
-            _eventBuffer.Add(row);
+            foreach (var row in accepted)
+            {
+                if (_eventIdentities.Add(row.StableIdentity))
+                    _eventBuffer.Add(row);
+            }
             _eventBuffer.Sort(static (left, right) =>
             {
                 var time = right.OccurredOn.CompareTo(left.OccurredOn);
@@ -211,17 +220,10 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
                 return sequence != 0 ? sequence : right.EventId.CompareTo(left.EventId);
             });
 
-            while (_eventBuffer.Count > EventCapacity)
-            {
-                var removed = _eventBuffer[^1];
-                _eventBuffer.RemoveAt(_eventBuffer.Count - 1);
-                _eventIdentities.Remove(removed.StableIdentity);
-            }
             published = [.. _eventBuffer];
         }
 
-        if (row.TimePeriod == SelectedTimeFrame)
-            Events = published.Where(item => item.TimePeriod == SelectedTimeFrame).ToArray();
+        Events = published.Where(item => item.TimePeriod == SelectedTimeFrame).ToArray();
         PublishStatus();
     }
 
@@ -239,11 +241,19 @@ public sealed class StrategyOperationsViewModel : ObservableObject, IAsyncLifecy
     }
 
     bool IsRelevant(FuturesItiSignalEventRow row)
-        => string.Equals(row.ContractId, _contractId, StringComparison.Ordinal)
-           && row.ValueDate == _valueDate
-           && row.SequenceId > 0
-           && row.OccurredOn != default
-           && SupportedPeriods.Contains(row.TimePeriod);
+    {
+        if (!string.Equals(row.ContractId, _contractId, StringComparison.Ordinal)
+            || row.SequenceId <= 0
+            || row.OccurredOn == default
+            || !SupportedPeriods.Contains(row.TimePeriod))
+        {
+            return false;
+        }
+
+        var window = FuturesItiSignalHistoryWindow.Resolve(_valueDate, row.TimePeriod);
+        return row.ValueDate >= window.StartValueDate
+            && row.ValueDate <= window.EndValueDate;
+    }
 
     void PublishStatus()
         => StatusText = IsListening
