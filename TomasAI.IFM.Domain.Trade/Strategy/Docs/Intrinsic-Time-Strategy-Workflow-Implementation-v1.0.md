@@ -579,13 +579,11 @@ A rejected start does not change `WorkflowRevision`.
 
 ### 9.1 Required route set
 
-`IntrinsicTimeStrategyWorkflowRealtimeActor` owns these eighteen routes:
+`IntrinsicTimeStrategyWorkflowRealtimeActor` owns these sixteen external source routes. The projector sends Started and Continued directly to the actor mailbox after successful projection, so those two workflow-owned lifecycle events are not global router subscriptions:
 
 | Source event | Source actor/verb |
 | --- | --- |
 | `FuturesItiSignalGeneratedEvent` | `FuturesItiSignalGeneratedEvent.Actor` / `.Verb` |
-| `IntrinsicTimeStrategyWorkflowStartedEvent` | its `Actor` / `Verb` |
-| `IntrinsicTimeStrategyWorkflowContinuedEvent` | its `Actor` / `Verb` |
 | `RegimeDiscoveryPipelineProcessingEvent` | its `Actor` / `Verb` |
 | `RegimeDiscoveryPipelineCompletedEvent` | its `Actor` / `Verb` |
 | `RegimeDiscoveryPipelineFailedEvent` | its `Actor` / `Verb` |
@@ -612,12 +610,6 @@ static readonly ActorTypeId[] RealtimeRoutes =
     new(ActorType.Realtime,
         FuturesItiSignalGeneratedEvent.Actor,
         FuturesItiSignalGeneratedEvent.Verb),
-    new(ActorType.Realtime,
-        IntrinsicTimeStrategyWorkflowStartedEvent.Actor,
-        IntrinsicTimeStrategyWorkflowStartedEvent.Verb),
-    new(ActorType.Realtime,
-        IntrinsicTimeStrategyWorkflowContinuedEvent.Actor,
-        IntrinsicTimeStrategyWorkflowContinuedEvent.Verb),
     new(ActorType.Realtime,
         RegimeDiscoveryPipelineProcessingEvent.Actor,
         RegimeDiscoveryPipelineProcessingEvent.Verb),
@@ -1290,7 +1282,7 @@ Use the standard `EventExceptionEvent` path and structured workflow fields. An e
 
 ### 18.6 One-way receive behavior
 
-All eighteen routed handlers are one-way handlers. Their observable output is a newly addressed workflow command, a committed pipeline-command send, structured logging, or an error event. None calls `ReplyAsync`, and none returns workflow acceptance or continuation information to the realtime source.
+All realtime handlers are one-way handlers. Their observable output is a newly addressed workflow command, a committed pipeline-command send, structured logging, or an error event. None calls `ReplyAsync`, and none returns workflow acceptance or continuation information to the realtime source.
 
 ---
 
@@ -2101,7 +2093,7 @@ Implemented in `TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/Command
 - bounded start-decision, pipeline-result/failure, timeout, event-count, and last-persisted-event metadata;
 - terminal-state release of active workflow, trigger, and dispatch metadata while retaining the final immutable snapshot;
 - `IntrinsicTimeStrategyWorkflowStateRepository`, which loads the complete PostgreSQL entity stream and saves pending events through the standard ACID event-source repository boundary; and
-- an intentional no-op post-commit denormalization hook that ITSW-7 will replace with the conventional ScyllaDB EventProjector.
+- an intentional no-op post-commit denormalization hook, subsequently replaced by the ITSW-7 conventional ScyllaDB EventProjector.
 
 The state reducer does not implement actor command validation or continuation policy. ITSW-8 will use the reducer's active-state and deduplication queries before it creates and persists new events. No ScyllaDB schema, EventProjector, actor, realtime route, or pipeline worker is introduced by this gate.
 
@@ -2145,18 +2137,26 @@ Validation evidence:
 
 ### ITSW-7 - Conventional EventProjector and cache without durable message replay
 
+**Status:** Completed on 2026-08-25.
+
 - implement `IntrinsicTimeStrategyWorkflowEventProjector` for committed-event projection into all rebuildable ScyllaDB query tables;
 - publish live Started/Continued dispatch instructions and Completed/Stopped terminal observations only after their ScyllaDB projection succeeds;
 - add the immutable active cache and EventSourceDb fallback/catch-up/rebuild path;
 - verify idempotent projection, failed-write behavior, explicit event-log rebuild without historical dispatch publication, and terminal active-row removal; and
 - verify that the projector creates no `ActorType.Event` actor, JetStream durable consumer, or pipeline dispatch path.
 
+Implemented a conventional projector with explicit descriptors for all `26` workflow-owned events. Committed events update the six ScyllaDB query shapes and the revision-monotonic active cache. Started, Continued, Completed, and Stopped are published to the Workflow Realtime actor only after projection succeeds. Explicit rebuild clears the cache and suppresses all historical lifecycle publication. Every descriptor sets durable replay and terminal publication to `false`.
+
 ### ITSW-8 - Workflow Command actor
+
+**Status:** Completed on 2026-08-25.
 
 - implement closed-generic context, startup/shutdown, parse/receive/validation maps, load/save, transitions, committed Started/Continued dispatch instructions, and standard exceptions;
 - retain the original trigger in private command state and generate immutable pipeline inputs;
 - implement deterministic recovery redispatch without a new state transition;
 - run command actor unit and BDD tests.
+
+Implemented the closed-generic Command context, the full `18`-command parse map, PostgreSQL load/save, all five stage transitions, terminal paths, result-envelope validation, bounded duplicate metadata, conflicting-result consistency stop, and correlation-preserving timeout events. Recovery redispatch republishes the exact committed immutable dispatch instruction and deterministic pipeline command ID through the projector without appending an event or increasing `WorkflowRevision`.
 
 ### ITSW-9 - Workflow durable Event actor - Not applicable
 
@@ -2170,22 +2170,49 @@ ITSW-9 therefore introduces no Event actor, Event-actor context, Event extension
 
 ### ITSW-10 - Workflow Realtime actor
 
-- implement eighteen lifecycle-owned realtime routes;
+**Status:** Completed on 2026-08-25, disabled by default.
+
+- implement sixteen external source routes plus direct Started/Continued mailbox handling;
 - translate ITI triggers and pipeline Completed/Failed results into workflow commands, observe Processing events, and send pipeline commands from projector-published Started/Continued instructions;
 - verify startup rollback, shutdown release, stateless handling, and no replies.
 
+The sixteen external registrations are one ITI trigger and Processing/Completed/Failed for each of the five future pipeline families. Started and Continued are not global router subscriptions: the projector addresses those two committed lifecycle instructions directly to this actor's mailbox. The actor converts Started/Continued into the appropriate deterministic pipeline Start command, translates Completed/Failed into workflow commands, observes Processing one-way, and never replies to realtime sources. `AppSettings:IntrinsicTimeStrategyWorkflow:Enabled` is explicitly `false` until Regime Discovery exists.
+
 ### ITSW-11 - Workflow Query actor and APIs
+
+**Status:** Completed on 2026-08-25.
 
 - implement query contracts, cache/Scylla handlers, paging, minimum revision, API client/server/NATS maps;
 - run query unit and integration tests.
 
+Implemented eight MessagePack query contracts, the closed-generic Query context/actor, cache-first active lookup with ScyllaDB fallback, revision readiness checks, bounded paging, stage extraction from the immutable snapshot, a shared typed service interface, and the NATS client map. The Query actor is the NATS server-side handler; no UI or REST controller is introduced because the current skeleton has no external UI consumer.
+
 ### ITSW-12 - End-to-end skeleton qualification
+
+**Status:** Completed on 2026-08-25 for the workflow skeleton; live execution remains disabled.
 
 - add scripted test pipeline responders;
 - execute Daily, Weekly, and Monthly concurrent scenarios;
 - execute complete/fail/timeout/duplicate/restart/replay scenarios;
 - run Trade BDD/unit/integrated tests, application actor integration tests, storage integration tests, and full solution build;
 - keep live feature configuration disabled until a real first-stage actor exists.
+
+Test-only scripted responders exercise the event/reducer boundary without registering fake pipeline actors in production. Daily, Weekly, and Monthly scenarios each execute Regime Discovery, Market Condition, Trade Selection, Order Composition, and Risk Management through terminal completion and byte-equivalent MessagePack replay. Additional scenarios cover pipeline failure, timeout identity/deduplication, and duplicate trigger eligibility.
+
+Qualification evidence:
+
+| Check | Result |
+|---|---:|
+| Trade unit suite | `109` passed, `0` failed, `0` skipped |
+| Trade BDD suite | `6` passed, `0` failed, `0` skipped |
+| Trade integrated suite | `37` passed, `0` failed, `2` pre-existing skipped |
+| ITSW ScyllaDB storage integration | `3` passed, `0` failed, `0` skipped |
+| Application actor unit suite | `5` passed, `0` failed, `0` skipped |
+| Application actor BDD suite | `1` passed, `0` failed, `0` skipped |
+| Application actor integrated suite | `1` passed, `0` failed, `0` skipped |
+| Full solution build, including native projects | succeeded with `0` warnings and `0` errors |
+
+The `TomasAI.IFM.Application.Actor.IntegrationTests` project is an integration host assembly and contains no discoverable test cases; the actual Application actor qualification suites listed above all pass.
 
 ### ITSW-13 - System-wide TraceId architecture design checkpoint
 

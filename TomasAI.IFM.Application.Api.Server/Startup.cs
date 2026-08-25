@@ -50,6 +50,7 @@ using TomasAI.IFM.Domain.SystemAdmin;
 using TomasAI.IFM.Domain.OptionPricer;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
@@ -261,6 +262,10 @@ public static class Startup
             services.AddSingleton<IReferenceLookupService, ReferenceLookupActorService>();
             services.AddSingleton<IJsonSerializer, NewtonSoftJsonSerializer>();
             services.AddSingleton<IBinarySerializer, MessagePackBinarySerializer>();
+            services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+            {
+                Enabled = config.GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false)
+            });
             services.AddSingleton<IBoundedContextFactoryResolver, BoundedContextFactoryResolver>(_ => new BoundedContextFactoryResolver(e => GetContainerInstance(e)!));
             services.AddSingleton<IBoundedContextFactory, BoundedContextFactory>();
             services.AddSingleton<IActorStateFactoryResolver, ActorStateFactoryResolver>(_ => new ActorStateFactoryResolver(e => GetContainerInstance(e)!));

@@ -25,6 +25,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
     FuturesItiSignalGeneratedEvent? _activeTriggerEvent;
     ImmutableDictionary<StrategyWorkflowStage, Guid> _processedPipelineEventIds
         = ImmutableDictionary<StrategyWorkflowStage, Guid>.Empty;
+    ImmutableDictionary<StrategyWorkflowStage, StrategyPipelineResultIdentity> _processedPipelineResults
+        = ImmutableDictionary<StrategyWorkflowStage, StrategyPipelineResultIdentity>.Empty;
     ImmutableDictionary<StrategyWorkflowStage, Guid> _processedTimeoutIds
         = ImmutableDictionary<StrategyWorkflowStage, Guid>.Empty;
 
@@ -95,6 +97,28 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
     public bool HasProcessedPipelineEvent(Guid sourceEventId)
         => sourceEventId != Guid.Empty && _processedPipelineEventIds.Values.Contains(sourceEventId);
 
+    /// <summary>Determines whether a previously accepted source event now carries different result content.</summary>
+    /// <param name="sourceEventId">Pipeline event identity to inspect.</param>
+    /// <param name="stage">Pipeline stage reported by the duplicate delivery.</param>
+    /// <param name="result">Result envelope reported by the duplicate delivery.</param>
+    /// <returns><see langword="true"/> when the source identity was accepted with different stage or result data.</returns>
+    public bool IsConflictingPipelineResult(
+        Guid sourceEventId,
+        StrategyWorkflowStage stage,
+        StrategyStageResultEnvelope result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (sourceEventId == Guid.Empty)
+            return false;
+
+        var accepted = _processedPipelineResults.Values
+            .FirstOrDefault(value => value.SourceEventId == sourceEventId);
+        return accepted is not null &&
+               (accepted.Stage != stage ||
+                accepted.ResultId != result.ResultId ||
+                !string.Equals(accepted.PayloadSha256, result.PayloadSha256, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>Determines whether a timeout operation has already been applied.</summary>
     /// <param name="timeoutId">Timeout operation identity to inspect.</param>
     /// <returns><see langword="true"/> when the bounded stage metadata contains the identity.</returns>
@@ -107,6 +131,21 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
 
     /// <summary>Gets the committed pipeline instruction available for deterministic live or recovery dispatch.</summary>
     internal IntrinsicTimeStrategyWorkflowDispatchInstruction? ActiveDispatchInstruction { get; private set; }
+
+    /// <summary>Seeds only the public projection snapshot before applying a later committed event.</summary>
+    /// <remarks>
+    /// This is used exclusively by the conventional projector when it resumes from the rebuildable Scylla snapshot.
+    /// It does not restore private command metadata and must never be used for authoritative Command-state recovery.
+    /// </remarks>
+    internal void RestoreProjectionSnapshot(
+        IntrinsicTimeStrategyWorkflowState workflow,
+        long lastPersistedEventId)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        _latestWorkflow = CloneWorkflow(workflow);
+        EntityId = workflow.EntityId;
+        LastPersistedEventId = lastPersistedEventId;
+    }
 
     /// <summary>Applies one supported workflow event to the immutable workflow graph.</summary>
     /// <param name="domainEvent">Workflow event being applied or replayed.</param>
@@ -303,7 +342,11 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             WorkflowRevision = workflowRevision
         }, stage, stageState);
         if (sourceEventId != Guid.Empty)
+        {
             _processedPipelineEventIds = _processedPipelineEventIds.SetItem(stage, sourceEventId);
+            _processedPipelineResults = _processedPipelineResults.SetItem(stage,
+                new StrategyPipelineResultIdentity(stage, sourceEventId, result.ResultId, result.PayloadSha256));
+        }
         return true;
     }
 
@@ -582,3 +625,10 @@ internal sealed record IntrinsicTimeStrategyWorkflowDispatchInstruction(
     FuturesItiSignalGeneratedEvent TriggerEvent,
     DateTime RequestedAtUtc,
     DateTime? ExpectedCompletionAtUtc);
+
+/// <summary>Retains bounded result identity metadata needed to distinguish duplicate and conflicting deliveries.</summary>
+internal sealed record StrategyPipelineResultIdentity(
+    StrategyWorkflowStage Stage,
+    Guid SourceEventId,
+    Guid ResultId,
+    string PayloadSha256);

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
+using TomasAI.IFM.Application.EventProjector.Contracts;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -11,22 +13,27 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State
 /// Loads and saves the authoritative Intrinsic Time Strategy Workflow Command state through PostgreSQL event sourcing.
 /// </summary>
 /// <remarks>
-/// ITSW-5 deliberately replays the complete entity stream because the workflow has no snapshot contract. ScyllaDB
-/// projection is introduced by ITSW-7; until then the denormalization hook performs no external work after the ACID
-/// event batch commits.
+/// The repository replays the complete entity stream because the workflow has no authoritative snapshot contract.
+/// After the ACID event batch commits, ITSW-7 queues the same committed events for conventional, non-durable
+/// ScyllaDB projection.
 /// </remarks>
 /// <param name="stateFactory">Factory that creates an empty workflow command-state shell for replay.</param>
 /// <param name="eventSource">PostgreSQL event-source database context.</param>
 /// <param name="actorService">Actor infrastructure used by the base event-source repository.</param>
+/// <param name="eventProjector">Conventional non-durable ScyllaDB projector.</param>
 /// <param name="logger">Repository logger.</param>
 public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
     IEventSourceActorStateFactory stateFactory,
     IEventSourceActorDbContext eventSource,
     IActorService actorService,
+    IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor> eventProjector,
     ILogger<IntrinsicTimeStrategyWorkflowStateRepository> logger)
     : BaseEventSourceActorRepository(stateFactory, eventSource, actorService, logger),
       IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>
 {
+    readonly IEventProjector<IntrinsicTimeStrategyWorkflowCommandActor> _eventProjector
+        = eventProjector ?? throw new ArgumentNullException(nameof(eventProjector));
+
     /// <summary>Loads the complete workflow entity stream and reconstructs its current command state.</summary>
     /// <param name="command">Command whose stream identity selects the workflow entity stream.</param>
     /// <returns>The reconstructed workflow command state.</returns>
@@ -69,13 +76,13 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepository(
             .ConfigureAwait(false);
 
     /// <summary>
-    /// Completes the ITSW-5 post-commit hook without projection; ITSW-7 replaces this with the conventional projector.
+    /// Queues committed events for conventional projection after PostgreSQL has completed the ACID transaction.
     /// </summary>
     /// <param name="context">Command actor context associated with the committed batch.</param>
     /// <param name="domainEvents">Committed workflow events awaiting future projection.</param>
-    /// <returns>A completed task.</returns>
+    /// <returns>A task representing non-durable projector queueing.</returns>
     protected override ValueTask DenormalizeEventsAsync(
         ICommandActorContext context,
         DomainEventCollection domainEvents)
-        => ValueTask.CompletedTask;
+        => _eventProjector.DomainEventsProjectionAsync(domainEvents);
 }

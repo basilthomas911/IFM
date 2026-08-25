@@ -173,6 +173,38 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         state.ActiveDispatchInstruction!.Stage.Should().Be(StrategyWorkflowStage.MarketCondition);
     }
 
+    /// <summary>Confirms replayed result identity metadata distinguishes harmless and conflicting redelivery.</summary>
+    [Fact]
+    public void Pipeline_result_identity_detects_conflicting_duplicate_content()
+    {
+        var state = CreateStartedState();
+        var result = CreateResult();
+        state.Apply(new StrategyWorkflowRegimeDiscoveryResultRecordedEvent
+        {
+            EntityId = EntityId,
+            EventId = 3,
+            WorkflowId = WorkflowId,
+            WorkflowRevision = 2,
+            Stage = StrategyWorkflowStage.RegimeDiscovery,
+            SourceEventId = PipelineEventGuid,
+            Result = result,
+            RecordedAtUtc = CompletedAtUtc
+        }, addEvent: false);
+
+        state.IsConflictingPipelineResult(
+            PipelineEventGuid,
+            StrategyWorkflowStage.RegimeDiscovery,
+            result).Should().BeFalse();
+        state.IsConflictingPipelineResult(
+            PipelineEventGuid,
+            StrategyWorkflowStage.RegimeDiscovery,
+            result with { PayloadSha256 = new string('F', 64) }).Should().BeTrue();
+        state.IsConflictingPipelineResult(
+            PipelineEventGuid,
+            StrategyWorkflowStage.MarketCondition,
+            result).Should().BeTrue();
+    }
+
     /// <summary>Confirms a pipeline failure and stop create terminal state and release active execution metadata.</summary>
     [Fact]
     public void Pipeline_failure_stops_workflow_and_allows_a_new_trigger()
@@ -363,9 +395,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         state.CanAcceptStart(Guid.NewGuid()).Should().BeTrue();
     }
 
-    /// <summary>Confirms the ITSW-5 repository uses the standard full-stream event-source boundary.</summary>
+    /// <summary>Confirms the repository retains full-stream recovery and adds only post-commit projection.</summary>
     [Fact]
-    public void Repository_implements_standard_event_source_contract_without_projector_dependency()
+    public void Repository_implements_standard_event_source_contract_with_post_commit_projector()
     {
         var type = typeof(IntrinsicTimeStrategyWorkflowStateRepository);
 
@@ -376,9 +408,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             "IEventSourceActorStateFactory",
             "IEventSourceActorDbContext",
             "IActorService",
+            "IEventProjector`1",
             "ILogger`1");
         type.GetConstructors().Single().GetParameters().Should()
-            .NotContain(parameter => parameter.ParameterType.Name.StartsWith("IEventProjector", StringComparison.Ordinal));
+            .ContainSingle(parameter => parameter.ParameterType.Name.StartsWith("IEventProjector", StringComparison.Ordinal));
     }
 
     static IntrinsicTimeStrategyWorkflowCommandState CreateStartedState()

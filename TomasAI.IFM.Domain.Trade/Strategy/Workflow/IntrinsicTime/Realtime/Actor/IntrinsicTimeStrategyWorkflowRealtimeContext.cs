@@ -1,0 +1,68 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Extensions;
+
+namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
+
+/// <summary>Defines the readonly services owned by the Intrinsic Time Strategy Workflow Realtime actor.</summary>
+public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
+    : IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>
+{
+    /// <summary>Gets the workflow clock.</summary>
+    TimeProvider TimeProvider { get; }
+
+    /// <summary>Gets the actor logger.</summary>
+    ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> Logger { get; }
+
+    /// <summary>Gets the live-trigger feature options.</summary>
+    IntrinsicTimeStrategyWorkflowOptions Options { get; }
+}
+
+/// <summary>Provides the closed-generic context for one-way workflow realtime orchestration.</summary>
+public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
+    : EventActorContext,
+      IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>,
+      IIntrinsicTimeStrategyWorkflowRealtimeContext
+{
+    static readonly IntrinsicTimeStrategyWorkflowOptions DisabledOptions = new();
+
+    /// <summary>Initializes the realtime context.</summary>
+    public IntrinsicTimeStrategyWorkflowRealtimeContext(
+        IActorSupervisor supervisor,
+        ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> logger)
+        : base(supervisor, new ActorMailboxId(ActorType.Realtime, IntrinsicTimeStrategyWorkflowRealtimeActor.ActorName))
+    {
+        TimeProvider = TimeProvider.System;
+        Logger = IsArgumentNull.Set(logger);
+    }
+
+    /// <inheritdoc />
+    public TimeProvider TimeProvider { get; }
+
+    /// <inheritdoc />
+    public ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> Logger { get; }
+
+    /// <inheritdoc />
+    public IntrinsicTimeStrategyWorkflowOptions Options
+    {
+        get
+        {
+            try
+            {
+                return Container.Resolve<IntrinsicTimeStrategyWorkflowOptions>() ?? DisabledOptions;
+            }
+            catch (InvalidOperationException)
+            {
+                return DisabledOptions;
+            }
+        }
+    }
+}
+
+/// <summary>Controls live automatic ITI-trigger routing for the workflow skeleton.</summary>
+public sealed class IntrinsicTimeStrategyWorkflowOptions
+{
+    /// <summary>Gets or sets whether live ITI triggers may start workflow executions.</summary>
+    public bool Enabled { get; set; }
+}

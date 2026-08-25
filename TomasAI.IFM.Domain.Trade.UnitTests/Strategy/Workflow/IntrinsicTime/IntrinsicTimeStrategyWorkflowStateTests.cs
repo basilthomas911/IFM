@@ -55,7 +55,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateTests
         stageLimitAction.Should().Throw<ArgumentOutOfRangeException>();
 
         var envelope = CreateEnvelope(new byte[] { 1, 2, 3, 4 });
-        new StrategyStageResultEnvelopeValidationRules(3).Execute(envelope).Should().Contain(error =>
+        StrategyStageResultEnvelopeValidationRules.WithMaximumPayloadBytes(3).Execute(envelope).Should().Contain(error =>
             error.ErrorMessage == StrategyStageResultEnvelopeValidationRules.PayloadLimitErrorMessage);
     }
 

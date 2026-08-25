@@ -167,16 +167,20 @@ public sealed class StrategyStageResultEnvelopeValidationRules
     public StrategyStageResultEnvelopeValidationRules()
         : this(StrategyStageResultEnvelope.DefaultMaximumPayloadBytes) { }
 
-    /// <summary>Initializes envelope validation with a stage-specific payload limit.</summary>
-    /// <param name="maximumPayloadBytes">Maximum serialized payload size accepted for the stage.</param>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when the payload limit is not positive.</exception>
-    public StrategyStageResultEnvelopeValidationRules(int maximumPayloadBytes)
+    StrategyStageResultEnvelopeValidationRules(int maximumPayloadBytes)
     {
         if (maximumPayloadBytes <= 0)
             throw new ArgumentOutOfRangeException(
                 nameof(maximumPayloadBytes), "The maximum payload size must be positive.");
         _rules = new Validator(maximumPayloadBytes);
     }
+
+    /// <summary>Creates envelope validation with a stage-specific payload limit.</summary>
+    /// <param name="maximumPayloadBytes">Maximum serialized payload size accepted for the stage.</param>
+    /// <returns>A validation rule set using the supplied limit.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when the payload limit is not positive.</exception>
+    public static StrategyStageResultEnvelopeValidationRules WithMaximumPayloadBytes(int maximumPayloadBytes)
+        => new(maximumPayloadBytes);
 
     /// <summary>Validates the supplied stage-result envelope.</summary>
     /// <param name="envelope">Envelope to validate.</param>
