@@ -2062,7 +2062,7 @@ Implemented in `TomasAI.IFM.Domain.Trade.Shared/Strategy/Workflow/IntrinsicTime`
 - workflow-level Started and Continued dispatch contracts in place of incorrect stage-level `XXXStartedEvent` contracts; and
 - XML comments, stable MessagePack keys, full serialization constructors, and boundary tests proving that pipeline contracts contain neither next-stage knowledge nor private pipeline state.
 
-The contracts intentionally add no `TraceId`; ITSW-13 governs that system-wide design before any concrete pipeline actor is implemented. This gate implements only the workflow/pipeline boundary and does not implement a pipeline actor, pipeline state repository, or pipeline EventProjector.
+The contracts intentionally add no `TraceId`. ITSW-13 is on hold until the complete Strategy Workflow, all strategy pipeline actors, Order Execution actor, and IBKR trader-broker emulation can be exercised end to end. This gate implements only the workflow/pipeline boundary and does not implement a pipeline actor, pipeline state repository, or pipeline EventProjector.
 
 Validation evidence:
 
@@ -2221,16 +2221,22 @@ The `TomasAI.IFM.Application.Actor.IntegrationTests` project is an integration h
 
 ### ITSW-13 - System-wide TraceId architecture design checkpoint
 
-**Timing:** Required after all Strategy Workflow actors and their skeleton qualification are complete, and before implementation of any concrete strategy pipeline actor.
+**Status:** On hold by design decision.
+
+**Timing:** Resume only after the complete Strategy Workflow, all strategy pipeline actors, Order Execution actor, and IBKR trader-broker emulation are implemented sufficiently to run and observe the complete strategy-to-broker path end to end.
+
+ITSW-13 is not a prerequisite for implementing the strategy pipeline actors. Deferring it avoids designing propagation boundaries from assumptions before the real workflow, execution, and broker-emulation interactions exist. Existing workflow, correlation, causation, command, and event identities remain authoritative within their current scopes; no placeholder `TraceId` fields are added meanwhile.
 
 - inventory important workflows that require end-to-end trace identity beyond the Strategy Workflow;
 - define TraceId creation, propagation, continuation, storage, logging, telemetry, query, and retention semantics;
 - distinguish TraceId from `CorrelationId`, `CausationId`, workflow identity, command identity, event identity, and distributed activity/span identity;
 - define MessagePack evolution and compatibility for existing commands, events, event logs, ScyllaDB read models, NATS subjects/envelopes, and external boundaries;
 - determine how Portfolio Manager, Advisor, future Order Execution, and other important workflows join or create traces; and
-- produce an approved system-wide design and incremental migration plan before pipeline contracts acquire TraceId fields.
+- produce an approved system-wide design and incremental migration plan from evidence gathered across the working end-to-end strategy path.
 
-This is a design gate, not permission to infer or add TraceId fields during v1 workflow implementation. Strategy Workflow remains the primary use case, but the resulting architecture must be system-wide and reusable.
+When resumed, this will be a design gate rather than permission to infer or add `TraceId` fields opportunistically. Strategy Workflow remains the primary use case, but the resulting architecture must be system-wide and reusable.
+
+The immediate next activity is preparation of the Regime Discovery specification outside this repository. After that specification is supplied, it will be reviewed against current actor, event-sourcing, realtime, projection, storage, validation, and testing conventions before a separate Regime Discovery implementation document is created. The same specification-review-to-implementation-document process will be repeated for each later strategy pipeline actor.
 
 ---
 
@@ -2275,7 +2281,7 @@ The following are append-only extensions and do not block the skeleton:
 9. Production payload-size tuning and compression policy.
 10. Portfolio Manager observation and versioned workflow parameter or progression commands.
 11. Advisor recommendations, constraints, approval authority, and their relationship to Portfolio Manager decisions.
-12. System-wide TraceId architecture and migration, governed by the mandatory ITSW-13 design checkpoint before concrete pipeline actors are implemented.
+12. System-wide TraceId architecture and migration, held until Strategy Workflow, all pipeline actors, Order Execution, and IBKR trader-broker emulation support an observable end-to-end strategy path.
 
 No implementation agent may infer business properties or continuation behavior for these items without an approved stage specification.
 
