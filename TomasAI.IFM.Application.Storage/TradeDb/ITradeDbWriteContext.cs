@@ -4,11 +4,27 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
 public interface ITradeDbWriteContext
 {
+    Task UpsertIntrinsicTimeStrategyWorkflowAsync(IntrinsicTimeStrategyWorkflowReadModel workflow);
+    Task UpsertIntrinsicTimeStrategyWorkflowAsync(IntrinsicTimeStrategyWorkflowReadModel workflow, CancellationToken cancellationToken);
+    Task UpsertActiveIntrinsicTimeStrategyWorkflowAsync(ActiveIntrinsicTimeStrategyWorkflowReadModel workflow);
+    Task UpsertActiveIntrinsicTimeStrategyWorkflowAsync(ActiveIntrinsicTimeStrategyWorkflowReadModel workflow, CancellationToken cancellationToken);
+    Task DeleteActiveIntrinsicTimeStrategyWorkflowAsync(string workflowEntityId);
+    Task DeleteActiveIntrinsicTimeStrategyWorkflowAsync(string workflowEntityId, CancellationToken cancellationToken);
+    Task InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync(IntrinsicTimeStrategyWorkflowStartAttemptReadModel attempt);
+    Task InsertIntrinsicTimeStrategyWorkflowStartAttemptAsync(IntrinsicTimeStrategyWorkflowStartAttemptReadModel attempt, CancellationToken cancellationToken);
+    Task InsertIntrinsicTimeStrategyWorkflowTimelineAsync(IntrinsicTimeStrategyWorkflowTimelineReadModel timelineEvent);
+    Task InsertIntrinsicTimeStrategyWorkflowTimelineAsync(IntrinsicTimeStrategyWorkflowTimelineReadModel timelineEvent, CancellationToken cancellationToken);
+    Task UpsertIntrinsicTimeStrategyWorkflowByEntityAsync(IntrinsicTimeStrategyWorkflowHistoryReadModel workflow);
+    Task UpsertIntrinsicTimeStrategyWorkflowByEntityAsync(IntrinsicTimeStrategyWorkflowHistoryReadModel workflow, CancellationToken cancellationToken);
+    Task UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync(IntrinsicTimeStrategyWorkflowHistoryReadModel workflow);
+    Task UpsertIntrinsicTimeStrategyWorkflowByStatusDayAsync(IntrinsicTimeStrategyWorkflowHistoryReadModel workflow, CancellationToken cancellationToken);
+
     Task DeleteOptionTradeAsync(int orderId, int tradeId);
     Task DeleteTradeLimitAsync(int tradeId, TradeType tradeType);
     Task DeleteTradeTypeLimitAsync(int tradeId);
@@ -18,7 +34,7 @@ public interface ITradeDbWriteContext
     Task DeleteTradePositionStateAsync(OptionTradeEntityId id);
     Task DeleteTradePositionAsync(int orderId, int tradeId);
     Task DeleteTradePositionAsync(int orderId, int tradeId, TradeType tradeType, DateOnly valueDate, int daysToExpiry, TradeStatus tradeStatus);
-    Task DeleteOptionTradeSpreadBarDataAsync(int orderId, int tradeId,  DateOnly valueDate, TradeType tradeType);
+    Task DeleteOptionTradeSpreadBarDataAsync(int orderId, int tradeId, DateOnly valueDate, TradeType tradeType);
     Task DeleteOptionTradeSpreadDataAsync(int orderId, int tradeId, DateOnly valueDate, TradeType tradeType);
     Task DeleteTradePlacementSignalAsync(string contractId, DateOnly valueDate);
     Task InsertOptionTradeAsync(OptionTradeReadModel optionTrade);
@@ -39,7 +55,7 @@ public interface ITradeDbWriteContext
     Task<long> InsertTradeLimitsAsync(IEnumerable<TradeLimitReadModel> tradeLimits);
     Task InsertTradeTypeLimitAsync(TradeTypeLimitReadModel tradeTypeLimit);
     Task InsertTradeTypeLimitsAsync(ICollection<TradeTypeLimitReadModel> tradeTypeLimits);
-    Task<long>InsertTradeTypeLimitsAsync(IEnumerable<TradeTypeLimitReadModel> tradeTypeLimits);
+    Task<long> InsertTradeTypeLimitsAsync(IEnumerable<TradeTypeLimitReadModel> tradeTypeLimits);
     Task InsertTradeFillAsync(ICollection<TradeFillReadModel> tradeFills);
     Task InsertTradeFillsAsync(ICollection<TradeFillReadModel> tradeFills);
     Task<long> InsertTradeFillsAsync(IEnumerable<TradeFillReadModel> tradeFills);
@@ -61,7 +77,7 @@ public interface ITradeDbWriteContext
 
     Task UpdateOptionTradeStateAsync(int orderId, int tradeId, TradeState tradeState, DateTime updatedOn, string updatedBy);
     Task UpdateTradePositionAsync(
-        TradePositionEntityId key, 
+        TradePositionEntityId key,
         decimal commission,
         int deltaHedge,
         decimal netSpread,

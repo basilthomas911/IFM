@@ -321,3 +321,177 @@ internal readonly record struct UpdateTradePosition(int orderId, int tradeId, Da
 {
     public object Bind() => new object?[] { commission, deltaHedge, netSpread, tradeValue, tradePnl, assetPrice, OTMProbability, null, null, riskFreeRate, updatedOn, updatedBy, orderId, tradeId, valueDate, tradeStatus, daysToExpiry, tradeType };
 }
+
+internal readonly record struct GetIntrinsicTimeStrategyWorkflow(Guid WorkflowId) : IBindValue
+{
+    public object Bind() => new object?[] { WorkflowId };
+}
+
+internal readonly record struct GetActiveIntrinsicTimeStrategyWorkflow(string WorkflowEntityId) : IBindValue
+{
+    public object Bind() => new object?[] { WorkflowEntityId };
+}
+
+internal readonly record struct GetIntrinsicTimeStrategyWorkflowStartAttempts(
+    string WorkflowEntityId,
+    DateTime BeforeUtc,
+    int PageSize) : IBindValue
+{
+    public object Bind() => new object?[] { WorkflowEntityId, BeforeUtc, PageSize };
+}
+
+internal readonly record struct GetIntrinsicTimeStrategyWorkflowTimeline(
+    Guid WorkflowId,
+    long AfterEventId,
+    int PageSize) : IBindValue
+{
+    public object Bind() => new object?[] { WorkflowId, AfterEventId, PageSize };
+}
+
+internal readonly record struct GetIntrinsicTimeStrategyWorkflowsByEntity(
+    string WorkflowEntityId,
+    DateTime BeforeUtc,
+    int PageSize) : IBindValue
+{
+    public object Bind() => new object?[] { WorkflowEntityId, BeforeUtc, PageSize };
+}
+
+internal readonly record struct GetIntrinsicTimeStrategyWorkflowsByStatusDay(
+    string Status,
+    DateOnly StartedDate,
+    int PageSize) : IBindValue
+{
+    public object Bind() => new object?[] { Status, StartedDate, PageSize };
+}
+
+internal readonly record struct UpsertIntrinsicTimeStrategyWorkflow(
+    Guid WorkflowId,
+    string WorkflowEntityId,
+    string WorkflowDefinitionId,
+    int WorkflowDefinitionVersion,
+    string ContractId,
+    DateOnly TimeFrameStartValueDate,
+    string TimePeriod,
+    Guid TriggerEventId,
+    Guid CorrelationId,
+    string Status,
+    string Outcome,
+    string CurrentStage,
+    long WorkflowRevision,
+    long LastEventId,
+    int StateSchemaVersion,
+    byte[] StatePayload,
+    string StopReasonCode,
+    DateTime StartedAtUtc,
+    DateTime? TerminalAtUtc,
+    DateTime UpdatedAtUtc) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        WorkflowId, WorkflowEntityId, WorkflowDefinitionId, WorkflowDefinitionVersion,
+        ContractId, TimeFrameStartValueDate, TimePeriod, TriggerEventId, CorrelationId,
+        Status, Outcome, CurrentStage, WorkflowRevision, LastEventId, StateSchemaVersion,
+        StatePayload, StopReasonCode, StartedAtUtc, TerminalAtUtc, UpdatedAtUtc
+    };
+}
+
+internal readonly record struct UpsertActiveIntrinsicTimeStrategyWorkflow(
+    string WorkflowEntityId,
+    Guid WorkflowId,
+    string ContractId,
+    DateOnly TimeFrameStartValueDate,
+    string TimePeriod,
+    string CurrentStage,
+    long WorkflowRevision,
+    long LastEventId,
+    int StateSchemaVersion,
+    byte[] StatePayload,
+    DateTime StartedAtUtc,
+    DateTime UpdatedAtUtc) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        WorkflowEntityId, WorkflowId, ContractId, TimeFrameStartValueDate, TimePeriod,
+        CurrentStage, WorkflowRevision, LastEventId, StateSchemaVersion, StatePayload,
+        StartedAtUtc, UpdatedAtUtc
+    };
+}
+
+internal readonly record struct DeleteActiveIntrinsicTimeStrategyWorkflow(string WorkflowEntityId) : IBindValue
+{
+    public object Bind() => new object?[] { WorkflowEntityId };
+}
+
+internal readonly record struct InsertIntrinsicTimeStrategyWorkflowStartAttempt(
+    string WorkflowEntityId,
+    DateTime RequestedAtUtc,
+    Guid RequestedWorkflowId,
+    string Decision,
+    Guid? ActiveWorkflowId,
+    Guid StartCommandId,
+    Guid TriggerEventId,
+    string ActiveStage,
+    string ReasonCode,
+    long SourceEventId) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        WorkflowEntityId, RequestedAtUtc, RequestedWorkflowId, Decision, ActiveWorkflowId,
+        StartCommandId, TriggerEventId, ActiveStage, ReasonCode, SourceEventId
+    };
+}
+
+internal readonly record struct InsertIntrinsicTimeStrategyWorkflowTimeline(
+    Guid WorkflowId,
+    long EventId,
+    string WorkflowEntityId,
+    long WorkflowRevision,
+    string Stage,
+    string EventName,
+    int EventSchemaVersion,
+    byte[] EventPayload,
+    DateTime OccurredAtUtc) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        WorkflowId, EventId, WorkflowEntityId, WorkflowRevision, Stage, EventName,
+        EventSchemaVersion, EventPayload, OccurredAtUtc
+    };
+}
+
+internal readonly record struct UpsertIntrinsicTimeStrategyWorkflowByEntity(
+    string WorkflowEntityId,
+    DateTime StartedAtUtc,
+    Guid WorkflowId,
+    string Status,
+    string Outcome,
+    string CurrentStage,
+    long WorkflowRevision,
+    DateTime? TerminalAtUtc,
+    string StopReasonCode) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        WorkflowEntityId, StartedAtUtc, WorkflowId, Status, Outcome, CurrentStage,
+        WorkflowRevision, TerminalAtUtc, StopReasonCode
+    };
+}
+
+internal readonly record struct UpsertIntrinsicTimeStrategyWorkflowByStatusDay(
+    string Status,
+    DateOnly StartedDate,
+    DateTime StartedAtUtc,
+    Guid WorkflowId,
+    string WorkflowEntityId,
+    string Outcome,
+    string CurrentStage,
+    long WorkflowRevision,
+    DateTime? TerminalAtUtc,
+    string StopReasonCode) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        Status, StartedDate, StartedAtUtc, WorkflowId, WorkflowEntityId, Outcome,
+        CurrentStage, WorkflowRevision, TerminalAtUtc, StopReasonCode
+    };
+}

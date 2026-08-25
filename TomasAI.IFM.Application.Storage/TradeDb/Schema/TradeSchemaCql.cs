@@ -330,4 +330,108 @@ internal static class TradeSchemaCql
     sequenceId DESC
     );
     """;
+
+    public const string CreateIntrinsicTimeStrategyWorkflowTable = """
+    CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow (
+        workflowId uuid PRIMARY KEY,
+        workflowEntityId text,
+        workflowDefinitionId text,
+        workflowDefinitionVersion int,
+        contractId text,
+        timeFrameStartValueDate date,
+        timePeriod text,
+        triggerEventId uuid,
+        correlationId uuid,
+        status text,
+        outcome text,
+        currentStage text,
+        workflowRevision bigint,
+        lastEventId bigint,
+        stateSchemaVersion int,
+        statePayload blob,
+        stopReasonCode text,
+        startedAtUtc timestamp,
+        terminalAtUtc timestamp,
+        updatedAtUtc timestamp
+    );
+    """;
+
+    public const string CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable = """
+    CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_active (
+        workflowEntityId text PRIMARY KEY,
+        workflowId uuid,
+        contractId text,
+        timeFrameStartValueDate date,
+        timePeriod text,
+        currentStage text,
+        workflowRevision bigint,
+        lastEventId bigint,
+        stateSchemaVersion int,
+        statePayload blob,
+        startedAtUtc timestamp,
+        updatedAtUtc timestamp
+    );
+    """;
+
+    public const string CreateIntrinsicTimeStrategyWorkflowStartAttemptByEntityTable = """
+    CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_start_attempt (
+        workflowEntityId text,
+        requestedAtUtc timestamp,
+        requestedWorkflowId uuid,
+        decision text,
+        activeWorkflowId uuid,
+        startCommandId uuid,
+        triggerEventId uuid,
+        activeStage text,
+        reasonCode text,
+        sourceEventId bigint,
+        PRIMARY KEY (workflowEntityId, requestedAtUtc, requestedWorkflowId)
+    ) WITH CLUSTERING ORDER BY (requestedAtUtc DESC, requestedWorkflowId DESC);
+    """;
+
+    public const string CreateIntrinsicTimeStrategyWorkflowTimelineTable = """
+    CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_timeline (
+        workflowId uuid,
+        eventId bigint,
+        workflowEntityId text,
+        workflowRevision bigint,
+        stage text,
+        eventName text,
+        eventSchemaVersion int,
+        eventPayload blob,
+        occurredAtUtc timestamp,
+        PRIMARY KEY (workflowId, eventId)
+    ) WITH CLUSTERING ORDER BY (eventId ASC);
+    """;
+
+    public const string CreateIntrinsicTimeStrategyWorkflowByEntityTable = """
+    CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_by_entity (
+        workflowEntityId text,
+        startedAtUtc timestamp,
+        workflowId uuid,
+        status text,
+        outcome text,
+        currentStage text,
+        workflowRevision bigint,
+        terminalAtUtc timestamp,
+        stopReasonCode text,
+        PRIMARY KEY (workflowEntityId, startedAtUtc, workflowId)
+    ) WITH CLUSTERING ORDER BY (startedAtUtc DESC, workflowId DESC);
+    """;
+
+    public const string CreateIntrinsicTimeStrategyWorkflowByStatusDayTable = """
+    CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_by_status_day (
+        status text,
+        startedDate date,
+        startedAtUtc timestamp,
+        workflowId uuid,
+        workflowEntityId text,
+        outcome text,
+        currentStage text,
+        workflowRevision bigint,
+        terminalAtUtc timestamp,
+        stopReasonCode text,
+        PRIMARY KEY ((status, startedDate), startedAtUtc, workflowId)
+    ) WITH CLUSTERING ORDER BY (startedAtUtc DESC, workflowId DESC);
+    """;
 }

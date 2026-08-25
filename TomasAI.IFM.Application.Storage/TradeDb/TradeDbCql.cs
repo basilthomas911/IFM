@@ -46,7 +46,7 @@ LIMIT 1;
             createdBy AS "CreatedBy"
         FROM option_trade_spread_data
         """;
-        
+
     public const string GetOptionTrade = """
         SELECT orderId AS "OrderId",
        tradeId AS "TradeId",
@@ -1330,7 +1330,7 @@ WHERE OrderId = :orderId AND TradeId = :tradeId AND ValueDate = :valueDate AND T
         :createdBy
     ) ;
 """;
-    
+
     public const string InsertOptionTradeSpreadData = """
         INSERT INTO option_trade_spread_data (
     OrderId,
@@ -1718,5 +1718,113 @@ VALUES (:orderId, :tradeId, :tradeType, :valueDate, :limitType);
  :forwardLossRatio,
  :sequenceId
 ) if not exists;
+""";
+
+    public const string GetIntrinsicTimeStrategyWorkflow = """
+SELECT workflowId, workflowEntityId, workflowDefinitionId, workflowDefinitionVersion,
+       contractId, timeFrameStartValueDate, timePeriod, triggerEventId, correlationId,
+       status, outcome, currentStage, workflowRevision, lastEventId, stateSchemaVersion,
+       statePayload, stopReasonCode, startedAtUtc, terminalAtUtc, updatedAtUtc
+FROM intrinsic_time_strategy_workflow
+WHERE workflowId = :workflowId;
+""";
+
+    public const string GetActiveIntrinsicTimeStrategyWorkflow = """
+SELECT workflowEntityId, workflowId, contractId, timeFrameStartValueDate, timePeriod,
+       currentStage, workflowRevision, lastEventId, stateSchemaVersion, statePayload,
+       startedAtUtc, updatedAtUtc
+FROM intrinsic_time_strategy_workflow_active
+WHERE workflowEntityId = :workflowEntityId;
+""";
+
+    public const string GetIntrinsicTimeStrategyWorkflowStartAttempts = """
+SELECT workflowEntityId, requestedAtUtc, requestedWorkflowId, decision, activeWorkflowId,
+       startCommandId, triggerEventId, activeStage, reasonCode, sourceEventId
+FROM intrinsic_time_strategy_workflow_start_attempt
+WHERE workflowEntityId = :workflowEntityId AND requestedAtUtc < :beforeUtc
+LIMIT :pageSize;
+""";
+
+    public const string GetIntrinsicTimeStrategyWorkflowTimeline = """
+SELECT workflowId, eventId, workflowEntityId, workflowRevision, stage, eventName,
+       eventSchemaVersion, eventPayload, occurredAtUtc
+FROM intrinsic_time_strategy_workflow_timeline
+WHERE workflowId = :workflowId AND eventId > :afterEventId
+LIMIT :pageSize;
+""";
+
+    public const string GetIntrinsicTimeStrategyWorkflowsByEntity = """
+SELECT workflowEntityId, startedAtUtc, workflowId, status, outcome, currentStage,
+       workflowRevision, terminalAtUtc, stopReasonCode
+FROM intrinsic_time_strategy_workflow_by_entity
+WHERE workflowEntityId = :workflowEntityId AND startedAtUtc < :beforeUtc
+LIMIT :pageSize;
+""";
+
+    public const string GetIntrinsicTimeStrategyWorkflowsByStatusDay = """
+SELECT workflowEntityId, startedAtUtc, workflowId, status, outcome, currentStage,
+       workflowRevision, terminalAtUtc, stopReasonCode
+FROM intrinsic_time_strategy_workflow_by_status_day
+WHERE status = :status AND startedDate = :startedDate
+LIMIT :pageSize;
+""";
+
+    public const string UpsertIntrinsicTimeStrategyWorkflow = """
+INSERT INTO intrinsic_time_strategy_workflow (
+    workflowId, workflowEntityId, workflowDefinitionId, workflowDefinitionVersion,
+    contractId, timeFrameStartValueDate, timePeriod, triggerEventId, correlationId,
+    status, outcome, currentStage, workflowRevision, lastEventId, stateSchemaVersion,
+    statePayload, stopReasonCode, startedAtUtc, terminalAtUtc, updatedAtUtc)
+VALUES (:workflowId, :workflowEntityId, :workflowDefinitionId, :workflowDefinitionVersion,
+    :contractId, :timeFrameStartValueDate, :timePeriod, :triggerEventId, :correlationId,
+    :status, :outcome, :currentStage, :workflowRevision, :lastEventId, :stateSchemaVersion,
+    :statePayload, :stopReasonCode, :startedAtUtc, :terminalAtUtc, :updatedAtUtc);
+""";
+
+    public const string UpsertActiveIntrinsicTimeStrategyWorkflow = """
+INSERT INTO intrinsic_time_strategy_workflow_active (
+    workflowEntityId, workflowId, contractId, timeFrameStartValueDate, timePeriod,
+    currentStage, workflowRevision, lastEventId, stateSchemaVersion, statePayload,
+    startedAtUtc, updatedAtUtc)
+VALUES (:workflowEntityId, :workflowId, :contractId, :timeFrameStartValueDate, :timePeriod,
+    :currentStage, :workflowRevision, :lastEventId, :stateSchemaVersion, :statePayload,
+    :startedAtUtc, :updatedAtUtc);
+""";
+
+    public const string DeleteActiveIntrinsicTimeStrategyWorkflow = """
+DELETE FROM intrinsic_time_strategy_workflow_active
+WHERE workflowEntityId = :workflowEntityId;
+""";
+
+    public const string InsertIntrinsicTimeStrategyWorkflowStartAttempt = """
+INSERT INTO intrinsic_time_strategy_workflow_start_attempt (
+    workflowEntityId, requestedAtUtc, requestedWorkflowId, decision, activeWorkflowId,
+    startCommandId, triggerEventId, activeStage, reasonCode, sourceEventId)
+VALUES (:workflowEntityId, :requestedAtUtc, :requestedWorkflowId, :decision, :activeWorkflowId,
+    :startCommandId, :triggerEventId, :activeStage, :reasonCode, :sourceEventId);
+""";
+
+    public const string InsertIntrinsicTimeStrategyWorkflowTimeline = """
+INSERT INTO intrinsic_time_strategy_workflow_timeline (
+    workflowId, eventId, workflowEntityId, workflowRevision, stage, eventName,
+    eventSchemaVersion, eventPayload, occurredAtUtc)
+VALUES (:workflowId, :eventId, :workflowEntityId, :workflowRevision, :stage, :eventName,
+    :eventSchemaVersion, :eventPayload, :occurredAtUtc);
+""";
+
+    public const string UpsertIntrinsicTimeStrategyWorkflowByEntity = """
+INSERT INTO intrinsic_time_strategy_workflow_by_entity (
+    workflowEntityId, startedAtUtc, workflowId, status, outcome, currentStage,
+    workflowRevision, terminalAtUtc, stopReasonCode)
+VALUES (:workflowEntityId, :startedAtUtc, :workflowId, :status, :outcome, :currentStage,
+    :workflowRevision, :terminalAtUtc, :stopReasonCode);
+""";
+
+    public const string UpsertIntrinsicTimeStrategyWorkflowByStatusDay = """
+INSERT INTO intrinsic_time_strategy_workflow_by_status_day (
+    status, startedDate, startedAtUtc, workflowId, workflowEntityId, outcome,
+    currentStage, workflowRevision, terminalAtUtc, stopReasonCode)
+VALUES (:status, :startedDate, :startedAtUtc, :workflowId, :workflowEntityId, :outcome,
+    :currentStage, :workflowRevision, :terminalAtUtc, :stopReasonCode);
 """;
 }

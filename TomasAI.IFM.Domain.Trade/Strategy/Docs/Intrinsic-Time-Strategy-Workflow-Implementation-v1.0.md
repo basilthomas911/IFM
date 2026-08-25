@@ -1059,7 +1059,9 @@ It retains:
 ActorThreadId Id
 IntrinsicTimeStrategyWorkflowEntityId EntityId
 IntrinsicTimeStrategyWorkflowState? ActiveWorkflow
+IntrinsicTimeStrategyWorkflowState? LatestWorkflow
 FuturesItiSignalGeneratedEvent? ActiveTriggerEvent
+IntrinsicTimeStrategyWorkflowDispatchInstruction? ActiveDispatchInstruction
 long TotalStartRequests
 long AcceptedStartRequests
 long RejectedStartRequests
@@ -1068,13 +1070,21 @@ Guid? LastTriggerEventId
 StrategyWorkflowId? LastRequestedWorkflowId
 StrategyWorkflowStartDecision LastStartDecision
 DateTime? LastStartRequestedAtUtc
-long ReplayedEntityEventCount
+long AppliedEntityEventCount
 long LastPersistedEventId
+one processed pipeline event ID per stage
+one processed timeout ID per stage
 ```
 
 The reducer must handle every workflow-owned event explicitly. Unknown event types return `false` during normal application and must be surfaced by replay tests.
 
-`ActiveTriggerEvent` is reconstructed from the accepted start event and retained only by the Workflow Command actor while the workflow is active. It is copied into each pipeline start command and cleared with `ActiveWorkflow` after a terminal transition.
+`ActiveTriggerEvent` is reconstructed from the accepted start event and retained only by the Workflow Command actor while the workflow is active. It is copied into each pipeline start command and cleared with `ActiveWorkflow` after a terminal transition. `LatestWorkflow` retains the final immutable snapshot for validation and event-source fallback after the active reference is released.
+
+`ActiveDispatchInstruction` is reconstructed from the most recent Started or Continued event. It contains the deterministic pipeline command ID, selected target, immutable workflow snapshot, original trigger, and timing metadata required for normal or explicit recovery dispatch. It is cleared on Completed or Stopped.
+
+The existing `BaseEventSourceActorState<TState>` is a mutable replay shell required by the application framework. Immutability applies to the owned workflow graph: every supported event replaces the current `IntrinsicTimeStrategyWorkflowState` with a newly constructed deep record graph. Result payload buffers, continuation reason arrays, stage records, and trigger records are defensively copied. A reference obtained before another event is applied therefore remains unchanged.
+
+Pipeline result/failure and timeout deduplication metadata is bounded to one identity per workflow stage. Start-attempt metadata retains only the latest decision. The live state does not accumulate an unbounded historical collection.
 
 The live state must not retain an unbounded list of historical workflows or start attempts. Complete history belongs in PostgreSQL and ScyllaDB projections.
 
@@ -1087,7 +1097,7 @@ The command state exposes an internal method that returns the active immutable w
 When Completed or Stopped is applied:
 
 - the workflow snapshot becomes terminal and immutable;
-- entity-level `ActiveWorkflow` is cleared after retaining the terminal summary needed for validation;
+- entity-level `ActiveWorkflow`, `ActiveTriggerEvent`, and `ActiveDispatchInstruction` are cleared after retaining the terminal snapshot as `LatestWorkflow`;
 - the next distinct eligible trigger may be accepted.
 
 ---
@@ -1400,6 +1410,8 @@ The implementation must not claim multi-host compare-and-swap safety. Before hor
 ## 22. ScyllaDB Schema
 
 All tables are added to `TradeSchemaCql` and registered in `TradeSchemaDb`. Names are intentionally unversioned.
+Physical identifiers are limited to 48 characters by ScyllaDB, so the active, start-attempt, and timeline
+table names omit redundant `by_entity`/`by_workflow` suffixes; their partition keys retain those query boundaries.
 
 ### 22.1 Workflow detail
 
@@ -1434,7 +1446,7 @@ CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow (
 ### 22.2 Active workflow by entity
 
 ```sql
-CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_active_by_entity (
+CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_active (
     workflowEntityId text,
     workflowId uuid,
     contractId text,
@@ -1456,7 +1468,7 @@ There is at most one row for one workflow entity. Delete it after a terminal eve
 ### 22.3 Start attempts by entity
 
 ```sql
-CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_start_attempt_by_entity (
+CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_start_attempt (
     workflowEntityId text,
     requestedAtUtc timestamp,
     requestedWorkflowId uuid,
@@ -1474,7 +1486,7 @@ CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_start_attempt_by_ent
 ### 22.4 Timeline by workflow
 
 ```sql
-CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_timeline_by_workflow (
+CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_timeline (
     workflowId uuid,
     eventId bigint,
     workflowEntityId text,
@@ -2077,10 +2089,59 @@ Validation evidence:
 - implement the reducer and state repository;
 - test replay, single-flight, duplicate triggers, and terminal behavior.
 
+#### ITSW-5 completion record - 2026-08-25
+
+**Status:** Completed
+
+Implemented in `TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/Command/State`:
+
+- `IntrinsicTimeStrategyWorkflowCommandState`, using the existing event-source state shell while replacing the complete immutable workflow record graph on every accepted event;
+- explicit reducer handling for all `26` workflow-owned event contracts and rejection of non-workflow pipeline lifecycle events;
+- reconstruction of the original ITI trigger and the most recent committed Started/Continued dispatch instruction for deterministic recovery;
+- bounded start-decision, pipeline-result/failure, timeout, event-count, and last-persisted-event metadata;
+- terminal-state release of active workflow, trigger, and dispatch metadata while retaining the final immutable snapshot;
+- `IntrinsicTimeStrategyWorkflowStateRepository`, which loads the complete PostgreSQL entity stream and saves pending events through the standard ACID event-source repository boundary; and
+- an intentional no-op post-commit denormalization hook that ITSW-7 will replace with the conventional ScyllaDB EventProjector.
+
+The state reducer does not implement actor command validation or continuation policy. ITSW-8 will use the reducer's active-state and deduplication queries before it creates and persists new events. No ScyllaDB schema, EventProjector, actor, realtime route, or pipeline worker is introduced by this gate.
+
+Validation evidence:
+
+| Check | Result |
+| --- | --- |
+| New ITSW-5 test cases | `12` |
+| Trade unit tests | `103` passed, `0` failed, `0` skipped |
+| Reducer contract inventory | all `26` workflow-owned event contracts are explicitly supported |
+| Immutability | earlier workflow/stage snapshots remain unchanged after later events |
+| Replay | identical event sequences reconstruct identical MessagePack workflow snapshots with no pending events |
+| Repository boundary | standard full-stream load and ACID save contract, with no premature projector dependency |
+| Full solution build | succeeded with `0` warnings and `0` errors |
+| Diff and changed-file formatting checks | passed |
+
 ### ITSW-6 - TradeDb schema and storage
 
-- add unversioned CQL tables, schema registration, named CQL commands, bind parameters, interfaces, and context methods;
-- run storage unit and integration tests.
+**Status:** Completed on 2026-08-25
+
+- added six unversioned, query-driven ScyllaDB tables through `TradeSchemaCql` and `TradeSchemaDb`;
+- added immutable workflow detail, active, start-attempt, timeline, and history read models;
+- added named CQL commands, one `IBindValue` parameter record per operation, cancellation-aware read/write interfaces, and `TradeDbContext` methods;
+- implemented newest-first bounded date-partition fan-out for status queries without `ALLOW FILTERING`;
+- shortened the physical active, start-attempt, and timeline names to satisfy ScyllaDB's 48-character identifier limit while preserving their public APIs and partition-key semantics; and
+- verified all six tables with static schema/query policy tests and a live ScyllaDB write/read/delete round trip.
+
+No EventProjector, actor, realtime route, serialization policy, or pipeline worker is introduced by this gate.
+MessagePack state/event payload construction remains the responsibility of ITSW-7.
+
+Validation evidence:
+
+| Check | Result |
+| --- | --- |
+| ITSW-6 schema/query and live round-trip tests | `3` passed, `0` failed, `0` skipped |
+| Complete application-storage integration suite | `372` passed, `0` failed, `0` skipped |
+| Framework-storage unit suite | `398` passed, `0` failed, `0` skipped |
+| Trade unit suite, including ITSW-5 state replay | `103` passed, `0` failed, `0` skipped |
+| Full solution build | succeeded with `0` warnings and `0` errors |
+| Diff integrity | `git diff --check` passed |
 
 ### ITSW-7 - Conventional EventProjector and cache without durable message replay
 
