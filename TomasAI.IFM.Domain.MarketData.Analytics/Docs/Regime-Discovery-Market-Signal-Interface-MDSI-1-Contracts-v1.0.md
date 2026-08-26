@@ -16,7 +16,7 @@ Shared Identities, Observations, Metadata, and Event Evolution v1.0
 
 MDSI-1 establishes the provider-neutral identity, provenance, observation, and
 trade-lineage contracts required by subsequent signal actors. It does not add
-an observation coordinator, signal actor, historical provider, cache, schema,
+a trade-session bar publisher, signal actor, historical provider, cache, schema,
 or storage behavior. Those remain owned by later gates.
 
 The gate preserves all existing MessagePack keys. A pre-MDSI-1 five-field
@@ -74,9 +74,9 @@ actual source `ContractId` separately in their read model and metadata.
 and calculation-configuration identity. It prevents different formulas or a
 specific contract and a continuation series from overwriting one another.
 
-`FuturesAnalyticsObservationId` is deterministic over the exact series,
+`FuturesTradeSessionBarId` is deterministic over the exact series,
 timeframe, UTC interval end, and last accepted source sequence.
-`FuturesAnalyticsObservationEntityId` identifies the coordinator route for one
+`FuturesTradeSessionBarEntityId` identifies the coordinator route for one
 series and timeframe and implements `IActorEntityId` as a readonly record
 struct. Format/parse and malformed-input tests qualify both identities.
 
@@ -97,7 +97,7 @@ cache introduced by MDSI-15, while historical signal records remain immutable.
 
 ## 5. Shared OHLCV observation
 
-`FuturesAnalyticsObservationReadModel` is one immutable closed bar with keys 0
+`FuturesTradeSessionBarReadModel` is one immutable closed bar with keys 0
 through 24. It carries:
 
 - explicit series identity, deterministic observation ID, and actual contract;
@@ -112,8 +112,8 @@ contract identities, UTC timestamps, ordered intervals and source lineage,
 consistent OHLC values, nonnegative volume/count/sums, version identity, and
 the rule that a valid observation must be complete with no issues.
 
-`FuturesAnalyticsObservationClosedRealtimeEvent` uses the exact realtime
-subject `Realtime.FuturesAnalyticsObservation.Closed.{entity}`. Validation
+`FuturesTradeSessionBarClosedRealtimeEvent` uses the exact realtime
+subject `Realtime.FuturesTradeSessionBar.Closed.{entity}`. Validation
 requires its Subject, EntityId, AggregateId, timeframe, series identity, and
 observation payload to agree. It is non-durable and has no complete/fail event
 family.
@@ -191,7 +191,7 @@ documentation, and synthetic Databento mapping.
 ## 9. MDSI-2 readiness
 
 MDSI-2 can now use `MarketSeriesIdentity`, `FuturesSeriesId`,
-`FuturesAnalyticsObservationId`, and the observation provenance vocabulary in
+`FuturesTradeSessionBarId`, and the observation provenance vocabulary in
 provider-neutral historical request/result contracts. It must not expose DBN,
 Databento schema codes, batch IDs, Zstandard, native handles, or provider flag
 constants outside the Databento implementation.

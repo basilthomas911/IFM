@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Application.Storage.HistoricalBootstrap;
 public static class HistoricalObservationCql
 {
     public const string TryInsertObservation = """
-    INSERT INTO futures_analytics_observation (
+    INSERT INTO futures_trade_session_bar (
         seriesKey, timePeriod, yearMonth, marketDataAsOf, observationId,
         contractId, valueDate, intervalStart, intervalEnd, openPrice, highPrice,
         lowPrice, closePrice, volume, tradeCount, priceVolumeSum,

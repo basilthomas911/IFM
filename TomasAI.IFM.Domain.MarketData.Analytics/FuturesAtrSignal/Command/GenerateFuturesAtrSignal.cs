@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command;
 
@@ -67,13 +69,32 @@ public static class GenerateFuturesAtrSignal
     internal static FuturesAtrSignalGeneratedEvent CreateFuturesAtrSignalIntraDayGeneratedEvent(this GenerateFuturesAtrSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesAtrSignalCompute computed)
     {
         var entityId = e.FuturesAtrSignalId.ToEntityId();
+        var signal = new FuturesAtrSignalReadModel(
+            e.FuturesAtrSignalId.ContractId,
+            e.FuturesAtrSignalId.ValueDate,
+            e.EntityId.TimePeriod,
+            e.EntityId.PeriodLength,
+            e.FuturesAtrSignalId.Timestamp,
+            e.FuturesPrice,
+            computed.AtrValue,
+            computed.TrueRange,
+            trendDirection,
+            computed.TrendDirectionStrength())
+        {
+            Metadata = e.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation,
+                    MarketAnalyticsSignalKind.Atr,
+                    $"atr-{e.EntityId.PeriodLength}-legacy-v1",
+                    "atr-legacy-compatible-v1")
+                : null
+        };
         return new FuturesAtrSignalGeneratedEvent
         {
             CommandId = e.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesAtrSignalGeneratedEvent.Actor, FuturesAtrSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesAtrSignal = new(e.FuturesAtrSignalId.ContractId, e.FuturesAtrSignalId.ValueDate, e.EntityId.TimePeriod, e.EntityId.PeriodLength, e.FuturesAtrSignalId.Timestamp,
-                e.FuturesPrice, computed.AtrValue, computed.TrueRange, trendDirection, computed.TrendDirectionStrength()),
+            FuturesAtrSignal = signal,
             CreatedBy = e.OriginatedBy,
             CreatedOn = e.OriginatedOn
         };

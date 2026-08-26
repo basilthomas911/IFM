@@ -3276,7 +3276,15 @@ internal static class MarketDataDbCql
             MinusDI AS "MinusDI",
             AdxValue AS "AdxValue",
             ADX AS "ADX",
-            ADXStrength AS "ADXStrength"
+            ADXStrength AS "ADXStrength",
+            ConfigurationId AS "ConfigurationId",
+            ObservationId AS "ObservationId",
+            MarketDataAsOf AS "MarketDataAsOf",
+            SourceSequence AS "SourceSequence",
+            CalculationVersion AS "CalculationVersion",
+            CalculationMethod AS "CalculationMethod",
+            SchemaVersion AS "SchemaVersion",
+            IsValid AS "IsValid"
         FROM futures_adx_signal
         WHERE ContractId = :contractId 
         AND TimePeriod = :timePeriod
@@ -3296,7 +3304,15 @@ internal static class MarketDataDbCql
             MinusDI AS "MinusDI",
             AdxValue AS "AdxValue",
             ADX AS "ADX",
-            ADXStrength AS "ADXStrength"
+            ADXStrength AS "ADXStrength",
+            ConfigurationId AS "ConfigurationId",
+            ObservationId AS "ObservationId",
+            MarketDataAsOf AS "MarketDataAsOf",
+            SourceSequence AS "SourceSequence",
+            CalculationVersion AS "CalculationVersion",
+            CalculationMethod AS "CalculationMethod",
+            SchemaVersion AS "SchemaVersion",
+            IsValid AS "IsValid"
         FROM futures_adx_signal
         WHERE ContractId = :contractId 
         AND TimePeriod = :timePeriod

@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Command;
 
@@ -55,13 +56,48 @@ public static class GenerateFuturesAdxSignal
     internal static FuturesAdxSignalGeneratedEvent CreateFuturesAdxSignalGeneratedEvent(this GenerateFuturesAdxSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesAdxSignalCompute computed)
     {
         var entityId = new FuturesAdxSignalEntityId(e.FuturesAdxSignalId.ContractId, e.FuturesAdxSignalId.ValueDate, e.EntityId.TimePeriod, e.EntityId.PeriodLength);
+        var signalTimestamp = e.Observation?.LastMarketEventUtc.UtcDateTime ?? DateTime.UtcNow;
+        var signal = new FuturesAdxSignalReadModel(
+            e.EntityId.ContractId,
+            e.EntityId.ValueDate,
+            e.EntityId.TimePeriod,
+            e.EntityId.PeriodLength,
+            TimeOnly.FromDateTime(signalTimestamp),
+            e.FuturesPrice,
+            computed.PlusDI,
+            computed.MinusDI,
+            computed.AdxValue,
+            trendDirection,
+            computed.TrendDirectionStrength())
+        {
+            Metadata = e.Observation is { } observation
+                ? new MarketAnalyticsSignalMetadata
+                {
+                    SignalKey = new(
+                        observation.MarketSeriesIdentity,
+                        MarketAnalyticsSignalKind.Adx,
+                        observation.TimeFrame,
+                        $"adx-{e.EntityId.PeriodLength}-legacy-v1"),
+                    ContractId = observation.ContractId,
+                    ValueDate = observation.ValueDate,
+                    ObservationId = observation.ObservationId,
+                    MarketDataAsOfUtc = observation.LastMarketEventUtc,
+                    CalculatedAtUtc = DateTimeOffset.UtcNow,
+                    SourceSequence = observation.LastSourceSequence,
+                    SchemaVersion = 1,
+                    CalculationVersion = "adx-legacy-compatible-v1",
+                    CalculationMethod = observation.CalculationMethod,
+                    IsValid = observation.IsValid,
+                    ValidationIssues = observation.ValidationIssues
+                }
+                : null
+        };
         return new FuturesAdxSignalGeneratedEvent
         {
             CommandId = e.CommandId,
             Subject = new ActorSubject(ActorType.Event, FuturesAdxSignalGeneratedEvent.Actor, FuturesAdxSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesAdxSignal = new(e.EntityId.ContractId, e.EntityId.ValueDate,e.EntityId.TimePeriod, e.EntityId.PeriodLength, TimeOnly.FromDateTime(DateTime.UtcNow), 
-               e.FuturesPrice, computed.PlusDI, computed.MinusDI, computed.AdxValue, trendDirection, computed.TrendDirectionStrength()),
+            FuturesAdxSignal = signal,
             CreatedBy = e.OriginatedBy,
             CreatedOn = e.OriginatedOn
         };

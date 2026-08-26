@@ -22,8 +22,8 @@ public sealed class FuturesRegimeIndicatorRealtimeActor(
 
     static readonly ActorTypeId ObservationRoute = new(
         ActorType.Realtime,
-        FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
-        FuturesAnalyticsObservationClosedRealtimeEvent.Verb);
+        FuturesTradeSessionBarClosedRealtimeEvent.Actor,
+        FuturesTradeSessionBarClosedRealtimeEvent.Verb);
     readonly FuturesRegimeIndicatorPipelineRealtimeState state = new();
 
     /// <summary>Registers the shared-observation route and starts storage projection.</summary>
@@ -49,9 +49,9 @@ public sealed class FuturesRegimeIndicatorRealtimeActor(
         IActorMessage message)
     {
         var subject = message.Subject;
-        if (subject.Is(ActorType.Realtime, FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
-                FuturesAnalyticsObservationClosedRealtimeEvent.Verb))
-            return message.AsEvent<FuturesAnalyticsObservationClosedRealtimeEvent>()!;
+        if (subject.Is(ActorType.Realtime, FuturesTradeSessionBarClosedRealtimeEvent.Actor,
+                FuturesTradeSessionBarClosedRealtimeEvent.Verb))
+            return message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!;
         if (subject is not { ActorType: ActorType.Realtime, Name: ActorName })
             return default!;
         return subject.Verb switch
@@ -73,7 +73,7 @@ public sealed class FuturesRegimeIndicatorRealtimeActor(
     {
         switch (@event)
         {
-            case FuturesAnalyticsObservationClosedRealtimeEvent closed when closed.Observation.IsValid:
+            case FuturesTradeSessionBarClosedRealtimeEvent closed when closed.Observation.IsValid:
             {
                 var snapshot = state.Apply(closed.Observation);
                 var generated = new FuturesRegimeIndicatorsGeneratedRealtimeEvent
@@ -97,7 +97,7 @@ public sealed class FuturesRegimeIndicatorRealtimeActor(
                     "{EventName} for {EntityId}: {ErrorMessage}; no replay will be attempted",
                     failed.EventName, failed.EntityId, failed.ErrorMessage);
                 break;
-            case FuturesAnalyticsObservationClosedRealtimeEvent:
+            case FuturesTradeSessionBarClosedRealtimeEvent:
             case FuturesRegimeIndicatorsGeneratedRealtimeEvent:
             case FuturesRegimeIndicatorsGeneratedCompleteRealtimeEvent:
                 break;

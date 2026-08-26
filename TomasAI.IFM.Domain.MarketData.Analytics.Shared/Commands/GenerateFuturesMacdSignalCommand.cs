@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
@@ -48,6 +49,9 @@ public record GenerateFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntit
     [Key(7)]
     public decimal FuturesPrice { get; init; }
 
+    /// <summary>Gets the immutable closed observation that triggered this command.</summary>
+    [Key(8)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -60,10 +64,12 @@ public record GenerateFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntit
     /// <param name="futuresPrice">The price of the futures contract for which to generate the MACD signal.</param>
     public GenerateFuturesMacdSignalCommand(
         FuturesMacdSignalId futuresMacdSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         FuturesMacdSignalId = futuresMacdSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
 
         EntityId = futuresMacdSignalId.ToEntityId();
         ErrorCode = ErrorId;
@@ -82,7 +88,8 @@ public record GenerateFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntit
         int errorCode,
         BoundedContextName routeTo,
         FuturesMacdSignalId futuresMacdSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation)
     {
         CommandId = commandId;
         Subject = subject;
@@ -92,5 +99,6 @@ public record GenerateFuturesMacdSignalCommand : ICommand<FuturesMacdSignalEntit
         RouteTo = routeTo;
         FuturesMacdSignalId = futuresMacdSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
     }
 }

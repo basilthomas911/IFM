@@ -11,6 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Application.MarketData.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesAdxSignal;
@@ -381,6 +382,40 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
         // Assert
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_WithAdxSignalStartedEvent_ShouldDispatchThroughReceiveMap()
+    {
+        // Arrange
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();
+        var actor = _fixture.CreateAdxEventActor();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
+        var @event = new FuturesAdxSignalStartedEvent { EntityId = SampleData.AdxEntityId };
+
+        // Act
+        await actor.InvokeReceiveAsync(mockContext, @event);
+
+        // Assert
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot()
+            .Should().ContainSingle().Which.Should().Be(SampleData.AdxEntityId);
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_WithAdxSignalStoppedEvent_ShouldDispatchThroughReceiveMap()
+    {
+        // Arrange
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Attach(SampleData.AdxEntityId);
+        var actor = _fixture.CreateAdxEventActor();
+        var mockContext = Substitute.For<IEventActorContext<FuturesAdxSignalEventActor>>();
+        var @event = new FuturesAdxSignalStoppedEvent { EntityId = SampleData.AdxEntityId };
+
+        // Act
+        await actor.InvokeReceiveAsync(mockContext, @event);
+
+        // Assert
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot().Should().BeEmpty();
     }
 
     [Fact]

@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 
@@ -28,17 +29,17 @@ public static class FuturesRsiSignalStopped
     /// <param name="logger">The logger for recording error messages.</param>
     /// <returns>A value indicating whether the execution completed successfully. Returns <see langword="true"/> if the operation
     /// succeeded; otherwise, <see langword="false"/>.</returns>
-    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStoppedEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+    public static async ValueTask<bool> ExecuteAsync(this FuturesRsiSignalStoppedEvent e, IFuturesRsiSignalEventContext context, ILogger logger)
     {
         var source = $"FuturesRsiSignalStoppedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
         try
         {
-            FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(e.EntityId);
+            FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(e.EntityId);
             return true;
         }
         catch (Exception ex)
         {
-            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage());
+            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStoppedEvent.ErrorCode, ex.GetErrorMessage());
             logger.LogErrorEvent(ServiceId, ex.GetErrorMessage(), "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
         }
         return false;

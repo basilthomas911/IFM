@@ -1,137 +1,94 @@
 using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
-using TomasAI.IFM.Application.Blackboard;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
-using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
-using TomasAI.IFM.Application.MarketData.Contracts;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
-/// <summary>Provides the FuturesRsiSignalEventActor implementation.</summary>
-public class FuturesRsiSignalEventActor(
-    IEventActorContext<FuturesRsiSignalEventActor> actorContext)
+/// <summary>Parses RSI events and dispatches each supported type to its dedicated extension handler.</summary>
+/// <param name="actorContext">The typed RSI event context.</param>
+public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEventActor> actorContext)
     : BaseEventActor<FuturesRsiSignalEventActor>(actorContext, actorContext.Logger)
 {
-    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesRsiSignalEventContext ActorContext =>
-        IsArgumentNull.Set(Context as IFuturesRsiSignalEventContext, nameof(Context))!;
-
+    /// <summary>Identifies the RSI event mailbox.</summary>
     public const string Actor = "FuturesRsiSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesRsiSignalEventActor>, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+    /// <summary>Gets the typed event context supplied to this actor.</summary>
+    protected IFuturesRsiSignalEventContext FuturesRsiSignalEventContext { get; } = IsArgumentNull.Set(
+        actorContext as IFuturesRsiSignalEventContext, nameof(actorContext))!;
+    readonly ILogger<FuturesRsiSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly Dictionary<Type, Func<IEvent, IFuturesRsiSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesRsiSignalStartedEvent).Name] = async (evt, context, commandApi) =>
-        {
-            var e = (evt as FuturesRsiSignalStartedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, context.MarketDataApi, context.StatusConsoleWriter, context.Logger);
-        },
-        [typeof(FuturesRsiSignalStoppedEvent).Name] = async (evt, context, _) =>
-        {
-            var e = (evt as FuturesRsiSignalStoppedEvent)!;
-            return await e.ExecuteAsync(context, context.StatusConsoleWriter, context.Logger);
-        },
-        [typeof(FuturesRsiSignalGeneratedEvent).Name] = async (evt, context, _) =>
-        {
-            var e = (evt as FuturesRsiSignalGeneratedEvent)!;
-            return await e.ExecuteAsync(context, context.StatusConsoleWriter, context.Logger, context.BlackboardService);
-        },
-        [typeof(FuturesRsiDailySignalGeneratedCompleteEvent).Name] = (_, _, _) => ValueTask.FromResult(true)
+        [typeof(FuturesRsiSignalStartedEvent)] = async (@event, context, logger) =>
+            await ((FuturesRsiSignalStartedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
+        [typeof(FuturesRsiSignalStoppedEvent)] = async (@event, context, logger) =>
+            await ((FuturesRsiSignalStoppedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
+        [typeof(FuturesRsiSignalGeneratedEvent)] = async (@event, context, logger) =>
+            await ((FuturesRsiSignalGeneratedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
+        [typeof(FuturesRsiDailySignalGeneratedEvent)] = async (@event, context, logger) =>
+            await ((FuturesRsiDailySignalGeneratedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
+        [typeof(FuturesRsiDailySignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
+            await ((FuturesRsiDailySignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
+    };
+    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    {
+        [FuturesRsiSignalStartedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalStartedEvent>()!,
+        [FuturesRsiSignalStoppedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalStoppedEvent>()!,
+        [FuturesRsiSignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalGeneratedEvent>()!,
+        [FuturesRsiDailySignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiDailySignalGeneratedEvent>()!,
+        [FuturesRsiDailySignalGeneratedCompleteEvent.Verb] = message => message.AsEvent<FuturesRsiDailySignalGeneratedCompleteEvent>()!
     };
 
-    protected override ValueTask OnStartup(IEventActorContext<FuturesRsiSignalEventActor> context)
-    {
-        _ = context;
-        return ValueTask.CompletedTask;
-    }
-
-    protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalEventActor> context)
-    {
-        FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
-        return ValueTask.CompletedTask;
-    }
-
-    /// <summary>
-    /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
-    /// subject and verb.
-    /// </summary>
-    /// <param name="context">The actor context used for event processing. Cannot be null.</param>
-    /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
-    /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
-    /// resolved from the message.</exception>
+    /// <summary>Parses an RSI event message.</summary>
     protected override IEvent ParseMessage(IEventActorContext<FuturesRsiSignalEventActor> context, IActorMessage message)
     {
         IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
+        IsArgumentNull.Check(message);
+        if (message.Subject is not { ActorType: ActorType.Event, Name: Actor } subject
+            || !_parseMap.TryGetValue(subject.Verb, out var parser)) return default!;
+        var @event = parser(message);
         @event.CheckForEmptyCommandId();
         return @event;
     }
 
-    /// <summary>
-    /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
-    /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
-    {
-        [FuturesRsiSignalStartedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalStartedEvent>()!,
-        [FuturesRsiSignalStoppedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalStoppedEvent>()!,
-        [FuturesRsiSignalGeneratedEvent.Verb] = msg => msg.AsEvent<FuturesRsiSignalGeneratedEvent>()!,
-        [FuturesRsiDailySignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesRsiDailySignalGeneratedCompleteEvent>()!
-    };
-
-    /// <summary>
-    /// Asynchronously processes an event received by the event actor using the appropriate event handler.
-    /// </summary>
-    /// <param name="context">The context in which the event actor is executing. Cannot be null.</param>
-    /// <param name="event">The event to be processed by the event actor. Cannot be null.</param>
-    /// <returns>A task that represents the asynchronous receive operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type.</exception>
+    /// <summary>Dispatches an RSI event by runtime type.</summary>
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesRsiSignalEventActor> context, IEvent @event)
     {
-        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
+        if (!_receiveMap.TryGetValue(@event.GetType(), out var handler))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, context);
+        _ = await handler(@event, FuturesRsiSignalEventContext, _logger).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Handles an exception that occurs during event actor processing and returns a failed service result containing
-    /// error details.
-    /// </summary>
-    /// <param name="context">The event actor context in which the exception occurred.</param>
-    /// <param name="threadId">The identifier of the actor thread where the exception was raised.</param>
-    /// <param name="event">The event being processed when the exception was thrown.</param>
-    /// <param name="ex">The exception that was thrown during actor processing.</param>
-    /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesRsiSignalEventActor> context, ActorThreadId threadId, IEvent @event, Exception ex)
+    /// <summary>Clears RSI observation attachments during shutdown.</summary>
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalEventActor> context)
+    {
+        FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Publishes the standard event-actor error event.</summary>
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesRsiSignalEventActor> context,
+        ActorThreadId threadId, IEvent @event, Exception exception)
     {
         try
         {
             IsArgumentNull.Check(context);
             IsArgumentNull.Check(threadId);
             IsArgumentNull.Check(@event);
-            await ex.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
+            await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+                ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
         }
-        catch (Exception innerEx)
+        catch (Exception innerException)
         {
-            await innerEx.SendErrorEventAsync<global::TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent, ActorEntityId>(ErrorType.EventService, context);
-            Context.Logger.LogError(innerEx, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
+            await innerException.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+                ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
+            Context.Logger.LogError(innerException, "Failed to send EventExceptionEvent for {Actor} actor.", Actor);
         }
     }
 }

@@ -66,10 +66,10 @@ public sealed class HistoricalBootstrapCoordinatorTests
                 if (!calendar.IsTradingDate(date)) continue;
                 var bounds = calendar.GetSession(date);
                 var end = bounds.StartUtc.AddMinutes(1);
-                var observation = new FuturesAnalyticsObservationReadModel
+                var observation = new FuturesTradeSessionBarReadModel
                 {
                     MarketSeriesIdentity = series.SeriesIdentity,
-                    ObservationId = FuturesAnalyticsObservationId.Create(
+                    ObservationId = FuturesTradeSessionBarId.Create(
                         series.SeriesIdentity, TimeFrameType.OneMinute, end, ordinal),
                     ContractId = date < new DateOnly(2024, 6, 14) ? "ESM4" : "ESU4",
                     ValueDate = date, TimeFrame = TimeFrameType.OneMinute,
@@ -114,9 +114,9 @@ public sealed class HistoricalBootstrapCoordinatorTests
 
     sealed class MemoryObservationStore : IHistoricalObservationStore
     {
-        internal Dictionary<Guid, FuturesAnalyticsObservationReadModel> Observations { get; } = [];
+        internal Dictionary<Guid, FuturesTradeSessionBarReadModel> Observations { get; } = [];
         internal Dictionary<string, FuturesEodObservationReadModel> Raw { get; } = [];
-        public ValueTask<bool> TryWriteObservationAsync(FuturesAnalyticsObservationReadModel value, CancellationToken cancellationToken) =>
+        public ValueTask<bool> TryWriteObservationAsync(FuturesTradeSessionBarReadModel value, CancellationToken cancellationToken) =>
             ValueTask.FromResult(Observations.TryAdd(value.ObservationId.Value, value));
         public ValueTask<bool> TryWriteRawEodAsync(FuturesEodObservationReadModel value, CancellationToken cancellationToken) =>
             ValueTask.FromResult(Raw.TryAdd($"{value.MarketSeriesIdentity.Format()}|{value.ValueDate:O}", value));

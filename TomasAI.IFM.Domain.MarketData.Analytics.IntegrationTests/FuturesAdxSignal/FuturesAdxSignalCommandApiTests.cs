@@ -30,6 +30,10 @@ public class FuturesAdxSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesAdxSignalGeneratedEvent futuresAdxSignalGeneratedEvent = default!;
         FuturesAdxSignalGeneratedCompleteEvent futuresAdxSignalGeneratedCompleteEvent = default!;
         FuturesAdxSignalGeneratedFailEvent futuresAdxSignalGeneratedFailEvent = default!;
+        var contractId = SampleData.ContractId;
+        var valueDate = SampleData.ValueDate;
+        var adxSignalId = SampleData.AdxSignalId;
+        var entityId = SampleData.AdxEntityId;
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -45,12 +49,8 @@ public class FuturesAdxSignalCommandApiTests(WebApplicationFactory<Program> fact
             EventHandlerAsync
         );
 
-        var contractId = SampleData.ContractId;
-        var valueDate = SampleData.ValueDate;
-        var adxSignalId = SampleData.AdxSignalId;
         var futuresItiSignals = SampleData.CreateItiSignalsForAtr();
 
-        var entityId = SampleData.AdxEntityId;
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesAdxSignalCommand.Actor, GenerateFuturesAdxSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -95,6 +95,9 @@ public class FuturesAdxSignalCommandApiTests(WebApplicationFactory<Program> fact
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesAdxSignalEntityId> routed
+                    && routed.EntityId != entityId)
+                    return @event;
                 if (@event is FuturesAdxSignalGeneratedEvent generated)
                     futuresAdxSignalGeneratedEvent = generated;
                 if (@event is FuturesAdxSignalGeneratedCompleteEvent generatedComplete)

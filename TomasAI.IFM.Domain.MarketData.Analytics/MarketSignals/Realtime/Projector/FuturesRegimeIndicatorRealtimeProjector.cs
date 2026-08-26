@@ -20,7 +20,7 @@ public sealed class FuturesRegimeIndicatorRealtimeProjector(
         Describe<FuturesRegimeIndicatorsGeneratedRealtimeEvent,
             FuturesRegimeIndicatorsGeneratedCompleteRealtimeEvent,
             FuturesRegimeIndicatorsGeneratedFailRealtimeEvent,
-            FuturesAnalyticsObservationEntityId>(async (generated, cancellationToken) =>
+            FuturesTradeSessionBarEntityId>(async (generated, cancellationToken) =>
         {
             await dbFactory.MarketDataDb.InsertFuturesEmaSignalAsync(
                 generated.Snapshot.Ema, cancellationToken).ConfigureAwait(false);

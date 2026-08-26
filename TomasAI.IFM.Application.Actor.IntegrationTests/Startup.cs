@@ -78,8 +78,8 @@ using TomasAI.IFM.Shared.StatusConsole.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Projector;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -444,8 +444,8 @@ public static class Startup
                         "market-data-history"),
                     SeriesProfiles = []
                 });
-            services.AddSingleton<IFuturesAnalyticsSeriesResolver>(_ =>
-                new PrefixFuturesAnalyticsSeriesResolver(
+            services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
+                new PrefixFuturesTradeSessionBarSeriesResolver(
                     new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
@@ -455,7 +455,7 @@ public static class Startup
                                 "unadjusted",
                                 1))
                     }));
-            services.AddSingleton<FuturesAnalyticsObservationRealtimeProjector>();
+            services.AddSingleton<FuturesTradeSessionBarAccumulator>();
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();

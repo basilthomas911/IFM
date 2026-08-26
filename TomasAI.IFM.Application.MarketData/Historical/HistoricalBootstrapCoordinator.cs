@@ -234,7 +234,7 @@ public sealed class HistoricalBootstrapCoordinator
         private DateTimeOffset lastEvent = DateTimeOffset.MinValue;
         private bool hasValue;
 
-        internal void Add(FuturesAnalyticsObservationReadModel value)
+        internal void Add(FuturesTradeSessionBarReadModel value)
         {
             if (!hasValue || value.FirstMarketEventUtc < firstEvent)
             {
@@ -259,7 +259,7 @@ public sealed class HistoricalBootstrapCoordinator
         internal FuturesEodObservationReadModel Build()
         {
             if (!hasValue) throw new InvalidOperationException("Cannot build an empty session.");
-            var id = FuturesAnalyticsObservationId.Create(
+            var id = FuturesTradeSessionBarId.Create(
                 key.SeriesIdentity, TimeFrameType.Daily, bounds.EndUtc, lastSequence);
             return new FuturesEodObservationReadModel
             {

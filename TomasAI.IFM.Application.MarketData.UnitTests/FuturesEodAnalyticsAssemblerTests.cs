@@ -15,7 +15,7 @@ public sealed class FuturesEodAnalyticsAssemblerTests
     {
         var series = MarketSeriesIdentity.ForContract("ESZ26");
         var valueDate = new DateOnly(2026, 8, 25);
-        var observationId = FuturesAnalyticsObservationId.Create(
+        var observationId = FuturesTradeSessionBarId.Create(
             series, TimeFrameType.Daily, new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero), 42);
         var raw = Raw(series, valueDate, observationId);
         var signal = new MarketAnalyticsSignalResult(
@@ -42,9 +42,9 @@ public sealed class FuturesEodAnalyticsAssemblerTests
     {
         var series = MarketSeriesIdentity.ForContract("ESZ26");
         var valueDate = new DateOnly(2026, 8, 25);
-        var rawId = FuturesAnalyticsObservationId.Create(
+        var rawId = FuturesTradeSessionBarId.Create(
             series, TimeFrameType.Daily, new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero), 42);
-        var otherId = FuturesAnalyticsObservationId.Create(
+        var otherId = FuturesTradeSessionBarId.Create(
             series, TimeFrameType.Daily, new DateTimeOffset(2026, 8, 25, 21, 0, 0, TimeSpan.Zero), 43);
         var assembler = new FuturesEodAnalyticsAssembler(
             new ObservationStore(Raw(series, valueDate, rawId)),
@@ -60,7 +60,7 @@ public sealed class FuturesEodAnalyticsAssemblerTests
     static FuturesEodObservationReadModel Raw(
         MarketSeriesIdentity series,
         DateOnly valueDate,
-        FuturesAnalyticsObservationId observationId) => new()
+        FuturesTradeSessionBarId observationId) => new()
     {
         MarketSeriesIdentity = series, ContractId = "ESZ26", ValueDate = valueDate,
         SessionStartUtc = new DateTimeOffset(2026, 8, 24, 22, 0, 0, TimeSpan.Zero),
@@ -76,7 +76,7 @@ public sealed class FuturesEodAnalyticsAssemblerTests
     static MarketAnalyticsSignalMetadata Metadata(
         MarketSeriesIdentity series,
         DateOnly valueDate,
-        FuturesAnalyticsObservationId observationId) => new()
+        FuturesTradeSessionBarId observationId) => new()
     {
         SignalKey = new(series, MarketAnalyticsSignalKind.Ema, TimeFrameType.Daily, "ema-v1"),
         ContractId = "ESZ26", ValueDate = valueDate, ObservationId = observationId,
@@ -89,7 +89,7 @@ public sealed class FuturesEodAnalyticsAssemblerTests
 
     sealed class ObservationStore(FuturesEodObservationReadModel raw) : IHistoricalObservationStore
     {
-        public ValueTask<bool> TryWriteObservationAsync(FuturesAnalyticsObservationReadModel observation, CancellationToken cancellationToken) => ValueTask.FromResult(true);
+        public ValueTask<bool> TryWriteObservationAsync(FuturesTradeSessionBarReadModel observation, CancellationToken cancellationToken) => ValueTask.FromResult(true);
         public ValueTask<bool> TryWriteRawEodAsync(FuturesEodObservationReadModel observation, CancellationToken cancellationToken) => ValueTask.FromResult(true);
         public ValueTask<FuturesEodObservationReadModel?> GetRawEodAsync(MarketSeriesIdentity seriesIdentity, DateOnly valueDate, CancellationToken cancellationToken)
             => ValueTask.FromResult<FuturesEodObservationReadModel?>(raw);
@@ -101,7 +101,7 @@ public sealed class FuturesEodAnalyticsAssemblerTests
             MarketAnalyticsSignalFamily family,
             MarketSeriesIdentity seriesIdentity,
             TimeFrameType timeFrame,
-            FuturesAnalyticsObservationId observationId,
+            FuturesTradeSessionBarId observationId,
             CancellationToken cancellationToken)
             => ValueTask.FromResult(signal?.Family == family ? signal : null);
     }

@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
@@ -49,6 +50,9 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
     [Key(7)]
     public decimal FuturesPrice { get; init; }
 
+    /// <summary>Gets the immutable closed observation that triggered this command.</summary>
+    [Key(8)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -65,10 +69,12 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
     /// <exception cref="ArgumentNullException">Thrown when the futuresIntraDayData parameter is null.</exception>
     public GenerateFuturesAtrSignalCommand(
         FuturesAtrSignalId futuresAtrSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
         EntityId = futuresAtrSignalId.ToEntityId();
         ErrorCode = ErrorId;
         RouteTo = BoundedContextName.FuturesAtrSignalBoundedContext;
@@ -86,7 +92,8 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
         int errorCode,
         BoundedContextName routeTo,
         FuturesAtrSignalId futuresAtrSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation)
     {
         CommandId = commandId;
         Subject = subject;
@@ -96,5 +103,6 @@ public record GenerateFuturesAtrSignalCommand : ICommand<FuturesAtrSignalEntityI
         RouteTo = routeTo;
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
     }
 }

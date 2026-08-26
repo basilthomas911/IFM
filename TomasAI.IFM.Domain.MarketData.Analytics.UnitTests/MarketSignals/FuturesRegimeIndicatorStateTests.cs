@@ -145,17 +145,17 @@ public sealed class FuturesRegimeIndicatorStateTests
     [Fact]
     public void AttachmentRegistryIsIdempotentAndSeparatesRsiPeriods()
     {
-        FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
+        FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
         var rsi13 = new FuturesRsiSignalEntityId("ESU6", new(2026, 8, 25), TimeFrameType.Daily, 13);
         var rsi14 = rsi13 with { PeriodLength = 14 };
 
-        Assert.True(FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(rsi13));
-        Assert.False(FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(rsi13));
-        Assert.True(FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(rsi14));
-        Assert.Equal(2, FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot().Length);
-        Assert.True(FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(rsi13));
-        Assert.Single(FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot());
-        FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
+        Assert.True(FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(rsi13));
+        Assert.False(FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(rsi13));
+        Assert.True(FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(rsi14));
+        Assert.Equal(2, FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot().Length);
+        Assert.True(FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Detach(rsi13));
+        Assert.Single(FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot());
+        FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public sealed class FuturesRegimeIndicatorStateTests
     {
         var state = new FuturesRegimeIndicatorPipelineRealtimeState();
         var observation = Observation(1, 5001m);
-        var entityId = new FuturesAnalyticsObservationEntityId(Series, TimeFrameType.Daily);
+        var entityId = new FuturesTradeSessionBarEntityId(Series, TimeFrameType.Daily);
         var generated = new FuturesRegimeIndicatorsGeneratedRealtimeEvent
         {
             Subject = new(ActorType.Realtime, FuturesRegimeIndicatorsGeneratedRealtimeEvent.Actor,
@@ -204,10 +204,10 @@ public sealed class FuturesRegimeIndicatorStateTests
 
         var completed = generated.ToCompleteEvent<
             FuturesRegimeIndicatorsGeneratedCompleteRealtimeEvent,
-            FuturesAnalyticsObservationEntityId>();
+            FuturesTradeSessionBarEntityId>();
         var failed = generated.ToFailEvent<
             FuturesRegimeIndicatorsGeneratedFailRealtimeEvent,
-            FuturesAnalyticsObservationEntityId>(new InvalidOperationException("projection failed"));
+            FuturesTradeSessionBarEntityId>(new InvalidOperationException("projection failed"));
 
         Assert.Equal(generated.Id, completed.Id);
         Assert.Equal(generated.EntityId, completed.EntityId);
@@ -215,13 +215,13 @@ public sealed class FuturesRegimeIndicatorStateTests
         Assert.Equal("projection failed", failed.ErrorMessage);
     }
 
-    static FuturesAnalyticsObservationReadModel Observation(long sequence, decimal close)
+    static FuturesTradeSessionBarReadModel Observation(long sequence, decimal close)
     {
         var end = new DateTimeOffset(2026, 8, 25, 20, 0, 0, TimeSpan.Zero).AddDays(sequence);
         return new()
         {
             MarketSeriesIdentity = Series,
-            ObservationId = FuturesAnalyticsObservationId.Create(Series, TimeFrameType.Daily, end, sequence),
+            ObservationId = FuturesTradeSessionBarId.Create(Series, TimeFrameType.Daily, end, sequence),
             ContractId = "ESU6",
             ValueDate = DateOnly.FromDateTime(end.UtcDateTime),
             TimeFrame = TimeFrameType.Daily,

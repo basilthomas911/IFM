@@ -44,22 +44,22 @@ public sealed class Mdsi1SharedContractTests
 
     /// <summary>Verifies observation identity is deterministic and changes with immutable source lineage.</summary>
     [Fact]
-    public void FuturesAnalyticsObservationId_IsDeterministicFromSeriesIntervalAndSequence()
+    public void FuturesTradeSessionBarId_IsDeterministicFromSeriesIntervalAndSequence()
     {
         var series = MarketSeriesIdentity.ForContract("ESZ26");
         var intervalEnd = new DateTimeOffset(2026, 8, 25, 14, 15, 0, TimeSpan.Zero);
 
-        var first = FuturesAnalyticsObservationId.Create(
+        var first = FuturesTradeSessionBarId.Create(
             series,
             TimeFrameType.FifteenMinutes,
             intervalEnd,
             42);
-        var same = FuturesAnalyticsObservationId.Create(
+        var same = FuturesTradeSessionBarId.Create(
             series,
             TimeFrameType.FifteenMinutes,
             intervalEnd,
             42);
-        var nextLineage = FuturesAnalyticsObservationId.Create(
+        var nextLineage = FuturesTradeSessionBarId.Create(
             series,
             TimeFrameType.FifteenMinutes,
             intervalEnd,
@@ -67,25 +67,25 @@ public sealed class Mdsi1SharedContractTests
 
         first.Should().Be(same);
         nextLineage.Should().NotBe(first);
-        FuturesAnalyticsObservationId.Parse(first.ToString()).Should().Be(first);
+        FuturesTradeSessionBarId.Parse(first.ToString()).Should().Be(first);
     }
 
     /// <summary>Verifies the complete immutable OHLCV and provenance payload survives serialization.</summary>
     [Fact]
-    public void FuturesAnalyticsObservationReadModel_MessagePackRoundTripsAndValidates()
+    public void FuturesTradeSessionBarReadModel_MessagePackRoundTripsAndValidates()
     {
         var observation = CreateObservation();
 
         var roundTrip = MessagePackRoundTrip(observation);
 
         roundTrip.Should().BeEquivalentTo(observation);
-        new FuturesAnalyticsObservationReadModelValidationRules().Execute(roundTrip)
+        new FuturesTradeSessionBarReadModelValidationRules().Execute(roundTrip)
             .Should().BeEmpty();
     }
 
     /// <summary>Verifies invalid OHLC relationships and incomplete-valid state are rejected.</summary>
     [Fact]
-    public void FuturesAnalyticsObservationReadModel_ValidationRejectsContradictoryState()
+    public void FuturesTradeSessionBarReadModel_ValidationRejectsContradictoryState()
     {
         var invalid = CreateObservation() with
         {
@@ -94,14 +94,14 @@ public sealed class Mdsi1SharedContractTests
             ValidationIssues = []
         };
 
-        new FuturesAnalyticsObservationReadModelValidationRules().Execute(invalid)
+        new FuturesTradeSessionBarReadModelValidationRules().Execute(invalid)
             .Should().NotBeEmpty();
 
         var mismatchedIdentity = CreateObservation() with
         {
-            ObservationId = new FuturesAnalyticsObservationId(Guid.NewGuid())
+            ObservationId = new FuturesTradeSessionBarId(Guid.NewGuid())
         };
-        new FuturesAnalyticsObservationReadModelValidationRules().Execute(mismatchedIdentity)
+        new FuturesTradeSessionBarReadModelValidationRules().Execute(mismatchedIdentity)
             .Should().NotBeEmpty();
     }
 
@@ -121,7 +121,7 @@ public sealed class Mdsi1SharedContractTests
                 "EMA-200-v1"),
             ContractId = "ESZ26",
             ValueDate = new DateOnly(2026, 8, 25),
-            ObservationId = FuturesAnalyticsObservationId.Create(
+            ObservationId = FuturesTradeSessionBarId.Create(
                 series,
                 TimeFrameType.Daily,
                 marketDataAsOf,
@@ -147,18 +147,18 @@ public sealed class Mdsi1SharedContractTests
 
     /// <summary>Verifies the realtime envelope uses an exact realtime subject and matching observation identity.</summary>
     [Fact]
-    public void FuturesAnalyticsObservationClosedRealtimeEvent_RoundTripsAndValidatesExactRoute()
+    public void FuturesTradeSessionBarClosedRealtimeEvent_RoundTripsAndValidatesExactRoute()
     {
         var observation = CreateObservation();
-        var entityId = new FuturesAnalyticsObservationEntityId(
+        var entityId = new FuturesTradeSessionBarEntityId(
             observation.MarketSeriesIdentity,
             observation.TimeFrame);
-        var source = new FuturesAnalyticsObservationClosedRealtimeEvent
+        var source = new FuturesTradeSessionBarClosedRealtimeEvent
         {
             Subject = new ActorSubject(
                 ActorType.Realtime,
-                FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
-                FuturesAnalyticsObservationClosedRealtimeEvent.Verb,
+                FuturesTradeSessionBarClosedRealtimeEvent.Actor,
+                FuturesTradeSessionBarClosedRealtimeEvent.Verb,
                 entityId.Format()),
             Id = Guid.NewGuid(),
             EntityId = entityId,
@@ -171,8 +171,8 @@ public sealed class Mdsi1SharedContractTests
         var roundTrip = MessagePackRoundTrip(source);
 
         roundTrip.Should().BeEquivalentTo(source);
-        FuturesAnalyticsObservationEntityId.Parse(entityId.Format()).Should().Be(entityId);
-        new FuturesAnalyticsObservationClosedRealtimeEventValidationRules().Execute(roundTrip)
+        FuturesTradeSessionBarEntityId.Parse(entityId.Format()).Should().Be(entityId);
+        new FuturesTradeSessionBarClosedRealtimeEventValidationRules().Execute(roundTrip)
             .Should().BeEmpty();
     }
 
@@ -186,10 +186,10 @@ public sealed class Mdsi1SharedContractTests
             typeof(MarketSeriesIdentity),
             typeof(MarketAnalyticsSignalKey),
             typeof(MarketAnalyticsSignalMetadata),
-            typeof(FuturesAnalyticsObservationId),
-            typeof(FuturesAnalyticsObservationEntityId),
-            typeof(FuturesAnalyticsObservationReadModel),
-            typeof(FuturesAnalyticsObservationClosedRealtimeEvent)
+            typeof(FuturesTradeSessionBarId),
+            typeof(FuturesTradeSessionBarEntityId),
+            typeof(FuturesTradeSessionBarReadModel),
+            typeof(FuturesTradeSessionBarClosedRealtimeEvent)
         };
         var xmlPath = Path.ChangeExtension(typeof(MarketSeriesIdentity).Assembly.Location, ".xml");
         File.Exists(xmlPath).Should().BeTrue($"documentation should be emitted at {xmlPath}");
@@ -211,15 +211,15 @@ public sealed class Mdsi1SharedContractTests
     static T MessagePackRoundTrip<T>(T value) =>
         MessagePackSerializer.Deserialize<T>(MessagePackSerializer.Serialize(value));
 
-    static FuturesAnalyticsObservationReadModel CreateObservation()
+    static FuturesTradeSessionBarReadModel CreateObservation()
     {
         var series = MarketSeriesIdentity.ForContract("ESZ26");
         var intervalStart = new DateTimeOffset(2026, 8, 25, 14, 0, 0, TimeSpan.Zero);
         var intervalEnd = intervalStart.AddMinutes(15);
-        return new FuturesAnalyticsObservationReadModel
+        return new FuturesTradeSessionBarReadModel
         {
             MarketSeriesIdentity = series,
-            ObservationId = FuturesAnalyticsObservationId.Create(
+            ObservationId = FuturesTradeSessionBarId.Create(
                 series,
                 TimeFrameType.FifteenMinutes,
                 intervalEnd,

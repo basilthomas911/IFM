@@ -5,11 +5,6 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Model;
-using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Application.MarketData.Contracts;
-
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -18,35 +13,43 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
 
 /// <summary>
 /// Represents an event actor responsible for processing futures ADX signal events within the actor system.
-/// Provides mechanisms for parsing incoming messages, handling event execution, managing actor state, and
-/// reporting errors specific to futures ADX signal events.
+/// Parses incoming messages and dispatches each supported event to its dedicated extension handler.
 /// </summary>
-/// <param name="supervisor">The actor supervisor that manages actor lifecycle and coordinates event processing within the system.
-/// Cannot be null.</param>
-/// <param name="statusConsoleWriter">The status console writer used to log messages to the status console.
-/// Cannot be null.</param>
-/// <param name="logger">The logger used to record diagnostic and operational information for the futures ADX signal event actor.
-/// Cannot be null.</param>
+/// <param name="actorContext">The typed ADX event context resolved through the open-generic context registration.</param>
 public class FuturesAdxSignalEventActor(
     IEventActorContext<FuturesAdxSignalEventActor> actorContext)
     : BaseEventActor<FuturesAdxSignalEventActor>(actorContext, actorContext.Logger)
 {
-    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesAdxSignalEventContext ActorContext =>
-        IsArgumentNull.Set(Context as IFuturesAdxSignalEventContext, nameof(Context))!;
-
+    /// <summary>Identifies the ADX event actor mailbox.</summary>
     public const string Actor = "FuturesAdxSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesAdxSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+
+    /// <summary>Gets the ADX-specific event context supplied when this actor is constructed.</summary>
+    protected IFuturesAdxSignalEventContext FuturesAdxSignalEventContext { get; } = IsArgumentNull.Set(
+        actorContext as IFuturesAdxSignalEventContext,
+        nameof(actorContext))!;
+
+    readonly ILogger<FuturesAdxSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly Dictionary<Type, Func<IEvent, IFuturesAdxSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesAdxSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesAdxSignalStartedEvent)] = async (evt, context, logger) =>
+        {
+            var e = (evt as FuturesAdxSignalStartedEvent)!;
+            return await e.ExecuteAsync(context, logger).ConfigureAwait(false);
+        },
+        [typeof(FuturesAdxSignalStoppedEvent)] = async (evt, context, logger) =>
+        {
+            var e = (evt as FuturesAdxSignalStoppedEvent)!;
+            return await e.ExecuteAsync(context, logger).ConfigureAwait(false);
+        },
+        [typeof(FuturesAdxSignalGeneratedCompleteEvent)] = async (evt, context, logger) =>
         {
             var e = (evt as FuturesAdxSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, logger).ConfigureAwait(false);
         },
-        [typeof(FuturesAdxDailySignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesAdxDailySignalGeneratedCompleteEvent)] = async (evt, context, logger) =>
         {
             var e = (evt as FuturesAdxDailySignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, logger).ConfigureAwait(false);
         }
     };
 
@@ -90,28 +93,16 @@ public class FuturesAdxSignalEventActor(
     /// <exception cref="InvalidOperationException">Thrown if no handler is registered for the event type.</exception>
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesAdxSignalEventActor> context, IEvent @event)
     {
-        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (@event is FuturesAdxSignalStartedEvent started)
-        {
-            _ = await started.ExecuteAsync(context, context, ActorContext.MarketDataApi, ActorContext.StatusConsoleWriter, ActorContext.Logger);
-            return;
-        }
-        if (@event is FuturesAdxSignalStoppedEvent stopped)
-        {
-            _ = await stopped.ExecuteAsync(context, ActorContext.StatusConsoleWriter, ActorContext.Logger);
-            return;
-        }
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
+        if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, FuturesAdxSignalEventContext, _logger).ConfigureAwait(false);
     }
 
     protected override ValueTask OnShutdown(IEventActorContext<FuturesAdxSignalEventActor> context)
     {
-        FuturesAnalyticsObservationAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();
+        FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Clear();
         return ValueTask.CompletedTask;
     }
 

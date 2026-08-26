@@ -152,8 +152,9 @@ database rows.
 
 ### 5.1 Observation authority
 
-Add a server-owned `FuturesAnalyticsObservationCoordinator`. For each active
-contract it owns the six intraday schedules:
+Add a server-owned `FuturesTradeSessionBarPublisher`. Its stateless Realtime
+actor routes live trades through a concrete actor-centric accumulation Model.
+For each active contract the Model owns the six intraday schedules:
 
 - 15 seconds
 - 1 minute
@@ -162,9 +163,12 @@ contract it owns the six intraday schedules:
 - 1 hour
 - 4 hours
 
-The coordinator observes accepted trades continuously, builds OHLCV state,
-and closes one immutable bar at each configured exchange-session boundary. A
-closed bar publishes one `FuturesAnalyticsObservationClosedRealtimeEvent`.
+The Model observes accepted trades continuously, builds ephemeral OHLCV
+buckets, and closes one immutable bar at each configured exchange-session
+boundary. The Realtime actor sends the completed bar to the event-sourced
+Publisher Command actor. After the ACID event-log commit and ScyllaDB
+projection, the stateless Publisher Event actor publishes one
+`FuturesTradeSessionBarClosedRealtimeEvent`.
 Every required bar-derived indicator for that contract/timeframe consumes the
 same event. The VWAP actor instead consumes every eligible normalized trade so
 that a bar close cannot discard within-bar price/volume information.
@@ -1072,7 +1076,7 @@ or unbounded contract-specific metric labels.
 | MDSI-2 | Databento historical acquisition contracts, manifest/checkpoint workflow, and deterministic fixtures |
 | MDSI-3 | Roll-aware FuturesSeriesId continuation and one-year Daily normalized backfill |
 | MDSI-4 | Raw Futures EOD schema/actor/projector cutover and compatibility query assembler |
-| MDSI-5 | Server-owned observation coordinator and activation lifecycle |
+| MDSI-5 | Server-owned Futures Trade Session Bar Publisher, actor-centric accumulation Model, and durable publication lifecycle |
 | MDSI-6 | Existing RSI/ATR/ADX/MACD migration to common observations and provenance |
 | MDSI-7 | RSI-14 plus preserved RSI-13/TDI path |
 | MDSI-8 | EMA10/20/50/200 signal, deterministic bootstrap, cache, projection, and queries |

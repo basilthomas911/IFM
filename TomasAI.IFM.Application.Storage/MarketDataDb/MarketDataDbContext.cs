@@ -16,6 +16,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -1258,7 +1260,8 @@ public partial class MarketDataDbContext(
         );
 
     static FuturesAdxSignalReadModel MapToFuturesAdxSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
+    {
+        var signal = new FuturesAdxSignalReadModel(
             contractId: e.GetString(0),
             valueDate: e.GetDateOnly(1),
             timePeriod: e.GetEnum<TimeFrameType>(2),
@@ -1271,6 +1274,33 @@ public partial class MarketDataDbContext(
             adx: e.GetEnum<FuturesTrendDirectionType>(9),
             adxStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(10)
         );
+        if (e.IsNull(11))
+            return signal;
+
+        var marketDataAsOf = new DateTimeOffset(
+            DateTime.SpecifyKind(e.GetDateTime(13), DateTimeKind.Utc));
+        return signal with
+        {
+            Metadata = new MarketAnalyticsSignalMetadata
+            {
+                SignalKey = new(
+                    MarketSeriesIdentity.ForContract(signal.ContractId),
+                    MarketAnalyticsSignalKind.Adx,
+                    signal.TimePeriod,
+                    e.GetString(11)),
+                ContractId = signal.ContractId,
+                ValueDate = signal.ValueDate,
+                ObservationId = new FuturesTradeSessionBarId(e.GetGuid(12)),
+                MarketDataAsOfUtc = marketDataAsOf,
+                CalculatedAtUtc = marketDataAsOf,
+                SourceSequence = e.GetLong(14),
+                CalculationVersion = e.GetString(15),
+                CalculationMethod = e.GetEnum<MarketSignalCalculationMethod>(16),
+                SchemaVersion = checked((ushort)e.GetInt(17)),
+                IsValid = e.GetBool(18)
+            }
+        };
+    }
 
     static FuturesTradeSignalV2ReadModel MapToFuturesTradeSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
@@ -2433,7 +2463,7 @@ public partial class MarketDataDbContext(
                 e.Metadata?.MarketDataAsOfUtc.UtcDateTime,
                 e.Metadata?.CalculationVersion,
                 e.Metadata?.CalculationMethod.ToString(),
-                e.Metadata?.SchemaVersion,
+                e.Metadata is { } rsiMetadata ? rsiMetadata.SchemaVersion : null,
                 e.Metadata?.IsValid);
         await _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesRsiSignal)}", MarketDataDbCql.InsertFuturesRsiSignal)
@@ -3105,7 +3135,7 @@ public partial class MarketDataDbContext(
                 sourceSequence: futuresMacdSignal.Metadata?.SourceSequence,
                 calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion,
                 calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(),
-                schemaVersion: futuresMacdSignal.Metadata?.SchemaVersion,
+                schemaVersion: futuresMacdSignal.Metadata is { } macdMetadata ? macdMetadata.SchemaVersion : null,
                 isValid: futuresMacdSignal.Metadata?.IsValid
             ))
             .ExecuteCommandAsync();
@@ -3135,7 +3165,7 @@ public partial class MarketDataDbContext(
                 sourceSequence: futuresAtrSignal.Metadata?.SourceSequence,
                 calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion,
                 calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(),
-                schemaVersion: futuresAtrSignal.Metadata?.SchemaVersion,
+                schemaVersion: futuresAtrSignal.Metadata is { } atrMetadata ? atrMetadata.SchemaVersion : null,
                 isValid: futuresAtrSignal.Metadata?.IsValid))
             .ExecuteCommandAsync();
 
@@ -3178,7 +3208,9 @@ public partial class MarketDataDbContext(
                 sourceSequence: futuresAdxSignal.Metadata?.SourceSequence,
                 calculationVersion: futuresAdxSignal.Metadata?.CalculationVersion,
                 calculationMethod: futuresAdxSignal.Metadata?.CalculationMethod.ToString(),
-                schemaVersion: futuresAdxSignal.Metadata?.SchemaVersion,
+                schemaVersion: futuresAdxSignal.Metadata is { } metadata
+                    ? metadata.SchemaVersion
+                    : null,
                 isValid: futuresAdxSignal.Metadata?.IsValid
             ))
             .ExecuteCommandAsync();

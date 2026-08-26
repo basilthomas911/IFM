@@ -34,7 +34,7 @@ public sealed record FuturesEodObservationReadModel
     /// <summary>Gets the sum of accepted price multiplied by volume.</summary>
     [Key(11)] public decimal PriceVolumeSum { get; init; }
     /// <summary>Gets the deterministic Daily observation identity.</summary>
-    [Key(12)] public FuturesAnalyticsObservationId ObservationId { get; init; }
+    [Key(12)] public FuturesTradeSessionBarId ObservationId { get; init; }
     /// <summary>Gets the first source sequence.</summary>
     [Key(13)] public long FirstSourceSequence { get; init; }
     /// <summary>Gets the last source sequence.</summary>

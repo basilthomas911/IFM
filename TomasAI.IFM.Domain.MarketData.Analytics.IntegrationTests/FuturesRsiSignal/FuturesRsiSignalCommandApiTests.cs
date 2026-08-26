@@ -175,6 +175,11 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesRsiSignalGeneratedCompleteEvent futuresRsiSignalGeneratedCompleteEvent = default!;
         FuturesRsiSignalGeneratedFailEvent futuresRsiSignalGeneratedFailEvent = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entityId = new FuturesRsiSignalEntityId(
+            SampleData.ContractId,
+            SampleData.ValueDate,
+            TimeFrameType.FifteenMinutes,
+            14);
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -190,7 +195,6 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             EventHandlerAsync
         );
 
-        var entityId = SampleData.RsiEntityId;
         var futuresEodData = SampleData.FuturesEodData;
 
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiSignalCommand.Actor, GenerateFuturesRsiSignalCommand.Verb, entityId.Format());
@@ -236,6 +240,9 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesRsiSignalEntityId> routed
+                    && routed.EntityId != entityId)
+                    return @event;
                 if (@event is FuturesRsiSignalGeneratedEvent generated)
                     futuresRsiSignalGeneratedEvent = generated;
                 if (@event is FuturesRsiSignalGeneratedCompleteEvent generatedComplete)

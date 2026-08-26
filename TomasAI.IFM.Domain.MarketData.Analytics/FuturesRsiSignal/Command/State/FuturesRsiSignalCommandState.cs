@@ -80,9 +80,10 @@ public class FuturesRsiSignalCommandState
     {
         if (windowSize <= 0)
             return false;
+        var validSignals = 0;
         foreach (var signal in _futuresRsiSignals)
         {
-            if (signal.RSI != -1)
+            if (signal.RSI != -1 && ++validSignals >= windowSize)
                 return true;
         }
         return false;

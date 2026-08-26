@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command;
 
@@ -56,26 +58,36 @@ public static class GenerateFuturesMacdSignal
     internal static FuturesMacdSignalGeneratedEvent CreateFuturesMacdSignalGeneratedEvent(this GenerateFuturesMacdSignalCommand e, FuturesTrendDirectionType trendDirection, FuturesMacdSignalCompute computed)
     {
         var entityId = e.FuturesMacdSignalId.ToEntityId();
+        var signal = new FuturesMacdSignalReadModel(
+            e.FuturesMacdSignalId.ContractId,
+            e.FuturesMacdSignalId.ValueDate,
+            e.FuturesMacdSignalId.TimePeriod,
+            e.FuturesMacdSignalId.SignalEmaPeriod,
+            e.FuturesMacdSignalId.FastEmaPeriod,
+            e.FuturesMacdSignalId.SlowEmaPeriod,
+            e.FuturesMacdSignalId.Timestamp,
+            e.FuturesPrice,
+            computed.MacdLine,
+            computed.SignalLine,
+            computed.Histogram,
+            trendDirection,
+            computed.TrendDirectionStrength(),
+            computed.FastEma,
+            computed.SlowEma)
+        {
+            Metadata = e.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation,
+                    MarketAnalyticsSignalKind.Macd,
+                    $"macd-{e.EntityId.SignalEmaPeriod}-{e.EntityId.FastEmaPeriod}-{e.EntityId.SlowEmaPeriod}-legacy-v1",
+                    "macd-legacy-compatible-v1")
+                : null
+        };
         return new FuturesMacdSignalGeneratedEvent
         {
             Subject = new ActorSubject(ActorType.Event, FuturesMacdSignalGeneratedEvent.Actor, FuturesMacdSignalGeneratedEvent.Verb, entityId.Format()),
             EntityId = entityId,
-            FuturesMacdSignal = new(
-                e.FuturesMacdSignalId.ContractId,
-                e.FuturesMacdSignalId.ValueDate,
-                e.FuturesMacdSignalId.TimePeriod,
-                e.FuturesMacdSignalId.SignalEmaPeriod,
-                e.FuturesMacdSignalId.FastEmaPeriod,
-                e.FuturesMacdSignalId.SlowEmaPeriod,
-                e.FuturesMacdSignalId.Timestamp,
-                e.FuturesPrice,
-                computed.MacdLine,
-                computed.SignalLine,
-                computed.Histogram,
-                trendDirection,
-                computed.TrendDirectionStrength(),
-                computed.FastEma,
-                computed.SlowEma),
+            FuturesMacdSignal = signal,
             CreatedBy = e.OriginatedBy,
             CreatedOn = e.OriginatedOn
         };

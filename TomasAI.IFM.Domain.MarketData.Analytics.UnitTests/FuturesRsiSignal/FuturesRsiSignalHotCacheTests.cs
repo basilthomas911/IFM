@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
@@ -57,27 +58,20 @@ public sealed class FuturesRsiSignalHotCacheTests
                 callInfo[1] = snapshot;
                 return true;
             });
-        var context = Substitute.For<IEventActorContext>();
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IFuturesRsiSignalEventContext>();
+        var logger = Substitute.For<ILogger<FuturesRsiSignalEventActor>>();
 
         try
         {
-            (await started.ExecuteAsync(
-                context,
-                commandApi,
-                marketDataApi,
-                Substitute.For<IStatusConsoleWriter>(),
-                Substitute.For<ILogger>())).Should().BeTrue();
-            FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>
+            (await started.ExecuteAsync(context, logger)).Should().BeTrue();
+            FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>
                 .Snapshot().Should().Contain(entityId);
             await context.DidNotReceiveWithAnyArgs()
                 .SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(default!);
-            await commandApi.DidNotReceiveWithAnyArgs()
-                .RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(default!);
         }
         finally
         {
-            await stopped.ExecuteAsync(context, Substitute.For<IStatusConsoleWriter>(), Substitute.For<ILogger>());
+            await stopped.ExecuteAsync(context, logger);
         }
     }
 }

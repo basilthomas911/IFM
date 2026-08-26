@@ -12,7 +12,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicator
 public sealed record FuturesRegimeIndicatorSnapshot
 {
     /// <summary>Gets the source observation.</summary>
-    [Key(0)] public FuturesAnalyticsObservationReadModel Observation { get; init; } = new();
+    [Key(0)] public FuturesTradeSessionBarReadModel Observation { get; init; } = new();
     /// <summary>Gets RSI13 reserved for TDI.</summary>
     [Key(1)] public FuturesRegimeRsiSignalReadModel Rsi13 { get; init; } = new();
     /// <summary>Gets RSI14 reserved for Regime Discovery.</summary>
@@ -28,15 +28,15 @@ public sealed record FuturesRegimeIndicatorSnapshot
 /// <summary>Provides the transitional latest-snapshot cache used until the unified MDSI-15 cache lands.</summary>
 public static class FuturesRegimeIndicatorSnapshotCache
 {
-    static readonly ConcurrentDictionary<FuturesAnalyticsObservationEntityId, FuturesRegimeIndicatorSnapshot> Latest = new();
+    static readonly ConcurrentDictionary<FuturesTradeSessionBarEntityId, FuturesRegimeIndicatorSnapshot> Latest = new();
 
     /// <summary>Sets the latest successfully persisted snapshot.</summary>
-    public static void Set(FuturesAnalyticsObservationEntityId entityId, FuturesRegimeIndicatorSnapshot snapshot) =>
+    public static void Set(FuturesTradeSessionBarEntityId entityId, FuturesRegimeIndicatorSnapshot snapshot) =>
         Latest[entityId] = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
 
     /// <summary>Tries to get the latest successfully persisted snapshot.</summary>
     public static bool TryGet(
-        FuturesAnalyticsObservationEntityId entityId,
+        FuturesTradeSessionBarEntityId entityId,
         out FuturesRegimeIndicatorSnapshot snapshot) => Latest.TryGetValue(entityId, out snapshot!);
 
     /// <summary>Clears transitional cache state during actor shutdown.</summary>
@@ -46,7 +46,7 @@ public static class FuturesRegimeIndicatorSnapshotCache
 /// <summary>Publishes a complete indicator snapshot before storage-first projection.</summary>
 [MessagePackObject]
 public sealed record FuturesRegimeIndicatorsGeneratedRealtimeEvent
-    : IEvent<FuturesAnalyticsObservationEntityId>
+    : IEvent<FuturesTradeSessionBarEntityId>
 {
     /// <summary>Gets the owning realtime actor name.</summary>
     public const string Actor = "FuturesRegimeIndicators";
@@ -60,7 +60,7 @@ public sealed record FuturesRegimeIndicatorsGeneratedRealtimeEvent
     /// <inheritdoc />
     [Key(1)] public Guid Id { get; init; }
     /// <inheritdoc />
-    [Key(2)] public FuturesAnalyticsObservationEntityId EntityId { get; init; }
+    [Key(2)] public FuturesTradeSessionBarEntityId EntityId { get; init; }
     /// <inheritdoc />
     [Key(3)] public long EventId { get; init; }
     /// <inheritdoc />
@@ -85,7 +85,7 @@ public sealed record FuturesRegimeIndicatorsGeneratedRealtimeEvent
         where TComplete : ICompleteEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        ICompleteEvent<FuturesAnalyticsObservationEntityId> completed =
+        ICompleteEvent<FuturesTradeSessionBarEntityId> completed =
             new FuturesRegimeIndicatorsGeneratedCompleteRealtimeEvent
             {
                 Subject = new(ActorType.Realtime, Actor,
@@ -107,7 +107,7 @@ public sealed record FuturesRegimeIndicatorsGeneratedRealtimeEvent
         where TFail : IErrorEvent<TEntityId>
         where TEntityId : IActorEntityId
     {
-        IErrorEvent<FuturesAnalyticsObservationEntityId> failed =
+        IErrorEvent<FuturesTradeSessionBarEntityId> failed =
             new FuturesRegimeIndicatorsGeneratedFailRealtimeEvent
             {
                 Subject = new(ActorType.Realtime, Actor,
@@ -132,14 +132,14 @@ public sealed record FuturesRegimeIndicatorsGeneratedRealtimeEvent
 /// <summary>Reports successful storage of one regime-indicator snapshot.</summary>
 [MessagePackObject]
 public sealed record FuturesRegimeIndicatorsGeneratedCompleteRealtimeEvent
-    : ICompleteEvent<FuturesAnalyticsObservationEntityId>
+    : ICompleteEvent<FuturesTradeSessionBarEntityId>
 {
     /// <summary>Gets the completion verb.</summary>
     public const string Verb = "GeneratedComplete";
     /// <inheritdoc />
     [Key(0)] public ActorSubject Subject { get; init; }
     /// <inheritdoc />
-    [Key(1)] public FuturesAnalyticsObservationEntityId EntityId { get; init; }
+    [Key(1)] public FuturesTradeSessionBarEntityId EntityId { get; init; }
     /// <inheritdoc />
     [Key(2)] public Guid Id { get; init; }
     /// <inheritdoc />
@@ -165,14 +165,14 @@ public sealed record FuturesRegimeIndicatorsGeneratedCompleteRealtimeEvent
 /// <summary>Reports terminal storage failure for one non-replayable indicator snapshot.</summary>
 [MessagePackObject]
 public sealed record FuturesRegimeIndicatorsGeneratedFailRealtimeEvent
-    : IErrorEvent<FuturesAnalyticsObservationEntityId>
+    : IErrorEvent<FuturesTradeSessionBarEntityId>
 {
     /// <summary>Gets the failure verb.</summary>
     public const string Verb = "GeneratedFail";
     /// <inheritdoc />
     [Key(0)] public ActorSubject Subject { get; init; }
     /// <inheritdoc />
-    [Key(1)] public FuturesAnalyticsObservationEntityId EntityId { get; init; }
+    [Key(1)] public FuturesTradeSessionBarEntityId EntityId { get; init; }
     /// <inheritdoc />
     [Key(2)] public Guid Id { get; init; }
     /// <inheritdoc />

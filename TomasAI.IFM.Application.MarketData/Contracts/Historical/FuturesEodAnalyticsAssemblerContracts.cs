@@ -33,7 +33,7 @@ public interface IHistoricalAnalyticsSignalReader
         MarketAnalyticsSignalFamily family,
         MarketSeriesIdentity seriesIdentity,
         TimeFrameType timeFrame,
-        FuturesAnalyticsObservationId observationId,
+        FuturesTradeSessionBarId observationId,
         CancellationToken cancellationToken);
 }
 
@@ -45,7 +45,7 @@ public sealed class NullHistoricalAnalyticsSignalReader : IHistoricalAnalyticsSi
         MarketAnalyticsSignalFamily family,
         MarketSeriesIdentity seriesIdentity,
         TimeFrameType timeFrame,
-        FuturesAnalyticsObservationId observationId,
+        FuturesTradeSessionBarId observationId,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

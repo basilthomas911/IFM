@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
@@ -44,6 +45,9 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
     /// <summary>Exchange/source timestamp from the hot-cache trade snapshot.</summary>
     [Key(9)] public DateTime SourceEventTimestamp { get; init; }
 
+    /// <summary>Gets the immutable closed observation that triggered this command.</summary>
+    [Key(10)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
+
     
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
@@ -60,12 +64,14 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
         FuturesRsiSignalId futuresRsiSignalId,
         decimal futuresPrice,
         long sourceSequence = 0,
-        DateTime sourceEventTimestamp = default)
+        DateTime sourceEventTimestamp = default,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         FuturesRsiSignalId = futuresRsiSignalId;
         FuturesPrice = futuresPrice;
         SourceSequence = sourceSequence;
         SourceEventTimestamp = sourceEventTimestamp;
+        Observation = observation;
 
         EntityId = futuresRsiSignalId.ToEntityId();
         ErrorCode = 20001;
@@ -84,7 +90,8 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
         FuturesRsiSignalId futuresRsiSignalId,
         decimal futuresPrice,
         long sourceSequence,
-        DateTime sourceEventTimestamp)
+        DateTime sourceEventTimestamp,
+        FuturesTradeSessionBarReadModel? observation)
     {
         CommandId = commandId;
         Subject = subject;
@@ -96,5 +103,6 @@ public record GenerateFuturesRsiSignalCommand : ICommand<FuturesRsiSignalEntityI
         FuturesPrice = futuresPrice;
         SourceSequence = sourceSequence;
         SourceEventTimestamp = sourceEventTimestamp;
+        Observation = observation;
     }
 }

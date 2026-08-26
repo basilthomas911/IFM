@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -16,8 +15,6 @@ public interface IFuturesMacdSignalRealtimeContext : IRealtimeActorContext<Futur
 {
     /// <summary>Gets the Supervisor service supplied to the actor context.</summary>
     IActorSupervisor Supervisor { get; }
-    /// <summary>Gets the Projector service supplied to the actor context.</summary>
-    IRealtimeProjector<FuturesMacdSignalRealtimeActor> Projector { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<FuturesMacdSignalRealtimeActor> Logger { get; }
 }
@@ -28,19 +25,16 @@ public sealed class FuturesMacdSignalRealtimeContext : EventActorContext, IRealt
     /// <summary>Initializes a new typed actor context.</summary>
     public FuturesMacdSignalRealtimeContext(
         IActorSupervisor supervisor,
-        IRealtimeProjector<FuturesMacdSignalRealtimeActor> projector,
         ILogger<FuturesMacdSignalRealtimeActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesMacdSignalRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
-        Projector = IsArgumentNull.Set(projector);
         Logger = IsArgumentNull.Set(logger);
     }
 
     /// <inheritdoc/>
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
-    public IRealtimeProjector<FuturesMacdSignalRealtimeActor> Projector { get; }
     /// <inheritdoc/>
     public ILogger<FuturesMacdSignalRealtimeActor> Logger { get; }
 }

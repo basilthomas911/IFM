@@ -115,7 +115,7 @@ public sealed record NormalizedHistoricalBatch(
     string ProviderFileId,
     long BatchOrdinal,
     string SourcePosition,
-    IReadOnlyList<FuturesAnalyticsObservationReadModel> Observations,
+    IReadOnlyList<FuturesTradeSessionBarReadModel> Observations,
     IReadOnlyList<NormalizedHistoricalTrade> Trades,
     string NormalizedSha256,
     bool IsFinal);

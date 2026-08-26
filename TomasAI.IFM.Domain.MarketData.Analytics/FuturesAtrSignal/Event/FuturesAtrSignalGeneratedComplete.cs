@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
 
@@ -28,7 +29,7 @@ public static class FuturesAtrSignalGeneratedComplete
     /// <param name="logger">The logger.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async ValueTask<bool> ExecuteAsync(this FuturesAtrSignalGeneratedCompleteEvent e, 
-        IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+        IFuturesAtrSignalEventContext context, ILogger logger)
     {
         var source = $"FuturesAtrSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
@@ -37,7 +38,7 @@ public static class FuturesAtrSignalGeneratedComplete
         }
         catch (Exception ex)
         {
-            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
+            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesAtrSignalEvent, FuturesAtrSignalGeneratedCompleteEvent.ErrorCode, ex.GetErrorMessage());
             logger.LogError(ex, "{Source}:  {ContractId} complete handler failed", source, e.EntityId.ContractId);
         }
         return false;

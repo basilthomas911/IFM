@@ -2,9 +2,13 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -32,21 +36,18 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesRsiSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesRsiSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IEventActorContext>();
-        var context = Context();
+        var context = RsiContext();
         try
         {
-            await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
+            await started.ExecuteAsync(context, context.Logger);
             Assert.Contains(entityId,
-                FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot());
+                FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot());
             await context.DidNotReceiveWithAnyArgs()
                 .SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(default!);
-            await commandApi.DidNotReceiveWithAnyArgs()
-                .RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(default!);
         }
         finally
         {
-            await stopped.ExecuteAsync(context, Status(), Logger());
+            await stopped.ExecuteAsync(context, context.Logger);
         }
     }
 
@@ -57,21 +58,18 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesAtrSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesAtrSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IEventActorContext>();
-        var context = Context();
+        var context = AtrContext();
         try
         {
-            await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
+            await started.ExecuteAsync(context, context.Logger);
             Assert.Contains(entityId,
-                FuturesAnalyticsObservationAttachmentRegistry<FuturesAtrSignalEntityId>.Snapshot());
+                FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Snapshot());
             await context.DidNotReceiveWithAnyArgs()
                 .SendAsync<FuturesAtrSignalSampledRealtimeEvent, FuturesAtrSignalEntityId>(default!);
-            await commandApi.DidNotReceiveWithAnyArgs()
-                .RequestAsync<GenerateFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(default!);
         }
         finally
         {
-            await stopped.ExecuteAsync(Context(), Status(), Logger());
+            await stopped.ExecuteAsync(context, context.Logger);
         }
     }
 
@@ -82,21 +80,18 @@ public sealed class PeriodSignalHotCacheTests
         var started = new FuturesMacdSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesMacdSignalStoppedEvent { EntityId = entityId };
         var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IEventActorContext>();
-        var context = Context();
+        var context = MacdContext();
         try
         {
-            await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
+            await started.ExecuteAsync(context, context.Logger);
             Assert.Contains(entityId,
-                FuturesAnalyticsObservationAttachmentRegistry<FuturesMacdSignalEntityId>.Snapshot());
+                FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Snapshot());
             await context.DidNotReceiveWithAnyArgs()
                 .SendAsync<FuturesMacdSignalSampledRealtimeEvent, FuturesMacdSignalEntityId>(default!);
-            await commandApi.DidNotReceiveWithAnyArgs()
-                .RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(default!);
         }
         finally
         {
-            await stopped.ExecuteAsync(Context(), Status(), Logger());
+            await stopped.ExecuteAsync(context, context.Logger);
         }
     }
 
@@ -106,22 +101,16 @@ public sealed class PeriodSignalHotCacheTests
         var entityId = new FuturesAdxSignalEntityId(ContractId, ValueDate, TimeFrameType.TenSeconds, 14);
         var started = new FuturesAdxSignalStartedEvent { EntityId = entityId };
         var stopped = new FuturesAdxSignalStoppedEvent { EntityId = entityId };
-        var marketDataApi = CreateMarketDataApi();
-        var commandApi = Substitute.For<IEventActorContext>();
-        var context = Context();
+        var context = Substitute.For<IFuturesAdxSignalEventContext>();
         try
         {
-            await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
+            await started.ExecuteAsync(context, Logger());
             Assert.Contains(entityId,
-                FuturesAnalyticsObservationAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot());
-            await context.DidNotReceiveWithAnyArgs()
-                .SendAsync<FuturesAdxSignalSampledRealtimeEvent, FuturesAdxSignalEntityId>(default!);
-            await commandApi.DidNotReceiveWithAnyArgs()
-                .RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(default!);
+                FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot());
         }
         finally
         {
-            await stopped.ExecuteAsync(Context(), Status(), Logger());
+            await stopped.ExecuteAsync(context, Logger());
         }
     }
 
@@ -147,6 +136,9 @@ public sealed class PeriodSignalHotCacheTests
     }
 
     static IEventActorContext Context() => Substitute.For<IEventActorContext>();
+    static IFuturesRsiSignalEventContext RsiContext() => Substitute.For<IFuturesRsiSignalEventContext>();
+    static IFuturesAtrSignalEventContext AtrContext() => Substitute.For<IFuturesAtrSignalEventContext>();
+    static IFuturesMacdSignalEventContext MacdContext() => Substitute.For<IFuturesMacdSignalEventContext>();
     static IStatusConsoleWriter Status() => Substitute.For<IStatusConsoleWriter>();
     static ILogger Logger() => Substitute.For<ILogger>();
 }

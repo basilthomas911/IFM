@@ -19,7 +19,7 @@ public sealed class ScyllaHistoricalObservationStore(
     public override IObjectRepository Database => this;
 
     public async ValueTask<bool> TryWriteObservationAsync(
-        FuturesAnalyticsObservationReadModel observation,
+        FuturesTradeSessionBarReadModel observation,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observation);
@@ -62,7 +62,7 @@ public sealed class ScyllaHistoricalObservationStore(
     static DateTimeOffset Utc(DateTime value) => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
     static int YearMonth(DateOnly value) => checked(value.Year * 100 + value.Month);
 
-    readonly record struct ObservationParameter(FuturesAnalyticsObservationReadModel Value) : IBindValue
+    readonly record struct ObservationParameter(FuturesTradeSessionBarReadModel Value) : IBindValue
     {
         public object Bind() => new object?[]
         {

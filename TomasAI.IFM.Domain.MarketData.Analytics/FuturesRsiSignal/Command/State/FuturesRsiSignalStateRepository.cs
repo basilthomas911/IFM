@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 
@@ -42,12 +43,21 @@ public class FuturesRsiSignalStateRepository(
                 => await LoadStateFromSnapshotLastNRangeAsync<
                     FuturesRsiSignalCommandState,
                     FuturesRsiSignalStartedEvent,
-                    FuturesRsiSignalGeneratedEvent>(command, rsiCommand.EntityId.PeriodLength, cancellationToken),
+                    FuturesRsiSignalGeneratedEvent>(command, StateWindow(rsiCommand.EntityId), cancellationToken),
             _ => await LoadStateFromSnapshotLastNRangeAsync<
                 FuturesRsiSignalCommandState,
                 FuturesRsiSignalStartedEvent,
                 FuturesRsiSignalGeneratedEvent>(command, 0, cancellationToken)
         };
+
+    static int StateWindow(FuturesRsiSignalEntityId entityId)
+    {
+        var configuration = FuturesTdiConfiguration.Standard;
+        return entityId.PeriodLength == configuration.RsiPeriod
+               && FuturesTdiConfiguration.IsSupportedIntraday(entityId.TimePeriod)
+            ? entityId.PeriodLength + configuration.RequiredRsiSamples
+            : entityId.PeriodLength;
+    }
 
     /// <summary>
     /// Saves futures RSI signal state changes and denormalizes the associated domain events.

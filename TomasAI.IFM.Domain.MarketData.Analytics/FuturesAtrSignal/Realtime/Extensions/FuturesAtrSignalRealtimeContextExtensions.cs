@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -21,8 +20,6 @@ public static class FuturesAtrSignalRealtimeContextExtensions
             IsArgumentNull.Set(context as IFuturesAtrSignalRealtimeContext, nameof(context))!;
         /// <summary>Gets the Supervisor service retained by the typed context.</summary>
         public IActorSupervisor Supervisor => context.DomainContext.Supervisor;
-        /// <summary>Gets the Projector service retained by the typed context.</summary>
-        public IRealtimeProjector<FuturesAtrSignalRealtimeActor> Projector => context.DomainContext.Projector;
         /// <summary>Gets the Logger service retained by the typed context.</summary>
         public ILogger<FuturesAtrSignalRealtimeActor> Logger => context.DomainContext.Logger;
     }

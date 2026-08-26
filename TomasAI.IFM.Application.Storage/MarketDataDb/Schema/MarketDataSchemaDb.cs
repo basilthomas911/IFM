@@ -11,7 +11,7 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("futures_eod_observation", MarketDataSchemaCql.CreateFuturesEodObservationTable, "DROP TABLE IF EXISTS futures_eod_observation;"),
-        new("futures_analytics_observation", MarketDataSchemaCql.CreateFuturesAnalyticsObservationTable, "DROP TABLE IF EXISTS futures_analytics_observation;"),
+        new("futures_trade_session_bar", MarketDataSchemaCql.CreateFuturesTradeSessionBarTable, "DROP TABLE IF EXISTS futures_trade_session_bar;"),
         new("futures_ema_signal", MarketDataSchemaCql.CreateFuturesEmaSignalTable, "DROP TABLE IF EXISTS futures_ema_signal;"),
         new("futures_bollinger_band_signal", MarketDataSchemaCql.CreateFuturesBollingerBandSignalTable, "DROP TABLE IF EXISTS futures_bollinger_band_signal;"),
         new("futures_atr_volatility_signal", MarketDataSchemaCql.CreateFuturesAtrVolatilitySignalTable, "DROP TABLE IF EXISTS futures_atr_volatility_signal;"),

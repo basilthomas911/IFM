@@ -5,6 +5,9 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command;
 
@@ -22,7 +25,19 @@ public static class GenerateFuturesRsiSignal
         var futuresRsiSignal = state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice) with
         {
             SourceSequence = e.SourceSequence,
-            SourceEventTimestamp = e.SourceEventTimestamp
+            SourceEventTimestamp = e.SourceEventTimestamp,
+            Metadata = e.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation,
+                    MarketAnalyticsSignalKind.Rsi,
+                    e.EntityId.PeriodLength switch
+                    {
+                        13 => FuturesRsiConfigurations.TdiRsi13,
+                        14 => FuturesRsiConfigurations.RegimeRsi14,
+                        _ => $"rsi-{e.EntityId.PeriodLength}-legacy-v1"
+                    },
+                    "rsi-legacy-compatible-v1")
+                : null
         };
         var futuresRsiSignalGeneratedEvent = e.CreateFuturesRsiSignalGeneratedEvent(futuresRsiSignal);
         if (state.Update(futuresRsiSignalGeneratedEvent, e))

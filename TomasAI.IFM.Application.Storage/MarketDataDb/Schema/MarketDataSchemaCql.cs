@@ -15,8 +15,8 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate DESC, contractId ASC);
     """;
 
-    public const string CreateFuturesAnalyticsObservationTable = """
-    CREATE TABLE IF NOT EXISTS futures_analytics_observation (
+    public const string CreateFuturesTradeSessionBarTable = """
+    CREATE TABLE IF NOT EXISTS futures_trade_session_bar (
         seriesKey text, timePeriod text, yearMonth int, marketDataAsOf timestamp,
         observationId uuid, contractId text, valueDate date,
         intervalStart timestamp, intervalEnd timestamp,

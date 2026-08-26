@@ -53,4 +53,6 @@ public enum BoundedContextName
     OrderCompositionPipelineBoundedContext,
     /// <summary>Routes Risk Management strategy pipeline commands.</summary>
     RiskManagementPipelineBoundedContext,
+    /// <summary>Routes durable publication of session-aligned futures OHLCV bars.</summary>
+    FuturesTradeSessionBarPublisherBoundedContext,
 }

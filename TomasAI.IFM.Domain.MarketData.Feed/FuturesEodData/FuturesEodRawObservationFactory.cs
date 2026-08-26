@@ -36,7 +36,7 @@ internal static class FuturesEodRawObservationFactory
             Open = value.OpenPrice, High = value.HighPrice, Low = value.LowPrice,
             Close = value.ClosePrice, Volume = value.Volume, TradeCount = 0,
             PriceVolumeSum = value.ClosePrice * value.Volume,
-            ObservationId = FuturesAnalyticsObservationId.Create(
+            ObservationId = FuturesTradeSessionBarId.Create(
                 series, TimeFrameType.Daily, session.EndUtc, sequence),
             FirstSourceSequence = sequence, LastSourceSequence = sequence,
             FirstMarketEventUtc = session.StartUtc, LastMarketEventUtc = session.EndUtc,

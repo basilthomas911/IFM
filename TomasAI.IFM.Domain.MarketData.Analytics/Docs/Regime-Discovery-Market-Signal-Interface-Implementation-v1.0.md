@@ -190,9 +190,9 @@ TomasAI.IFM.Domain.MarketData.Analytics.Shared/
       MarketSignalCalculationMethod.cs
       MarketSignalValidationIssue.cs
     Observation/
-      FuturesAnalyticsObservationEntityId.cs
-      FuturesAnalyticsObservationReadModel.cs
-      FuturesAnalyticsObservationClosedRealtimeEvent.cs
+      FuturesTradeSessionBarEntityId.cs
+      FuturesTradeSessionBarReadModel.cs
+      FuturesTradeSessionBarClosedRealtimeEvent.cs
     Ema/
       FuturesEmaSignalEntityId.cs
       FuturesEmaSignalReadModel.cs
@@ -510,14 +510,14 @@ it is not quote size or cumulative session volume.
 
 | Message | Producer | Consumer | Delivery |
 | --- | --- | --- | --- |
-| `FuturesAnalyticsObservationClosedRealtimeEvent` | Observation actor | Bar-derived signal actors | Realtime/Core NATS |
+| `FuturesTradeSessionBarClosedRealtimeEvent` | Trade Session Bar Publisher Event actor, after projection | Bar-derived signal actors | Realtime/Core NATS |
 | `FuturesEmaSignalGeneratedEvent` | EMA actor/projector source | EMA projector and BB route | Realtime subject |
 | `FuturesBbSignalGeneratedEvent` | BB actor/projector source | BB projector and Market Structure route | Realtime subject |
 | `FuturesAtrVolatilitySignalGeneratedEvent` | ATR migration actor | ATR projector and Market Structure route | Realtime subject |
 | `FuturesMarketStructureSignalGeneratedEvent` | Market Structure actor | Projector/cache | Realtime subject |
 | `FuturesVxTermStructureSignalGeneratedEvent` | VX actor | Projector/cache | Realtime subject |
 | `FuturesVwapSignalGeneratedEvent` | VWAP actor | Projector/cache | Realtime subject |
-| `FuturesAnalyticsObservationReplayBatchRealtimeEvent` | Bootstrap coordinator | Observation/calculation actor | Private Realtime route |
+| `FuturesTradeSessionBarReplayBatchRealtimeEvent` | Bootstrap coordinator | Observation/calculation actor | Private Realtime route |
 | `FuturesVwapTradeReplayBatchRealtimeEvent` | Bootstrap coordinator | VWAP actor | Private Realtime route |
 
 Generated event contracts continue to implement the existing event envelope
@@ -580,7 +580,11 @@ contains downloaded provider records.
 ```mermaid
 sequenceDiagram
     participant MP as FuturesMarketPrice actor
-    participant O as Observation realtime actor
+    participant TS as Trade Session Bar Publisher realtime actor
+    participant BM as Trade Session Bar accumulator model
+    participant BC as Trade Session Bar Publisher command actor
+    participant BP as Command EventProjector
+    participant BE as Trade Session Bar Publisher event actor
     participant E as EMA realtime actor
     participant B as BB realtime actor
     participant A as ATR/ADX/MACD/RSI actors
@@ -589,10 +593,16 @@ sequenceDiagram
     participant S as ScyllaDB
     participant C as Latest signal cache
 
-    MP->>O: normalized trade update
-    O->>O: update session/timeframe OHLCV
-    O-->>E: ObservationClosed
-    O-->>A: same ObservationClosed
+    MP->>TS: normalized trade update
+    TS->>BM: accumulate session/timeframe OHLCV
+    BM-->>TS: completed trade-session bars
+    TS->>BC: PublishFuturesTradeSessionBarCommand
+    BC->>BC: commit Published event to ACID event log
+    BC->>BP: project committed bar
+    BP->>S: insert trade-session bar
+    BP-->>BE: PublishedComplete
+    BE-->>E: TradeSessionBarClosed
+    BE-->>A: same TradeSessionBarClosed
     E->>E: update EMA10/20/50/200 state
     E->>P: FuturesEmaSignalGeneratedEvent
     P->>S: insert EMA signal
@@ -604,7 +614,7 @@ sequenceDiagram
     P->>S: insert BB signal
     P-->>B: projection success
     B->>C: update BB latest
-    O-->>M: observation input
+    BE-->>M: trade-session bar input
     B-->>M: BB input with same ObservationId
     A-->>M: ATR input with same ObservationId
     M->>M: join exact compatible inputs
@@ -825,7 +835,7 @@ CREATE TABLE IF NOT EXISTS futures_eod_observation (
 ### 11.3 Shared Analytics observations
 
 ```sql
-CREATE TABLE IF NOT EXISTS futures_analytics_observation (
+CREATE TABLE IF NOT EXISTS futures_trade_session_bar (
     seriesKey text,
     timePeriod text,
     yearMonth int,
@@ -1097,7 +1107,7 @@ Append typed operations to `IMarketDataDbWriteContext`:
 
 ```text
 InsertFuturesEodObservationAsync
-InsertFuturesAnalyticsObservationAsync
+InsertFuturesTradeSessionBarAsync
 InsertFuturesEmaSignalAsync
 InsertFuturesBbSignalAsync
 InsertFuturesAtrVolatilitySignalAsync
@@ -1754,22 +1764,26 @@ Deliver:
 Exit: raw write contains only session facts and an enriched query uses exact
 Analytics signals rather than recalculation.
 
-### MDSI-5 - Shared observation coordinator
+### MDSI-5 - Futures Trade Session Bar Publisher
 
-Status: **Complete (2026-08-25)**. Accepted schedule, lineage, lifecycle, and
-test evidence are in
-`Regime-Discovery-Market-Signal-Interface-MDSI-5-Observation-Coordinator-v1.0.md`.
+Status: **Complete; architecture corrected 2026-08-26**. Accepted schedule,
+lineage, actor responsibilities, lifecycle, and test evidence are in
+`Regime-Discovery-Market-Signal-Interface-MDSI-5-Trade-Session-Bar-Publisher-v1.1.md`.
 
 Deliver:
 
-- observation realtime actor/context/extensions/projector/state;
+- stateless publisher Realtime actor/context and dedicated event handlers;
+- concrete actor-centric `FuturesTradeSessionBarAccumulator` Model;
+- event-sourced publisher Command actor/state/repository;
+- Command EventProjector and stateless Event actor;
 - six intraday schedules plus Daily barrier;
 - market-calendar alignment and OHLCV/price-volume aggregation;
 - server-owned activation and route lifecycle; and
 - duplicate/out-of-order/roll tests.
 
-Exit: one closed interval produces one immutable ObservationId and all
-bar-derived consumers receive that identity once.
+Exit: one closed interval produces one immutable bar identity; the Command
+actor commits it to the ACID event log, ScyllaDB projection succeeds, and only
+then do bar-derived consumers receive the Realtime event.
 
 ### MDSI-6 - Existing indicator migration
 

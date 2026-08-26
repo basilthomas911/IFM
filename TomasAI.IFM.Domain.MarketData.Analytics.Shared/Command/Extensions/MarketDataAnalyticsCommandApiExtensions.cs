@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -27,19 +28,21 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="signalId">The strongly typed signal identifier.</param>
     /// <param name="futuresPrice">The current futures price.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
-        this IEventActorContext context,
-        FuturesRsiSignalId signalId,
-        decimal futuresPrice,
-        long sourceSequence = 0,
-        DateTime sourceEventTimestamp = default)
+      public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesRsiSignalAsync(
+          this IEventActorContext context,
+          FuturesRsiSignalId signalId,
+          decimal futuresPrice,
+          long sourceSequence = 0,
+          DateTime sourceEventTimestamp = default,
+          FuturesTradeSessionBarReadModel? observation = null)
     {
         var entityId = signalId.ToEntityId();
         GenerateFuturesRsiSignalCommand command = new(
             signalId,
-            futuresPrice,
-            sourceSequence,
-            sourceEventTimestamp)
+              futuresPrice,
+              sourceSequence,
+              sourceEventTimestamp,
+              observation)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
@@ -100,13 +103,14 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="signalId">The strongly typed signal identifier.</param>
     /// <param name="futuresPrice">The current futures price.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesMacdSignalAsync(
-        this IEventActorContext context,
-        FuturesMacdSignalId signalId,
-        decimal futuresPrice)
+      public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesMacdSignalAsync(
+          this IEventActorContext context,
+          FuturesMacdSignalId signalId,
+          decimal futuresPrice,
+          FuturesTradeSessionBarReadModel? observation = null)
     {
         var entityId = signalId.ToEntityId();
-        GenerateFuturesMacdSignalCommand command = new(signalId, futuresPrice)
+          GenerateFuturesMacdSignalCommand command = new(signalId, futuresPrice, observation)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
@@ -129,10 +133,11 @@ public static class MarketDataAnalyticsCommandApiExtensions
     public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesAdxSignalAsync(
         this IEventActorContext context,
         FuturesAdxSignalId signalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         var entityId = signalId.ToEntityId();
-        GenerateFuturesAdxSignalCommand command = new(signalId, futuresPrice)
+        GenerateFuturesAdxSignalCommand command = new(signalId, futuresPrice, observation)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
@@ -152,13 +157,14 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="signalId">The strongly typed signal identifier.</param>
     /// <param name="futuresPrice">The current futures price.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesAtrSignalAsync(
-        this IEventActorContext context,
-        FuturesAtrSignalId signalId,
-        decimal futuresPrice)
+      public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesAtrSignalAsync(
+          this IEventActorContext context,
+          FuturesAtrSignalId signalId,
+          decimal futuresPrice,
+          FuturesTradeSessionBarReadModel? observation = null)
     {
         var entityId = signalId.ToEntityId();
-        GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice)
+          GenerateFuturesAtrSignalCommand command = new(signalId, futuresPrice, observation)
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(

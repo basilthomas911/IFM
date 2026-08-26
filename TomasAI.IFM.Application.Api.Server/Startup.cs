@@ -45,8 +45,8 @@ using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Projector;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
@@ -517,14 +517,14 @@ public static class Startup
                 UseSyntheticProvider = feedOptions.DataSource == FeedDataSourceMode.Synthetic
             });
             services.AddApplicationMarketDataHistoricalApi(historicalOptions);
-            services.AddSingleton<IFuturesAnalyticsSeriesResolver>(_ =>
-                new PrefixFuturesAnalyticsSeriesResolver(
+            services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
+                new PrefixFuturesTradeSessionBarSeriesResolver(
                     new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
                             new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1))
                     }));
-            services.AddSingleton<FuturesAnalyticsObservationRealtimeProjector>();
+            services.AddSingleton<FuturesTradeSessionBarAccumulator>();
             services.AddHostedService<FuturesContractRolloverStartupService>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")

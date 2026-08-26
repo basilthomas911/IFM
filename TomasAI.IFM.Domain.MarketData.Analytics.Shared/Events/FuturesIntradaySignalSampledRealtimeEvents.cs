@@ -27,7 +27,7 @@ public sealed record FuturesRsiSignalSampledRealtimeEvent : IEvent<FuturesRsiSig
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
     /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
-    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
+    [Key(11)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesRsiSignalSampledRealtimeEvent);
@@ -53,7 +53,7 @@ public sealed record FuturesAtrSignalSampledRealtimeEvent : IEvent<FuturesAtrSig
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
     /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
-    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
+    [Key(11)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesAtrSignalSampledRealtimeEvent);
@@ -79,7 +79,7 @@ public sealed record FuturesAdxSignalSampledRealtimeEvent : IEvent<FuturesAdxSig
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
     /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
-    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
+    [Key(11)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesAdxSignalSampledRealtimeEvent);
@@ -105,7 +105,7 @@ public sealed record FuturesMacdSignalSampledRealtimeEvent : IEvent<FuturesMacdS
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
     /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
-    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
+    [Key(11)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesMacdSignalSampledRealtimeEvent);

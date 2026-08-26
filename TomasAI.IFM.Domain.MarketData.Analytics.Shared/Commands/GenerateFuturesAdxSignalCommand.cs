@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 
@@ -43,6 +44,10 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
     [Key(7)]
     public decimal FuturesPrice { get; init; }
 
+    /// <summary>Gets the immutable closed observation that triggered this command, when generated from realtime analytics.</summary>
+    [Key(8)]
+    public FuturesTradeSessionBarReadModel? Observation { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -58,10 +63,12 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
     /// <exception cref="ArgumentNullException">Thrown when the futuresItiSignals parameter is null.</exception>
     public GenerateFuturesAdxSignalCommand(
         FuturesAdxSignalId futuresAdxSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         FuturesAdxSignalId = futuresAdxSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
 
         EntityId = futuresAdxSignalId.ToEntityId();
         ErrorCode = ErrorId;
@@ -80,7 +87,8 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
         int errorCode,
         BoundedContextName routeTo,
         FuturesAdxSignalId futuresAdxSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation)
     {
         CommandId = commandId;
         Subject = subject;
@@ -90,5 +98,6 @@ public record GenerateFuturesAdxSignalCommand : ICommand<FuturesAdxSignalEntityI
         RouteTo = routeTo;
         FuturesAdxSignalId = futuresAdxSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
     }
 }

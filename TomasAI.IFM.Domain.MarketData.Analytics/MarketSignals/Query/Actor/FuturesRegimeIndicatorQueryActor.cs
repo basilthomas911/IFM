@@ -51,7 +51,7 @@ public sealed class FuturesRegimeIndicatorQueryActor(
         cancellationToken.ThrowIfCancellationRequested();
         var getLatest = query as GetLatestFuturesRegimeIndicatorSnapshotQuery
             ?? throw new InvalidOperationException($"Unsupported regime-indicator query {query.GetType().Name}.");
-        var entityId = new FuturesAnalyticsObservationEntityId(
+        var entityId = new FuturesTradeSessionBarEntityId(
             getLatest.MarketSeriesIdentity,
             getLatest.TimeFrame);
         FuturesRegimeIndicatorSnapshotCache.TryGet(entityId, out var snapshot);

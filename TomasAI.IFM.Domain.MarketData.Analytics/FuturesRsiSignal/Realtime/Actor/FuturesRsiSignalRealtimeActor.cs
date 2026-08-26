@@ -1,140 +1,67 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Application.Blackboard;
-using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
-
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 
-/// <summary>Owns non-replayable intraday RSI computation and projection.</summary>
-public class FuturesRsiSignalRealtimeActor(
-    IRealtimeActorContext<FuturesRsiSignalRealtimeActor> actorContext)
+/// <summary>Routes closed observations to the event-sourced RSI command actor without retaining realtime state.</summary>
+/// <param name="actorContext">The typed RSI realtime context.</param>
+public class FuturesRsiSignalRealtimeActor(IRealtimeActorContext<FuturesRsiSignalRealtimeActor> actorContext)
     : BaseEventActor<FuturesRsiSignalRealtimeActor>(actorContext, actorContext.Logger)
 {
-    /// <summary>Gets the domain-specific typed context owned by this actor.</summary>
-    protected IFuturesRsiSignalRealtimeContext ActorContext { get; } =
-        IsArgumentNull.Set(actorContext as IFuturesRsiSignalRealtimeContext, nameof(actorContext))!;
+    /// <summary>Identifies the RSI realtime mailbox.</summary>
+    public const string ActorName = "FuturesRsiSignal";
+    /// <summary>Gets the typed context supplied to this actor.</summary>
+    protected IFuturesRsiSignalRealtimeContext FuturesRsiSignalRealtimeContext { get; } = IsArgumentNull.Set(
+        actorContext as IFuturesRsiSignalRealtimeContext, nameof(actorContext))!;
 
-    public const string ActorName = FuturesRsiSignalSampledRealtimeEvent.Actor;
-    static readonly ActorTypeId ObservationRoute = new(
-        ActorType.Realtime,
-        FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
-        FuturesAnalyticsObservationClosedRealtimeEvent.Verb);
-    readonly FuturesRsiSignalRealtimeState _state = new();
-
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> Parsers = new()
+    static readonly ActorTypeId ObservationRoute = new(ActorType.Realtime,
+        FuturesTradeSessionBarClosedRealtimeEvent.Actor,
+        FuturesTradeSessionBarClosedRealtimeEvent.Verb);
+    readonly ILogger<FuturesRsiSignalRealtimeActor> _logger = IsArgumentNull.Set(actorContext.Logger);
+    readonly Dictionary<Type, Func<IEvent, IFuturesRsiSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [FuturesRsiSignalSampledRealtimeEvent.Verb] =
-            message => message.AsEvent<FuturesRsiSignalSampledRealtimeEvent>()!,
-        [FuturesRsiSignalGeneratedEvent.Verb] =
-            message => message.AsEvent<FuturesRsiSignalGeneratedEvent>()!,
-        [FuturesRsiSignalGeneratedCompleteEvent.Verb] =
-            message => message.AsEvent<FuturesRsiSignalGeneratedCompleteEvent>()!,
-        [FuturesRsiSignalGeneratedFailEvent.Verb] =
-            message => message.AsEvent<FuturesRsiSignalGeneratedFailEvent>()!,
-        [FuturesRsiSignalsGeneratedEvent.Verb] =
-            message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!
+        [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
+            await ((FuturesTradeSessionBarClosedRealtimeEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
     };
 
-    protected override async ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
+    /// <summary>Registers the shared observation route.</summary>
+    protected override ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
     {
         context.AddRealtimeRouter(ObservationRoute, Id);
-        await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
+        return ValueTask.CompletedTask;
     }
 
-    protected override async ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
+    /// <summary>Removes the shared observation route.</summary>
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(ObservationRoute, Id);
-        await actorContext.Projector.StopAsync().ConfigureAwait(false);
+        return ValueTask.CompletedTask;
     }
 
-    protected override IEvent ParseMessage(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IActorMessage message)
-    {
-        var subject = message.Subject;
-        if (subject.Is(ActorType.Realtime, FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
-                FuturesAnalyticsObservationClosedRealtimeEvent.Verb))
-            return message.AsEvent<FuturesAnalyticsObservationClosedRealtimeEvent>()!;
-        if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
-            || !Parsers.TryGetValue(subject.Verb, out var parser))
-            return default!;
-        var @event = parser(message);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+    /// <summary>Parses a routed closed-observation event.</summary>
+    protected override IEvent ParseMessage(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IActorMessage message) =>
+        message.Subject.Is(ActorType.Realtime, ActorName, FuturesTradeSessionBarClosedRealtimeEvent.Verb)
+            ? message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
+            : default!;
 
+    /// <summary>Dispatches a routed event to its dedicated extension handler.</summary>
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IEvent @event)
     {
-        var dispatchContext = context;
-        switch (@event)
-        {
-            case FuturesAnalyticsObservationClosedRealtimeEvent closed:
-                foreach (var entityId in FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot()
-                             .Where(entityId => Matches(entityId, closed.Observation)))
-                {
-                    var sampled = CreateSample(entityId, closed);
-                    _ = await sampled.ExecuteAsync(context, actorContext.Projector, _state,
-                            actorContext.Blackboard, actorContext.Logger)
-                        .ConfigureAwait(false);
-                }
-                break;
-            case FuturesRsiSignalSampledRealtimeEvent sampled:
-                _ = await sampled.ExecuteAsync(context, actorContext.Projector, _state, actorContext.Blackboard, actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesRsiSignalGeneratedFailEvent failed:
-                actorContext.Logger.LogError(
-                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-                    failed.EventName, failed.EntityId, failed.ErrorMessage);
-                break;
-            case FuturesRsiSignalGeneratedCompleteEvent completed:
-                await completed.PublishAsync(context).ConfigureAwait(false);
-                break;
-            case FuturesRsiSignalGeneratedEvent:
-            case FuturesRsiSignalsGeneratedEvent:
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
-        }
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(@event);
+        if (!_receiveMap.TryGetValue(@event.GetType(), out var handler))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
+        _ = await handler(@event, FuturesRsiSignalRealtimeContext, _logger).ConfigureAwait(false);
     }
 
-    static bool Matches(FuturesRsiSignalEntityId entityId, FuturesAnalyticsObservationReadModel observation) =>
-        StringComparer.Ordinal.Equals(entityId.ContractId, observation.ContractId)
-        && entityId.ValueDate == observation.ValueDate
-        && entityId.TimePeriod == observation.TimeFrame
-        && observation.IsValid;
-
-    static FuturesRsiSignalSampledRealtimeEvent CreateSample(
-        FuturesRsiSignalEntityId entityId,
-        FuturesAnalyticsObservationClosedRealtimeEvent closed) => new()
-    {
-        Subject = new(ActorType.Realtime, ActorName, FuturesRsiSignalSampledRealtimeEvent.Verb, entityId.Format()),
-        Id = Guid.NewGuid(),
-        EntityId = entityId,
-        CommandId = closed.CommandId == Guid.Empty ? closed.Id : closed.CommandId,
-        AggregateId = entityId.Format(),
-        EventSource = closed.EventName,
-        ReceivedOn = DateTime.UtcNow,
-        FuturesPrice = closed.Observation.Close,
-        SourceSequence = closed.Observation.LastSourceSequence,
-        SourceEventTimestamp = closed.Observation.LastMarketEventUtc.UtcDateTime,
-        Observation = closed.Observation
-    };
-
-    protected override async ValueTask OnExceptionAsync(
-        IEventActorContext<FuturesRsiSignalRealtimeActor> context,
-        ActorThreadId threadId,
-        IEvent @event,
-        Exception exception) =>
-        await exception.SendErrorEventAsync<
-            TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+    /// <summary>Publishes the standard actor error event.</summary>
+    protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesRsiSignalRealtimeActor> context,
+        ActorThreadId threadId, IEvent @event, Exception exception) =>
+        await exception.SendErrorEventAsync<TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
             ActorEntityId>(ErrorType.EventService, context).ConfigureAwait(false);
 }

@@ -191,7 +191,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
         string providerFileId,
         HistoricalProviderRecordBatch source)
     {
-        var observations = new List<FuturesAnalyticsObservationReadModel>();
+        var observations = new List<FuturesTradeSessionBarReadModel>();
         var trades = new List<NormalizedHistoricalTrade>();
         foreach (var record in source.Records)
         {
@@ -202,12 +202,12 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
             {
                 var intervalStart = record.EventTimestampUtc;
                 var intervalEnd = intervalStart.AddMinutes(1);
-                var observationId = FuturesAnalyticsObservationId.Create(
+                var observationId = FuturesTradeSessionBarId.Create(
                     series.SeriesIdentity,
                     TimeFrameType.OneMinute,
                     intervalEnd,
                     record.SourceSequence);
-                observations.Add(new FuturesAnalyticsObservationReadModel
+                observations.Add(new FuturesTradeSessionBarReadModel
                 {
                     MarketSeriesIdentity = series.SeriesIdentity,
                     ObservationId = observationId,
@@ -282,7 +282,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
     }
 
     static string ComputeNormalizedHash(
-        IReadOnlyList<FuturesAnalyticsObservationReadModel> observations,
+        IReadOnlyList<FuturesTradeSessionBarReadModel> observations,
         IReadOnlyList<NormalizedHistoricalTrade> trades)
     {
         var canonical = new StringBuilder();

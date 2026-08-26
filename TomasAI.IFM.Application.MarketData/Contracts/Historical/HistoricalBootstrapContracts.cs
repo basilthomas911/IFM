@@ -71,7 +71,7 @@ public interface IHistoricalObservationStore
 {
     /// <summary>Writes one normalized observation if its deterministic identity is new.</summary>
     ValueTask<bool> TryWriteObservationAsync(
-        FuturesAnalyticsObservationReadModel observation,
+        FuturesTradeSessionBarReadModel observation,
         CancellationToken cancellationToken);
     /// <summary>Writes one raw Daily EOD session if its deterministic identity is new.</summary>
     ValueTask<bool> TryWriteRawEodAsync(

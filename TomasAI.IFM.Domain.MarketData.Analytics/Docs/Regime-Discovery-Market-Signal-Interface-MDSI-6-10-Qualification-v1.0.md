@@ -15,7 +15,7 @@ Qualification record v1.0
 The existing RSI, ATR, ADX, and MACD Start/Stop surfaces now attach and detach
 their identities from the shared observation stream. They no longer start an
 independent hot-cache sampling timer. Their realtime actors route
-`FuturesAnalyticsObservationClosedRealtimeEvent` and retain the complete source
+`FuturesTradeSessionBarClosedRealtimeEvent` and retain the complete source
 observation on the append-only compatibility sample contract.
 
 RSI13 remains the TDI source under `rsi-13-tdi-v1`. RSI14 is isolated under

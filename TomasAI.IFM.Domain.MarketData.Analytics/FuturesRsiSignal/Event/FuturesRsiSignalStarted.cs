@@ -15,6 +15,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 
@@ -39,22 +40,18 @@ public static class FuturesRsiSignalStarted
     /// succeeded; otherwise, <see langword="false"/>.</returns>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalStartedEvent e,
-        IEventActorContext context,
-        IEventActorContext commandApi,
-        IMarketDataApi marketDataApi,
-        IStatusConsoleWriter statusConsoleWriter,
+        IFuturesRsiSignalEventContext context,
         ILogger logger)
     {
         var source = $"FuturesRsiSignalStartedEvent for ContractId: {e.EntityId.ContractId}, TimePeriod: {e.EntityId.TimePeriod}, PeriodLength: {e.EntityId.PeriodLength}";
-        ArgumentNullException.ThrowIfNull(marketDataApi);
         try
         {
-            FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
+            FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
             return true;
         }
         catch (Exception ex)
         {
-            await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage());
+            await context.StatusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage());
             logger.LogErrorEvent(_serviceId, ex.GetErrorMessage(), "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
         }
         return false;

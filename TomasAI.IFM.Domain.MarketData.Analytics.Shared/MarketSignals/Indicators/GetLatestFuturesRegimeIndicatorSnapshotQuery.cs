@@ -31,11 +31,11 @@ public sealed record GetLatestFuturesRegimeIndicatorSnapshotQuery
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     /// <inheritdoc />
     [IgnoreMember] public string? QueryParams =>
-        new FuturesAnalyticsObservationEntityId(MarketSeriesIdentity, TimeFrame).Format();
+        new FuturesTradeSessionBarEntityId(MarketSeriesIdentity, TimeFrame).Format();
 
     /// <summary>Initializes an empty serialization instance.</summary>
     public GetLatestFuturesRegimeIndicatorSnapshotQuery() =>
-        EntityId = new FuturesAnalyticsObservationEntityId();
+        EntityId = new FuturesTradeSessionBarEntityId();
 
     /// <summary>Initializes an exact latest-snapshot query.</summary>
     public GetLatestFuturesRegimeIndicatorSnapshotQuery(
@@ -44,6 +44,6 @@ public sealed record GetLatestFuturesRegimeIndicatorSnapshotQuery
     {
         MarketSeriesIdentity = marketSeriesIdentity;
         TimeFrame = timeFrame;
-        EntityId = new FuturesAnalyticsObservationEntityId(marketSeriesIdentity, timeFrame);
+        EntityId = new FuturesTradeSessionBarEntityId(marketSeriesIdentity, timeFrame);
     }
 }

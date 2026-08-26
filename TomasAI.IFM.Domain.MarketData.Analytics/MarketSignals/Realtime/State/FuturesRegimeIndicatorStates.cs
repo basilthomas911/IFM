@@ -12,7 +12,7 @@ public sealed class FuturesRegimeRsiSignalState(int period, string configuration
     decimal averageLoss;
     int sampleCount;
     double? previousRsi;
-    FuturesAnalyticsObservationId lastObservationId;
+    FuturesTradeSessionBarId lastObservationId;
 
     /// <summary>Gets the configured RSI period.</summary>
     public int Period { get; } = period > 0 ? period : throw new ArgumentOutOfRangeException(nameof(period));
@@ -25,7 +25,7 @@ public sealed class FuturesRegimeRsiSignalState(int period, string configuration
     /// <summary>Applies one unique shared observation.</summary>
     /// <param name="observation">Closed observation to apply.</param>
     /// <returns>The RSI projection for this observation.</returns>
-    public FuturesRegimeRsiSignalReadModel Apply(FuturesAnalyticsObservationReadModel observation)
+    public FuturesRegimeRsiSignalReadModel Apply(FuturesTradeSessionBarReadModel observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
         EnsureUnique(lastObservationId, observation.ObservationId);
@@ -76,7 +76,7 @@ public sealed class FuturesRegimeRsiSignalState(int period, string configuration
             : 100d - (100d / (1d + (double)(averageGainValue / averageLossValue)));
 
     internal static MarketAnalyticsSignalMetadata Metadata(
-        FuturesAnalyticsObservationReadModel observation,
+        FuturesTradeSessionBarReadModel observation,
         MarketAnalyticsSignalKind kind,
         string configurationId,
         string calculationVersion) => new()
@@ -96,8 +96,8 @@ public sealed class FuturesRegimeRsiSignalState(int period, string configuration
     };
 
     internal static void EnsureUnique(
-        FuturesAnalyticsObservationId previous,
-        FuturesAnalyticsObservationId current)
+        FuturesTradeSessionBarId previous,
+        FuturesTradeSessionBarId current)
     {
         if (previous.Value != Guid.Empty && previous == current)
             throw new InvalidOperationException($"Observation {current} has already been applied.");
@@ -112,10 +112,10 @@ public sealed class FuturesEmaSignalRealtimeState
     readonly PeriodEma ema20 = new(20);
     readonly PeriodEma ema50 = new(50);
     readonly PeriodEma ema200 = new(200);
-    FuturesAnalyticsObservationId lastObservationId;
+    FuturesTradeSessionBarId lastObservationId;
 
     /// <summary>Applies one unique shared observation and returns the complete EMA family.</summary>
-    public FuturesEmaSignalReadModel Apply(FuturesAnalyticsObservationReadModel observation)
+    public FuturesEmaSignalReadModel Apply(FuturesTradeSessionBarReadModel observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
         FuturesRegimeRsiSignalState.EnsureUnique(lastObservationId, observation.ObservationId);
@@ -178,7 +178,7 @@ public sealed class FuturesBollingerBandSignalRealtimeState
     const string ConfigurationId = "bb-10-20-ema-center-population-v1";
     readonly Queue<decimal> closes = new();
     readonly Queue<decimal> completedWidths20 = new();
-    FuturesAnalyticsObservationId lastObservationId;
+    FuturesTradeSessionBarId lastObservationId;
 
     /// <summary>Tries to apply a same-observation EMA/close pair.</summary>
     /// <param name="observation">Source closed observation.</param>
@@ -186,7 +186,7 @@ public sealed class FuturesBollingerBandSignalRealtimeState
     /// <param name="signal">Receives the Bollinger signal when identities match.</param>
     /// <returns><see langword="false"/> when the EMA lineage does not match.</returns>
     public bool TryApply(
-        FuturesAnalyticsObservationReadModel observation,
+        FuturesTradeSessionBarReadModel observation,
         FuturesEmaSignalReadModel ema,
         out FuturesBollingerBandSignalReadModel signal)
     {
@@ -261,10 +261,10 @@ public sealed class FuturesAtrVolatilitySignalRealtimeState
     readonly Queue<decimal> completedAtrValues = new();
     decimal? previousClose;
     decimal? currentAtr;
-    FuturesAnalyticsObservationId lastObservationId;
+    FuturesTradeSessionBarId lastObservationId;
 
     /// <summary>Applies one unique shared OHLC observation.</summary>
-    public FuturesAtrVolatilitySignalReadModel Apply(FuturesAnalyticsObservationReadModel observation)
+    public FuturesAtrVolatilitySignalReadModel Apply(FuturesTradeSessionBarReadModel observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
         FuturesRegimeRsiSignalState.EnsureUnique(lastObservationId, observation.ObservationId);
@@ -312,13 +312,13 @@ public sealed class FuturesAtrVolatilitySignalRealtimeState
 /// </summary>
 public sealed class FuturesRegimeIndicatorPipelineRealtimeState
 {
-    readonly Dictionary<FuturesAnalyticsObservationEntityId, PipelineState> states = [];
+    readonly Dictionary<FuturesTradeSessionBarEntityId, PipelineState> states = [];
 
     /// <summary>Calculates RSI13, RSI14, EMA, Bollinger Bands, and ATR for one observation.</summary>
-    public FuturesRegimeIndicatorSnapshot Apply(FuturesAnalyticsObservationReadModel observation)
+    public FuturesRegimeIndicatorSnapshot Apply(FuturesTradeSessionBarReadModel observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
-        var entityId = new FuturesAnalyticsObservationEntityId(
+        var entityId = new FuturesTradeSessionBarEntityId(
             observation.MarketSeriesIdentity,
             observation.TimeFrame);
         if (!states.TryGetValue(entityId, out var state))

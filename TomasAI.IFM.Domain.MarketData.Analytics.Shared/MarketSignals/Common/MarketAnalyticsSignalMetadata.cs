@@ -71,7 +71,7 @@ public sealed record MarketAnalyticsSignalMetadata
     [Key(2)] public DateOnly ValueDate { get; init; }
 
     /// <summary>Gets the source observation identity.</summary>
-    [Key(3)] public FuturesAnalyticsObservationId ObservationId { get; init; }
+    [Key(3)] public FuturesTradeSessionBarId ObservationId { get; init; }
 
     /// <summary>Gets the last exchange event included in the calculation.</summary>
     [Key(4)] public DateTimeOffset MarketDataAsOfUtc { get; init; }
