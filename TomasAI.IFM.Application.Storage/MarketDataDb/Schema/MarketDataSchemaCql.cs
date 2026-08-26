@@ -28,6 +28,47 @@ internal static class MarketDataSchemaCql
         PRIMARY KEY ((seriesKey, timePeriod, yearMonth), marketDataAsOf, observationId)
     ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
     """;
+
+    public const string CreateFuturesEmaSignalTable = """
+    CREATE TABLE IF NOT EXISTS futures_ema_signal (
+        seriesKey text, timePeriod text, configurationId text, yearMonth int,
+        marketDataAsOf timestamp, observationId uuid, contractId text, valueDate date,
+        price decimal, ema10 decimal, previousEma10 decimal, ema10Slope decimal,
+        ema20 decimal, previousEma20 decimal, ema20Slope decimal,
+        ema50 decimal, previousEma50 decimal, ema50Slope decimal,
+        ema200 decimal, previousEma200 decimal, ema200Slope decimal, isWarm boolean,
+        sourceSequence bigint, calculatedAt timestamp, schemaVersion int,
+        calculationVersion text, calculationMethod text, isValid boolean,
+        PRIMARY KEY ((seriesKey, timePeriod, configurationId, yearMonth), marketDataAsOf, observationId)
+    ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
+    """;
+
+    public const string CreateFuturesBollingerBandSignalTable = """
+    CREATE TABLE IF NOT EXISTS futures_bollinger_band_signal (
+        seriesKey text, timePeriod text, configurationId text, yearMonth int,
+        marketDataAsOf timestamp, observationId uuid, contractId text, valueDate date,
+        price decimal, ema10Center decimal, standardDeviation10 decimal,
+        upper10 decimal, lower10 decimal, width10 decimal, position10 decimal,
+        ema20Center decimal, standardDeviation20 decimal,
+        upper20 decimal, lower20 decimal, width20 decimal, position20 decimal,
+        width20Baseline decimal, width20Ratio decimal, isWarm boolean,
+        sourceSequence bigint, calculatedAt timestamp, schemaVersion int,
+        calculationVersion text, calculationMethod text, isValid boolean,
+        PRIMARY KEY ((seriesKey, timePeriod, configurationId, yearMonth), marketDataAsOf, observationId)
+    ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
+    """;
+
+    public const string CreateFuturesAtrVolatilitySignalTable = """
+    CREATE TABLE IF NOT EXISTS futures_atr_volatility_signal (
+        seriesKey text, timePeriod text, configurationId text, yearMonth int,
+        marketDataAsOf timestamp, observationId uuid, contractId text, valueDate date,
+        trueRange decimal, atr14 decimal, previousAtr14 decimal,
+        atr14Baseline decimal, atr14Ratio decimal, isWarm boolean,
+        sourceSequence bigint, calculatedAt timestamp, schemaVersion int,
+        calculationVersion text, calculationMethod text, isValid boolean,
+        PRIMARY KEY ((seriesKey, timePeriod, configurationId, yearMonth), marketDataAsOf, observationId)
+    ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
+    """;
     public const string CreateMarketOutlookSnapshotTable = """
     CREATE TABLE IF NOT EXISTS market_outlook_snapshot (
         contractId text,
@@ -182,6 +223,13 @@ internal static class MarketDataSchemaCql
             rsiSlope DOUBLE,
             sourceSequence BIGINT,
             sourceEventTimestamp TIMESTAMP,
+            configurationId TEXT,
+            observationId UUID,
+            marketDataAsOf TIMESTAMP,
+            calculationVersion TEXT,
+            calculationMethod TEXT,
+            schemaVersion INT,
+            isValid BOOLEAN,
             signalType TEXT,
             timePeriod TEXT,
             windowSize INT,
@@ -197,6 +245,14 @@ internal static class MarketDataSchemaCql
     public const string AddFuturesRsiSignalSourceEventTimestampColumn = """
         ALTER TABLE futures_rsi_signal
         ADD sourceEventTimestamp TIMESTAMP;
+        """;
+
+    public const string AddFuturesRsiSignalProvenanceColumns = """
+        ALTER TABLE futures_rsi_signal ADD (
+            configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
+            calculationVersion TEXT, calculationMethod TEXT, schemaVersion INT,
+            isValid BOOLEAN
+        );
         """;
 
     public const string AddFuturesEodDataFiftyDmaColumn = """
@@ -279,6 +335,14 @@ internal static class MarketDataSchemaCql
             histogram DOUBLE,
             macd TEXT,
             macdStrength TEXT,
+            configurationId TEXT,
+            observationId UUID,
+            marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT,
+            calculationVersion TEXT,
+            calculationMethod TEXT,
+            schemaVersion INT,
+            isValid BOOLEAN,
             PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
@@ -300,8 +364,24 @@ internal static class MarketDataSchemaCql
             histogram DOUBLE,
             macd TEXT,
             macdStrength TEXT,
+            configurationId TEXT,
+            observationId UUID,
+            marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT,
+            calculationVersion TEXT,
+            calculationMethod TEXT,
+            schemaVersion INT,
+            isValid BOOLEAN,
             PRIMARY KEY ((contractId, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string AddFuturesMacdSignalV2ProvenanceColumns = """
+        ALTER TABLE futures_macd_signal_v2 ADD (
+            configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT, calculationVersion TEXT, calculationMethod TEXT,
+            schemaVersion INT, isValid BOOLEAN
+        );
         """;
 
     public const string CreateFuturesAdxSignalTable = """
@@ -317,8 +397,24 @@ internal static class MarketDataSchemaCql
             adxValue DOUBLE,
             adx TEXT,
             adxStrength TEXT,
+            configurationId TEXT,
+            observationId UUID,
+            marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT,
+            calculationVersion TEXT,
+            calculationMethod TEXT,
+            schemaVersion INT,
+            isValid BOOLEAN,
             PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string AddFuturesAdxSignalProvenanceColumns = """
+        ALTER TABLE futures_adx_signal ADD (
+            configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT, calculationVersion TEXT, calculationMethod TEXT,
+            schemaVersion INT, isValid BOOLEAN
+        );
         """;
 
     public const string CreateFuturesAtrSignalTable = """
@@ -333,8 +429,24 @@ internal static class MarketDataSchemaCql
             trueRange DOUBLE,
             atr TEXT,
             atrStrength TEXT,
+            configurationId TEXT,
+            observationId UUID,
+            marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT,
+            calculationVersion TEXT,
+            calculationMethod TEXT,
+            schemaVersion INT,
+            isValid BOOLEAN,
             PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
+        """;
+
+    public const string AddFuturesAtrSignalProvenanceColumns = """
+        ALTER TABLE futures_atr_signal ADD (
+            configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
+            sourceSequence BIGINT, calculationVersion TEXT, calculationMethod TEXT,
+            schemaVersion INT, isValid BOOLEAN
+        );
         """;
 
     public const string CreateMarketHolidayTable = """

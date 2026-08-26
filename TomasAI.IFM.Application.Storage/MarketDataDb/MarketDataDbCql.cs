@@ -2,6 +2,51 @@
 
 internal static class MarketDataDbCql
 {
+    public const string InsertFuturesEmaSignalV1 = """
+        INSERT INTO futures_ema_signal (
+            seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
+            contractId, valueDate, price, ema10, previousEma10, ema10Slope,
+            ema20, previousEma20, ema20Slope, ema50, previousEma50, ema50Slope,
+            ema200, previousEma200, ema200Slope, isWarm, sourceSequence, calculatedAt,
+            schemaVersion, calculationVersion, calculationMethod, isValid
+        ) VALUES (
+            :seriesKey, :timePeriod, :configurationId, :yearMonth, :marketDataAsOf, :observationId,
+            :contractId, :valueDate, :price, :ema10, :previousEma10, :ema10Slope,
+            :ema20, :previousEma20, :ema20Slope, :ema50, :previousEma50, :ema50Slope,
+            :ema200, :previousEma200, :ema200Slope, :isWarm, :sourceSequence, :calculatedAt,
+            :schemaVersion, :calculationVersion, :calculationMethod, :isValid
+        );
+        """;
+
+    public const string InsertFuturesBollingerBandSignalV1 = """
+        INSERT INTO futures_bollinger_band_signal (
+            seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
+            contractId, valueDate, price, ema10Center, standardDeviation10, upper10, lower10,
+            width10, position10, ema20Center, standardDeviation20, upper20, lower20, width20,
+            position20, width20Baseline, width20Ratio, isWarm, sourceSequence, calculatedAt,
+            schemaVersion, calculationVersion, calculationMethod, isValid
+        ) VALUES (
+            :seriesKey, :timePeriod, :configurationId, :yearMonth, :marketDataAsOf, :observationId,
+            :contractId, :valueDate, :price, :ema10Center, :standardDeviation10, :upper10, :lower10,
+            :width10, :position10, :ema20Center, :standardDeviation20, :upper20, :lower20, :width20,
+            :position20, :width20Baseline, :width20Ratio, :isWarm, :sourceSequence, :calculatedAt,
+            :schemaVersion, :calculationVersion, :calculationMethod, :isValid
+        );
+        """;
+
+    public const string InsertFuturesAtrVolatilitySignalV1 = """
+        INSERT INTO futures_atr_volatility_signal (
+            seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
+            contractId, valueDate, trueRange, atr14, previousAtr14, atr14Baseline, atr14Ratio,
+            isWarm, sourceSequence, calculatedAt, schemaVersion, calculationVersion,
+            calculationMethod, isValid
+        ) VALUES (
+            :seriesKey, :timePeriod, :configurationId, :yearMonth, :marketDataAsOf, :observationId,
+            :contractId, :valueDate, :trueRange, :atr14, :previousAtr14, :atr14Baseline, :atr14Ratio,
+            :isWarm, :sourceSequence, :calculatedAt, :schemaVersion, :calculationVersion,
+            :calculationMethod, :isValid
+        );
+        """;
     public const string ClaimMarketDataImportOwnership = """
     INSERT INTO market_data_import_ownership (dataset, logicalKey, commandId, mayWrite, createdOn)
     VALUES (:dataset, :logicalKey, :commandId, :mayWrite, :createdOn) IF NOT EXISTS;
@@ -1613,7 +1658,14 @@ internal static class MarketDataDbCql
             rsiAverage,
             rsiSlope,
             sourceSequence,
-            sourceEventTimestamp
+            sourceEventTimestamp,
+            configurationId,
+            observationId,
+            marketDataAsOf,
+            calculationVersion,
+            calculationMethod,
+            schemaVersion,
+            isValid
         ) VALUES (
             :contractId,
             :valueDate,
@@ -1631,7 +1683,14 @@ internal static class MarketDataDbCql
             :rsiAverage,
             :rsiSlope,
             :sourceSequence,
-            :sourceEventTimestamp
+            :sourceEventTimestamp,
+            :configurationId,
+            :observationId,
+            :marketDataAsOf,
+            :calculationVersion,
+            :calculationMethod,
+            :schemaVersion,
+            :isValid
         );
     """;
 
@@ -2989,7 +3048,15 @@ internal static class MarketDataDbCql
             signalLine,
             histogram,
             macd,
-            macdStrength
+            macdStrength,
+            configurationId,
+            observationId,
+            marketDataAsOf,
+            sourceSequence,
+            calculationVersion,
+            calculationMethod,
+            schemaVersion,
+            isValid
         ) VALUES (
             :contractId,
             :valueDate,
@@ -3005,7 +3072,15 @@ internal static class MarketDataDbCql
             :signalLine,
             :histogram,
             :macd,
-            :macdStrength
+            :macdStrength,
+            :configurationId,
+            :observationId,
+            :marketDataAsOf,
+            :sourceSequence,
+            :calculationVersion,
+            :calculationMethod,
+            :schemaVersion,
+            :isValid
         );
     """;
 
@@ -3070,7 +3145,15 @@ internal static class MarketDataDbCql
             atrValue,
             trueRange,
             atr,
-            atrStrength
+            atrStrength,
+            configurationId,
+            observationId,
+            marketDataAsOf,
+            sourceSequence,
+            calculationVersion,
+            calculationMethod,
+            schemaVersion,
+            isValid
         ) VALUES (
             :contractId,
             :valueDate,
@@ -3081,7 +3164,15 @@ internal static class MarketDataDbCql
             :atrValue,
             :trueRange,
             :atr,
-            :atrStrength
+            :atrStrength,
+            :configurationId,
+            :observationId,
+            :marketDataAsOf,
+            :sourceSequence,
+            :calculationVersion,
+            :calculationMethod,
+            :schemaVersion,
+            :isValid
         );
     """;
 
@@ -3142,7 +3233,15 @@ internal static class MarketDataDbCql
             minusDI,
             adxValue,
             adx,
-            adxStrength
+            adxStrength,
+            configurationId,
+            observationId,
+            marketDataAsOf,
+            sourceSequence,
+            calculationVersion,
+            calculationMethod,
+            schemaVersion,
+            isValid
         ) VALUES (
             :contractId,
             :valueDate,
@@ -3154,7 +3253,15 @@ internal static class MarketDataDbCql
             :minusDI,
             :adxValue,
             :adx,
-            :adxStrength
+            :adxStrength,
+            :configurationId,
+            :observationId,
+            :marketDataAsOf,
+            :sourceSequence,
+            :calculationVersion,
+            :calculationMethod,
+            :schemaVersion,
+            :isValid
         );
     """;
 

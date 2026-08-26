@@ -11,6 +11,8 @@ using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Application.MarketData.Contracts;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Actor;
 
@@ -105,7 +107,11 @@ public class FuturesMacdSignalEventActor(
         _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
-    protected override ValueTask OnShutdown(IEventActorContext<FuturesMacdSignalEventActor> context) => FuturesMacdSignalTimer.StopAllAsync();
+    protected override ValueTask OnShutdown(IEventActorContext<FuturesMacdSignalEventActor> context)
+    {
+        FuturesAnalyticsObservationAttachmentRegistry<FuturesMacdSignalEntityId>.Clear();
+        return ValueTask.CompletedTask;
+    }
 
     /// <summary>
     /// Handles an exception that occurs during event actor processing and returns a failed service result containing

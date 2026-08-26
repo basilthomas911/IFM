@@ -1,5 +1,6 @@
 using MessagePack;
 using Newtonsoft.Json;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -53,6 +54,9 @@ public record FuturesAdxSignalReadModel
     /// <summary>Strength of the computed trend direction (e.g., Low, Medium, High).</summary>
     [Key(10)]
     public FuturesTrendDirectionStrengthType ADXStrength { get; init; }
+
+    /// <summary>Gets shared observation lineage for migrated ADX calculations.</summary>
+    [Key(11)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
 
     /// <summary>
     /// Entity identifier consisting of contract id, value date, and time period (not serialized).

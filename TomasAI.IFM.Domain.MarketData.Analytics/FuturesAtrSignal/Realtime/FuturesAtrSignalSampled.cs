@@ -7,6 +7,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime;
 
@@ -56,7 +58,14 @@ public sealed class FuturesAtrSignalRealtimeState
             computed.AtrValue,
             computed.TrueRange,
             direction,
-            computed.TrendDirectionStrength());
+            computed.TrendDirectionStrength()) with
+        {
+            Metadata = sampled.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation, MarketAnalyticsSignalKind.Atr,
+                    $"atr-{sampled.EntityId.PeriodLength}-legacy-v1", "atr-legacy-compatible-v1")
+                : null
+        };
         var generated = new FuturesAtrSignalGeneratedEvent
         {
             Subject = new(ActorType.Realtime, FuturesAtrSignalRealtimeActor.ActorName,

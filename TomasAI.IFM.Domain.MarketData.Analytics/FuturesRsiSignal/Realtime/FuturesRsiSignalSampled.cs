@@ -9,6 +9,9 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime;
 
@@ -62,10 +65,28 @@ public sealed class FuturesRsiSignalRealtimeState
             sampled.EntityId.TimePeriod,
             sampled.EntityId.PeriodLength,
             TimeOnly.FromDateTime(sampled.SourceEventTimestamp));
+        var prior = history.LastOrDefault();
         var signal = history.GenerateRsiSignal(signalId, sampled.FuturesPrice) with
         {
             SourceSequence = sampled.SourceSequence,
-            SourceEventTimestamp = sampled.SourceEventTimestamp
+            SourceEventTimestamp = sampled.SourceEventTimestamp,
+            Metadata = sampled.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation,
+                    MarketAnalyticsSignalKind.Rsi,
+                    sampled.EntityId.PeriodLength switch
+                    {
+                        13 => FuturesRsiConfigurations.TdiRsi13,
+                        14 => FuturesRsiConfigurations.RegimeRsi14,
+                        _ => $"rsi-{sampled.EntityId.PeriodLength}-legacy-v1"
+                    },
+                    "rsi-legacy-compatible-v1")
+                : null,
+            PreviousRsi = prior?.RSI,
+            RegimeSlope = prior is null ? null : history.Count + 1 > sampled.EntityId.PeriodLength
+                ? history.GenerateRsiSignal(signalId, sampled.FuturesPrice).RSI - prior.RSI
+                : null,
+            IsWarm = prior is not null && history.Count + 1 > sampled.EntityId.PeriodLength
         };
         var generated = new FuturesRsiSignalGeneratedEvent
         {

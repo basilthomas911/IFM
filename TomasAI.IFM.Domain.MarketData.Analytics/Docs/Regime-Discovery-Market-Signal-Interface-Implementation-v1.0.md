@@ -4,7 +4,7 @@ Implementation Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | Proposed repository-specific implementation plan; implementation not started |
+| Status | MDSI-0 through MDSI-10 implemented; MDSI-11 onward remains planned |
 | Date | 2026-08-25 |
 | Design authority | `Regime-Discovery-Market-Signal-Interface-Design-v1.0.md` |
 | Primary consumer | Intrinsic Time Strategy Workflow - Regime Discovery pipeline |
@@ -69,6 +69,13 @@ ticks, ScyllaDB, Redis, or provider APIs directly.
     `Container.Resolve`.
 15. Actor parse, receive, and validation support is explicit in dictionaries.
     New actors do not use reflection discovery or a growing domain switch.
+16. MDSI-8 through MDSI-10 use one ordered
+    `FuturesRegimeIndicatorRealtimeActor` mailbox for RSI13/14, EMA,
+    Bollinger, and extended ATR. This is an intentional refinement of the
+    original separate-actor sketch: EMA and Bollinger composition cannot race,
+    every output retains the exact same `ObservationId`, and the actor still
+    follows the closed-context, extensions, storage-first projector, and
+    bounded Query actor conventions.
 
 ## 3. Current baseline and required changes
 
@@ -1766,6 +1773,10 @@ bar-derived consumers receive that identity once.
 
 ### MDSI-6 - Existing indicator migration
 
+Status: **Complete (2026-08-25)**. Qualification evidence for MDSI-6 through
+MDSI-10 is recorded in
+`Regime-Discovery-Market-Signal-Interface-MDSI-6-10-Qualification-v1.0.md`.
+
 Deliver:
 
 - RSI/ATR/ADX/MACD consume shared observation events;
@@ -1778,6 +1789,10 @@ existing domain tests pass.
 
 ### MDSI-7 - RSI14 and RSI13/TDI isolation
 
+Status: **Complete (2026-08-25)**. RSI13 retains the TDI configuration identity;
+RSI14 has an independent Regime Discovery identity and nullable slope/warm
+semantics.
+
 Deliver:
 
 - RSI14 configuration and cache identity;
@@ -1788,6 +1803,9 @@ Deliver:
 Exit: RSI13 and RSI14 coexist without overwrites and TDI output is unchanged.
 
 ### MDSI-8 - EMA signal
+
+Status: **Complete (2026-08-25)** through the ordered regime-indicator realtime
+pipeline described in binding decision 16.
 
 Deliver:
 
@@ -1801,6 +1819,9 @@ golden vectors pass across restart.
 
 ### MDSI-9 - Bollinger Band signal
 
+Status: **Complete (2026-08-25)** through same-mailbox EMA composition with
+exact `ObservationId` validation.
+
 Deliver:
 
 - BB actor/context/extensions/state/formula/projector/query actor;
@@ -1811,6 +1832,9 @@ Deliver:
 Exit: mismatched EMA observation is rejected and golden BB vectors pass.
 
 ### MDSI-10 - ATR volatility extension
+
+Status: **Complete (2026-08-25)** with Wilder ATR14, prior ATR, a prior-only
+20-value baseline, ratio, storage projection, latest cache, and query support.
 
 Deliver:
 

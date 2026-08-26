@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event;
 
@@ -48,18 +49,7 @@ public static class FuturesRsiSignalStarted
         ArgumentNullException.ThrowIfNull(marketDataApi);
         try
         {
-            e.StartTimer(async o =>
-            {
-                try
-                {
-                    await GenerateFuturesRsiSignalsAsync();
-                }
-                catch (Exception ex)
-                {
-                    await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage());
-                    logger.LogErrorEvent(_serviceId, ex.GetErrorMessage(), "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
-                }
-            });
+            FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Attach(e.EntityId);
             return true;
         }
         catch (Exception ex)
@@ -69,55 +59,6 @@ public static class FuturesRsiSignalStarted
         }
         return false;
 
-        async ValueTask GenerateFuturesRsiSignalsAsync()
-        {
-            try
-            {
-                if (!marketDataApi.IsTickDataStreamActive(e.EntityId.ContractId)
-                    || !marketDataApi.TryGetLastTickPrice(e.EntityId.ContractId, out var snapshot)
-                    || snapshot.Trade is not { } trade)
-                    return;
-
-                if (!StringComparer.Ordinal.Equals(snapshot.ContractId, e.EntityId.ContractId)
-                    || snapshot.ValueDate != e.EntityId.ValueDate
-                    || snapshot.AssetTypeId != AssetTypeId.Futures)
-                {
-                    throw new MarketDataContractMappingException(
-                        e.EntityId.ContractId,
-                        "the RSI timer entity and hot-cache snapshot identities do not match");
-                }
-
-                if (!e.TryAcceptSourceSequence(trade.SourceSequence))
-                    return;
-
-                var sourceTimestamp = trade.EventTimestamp.UtcDateTime;
-                var sampled = new FuturesRsiSignalSampledRealtimeEvent
-                {
-                    Subject = new(
-                        ActorType.Realtime,
-                        FuturesRsiSignalSampledRealtimeEvent.Actor,
-                        FuturesRsiSignalSampledRealtimeEvent.Verb,
-                        e.EntityId.Format()),
-                    Id = Guid.NewGuid(),
-                    EntityId = e.EntityId,
-                    CommandId = e.CommandId,
-                    AggregateId = e.EntityId.Format(),
-                    EventSource = nameof(FuturesRsiSignalStartedEvent),
-                    ReceivedOn = DateTime.UtcNow,
-                    FuturesPrice = trade.LastPrice,
-                    SourceSequence = trade.SourceSequence,
-                    SourceEventTimestamp = sourceTimestamp
-                };
-                await context.SendAsync<
-                    FuturesRsiSignalSampledRealtimeEvent,
-                    FuturesRsiSignalEntityId>(sampled);
-            }
-            catch (Exception ex)
-            {
-                await statusConsoleWriter.WriteConsoleAsync(LogSourceType.FuturesRsiSignalEvent, FuturesRsiSignalStartedEvent.ErrorCode, ex.GetErrorMessage());
-                logger.LogErrorEvent(_serviceId, ex.GetErrorMessage(), "{Source}:  {ContractId} handler failed", source, e.EntityId.ContractId);
-            }
-        }
     }
 
 }

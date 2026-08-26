@@ -449,13 +449,13 @@ internal readonly record struct GetYieldCurveRateYears(int lookupId) : IBindValu
 {
     public object Bind() => new object?[] { lookupId };
 }
-internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double plusDI, double minusDI, double adxValue, string adx, string adxStrength) : IBindValue
+internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double plusDI, double minusDI, double adxValue, string adx, string adxStrength, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, long? sourceSequence, string? calculationVersion, string? calculationMethod, ushort? schemaVersion, bool? isValid) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, plusDI, minusDI, adxValue, adx, adxStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, plusDI, minusDI, adxValue, adx, adxStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid };
 }
-internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double atrValue, double trueRange, string atr, string atrStrength) : IBindValue
+internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double atrValue, double trueRange, string atr, string atrStrength, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, long? sourceSequence, string? calculationVersion, string? calculationMethod, ushort? schemaVersion, bool? isValid) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, atrValue, trueRange, atr, atrStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, atrValue, trueRange, atr, atrStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid };
 }
 internal readonly record struct InsertFuturesBarData(string contractId, string symbol, DateOnly valueDate, DateTime barDate, string barRateType, decimal barValue, double upTrendTrigger, double downTrendTrigger) : IBindValue
 {
@@ -536,17 +536,81 @@ internal readonly record struct InsertFuturesMacdSignal(
     double signalLine,
     double histogram,
     string macd,
-    string macdStrength) : IBindValue
+    string macdStrength,
+    string? configurationId,
+    Guid? observationId,
+    DateTime? marketDataAsOf,
+    long? sourceSequence,
+    string? calculationVersion,
+    string? calculationMethod,
+    ushort? schemaVersion,
+    bool? isValid) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, timestamp, futuresPrice, fastEma, slowEma, macdLine, signalLine, histogram, macd, macdStrength };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, signalEmaPeriod, fastEmaPeriod, slowEmaPeriod, timestamp, futuresPrice, fastEma, slowEma, macdLine, signalLine, histogram, macd, macdStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid };
 }
 internal readonly record struct InsertFuturesOptionTickData(string contractId, DateOnly valueDate, long tickId, TimeOnly tickTime, double optionPrice, double bidPrice, double askPrice, int bidSize, int askSize, double impliedVolatility, double underlyingPrice, double delta, double gamma, double vega, double theta, double rho) : IBindValue
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId, tickTime, optionPrice, bidPrice, askPrice, bidSize, askSize, impliedVolatility, underlyingPrice, delta, gamma, vega, theta, rho };
 }
-internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal price, decimal priceChange, decimal priceGain, decimal priceLoss, decimal averagePriceGain, decimal averagePriceLoss, double rs, double rsi, double rsiAverage, double rsiSlope, long sourceSequence, DateTime sourceEventTimestamp) : IBindValue
+internal readonly record struct InsertFuturesEmaSignalV1(
+    string seriesKey, string timePeriod, string configurationId, int yearMonth,
+    DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
+    decimal price, decimal? ema10, decimal? previousEma10, decimal? ema10Slope,
+    decimal? ema20, decimal? previousEma20, decimal? ema20Slope,
+    decimal? ema50, decimal? previousEma50, decimal? ema50Slope,
+    decimal? ema200, decimal? previousEma200, decimal? ema200Slope, bool isWarm,
+    long sourceSequence, DateTime calculatedAt, int schemaVersion,
+    string calculationVersion, string calculationMethod, bool isValid) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, price, priceChange, priceGain, priceLoss, averagePriceGain, averagePriceLoss, rs, rsi, rsiAverage, rsiSlope, sourceSequence, sourceEventTimestamp };
+    public object Bind() => new object?[]
+    {
+        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
+        contractId, valueDate, price, ema10, previousEma10, ema10Slope,
+        ema20, previousEma20, ema20Slope, ema50, previousEma50, ema50Slope,
+        ema200, previousEma200, ema200Slope, isWarm, sourceSequence, calculatedAt,
+        schemaVersion, calculationVersion, calculationMethod, isValid
+    };
+}
+
+internal readonly record struct InsertFuturesBollingerBandSignalV1(
+    string seriesKey, string timePeriod, string configurationId, int yearMonth,
+    DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
+    decimal price, decimal? ema10Center, decimal? standardDeviation10, decimal? upper10,
+    decimal? lower10, decimal? width10, decimal? position10, decimal? ema20Center,
+    decimal? standardDeviation20, decimal? upper20, decimal? lower20, decimal? width20,
+    decimal? position20, decimal? width20Baseline, decimal? width20Ratio, bool isWarm,
+    long sourceSequence, DateTime calculatedAt, int schemaVersion,
+    string calculationVersion, string calculationMethod, bool isValid) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
+        contractId, valueDate, price, ema10Center, standardDeviation10, upper10, lower10,
+        width10, position10, ema20Center, standardDeviation20, upper20, lower20, width20,
+        position20, width20Baseline, width20Ratio, isWarm, sourceSequence, calculatedAt,
+        schemaVersion, calculationVersion, calculationMethod, isValid
+    };
+}
+
+internal readonly record struct InsertFuturesAtrVolatilitySignalV1(
+    string seriesKey, string timePeriod, string configurationId, int yearMonth,
+    DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
+    decimal trueRange, decimal? atr14, decimal? previousAtr14, decimal? atr14Baseline,
+    decimal? atr14Ratio, bool isWarm, long sourceSequence, DateTime calculatedAt,
+    int schemaVersion, string calculationVersion, string calculationMethod, bool isValid) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
+        contractId, valueDate, trueRange, atr14, previousAtr14, atr14Baseline, atr14Ratio,
+        isWarm, sourceSequence, calculatedAt, schemaVersion, calculationVersion,
+        calculationMethod, isValid
+    };
+}
+
+internal readonly record struct InsertFuturesRsiSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal price, decimal priceChange, decimal priceGain, decimal priceLoss, decimal averagePriceGain, decimal averagePriceLoss, double rs, double rsi, double rsiAverage, double rsiSlope, long sourceSequence, DateTime sourceEventTimestamp, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, string? calculationVersion, string? calculationMethod, ushort? schemaVersion, bool? isValid) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, price, priceChange, priceGain, priceLoss, averagePriceGain, averagePriceLoss, rs, rsi, rsiAverage, rsiSlope, sourceSequence, sourceEventTimestamp, configurationId, observationId, marketDataAsOf, calculationVersion, calculationMethod, schemaVersion, isValid };
 }
 internal readonly record struct InsertFuturesTdiSignal(
     string contractId,

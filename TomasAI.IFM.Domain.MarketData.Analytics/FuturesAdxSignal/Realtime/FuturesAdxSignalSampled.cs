@@ -7,6 +7,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime;
 
@@ -57,7 +59,14 @@ public sealed class FuturesAdxSignalRealtimeState
             computed.MinusDI,
             computed.AdxValue,
             direction,
-            computed.TrendDirectionStrength());
+            computed.TrendDirectionStrength()) with
+        {
+            Metadata = sampled.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation, MarketAnalyticsSignalKind.Adx,
+                    $"adx-{sampled.EntityId.PeriodLength}-legacy-v1", "adx-legacy-compatible-v1")
+                : null
+        };
         var generated = new FuturesAdxSignalGeneratedEvent
         {
             Subject = new(ActorType.Realtime, FuturesAdxSignalRealtimeActor.ActorName,

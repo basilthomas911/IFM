@@ -10,6 +10,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Model;
 using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Extensions;
 
@@ -52,7 +54,10 @@ public class FuturesRsiSignalEventActor(
     }
 
     protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalEventActor> context)
-        => FuturesRsiSignalTimer.StopAllAsync();
+    {
+        FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
+        return ValueTask.CompletedTask;
+    }
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message

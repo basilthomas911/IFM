@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -9,6 +10,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 
@@ -22,6 +24,10 @@ public class FuturesRsiSignalRealtimeActor(
         IsArgumentNull.Set(actorContext as IFuturesRsiSignalRealtimeContext, nameof(actorContext))!;
 
     public const string ActorName = FuturesRsiSignalSampledRealtimeEvent.Actor;
+    static readonly ActorTypeId ObservationRoute = new(
+        ActorType.Realtime,
+        FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
+        FuturesAnalyticsObservationClosedRealtimeEvent.Verb);
     readonly FuturesRsiSignalRealtimeState _state = new();
 
     static readonly Dictionary<string, Func<IActorMessage, IEvent>> Parsers = new()
@@ -38,12 +44,24 @@ public class FuturesRsiSignalRealtimeActor(
             message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!
     };
 
-    protected override ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context) => actorContext.Projector.StartAsync(context);
-    protected override ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalRealtimeActor> context) => actorContext.Projector.StopAsync();
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
+    {
+        context.AddRealtimeRouter(ObservationRoute, Id);
+        await actorContext.Projector.StartAsync(context).ConfigureAwait(false);
+    }
+
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesRsiSignalRealtimeActor> context)
+    {
+        context.RemoveRealtimeRouter(ObservationRoute, Id);
+        await actorContext.Projector.StopAsync().ConfigureAwait(false);
+    }
 
     protected override IEvent ParseMessage(IEventActorContext<FuturesRsiSignalRealtimeActor> context, IActorMessage message)
     {
         var subject = message.Subject;
+        if (subject.Is(ActorType.Realtime, FuturesAnalyticsObservationClosedRealtimeEvent.Actor,
+                FuturesAnalyticsObservationClosedRealtimeEvent.Verb))
+            return message.AsEvent<FuturesAnalyticsObservationClosedRealtimeEvent>()!;
         if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
             || !Parsers.TryGetValue(subject.Verb, out var parser))
             return default!;
@@ -57,6 +75,16 @@ public class FuturesRsiSignalRealtimeActor(
         var dispatchContext = context;
         switch (@event)
         {
+            case FuturesAnalyticsObservationClosedRealtimeEvent closed:
+                foreach (var entityId in FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot()
+                             .Where(entityId => Matches(entityId, closed.Observation)))
+                {
+                    var sampled = CreateSample(entityId, closed);
+                    _ = await sampled.ExecuteAsync(context, actorContext.Projector, _state,
+                            actorContext.Blackboard, actorContext.Logger)
+                        .ConfigureAwait(false);
+                }
+                break;
             case FuturesRsiSignalSampledRealtimeEvent sampled:
                 _ = await sampled.ExecuteAsync(context, actorContext.Projector, _state, actorContext.Blackboard, actorContext.Logger)
                     .ConfigureAwait(false);
@@ -77,6 +105,29 @@ public class FuturesRsiSignalRealtimeActor(
                     $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
         }
     }
+
+    static bool Matches(FuturesRsiSignalEntityId entityId, FuturesAnalyticsObservationReadModel observation) =>
+        StringComparer.Ordinal.Equals(entityId.ContractId, observation.ContractId)
+        && entityId.ValueDate == observation.ValueDate
+        && entityId.TimePeriod == observation.TimeFrame
+        && observation.IsValid;
+
+    static FuturesRsiSignalSampledRealtimeEvent CreateSample(
+        FuturesRsiSignalEntityId entityId,
+        FuturesAnalyticsObservationClosedRealtimeEvent closed) => new()
+    {
+        Subject = new(ActorType.Realtime, ActorName, FuturesRsiSignalSampledRealtimeEvent.Verb, entityId.Format()),
+        Id = Guid.NewGuid(),
+        EntityId = entityId,
+        CommandId = closed.CommandId == Guid.Empty ? closed.Id : closed.CommandId,
+        AggregateId = entityId.Format(),
+        EventSource = closed.EventName,
+        ReceivedOn = DateTime.UtcNow,
+        FuturesPrice = closed.Observation.Close,
+        SourceSequence = closed.Observation.LastSourceSequence,
+        SourceEventTimestamp = closed.Observation.LastMarketEventUtc.UtcDateTime,
+        Observation = closed.Observation
+    };
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<FuturesRsiSignalRealtimeActor> context,

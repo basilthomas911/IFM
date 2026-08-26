@@ -1,5 +1,6 @@
 using MessagePack;
 using Newtonsoft.Json;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -50,6 +51,9 @@ public record FuturesAtrSignalReadModel
     /// <summary>Strength of the computed trend direction (e.g., Low, Medium, High).</summary>
     [Key(9)]
     public FuturesTrendDirectionStrengthType ATRStrength { get; init; }
+
+    /// <summary>Gets shared observation lineage for migrated ATR calculations.</summary>
+    [Key(10)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
 
     /// <summary>
     /// Entity identifier consisting of contract id and value date (not serialized).

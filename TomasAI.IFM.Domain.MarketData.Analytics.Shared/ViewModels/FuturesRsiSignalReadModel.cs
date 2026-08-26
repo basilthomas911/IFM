@@ -3,6 +3,7 @@ using FluentValidation.Results;
 using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -85,6 +86,18 @@ public record FuturesRsiSignalReadModel
     /// <summary>Exchange/source timestamp of the trade snapshot used for this sample.</summary>
     [Key(17)]
     public DateTime SourceEventTimestamp { get; init; }
+
+    /// <summary>Gets shared observation lineage for migrated RSI calculations.</summary>
+    [Key(18)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
+
+    /// <summary>Gets the prior RSI used by Regime Discovery.</summary>
+    [Key(19)] public double? PreviousRsi { get; init; }
+
+    /// <summary>Gets current minus prior RSI; missing means RSI slope is not warm.</summary>
+    [Key(20)] public double? RegimeSlope { get; init; }
+
+    /// <summary>Gets whether a current and prior RSI exist for this isolated identity.</summary>
+    [Key(21)] public bool IsWarm { get; init; }
 
     /// <summary>
     /// Entity identifier consisting of contract id and value date (not serialized).

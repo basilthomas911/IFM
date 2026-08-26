@@ -14,13 +14,14 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesRsiSignal;
 
 public sealed class FuturesRsiSignalHotCacheTests
 {
     [Fact]
-    public async Task ExecuteAsync_ActiveFreshTrade_PublishesPriceAndProvenanceToRealtimeRsi()
+    public async Task ExecuteAsync_AttachesToSharedObservationWithoutStartingLegacySampling()
     {
         const string contractId = "ESU26";
         var valueDate = new DateOnly(2026, 8, 14);
@@ -56,16 +57,7 @@ public sealed class FuturesRsiSignalHotCacheTests
                 callInfo[1] = snapshot;
                 return true;
             });
-        FuturesRsiSignalSampledRealtimeEvent? published = null;
-        var sent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var context = Substitute.For<IEventActorContext>();
-        context.SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(
-                Arg.Do<FuturesRsiSignalSampledRealtimeEvent>(sampled =>
-                {
-                    published = sampled;
-                    sent.TrySetResult();
-                }))
-            .Returns(ValueTask.CompletedTask);
         var commandApi = Substitute.For<IEventActorContext>();
 
         try
@@ -76,20 +68,16 @@ public sealed class FuturesRsiSignalHotCacheTests
                 marketDataApi,
                 Substitute.For<IStatusConsoleWriter>(),
                 Substitute.For<ILogger>())).Should().BeTrue();
-            await sent.Task.WaitAsync(TimeSpan.FromSeconds(1));
-
-            published.Should().NotBeNull();
-            published!.Subject.ActorType.Should().Be(ActorType.Realtime);
-            published.EntityId.Should().Be(entityId);
-            published.FuturesPrice.Should().Be(6425.25m);
-            published.SourceSequence.Should().Be(9001);
-            published.SourceEventTimestamp.Should().Be(eventTimestamp.UtcDateTime);
+            FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>
+                .Snapshot().Should().Contain(entityId);
+            await context.DidNotReceiveWithAnyArgs()
+                .SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(default!);
             await commandApi.DidNotReceiveWithAnyArgs()
                 .RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(default!);
         }
         finally
         {
-            await stopped.StopTimerAsync();
+            await stopped.ExecuteAsync(context, Substitute.For<IStatusConsoleWriter>(), Substitute.For<ILogger>());
         }
     }
 }

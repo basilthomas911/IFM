@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime;
 
@@ -68,7 +70,16 @@ public sealed class FuturesMacdSignalRealtimeState
             EventSource = sampled.EventName,
             ReceivedOn = DateTime.UtcNow
         };
-        return new(sampled.EntityId, generated.FuturesMacdSignal, generated);
+        var signal = generated.FuturesMacdSignal with
+        {
+            Metadata = sampled.Observation is { } observation
+                ? FuturesRegimeRsiSignalState.Metadata(
+                    observation, MarketAnalyticsSignalKind.Macd,
+                    $"macd-{sampled.EntityId.FastEmaPeriod}-{sampled.EntityId.SlowEmaPeriod}-{sampled.EntityId.SignalEmaPeriod}-v1",
+                    "macd-conventional-v1")
+                : null
+        };
+        return new(sampled.EntityId, signal, generated with { FuturesMacdSignal = signal });
     }
 
     public void Confirm(FuturesMacdSignalEvaluation evaluation)

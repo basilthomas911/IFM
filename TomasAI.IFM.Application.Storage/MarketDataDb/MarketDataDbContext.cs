@@ -2427,7 +2427,14 @@ public partial class MarketDataDbContext(
                 e.RSIAverage,
                 e.RSISlope,
                 e.SourceSequence,
-                e.SourceEventTimestamp);
+                e.SourceEventTimestamp,
+                e.Metadata?.CalculationConfigurationId,
+                e.Metadata?.ObservationId.Value,
+                e.Metadata?.MarketDataAsOfUtc.UtcDateTime,
+                e.Metadata?.CalculationVersion,
+                e.Metadata?.CalculationMethod.ToString(),
+                e.Metadata?.SchemaVersion,
+                e.Metadata?.IsValid);
         await _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesRsiSignal)}", MarketDataDbCql.InsertFuturesRsiSignal)
             .SetParameters(parameters)
@@ -3091,7 +3098,15 @@ public partial class MarketDataDbContext(
                 signalLine: futuresMacdSignal.SignalLine,
                 histogram: futuresMacdSignal.Histogram,
                 macd: futuresMacdSignal.MACD.ToStringFast(),
-                macdStrength: futuresMacdSignal.MACDStrength.ToStringFast()
+                macdStrength: futuresMacdSignal.MACDStrength.ToStringFast(),
+                configurationId: futuresMacdSignal.Metadata?.CalculationConfigurationId,
+                observationId: futuresMacdSignal.Metadata?.ObservationId.Value,
+                marketDataAsOf: futuresMacdSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime,
+                sourceSequence: futuresMacdSignal.Metadata?.SourceSequence,
+                calculationVersion: futuresMacdSignal.Metadata?.CalculationVersion,
+                calculationMethod: futuresMacdSignal.Metadata?.CalculationMethod.ToString(),
+                schemaVersion: futuresMacdSignal.Metadata?.SchemaVersion,
+                isValid: futuresMacdSignal.Metadata?.IsValid
             ))
             .ExecuteCommandAsync();
 
@@ -3113,7 +3128,15 @@ public partial class MarketDataDbContext(
                 atrValue: futuresAtrSignal.AtrValue,
                 trueRange: futuresAtrSignal.TrueRange,
                 atr: futuresAtrSignal.ATR.ToStringFast(),
-                atrStrength: futuresAtrSignal.ATRStrength.ToStringFast()))
+                atrStrength: futuresAtrSignal.ATRStrength.ToStringFast(),
+                configurationId: futuresAtrSignal.Metadata?.CalculationConfigurationId,
+                observationId: futuresAtrSignal.Metadata?.ObservationId.Value,
+                marketDataAsOf: futuresAtrSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime,
+                sourceSequence: futuresAtrSignal.Metadata?.SourceSequence,
+                calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion,
+                calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(),
+                schemaVersion: futuresAtrSignal.Metadata?.SchemaVersion,
+                isValid: futuresAtrSignal.Metadata?.IsValid))
             .ExecuteCommandAsync();
 
     /// <summary>
@@ -3148,7 +3171,15 @@ public partial class MarketDataDbContext(
                 minusDI: futuresAdxSignal.MinusDI,
                 adxValue: futuresAdxSignal.AdxValue,
                 adx: futuresAdxSignal.ADX.ToStringFast(),
-                adxStrength: futuresAdxSignal.ADXStrength.ToStringFast()
+                adxStrength: futuresAdxSignal.ADXStrength.ToStringFast(),
+                configurationId: futuresAdxSignal.Metadata?.CalculationConfigurationId,
+                observationId: futuresAdxSignal.Metadata?.ObservationId.Value,
+                marketDataAsOf: futuresAdxSignal.Metadata?.MarketDataAsOfUtc.UtcDateTime,
+                sourceSequence: futuresAdxSignal.Metadata?.SourceSequence,
+                calculationVersion: futuresAdxSignal.Metadata?.CalculationVersion,
+                calculationMethod: futuresAdxSignal.Metadata?.CalculationMethod.ToString(),
+                schemaVersion: futuresAdxSignal.Metadata?.SchemaVersion,
+                isValid: futuresAdxSignal.Metadata?.IsValid
             ))
             .ExecuteCommandAsync();
 

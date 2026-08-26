@@ -15,6 +15,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests;
 
@@ -25,7 +26,7 @@ public sealed class PeriodSignalHotCacheTests
     static readonly DateTimeOffset EventTimestamp = new(2026, 8, 14, 15, 30, 45, TimeSpan.Zero);
 
     [Fact]
-    public async Task RsiStarted_PublishesRealtimeSampleFromHotCache()
+    public async Task RsiStarted_AttachesToSharedObservationAndDoesNotSampleHotCache()
     {
         var entityId = new FuturesRsiSignalEntityId(ContractId, ValueDate, TimeFrameType.TenSeconds, 13);
         var started = new FuturesRsiSignalStartedEvent { EntityId = entityId };
@@ -33,20 +34,13 @@ public sealed class PeriodSignalHotCacheTests
         var marketDataApi = CreateMarketDataApi();
         var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
-        var sent = Capture<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(context);
-
         try
         {
             await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
-            await sent.Task.WaitAsync(TimeSpan.FromSeconds(1));
-
-            await context.Received(1).SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(
-                Arg.Is<FuturesRsiSignalSampledRealtimeEvent>(e =>
-                    e.Subject.ActorType == ActorType.Realtime
-                    && e.EntityId == entityId
-                    && e.FuturesPrice == 6425.25m
-                    && e.SourceSequence == 9001
-                    && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
+            Assert.Contains(entityId,
+                FuturesAnalyticsObservationAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot());
+            await context.DidNotReceiveWithAnyArgs()
+                .SendAsync<FuturesRsiSignalSampledRealtimeEvent, FuturesRsiSignalEntityId>(default!);
             await commandApi.DidNotReceiveWithAnyArgs()
                 .RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(default!);
         }
@@ -57,7 +51,7 @@ public sealed class PeriodSignalHotCacheTests
     }
 
     [Fact]
-    public async Task AtrStarted_UsesHotCachePriceAndFeedTimestamp()
+    public async Task AtrStarted_AttachesToSharedObservationAndDoesNotSampleHotCache()
     {
         var entityId = new FuturesAtrSignalEntityId(ContractId, ValueDate, TimeFrameType.TenSeconds, 14);
         var started = new FuturesAtrSignalStartedEvent { EntityId = entityId };
@@ -65,20 +59,13 @@ public sealed class PeriodSignalHotCacheTests
         var marketDataApi = CreateMarketDataApi();
         var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
-        var sent = Capture<FuturesAtrSignalSampledRealtimeEvent, FuturesAtrSignalEntityId>(context);
-
         try
         {
             await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
-            await sent.Task.WaitAsync(TimeSpan.FromSeconds(1));
-
-            await context.Received(1).SendAsync<FuturesAtrSignalSampledRealtimeEvent, FuturesAtrSignalEntityId>(
-                Arg.Is<FuturesAtrSignalSampledRealtimeEvent>(e =>
-                    e.Subject.ActorType == ActorType.Realtime
-                    && e.EntityId == entityId
-                    && e.FuturesPrice == 6425.25m
-                    && e.SourceSequence == 9001
-                    && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
+            Assert.Contains(entityId,
+                FuturesAnalyticsObservationAttachmentRegistry<FuturesAtrSignalEntityId>.Snapshot());
+            await context.DidNotReceiveWithAnyArgs()
+                .SendAsync<FuturesAtrSignalSampledRealtimeEvent, FuturesAtrSignalEntityId>(default!);
             await commandApi.DidNotReceiveWithAnyArgs()
                 .RequestAsync<GenerateFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(default!);
         }
@@ -89,7 +76,7 @@ public sealed class PeriodSignalHotCacheTests
     }
 
     [Fact]
-    public async Task MacdStarted_UsesHotCachePriceAndFeedTimestamp()
+    public async Task MacdStarted_AttachesToSharedObservationAndDoesNotSampleHotCache()
     {
         var entityId = new FuturesMacdSignalEntityId(ContractId, ValueDate, TimeFrameType.TenSeconds, 26);
         var started = new FuturesMacdSignalStartedEvent { EntityId = entityId };
@@ -97,20 +84,13 @@ public sealed class PeriodSignalHotCacheTests
         var marketDataApi = CreateMarketDataApi();
         var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
-        var sent = Capture<FuturesMacdSignalSampledRealtimeEvent, FuturesMacdSignalEntityId>(context);
-
         try
         {
             await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
-            await sent.Task.WaitAsync(TimeSpan.FromSeconds(1));
-
-            await context.Received(1).SendAsync<FuturesMacdSignalSampledRealtimeEvent, FuturesMacdSignalEntityId>(
-                Arg.Is<FuturesMacdSignalSampledRealtimeEvent>(e =>
-                    e.Subject.ActorType == ActorType.Realtime
-                    && e.EntityId == entityId
-                    && e.FuturesPrice == 6425.25m
-                    && e.SourceSequence == 9001
-                    && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
+            Assert.Contains(entityId,
+                FuturesAnalyticsObservationAttachmentRegistry<FuturesMacdSignalEntityId>.Snapshot());
+            await context.DidNotReceiveWithAnyArgs()
+                .SendAsync<FuturesMacdSignalSampledRealtimeEvent, FuturesMacdSignalEntityId>(default!);
             await commandApi.DidNotReceiveWithAnyArgs()
                 .RequestAsync<GenerateFuturesMacdSignalCommand, FuturesMacdSignalEntityId>(default!);
         }
@@ -121,7 +101,7 @@ public sealed class PeriodSignalHotCacheTests
     }
 
     [Fact]
-    public async Task AdxStarted_UsesHotCachePriceAndFeedTimestamp()
+    public async Task AdxStarted_AttachesToSharedObservationAndDoesNotSampleHotCache()
     {
         var entityId = new FuturesAdxSignalEntityId(ContractId, ValueDate, TimeFrameType.TenSeconds, 14);
         var started = new FuturesAdxSignalStartedEvent { EntityId = entityId };
@@ -129,20 +109,13 @@ public sealed class PeriodSignalHotCacheTests
         var marketDataApi = CreateMarketDataApi();
         var commandApi = Substitute.For<IEventActorContext>();
         var context = Context();
-        var sent = Capture<FuturesAdxSignalSampledRealtimeEvent, FuturesAdxSignalEntityId>(context);
-
         try
         {
             await started.ExecuteAsync(context, commandApi, marketDataApi, Status(), Logger());
-            await sent.Task.WaitAsync(TimeSpan.FromSeconds(1));
-
-            await context.Received(1).SendAsync<FuturesAdxSignalSampledRealtimeEvent, FuturesAdxSignalEntityId>(
-                Arg.Is<FuturesAdxSignalSampledRealtimeEvent>(e =>
-                    e.Subject.ActorType == ActorType.Realtime
-                    && e.EntityId == entityId
-                    && e.FuturesPrice == 6425.25m
-                    && e.SourceSequence == 9001
-                    && e.SourceEventTimestamp == EventTimestamp.UtcDateTime));
+            Assert.Contains(entityId,
+                FuturesAnalyticsObservationAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot());
+            await context.DidNotReceiveWithAnyArgs()
+                .SendAsync<FuturesAdxSignalSampledRealtimeEvent, FuturesAdxSignalEntityId>(default!);
             await commandApi.DidNotReceiveWithAnyArgs()
                 .RequestAsync<GenerateFuturesAdxSignalCommand, FuturesAdxSignalEntityId>(default!);
         }
@@ -171,16 +144,6 @@ public sealed class PeriodSignalHotCacheTests
                 return true;
             });
         return marketDataApi;
-    }
-
-    static TaskCompletionSource Capture<TEvent, TEntityId>(IEventActorContext context)
-        where TEvent : class, IEvent<TEntityId>
-        where TEntityId : IActorEntityId
-    {
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        context.SendAsync<TEvent, TEntityId>(Arg.Do<TEvent>(_ => completion.TrySetResult()))
-            .Returns(ValueTask.CompletedTask);
-        return completion;
     }
 
     static IEventActorContext Context() => Substitute.For<IEventActorContext>();

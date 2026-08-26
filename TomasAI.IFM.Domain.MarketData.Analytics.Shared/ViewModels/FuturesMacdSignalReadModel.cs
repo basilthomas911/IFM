@@ -1,5 +1,6 @@
 using MessagePack;
 using Newtonsoft.Json;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
@@ -69,6 +70,9 @@ public record FuturesMacdSignalReadModel
     /// <summary>Slow EMA accumulator used for deterministic incremental calculation.</summary>
     [Key(14)]
     public double SlowEma { get; init; }
+
+    /// <summary>Gets shared observation lineage for migrated MACD calculations.</summary>
+    [Key(15)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
 
     [JsonIgnore]
     [IgnoreMember]

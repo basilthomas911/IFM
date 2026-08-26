@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
@@ -25,6 +26,8 @@ public sealed record FuturesRsiSignalSampledRealtimeEvent : IEvent<FuturesRsiSig
     [Key(8)] public decimal FuturesPrice { get; init; }
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
+    /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
+    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesRsiSignalSampledRealtimeEvent);
@@ -49,6 +52,8 @@ public sealed record FuturesAtrSignalSampledRealtimeEvent : IEvent<FuturesAtrSig
     [Key(8)] public decimal FuturesPrice { get; init; }
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
+    /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
+    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesAtrSignalSampledRealtimeEvent);
@@ -73,6 +78,8 @@ public sealed record FuturesAdxSignalSampledRealtimeEvent : IEvent<FuturesAdxSig
     [Key(8)] public decimal FuturesPrice { get; init; }
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
+    /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
+    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesAdxSignalSampledRealtimeEvent);
@@ -97,6 +104,8 @@ public sealed record FuturesMacdSignalSampledRealtimeEvent : IEvent<FuturesMacdS
     [Key(8)] public decimal FuturesPrice { get; init; }
     [Key(9)] public long SourceSequence { get; init; }
     [Key(10)] public DateTime SourceEventTimestamp { get; init; }
+    /// <summary>Gets the immutable shared observation that triggered this compatibility sample.</summary>
+    [Key(11)] public FuturesAnalyticsObservationReadModel? Observation { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(FuturesMacdSignalSampledRealtimeEvent);
