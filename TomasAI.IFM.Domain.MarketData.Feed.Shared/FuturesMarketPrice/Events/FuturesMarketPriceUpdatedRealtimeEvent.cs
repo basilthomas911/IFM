@@ -16,6 +16,88 @@ public enum FuturesMarketPriceUpdateSource : byte
 }
 
 /// <summary>
+/// Describes the provider-neutral lifecycle action represented by a normalized trade.
+/// </summary>
+public enum NormalizedTradeAction : byte
+{
+    /// <summary>The source action was absent or unsupported.</summary>
+    Unknown = 0,
+
+    /// <summary>A new trade was reported.</summary>
+    New = 1,
+
+    /// <summary>An existing trade was modified or corrected.</summary>
+    Change = 2,
+
+    /// <summary>An existing trade was cancelled.</summary>
+    Cancel = 3,
+
+    /// <summary>The source explicitly reported a correction.</summary>
+    Correct = 4,
+
+    /// <summary>The source cleared its current trade state.</summary>
+    Clear = 5,
+
+    /// <summary>The source explicitly supplied no action.</summary>
+    None = 6
+}
+
+/// <summary>
+/// Describes the provider-neutral aggressor side of a normalized trade.
+/// </summary>
+public enum NormalizedTradeSide : byte
+{
+    /// <summary>The source side was absent or unsupported.</summary>
+    Unknown = 0,
+
+    /// <summary>The aggressor bought at the reported price.</summary>
+    Buy = 1,
+
+    /// <summary>The aggressor sold at the reported price.</summary>
+    Sell = 2,
+
+    /// <summary>The source explicitly supplied no aggressor side.</summary>
+    Unspecified = 3
+}
+
+/// <summary>
+/// Provides provider-neutral conditions retained from a normalized trade observation.
+/// </summary>
+[Flags]
+public enum NormalizedTradeConditionFlags : ushort
+{
+    /// <summary>No normalized condition was reported.</summary>
+    None = 0,
+
+    /// <summary>The trade was the last record in its source event.</summary>
+    LastInEvent = 1 << 0,
+
+    /// <summary>The trade represented top-of-book information.</summary>
+    TopOfBook = 1 << 1,
+
+    /// <summary>The source marked the observation as a snapshot.</summary>
+    Snapshot = 1 << 2,
+
+    /// <summary>The observation was delivered during source replay.</summary>
+    Replay = 1 << 3,
+
+    /// <summary>The source aggregated multiple orders at one price level.</summary>
+    AggregatedPriceLevel = 1 << 4,
+
+    /// <summary>The source receive timestamp may be inaccurate.</summary>
+    ReceiveTimestampInaccurate = 1 << 5,
+
+    /// <summary>The source indicated that its order-book state may be inaccurate.</summary>
+    BookMayBeInaccurate = 1 << 6,
+
+    /// <summary>The condition contains publisher-specific semantics.</summary>
+    PublisherSpecific = 1 << 7,
+
+    /// <summary>The source supplied an undefined trade price.</summary>
+    UndefinedPrice = 1 << 8
+}
+
+/// <summary>
 /// Describes the latest normalized futures trade state carried by a realtime market-price update.
 /// </summary>
 [MessagePackObject]
@@ -24,7 +106,12 @@ public readonly record struct FuturesMarketTradeSnapshot(
     [property: Key(1)] uint LastSize,
     [property: Key(2)] long SourceSequence,
     [property: Key(3)] DateTimeOffset EventTimestamp,
-    [property: Key(4)] DateTimeOffset ReceiveTimestamp);
+    [property: Key(4)] DateTimeOffset ReceiveTimestamp,
+    [property: Key(5)] NormalizedTradeAction NormalizedTradeAction = NormalizedTradeAction.Unknown,
+    [property: Key(6)] NormalizedTradeSide NormalizedTradeSide = NormalizedTradeSide.Unknown,
+    [property: Key(7)] NormalizedTradeConditionFlags NormalizedTradeConditionFlags = NormalizedTradeConditionFlags.None,
+    [property: Key(8)] Guid StreamEpochId = default,
+    [property: Key(9)] long TradeOrdinal = 0);
 
 /// <summary>
 /// Describes the latest normalized futures quote state carried by a realtime market-price update.
@@ -74,7 +161,7 @@ public sealed record FuturesMarketPriceUpdatedRealtimeEvent : IEvent<TickDataEnt
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public ushort SchemaVersion { get; init; } = 1;
+    [Key(8)] public ushort SchemaVersion { get; init; } = 2;
     [Key(9)] public FuturesMarketPriceSnapshot Price { get; init; }
     [Key(10)] public FuturesMarketPriceUpdateSource UpdateSource { get; init; }
 

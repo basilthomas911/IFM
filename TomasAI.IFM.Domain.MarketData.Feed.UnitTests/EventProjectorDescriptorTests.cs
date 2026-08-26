@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.Actor;
@@ -41,7 +42,11 @@ public sealed class EventProjectorDescriptorTests
             new FuturesTickDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesTickDataCommandActor>>()), Substitute.For<ILogger<FuturesTickDataEventProjector>>()),
             new FuturesOptionTickDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesOptionTickDataCommandActor>>()), Substitute.For<ILogger<FuturesOptionTickDataEventProjector>>()),
             new FuturesClosingPriceEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesClosingPriceCommandActor>>()), Substitute.For<ILogger<FuturesClosingPriceEventProjector>>()),
-            new FuturesEodDataEventProjector(TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesEodDataCommandActor>>()), Substitute.For<ILogger<FuturesEodDataEventProjector>>())
+            new FuturesEodDataEventProjector(
+                TypedActorContextFactory.Command(eventSource, Substitute.For<ILogger<FuturesEodDataCommandActor>>()),
+                Substitute.For<IHistoricalObservationStore>(),
+                Substitute.For<IMarketSessionCalendar>(),
+                Substitute.For<ILogger<FuturesEodDataEventProjector>>())
         ];
 
         projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(22);

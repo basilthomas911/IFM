@@ -4,7 +4,7 @@ namespace TomasAI.IFM.Framework.MarketData.DataBento;
 
 internal static class NativeConstants
 {
-    public const uint AbiVersion = 2;
+    public const uint AbiVersion = 3;
     public const uint WaitInfinite = uint.MaxValue;
     public const ushort UnpinnedProcessor = ushort.MaxValue;
 }
@@ -394,6 +394,89 @@ internal struct NativeUtf8Slice
 {
     public uint Offset;
     public uint Length;
+}
+
+internal enum NativeHistoricalSchema : uint
+{
+    Definition = 1,
+    OhlcvOneMinute = 2,
+    Trades = 3,
+    Statistics = 4
+}
+
+[Flags]
+internal enum NativeHistoricalFlags : uint
+{
+    None = 0,
+    Synthetic = 1
+}
+
+internal enum NativeHistoricalRecordKind : uint
+{
+    Definition = 1,
+    Ohlcv = 2,
+    Trade = 3,
+    Statistic = 4
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]
+internal struct NativeHistoricalRequest
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public NativeHistoricalSchema Schema;
+    public uint InputSymbology;
+    public NativeHistoricalFlags Flags;
+    public uint SymbolCount;
+    public NativeUtf8Slice Dataset;
+    public long StartTimestampNanoseconds;
+    public long EndTimestampNanoseconds;
+    public ulong RecordLimit;
+    public uint TimeoutMilliseconds;
+    public uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 32)]
+internal struct NativeHistoricalEstimate
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public double EstimatedCostUsd;
+    public ulong EstimatedBytes;
+    public ulong EstimatedRecords;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 120)]
+internal unsafe struct NativeHistoricalRecord
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public NativeHistoricalRecordKind RecordKind;
+    public NativeHistoricalSchema Schema;
+    public uint InstrumentId;
+    public ushort PublisherId;
+    public ushort ConditionFlags;
+    public long EventTimestampNanoseconds;
+    public long SourceSequence;
+    public long OpenPrice;
+    public long HighPrice;
+    public long LowPrice;
+    public long CloseOrTradePrice;
+    public ulong VolumeOrSize;
+    public byte Action;
+    public byte Side;
+    private fixed byte _reserved[6];
+    public fixed byte Symbol[32];
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 8, Size = 24)]
+internal struct NativeHistoricalBatch
+{
+    public uint StructSize;
+    public uint AbiVersion;
+    public uint RecordsRead;
+    public uint MoreAvailable;
+    public ulong BatchOrdinal;
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 8, Size = 64)]

@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -440,6 +441,81 @@ void test_ring_overrun_faults_without_overwrite() {
     require(dbf_feed_destroy(feed));
 }
 
+void test_historical_synthetic_abi() {
+    constexpr char utf8_blob[] = "SYNTHETICES";
+    dbf_utf8_slice_v1 symbols[] = {{9, 2}};
+    dbf_historical_request_v1 request{};
+    request.struct_size = sizeof(request);
+    request.abi_version = DBF_ABI_VERSION;
+    request.schema = DBF_HISTORICAL_OHLCV_1M;
+    request.flags = DBF_HISTORICAL_SYNTHETIC;
+    request.symbol_count = 1;
+    request.dataset = {0, 9};
+    request.start_ts_ns = 1'700'000'000'000'000'000LL;
+    request.end_ts_ns = request.start_ts_ns + 120'000'000'000LL;
+    request.record_limit = 2;
+    request.timeout_ms = 2'000;
+
+    dbf_historical_estimate_v1 estimate{};
+    estimate.struct_size = sizeof(estimate);
+    estimate.abi_version = DBF_ABI_VERSION;
+    require(dbf_historical_estimate(
+        &request, symbols,
+        reinterpret_cast<const std::uint8_t*>(utf8_blob),
+        static_cast<std::uint32_t>(sizeof(utf8_blob) - 1), &estimate));
+    assert(estimate.estimated_cost_usd == 0.0);
+    assert(estimate.estimated_records == 2);
+
+    dbf_historical_result_t* result{};
+    require(dbf_historical_range_open(
+        &request, symbols,
+        reinterpret_cast<const std::uint8_t*>(utf8_blob),
+        static_cast<std::uint32_t>(sizeof(utf8_blob) - 1), &result));
+    assert(result != nullptr);
+
+    std::array<dbf_historical_record120, 1> records{};
+    dbf_historical_batch_v1 batch{};
+    batch.struct_size = sizeof(batch);
+    batch.abi_version = DBF_ABI_VERSION;
+    require(dbf_historical_result_get_next_batch(
+        result, records.data(), static_cast<std::uint32_t>(records.size()), &batch));
+    assert(batch.records_read == 1);
+    assert(batch.more_available == 1);
+    assert(records.front().record_kind == DBF_HISTORICAL_RECORD_OHLCV);
+    require(dbf_historical_result_get_next_batch(
+        result, records.data(), static_cast<std::uint32_t>(records.size()), &batch));
+    assert(batch.records_read == 1);
+    assert(batch.more_available == 0);
+    require(dbf_historical_result_destroy(result));
+
+    require(dbf_historical_batch_submit(
+        &request, symbols,
+        reinterpret_cast<const std::uint8_t*>(utf8_blob),
+        static_cast<std::uint32_t>(sizeof(utf8_blob) - 1), &result));
+    uint32_t required_bytes{};
+    require(dbf_historical_result_get_payload(result, nullptr, 0, &required_bytes),
+            DBF_BUFFER_TOO_SMALL);
+    std::vector<std::uint8_t> payload(required_bytes);
+    require(dbf_historical_result_get_payload(
+        result, payload.data(), static_cast<std::uint32_t>(payload.size()), &required_bytes));
+    assert(std::string(reinterpret_cast<char*>(payload.data())).find(
+               "synthetic-job") != std::string::npos);
+    require(dbf_historical_result_destroy(result));
+
+    const auto destination =
+        std::filesystem::temp_directory_path() / "dbf-history-synthetic.csv";
+    const std::string job_id = "synthetic-job";
+    const std::string file_name = "synthetic.csv";
+    const auto destination_text = destination.string();
+    require(dbf_historical_batch_download_file(
+        reinterpret_cast<const std::uint8_t*>(job_id.data()), static_cast<std::uint32_t>(job_id.size()),
+        reinterpret_cast<const std::uint8_t*>(file_name.data()), static_cast<std::uint32_t>(file_name.size()),
+        reinterpret_cast<const std::uint8_t*>(destination_text.data()),
+        static_cast<std::uint32_t>(destination_text.size())));
+    assert(std::filesystem::exists(destination));
+    std::filesystem::remove(destination);
+}
+
 #if defined(DBF_ENABLE_LIVE)
 
 databento::RecordHeader make_dbn_header(databento::RType type,
@@ -569,6 +645,8 @@ int main() {
     test_registered_buffer_ownership();
     std::cout << "test_ring_overrun_faults_without_overwrite" << std::endl;
     test_ring_overrun_faults_without_overwrite();
+    std::cout << "test_historical_synthetic_abi" << std::endl;
+    test_historical_synthetic_abi();
 #if defined(DBF_ENABLE_LIVE)
     std::cout << "test_live_dbn_normalization" << std::endl;
     test_live_dbn_normalization();

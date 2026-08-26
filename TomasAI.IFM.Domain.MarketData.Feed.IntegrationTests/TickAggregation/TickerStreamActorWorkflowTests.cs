@@ -198,8 +198,8 @@ public sealed class TickerStreamActorWorkflowTests
                 && inserted.FuturesEodData.LowPrice == 5350m
                 && inserted.FuturesEodData.ClosePrice == 5425m
                 && inserted.FuturesEodData.Volume == 100
-                && inserted.FuturesEodData.DailyPercentChange == 0.0046d
-                && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Rising),
+                && inserted.FuturesEodData.DailyPercentChange == 0d
+                && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Flat),
             Arg.Any<CancellationToken>());
 
         aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();

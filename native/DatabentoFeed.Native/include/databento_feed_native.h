@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-enum { DBF_ABI_VERSION = 2u, DBF_WAIT_INFINITE = 0xffffffffu };
+enum { DBF_ABI_VERSION = 3u, DBF_WAIT_INFINITE = 0xffffffffu };
 
 typedef enum dbf_status {
     DBF_OK = 0,
@@ -420,8 +420,79 @@ typedef struct dbf_latest_price_result64 {
     uint32_t ask_size;
 } dbf_latest_price_result64;
 
+typedef enum dbf_historical_schema {
+    DBF_HISTORICAL_DEFINITION = 1,
+    DBF_HISTORICAL_OHLCV_1M = 2,
+    DBF_HISTORICAL_TRADES = 3,
+    DBF_HISTORICAL_STATISTICS = 4
+} dbf_historical_schema;
+
+typedef enum dbf_historical_flags {
+    DBF_HISTORICAL_SYNTHETIC = 1
+} dbf_historical_flags;
+
+typedef enum dbf_historical_record_kind {
+    DBF_HISTORICAL_RECORD_DEFINITION = 1,
+    DBF_HISTORICAL_RECORD_OHLCV = 2,
+    DBF_HISTORICAL_RECORD_TRADE = 3,
+    DBF_HISTORICAL_RECORD_STATISTIC = 4
+} dbf_historical_record_kind;
+
+typedef struct dbf_historical_request_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t schema;
+    uint32_t input_symbology;
+    uint32_t flags;
+    uint32_t symbol_count;
+    dbf_utf8_slice_v1 dataset;
+    int64_t start_ts_ns;
+    int64_t end_ts_ns;
+    uint64_t record_limit;
+    uint32_t timeout_ms;
+    uint32_t reserved32;
+} dbf_historical_request_v1;
+
+typedef struct dbf_historical_estimate_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    double estimated_cost_usd;
+    uint64_t estimated_bytes;
+    uint64_t estimated_records;
+} dbf_historical_estimate_v1;
+
+typedef struct dbf_historical_record120 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t record_kind;
+    uint32_t schema;
+    uint32_t instrument_id;
+    uint16_t publisher_id;
+    uint16_t condition_flags;
+    int64_t event_ts_ns;
+    int64_t source_sequence;
+    int64_t open_price;
+    int64_t high_price;
+    int64_t low_price;
+    int64_t close_or_trade_price;
+    uint64_t volume_or_size;
+    uint8_t action;
+    uint8_t side;
+    uint8_t reserved8[6];
+    char symbol[32];
+} dbf_historical_record120;
+
+typedef struct dbf_historical_batch_v1 {
+    uint32_t struct_size;
+    uint32_t abi_version;
+    uint32_t records_read;
+    uint32_t more_available;
+    uint64_t batch_ordinal;
+} dbf_historical_batch_v1;
+
 typedef struct dbf_feed dbf_feed_t;
 typedef struct dbf_contract_details_result dbf_contract_details_result_t;
+typedef struct dbf_historical_result dbf_historical_result_t;
 
 DBF_API uint32_t DBF_CALL dbf_get_abi_version(void);
 DBF_API dbf_status DBF_CALL dbf_feed_create(const dbf_feed_config_v1* config,
@@ -497,6 +568,61 @@ DBF_API dbf_status DBF_CALL dbf_get_latest_price(
     const dbf_latest_price_request_v1* request,
     uint32_t timeout_ms,
     dbf_latest_price_result64* result);
+DBF_API dbf_status DBF_CALL dbf_historical_estimate(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const uint8_t* utf8_blob,
+    uint32_t utf8_blob_bytes,
+    dbf_historical_estimate_v1* estimate);
+DBF_API dbf_status DBF_CALL dbf_historical_batch_submit(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const uint8_t* utf8_blob,
+    uint32_t utf8_blob_bytes,
+    dbf_historical_result_t** result);
+DBF_API dbf_status DBF_CALL dbf_historical_batch_get_status(
+    const uint8_t* provider_job_id,
+    uint32_t provider_job_id_bytes,
+    dbf_historical_result_t** result);
+DBF_API dbf_status DBF_CALL dbf_historical_batch_list_files(
+    const uint8_t* provider_job_id,
+    uint32_t provider_job_id_bytes,
+    dbf_historical_result_t** result);
+DBF_API dbf_status DBF_CALL dbf_historical_batch_download_file(
+    const uint8_t* provider_job_id,
+    uint32_t provider_job_id_bytes,
+    const uint8_t* file_name,
+    uint32_t file_name_bytes,
+    const uint8_t* destination_path,
+    uint32_t destination_path_bytes);
+DBF_API dbf_status DBF_CALL dbf_historical_range_open(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const uint8_t* utf8_blob,
+    uint32_t utf8_blob_bytes,
+    dbf_historical_result_t** result);
+DBF_API dbf_status DBF_CALL dbf_historical_file_open(
+    const uint8_t* file_path,
+    uint32_t file_path_bytes,
+    uint32_t schema,
+    dbf_historical_result_t** result);
+DBF_API dbf_status DBF_CALL dbf_historical_result_get_payload(
+    const dbf_historical_result_t* result,
+    uint8_t* utf8_buffer,
+    uint32_t utf8_buffer_capacity,
+    uint32_t* required_bytes);
+DBF_API dbf_status DBF_CALL dbf_historical_result_get_next_batch(
+    dbf_historical_result_t* result,
+    dbf_historical_record120* records,
+    uint32_t record_capacity,
+    dbf_historical_batch_v1* batch);
+DBF_API dbf_status DBF_CALL dbf_historical_result_get_error(
+    const dbf_historical_result_t* result,
+    uint8_t* utf8_buffer,
+    uint32_t utf8_buffer_capacity,
+    uint32_t* required_bytes);
+DBF_API dbf_status DBF_CALL dbf_historical_result_destroy(
+    dbf_historical_result_t* result);
 
 #ifdef __cplusplus
 }
@@ -516,6 +642,10 @@ static_assert(sizeof(dbf_wait_result_v1) == 32);
 static_assert(sizeof(dbf_batch_result_v1) == 32);
 static_assert(sizeof(dbf_stats_v1) == 128);
 static_assert(sizeof(dbf_utf8_slice_v1) == 8);
+static_assert(sizeof(dbf_historical_request_v1) == 64);
+static_assert(sizeof(dbf_historical_estimate_v1) == 32);
+static_assert(sizeof(dbf_historical_record120) == 120);
+static_assert(sizeof(dbf_historical_batch_v1) == 24);
 static_assert(sizeof(dbf_contract_query_v1) == 64);
 static_assert(sizeof(dbf_contract_detail_v1) == 192);
 static_assert(sizeof(dbf_latest_price_request_v1) == 88);

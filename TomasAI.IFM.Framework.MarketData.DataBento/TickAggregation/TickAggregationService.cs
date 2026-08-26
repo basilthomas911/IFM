@@ -454,6 +454,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         {
             state.ValueDate = valueDate;
             state.Sequence = 0;
+            state.TradeOrdinal = 0;
             state.MarketPrice.Reset();
             state.SessionStatistics.Reset();
         }
@@ -471,6 +472,8 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             var reconstructed = state.SessionStatistics.CompleteTradeReplay(
                 state.Mapping.ContractId,
                 state.ValueDate);
+            state.StreamEpochId = Guid.NewGuid();
+            state.TradeOrdinal = 0;
             await PublishSessionStatisticsAsync(state, reconstructed).ConfigureAwait(false);
             return;
         }
@@ -651,15 +654,24 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
 
         _lastPrices?.TryUpdateTrade(tradeSnapshot);
-        return state.MarketPrice.TryUpdateTrade(
+        var nextTradeOrdinal = checked(state.TradeOrdinal + 1);
+        var accepted = state.MarketPrice.TryUpdateTrade(
             state.ValueDate,
             new FuturesMarketTradeSnapshot(
                 tradeSnapshot.Price,
                 tradeSnapshot.Size,
                 tradeSnapshot.SourceSequence,
                 tradeSnapshot.EventTimestamp,
-                tradeSnapshot.ReceiveTimestamp),
+                tradeSnapshot.ReceiveTimestamp,
+                DatabentoTradeNormalizer.MapAction(trade.Action),
+                DatabentoTradeNormalizer.MapSide(trade.Side),
+                DatabentoTradeNormalizer.MapConditions(trade.Header.Flags, trade.DbnFlags),
+                state.StreamEpochId,
+                nextTradeOrdinal),
             out snapshot);
+        if (accepted)
+            state.TradeOrdinal = nextTradeOrdinal;
+        return accepted;
     }
 
     private async ValueTask PublishMarketPriceAsync(
@@ -969,12 +981,14 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private sealed class TickerState(TickContractMapping mapping)
     {
         public TickContractMapping Mapping { get; } = mapping;
+        public Guid StreamEpochId { get; set; } = Guid.NewGuid();
         public MarketPriceCache MarketPrice { get; } = new(mapping);
         public FuturesSessionAccumulator SessionStatistics { get; } = new();
         public object StreamSync { get; } = new();
         public HashSet<TickerStreamOwner> StreamOwners { get; } = [];
         public DateOnly ValueDate;
         public long Sequence;
+        public long TradeOrdinal;
         public ITickQuoteBufferLease? QuoteLease;
         public ushort QuoteCount;
         public PendingQuotePublication? PendingQuote;

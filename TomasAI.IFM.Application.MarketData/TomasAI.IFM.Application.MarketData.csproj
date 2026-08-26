@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Analytics.Shared\TomasAI.IFM.Domain.MarketData.Analytics.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.MarketData.Shared\TomasAI.IFM.Domain.MarketData.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData\TomasAI.IFM.Framework.MarketData.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.MarketData.DataBento\TomasAI.IFM.Framework.MarketData.DataBento.csproj" />

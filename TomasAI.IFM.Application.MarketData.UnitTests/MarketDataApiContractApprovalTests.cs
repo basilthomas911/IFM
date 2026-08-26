@@ -51,6 +51,26 @@ public sealed class MarketDataApiContractApprovalTests
             .Should().BeNull();
     }
 
+    [Fact]
+    public void LiveApplicationBoundaryExcludesHistoricalAcquisitionOperations()
+    {
+        var methods = typeof(IMarketDataApi).GetMethods();
+        var historicalTerms = new[]
+        {
+            "Historical",
+            "Batch",
+            "Download",
+            "EstimateCost"
+        };
+
+        methods.Should().NotContain(method => historicalTerms.Any(term =>
+            method.Name.Contains(term, StringComparison.OrdinalIgnoreCase)));
+        methods.SelectMany(method => method.GetParameters())
+            .Select(parameter => parameter.ParameterType.FullName ?? string.Empty)
+            .Should().NotContain(typeName =>
+                typeName.Contains("DataBento", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Theory]
     [InlineData(typeof(MarketDataApiNotRunningException))]
     [InlineData(typeof(MarketDataApiAlreadyRunningException))]

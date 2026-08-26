@@ -63,8 +63,42 @@ public class MarketDataFeedFixture : IDisposable
         SequenceIdGenerator = new PostgresSequenceIdGenerator(dbFactory.SequenceIdDb as SequenceIdDbContext);
 
     }
+
+    /// <summary>Removes one raw EOD observation so immutable-write tests start from a clean identity.</summary>
+    public async ValueTask DeleteRawEodObservationAsync(
+        string seriesKey,
+        string contractId,
+        DateOnly valueDate)
+        => await MarketDataDb
+            .Use(
+                "HistoricalObservationCql.DeleteRawEodForIntegrationTest",
+                "DELETE FROM futures_eod_observation WHERE seriesKey = ? AND yearMonth = ? AND valueDate = ? AND contractId = ?")
+            .SetParameters(new RawEodKey(
+                seriesKey,
+                checked(valueDate.Year * 100 + valueDate.Month),
+                valueDate,
+                contractId))
+            .ExecuteCommandAsync()
+            .ConfigureAwait(false);
+
     public void Dispose()
     {
+    }
+
+
+    readonly record struct RawEodKey(
+        string SeriesKey,
+        int YearMonth,
+        DateOnly ValueDate,
+        string ContractId) : IBindValue
+    {
+        public object Bind() => new object?[]
+        {
+            SeriesKey,
+            YearMonth,
+            ValueDate,
+            ContractId
+        };
     }
 }
 

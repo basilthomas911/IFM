@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -354,7 +356,98 @@ struct dbf_contract_details_result {
     std::string error;
 };
 
+struct dbf_historical_result {
+    std::string payload;
+    std::string error;
+    std::vector<dbf_historical_record120> records;
+    std::size_t cursor{};
+    std::uint64_t batch_ordinal{};
+};
+
 namespace {
+
+bool valid_historical_request(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const std::uint8_t* blob,
+    std::uint32_t blob_bytes) noexcept {
+    if (request == nullptr
+        || !valid_struct(request->struct_size, sizeof(*request), request->abi_version)
+        || request->reserved32 != 0
+        || request->schema < DBF_HISTORICAL_DEFINITION
+        || request->schema > DBF_HISTORICAL_STATISTICS
+        || request->symbol_count == 0 || symbols == nullptr || blob == nullptr
+        || request->dataset.length == 0
+        || !valid_blob_range(request->dataset.offset, request->dataset.length, blob_bytes)
+        || request->start_ts_ns >= request->end_ts_ns
+        || request->timeout_ms == 0 || request->timeout_ms == DBF_WAIT_INFINITE) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < request->symbol_count; ++index) {
+        if (symbols[index].length == 0
+            || !valid_blob_range(symbols[index].offset, symbols[index].length, blob_bytes)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string historical_text(
+    const std::uint8_t* value,
+    std::uint32_t bytes) {
+    if (value == nullptr || bytes == 0) {
+        return {};
+    }
+    return {reinterpret_cast<const char*>(value), bytes};
+}
+
+dbf_status copy_historical_text(
+    const std::string& value,
+    std::uint8_t* buffer,
+    std::uint32_t capacity,
+    std::uint32_t* required) noexcept {
+    if (required == nullptr || value.size() + 1 > std::numeric_limits<std::uint32_t>::max()) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    *required = static_cast<std::uint32_t>(value.size() + 1);
+    if (buffer == nullptr || capacity < *required) {
+        return DBF_BUFFER_TOO_SMALL;
+    }
+    std::memcpy(buffer, value.c_str(), *required);
+    return DBF_OK;
+}
+
+dbf_historical_record120 make_historical_synthetic_record(
+    const dbf_historical_request_v1& request,
+    std::uint64_t ordinal) noexcept {
+    dbf_historical_record120 record{};
+    record.struct_size = sizeof(record);
+    record.abi_version = DBF_ABI_VERSION;
+    record.schema = request.schema;
+    record.record_kind = request.schema == DBF_HISTORICAL_TRADES
+                             ? DBF_HISTORICAL_RECORD_TRADE
+                             : request.schema == DBF_HISTORICAL_DEFINITION
+                                   ? DBF_HISTORICAL_RECORD_DEFINITION
+                                   : request.schema == DBF_HISTORICAL_STATISTICS
+                                         ? DBF_HISTORICAL_RECORD_STATISTIC
+                                         : DBF_HISTORICAL_RECORD_OHLCV;
+    record.instrument_id = 1000u + static_cast<std::uint32_t>(ordinal);
+    record.publisher_id = 7;
+    record.event_ts_ns = request.start_ts_ns
+                         + static_cast<std::int64_t>(ordinal) * 60'000'000'000LL;
+    record.source_sequence = static_cast<std::int64_t>(ordinal + 1);
+    const auto price = 5'000'000'000LL + static_cast<std::int64_t>(ordinal) * 1'000'000LL;
+    record.open_price = price;
+    record.high_price = price + 2'000'000LL;
+    record.low_price = price - 2'000'000LL;
+    record.close_or_trade_price = price + 500'000LL;
+    record.volume_or_size = 10 + ordinal;
+    record.action = 'T';
+    record.side = ordinal % 2 == 0 ? 'B' : 'A';
+    constexpr char symbol[] = "SYNTH";
+    std::memcpy(record.symbol, symbol, sizeof(symbol));
+    return record;
+}
 
 #if defined(DBF_ENABLE_LIVE)
 
@@ -372,6 +465,150 @@ std::string environment_value(const char* name) {
     const auto* value = std::getenv(name);
     return value == nullptr ? "" : value;
 #endif
+}
+
+databento::Schema historical_schema(std::uint32_t schema) {
+    return schema == DBF_HISTORICAL_DEFINITION
+               ? databento::Schema::Definition
+               : schema == DBF_HISTORICAL_OHLCV_1M
+                     ? databento::Schema::Ohlcv1M
+                     : schema == DBF_HISTORICAL_TRADES
+                           ? databento::Schema::Trades
+                           : databento::Schema::Statistics;
+}
+
+databento::SType historical_stype(std::uint32_t value) {
+    switch (value) {
+        case 1u: return databento::SType::RawSymbol;
+        case 2u: return databento::SType::Continuous;
+        case 3u: return databento::SType::InstrumentId;
+        default: throw std::invalid_argument("Unsupported historical input symbology");
+    }
+}
+
+std::uint32_t historical_schema_id(databento::Schema schema) noexcept {
+    switch (schema) {
+        case databento::Schema::Definition: return DBF_HISTORICAL_DEFINITION;
+        case databento::Schema::Ohlcv1M: return DBF_HISTORICAL_OHLCV_1M;
+        case databento::Schema::Trades: return DBF_HISTORICAL_TRADES;
+        case databento::Schema::Statistics: return DBF_HISTORICAL_STATISTICS;
+        default: return 0;
+    }
+}
+
+std::string json_escape(std::string_view value) {
+    std::string escaped;
+    escaped.reserve(value.size());
+    for (const auto character : value) {
+        switch (character) {
+            case '\\': escaped += "\\\\"; break;
+            case '"': escaped += "\\\""; break;
+            case '\n': escaped += "\\n"; break;
+            case '\r': escaped += "\\r"; break;
+            case '\t': escaped += "\\t"; break;
+            default: escaped += character; break;
+        }
+    }
+    return escaped;
+}
+
+std::string historical_job_state(databento::JobState state) {
+    switch (state) {
+        case databento::JobState::Queued: return "Queued";
+        case databento::JobState::Processing: return "Processing";
+        case databento::JobState::Done: return "Completed";
+        case databento::JobState::Expired: return "Expired";
+        default: return "Failed";
+    }
+}
+
+std::string historical_job_payload(const databento::BatchJob& job) {
+    return "{\"providerJobId\":\"" + json_escape(job.id)
+           + "\",\"state\":\"" + historical_job_state(job.state)
+           + "\",\"costUsd\":" + std::to_string(job.cost_usd)
+           + ",\"recordCount\":" + std::to_string(job.record_count)
+           + ",\"billedBytes\":" + std::to_string(job.billed_size)
+           + ",\"progressPercent\":"
+           + std::to_string(job.progress.value_or(job.state == databento::JobState::Done ? 100 : 0))
+           + "}";
+}
+
+std::vector<std::string> historical_symbols(
+    const dbf_historical_request_v1& request,
+    const dbf_utf8_slice_v1* symbols,
+    const std::uint8_t* utf8_blob) {
+    std::vector<std::string> values;
+    values.reserve(request.symbol_count);
+    for (std::uint32_t index = 0; index < request.symbol_count; ++index) {
+        values.emplace_back(
+            reinterpret_cast<const char*>(utf8_blob + symbols[index].offset),
+            symbols[index].length);
+    }
+    return values;
+}
+
+std::string historical_record_symbol(
+    const databento::Metadata& metadata,
+    databento::UnixNanos event_timestamp,
+    std::string_view fallback) {
+    const date::year_month_day event_date{
+        date::floor<date::days>(event_timestamp)};
+    for (const auto& mapping : metadata.mappings) {
+        for (const auto& interval : mapping.intervals) {
+            if (event_date >= interval.start_date && event_date < interval.end_date) {
+                return interval.symbol;
+            }
+        }
+    }
+    return std::string{fallback};
+}
+
+void append_historical_records(
+    databento::DbnStore& store,
+    std::uint32_t schema,
+    std::string_view fallback_symbol,
+    dbf_historical_result& result) {
+    const auto& metadata = store.GetMetadata();
+    std::uint64_t ordinal{};
+    while (const auto* source = store.NextRecord()) {
+        dbf_historical_record120 record{};
+        record.struct_size = sizeof(record);
+        record.abi_version = DBF_ABI_VERSION;
+        record.schema = schema;
+        databento::UnixNanos event_timestamp{};
+        if (const auto* ohlcv = source->GetIf<databento::OhlcvMsg>()) {
+            record.record_kind = DBF_HISTORICAL_RECORD_OHLCV;
+            record.instrument_id = ohlcv->hd.instrument_id;
+            record.publisher_id = ohlcv->hd.publisher_id;
+            event_timestamp = ohlcv->hd.ts_event;
+            record.open_price = ohlcv->open;
+            record.high_price = ohlcv->high;
+            record.low_price = ohlcv->low;
+            record.close_or_trade_price = ohlcv->close;
+            record.volume_or_size = ohlcv->volume;
+            record.source_sequence = static_cast<std::int64_t>(++ordinal);
+        } else if (const auto* trade = source->GetIf<databento::TradeMsg>()) {
+            record.record_kind = DBF_HISTORICAL_RECORD_TRADE;
+            record.instrument_id = trade->hd.instrument_id;
+            record.publisher_id = trade->hd.publisher_id;
+            event_timestamp = trade->hd.ts_event;
+            record.close_or_trade_price = trade->price;
+            record.volume_or_size = trade->size;
+            record.source_sequence = trade->sequence;
+            record.action = static_cast<std::uint8_t>(trade->action);
+            record.side = static_cast<std::uint8_t>(trade->side);
+            ++ordinal;
+        } else {
+            continue;
+        }
+        record.event_ts_ns = static_cast<std::int64_t>(
+            event_timestamp.time_since_epoch().count());
+        const auto symbol = historical_record_symbol(
+            metadata, event_timestamp, fallback_symbol);
+        std::memcpy(record.symbol, symbol.data(),
+                    std::min(symbol.size(), sizeof(record.symbol) - 1));
+        result.records.push_back(record);
+    }
 }
 
 std::uint8_t contract_kind(char instrument_class) noexcept {
@@ -2495,6 +2732,387 @@ dbf_status DBF_CALL dbf_get_latest_price(
         *result = {};
         return DBF_INTERNAL_ERROR;
     }
+}
+
+dbf_status DBF_CALL dbf_historical_estimate(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const std::uint8_t* utf8_blob,
+    std::uint32_t utf8_blob_bytes,
+    dbf_historical_estimate_v1* estimate) {
+    if (estimate == nullptr
+        || !valid_struct(estimate->struct_size, sizeof(*estimate), estimate->abi_version)) {
+        return DBF_ABI_MISMATCH;
+    }
+    if (!valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes)) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    const auto duration_minutes = static_cast<std::uint64_t>(
+        (request->end_ts_ns - request->start_ts_ns) / 60'000'000'000LL);
+    if ((request->flags & DBF_HISTORICAL_SYNTHETIC) != 0) {
+        const auto records = std::max<std::uint64_t>(
+            1, std::min<std::uint64_t>(duration_minutes, 10'000));
+        estimate->estimated_records = records * request->symbol_count;
+        estimate->estimated_bytes = estimate->estimated_records * sizeof(dbf_historical_record120);
+        estimate->estimated_cost_usd = 0.0;
+        return DBF_OK;
+    }
+#if defined(DBF_ENABLE_LIVE)
+    try {
+        const std::string dataset{
+            reinterpret_cast<const char*>(utf8_blob + request->dataset.offset),
+            request->dataset.length};
+        std::vector<std::string> requested_symbols;
+        requested_symbols.reserve(request->symbol_count);
+        for (std::uint32_t index = 0; index < request->symbol_count; ++index) {
+            requested_symbols.emplace_back(
+                reinterpret_cast<const char*>(utf8_blob + symbols[index].offset),
+                symbols[index].length);
+        }
+        const auto schema = historical_schema(request->schema);
+        auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+        const databento::DateTimeRange<databento::UnixNanos> range{
+            databento::UnixNanos{databento::UnixNanos::duration{request->start_ts_ns}},
+            databento::UnixNanos{databento::UnixNanos::duration{request->end_ts_ns}}};
+        estimate->estimated_cost_usd = client.MetadataGetCost(
+            dataset, range, requested_symbols, schema,
+            historical_stype(request->input_symbology), request->record_limit);
+        estimate->estimated_bytes = client.MetadataGetBillableSize(
+            dataset, range, requested_symbols, schema,
+            historical_stype(request->input_symbology), request->record_limit);
+        estimate->estimated_records = client.MetadataGetRecordCount(
+            dataset, range, requested_symbols, schema,
+            historical_stype(request->input_symbology), request->record_limit);
+        return DBF_OK;
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+#else
+    return DBF_NOT_SUPPORTED;
+#endif
+}
+
+dbf_status DBF_CALL dbf_historical_batch_submit(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const std::uint8_t* utf8_blob,
+    std::uint32_t utf8_blob_bytes,
+    dbf_historical_result_t** output) {
+    if (output == nullptr) return DBF_INVALID_ARGUMENT;
+    *output = nullptr;
+    if (!valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes)) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    try {
+        auto result = std::make_unique<dbf_historical_result>();
+        if ((request->flags & DBF_HISTORICAL_SYNTHETIC) != 0) {
+            result->payload =
+                "{\"providerJobId\":\"synthetic-job\",\"state\":\"Completed\","
+                "\"costUsd\":0,\"recordCount\":2,\"billedBytes\":240,\"progressPercent\":100}";
+        } else {
+#if defined(DBF_ENABLE_LIVE)
+            const std::string dataset{
+                reinterpret_cast<const char*>(utf8_blob + request->dataset.offset),
+                request->dataset.length};
+            const databento::DateTimeRange<databento::UnixNanos> range{
+                databento::UnixNanos{databento::UnixNanos::duration{request->start_ts_ns}},
+                databento::UnixNanos{databento::UnixNanos::duration{request->end_ts_ns}}};
+            auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+            const auto job = client.BatchSubmitJob(
+                dataset, historical_symbols(*request, symbols, utf8_blob),
+                historical_schema(request->schema), range,
+                databento::Encoding::Dbn, databento::Compression::Zstd,
+                false, false, true, false,
+                databento::SplitDuration::Month, 0,
+                databento::Delivery::Download,
+                historical_stype(request->input_symbology),
+                databento::SType::RawSymbol,
+                request->record_limit);
+            result->payload = historical_job_payload(job);
+#else
+            return DBF_NOT_SUPPORTED;
+#endif
+        }
+        *output = result.release();
+        return DBF_OK;
+    } catch (const std::bad_alloc&) {
+        return DBF_NO_MEMORY;
+#if defined(DBF_ENABLE_LIVE)
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+#endif
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+}
+
+dbf_status DBF_CALL dbf_historical_batch_get_status(
+    const std::uint8_t* provider_job_id,
+    std::uint32_t provider_job_id_bytes,
+    dbf_historical_result_t** output) {
+    if (output == nullptr || provider_job_id == nullptr || provider_job_id_bytes == 0) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    *output = nullptr;
+    try {
+        auto result = std::make_unique<dbf_historical_result>();
+        const auto job_id = historical_text(provider_job_id, provider_job_id_bytes);
+        if (job_id == "synthetic-job") {
+            result->payload = "{\"providerJobId\":\"" + job_id
+                              + "\",\"state\":\"Completed\",\"costUsd\":0,"
+                                "\"recordCount\":2,\"billedBytes\":240,\"progressPercent\":100}";
+        } else {
+#if defined(DBF_ENABLE_LIVE)
+            auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+            result->payload = historical_job_payload(client.BatchGetJobDetails(job_id));
+#else
+            return DBF_NOT_SUPPORTED;
+#endif
+        }
+        *output = result.release();
+        return DBF_OK;
+    } catch (const std::bad_alloc&) {
+        return DBF_NO_MEMORY;
+#if defined(DBF_ENABLE_LIVE)
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+#endif
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+}
+
+dbf_status DBF_CALL dbf_historical_batch_list_files(
+    const std::uint8_t* provider_job_id,
+    std::uint32_t provider_job_id_bytes,
+    dbf_historical_result_t** output) {
+    if (output == nullptr || provider_job_id == nullptr || provider_job_id_bytes == 0) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    *output = nullptr;
+    try {
+        auto result = std::make_unique<dbf_historical_result>();
+        const auto job_id = historical_text(provider_job_id, provider_job_id_bytes);
+        if (job_id == "synthetic-job") {
+            result->payload =
+                "{\"files\":[{\"providerFileId\":\"synthetic.csv\","
+                "\"fileName\":\"synthetic.csv\",\"schema\":2}]}";
+        } else {
+#if defined(DBF_ENABLE_LIVE)
+            auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+            const auto job = client.BatchGetJobDetails(job_id);
+            const auto schema = historical_schema_id(job.schema);
+            const auto files = client.BatchListFiles(job_id);
+            std::string payload{"{\"files\":["};
+            for (std::size_t index = 0; index < files.size(); ++index) {
+                if (index != 0) payload += ',';
+                const auto& file = files[index];
+                payload += "{\"providerFileId\":\"" + json_escape(file.filename)
+                           + "\",\"fileName\":\"" + json_escape(file.filename)
+                           + "\",\"schema\":" + std::to_string(schema)
+                           + ",\"sizeBytes\":" + std::to_string(file.size)
+                           + ",\"sha256\":\"" + json_escape(file.hash) + "\"}";
+            }
+            result->payload = payload + "]}";
+#else
+            return DBF_NOT_SUPPORTED;
+#endif
+        }
+        *output = result.release();
+        return DBF_OK;
+    } catch (const std::bad_alloc&) {
+        return DBF_NO_MEMORY;
+#if defined(DBF_ENABLE_LIVE)
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+#endif
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+}
+
+dbf_status DBF_CALL dbf_historical_batch_download_file(
+    const std::uint8_t* provider_job_id,
+    std::uint32_t provider_job_id_bytes,
+    const std::uint8_t* file_name,
+    std::uint32_t file_name_bytes,
+    const std::uint8_t* destination_path,
+    std::uint32_t destination_path_bytes) {
+    if (provider_job_id == nullptr || provider_job_id_bytes == 0
+        || file_name == nullptr || file_name_bytes == 0
+        || destination_path == nullptr || destination_path_bytes == 0) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    try {
+        const auto job_id = historical_text(provider_job_id, provider_job_id_bytes);
+        const auto requested_file = historical_text(file_name, file_name_bytes);
+        const std::filesystem::path path{
+            historical_text(destination_path, destination_path_bytes)};
+        std::filesystem::create_directories(path.parent_path());
+        if (job_id == "synthetic-job") {
+            std::ofstream output{path, std::ios::binary | std::ios::trunc};
+            if (!output) return DBF_OS_ERROR;
+            output << "2,SYNTH,1000,7,1770000000000000000,1,5000000000,5002000000,"
+                      "4998000000,5000500000,10,T,B,0\n";
+            output << "2,SYNTH,1001,7,1770000060000000000,2,5001000000,5003000000,"
+                      "4999000000,5001500000,11,T,A,0\n";
+            return output.good() ? DBF_OK : DBF_OS_ERROR;
+        }
+#if defined(DBF_ENABLE_LIVE)
+        auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+        const auto downloaded = client.BatchDownload(
+            path.parent_path(), job_id, requested_file);
+        if (downloaded != path) {
+            std::filesystem::rename(downloaded, path);
+        }
+        return DBF_OK;
+#else
+        return DBF_NOT_SUPPORTED;
+#endif
+    } catch (const std::filesystem::filesystem_error&) {
+        return DBF_OS_ERROR;
+#if defined(DBF_ENABLE_LIVE)
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+#endif
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+}
+
+dbf_status DBF_CALL dbf_historical_range_open(
+    const dbf_historical_request_v1* request,
+    const dbf_utf8_slice_v1* symbols,
+    const std::uint8_t* utf8_blob,
+    std::uint32_t utf8_blob_bytes,
+    dbf_historical_result_t** output) {
+    if (output == nullptr) return DBF_INVALID_ARGUMENT;
+    *output = nullptr;
+    if (!valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes)) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    try {
+        auto result = std::make_unique<dbf_historical_result>();
+        if ((request->flags & DBF_HISTORICAL_SYNTHETIC) != 0) {
+            result->records.push_back(make_historical_synthetic_record(*request, 0));
+            result->records.push_back(make_historical_synthetic_record(*request, 1));
+        } else {
+#if defined(DBF_ENABLE_LIVE)
+            const std::string dataset{
+                reinterpret_cast<const char*>(utf8_blob + request->dataset.offset),
+                request->dataset.length};
+            const auto requested = historical_symbols(*request, symbols, utf8_blob);
+            const databento::DateTimeRange<databento::UnixNanos> range{
+                databento::UnixNanos{databento::UnixNanos::duration{request->start_ts_ns}},
+                databento::UnixNanos{databento::UnixNanos::duration{request->end_ts_ns}}};
+            auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+            auto store = client.TimeseriesGetRange(
+                dataset, range, requested, historical_schema(request->schema),
+                historical_stype(request->input_symbology), databento::SType::RawSymbol,
+                request->record_limit);
+            append_historical_records(
+                store, request->schema, requested.front(), *result);
+#else
+            return DBF_NOT_SUPPORTED;
+#endif
+        }
+        *output = result.release();
+        return DBF_OK;
+    } catch (const std::bad_alloc&) {
+        return DBF_NO_MEMORY;
+#if defined(DBF_ENABLE_LIVE)
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+#endif
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+}
+
+dbf_status DBF_CALL dbf_historical_file_open(
+    const std::uint8_t* file_path,
+    std::uint32_t file_path_bytes,
+    std::uint32_t schema,
+    dbf_historical_result_t** output) {
+    if (output == nullptr || file_path == nullptr || file_path_bytes == 0
+        || schema < DBF_HISTORICAL_DEFINITION
+        || schema > DBF_HISTORICAL_STATISTICS) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    *output = nullptr;
+#if defined(DBF_ENABLE_LIVE)
+    try {
+        auto result = std::make_unique<dbf_historical_result>();
+        const std::filesystem::path path{
+            historical_text(file_path, file_path_bytes)};
+        if (!std::filesystem::is_regular_file(path)) return DBF_INVALID_ARGUMENT;
+        databento::DbnStore store{path};
+        const auto& metadata = store.GetMetadata();
+        const auto fallback = metadata.symbols.empty()
+                                  ? path.stem().string()
+                                  : metadata.symbols.front();
+        append_historical_records(store, schema, fallback, *result);
+        *output = result.release();
+        return DBF_OK;
+    } catch (const std::bad_alloc&) {
+        return DBF_NO_MEMORY;
+    } catch (const databento::Exception&) {
+        return DBF_DATABENTO_ERROR;
+    } catch (const std::filesystem::filesystem_error&) {
+        return DBF_OS_ERROR;
+    } catch (...) {
+        return DBF_INTERNAL_ERROR;
+    }
+#else
+    (void)schema;
+    return DBF_NOT_SUPPORTED;
+#endif
+}
+
+dbf_status DBF_CALL dbf_historical_result_get_payload(
+    const dbf_historical_result_t* result,
+    std::uint8_t* utf8_buffer,
+    std::uint32_t utf8_buffer_capacity,
+    std::uint32_t* required_bytes) {
+    if (result == nullptr) return DBF_INVALID_ARGUMENT;
+    return copy_historical_text(result->payload, utf8_buffer, utf8_buffer_capacity, required_bytes);
+}
+
+dbf_status DBF_CALL dbf_historical_result_get_next_batch(
+    dbf_historical_result_t* result,
+    dbf_historical_record120* records,
+    std::uint32_t record_capacity,
+    dbf_historical_batch_v1* batch) {
+    if (result == nullptr || records == nullptr || record_capacity == 0 || batch == nullptr
+        || !valid_struct(batch->struct_size, sizeof(*batch), batch->abi_version)) {
+        return DBF_INVALID_ARGUMENT;
+    }
+    const auto remaining = result->records.size() - result->cursor;
+    const auto count = std::min<std::size_t>(remaining, record_capacity);
+    std::copy_n(result->records.begin() + static_cast<std::ptrdiff_t>(result->cursor),
+                count, records);
+    result->cursor += count;
+    batch->records_read = static_cast<std::uint32_t>(count);
+    batch->more_available = result->cursor < result->records.size() ? 1u : 0u;
+    batch->batch_ordinal = result->batch_ordinal++;
+    return DBF_OK;
+}
+
+dbf_status DBF_CALL dbf_historical_result_get_error(
+    const dbf_historical_result_t* result,
+    std::uint8_t* utf8_buffer,
+    std::uint32_t utf8_buffer_capacity,
+    std::uint32_t* required_bytes) {
+    if (result == nullptr) return DBF_INVALID_ARGUMENT;
+    return copy_historical_text(result->error, utf8_buffer, utf8_buffer_capacity, required_bytes);
+}
+
+dbf_status DBF_CALL dbf_historical_result_destroy(dbf_historical_result_t* result) {
+    if (result == nullptr) return DBF_INVALID_ARGUMENT;
+    delete result;
+    return DBF_OK;
 }
 
 } // extern "C"

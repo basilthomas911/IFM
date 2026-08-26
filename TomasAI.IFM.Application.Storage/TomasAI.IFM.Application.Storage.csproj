@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Application.Blackboard\TomasAI.IFM.Application.Blackboard.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.MarketData\TomasAI.IFM.Application.MarketData.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Domain.Fund.Shared\TomasAI.IFM.Domain.Fund.Shared.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.SequenceId\TomasAI.IFM.Framework.SequenceId.csproj" />
     <ProjectReference Include="..\TomasAI.IFM.Framework.Storage\TomasAI.IFM.Framework.Storage.csproj" />

@@ -2,6 +2,32 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb.Schema;
 
 internal static class MarketDataSchemaCql
 {
+    public const string CreateFuturesEodObservationTable = """
+    CREATE TABLE IF NOT EXISTS futures_eod_observation (
+        seriesKey text, yearMonth int, valueDate date, contractId text,
+        sessionStart timestamp, sessionEnd timestamp,
+        openPrice decimal, highPrice decimal, lowPrice decimal, closePrice decimal,
+        volume decimal, tradeCount bigint, priceVolumeSum decimal,
+        observationId uuid, firstSourceSequence bigint, lastSourceSequence bigint,
+        firstMarketEvent timestamp, lastMarketEvent timestamp,
+        schemaVersion int, isComplete boolean, isValid boolean,
+        PRIMARY KEY ((seriesKey, yearMonth), valueDate, contractId)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC, contractId ASC);
+    """;
+
+    public const string CreateFuturesAnalyticsObservationTable = """
+    CREATE TABLE IF NOT EXISTS futures_analytics_observation (
+        seriesKey text, timePeriod text, yearMonth int, marketDataAsOf timestamp,
+        observationId uuid, contractId text, valueDate date,
+        intervalStart timestamp, intervalEnd timestamp,
+        openPrice decimal, highPrice decimal, lowPrice decimal, closePrice decimal,
+        volume decimal, tradeCount bigint, priceVolumeSum decimal,
+        firstSourceSequence bigint, lastSourceSequence bigint,
+        firstMarketEvent timestamp, lastMarketEvent timestamp, calculatedAt timestamp,
+        schemaVersion int, calculationVersion text, isComplete boolean, isValid boolean,
+        PRIMARY KEY ((seriesKey, timePeriod, yearMonth), marketDataAsOf, observationId)
+    ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
+    """;
     public const string CreateMarketOutlookSnapshotTable = """
     CREATE TABLE IF NOT EXISTS market_outlook_snapshot (
         contractId text,

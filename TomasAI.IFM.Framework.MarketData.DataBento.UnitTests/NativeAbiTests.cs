@@ -27,6 +27,10 @@ public sealed class NativeAbiTests
         Assert.Equal(192, Marshal.SizeOf<NativeContractDetail>());
         Assert.Equal(88, Marshal.SizeOf<NativeLatestPriceRequest>());
         Assert.Equal(64, Marshal.SizeOf<LatestPriceResult64>());
+        Assert.Equal(64, Marshal.SizeOf<NativeHistoricalRequest>());
+        Assert.Equal(32, Marshal.SizeOf<NativeHistoricalEstimate>());
+        Assert.Equal(120, Marshal.SizeOf<NativeHistoricalRecord>());
+        Assert.Equal(24, Marshal.SizeOf<NativeHistoricalBatch>());
         Assert.Equal(40, Marshal.OffsetOf<StatisticsRecord64>(
             nameof(StatisticsRecord64.Quantity)).ToInt32());
         Assert.Equal(48, Marshal.OffsetOf<StatisticsRecord64>(
@@ -40,7 +44,7 @@ public sealed class NativeAbiTests
     [Fact]
     public void LoadedNativeLibraryHasExpectedAbiVersion()
     {
-        Assert.Equal(2u, NativeConstants.AbiVersion);
+        Assert.Equal(3u, NativeConstants.AbiVersion);
         Assert.Equal(NativeConstants.AbiVersion, NativeMethods.GetAbiVersion());
     }
 }

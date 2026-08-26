@@ -10,6 +10,8 @@ public sealed class MarketDataSchemaDb(IDbConnectionSettings connectionSettings,
 {
     static readonly SchemaObjectDefinition[] Objects =
     [
+        new("futures_eod_observation", MarketDataSchemaCql.CreateFuturesEodObservationTable, "DROP TABLE IF EXISTS futures_eod_observation;"),
+        new("futures_analytics_observation", MarketDataSchemaCql.CreateFuturesAnalyticsObservationTable, "DROP TABLE IF EXISTS futures_analytics_observation;"),
         new("market_data_import_ownership", MarketDataSchemaCql.CreateMarketDataImportOwnershipTable, "DROP TABLE IF EXISTS market_data_import_ownership;"),
         new("market_outlook_snapshot", MarketDataSchemaCql.CreateMarketOutlookSnapshotTable, "DROP TABLE IF EXISTS market_outlook_snapshot;"),
         new("economic_calendar_v2", MarketDataSchemaCql.CreateEconomicCalendarV2Table, "DROP TABLE IF EXISTS economic_calendar_v2;"),

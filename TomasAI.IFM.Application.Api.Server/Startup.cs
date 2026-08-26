@@ -15,6 +15,9 @@ using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.Storage.HistoricalBootstrap;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -42,6 +45,10 @@ using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Projector;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
 using TomasAI.IFM.Domain.Reference;
@@ -414,6 +421,8 @@ public static class Startup
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
+            services.AddSingleton<IHistoricalBootstrapStore, PostgresHistoricalBootstrapStore>();
+            services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
@@ -498,6 +507,24 @@ public static class Startup
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
+            var historicalOptions = new DatabentoHistoricalOptions
+            {
+                StagingRoot = Path.Combine(AppContext.BaseDirectory, "market-data-history"),
+                SeriesProfiles = CreateHistoricalSeriesProfiles(dataset)
+            };
+            services.AddDatabentoHistoricalMarketDataServices(new DatabentoHistoricalProviderOptions
+            {
+                UseSyntheticProvider = feedOptions.DataSource == FeedDataSourceMode.Synthetic
+            });
+            services.AddApplicationMarketDataHistoricalApi(historicalOptions);
+            services.AddSingleton<IFuturesAnalyticsSeriesResolver>(_ =>
+                new PrefixFuturesAnalyticsSeriesResolver(
+                    new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
+                            new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1))
+                    }));
+            services.AddSingleton<FuturesAnalyticsObservationRealtimeProjector>();
             services.AddHostedService<FuturesContractRolloverStartupService>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")
@@ -640,6 +667,34 @@ public static class Startup
         });
         logger.LogInformationEvent("ApiServer", "web app configuration completed");
         return app;
+    }
+
+    static IReadOnlyList<DatabentoHistoricalSeriesProfile> CreateHistoricalSeriesProfiles(string dataset)
+    {
+        var es = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
+        var vxFront = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("VX", "calendar-front", "unadjusted", 1));
+        var vxSecond = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("VX", "calendar-second", "unadjusted", 1));
+        return
+        [
+            new DatabentoHistoricalSeriesProfile
+            {
+                MarketSeriesIdentity = es.Format(), Dataset = dataset,
+                Symbols = ["ES.c.0"], Symbology = HistoricalSymbology.Continuous
+            },
+            new DatabentoHistoricalSeriesProfile
+            {
+                MarketSeriesIdentity = vxFront.Format(), Dataset = dataset,
+                Symbols = ["VX.c.0"], Symbology = HistoricalSymbology.Continuous
+            },
+            new DatabentoHistoricalSeriesProfile
+            {
+                MarketSeriesIdentity = vxSecond.Format(), Dataset = dataset,
+                Symbols = ["VX.c.1"], Symbology = HistoricalSymbology.Continuous
+            }
+        ];
     }
 
     static ImportDuplicatePolicy ParseImportPolicy(IConfiguration config, string configurationKey)

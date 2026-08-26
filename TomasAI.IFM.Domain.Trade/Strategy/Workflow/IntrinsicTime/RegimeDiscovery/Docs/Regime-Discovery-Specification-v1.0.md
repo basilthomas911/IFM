@@ -1,0 +1,891 @@
+Regime Discovery Specification
+
+Design Specification v1.0
+
+| Item \| Value \|
+
+| --- \| --- \|
+
+| Status \| Revised deterministic V1 design specification \|
+
+| Date \| 2026-08-25 \|
+
+| Purpose \| Authoritative business/architectural contract for Regime
+  Discovery \|
+
+| Consumer \| Codex, to create the repository-specific Implementation
+  Specification \|
+
+| Companion \| Intrinsic Time Strategy Workflow Implementation
+  Specification v1.0 \|
+
+| Target \| Deterministic V1 / .NET 10 actor application \|
+
+This document defines WHAT Regime Discovery must do. Repository-specific
+HOW belongs in the later Implementation Specification.
+
+# 1. Purpose
+
+Regime Discovery is the first calculation pipeline of the Intrinsic Time
+Strategy Workflow. Each workflow calculates one target strategy horizon
+(Daily, Weekly, or Monthly) plus the configured supporting observation
+context for that horizon. It converts the latest valid market-signal state into
+a deterministic, explainable regime result for that workflow horizon. It
+does not select a trade, compose an order, approve portfolio risk, or
+perform broker operations.
+
+V1 is deterministic. ML.NET DetectIidChangePoint is deferred to V1.1;
+HMMs, adaptive learning, and LLM/probabilistic classification are
+deferred to V2 or later.
+
+# 2. Workflow Boundary
+
+``` text
+
+FuturesItiSignalGeneratedEvent
+ -> Strategy Workflow
+ -> StartRegimeDiscoveryPipelineCommand
+ -> Trend + Volatility + Market Structure -> Fusion
+ -> Completed OR Failed
+ -> Strategy Workflow
+```
+
+The Strategy Workflow owns ordering, dispatch, authoritative workflow
+state, and continuation. Regime Discovery owns its private calculation
+state and final result. Internal Regime Discovery actors never address
+another strategy pipeline.
+
+# 3. Fixed V1 Decisions
+
+1.  Realtime, single-attempt processing; no automatic business retries.
+
+2.  After Processing begins, one logical terminal outcome is required:
+    Completed or Failed.
+
+3.  The Strategy Workflow is the authority for effective
+    strategy/pipeline configuration.
+
+4.  StartRegimeDiscoveryPipelineCommand carries a complete immutable
+    RegimeDiscoveryParameterSet.
+
+5.  Configuration is frozen for the execution; later updates apply only
+    to later workflows.
+
+6.  Indicators are calculated upstream and read from a hot latest-value
+    cache.
+
+7.  Observation intervals are 15s, 1m, 5m, 15m, 1h, 4h, and Daily.
+
+8.  Observation intervals are bucketed into Daily, Weekly, and Monthly
+    strategy horizons.
+
+9.  V1 specialist domains are Trend, Volatility, and Market Structure.
+
+10. Fusion must succeed before Regime Discovery may complete.
+
+11. Only the pipeline boundary publishes
+    RegimeDiscoveryPipelineCompletedEvent or FailedEvent.
+
+12. Private pipeline/specialist state never becomes Strategy Workflow
+    state.
+
+13. The typed RegimeDiscoveryResult is serialized into the existing
+    opaque StrategyStageResultEnvelope.
+
+14. Timeout and manual cancellation are optional implementation
+    refinements and never cause retry.
+
+15. One workflow calculates only its own Daily, Weekly, or Monthly target
+    horizon. Supporting timeframes are evidence for that result and never
+    create additional workflow-horizon results.
+
+16. PostgreSQL ConfigurationDb is authoritative for immutable, versioned
+    strategy and pipeline parameter sets. ScyllaDB may contain rebuildable
+    configuration query projections but is not configuration authority.
+
+17. Trend, Volatility, Market Structure, and Fusion are private Regime
+    Discovery command/realtime actors. Their contracts are not public
+    Strategy Workflow contracts.
+
+# 4. Scope
+
+## 4.1 Included
+
+-   Pipeline lifecycle and ownership boundary.
+
+-   Versioned RegimeDiscoveryParameterSet and specialist
+    sub-configuration.
+
+-   Hot-cache signal acquisition and immutable point-in-time signal
+    snapshots.
+
+-   Observation-timeframe to strategy-horizon bucketing.
+
+-   TrendRegimeActor, VolatilityRegimeActor, MarketStructureRegimeActor,
+    and MarketRegimeFusionActor.
+
+-   Typed RegimeDiscoveryResult and deterministic summary/reason codes.
+
+-   High-level state, events, queries, persistence, observability,
+    validation, and testing expectations.
+
+-   Optional timeout and manual cancellation design hooks.
+
+## 4.2 Excluded
+
+-   Repository-specific file paths, concrete base classes, MessagePack
+    key numbers, CQL names, and implementation gates.
+
+-   Later strategy pipeline business logic and broker operations.
+
+-   Raw indicator calculation from ticks/bars.
+
+-   ML.NET DetectIidChangePoint (V1.1), HMMs, adaptive weighting, and
+    LLM-controlled classification.
+
+-   Automatic retry/restart/business replay after failure or timeout.
+
+-   Production timeout durations and final cancellation UI/authorization
+    design.
+
+# 5. Pipeline Lifecycle
+
+``` text
+
+StartRegimeDiscoveryPipelineCommand
+ -> RegimeDiscoveryPipelineProcessingEvent
+ -> successful Fusion -> RegimeDiscoveryPipelineCompletedEvent
+ OR required failure -> RegimeDiscoveryPipelineFailedEvent
+```
+
+Once Processing begins, exactly one logical terminal outcome is
+required. Duplicate transport delivery is idempotent. No failed
+calculation is automatically retried; a later eligible ITI event may
+create a new workflow.
+
+# 6. Configuration
+
+Versioned strategy configuration is stored authoritatively in PostgreSQL
+through ConfigurationDb. Configuration belongs to the Reference bounded
+context under the following logical hierarchy:
+
+``` text
+
+Reference
+ Configuration
+  Trade
+   StrategyWorkflow
+    IntrinsicTimeStrategyWorkflowParameterSet
+    Pipeline
+     RegimeDiscoveryParameterSet
+     MarketConditionParameterSet
+     TradeSelectionParameterSet
+     OrderCompositionParameterSet
+     RiskManagementParameterSet
+```
+
+Configuration is partitioned first by owning domain. Future Fund, MarketData,
+Securities, or other configuration families receive sibling domain sections
+under Reference/Configuration rather than sharing the Trade hierarchy.
+
+ConfigurationDb has one append-only table for each strategy-workflow or
+pipeline parameter-set type. A row is identified by ParameterSetId and
+Version and includes SchemaVersion, lifecycle status/effective timestamps,
+the complete typed JSON payload, a deterministic payload hash, creation
+metadata, and optional description. Published parameter identity, version,
+schema, payload, and hash are immutable. Guarded lifecycle metadata may
+publish or retire a row; changing a published payload always inserts a new
+version.
+
+The Strategy Workflow resolves the effective strategy configuration before
+starting Regime Discovery, records the selected configuration identities and
+immutable payload/hash in its authoritative PostgreSQL event stream, and
+supplies the complete typed RegimeDiscoveryParameterSet with the start
+command. Replay never re-resolves historical configuration.
+
+``` text
+
+RegimeDiscoveryParameterSet
+ ParameterSetId / Version
+ StrategyParameterSetId / Version
+ TargetHorizon
+ TargetHorizonConfiguration
+ TrendConfiguration
+ VolatilityConfiguration
+ MarketStructureConfiguration
+ FusionConfiguration
+ SignalFreshnessConfiguration
+ DataQualityConfiguration
+```
+
+The parameter set is immutable for the execution. Internal actors
+receive relevant immutable sub-configuration and do not query changing
+workflow configuration. StartRegimeDiscoveryPipelineCommand must be
+extended append-only with this parameter set; exact repository changes
+belong in the implementation specification.
+
+# 7. Hot Signal Cache
+
+All deterministic market indicators are produced upstream. At pipeline
+start, Regime Discovery reads the latest valid/warm values and freezes
+them into one immutable RegimeDiscoverySignalSnapshot for the target horizon
+and its supporting context. The same frozen snapshot is shared by all
+specialist calculations.
+
+| Interval \| V1 use \|
+
+| --- \| --- \|
+
+| 15s \| Very fast context; ITI/execution and optional confirmation \|
+
+| 1m \| Fast confirmation/context \|
+
+| 5m \| Daily fast context \|
+
+| 15m \| Daily/Weekly context \|
+
+| 1h \| Daily/Weekly/Monthly context \|
+
+| 4h \| Weekly/Monthly context \|
+
+| Daily \| Slow Weekly/Monthly structural context \|
+
+-   Cached signals include instrument, signal type, timeframe, value(s),
+    MarketDataAsOfUtc, CalculatedAtUtc, sequence/version, IsWarm,
+    IsValid, and calculation version.
+
+-   Required missing/stale/not-warm/invalid signals are never silently
+    defaulted.
+
+-   Optional unavailable signals may reduce confidence only when
+    configuration permits.
+
+-   Freshness is relative to the observation timeframe.
+
+# 8. Strategy-Horizon Bucketing
+
+Observation timeframes are not trading horizons. The workflow horizon selects
+exactly one configured decision context from the mapping below.
+
+| Horizon \| Primary \| Fast confirmation \| Slow/support \|
+
+| --- \| --- \| --- \| --- \|
+
+| Daily \| 15m, 1h \| 5m (1m optional) \| 4h \|
+
+| Weekly \| 1h, 4h \| 15m \| Daily \|
+
+| Monthly \| 4h, Daily \| 1h \| 15m optional \|
+
+These are V1 defaults only. Membership, role, weight, required/optional
+status, and freshness tolerance are configuration-driven.
+Cross-timeframe agreement/disagreement is retained as evidence.
+
+Default observation-timeframe weights are:
+
+| Target horizon \| Observation weights \|
+
+| --- \| --- \|
+
+| Daily \| 15m 0.45; 1h 0.35; 5m 0.10; 4h 0.10; 1m disabled \|
+
+| Weekly \| 1h 0.40; 4h 0.40; 15m 0.10; Daily 0.10 \|
+
+| Monthly \| 4h 0.45; Daily 0.40; 1h 0.15; 15m disabled \|
+
+Primary observation timeframes are required. Supporting timeframes are
+optional by default. Enabling an optional timeframe gives it a positive
+configured weight; unavailable optional evidence is not scored as zero and
+reduces confidence through coverage.
+
+## 8.1 Required-signal and freshness rules
+
+The target-horizon ITI trigger is always required. The following V1 signal
+sets are required unless a later approved parameter-set version explicitly
+changes a required item:
+
+| Specialist \| Required evidence \| Optional evidence \|
+
+| --- \| --- \| --- \|
+
+| Trend \| current price, EMA20/50/200 values and slopes, RSI(14) and slope, ADX(14)/+DI/-DI, conventional MACD(12,26,9), and the target-horizon ITI trigger \| TDI and enabled supporting timeframes \|
+
+| Volatility \| ATR(14), ATR baseline ratio, current VIX level, and front/second VIX-futures term-structure ratio \| realized-volatility percentile and enabled supporting timeframes \|
+
+| Market Structure \| Bollinger(20,2) width/position and width baseline, EMA20/centerline interaction, ATR-normalized range, rolling 20-observation high/low, and the target-horizon ITI trigger \| enabled supporting timeframes and additional longer-window context \|
+
+All required evidence for every primary observation timeframe must be present,
+warm, valid, schema-compatible, configuration-compatible, and fresh. Failure
+of any required check fails Regime Discovery. Optional evidence that fails a
+check is omitted and creates a data-quality reason code.
+
+Freshness age is `SnapshotCapturedAtUtc - MarketDataAsOfUtc`. A timestamp more
+than the configured FutureClockSkewTolerance (default five seconds) after the
+capture time is invalid. Default maximum ages are 45 seconds for 15s, three
+minutes for 1m, 15 minutes for 5m, 45 minutes for 15m, three hours for 1h,
+12 hours for 4h, and 96 hours for Daily. All values are parameter-set fields.
+The 96-hour Daily default deliberately spans a normal weekend; a future
+exchange-calendar-aware rule may replace it through a new parameter-set
+version.
+
+For a valid signal, its freshness factor is
+`clamp(1 - FreshnessAge / MaximumAge, 0, 1)`. The snapshot records the minimum,
+weighted mean, and maximum age across included signals. No missing or invalid
+value is replaced with a numeric default.
+
+## 8.2 Common deterministic score and confidence rules
+
+All signed directional component scores use `[-1, 1]`; zero is neutral.
+Unsigned severity scores use `[0, 1]`. `clamp` limits a value to the stated
+range. Enabled configured weights must be non-negative and have a positive
+sum.
+
+For available evidence values `x[i]` with configured weights `w[i]`:
+
+``` text
+
+Score      = sum(w[i] * x[i]) / sum(w[i])
+Coverage   = available configured weight / total enabled configured weight
+Freshness  = sum(w[i] * freshnessFactor[i]) / sum(w[i])
+Agreement  = 1 - (sum(w[i] * abs(x[i] - Score)) / (2 * sum(w[i])))
+Confidence = clamp(Coverage *
+                   (0.45 * Agreement + 0.35 * Freshness + 0.20), 0, 1)
+```
+
+The constant 0.20 represents the already-enforced warm/valid/schema/config
+gate; it is never awarded to invalid evidence. Optional missing evidence
+reduces Coverage. Conflicting evidence reduces Agreement. Near-stale evidence
+reduces Freshness. Exact decimal calculations are rounded to six decimal
+places using midpoint-to-even before persistence and comparison.
+
+Confidence bands are Low below 0.35, Moderate from 0.35 to below 0.60, High
+from 0.60 to below 0.80, and VeryHigh at or above 0.80. Low confidence may
+still produce Completed when all required evidence is valid, but Fusion adds
+an explicit low-confidence restriction.
+
+# 9. TrendRegimeActor
+
+Determines directional trend, strength, phase, normalized score,
+confidence, and cross-timeframe agreement for the workflow's target horizon.
+
+-   Signals: price vs EMA20/50/200; EMA alignment/separation/slopes;
+    RSI(14) and slope; ADX(14), +DI, -DI; centerline context; relevant
+    Intrinsic Time direction/context.
+
+-   Output: direction, strength, phase, score, confidence, component
+    evidence, and reason codes.
+
+Trend component scores and default weights are:
+
+-   EMA alignment (0.25): the mean of `sign(Price-EMA20)`,
+    `sign(EMA20-EMA50)`, and `sign(EMA50-EMA200)`.
+
+-   EMA slopes (0.15): the mean of the three EMA slope values normalized by
+    their configured positive ATR-based slope scales.
+
+-   RSI (0.15): `0.70 * clamp((RSI-50)/20,-1,1) + 0.30 *
+    clamp(RSISlope/ConfiguredRsiSlopeScale,-1,1)`.
+
+-   ADX (0.20): `sign(PlusDI - MinusDI) *
+    clamp((ADX-15)/25,0,1)`.
+
+-   MACD (0.15): the MACD histogram divided by ATR and normalized by the
+    configured positive MACD/ATR scale.
+
+-   ITI (0.10): ITI direction (`+1` up, `-1` down) multiplied by
+    `clamp(BandLevel,0,1) * (1-clamp(ReversalLevel,0,1))`.
+
+Component scores are combined per observation timeframe, then timeframe
+scores are combined using the target-horizon weights. Direction is Up at or
+above 0.20, Down at or below -0.20, and Neutral otherwise. Directional
+strength is Weak for absolute score 0.20 to below 0.40, Moderate for 0.40 to
+below 0.65, Strong for 0.65 to below 0.85, and Extreme at or above 0.85.
+
+Phase precedence is Reversing when ITI ReversalLevel is at least 0.50 and two
+or more non-ITI momentum components oppose the ITI direction; Exhausting when
+ReversalLevel is at least 0.25 or both RSI and MACD oppose an otherwise
+directional score; Emerging when directional but ITI BandLevel is below 1.0
+or ADX is below 20; Established for any remaining directional result; and
+RangeBound for Neutral.
+
+# 10. VolatilityRegimeActor
+
+Classifies volatility level, expansion/contraction, VIX term structure,
+score, confidence, and risk/trade-restriction evidence.
+
+-   Signals: VIX, VIX futures term structure, ATR, ATR ratio, realized
+    volatility when available, expansion/contraction evidence.
+
+| VIX baseline \| Regime \|
+
+| --- \| --- \|
+
+| \<12 \| Low \|
+
+| 12 to \<20 \| Normal \|
+
+| 20 to \<30 \| High \|
+
+| \>=30 \| Extreme \|
+
+Thresholds are configuration-driven. Extreme volatility creates explicit
+no-new-trade evidence for Fusion; Trade Selection remains a later
+pipeline responsibility.
+
+The VIX-level score maps the configured Low/Normal/High/Extreme boundaries to
+0.00/0.25/0.50/0.75 and increases linearly to 1.00 at the configured maximum
+(default VIX 50). The ATR-ratio score is piecewise linear through
+`(0.75,0.00)`, `(1.00,0.40)`, `(1.50,0.75)`, and `(2.00,1.00)`. The
+front/second VIX-futures ratio score is piecewise linear through
+`(0.95,0.10)`, `(1.00,0.30)`, `(1.05,0.60)`, and `(1.10,0.90)`, clamped to
+`[0,1]`. Realized volatility uses its upstream percentile directly.
+
+Default volatility weights are VIX level 0.35, ATR ratio 0.35, term structure
+0.20, and optional realized volatility 0.10. The common unsigned scoring and
+confidence formulas apply. Volatility is Low below 0.25, Normal from 0.25 to
+below 0.50, High from 0.50 to below 0.75, and Extreme at or above 0.75.
+Expansion means the composite score increased by at least 0.10 from its prior
+warm observation; contraction means it decreased by at least 0.10; otherwise
+it is stable. NoNewTrade evidence is set when VIX is at or above its Extreme
+boundary, the composite score is at least 0.75, or the configured severe
+backwardation ratio is met (default 1.05).
+
+# 11. MarketStructureRegimeActor
+
+Classifies how price is behaving independent of directional bias:
+trending, ranging, compressing, expanding, breaking out, transitioning,
+or unknown.
+
+-   Signals: Bollinger width/position, EMA20/centerline interaction,
+    ATR-normalized range, recent highs/lows, breakout distance, and
+    relevant Intrinsic Time
+    direction-change/extreme/reversal/persistence behavior.
+
+-   Output: structure classification, optional direction, breakout
+    state, score, confidence, component evidence, and reason codes.
+
+Default Market Structure evidence weights are Bollinger width/position 0.25,
+EMA20/centerline interaction 0.20, ATR/range state 0.20, rolling high/low and
+breakout distance 0.20, and ITI persistence/reversal 0.15. The following
+classification precedence is deterministic:
+
+1.  BreakingOut when price is at least 0.50 ATR above the rolling high or
+    below the rolling low; direction is the breakout sign.
+
+2.  Compressing when Bollinger width is at most 0.75 of its baseline and ATR
+    ratio is at most 0.85.
+
+3.  Expanding when Bollinger width is at least 1.25 of baseline or ATR ratio
+    is at least 1.25.
+
+4.  Trending when absolute EMA/ITI organization score is at least 0.50 and
+    ITI persistence `clamp(BandLevel,0,1) *
+    (1-clamp(ReversalLevel,0,1))` is at least 0.50.
+
+5.  Ranging when absolute organization score is below 0.25, no breakout is
+    present, and Bollinger width ratio is between 0.75 and 1.25 inclusive.
+
+6.  Transitioning for every other complete valid result.
+
+Market Structure score is signed breakout distance normalized at two ATR for
+BreakingOut, the signed EMA/ITI organization score for Trending, the
+organization direction for directional Expanding, and zero for Compressing,
+Ranging, or non-directional Transitioning. Unknown is reserved for an
+incomplete diagnostic result and cannot produce pipeline Completed.
+
+# 12. MarketRegimeFusionActor
+
+Combines complete Trend, Volatility, and Market Structure results into
+the canonical market regime for the workflow's target strategy horizon.
+
+-   Validate specialist completeness, freshness, schema/configuration
+    compatibility.
+
+-   Combine specialist scores using deterministic configuration-driven
+    rules.
+
+-   Calculate confidence and cross-domain alignment/conflict.
+
+-   Apply deterministic restrictions such as Extreme volatility.
+
+-   Preserve specialist results and structured evidence.
+
+-   Generate final reason codes and deterministic summary inputs.
+
+-   Do not recalculate raw indicators.
+
+Successful Fusion is required before Regime Discovery may publish
+Completed.
+
+Fusion calculates directional score as `0.65 * TrendScore + 0.35 *
+MarketStructureScore`; Volatility never changes its sign. Direction uses the
+Trend thresholds. Risk-adjusted conviction is
+`abs(DirectionalScore) * (1 - 0.50 * VolatilityScore)`.
+
+Base fusion confidence is `0.40 * TrendConfidence + 0.30 *
+VolatilityConfidence + 0.30 * MarketStructureConfidence`. Trend/Structure
+alignment is `1 - abs(TrendScore-MarketStructureScore)/2`. Final fusion
+confidence is `clamp(BaseConfidence * (0.75 + 0.25 * Alignment),0,1)`.
+
+Fusion emits deterministic restrictions: NoNewTrade for specialist Extreme
+volatility evidence; DirectionConflict when Trend and Market Structure are
+both directional and have opposite signs; LowConfidence below 0.55; and
+Transition when Market Structure is Transitioning. Restrictions are evidence
+for later pipelines and do not themselves fail Regime Discovery.
+
+Overall quality is High when confidence is at least 0.80 with no missing
+optional evidence or restrictions, Acceptable when confidence is at least
+0.60 with no data-quality fault, Degraded when required evidence is valid but
+optional evidence is absent, a conflict/restriction exists, or confidence is
+0.35 to below 0.60, and Low below 0.35. Invalid required evidence produces
+Failed instead of a quality value.
+
+## 12.1 Reason-code rules
+
+Reason codes are stable machine-readable strings, not free text. Their format
+is `RD.<AREA>.<REASON>`, with an optional timeframe suffix in structured
+evidence rather than in the code. V1 reserves these families:
+
+-   `RD.CONFIG.INVALID`, `RD.CONFIG.NOT_FOUND`, `RD.CONFIG.VERSION_MISMATCH`,
+    `RD.CONFIG.HASH_MISMATCH`.
+
+-   `RD.DATA.REQUIRED_MISSING`, `RD.DATA.OPTIONAL_MISSING`, `RD.DATA.STALE`,
+    `RD.DATA.NOT_WARM`, `RD.DATA.INVALID`, `RD.DATA.FUTURE_TIMESTAMP`,
+    `RD.DATA.SCHEMA_UNSUPPORTED`, `RD.DATA.CALCULATION_VERSION_MISMATCH`.
+
+-   `RD.TREND.UP`, `RD.TREND.DOWN`, `RD.TREND.NEUTRAL`,
+    `RD.TREND.TIMEFRAME_CONFLICT`, `RD.TREND.MOMENTUM_DIVERGENCE`,
+    `RD.TREND.REVERSING`.
+
+-   `RD.VOL.LOW`, `RD.VOL.NORMAL`, `RD.VOL.HIGH`, `RD.VOL.EXTREME`,
+    `RD.VOL.EXPANDING`, `RD.VOL.CONTRACTING`, `RD.VOL.CONTANGO`,
+    `RD.VOL.BACKWARDATION`.
+
+-   `RD.STRUCT.TRENDING`, `RD.STRUCT.RANGING`, `RD.STRUCT.COMPRESSING`,
+    `RD.STRUCT.EXPANDING`, `RD.STRUCT.BREAKOUT_UP`,
+    `RD.STRUCT.BREAKOUT_DOWN`, `RD.STRUCT.TRANSITIONING`.
+
+-   `RD.FUSION.ALIGNED`, `RD.FUSION.DIRECTION_CONFLICT`,
+    `RD.FUSION.LOW_CONFIDENCE`, `RD.FUSION.NO_NEW_TRADE`,
+    `RD.FUSION.TRANSITION`.
+
+-   `RD.PIPELINE.SPECIALIST_FAILED`, `RD.PIPELINE.FUSION_FAILED`,
+    `RD.PIPELINE.CONSISTENCY_FAULT`.
+
+Every reason has a configured severity (Information, Warning, Restriction, or
+Failure). Failure codes cannot appear in Completed. Output removes duplicates
+and orders codes by area ordinal, reason ordinal, timeframe ordinal, and
+signal identity so replay and summary text are byte-for-byte deterministic.
+
+# 13. RegimeDiscoveryResult v1
+
+``` text
+
+RegimeDiscoveryResult
+ SchemaVersion
+ StrategyParameterSetId / Version
+ RegimeDiscoveryParameterSetId / Version
+ SignalSnapshotId
+ Trigger / Instrument identity
+ MarketDataAsOfUtc / ProducedAtUtc
+ TargetHorizon
+ TargetHorizonResult: Trend + Volatility + Structure + FusedRegime
+ SupportingObservationEvidence[]
+ OverallQuality / OverallConfidence
+ ReasonCodes[]
+ SummaryText
+```
+
+Structured fields are authoritative. SummaryText is a deterministic
+human-readable explanation derived from those fields for operations,
+paper-trading review, diagnostics, and later advisory use. It is never
+the only record of why a regime was produced.
+
+# 14. Failure and Public Pipeline Events
+
+Any required internal component may fail its calculation, but only the
+Regime Discovery pipeline boundary communicates terminal lifecycle
+events to the Strategy Workflow.
+
+``` text
+
+Internal failure -> Regime Discovery pipeline owner -> persist terminal state -> RegimeDiscoveryPipelineFailedEvent
+Final Fusion success -> pipeline owner -> persist completion -> envelope result -> RegimeDiscoveryPipelineCompletedEvent
+```
+
+-   Failure examples: invalid parameter set; required signal
+    unavailable/stale/not warm; incompatible versions; specialist
+    calculation failure; fusion validation failure; consistency fault.
+
+-   Completed means calculation completed successfully; it does not mean
+    the Strategy Workflow must continue.
+
+-   Failed means a valid required result could not be produced.
+
+# 15. State Ownership and Persistence
+
+-   Pipeline boundary and stateful specialist actors own private
+    calculation state only.
+
+-   Authoritative Command-actor state is event-sourced in PostgreSQL
+    following existing application conventions.
+
+-   ScyllaDB contains rebuildable operational/query projections.
+
+-   Historical reconstruction supports durability, audit, testing, and
+    diagnosis; it does not imply automatic business retry.
+
+-   Unbounded history is not retained in live actor state.
+
+# 16. Queries
+
+-   Current Regime Discovery pipeline state by workflow/execution.
+
+-   Current/last Trend, Volatility, Market Structure, and Fusion result.
+
+-   RegimeDiscoveryResult by workflow/result identity.
+
+-   Component evidence and reason codes.
+
+-   Parameter-set identity/version used.
+
+-   Signal snapshot identity and data-quality summary.
+
+-   Pipeline timeline/history and failure details.
+
+-   Operational health/current processing status.
+
+Queries are read-only and diagnostic. The Strategy Workflow does not
+query specialist actors to reconstruct a continuation result.
+
+# 17. Optional Timeout - Deferred Implementation Detail
+
+Every Strategy Workflow pipeline, including Regime Discovery, may
+support a workflow-owned execution deadline. Timeout is an external
+completion guard, not a retry mechanism.
+
+-   StartXXXPipelineCommand may carry ExpectedCompletionAtUtc.
+
+-   If the same workflow/stage/revision remains Processing beyond the
+    deadline, the workflow may apply TimeoutXXXCommand.
+
+-   Timeout is terminal and never starts another attempt.
+
+-   Any later Completed/Failed event for the timed-out revision is
+    stale.
+
+-   Exact duration, dispatcher, warning behavior, and UI behavior are
+    optional for initial implementation and should be refined after
+    end-to-end measurements.
+
+This is a cross-pipeline Strategy Workflow pattern and should be
+preserved in later pipeline specifications.
+
+# 18. Optional Manual Cancellation - Deferred Implementation Detail
+
+An authorized user may eventually cancel an active Strategy Workflow
+while a pipeline is processing. Cancellation is terminal and never means
+skip the stage and continue.
+
+-   Cancellation may attempt cooperative cancellation of in-flight work
+    where supported.
+
+-   Late terminal events after cancellation are stale.
+
+-   No automatic retry follows cancellation.
+
+-   Exact command shape, authorization, propagation, and UI interaction
+    are optional for the initial Regime Discovery implementation.
+
+# 19. Observability
+
+Regime Discovery is a high-value V1 business-intelligence path and
+should provide detailed observability without logging raw high-volume
+market data.
+
+-   Structured fields: WorkflowId, WorkflowRevision, stage, instrument,
+    horizon, parameter-set IDs/versions, signal snapshot ID, result ID,
+    correlation/causation IDs, outcome, reason codes.
+
+-   Metrics: processing/completed/failed counts, duration, signal-cache
+    acquisition latency, stale/missing signal counts, specialist/fusion
+    duration, and low-cardinality result quality/confidence metrics.
+
+-   Tracing may use the system-wide tracing architecture when finalized;
+    no pipeline-specific TraceId architecture is invented here.
+
+-   Do not log full opaque payload bytes or excessive raw signal
+    payloads.
+
+A future operational-design update should refine warning/diagnostic
+behavior for a pipeline that enters Processing but does not produce a
+terminal event. This is deliberately parked until the complete Strategy
+Workflow can be observed end to end.
+
+# 20. Validation and Idempotency
+
+-   Validate workflow ID, input revision, trigger identity,
+    parameter-set identity/version, required horizon configuration, and
+    signal snapshot integrity.
+
+-   Duplicate delivery of the same start command must not perform a
+    second logical calculation.
+
+-   Duplicate delivery of the same logical Completed/Failed event is a
+    no-op at the workflow boundary.
+
+-   Conflicting duplicate result identity/payload is a consistency
+    fault.
+
+-   Unsupported signal/result schemas are never silently accepted.
+
+# 21. Testing Requirements
+
+-   Parameter-set serialization, immutability, and version selection.
+
+-   Hot-cache acquisition and missing/stale/not-warm/invalid handling.
+
+-   Daily/Weekly/Monthly horizon bucketing and configuration overrides.
+
+-   Trend classification boundary cases and cross-timeframe
+    disagreement.
+
+-   Volatility thresholds, term structure, expansion/contraction, and
+    Extreme restriction evidence.
+
+-   Market Structure
+    trending/ranging/compression/expansion/breakout/transition cases.
+
+-   Fusion completeness, conflict, confidence, restrictions, and
+    deterministic summary generation.
+
+-   Processing -\> Completed and Processing -\> Failed terminal paths.
+
+-   Duplicate/idempotent start and terminal event behavior.
+
+-   PostgreSQL state replay and deterministic Scylla projection rebuild.
+
+-   Integration with the real Intrinsic Time Strategy Workflow boundary.
+
+-   Optional timeout/cancel tests only if selected for initial
+    implementation; automatic retry tests are not applicable because
+    retries are prohibited.
+
+# 22. Version Evolution
+
+| Version \| Scope \|
+
+| --- \| --- \|
+
+| V1 \| Deterministic Trend, Volatility, Market Structure, Fusion;
+  hot-cache signals; one target-horizon result per workflow. \|
+
+| V1.1 \| Optional ML.NET DetectIidChangePoint statistical change
+  evidence, initially observational and separately validated. \|
+
+| V2+ \| HMM specialist models, richer fusion, additional regime
+  domains, adaptive/statistical enhancements, optional LLM advisory
+  context. \|
+
+Future models must preserve the stable pipeline boundary so the Strategy
+Workflow does not need to know how Regime Discovery is implemented
+internally.
+
+# 23. Codex Implementation-Specification Instructions
+
+Codex must treat this document as the authoritative domain/design
+contract and inspect the current repository before proposing
+implementation details.
+
+-   Reuse existing actor, event-sourcing, realtime routing, projection,
+    storage, validation, MessagePack, logging, and testing conventions.
+
+-   Do not redesign the Intrinsic Time Strategy Workflow architecture.
+
+-   Identify the minimum append-only workflow changes needed to carry
+    RegimeDiscoveryParameterSet and expose configuration
+    identity/version.
+
+-   Produce a repository-specific file-by-file implementation plan and
+    implementation gates before production code generation.
+
+-   Do not infer additional regime algorithms, thresholds, retries,
+    HMMs, ML.NET logic, or continuation rules not approved here.
+
+-   Mark timeout and manual cancellation as optional implementation
+    gates, not mandatory blockers.
+
+-   Preserve the rule that only the Regime Discovery pipeline boundary
+    publishes public Processing/Completed/Failed lifecycle events.
+
+# 24. Definition of Done for this Design
+
+1.  Pipeline boundary and ownership are unambiguous.
+
+2.  Configuration authority and immutable parameter delivery are
+    defined.
+
+3.  Hot-cache acquisition and seven observation intervals are defined.
+
+4.  Daily/Weekly/Monthly aggregation is configuration-driven.
+
+5.  Trend, Volatility, Market Structure, and Fusion responsibilities are
+    defined.
+
+6.  The typed RegimeDiscoveryResult contains structured evidence and
+    deterministic summary.
+
+7.  Failure is terminal and no automatic retry exists.
+
+8.  Optional timeout and manual cancellation are documented but not
+    mandatory for initial implementation.
+
+9.  State, persistence, queries, observability, validation, and testing
+    expectations are sufficient for Codex to create the
+    repository-specific Implementation Specification.
+
+10. V1.1 and V2 extensions are explicitly separated from V1.
+
+# Appendix A - Terminology
+
+| Term \| Meaning \|
+
+| --- \| --- \|
+
+| Observation timeframe \| Upstream indicator interval: 15s, 1m, 5m,
+  15m, 1h, 4h, Daily. \|
+
+| Strategy horizon \| Daily, Weekly, or Monthly decision horizon. \|
+
+| Hot signal cache \| Latest-value store of precomputed market-signal
+  snapshots. \|
+
+| Specialist regime \| Trend, Volatility, or Market Structure
+  classification. \|
+
+| Fusion \| Deterministic combination of specialist results into a
+  canonical market regime. \|
+
+| Pipeline boundary \| Regime Discovery lifecycle/state owner
+  communicating with the Strategy Workflow. \|
+
+| Completed \| Complete valid Regime Discovery result produced;
+  continuation remains a workflow decision. \|
+
+| Failed \| Valid required result could not be produced. \|
+
+| Timeout \| Optional workflow-owned terminal guard for incomplete
+  realtime processing; never a retry. \|
+
+| Manual cancellation \| Optional operator-requested terminal stop;
+  never a retry or skip-to-next-stage instruction. \|
+
+# Appendix B - Source Alignment Note
+
+This design is intentionally aligned with the supplied Intrinsic Time
+Strategy Workflow Implementation Specification v1.0: pipeline workers
+receive immutable workflow context and the original ITI trigger, own
+private durable state, publish Processing/Completed/Failed lifecycle
+events, never decide workflow continuation, and return complete opaque
+results to the workflow. The implementation specification generated from
+this document must preserve those established boundaries.

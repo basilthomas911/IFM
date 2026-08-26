@@ -24,13 +24,12 @@ public sealed class FuturesEodDataRealtimeProjector(
             FuturesEodDataInsertedEvent,
             FuturesEodDataInsertedCompleteEvent,
             FuturesEodDataInsertedFailEvent,
-            FuturesEodDataId>(e => dbFactory.MarketDataDb.InsertFuturesEodDataAsync(e.FuturesEodData)),
+            FuturesEodDataId>(_ => Task.CompletedTask),
         Describe<
             FuturesEodSessionStatisticsUpdatedEvent,
             FuturesEodDataInsertedCompleteEvent,
             FuturesEodDataInsertedFailEvent,
-            FuturesEodDataId>(e => dbFactory.MarketDataDb.UpdateFuturesEodSessionStatisticsAsync(
-                e.FuturesEodData)),
+            FuturesEodDataId>(_ => Task.CompletedTask),
         Describe<
             VixFuturesEodDataInsertedEvent,
             VixFuturesEodDataInsertedCompleteEvent,

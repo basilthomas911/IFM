@@ -11,14 +11,9 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 
 /// <summary>
-/// Provides static methods for creating end-of-day (EOD) data models for futures contracts, including calculated
-/// Bollinger Bands and related statistical indicators based on historical and tick data.
+/// Provides the compatibility transport model for raw end-of-day futures session facts.
 /// </summary>
-/// <remarks>This class is intended to facilitate the generation of EOD data for futures by aggregating contract
-/// information, tick data, and historical ranges. It is important to ensure that the input data collections are valid
-/// and that the window size parameter is appropriate for the dataset being analyzed. The resulting model includes
-/// statistical measures such as Bollinger Bands, standard deviation, and market direction indicators, which can be used
-/// for further analysis or reporting.</remarks>
+/// <remarks>Derived indicators are intentionally not calculated here. Analytics actors own them.</remarks>
 internal static class FuturesEodDataModel 
 {
     public static FuturesEodDataV2ReadModel CreateFuturesEodData(
@@ -31,50 +26,19 @@ internal static class FuturesEodDataModel
         int windowSize,
         ICollection<VixFuturesEodDataReadModel> vixEodData)
     {
-        var dataCount = Math.Min(Math.Max(1, eodDataRange.Count), windowSize * 2);
-        var eodData = new FuturesEodDataV2ReadModel[dataCount];
-        eodData[0] = eodDataToday with
-        {
-            ValueDate = valueDate,
-            ClosePrice = futuresTickData.Price
-        };
-
-        var sourceIndex = 0;
-        var targetIndex = 1;
-        foreach (var historicalData in eodDataRange)
-        {
-            if (sourceIndex++ == 0)
-                continue;
-            if (targetIndex == eodData.Length)
-                break;
-            eodData[targetIndex++] = historicalData;
-        }
-
-        if (targetIndex != eodData.Length)
-            Array.Resize(ref eodData, targetIndex);
-
-        var bb = new BollingerBands(windowSize, eodData, normCurveData, vixEodData);
+        ArgumentNullException.ThrowIfNull(futuresTickData);
+        ArgumentNullException.ThrowIfNull(contract);
+        ArgumentNullException.ThrowIfNull(eodDataToday);
+        var close = futuresTickData.Price;
         return new FuturesEodDataV2ReadModel(
             contractId: contract.ContractId,
             valueDate: valueDate,
             symbol: contract.Symbol,
-            openPrice: bb.Open,
-            highPrice: bb.High,
-            lowPrice: bb.Low,
-            closePrice: bb.Close,
-            volume: bb.Volume,
-            dailyPercentChange: bb.DailyPercentageChange,
-            dailyStdDev: bb.StdDev,
-            dailyStdDevAmount: bb.StdDevAmount,
-            upperBand: bb.UpperBand,
-            mean: bb.Mean,
-            lowerBand: bb.LowerBand,
-            marketDirection: bb.MarketDirection,
-            marketVolatility: bb.MarketVolatility,
-            priceDirection: bb.PriceDirection,
-            priceVolatility: bb.PriceVolatility,
-            marketDirectionIndicator: bb.MarketDirectionIndicator,
-            windowSize: bb.WindowSize
+            openPrice: eodDataToday.OpenPrice,
+            highPrice: Math.Max(eodDataToday.HighPrice, close),
+            lowPrice: Math.Min(eodDataToday.LowPrice, close),
+            closePrice: close,
+            volume: eodDataToday.Volume
         );
     }
 

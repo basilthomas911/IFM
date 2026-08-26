@@ -138,6 +138,102 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
+    public async Task Market_price_trade_maps_provider_semantics_and_assigns_gap_free_lineage()
+    {
+        var valueDate = new DateOnly(2026, 8, 25);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new FakeFeed(
+            instrument,
+            NormalizedTrade(instrument, 1, 5_000_000_000, 1, (byte)'T', (byte)'B', 0b1101_0000),
+            NormalizedTrade(instrument, 2, 5_010_000_000, 0, (byte)'M', (byte)'A', 0b0000_1110),
+            NormalizedTrade(instrument, 1, 4_900_000_000, 0, (byte)'C', (byte)'N', 0));
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetMetrics().EmittedTradeEvents == 3,
+            TimeSpan.FromSeconds(2)));
+
+        Assert.Equal(2, publisher.MarketPrices.Count);
+        var first = publisher.MarketPrices[0];
+        var second = publisher.MarketPrices[1];
+        Assert.Equal((ushort)2, first.SchemaVersion);
+        Assert.Equal(NormalizedTradeAction.New, first.Price.Trade!.Value.NormalizedTradeAction);
+        Assert.Equal(NormalizedTradeSide.Buy, first.Price.Trade.Value.NormalizedTradeSide);
+        Assert.Equal(
+            NormalizedTradeConditionFlags.LastInEvent
+            | NormalizedTradeConditionFlags.TopOfBook
+            | NormalizedTradeConditionFlags.Snapshot
+            | NormalizedTradeConditionFlags.AggregatedPriceLevel,
+            first.Price.Trade.Value.NormalizedTradeConditionFlags);
+        Assert.NotEqual(Guid.Empty, first.Price.Trade.Value.StreamEpochId);
+        Assert.Equal(1, first.Price.Trade.Value.TradeOrdinal);
+
+        Assert.Equal(NormalizedTradeAction.Change, second.Price.Trade!.Value.NormalizedTradeAction);
+        Assert.Equal(NormalizedTradeSide.Sell, second.Price.Trade.Value.NormalizedTradeSide);
+        Assert.Equal(
+            NormalizedTradeConditionFlags.ReceiveTimestampInaccurate
+            | NormalizedTradeConditionFlags.BookMayBeInaccurate
+            | NormalizedTradeConditionFlags.PublisherSpecific,
+            second.Price.Trade.Value.NormalizedTradeConditionFlags);
+        Assert.Equal(first.Price.Trade.Value.StreamEpochId, second.Price.Trade.Value.StreamEpochId);
+        Assert.Equal(2, second.Price.Trade.Value.TradeOrdinal);
+
+        await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task Trade_reconstruction_starts_a_new_stream_epoch_and_resets_accepted_ordinal()
+    {
+        var valueDate = new DateOnly(2026, 8, 25);
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new RunningFeed(instrument);
+        var publisher = new CapturingPublisher();
+        await using var service = new TickAggregationService(
+            feed,
+            new MappingProvider(instrument),
+            publisher,
+            new TickQuoteBufferPool(),
+            new FixedValueDateProvider(valueDate),
+            new TickAggregationOptions
+            {
+                Dataset = "GLBX.MDP3",
+                DefinitionDate = valueDate
+            });
+
+        await service.StartAsync();
+        feed.Publish(NormalizedTrade(instrument, 1, 5_000_000_000, 0, (byte)'T', (byte)'B', 0));
+        var beforeReplay = await publisher.MarketPrice.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var firstEpoch = beforeReplay.Price.Trade!.Value.StreamEpochId;
+        Assert.Equal(1, beforeReplay.Price.Trade.Value.TradeOrdinal);
+
+        feed.Publish(ReplayTrade(instrument, 2, 5_005_000_000, 12));
+        feed.Publish(TradeReplayComplete(instrument));
+        await publisher.SessionStatisticsFirst.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        feed.Publish(NormalizedTrade(instrument, 3, 5_010_000_000, 0, (byte)'T', (byte)'B', 0));
+        Assert.True(SpinWait.SpinUntil(
+            () => publisher.MarketPrices.Count == 2,
+            TimeSpan.FromSeconds(2)));
+
+        var afterReplay = publisher.MarketPrices[1].Price.Trade!.Value;
+        Assert.NotEqual(firstEpoch, afterReplay.StreamEpochId);
+        Assert.Equal(1, afterReplay.TradeOrdinal);
+
+        await service.StopAsync();
+    }
+
+    [Fact]
     public async Task Statistics_replay_is_coalesced_then_live_high_updates_snapshot_and_event()
     {
         var valueDate = new DateOnly(2026, 8, 18);
@@ -770,6 +866,29 @@ public sealed class TickAggregationServiceTests
         new TradeRecord64(
             new MarketRecordHeader32(key.InstrumentId, key.PublisherId, MarketRecordKind.Trade, 0, sequence, sequence, sequence),
             price, 12, 1, 2, 0));
+
+    private static MarketRecord64 NormalizedTrade(
+        InstrumentKey key,
+        uint sequence,
+        long price,
+        byte headerFlags,
+        byte action,
+        byte side,
+        byte dbnFlags) => new(
+        new TradeRecord64(
+            new MarketRecordHeader32(
+                key.InstrumentId,
+                key.PublisherId,
+                MarketRecordKind.Trade,
+                headerFlags,
+                sequence,
+                sequence,
+                sequence),
+            price,
+            12,
+            action,
+            side,
+            dbnFlags));
 
     private static MarketRecord64 ReplayTrade(
         InstrumentKey key,

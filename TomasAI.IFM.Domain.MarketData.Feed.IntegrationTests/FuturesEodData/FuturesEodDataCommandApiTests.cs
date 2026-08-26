@@ -1,11 +1,14 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Client;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
@@ -21,6 +24,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.IntegrationTests.FuturesEodData;
 public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factory, MarketDataFeedFixture dbFixture)
     : IClassFixture<WebApplicationFactory<Program>>, IClassFixture<MarketDataFeedFixture>
 {
+    readonly WebApplicationFactory<Program> _factory = factory;
     readonly HttpClientTestFactory _httpClientFactory = new(factory);
     readonly IJsonSerializer _jsonSerializer = new NewtonSoftJsonSerializer();
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
@@ -53,6 +57,10 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
             var contractId = SampleData.FuturesContractId;
             var entityId = new FuturesEodDataId(contractId, valueDate);
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
+            await dbFixture.DeleteRawEodObservationAsync(
+                MarketSeriesIdentity.ForContract(contractId).Format(),
+                contractId,
+                valueDate);
 
             _httpClientFactory.CreateClient();
             var commandServiceApi = new CommandServiceApiClient(
@@ -157,6 +165,10 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         var windowSize = 20;
         var vixEodData = Array.Empty<VixFuturesEodDataReadModel>();
         await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
+        await dbFixture.DeleteRawEodObservationAsync(
+            MarketSeriesIdentity.ForContract(contractId).Format(),
+            contractId,
+            valueDate);
 
         // act...
         _httpClientFactory.CreateClient();
@@ -182,16 +194,27 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         futuresEodDataNotification.FuturesEodData.Should().BeEquivalentTo(
             futuresEodDataInsertedCompleteEvent.FuturesEodData);
 
-        var insertedEodData = await dbFixture.MarketDataDb.GetFuturesEodDataAsync(contractId, valueDate);
+        var observationStore = _factory.Services
+            .GetRequiredService<IHistoricalObservationStore>();
+        var insertedEodData = await observationStore.GetRawEodAsync(
+            MarketSeriesIdentity.ForContract(contractId),
+            valueDate,
+            CancellationToken.None);
         insertedEodData.Should().NotBeNull();
         insertedEodData!.ContractId.Should().Be(contractId);
         insertedEodData.ValueDate.Should().Be(valueDate);
-        insertedEodData.Symbol.Should().Be(eodDataToday.Symbol);
-        insertedEodData.OpenPrice.Should().Be(eodDataToday.OpenPrice);
-        insertedEodData.HighPrice.Should().Be(eodDataToday.HighPrice);
-        insertedEodData.LowPrice.Should().Be(eodDataToday.LowPrice);
-        insertedEodData.ClosePrice.Should().Be(futuresTickData.Price);
-        insertedEodData.Volume.Should().Be(eodDataToday.Volume);
+        insertedEodData.Open.Should().Be(
+            futuresEodDataInsertedCompleteEvent.FuturesEodData.OpenPrice);
+        insertedEodData.High.Should().Be(
+            futuresEodDataInsertedCompleteEvent.FuturesEodData.HighPrice);
+        insertedEodData.Low.Should().Be(
+            futuresEodDataInsertedCompleteEvent.FuturesEodData.LowPrice);
+        insertedEodData.Close.Should().Be(
+            futuresEodDataInsertedCompleteEvent.FuturesEodData.ClosePrice);
+        insertedEodData.Volume.Should().Be(
+            futuresEodDataInsertedCompleteEvent.FuturesEodData.Volume);
+        insertedEodData.IsComplete.Should().BeTrue();
+        insertedEodData.IsValid.Should().BeTrue();
 
         await eventListener.StopAsync();
         await notificationListener.StopAsync();

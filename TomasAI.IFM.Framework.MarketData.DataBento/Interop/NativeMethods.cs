@@ -164,4 +164,91 @@ internal static partial class NativeMethods
         NativeLatestPriceRequest* request,
         uint timeoutMilliseconds,
         out LatestPriceResult64 result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_estimate")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalEstimate(
+        NativeHistoricalRequest* request,
+        NativeUtf8Slice* symbols,
+        byte* utf8Blob,
+        uint utf8BlobBytes,
+        ref NativeHistoricalEstimate estimate);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_batch_submit")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalBatchSubmit(
+        NativeHistoricalRequest* request,
+        NativeUtf8Slice* symbols,
+        byte* utf8Blob,
+        uint utf8BlobBytes,
+        out nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_batch_get_status")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalBatchGetStatus(
+        byte* providerJobId,
+        uint providerJobIdBytes,
+        out nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_batch_list_files")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalBatchListFiles(
+        byte* providerJobId,
+        uint providerJobIdBytes,
+        out nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_batch_download_file")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalBatchDownloadFile(
+        byte* providerJobId,
+        uint providerJobIdBytes,
+        byte* fileName,
+        uint fileNameBytes,
+        byte* destinationPath,
+        uint destinationPathBytes);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_range_open")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalRangeOpen(
+        NativeHistoricalRequest* request,
+        NativeUtf8Slice* symbols,
+        byte* utf8Blob,
+        uint utf8BlobBytes,
+        out nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_file_open")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalFileOpen(
+        byte* filePath,
+        uint filePathBytes,
+        uint schema,
+        out nint result);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_result_get_payload")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalResultGetPayload(
+        SafeHistoricalResultHandle result,
+        byte* utf8Buffer,
+        uint utf8BufferCapacity,
+        out uint requiredBytes);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_result_get_next_batch")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalResultGetNextBatch(
+        SafeHistoricalResultHandle result,
+        NativeHistoricalRecord* destination,
+        uint destinationRecordCapacity,
+        ref NativeHistoricalBatch batch);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_result_get_error")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial DatabentoFeedStatus HistoricalResultGetError(
+        SafeHistoricalResultHandle result,
+        byte* utf8Buffer,
+        uint utf8BufferCapacity,
+        out uint requiredBytes);
+
+    [LibraryImport(LibraryName, EntryPoint = "dbf_historical_result_destroy")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial DatabentoFeedStatus HistoricalResultDestroy(nint result);
 }

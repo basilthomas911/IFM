@@ -19,6 +19,8 @@ using TomasAI.IFM.Application.Api.Client;
 using TomasAI.IFM.Application.Actor.Client;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Databento.Historical;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
@@ -28,6 +30,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Application.Storage.HistoricalBootstrap;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -75,6 +78,9 @@ using TomasAI.IFM.Shared.StatusConsole.Model;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAnalyticsObservation.Realtime.Projector;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
@@ -367,6 +373,8 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton<IFundDbContext, FundDbContext>();
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
+            services.AddSingleton<IHistoricalBootstrapStore, PostgresHistoricalBootstrapStore>();
+            services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
@@ -423,6 +431,31 @@ public static class Startup
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
+            services.AddDatabentoHistoricalMarketDataServices(
+                new DatabentoHistoricalProviderOptions
+                {
+                    UseSyntheticProvider = true
+                });
+            services.AddApplicationMarketDataHistoricalApi(
+                new DatabentoHistoricalOptions
+                {
+                    StagingRoot = Path.Combine(
+                        AppContext.BaseDirectory,
+                        "market-data-history"),
+                    SeriesProfiles = []
+                });
+            services.AddSingleton<IFuturesAnalyticsSeriesResolver>(_ =>
+                new PrefixFuturesAnalyticsSeriesResolver(
+                    new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
+                            new FuturesSeriesId(
+                                "ES",
+                                "calendar-front",
+                                "unadjusted",
+                                1))
+                    }));
+            services.AddSingleton<FuturesAnalyticsObservationRealtimeProjector>();
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();

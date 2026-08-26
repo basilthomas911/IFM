@@ -243,4 +243,35 @@ public static class EventSourceSchemaSql
     CommandData text not null
     );
     """;
+
+    /// <summary>Creates durable historical-bootstrap checkpoint and immutable manifest tables.</summary>
+    public const string CreateHistoricalBootstrap = """
+    CREATE TABLE IF NOT EXISTS historical_bootstrap_checkpoint (
+        bootstrap_attempt_id uuid PRIMARY KEY,
+        request_sha256 text NOT NULL,
+        status smallint NOT NULL,
+        stage smallint NOT NULL,
+        provider_job_id text NOT NULL DEFAULT '',
+        provider_file_id text NOT NULL DEFAULT '',
+        batch_ordinal bigint NOT NULL DEFAULT -1,
+        source_position text NOT NULL DEFAULT '',
+        error_message text NOT NULL DEFAULT '',
+        updated_at_utc timestamptz NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_historical_bootstrap_completed_request
+        ON historical_bootstrap_checkpoint (request_sha256)
+        WHERE status = 2;
+
+    CREATE TABLE IF NOT EXISTS historical_bootstrap_manifest (
+        bootstrap_attempt_id uuid PRIMARY KEY,
+        manifest_json text NOT NULL,
+        audit_json text NOT NULL,
+        created_at_utc timestamptz NOT NULL,
+        CONSTRAINT fk_historical_bootstrap_manifest_checkpoint
+            FOREIGN KEY (bootstrap_attempt_id)
+            REFERENCES historical_bootstrap_checkpoint(bootstrap_attempt_id)
+            ON DELETE CASCADE
+    );
+    """;
 }
