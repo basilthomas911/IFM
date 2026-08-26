@@ -5,7 +5,7 @@ using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 

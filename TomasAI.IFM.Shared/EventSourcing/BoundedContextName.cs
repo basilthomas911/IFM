@@ -41,6 +41,10 @@ public enum BoundedContextName
     FuturesMacdSignalBoundedContext,
     FuturesAtrSignalBoundedContext,
     FuturesAdxSignalBoundedContext,
+    /// <summary>Routes event-sourced EMA signal commands.</summary>
+    FuturesEmaSignalBoundedContext,
+    /// <summary>Routes event-sourced Bollinger Band signal commands.</summary>
+    FuturesBbSignalBoundedContext,
     /// <summary>Routes Intrinsic Time Strategy workflow orchestration commands.</summary>
     IntrinsicTimeStrategyWorkflowBoundedContext,
     /// <summary>Routes Regime Discovery strategy pipeline commands.</summary>

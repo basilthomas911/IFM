@@ -2,7 +2,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -21,6 +22,44 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 /// </remarks>
 public static class MarketDataAnalyticsCommandApiExtensions
 {
+    /// <summary>Sends one closed observation to the event-sourced EMA actor.</summary>
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesEmaSignalAsync(
+        this IEventActorContext context,
+        FuturesTradeSessionBarReadModel observation)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        var entityId = new FuturesTradeSessionBarEntityId(observation.MarketSeriesIdentity, observation.TimeFrame);
+        GenerateFuturesEmaSignalCommand command = new()
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, GenerateFuturesEmaSignalCommand.Actor,
+                GenerateFuturesEmaSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            Observation = observation
+        };
+        return RequestAsync<GenerateFuturesEmaSignalCommand, FuturesTradeSessionBarEntityId>(context, command);
+    }
+
+    /// <summary>Sends a same-observation EMA/bar pair to the event-sourced Bollinger actor.</summary>
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesBbSignalAsync(
+        this IEventActorContext context,
+        FuturesTradeSessionBarReadModel observation,
+        FuturesEmaSignalReadModel emaSignal)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(emaSignal);
+        var entityId = new FuturesTradeSessionBarEntityId(observation.MarketSeriesIdentity, observation.TimeFrame);
+        GenerateFuturesBbSignalCommand command = new()
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, GenerateFuturesBbSignalCommand.Actor,
+                GenerateFuturesBbSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            Observation = observation,
+            EmaSignal = emaSignal
+        };
+        return RequestAsync<GenerateFuturesBbSignalCommand, FuturesTradeSessionBarEntityId>(context, command);
+    }
 
     /// <summary>
     /// Sends the generate futures RSI signal command and awaits its typed actor reply.

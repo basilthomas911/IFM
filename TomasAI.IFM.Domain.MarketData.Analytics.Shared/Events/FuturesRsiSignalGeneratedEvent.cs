@@ -31,6 +31,9 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
     [Key(9)] public DateTime CreatedOn { get; init; }
     [Key(10)] public string CreatedBy { get; init; }
 
+    /// <summary>Gets the event-sourced Wilder RSI state after this observation.</summary>
+    [Key(11)] public FuturesRsiAccumulatorCheckpoint? AccumulatorCheckpoint { get; init; }
+
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
@@ -52,7 +55,8 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
         DateTime receivedOn,
         FuturesRsiSignalReadModel futuresRsiSignal,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        FuturesRsiAccumulatorCheckpoint? accumulatorCheckpoint)
     {
         Subject = subject;
         Id = id;
@@ -65,6 +69,7 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
         FuturesRsiSignal = futuresRsiSignal;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
+        AccumulatorCheckpoint = accumulatorCheckpoint;
     }
 
     /// <summary>
@@ -88,8 +93,10 @@ public record FuturesRsiSignalGeneratedEvent : IEvent<FuturesRsiSignalEntityId>
             EventSource = this.EventSource,
             ReceivedOn = this.ReceivedOn,
             FuturesRsiSignal = this.FuturesRsiSignal,
+            PeriodLength = this.EntityId.PeriodLength,
             CreatedOn = this.CreatedOn,
-            CreatedBy = this.CreatedBy
+            CreatedBy = this.CreatedBy,
+            AccumulatorCheckpoint = this.AccumulatorCheckpoint
         };
 
         return (ICompleteEvent<TEntityId>)completed;
@@ -149,6 +156,9 @@ public record FuturesRsiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesRsi
     [Key(10)] public DateTime CreatedOn { get; init; }
     [Key(11)] public string CreatedBy { get; init; }
 
+    /// <summary>Gets the event-sourced Wilder RSI state after this observation.</summary>
+    [Key(12)] public FuturesRsiAccumulatorCheckpoint? AccumulatorCheckpoint { get; init; }
+
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
     [IgnoreMember] public string EventName => GetType().Name;
     [IgnoreMember] public EventType EventType => EventType.CompletedEvent;
@@ -168,7 +178,8 @@ public record FuturesRsiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesRsi
         FuturesRsiSignalReadModel futuresRsiSignal,
         int periodLength,
         DateTime createdOn,
-        string createdBy)
+        string createdBy,
+        FuturesRsiAccumulatorCheckpoint? accumulatorCheckpoint)
     {
         Subject = subject;
         EntityId = entityId;
@@ -182,6 +193,7 @@ public record FuturesRsiSignalGeneratedCompleteEvent : ICompleteEvent<FuturesRsi
         PeriodLength = periodLength;
         CreatedOn = createdOn;
         CreatedBy = createdBy ?? string.Empty;
+        AccumulatorCheckpoint = accumulatorCheckpoint;
     }
 }
 

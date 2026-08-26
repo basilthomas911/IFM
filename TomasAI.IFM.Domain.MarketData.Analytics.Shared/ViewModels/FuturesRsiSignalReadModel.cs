@@ -3,7 +3,7 @@ using FluentValidation.Results;
 using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Validation;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 

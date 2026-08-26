@@ -9,9 +9,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command;
 
@@ -125,7 +124,7 @@ public static class GenerateFuturesAtrSignal
             computed.TrendDirectionStrength())
         {
             Metadata = e.Observation is { } observation
-                ? FuturesRegimeRsiSignalState.Metadata(
+                ? MarketAnalyticsSignalMetadataFactory.Create(
                     observation,
                     MarketAnalyticsSignalKind.Atr,
                     $"atr-{e.EntityId.PeriodLength}-legacy-v1",

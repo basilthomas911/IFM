@@ -5,8 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command;
 
@@ -76,7 +75,7 @@ public static class GenerateFuturesMacdSignal
             computed.SlowEma)
         {
             Metadata = e.Observation is { } observation
-                ? FuturesRegimeRsiSignalState.Metadata(
+                ? MarketAnalyticsSignalMetadataFactory.Create(
                     observation,
                     MarketAnalyticsSignalKind.Macd,
                     $"macd-{e.EntityId.SignalEmaPeriod}-{e.EntityId.FastEmaPeriod}-{e.EntityId.SlowEmaPeriod}-legacy-v1",

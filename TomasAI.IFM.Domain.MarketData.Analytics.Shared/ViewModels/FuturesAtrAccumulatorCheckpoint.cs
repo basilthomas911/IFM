@@ -1,5 +1,5 @@
 using MessagePack;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 

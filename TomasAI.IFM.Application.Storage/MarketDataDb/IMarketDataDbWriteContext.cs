@@ -7,7 +7,8 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
@@ -81,7 +82,7 @@ public interface IMarketDataDbWriteContext
     /// <summary>Persists one EMA10/20/50/200 signal projection.</summary>
     Task InsertFuturesEmaSignalAsync(FuturesEmaSignalReadModel signal, CancellationToken cancellationToken = default);
     /// <summary>Persists one EMA-centered BB10/20 signal projection.</summary>
-    Task InsertFuturesBollingerBandSignalAsync(FuturesBollingerBandSignalReadModel signal, CancellationToken cancellationToken = default);
+    Task InsertFuturesBollingerBandSignalAsync(FuturesBbSignalReadModel signal, CancellationToken cancellationToken = default);
     /// <summary>Persists one extended ATR14 volatility signal projection.</summary>
     Task InsertFuturesTdiSignalAsync(FuturesTdiSignalReadModel e);
     Task InsertFuturesMacdSignalAsync(FuturesMacdSignalReadModel e);

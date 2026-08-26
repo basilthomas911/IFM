@@ -10,7 +10,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 

@@ -1,5 +1,6 @@
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Framework.Storage.Extensions;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -14,9 +15,9 @@ public partial class MarketDataDbContext
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = signal.Metadata;
         return _dbFactory.MarketDataDb
-            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEmaSignalV1)}",
-                MarketDataDbCql.InsertFuturesEmaSignalV1)
-            .SetParameters(new InsertFuturesEmaSignalV1(
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesEmaSignal)}",
+                MarketDataDbCql.InsertFuturesEmaSignal)
+            .SetParameters(new InsertFuturesEmaSignal(
                 metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(),
                 metadata.CalculationConfigurationId, Bucket(metadata.ValueDate),
                 metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value,
@@ -33,15 +34,15 @@ public partial class MarketDataDbContext
 
     /// <inheritdoc />
     public Task InsertFuturesBollingerBandSignalAsync(
-        FuturesBollingerBandSignalReadModel signal,
+        FuturesBbSignalReadModel signal,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(signal);
         var metadata = signal.Metadata;
         return _dbFactory.MarketDataDb
-            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBollingerBandSignalV1)}",
-                MarketDataDbCql.InsertFuturesBollingerBandSignalV1)
-            .SetParameters(new InsertFuturesBollingerBandSignalV1(
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesBollingerBandSignal)}",
+                MarketDataDbCql.InsertFuturesBollingerBandSignal)
+            .SetParameters(new InsertFuturesBollingerBandSignal(
                 metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(),
                 metadata.CalculationConfigurationId, Bucket(metadata.ValueDate),
                 metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value,

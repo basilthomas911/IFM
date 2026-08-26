@@ -1,6 +1,6 @@
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Event.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;

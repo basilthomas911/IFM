@@ -22,17 +22,13 @@ RSI13 remains the TDI source under `rsi-13-tdi-v1`. RSI14 is isolated under
 `rsi-14-regime-v1`; its slope is nullable until a prior RSI exists, so a
 not-yet-warm slope cannot be mistaken for zero.
 
-EMA10/20/50/200, EMA-centered BB10/20, and extended ATR14 execute in one
-ordered `FuturesRegimeIndicatorRealtimeActor` mailbox. This differs from the
-initial separate EMA/BB actor sketch but preserves the actor conventions and
-provides a stronger composition invariant: Bollinger always receives the EMA
-calculated from the exact same `ObservationId`, without cross-mailbox timing or
-an unbounded join.
-
-The actor publishes one generated snapshot, its realtime projector writes EMA,
-Bollinger, and ATR projections storage-first, and only a successful projection
-enters the transitional latest cache. The bounded Query actor reads that cache.
-MDSI-15 will replace this transitional cache with the approved unified cache.
+As qualified by MSR-0 through MSR-9, EMA10/20/50/200 and EMA-centered BB10/20
+now have independent event-sourced Command actors. A stateless EMA Realtime
+actor forwards bars, the EMA projector persists successfully generated values,
+and the EMA Event actor continues the exact observation/EMA pair into the
+Bollinger Command actor. ATR remains independently event sourced. The former
+combined snapshot, realtime state, projector, cache, and Query actor no longer
+exist.
 
 ## 2. Formula boundaries
 

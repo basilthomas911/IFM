@@ -7,14 +7,15 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
@@ -47,8 +48,39 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             new ActorMailboxId(ActorType.Realtime, FuturesRsiSignalRealtimeActor.ActorName),
             new ActorMailboxId(ActorType.Realtime, FuturesAtrSignalRealtimeActor.ActorName),
             new ActorMailboxId(ActorType.Realtime, FuturesAdxSignalRealtimeActor.ActorName),
-            new ActorMailboxId(ActorType.Realtime, FuturesMacdSignalRealtimeActor.ActorName)
+            new ActorMailboxId(ActorType.Realtime, FuturesMacdSignalRealtimeActor.ActorName),
+            new ActorMailboxId(ActorType.Realtime, FuturesEmaSignalRealtimeActor.ActorName)
         ]);
+    }
+
+    [Fact]
+    public async Task EmaProjection_ContinuesIntoDedicatedEventSourcedBollingerActor()
+    {
+        var contractId = $"ESEM{Guid.NewGuid():N}"[..18];
+        var timeFrame = TimeFrameType.FifteenMinutes;
+        var timestamp = new DateTime(2026, 8, 17, 13, 30, 0, DateTimeKind.Utc);
+        var entityId = new FuturesTradeSessionBarEntityId(
+            MarketSeriesIdentity.ForContract(contractId), timeFrame);
+
+        for (var sequence = 1; sequence <= 40; sequence++)
+            await PublishAsync(ClosedObservation(contractId, timeFrame, sequence,
+                timestamp.AddMinutes(sequence * 15), 5400m + sequence));
+
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline)
+        {
+            var emaSubject = new ActorSubject(ActorType.Command,
+                GenerateFuturesEmaSignalCommand.Actor, GenerateFuturesEmaSignalCommand.Verb, entityId.Format());
+            var bbSubject = new ActorSubject(ActorType.Command,
+                GenerateFuturesBbSignalCommand.Actor, GenerateFuturesBbSignalCommand.Verb, entityId.Format());
+            var emaStream = await dbFixture.ActorEventSourceDb.GetEventStreamIdFromDbAsync($"{emaSubject.ThreadId}");
+            var bbStream = await dbFixture.ActorEventSourceDb.GetEventStreamIdFromDbAsync($"{bbSubject.ThreadId}");
+            if (emaStream is not null && bbStream is not null)
+                return;
+            await Task.Delay(250);
+        }
+
+        throw new TimeoutException("EMA projection did not continue into the Bollinger command stream.");
     }
 
     [Fact]

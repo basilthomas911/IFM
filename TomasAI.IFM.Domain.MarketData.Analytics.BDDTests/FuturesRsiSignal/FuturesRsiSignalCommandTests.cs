@@ -32,8 +32,22 @@ public class FuturesRsiSignalCommandTests
         return state;
     }
 
-    static GenerateFuturesRsiSignalCommand BuildCommand(TimeFrameType timePeriod = TimeFrameType.Daily, decimal price = SampleData.FuturesPrice)
-        => SampleData.RsiGenerateCommandFor(timePeriod, price) with { CommandId = Guid.NewGuid() };
+    static GenerateFuturesRsiSignalCommand BuildCommand(
+        TimeFrameType timePeriod = TimeFrameType.Daily,
+        decimal price = SampleData.FuturesPrice,
+        int? periodLength = null)
+    {
+        var command = SampleData.RsiGenerateCommandFor(timePeriod, price);
+        if (periodLength is not { } period)
+            return command with { CommandId = Guid.NewGuid() };
+        var signalId = command.FuturesRsiSignalId with { PeriodLength = period };
+        return command with
+        {
+            CommandId = Guid.NewGuid(),
+            FuturesRsiSignalId = signalId,
+            EntityId = signalId.ToEntityId()
+        };
+    }
 
     #region Happy Path Tests
 
@@ -63,7 +77,7 @@ public class FuturesRsiSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.SingleRsiSignal);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, periodLength: FuturesTdiConfiguration.Standard.RsiPeriod);
 
         // Act
         var result = command.Execute(state);
@@ -83,7 +97,8 @@ public class FuturesRsiSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.UpTrendingRsiSignals);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod,
+            periodLength: FuturesTdiConfiguration.Standard.RsiPeriod);
 
         // Act
         var result = command.Execute(state);
@@ -105,7 +120,8 @@ public class FuturesRsiSignalCommandTests
         // Arrange - the new price must continue the down-trend (last seeded price is 4055); otherwise
         // the single new data point can itself dominate the windowed average and mask the trend.
         var state = SeedState(SampleData.DownTrendingRsiSignals);
-        var command = BuildCommand(timePeriod, price: 4050m);
+        var command = BuildCommand(timePeriod, price: 4050m,
+            periodLength: FuturesTdiConfiguration.Standard.RsiPeriod);
 
         // Act
         var result = command.Execute(state);
@@ -176,7 +192,7 @@ public class FuturesRsiSignalCommandTests
     {
         // Arrange
         var state = new FuturesRsiSignalCommandState();
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod, periodLength: FuturesTdiConfiguration.Standard.RsiPeriod);
 
         // Act
         command.Execute(state);
@@ -264,7 +280,8 @@ public class FuturesRsiSignalCommandTests
     {
         // Arrange
         var state = SeedState(SampleData.UpTrendingRsiSignals);
-        var command = BuildCommand(timePeriod);
+        var command = BuildCommand(timePeriod,
+            periodLength: FuturesTdiConfiguration.Standard.RsiPeriod);
 
         // Act
         command.Execute(state);

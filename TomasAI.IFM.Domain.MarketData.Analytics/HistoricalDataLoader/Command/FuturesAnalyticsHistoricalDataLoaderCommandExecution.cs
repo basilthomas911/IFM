@@ -1,5 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.State;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Historical;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 

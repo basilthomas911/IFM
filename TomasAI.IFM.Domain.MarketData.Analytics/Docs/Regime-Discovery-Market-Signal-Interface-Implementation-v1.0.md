@@ -1789,8 +1789,8 @@ Exit: RSI13 and RSI14 coexist without overwrites and TDI output is unchanged.
 
 ### MDSI-8 - EMA signal
 
-Status: **Complete (2026-08-25)** through the ordered regime-indicator realtime
-pipeline described in binding decision 16.
+Status: **Complete (2026-08-26)** through the dedicated event-sourced
+`FuturesEmaSignal` Command actor qualified by MSR-0 through MSR-9.
 
 Deliver:
 
@@ -1804,8 +1804,10 @@ golden vectors pass across restart.
 
 ### MDSI-9 - Bollinger Band signal
 
-Status: **Complete (2026-08-25)** through same-mailbox EMA composition with
-exact `ObservationId` validation.
+Status: **Complete (2026-08-26)** through the dedicated event-sourced
+`FuturesBbSignal` Command actor. The EMA Event actor forwards the exact
+observation/EMA pair after successful EMA projection; BB rejects a mismatched
+`ObservationId`.
 
 Deliver:
 

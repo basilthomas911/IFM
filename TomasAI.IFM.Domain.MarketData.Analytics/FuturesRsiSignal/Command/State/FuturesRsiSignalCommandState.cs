@@ -18,6 +18,9 @@ public class FuturesRsiSignalCommandState
     const int MaxSignalHistory = 256;
     readonly List<FuturesRsiSignalReadModel> _futuresRsiSignals = [];
 
+    /// <summary>Gets the current event-sourced Wilder RSI accumulator state.</summary>
+    public FuturesRsiAccumulatorCheckpoint? AccumulatorCheckpoint { get; private set; }
+
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
     /// </summary>
@@ -42,6 +45,7 @@ public class FuturesRsiSignalCommandState
 
         bool On(FuturesRsiSignalGeneratedEvent e)
         {
+            AccumulatorCheckpoint = e.AccumulatorCheckpoint ?? AccumulatorCheckpoint;
             if (e.FuturesRsiSignal is not null)
             {
                 _futuresRsiSignals.Add(e.FuturesRsiSignal);

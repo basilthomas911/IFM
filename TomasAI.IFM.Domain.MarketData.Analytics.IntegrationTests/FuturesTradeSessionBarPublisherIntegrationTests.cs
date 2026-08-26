@@ -8,7 +8,7 @@ using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
@@ -32,9 +32,11 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
     public async Task LiveTrade_ProducesDurableProjectedSessionBar()
     {
         var contractId = $"TBAR{Guid.NewGuid():N}"[..18];
-        var timestamp = DateTimeOffset.UtcNow;
-        var valueDate = factory.Services.GetRequiredService<IMarketSessionCalendar>()
-            .GetValueDate(timestamp);
+        var calendar = factory.Services.GetRequiredService<IMarketSessionCalendar>();
+        var valueDate = calendar.GetValueDate(DateTimeOffset.UtcNow);
+        while (!calendar.IsTradingDate(valueDate))
+            valueDate = valueDate.AddDays(-1);
+        var timestamp = calendar.GetSession(valueDate).StartUtc.AddHours(1).AddSeconds(1);
         var epoch = Guid.NewGuid();
         var terminal = new TaskCompletionSource<FuturesTradeSessionBarPublishedCompleteEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);

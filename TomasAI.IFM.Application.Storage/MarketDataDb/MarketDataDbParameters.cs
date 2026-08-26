@@ -552,7 +552,7 @@ internal readonly record struct InsertFuturesOptionTickData(string contractId, D
 {
     public object Bind() => new object?[] { contractId, valueDate, tickId, tickTime, optionPrice, bidPrice, askPrice, bidSize, askSize, impliedVolatility, underlyingPrice, delta, gamma, vega, theta, rho };
 }
-internal readonly record struct InsertFuturesEmaSignalV1(
+internal readonly record struct InsertFuturesEmaSignal(
     string seriesKey, string timePeriod, string configurationId, int yearMonth,
     DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
     decimal price, decimal? ema10, decimal? previousEma10, decimal? ema10Slope,
@@ -572,7 +572,7 @@ internal readonly record struct InsertFuturesEmaSignalV1(
     };
 }
 
-internal readonly record struct InsertFuturesBollingerBandSignalV1(
+internal readonly record struct InsertFuturesBollingerBandSignal(
     string seriesKey, string timePeriod, string configurationId, int yearMonth,
     DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
     decimal price, decimal? ema10Center, decimal? standardDeviation10, decimal? upper10,

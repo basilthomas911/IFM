@@ -2,7 +2,7 @@
 
 internal static class MarketDataDbCql
 {
-    public const string InsertFuturesEmaSignalV1 = """
+    public const string InsertFuturesEmaSignal = """
         INSERT INTO futures_ema_signal (
             seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
             contractId, valueDate, price, ema10, previousEma10, ema10Slope,
@@ -18,7 +18,7 @@ internal static class MarketDataDbCql
         );
         """;
 
-    public const string InsertFuturesBollingerBandSignalV1 = """
+    public const string InsertFuturesBollingerBandSignal = """
         INSERT INTO futures_bollinger_band_signal (
             seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
             contractId, valueDate, price, ema10Center, standardDeviation10, upper10, lower10,

@@ -5,9 +5,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Model;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Indicators;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesRsiSignal;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command;
 
@@ -22,30 +21,30 @@ public static class GenerateFuturesRsiSignal
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise, <see langword="false"/></returns>
     public static bool Execute(this GenerateFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
     {
-        var futuresRsiSignal = state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice) with
-        {
-            SourceSequence = e.SourceSequence,
-            SourceEventTimestamp = e.SourceEventTimestamp,
-            Metadata = e.Observation is { } observation
-                ? FuturesRegimeRsiSignalState.Metadata(
+        FuturesRsiWilderResult? wilderResult = null;
+        var futuresRsiSignal = e.Observation is { } observation
+            ? FuturesRsiWilderSignalFactory.Create(
+                observation,
+                e.EntityId.PeriodLength,
+                wilderResult = FuturesRsiWilderAccumulator.Apply(
+                    state.AccumulatorCheckpoint,
                     observation,
-                    MarketAnalyticsSignalKind.Rsi,
-                    e.EntityId.PeriodLength switch
-                    {
-                        13 => FuturesRsiConfigurations.TdiRsi13,
-                        14 => FuturesRsiConfigurations.RegimeRsi14,
-                        _ => $"rsi-{e.EntityId.PeriodLength}-legacy-v1"
-                    },
-                    "rsi-legacy-compatible-v1")
-                : null
-        };
-        var futuresRsiSignalGeneratedEvent = e.CreateFuturesRsiSignalGeneratedEvent(futuresRsiSignal);
+                    e.EntityId.PeriodLength))
+            : state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice) with
+            {
+                SourceSequence = e.SourceSequence,
+                SourceEventTimestamp = e.SourceEventTimestamp
+            };
+        var futuresRsiSignalGeneratedEvent = e.CreateFuturesRsiSignalGeneratedEvent(
+            futuresRsiSignal,
+            wilderResult?.Checkpoint);
         if (state.Update(futuresRsiSignalGeneratedEvent, e))
         {
             var outputWindow = Math.Max(
                 e.EntityId.PeriodLength,
                 FuturesTdiConfiguration.Standard.RequiredRsiSamples);
-            if (state.FuturesRsiSignals.CanGenerateFuturesRsiSignals(outputWindow))
+            if (e.EntityId.PeriodLength == FuturesTdiConfiguration.Standard.RsiPeriod
+                && state.FuturesRsiSignals.CanGenerateFuturesRsiSignals(outputWindow))
             {
                 var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(outputWindow);
                 state.Update(e.CreateFuturesRsiSignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e);
@@ -62,12 +61,16 @@ public static class GenerateFuturesRsiSignal
     /// <param name="futuresRsiSignal"></param>
     /// <param name="periodLength"></param>
     /// <returns></returns>
-    internal static FuturesRsiSignalGeneratedEvent CreateFuturesRsiSignalGeneratedEvent(this GenerateFuturesRsiSignalCommand e, FuturesRsiSignalReadModel futuresRsiSignal)
+    internal static FuturesRsiSignalGeneratedEvent CreateFuturesRsiSignalGeneratedEvent(
+        this GenerateFuturesRsiSignalCommand e,
+        FuturesRsiSignalReadModel futuresRsiSignal,
+        FuturesRsiAccumulatorCheckpoint? accumulatorCheckpoint = null)
        => new()
        {
            Subject = new ActorSubject(ActorType.Event, FuturesRsiSignalGeneratedEvent.Actor, FuturesRsiSignalGeneratedEvent.Verb, e.EntityId.Format()),
            EntityId = e.EntityId,
            FuturesRsiSignal = futuresRsiSignal,
+           AccumulatorCheckpoint = accumulatorCheckpoint,
            CreatedBy = e.OriginatedBy,
            CreatedOn = e.OriginatedOn
        };
