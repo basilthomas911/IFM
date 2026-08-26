@@ -453,9 +453,9 @@ internal readonly record struct InsertFuturesAdxSignal(string contractId, DateOn
 {
     public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, plusDI, minusDI, adxValue, adx, adxStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid };
 }
-internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double atrValue, double trueRange, string atr, string atrStrength, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, long? sourceSequence, string? calculationVersion, string? calculationMethod, int? schemaVersion, bool? isValid) : IBindValue
+internal readonly record struct InsertFuturesAtrSignal(string contractId, DateOnly valueDate, string timePeriod, int periodLength, TimeOnly timestamp, decimal futuresPrice, double atrValue, double trueRange, string atr, string atrStrength, string? configurationId, Guid? observationId, DateTime? marketDataAsOf, long? sourceSequence, string? calculationVersion, string? calculationMethod, int? schemaVersion, bool? isValid, double? previousAtrValue, double? atrBaseline, double? atrRatio, bool isWarm) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, atrValue, trueRange, atr, atrStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid };
+    public object Bind() => new object?[] { contractId, valueDate, timePeriod, periodLength, timestamp, futuresPrice, atrValue, trueRange, atr, atrStrength, configurationId, observationId, marketDataAsOf, sourceSequence, calculationVersion, calculationMethod, schemaVersion, isValid, previousAtrValue, atrBaseline, atrRatio, isWarm };
 }
 internal readonly record struct InsertFuturesBarData(string contractId, string symbol, DateOnly valueDate, DateTime barDate, string barRateType, decimal barValue, double upTrendTrigger, double downTrendTrigger) : IBindValue
 {
@@ -589,22 +589,6 @@ internal readonly record struct InsertFuturesBollingerBandSignalV1(
         width10, position10, ema20Center, standardDeviation20, upper20, lower20, width20,
         position20, width20Baseline, width20Ratio, isWarm, sourceSequence, calculatedAt,
         schemaVersion, calculationVersion, calculationMethod, isValid
-    };
-}
-
-internal readonly record struct InsertFuturesAtrVolatilitySignalV1(
-    string seriesKey, string timePeriod, string configurationId, int yearMonth,
-    DateTime marketDataAsOf, Guid observationId, string contractId, DateOnly valueDate,
-    decimal trueRange, decimal? atr14, decimal? previousAtr14, decimal? atr14Baseline,
-    decimal? atr14Ratio, bool isWarm, long sourceSequence, DateTime calculatedAt,
-    int schemaVersion, string calculationVersion, string calculationMethod, bool isValid) : IBindValue
-{
-    public object Bind() => new object?[]
-    {
-        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
-        contractId, valueDate, trueRange, atr14, previousAtr14, atr14Baseline, atr14Ratio,
-        isWarm, sourceSequence, calculatedAt, schemaVersion, calculationVersion,
-        calculationMethod, isValid
     };
 }
 

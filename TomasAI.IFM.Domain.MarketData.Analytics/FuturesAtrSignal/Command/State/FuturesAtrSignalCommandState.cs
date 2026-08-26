@@ -17,6 +17,7 @@ public class FuturesAtrSignalCommandState
 {
     FuturesAtrSignalReadModel? _atrSignal;
     readonly List<FuturesAtrSignalReadModel> _atrSignals = new(32);
+    FuturesAtrAccumulatorCheckpoint? _calculationState;
 
     /// <summary>
     /// Gets or sets the unique identifier for the actor thread associated with this state.
@@ -34,15 +35,21 @@ public class FuturesAtrSignalCommandState
         {
             FuturesAtrSignalStartedEvent => true,
             FuturesAtrSignalStoppedEvent => true,
-            FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal),
-            FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal),
+            FuturesAtrSignalGeneratedEvent e => On(e.FuturesAtrSignal, e.CalculationState),
+            FuturesAtrDailySignalGeneratedEvent e => On(e.FuturesAtrSignal, e.CalculationState),
             _ => false
         };
 
-        bool On(FuturesAtrSignalReadModel signal)
+        bool On(FuturesAtrSignalReadModel signal, FuturesAtrAccumulatorCheckpoint? calculationState)
         {
             _atrSignal = signal;
             _atrSignals.Add(signal);
+            if (calculationState is not null)
+                _calculationState = calculationState with
+                {
+                    SeedTrueRanges = [.. calculationState.SeedTrueRanges],
+                    CompletedAtrValues = [.. calculationState.CompletedAtrValues]
+                };
             return true;
         }
     }
@@ -54,5 +61,8 @@ public class FuturesAtrSignalCommandState
     /// markets. The returned view model should be properly initialized before use.</remarks>
     internal FuturesAtrSignalReadModel  AtrSignal => _atrSignal!;
     internal IReadOnlyCollection<FuturesAtrSignalReadModel> AtrSignals => _atrSignals;
+
+    /// <summary>Gets the replayed Wilder checkpoint for the current aggregate stream.</summary>
+    internal FuturesAtrAccumulatorCheckpoint? CalculationState => _calculationState;
 
 }

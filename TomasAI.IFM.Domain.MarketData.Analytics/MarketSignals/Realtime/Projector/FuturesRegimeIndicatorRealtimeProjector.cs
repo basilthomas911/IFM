@@ -26,8 +26,6 @@ public sealed class FuturesRegimeIndicatorRealtimeProjector(
                 generated.Snapshot.Ema, cancellationToken).ConfigureAwait(false);
             await dbFactory.MarketDataDb.InsertFuturesBollingerBandSignalAsync(
                 generated.Snapshot.BollingerBand, cancellationToken).ConfigureAwait(false);
-            await dbFactory.MarketDataDb.InsertFuturesAtrVolatilitySignalAsync(
-                generated.Snapshot.AtrVolatility, cancellationToken).ConfigureAwait(false);
         })
     ];
 

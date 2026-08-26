@@ -69,13 +69,11 @@ ticks, ScyllaDB, Redis, or provider APIs directly.
     `Container.Resolve`.
 15. Actor parse, receive, and validation support is explicit in dictionaries.
     New actors do not use reflection discovery or a growing domain switch.
-16. MDSI-8 through MDSI-10 use one ordered
-    `FuturesRegimeIndicatorRealtimeActor` mailbox for RSI13/14, EMA,
-    Bollinger, and extended ATR. This is an intentional refinement of the
-    original separate-actor sketch: EMA and Bollinger composition cannot race,
-    every output retains the exact same `ObservationId`, and the actor still
-    follows the closed-context, extensions, storage-first projector, and
-    bounded Query actor conventions.
+16. MDSI-8 and MDSI-9 use one ordered `FuturesRegimeIndicatorRealtimeActor`
+    mailbox for RSI13/14, EMA, and Bollinger. ATR is owned independently by
+    the event-sourced `FuturesAtrSignal` command actor; its stateless realtime
+    actor routes completed observations and its command event projector owns
+    Scylla projection. Every output retains the exact source `ObservationId`.
 
 ## 3. Current baseline and required changes
 
@@ -209,9 +207,7 @@ TomasAI.IFM.Domain.MarketData.Analytics.Shared/
       FuturesBbSignalGeneratedFailEvent.cs
       GetLastFuturesBbSignalQuery.cs
       GetFuturesBbSignalHistoryQuery.cs
-    AtrVolatility/
-      FuturesAtrVolatilitySignalEntityId.cs
-      FuturesAtrVolatilitySignalReadModel.cs
+    # ATR contracts remain under the existing FuturesAtrSignal feature.
     MarketStructure/
       FuturesMarketStructureSignalEntityId.cs
       FuturesMarketStructureSignalReadModel.cs
@@ -261,7 +257,7 @@ TomasAI.IFM.Domain.MarketData.Analytics/
     Realtime/Model/
     Query/Actor/
     Query/Extensions/
-  FuturesAtrVolatilitySignal/
+  FuturesAtrSignal/
   FuturesMarketStructureSignal/
   FuturesVxTermStructureSignal/
   FuturesVwapSignal/
@@ -513,7 +509,7 @@ it is not quote size or cumulative session volume.
 | `FuturesTradeSessionBarClosedRealtimeEvent` | Trade Session Bar Publisher Event actor, after projection | Bar-derived signal actors | Realtime/Core NATS |
 | `FuturesEmaSignalGeneratedEvent` | EMA actor/projector source | EMA projector and BB route | Realtime subject |
 | `FuturesBbSignalGeneratedEvent` | BB actor/projector source | BB projector and Market Structure route | Realtime subject |
-| `FuturesAtrVolatilitySignalGeneratedEvent` | ATR migration actor | ATR projector and Market Structure route | Realtime subject |
+| `FuturesAtrSignalGeneratedEvent` | ATR command actor | command event projector and Market Structure route | Durable event plus projected realtime publication |
 | `FuturesMarketStructureSignalGeneratedEvent` | Market Structure actor | Projector/cache | Realtime subject |
 | `FuturesVxTermStructureSignalGeneratedEvent` | VX actor | Projector/cache | Realtime subject |
 | `FuturesVwapSignalGeneratedEvent` | VWAP actor | Projector/cache | Realtime subject |
@@ -687,14 +683,16 @@ new signal is valid.
 | --- | --- | --- |
 | EMA | Four recursive values, four prior values, warm-up seed depth | EMA10/20/50/200 and slopes |
 | BB | Last 20 closes, width history, compatible EMA10/20 | EMA-centered BB10/20, widths, positions |
-| ATR Volatility | Existing Wilder state plus prior/baseline window | ATR, prior, baseline, ratio, true range |
+| ATR | Event-sourced Wilder checkpoint plus prior/baseline window | ATR, prior, baseline, ratio, true range |
 | Market Structure | Prior highs/lows and bounded ObservationId join | ranges, breakout distance, BB/ATR context |
 | VX Term Structure | Current front/back legs and prior composite | spread, ratio, percent, state |
 | VWAP | Session numerator, volume, count, contribution/recovery lineage | VWAP and price relationship |
 
-Formula classes are pure, deterministic, internal functions under each
-feature's `Realtime/Model` folder. Actors own orchestration and state; formula
-classes do not call storage, caches, clocks, NATS, or provider APIs.
+Formula classes are pure and deterministic. Stateless signal formulas live
+under the owning realtime feature model; stateful ATR formulas live under
+`FuturesAtrSignal/Command/Model` and receive only immutable event-sourced
+checkpoint data. Formula classes do not call storage, caches, clocks, NATS,
+or provider APIs.
 
 ## 9. Futures EOD cutover
 
@@ -946,36 +944,9 @@ CREATE TABLE IF NOT EXISTS futures_bb_signal (
 ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
 ```
 
-### 11.6 ATR volatility and Market Structure
+### 11.6 ATR and Market Structure
 
 ```sql
-CREATE TABLE IF NOT EXISTS futures_atr_volatility_signal (
-    seriesKey text,
-    timePeriod text,
-    configurationId text,
-    yearMonth int,
-    marketDataAsOf timestamp,
-    observationId uuid,
-    contractId text,
-    futuresSeriesId text,
-    valueDate date,
-    price decimal,
-    trueRange decimal,
-    atr decimal,
-    previousAtr decimal,
-    baselineAtr decimal,
-    atrRatio double,
-    sourceSequence bigint,
-    sourceEventNanos bigint,
-    calculatedAt timestamp,
-    schemaVersion int,
-    calculationVersion text,
-    PRIMARY KEY (
-        (seriesKey, timePeriod, configurationId, yearMonth),
-        marketDataAsOf,
-        observationId)
-) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
-
 CREATE TABLE IF NOT EXISTS futures_market_structure_signal (
     seriesKey text,
     timePeriod text,
@@ -1110,7 +1081,7 @@ InsertFuturesEodObservationAsync
 InsertFuturesTradeSessionBarAsync
 InsertFuturesEmaSignalAsync
 InsertFuturesBbSignalAsync
-InsertFuturesAtrVolatilitySignalAsync
+InsertFuturesAtrSignalAsync
 InsertFuturesMarketStructureSignalAsync
 InsertFuturesVxTermStructureSignalAsync
 InsertFuturesVwapSignalAsync
@@ -1845,17 +1816,19 @@ Deliver:
 
 Exit: mismatched EMA observation is rejected and golden BB vectors pass.
 
-### MDSI-10 - ATR volatility extension
+### MDSI-10 - Futures ATR Wilder consolidation
 
-Status: **Complete (2026-08-25)** with Wilder ATR14, prior ATR, a prior-only
-20-value baseline, ratio, storage projection, latest cache, and query support.
+Status: **Complete (2026-08-26)** under ATR-0 through ATR-9 with Wilder ATR14,
+prior ATR, a prior-only 20-value baseline, ratio, event-sourced checkpoint,
+existing-table storage projection, and latest query support.
 
 Deliver:
 
 - baseline/prior/ratio calculation;
-- extended/new contracts and Scylla projection;
-- same-observation routing; and
-- cache/query support.
+- evolved `FuturesAtrSignal` contracts and existing Scylla projection;
+- same-observation routing through stateless realtime infrastructure;
+- distinct intraday and Daily/Weekly/Monthly command identities; and
+- latest query support.
 
 Exit: denominator/warm boundaries and historical/live parity pass.
 

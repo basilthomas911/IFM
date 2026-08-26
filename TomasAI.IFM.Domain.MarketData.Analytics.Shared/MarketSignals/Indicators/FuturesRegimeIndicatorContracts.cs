@@ -141,29 +141,3 @@ public sealed record FuturesBollingerBandSignalReadModel
     /// <summary>Gets whether BB20 and its prior-width baseline are available.</summary>
     [Key(16)] public bool IsWarm { get; init; }
 }
-
-/// <summary>Represents ATR14 with prior value, a prior-only 20-value baseline, and ratio.</summary>
-[MessagePackObject]
-public sealed record FuturesAtrVolatilitySignalReadModel
-{
-    /// <summary>Gets common identity and observation provenance.</summary>
-    [Key(0)] public MarketAnalyticsSignalMetadata Metadata { get; init; } = new();
-
-    /// <summary>Gets the current true range.</summary>
-    [Key(1)] public decimal TrueRange { get; init; }
-
-    /// <summary>Gets the current ATR14 when seeded.</summary>
-    [Key(2)] public decimal? Atr14 { get; init; }
-
-    /// <summary>Gets the prior ATR14.</summary>
-    [Key(3)] public decimal? PreviousAtr14 { get; init; }
-
-    /// <summary>Gets the mean of the prior 20 completed ATR14 values.</summary>
-    [Key(4)] public decimal? Atr14Baseline { get; init; }
-
-    /// <summary>Gets current ATR14 divided by its positive baseline.</summary>
-    [Key(5)] public decimal? Atr14Ratio { get; init; }
-
-    /// <summary>Gets whether ATR14, prior ATR14, and the prior-only baseline are available.</summary>
-    [Key(6)] public bool IsWarm { get; init; }
-}

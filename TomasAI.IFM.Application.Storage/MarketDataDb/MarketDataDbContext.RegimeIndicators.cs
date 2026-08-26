@@ -56,27 +56,5 @@ public partial class MarketDataDbContext
             .ExecuteCommandAsync(cancellationToken);
     }
 
-    /// <inheritdoc />
-    public Task InsertFuturesAtrVolatilitySignalAsync(
-        FuturesAtrVolatilitySignalReadModel signal,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(signal);
-        var metadata = signal.Metadata;
-        return _dbFactory.MarketDataDb
-            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesAtrVolatilitySignalV1)}",
-                MarketDataDbCql.InsertFuturesAtrVolatilitySignalV1)
-            .SetParameters(new InsertFuturesAtrVolatilitySignalV1(
-                metadata.MarketSeriesIdentity.Format(), metadata.TimeFrame.ToString(),
-                metadata.CalculationConfigurationId, Bucket(metadata.ValueDate),
-                metadata.MarketDataAsOfUtc.UtcDateTime, metadata.ObservationId.Value,
-                metadata.ContractId, metadata.ValueDate, signal.TrueRange, signal.Atr14,
-                signal.PreviousAtr14, signal.Atr14Baseline, signal.Atr14Ratio, signal.IsWarm,
-                metadata.SourceSequence, metadata.CalculatedAtUtc.UtcDateTime,
-                metadata.SchemaVersion, metadata.CalculationVersion,
-                metadata.CalculationMethod.ToString(), metadata.IsValid))
-            .ExecuteCommandAsync(cancellationToken);
-    }
-
     static int Bucket(DateOnly valueDate) => (valueDate.Year * 100) + valueDate.Month;
 }

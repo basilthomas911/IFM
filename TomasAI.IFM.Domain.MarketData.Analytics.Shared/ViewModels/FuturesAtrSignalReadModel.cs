@@ -55,6 +55,18 @@ public record FuturesAtrSignalReadModel
     /// <summary>Gets shared observation lineage for migrated ATR calculations.</summary>
     [Key(10)] public MarketAnalyticsSignalMetadata? Metadata { get; init; }
 
+    /// <summary>Gets the fully formed ATR immediately preceding this signal.</summary>
+    [Key(11)] public double? PreviousAtrValue { get; init; }
+
+    /// <summary>Gets the prior-only twenty-value ATR baseline.</summary>
+    [Key(12)] public double? AtrBaseline { get; init; }
+
+    /// <summary>Gets the current ATR divided by its prior-only baseline.</summary>
+    [Key(13)] public double? AtrRatio { get; init; }
+
+    /// <summary>Gets whether the configured Wilder seed period has completed.</summary>
+    [Key(14)] public bool IsWarm { get; init; }
+
     /// <summary>
     /// Entity identifier consisting of contract id and value date (not serialized).
     /// </summary>
@@ -80,8 +92,9 @@ public record FuturesAtrSignalReadModel
     /// <param name="contractId">Futures contract identifier.</param>
     /// <param name="valueDate">Value date for the signal.</param>
     /// <param name="timePeriod">Time period for the signal.</param>
-    /// <param name="atrSignalSource">Source type for the ATR signal.</param>
+    /// <param name="periodLength">Wilder ATR observation period.</param>
     /// <param name="timestamp">Intraday timestamp.</param>
+    /// <param name="futuresPrice">Closing futures price for the source observation.</param>
     /// <param name="atrValue">Average True Range value.</param>
     /// <param name="trueRange">True Range value for the current period.</param>
     /// <param name="atr">Computed trend direction.</param>

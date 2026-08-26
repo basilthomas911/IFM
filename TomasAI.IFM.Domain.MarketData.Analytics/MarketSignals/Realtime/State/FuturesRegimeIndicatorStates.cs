@@ -252,69 +252,14 @@ public sealed class FuturesBollingerBandSignalRealtimeState
     }
 }
 
-/// <summary>Calculates Wilder ATR14 and a prior-only 20-value volatility baseline.</summary>
-public sealed class FuturesAtrVolatilitySignalRealtimeState
-{
-    const int Period = 14;
-    const string ConfigurationId = "atr-14-baseline-20-v1";
-    readonly Queue<decimal> seedTrueRanges = new();
-    readonly Queue<decimal> completedAtrValues = new();
-    decimal? previousClose;
-    decimal? currentAtr;
-    FuturesTradeSessionBarId lastObservationId;
-
-    /// <summary>Applies one unique shared OHLC observation.</summary>
-    public FuturesAtrVolatilitySignalReadModel Apply(FuturesTradeSessionBarReadModel observation)
-    {
-        ArgumentNullException.ThrowIfNull(observation);
-        FuturesRegimeRsiSignalState.EnsureUnique(lastObservationId, observation.ObservationId);
-        var trueRange = previousClose is null
-            ? observation.High - observation.Low
-            : Math.Max(observation.High - observation.Low,
-                Math.Max(Math.Abs(observation.High - previousClose.Value),
-                    Math.Abs(observation.Low - previousClose.Value)));
-        var prior = currentAtr;
-        decimal? baseline = completedAtrValues.Count == 20 ? completedAtrValues.Average() : null;
-        if (currentAtr is null)
-        {
-            seedTrueRanges.Enqueue(trueRange);
-            if (seedTrueRanges.Count == Period) currentAtr = seedTrueRanges.Average();
-        }
-        else
-        {
-            currentAtr = ((currentAtr.Value * (Period - 1)) + trueRange) / Period;
-        }
-        var ratio = currentAtr is not null && baseline is > 0 ? currentAtr / baseline : null;
-        var result = new FuturesAtrVolatilitySignalReadModel
-        {
-            Metadata = FuturesRegimeRsiSignalState.Metadata(
-                observation, MarketAnalyticsSignalKind.Atr, ConfigurationId, "atr-wilder-baseline-v1"),
-            TrueRange = trueRange,
-            Atr14 = currentAtr,
-            PreviousAtr14 = prior,
-            Atr14Baseline = baseline,
-            Atr14Ratio = ratio,
-            IsWarm = currentAtr is not null && prior is not null && baseline is > 0
-        };
-        if (currentAtr is not null)
-        {
-            completedAtrValues.Enqueue(currentAtr.Value);
-            while (completedAtrValues.Count > 20) completedAtrValues.Dequeue();
-        }
-        previousClose = observation.Close;
-        lastObservationId = observation.ObservationId;
-        return result;
-    }
-}
-
 /// <summary>
-/// Owns isolated per-series state and calculates every MDSI-7 through MDSI-10 output in dependency order.
+/// Owns isolated per-series state for the transitional RSI, EMA, and Bollinger outputs.
 /// </summary>
 public sealed class FuturesRegimeIndicatorPipelineRealtimeState
 {
     readonly Dictionary<FuturesTradeSessionBarEntityId, PipelineState> states = [];
 
-    /// <summary>Calculates RSI13, RSI14, EMA, Bollinger Bands, and ATR for one observation.</summary>
+    /// <summary>Calculates RSI13, RSI14, EMA, and Bollinger Bands for one observation.</summary>
     public FuturesRegimeIndicatorSnapshot Apply(FuturesTradeSessionBarReadModel observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
@@ -335,8 +280,7 @@ public sealed class FuturesRegimeIndicatorPipelineRealtimeState
             Rsi13 = state.Rsi13.Apply(observation),
             Rsi14 = state.Rsi14.Apply(observation),
             Ema = ema,
-            BollingerBand = bollingerBand,
-            AtrVolatility = state.Atr.Apply(observation)
+            BollingerBand = bollingerBand
         };
     }
 
@@ -348,6 +292,5 @@ public sealed class FuturesRegimeIndicatorPipelineRealtimeState
             new(14, FuturesRsiConfigurations.RegimeRsi14);
         public FuturesEmaSignalRealtimeState Ema { get; } = new();
         public FuturesBollingerBandSignalRealtimeState BollingerBand { get; } = new();
-        public FuturesAtrVolatilitySignalRealtimeState Atr { get; } = new();
     }
 }

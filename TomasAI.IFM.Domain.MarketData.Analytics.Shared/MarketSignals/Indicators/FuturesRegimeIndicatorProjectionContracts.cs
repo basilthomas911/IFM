@@ -21,8 +21,6 @@ public sealed record FuturesRegimeIndicatorSnapshot
     [Key(3)] public FuturesEmaSignalReadModel Ema { get; init; } = new();
     /// <summary>Gets EMA-centered BB10/20.</summary>
     [Key(4)] public FuturesBollingerBandSignalReadModel BollingerBand { get; init; } = new();
-    /// <summary>Gets extended ATR14 volatility metrics.</summary>
-    [Key(5)] public FuturesAtrVolatilitySignalReadModel AtrVolatility { get; init; } = new();
 }
 
 /// <summary>Provides the transitional latest-snapshot cache used until the unified MDSI-15 cache lands.</summary>

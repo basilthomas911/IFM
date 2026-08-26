@@ -83,7 +83,6 @@ public interface IMarketDataDbWriteContext
     /// <summary>Persists one EMA-centered BB10/20 signal projection.</summary>
     Task InsertFuturesBollingerBandSignalAsync(FuturesBollingerBandSignalReadModel signal, CancellationToken cancellationToken = default);
     /// <summary>Persists one extended ATR14 volatility signal projection.</summary>
-    Task InsertFuturesAtrVolatilitySignalAsync(FuturesAtrVolatilitySignalReadModel signal, CancellationToken cancellationToken = default);
     Task InsertFuturesTdiSignalAsync(FuturesTdiSignalReadModel e);
     Task InsertFuturesMacdSignalAsync(FuturesMacdSignalReadModel e);
     Task InsertFuturesAtrSignalAsync(FuturesAtrSignalReadModel e);

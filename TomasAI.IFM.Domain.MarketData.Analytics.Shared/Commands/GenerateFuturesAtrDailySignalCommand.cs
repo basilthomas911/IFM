@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
@@ -48,6 +49,9 @@ public record GenerateFuturesAtrDailySignalCommand : ICommand<FuturesAtrDailySig
     [Key(7)]
     public decimal FuturesPrice { get; init; }
 
+    /// <summary>Gets the completed daily OHLC observation used by the Wilder calculation.</summary>
+    [Key(8)] public FuturesTradeSessionBarReadModel? Observation { get; init; }
+
     /// <summary>
     /// Parameterless constructor required for MessagePack deserialization.
     /// </summary>
@@ -60,10 +64,12 @@ public record GenerateFuturesAtrDailySignalCommand : ICommand<FuturesAtrDailySig
     /// <param name="futuresPrice">Input RSI signal series (cannot be null).</param>
     public GenerateFuturesAtrDailySignalCommand(
         FuturesAtrSignalId futuresAtrSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation = null)
     {
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
 
         EntityId = futuresAtrSignalId.ToDailyEntityId();
         ErrorCode = ErrorId;
@@ -82,7 +88,8 @@ public record GenerateFuturesAtrDailySignalCommand : ICommand<FuturesAtrDailySig
         int errorCode,
         BoundedContextName routeTo,
         FuturesAtrSignalId futuresAtrSignalId,
-        decimal futuresPrice)
+        decimal futuresPrice,
+        FuturesTradeSessionBarReadModel? observation)
     {
         CommandId = commandId;
         Subject = subject;
@@ -92,5 +99,6 @@ public record GenerateFuturesAtrDailySignalCommand : ICommand<FuturesAtrDailySig
         RouteTo = routeTo;
         FuturesAtrSignalId = futuresAtrSignalId;
         FuturesPrice = futuresPrice;
+        Observation = observation;
     }
 }

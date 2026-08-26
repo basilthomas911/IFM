@@ -34,8 +34,4 @@
     <Folder Include="VixVolatility\Query\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="FuturesAtrSignal\Command\GenerateFuturesAtrDailySignal.cs" />
-  </ItemGroup>
-
 </Project>

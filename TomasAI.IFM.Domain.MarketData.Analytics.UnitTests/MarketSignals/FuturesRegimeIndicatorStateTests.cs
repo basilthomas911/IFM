@@ -124,25 +124,6 @@ public sealed class FuturesRegimeIndicatorStateTests
     }
 
     [Fact]
-    public void AtrBaselineExcludesCurrentValueAndWarmsOnThirtyFourthObservation()
-    {
-        var state = new FuturesAtrVolatilitySignalRealtimeState();
-        FuturesAtrVolatilitySignalReadModel? result = null;
-        for (var sequence = 1; sequence <= 33; sequence++)
-            result = state.Apply(Observation(sequence, 100m + sequence));
-
-        Assert.False(result!.IsWarm);
-        result = state.Apply(Observation(34, 134m));
-
-        Assert.True(result.IsWarm);
-        Assert.Equal(2m, result.TrueRange);
-        Assert.Equal(2m, result.Atr14);
-        Assert.Equal(2m, result.PreviousAtr14);
-        Assert.Equal(2m, result.Atr14Baseline);
-        Assert.Equal(1m, result.Atr14Ratio);
-    }
-
-    [Fact]
     public void AttachmentRegistryIsIdempotentAndSeparatesRsiPeriods()
     {
         FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Clear();
@@ -171,15 +152,12 @@ public sealed class FuturesRegimeIndicatorStateTests
         Assert.Equal(observationId, snapshot.Rsi14.Metadata.ObservationId);
         Assert.Equal(observationId, snapshot.Ema.Metadata.ObservationId);
         Assert.Equal(observationId, snapshot.BollingerBand.Metadata.ObservationId);
-        Assert.Equal(observationId, snapshot.AtrVolatility.Metadata.ObservationId);
         Assert.True(snapshot.Rsi14.IsWarm);
         Assert.True(snapshot.Ema.IsWarm);
         Assert.True(snapshot.BollingerBand.IsWarm);
-        Assert.True(snapshot.AtrVolatility.IsWarm);
         Assert.Empty(new FuturesRegimeRsiSignalReadModelValidationRules().Execute(snapshot.Rsi14));
         Assert.Empty(new FuturesEmaSignalReadModelValidationRules().Execute(snapshot.Ema));
         Assert.Empty(new FuturesBollingerBandSignalReadModelValidationRules().Execute(snapshot.BollingerBand));
-        Assert.Empty(new FuturesAtrVolatilitySignalReadModelValidationRules().Execute(snapshot.AtrVolatility));
         Assert.Throws<InvalidOperationException>(() => state.Apply(snapshot.Observation));
     }
 

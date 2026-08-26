@@ -55,18 +55,4 @@ internal static class FuturesAdxSignalEventExtensions
         _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesMacdSignalAsync(commandApi, futuresMacdSignalId, futuresPrice);
     }
 
-    /// <summary>
-    /// Generates a futures ATR signal by sending a command to the actor system using the provided RSI signals.
-    /// </summary>
-    /// <param name="context">The event actor context used to dispatch the command.</param>
-    /// <param name="futuresAtrSignalId">Target ATR signal identifier (contract + value date + timestamp context).</param>
-    /// <param name="futuresPrice">Input RSI signal series used to compute the ATR signal.</param>
-    /// <returns>A ValueTask representing the asynchronous operation.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesAtrSignalAsync(
-        this IEventActorContext commandApi, FuturesAtrSignalId futuresAtrSignalId, decimal futuresPrice)
-    {
-        _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesAtrSignalAsync(commandApi, futuresAtrSignalId, futuresPrice);
-    }
-
 }

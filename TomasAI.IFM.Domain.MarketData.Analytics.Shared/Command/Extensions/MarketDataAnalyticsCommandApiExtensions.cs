@@ -158,7 +158,7 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="signalId">The strongly typed signal identifier.</param>
     /// <param name="futuresPrice">The current futures price.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-      public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesAtrSignalAsync(
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesAtrSignalAsync(
           this IEventActorContext context,
           FuturesAtrSignalId signalId,
           decimal futuresPrice,
@@ -177,6 +177,34 @@ public static class MarketDataAnalyticsCommandApiExtensions
             ErrorCode = GenerateFuturesAtrSignalCommand.ErrorId
         };
         return RequestAsync<GenerateFuturesAtrSignalCommand, FuturesAtrSignalEntityId>(context, command);
+    }
+
+    /// <summary>
+    /// Sends the day-based Wilder ATR command for a daily, weekly, or monthly signal horizon.
+    /// </summary>
+    /// <param name="context">The source event actor context.</param>
+    /// <param name="signalId">The day-based ATR signal identity.</param>
+    /// <param name="observation">The completed daily OHLC observation.</param>
+    /// <returns>A value task containing the typed command result returned by the target actor.</returns>
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesAtrDailySignalAsync(
+        this IEventActorContext context,
+        FuturesAtrSignalId signalId,
+        FuturesTradeSessionBarReadModel observation)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        var entityId = signalId.ToDailyEntityId();
+        GenerateFuturesAtrDailySignalCommand command = new(signalId, observation.Close, observation)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(
+                ActorType.Command,
+                GenerateFuturesAtrDailySignalCommand.Actor,
+                GenerateFuturesAtrDailySignalCommand.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            ErrorCode = GenerateFuturesAtrDailySignalCommand.ErrorId
+        };
+        return RequestAsync<GenerateFuturesAtrDailySignalCommand, FuturesAtrDailySignalEntityId>(context, command);
     }
 
     /// <summary>

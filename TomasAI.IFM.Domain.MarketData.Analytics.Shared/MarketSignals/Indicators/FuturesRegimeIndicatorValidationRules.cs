@@ -76,25 +76,3 @@ public sealed class FuturesBollingerBandSignalReadModelValidationRules
         }
     }
 }
-
-/// <summary>Validates ATR true range, prior-only baseline, ratio, and warm state.</summary>
-public sealed class FuturesAtrVolatilitySignalReadModelValidationRules
-    : BaseValidationRules, IValidationRules<FuturesAtrVolatilitySignalReadModel>
-{
-    static readonly Validator Rules = new();
-
-    /// <summary>Validates one extended ATR signal.</summary>
-    public ValidationError[] Execute(FuturesAtrVolatilitySignalReadModel value) => Validate(value, Rules);
-
-    sealed class Validator : AbstractValidator<FuturesAtrVolatilitySignalReadModel>
-    {
-        public Validator()
-        {
-            RuleFor(x => x.Metadata).Must(FuturesRegimeRsiSignalReadModelValidationRules.ValidMetadata);
-            RuleFor(x => x.TrueRange).GreaterThanOrEqualTo(0);
-            RuleFor(x => x).Must(x => x.IsWarm ==
-                (x.Atr14 is not null && x.PreviousAtr14 is not null
-                 && x.Atr14Baseline is > 0 && x.Atr14Ratio is not null));
-        }
-    }
-}

@@ -11,9 +11,11 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketSignals.Realtime.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.MarketSignals.Observation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Command;
 
+/// <summary>Handles intraday Futures ATR commands and records replayable Wilder state.</summary>
 public static class GenerateFuturesAtrSignal
 {
     /// <summary>
@@ -30,6 +32,9 @@ public static class GenerateFuturesAtrSignal
     /// </returns>
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesAtrSignalCommand e, FuturesAtrSignalCommandState state)
     {
+        if (e.Observation is { } observation)
+            return ExecuteWilder(e, state, observation);
+
         var updated = e.Compute(state.AtrSignal, state.AtrSignals, out var model) switch
         {
             _ when model.IsSignalInitializing
@@ -43,6 +48,44 @@ public static class GenerateFuturesAtrSignal
         return updated
             ? new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
             : e.UpdateFailed($"{e.CommandName}: unable to apply generated ATR signal event");
+    }
+
+    static ServiceResult<GuidResult> ExecuteWilder(
+        GenerateFuturesAtrSignalCommand command,
+        FuturesAtrSignalCommandState state,
+        FuturesTradeSessionBarReadModel observation)
+    {
+        if (!FuturesIntradaySignalActivationProfile.TimeFrames.Contains(command.EntityId.TimePeriod)
+            || observation.TimeFrame != command.EntityId.TimePeriod
+            || !string.Equals(observation.ContractId, command.EntityId.ContractId, StringComparison.Ordinal)
+            || observation.ValueDate != command.EntityId.ValueDate)
+            throw new ArgumentException("The closed observation does not match the intraday ATR identity.");
+        if (!FuturesAtrWilderAccumulator.TryApply(
+                observation,
+                command.EntityId.PeriodLength,
+                state.CalculationState,
+                out var result))
+            return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+
+        var signal = FuturesAtrWilderSignalFactory.Create(command.FuturesAtrSignalId, observation, result);
+        var entityId = command.FuturesAtrSignalId.ToEntityId();
+        var updated = state.Update(new FuturesAtrSignalGeneratedEvent
+        {
+            CommandId = command.CommandId,
+            Subject = new ActorSubject(
+                ActorType.Event,
+                FuturesAtrSignalGeneratedEvent.Actor,
+                FuturesAtrSignalGeneratedEvent.Verb,
+                entityId.Format()),
+            EntityId = entityId,
+            FuturesAtrSignal = signal,
+            CalculationState = result.Checkpoint,
+            CreatedBy = command.OriginatedBy,
+            CreatedOn = command.OriginatedOn
+        }, command);
+        return updated
+            ? new ServiceOk<GuidResult>(new GuidResult(command.CommandId))
+            : command.UpdateFailed($"{command.CommandName}: unable to apply generated Wilder ATR event");
     }
 
     /// <summary>

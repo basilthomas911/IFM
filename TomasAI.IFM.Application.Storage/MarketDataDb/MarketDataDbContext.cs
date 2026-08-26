@@ -1246,7 +1246,8 @@ public partial class MarketDataDbContext(
         );
 
     static FuturesAtrSignalReadModel MapToFuturesAtrSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
+    {
+        var signal = new FuturesAtrSignalReadModel(
             contractId: e.GetString(0),
             valueDate: e.GetDateOnly(1),
             timePeriod: e.GetEnum<TimeFrameType>(2),
@@ -1257,7 +1258,40 @@ public partial class MarketDataDbContext(
             trueRange: e.GetDouble(7),
             atr: e.GetEnum<FuturesTrendDirectionType>(8),
             atrStrength: e.GetEnum<FuturesTrendDirectionStrengthType>(9)
-        );
+        )
+        {
+            PreviousAtrValue = e.IsNull(10) ? null : e.GetDouble(10),
+            AtrBaseline = e.IsNull(11) ? null : e.GetDouble(11),
+            AtrRatio = e.IsNull(12) ? null : e.GetDouble(12),
+            IsWarm = !e.IsNull(13) && e.GetBool(13)
+        };
+        if (e.IsNull(14))
+            return signal;
+
+        var marketDataAsOf = new DateTimeOffset(
+            DateTime.SpecifyKind(e.GetDateTime(16), DateTimeKind.Utc));
+        return signal with
+        {
+            Metadata = new MarketAnalyticsSignalMetadata
+            {
+                SignalKey = new(
+                    MarketSeriesIdentity.ForContract(signal.ContractId),
+                    MarketAnalyticsSignalKind.Atr,
+                    signal.TimePeriod,
+                    e.GetString(14)),
+                ContractId = signal.ContractId,
+                ValueDate = signal.ValueDate,
+                ObservationId = new FuturesTradeSessionBarId(e.GetGuid(15)),
+                MarketDataAsOfUtc = marketDataAsOf,
+                CalculatedAtUtc = marketDataAsOf,
+                SourceSequence = e.GetLong(17),
+                CalculationVersion = e.GetString(18),
+                CalculationMethod = e.GetEnum<MarketSignalCalculationMethod>(19),
+                SchemaVersion = checked((ushort)e.GetInt(20)),
+                IsValid = e.GetBool(21)
+            }
+        };
+    }
 
     static FuturesAdxSignalReadModel MapToFuturesAdxSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
     {
@@ -3166,7 +3200,11 @@ public partial class MarketDataDbContext(
                 calculationVersion: futuresAtrSignal.Metadata?.CalculationVersion,
                 calculationMethod: futuresAtrSignal.Metadata?.CalculationMethod.ToString(),
                 schemaVersion: futuresAtrSignal.Metadata is { } atrMetadata ? atrMetadata.SchemaVersion : null,
-                isValid: futuresAtrSignal.Metadata?.IsValid))
+                isValid: futuresAtrSignal.Metadata?.IsValid,
+                previousAtrValue: futuresAtrSignal.PreviousAtrValue,
+                atrBaseline: futuresAtrSignal.AtrBaseline,
+                atrRatio: futuresAtrSignal.AtrRatio,
+                isWarm: futuresAtrSignal.IsWarm))
             .ExecuteCommandAsync();
 
     /// <summary>

@@ -79,7 +79,7 @@ obj/Release/net10.0/ref/
 obj/Release/net10.0/refint/
 ```
 
-`bin/` and `obj/` are generated. `MarketOutlookSnapshot/` and the three `VixVolatility/` leaves are current scaffolds retained by the project definition. `FuturesAtrSignal/Command/GenerateFuturesAtrDailySignal.cs` is included as a non-compiled project item.
+`bin/` and `obj/` are generated. `MarketOutlookSnapshot/` and the three `VixVolatility/` leaves are current scaffolds retained by the project definition. Both intraday and day-based Futures ATR command handlers are compiled business logic.
 
 ## Folder responsibilities
 

@@ -34,19 +34,6 @@ internal static class MarketDataDbCql
         );
         """;
 
-    public const string InsertFuturesAtrVolatilitySignalV1 = """
-        INSERT INTO futures_atr_volatility_signal (
-            seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
-            contractId, valueDate, trueRange, atr14, previousAtr14, atr14Baseline, atr14Ratio,
-            isWarm, sourceSequence, calculatedAt, schemaVersion, calculationVersion,
-            calculationMethod, isValid
-        ) VALUES (
-            :seriesKey, :timePeriod, :configurationId, :yearMonth, :marketDataAsOf, :observationId,
-            :contractId, :valueDate, :trueRange, :atr14, :previousAtr14, :atr14Baseline, :atr14Ratio,
-            :isWarm, :sourceSequence, :calculatedAt, :schemaVersion, :calculationVersion,
-            :calculationMethod, :isValid
-        );
-        """;
     public const string ClaimMarketDataImportOwnership = """
     INSERT INTO market_data_import_ownership (dataset, logicalKey, commandId, mayWrite, createdOn)
     VALUES (:dataset, :logicalKey, :commandId, :mayWrite, :createdOn) IF NOT EXISTS;
@@ -3153,7 +3140,11 @@ internal static class MarketDataDbCql
             calculationVersion,
             calculationMethod,
             schemaVersion,
-            isValid
+            isValid,
+            previousAtrValue,
+            atrBaseline,
+            atrRatio,
+            isWarm
         ) VALUES (
             :contractId,
             :valueDate,
@@ -3172,7 +3163,11 @@ internal static class MarketDataDbCql
             :calculationVersion,
             :calculationMethod,
             :schemaVersion,
-            :isValid
+            :isValid,
+            :previousAtrValue,
+            :atrBaseline,
+            :atrRatio,
+            :isWarm
         );
     """;
 
@@ -3186,7 +3181,19 @@ internal static class MarketDataDbCql
             AtrValue AS "AtrValue",
             TrueRange AS "TrueRange",
             ATR AS "ATR",
-            ATRStrength AS "ATRStrength"
+            ATRStrength AS "ATRStrength",
+            PreviousAtrValue AS "PreviousAtrValue",
+            AtrBaseline AS "AtrBaseline",
+            AtrRatio AS "AtrRatio",
+            IsWarm AS "IsWarm",
+            ConfigurationId AS "ConfigurationId",
+            ObservationId AS "ObservationId",
+            MarketDataAsOf AS "MarketDataAsOf",
+            SourceSequence AS "SourceSequence",
+            CalculationVersion AS "CalculationVersion",
+            CalculationMethod AS "CalculationMethod",
+            SchemaVersion AS "SchemaVersion",
+            IsValid AS "IsValid"
         FROM futures_atr_signal
         WHERE ContractId = :contractId 
         AND TimePeriod = :timePeriod
@@ -3205,7 +3212,19 @@ internal static class MarketDataDbCql
             AtrValue AS "AtrValue",
             TrueRange AS "TrueRange",
             ATR AS "ATR",
-            ATRStrength AS "ATRStrength"
+            ATRStrength AS "ATRStrength",
+            PreviousAtrValue AS "PreviousAtrValue",
+            AtrBaseline AS "AtrBaseline",
+            AtrRatio AS "AtrRatio",
+            IsWarm AS "IsWarm",
+            ConfigurationId AS "ConfigurationId",
+            ObservationId AS "ObservationId",
+            MarketDataAsOf AS "MarketDataAsOf",
+            SourceSequence AS "SourceSequence",
+            CalculationVersion AS "CalculationVersion",
+            CalculationMethod AS "CalculationMethod",
+            SchemaVersion AS "SchemaVersion",
+            IsValid AS "IsValid"
         FROM futures_atr_signal
         WHERE ContractId = :contractId 
         AND TimePeriod = :timePeriod

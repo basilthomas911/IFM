@@ -58,17 +58,6 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
     """;
 
-    public const string CreateFuturesAtrVolatilitySignalTable = """
-    CREATE TABLE IF NOT EXISTS futures_atr_volatility_signal (
-        seriesKey text, timePeriod text, configurationId text, yearMonth int,
-        marketDataAsOf timestamp, observationId uuid, contractId text, valueDate date,
-        trueRange decimal, atr14 decimal, previousAtr14 decimal,
-        atr14Baseline decimal, atr14Ratio decimal, isWarm boolean,
-        sourceSequence bigint, calculatedAt timestamp, schemaVersion int,
-        calculationVersion text, calculationMethod text, isValid boolean,
-        PRIMARY KEY ((seriesKey, timePeriod, configurationId, yearMonth), marketDataAsOf, observationId)
-    ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
-    """;
     public const string CreateMarketOutlookSnapshotTable = """
     CREATE TABLE IF NOT EXISTS market_outlook_snapshot (
         contractId text,
@@ -449,6 +438,10 @@ internal static class MarketDataSchemaCql
             calculationMethod TEXT,
             schemaVersion INT,
             isValid BOOLEAN,
+            previousAtrValue DOUBLE,
+            atrBaseline DOUBLE,
+            atrRatio DOUBLE,
+            isWarm BOOLEAN,
             PRIMARY KEY ((contractId, timePeriod, periodLength), valueDate, timestamp)
         ) WITH CLUSTERING ORDER BY (valueDate DESC, timestamp DESC);
         """;
@@ -458,6 +451,12 @@ internal static class MarketDataSchemaCql
             configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
             sourceSequence BIGINT, calculationVersion TEXT, calculationMethod TEXT,
             schemaVersion INT, isValid BOOLEAN
+        );
+        """;
+
+    public const string AddFuturesAtrSignalWilderColumns = """
+        ALTER TABLE futures_atr_signal ADD (
+            previousAtrValue DOUBLE, atrBaseline DOUBLE, atrRatio DOUBLE, isWarm BOOLEAN
         );
         """;
 
