@@ -948,3 +948,24 @@ internal readonly record struct GetMarketOutlookSnapshot(
 {
     public object Bind() => new object?[] { contractId, valueDate };
 }
+
+internal readonly record struct UpsertMarketOutlookWorkingState(
+    string contractId,
+    DateOnly valueDate,
+    long revision,
+    DateTime updatedOn,
+    string status,
+    byte[] workingState) : IBindValue
+{
+    public object Bind() => new object?[]
+    {
+        contractId, valueDate, revision, updatedOn, status, workingState
+    };
+}
+
+internal readonly record struct GetMarketOutlookWorkingState(
+    string contractId,
+    DateOnly valueDate) : IBindValue
+{
+    public object Bind() => new object?[] { contractId, valueDate };
+}

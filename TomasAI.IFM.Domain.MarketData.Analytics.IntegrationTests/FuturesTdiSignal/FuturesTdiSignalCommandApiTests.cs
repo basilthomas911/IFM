@@ -27,12 +27,22 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
     public async Task GenerateFuturesTdiSignal_Ok()
     {
         var eventListener = new NatsActorEventListener(new NatsEventListenerOptions(), _logger);
-        FuturesTdiSignalGeneratedEvent futuresTdiSignalGeneratedEvent = default!;
-        FuturesTdiSignalGeneratedCompleteEvent futuresTdiSignalGeneratedCompleteEvent = default!;
-        FuturesTdiSignalGeneratedFailEvent futuresTdiSignalGeneratedFailEvent = default!;
+        var contractId = $"ESTD{Guid.NewGuid():N}"[..18];
+        var valueDate = new DateOnly(2099, 12, 31);
+        var timestamp = new TimeOnly(10, 0, 0);
+        var futuresTdiSignalId = new FuturesTdiSignalId(contractId, valueDate, timestamp);
+        var entityId = new FuturesTdiSignalEntityId(
+            contractId,
+            valueDate,
+            TimeFrameType.OneMinute,
+            FuturesTdiConfiguration.StandardConfigurationId);
+        var generatedCompletion = new TaskCompletionSource<FuturesTdiSignalGeneratedEvent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var projectionCompletion = new TaskCompletionSource<FuturesTdiSignalGeneratedCompleteEvent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
-            "TestEventListener",
+            $"futures-tdi-command-{Guid.NewGuid():N}",
             new()
             {
                 [new ActorMailboxId(ActorType.Event, FuturesTdiSignalGeneratedEvent.Actor)] =
@@ -44,72 +54,82 @@ public class FuturesTdiSignalCommandApiTests(WebApplicationFactory<Program> fact
             },
             EventHandlerAsync);
 
-        var valueDate = new DateOnly(2099, 12, 31);
-        var timestamp = new TimeOnly(10, 0, 0);
-        var futuresTdiSignalId = new FuturesTdiSignalId(SampleData.ContractId, valueDate, timestamp);
-        var entityId = new FuturesTdiSignalEntityId(
-            SampleData.ContractId,
-            valueDate,
-            TimeFrameType.OneMinute,
-            FuturesTdiConfiguration.StandardConfigurationId);
-        var subject = new ActorSubject(ActorType.Command, GenerateFuturesTdiSignalCommand.Actor, GenerateFuturesTdiSignalCommand.Verb, entityId.Format());
-        var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
-        if (eventStreamId > 0)
-            await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
-
-        var analyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
-        var response = await analyticsApi.GenerateFuturesTdiSignalAsync(futuresTdiSignalId, CreateRsiSignals(valueDate));
-
-        await Task.Delay(1000);
-
-        response.Should().NotBeNull();
-        response.Success.Should().BeTrue(response.ErrorMessage);
-        response.Value.Should().NotBe(Guid.Empty);
-        futuresTdiSignalGeneratedEvent.Should().NotBeNull();
-        futuresTdiSignalGeneratedCompleteEvent.Should().NotBeNull();
-        futuresTdiSignalGeneratedFailEvent.Should().BeNull();
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Should().NotBeNull();
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ContractId.Should().Be(SampleData.ContractId);
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ValueDate.Should().Be(valueDate);
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.TimePeriod.Should().Be(TimeFrameType.OneMinute);
-        futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Timestamp.Should().Be(timestamp);
-
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesTdiSignalAsync(SampleData.ContractId, valueDate);
-        lastSignal.Should().NotBeNull();
-        lastSignal!.ContractId.Should().Be(SampleData.ContractId);
-        lastSignal.ValueDate.Should().Be(valueDate);
-        lastSignal.Timestamp.Should().Be(timestamp);
-
-        await eventListener.StopAsync();
-
-        async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        try
         {
-            IEvent receivedEvent = eventVerb switch
-            {
-                _ when eventVerb == FuturesTdiSignalGeneratedEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTdiSignalGeneratedEvent>()!),
-                _ when eventVerb == FuturesTdiSignalGeneratedCompleteEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!),
-                _ when eventVerb == FuturesTdiSignalGeneratedFailEvent.Verb => SetEvent(eventMsg.AsEvent<FuturesTdiSignalGeneratedFailEvent>()!),
-                _ => default!
-            };
-            await ValueTask.CompletedTask;
+            var subject = new ActorSubject(
+                ActorType.Command,
+                GenerateFuturesTdiSignalCommand.Actor,
+                GenerateFuturesTdiSignalCommand.Verb,
+                entityId.Format());
+            var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
+            if (eventStreamId > 0)
+                await dbFixture.ActorEventSourceDb.DeleteEventLogByStreamIdAsync(eventStreamId);
 
-            IEvent SetEvent(IEvent @event)
+            var analyticsApi = new MarketDataAnalyticsCommandApi(_actorProducer);
+            var response = await analyticsApi.GenerateFuturesTdiSignalAsync(
+                futuresTdiSignalId,
+                CreateRsiSignals(contractId, valueDate));
+
+            response.Should().NotBeNull();
+            response.Success.Should().BeTrue(response.ErrorMessage);
+            response.Value.Should().NotBe(Guid.Empty);
+
+            var futuresTdiSignalGeneratedEvent = await generatedCompletion.Task.WaitAsync(
+                TimeSpan.FromSeconds(10));
+            var futuresTdiSignalGeneratedCompleteEvent = await projectionCompletion.Task.WaitAsync(
+                TimeSpan.FromSeconds(10));
+
+            futuresTdiSignalGeneratedEvent.CommandId.Should().Be(response.Value);
+            futuresTdiSignalGeneratedCompleteEvent.CommandId.Should().Be(response.Value);
+            futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Should().NotBeNull();
+            futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ContractId.Should().Be(contractId);
+            futuresTdiSignalGeneratedEvent.FuturesTdiSignal.ValueDate.Should().Be(valueDate);
+            futuresTdiSignalGeneratedEvent.FuturesTdiSignal.TimePeriod.Should().Be(TimeFrameType.OneMinute);
+            futuresTdiSignalGeneratedEvent.FuturesTdiSignal.Timestamp.Should().Be(timestamp);
+
+            var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesTdiSignalAsync(contractId, valueDate);
+            lastSignal.Should().NotBeNull();
+            lastSignal!.ContractId.Should().Be(contractId);
+            lastSignal.ValueDate.Should().Be(valueDate);
+            lastSignal.Timestamp.Should().Be(timestamp);
+        }
+        finally
+        {
+            await eventListener.StopAsync();
+        }
+
+        ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
+        {
+            switch (eventVerb)
             {
-                if (@event is FuturesTdiSignalGeneratedEvent generated)
-                    futuresTdiSignalGeneratedEvent = generated;
-                if (@event is FuturesTdiSignalGeneratedCompleteEvent generatedComplete)
-                    futuresTdiSignalGeneratedCompleteEvent = generatedComplete;
-                if (@event is FuturesTdiSignalGeneratedFailEvent generatedFail)
-                    futuresTdiSignalGeneratedFailEvent = generatedFail;
-                return @event;
+                case FuturesTdiSignalGeneratedEvent.Verb:
+                    var generated = eventMsg.AsEvent<FuturesTdiSignalGeneratedEvent>();
+                    if (generated?.EntityId == entityId)
+                        generatedCompletion.TrySetResult(generated);
+                    break;
+                case FuturesTdiSignalGeneratedCompleteEvent.Verb:
+                    var completed = eventMsg.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>();
+                    if (completed?.EntityId == entityId)
+                        projectionCompletion.TrySetResult(completed);
+                    break;
+                case FuturesTdiSignalGeneratedFailEvent.Verb:
+                    var failed = eventMsg.AsEvent<FuturesTdiSignalGeneratedFailEvent>();
+                    if (failed?.EntityId == entityId)
+                    {
+                        var exception = new InvalidOperationException(failed.ErrorMessage);
+                        generatedCompletion.TrySetException(exception);
+                        projectionCompletion.TrySetException(exception);
+                    }
+                    break;
             }
+            return ValueTask.CompletedTask;
         }
     }
 
-    static FuturesRsiSignalReadModel[] CreateRsiSignals(DateOnly valueDate)
+    static FuturesRsiSignalReadModel[] CreateRsiSignals(string contractId, DateOnly valueDate)
         => Enumerable.Range(0, FuturesTdiConfiguration.Standard.RequiredRsiSamples)
             .Select(index => new FuturesRsiSignalReadModel(
-                SampleData.ContractId,
+                contractId,
                 valueDate,
                 TimeFrameType.OneMinute,
                 FuturesTdiConfiguration.Standard.RsiPeriod,

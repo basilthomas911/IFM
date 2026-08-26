@@ -16,6 +16,10 @@ public interface IMarketDataDbWriteContext
     Task UpsertMarketOutlookSnapshotAsync(
         MarketOutlookSnapshotReadModel snapshot,
         CancellationToken cancellationToken = default);
+    /// <summary>Projects the current Market Outlook accumulation checkpoint.</summary>
+    Task UpsertMarketOutlookWorkingStateAsync(
+        MarketOutlookWorkingStateReadModel workingState,
+        CancellationToken cancellationToken = default);
     Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
     Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
     Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars);

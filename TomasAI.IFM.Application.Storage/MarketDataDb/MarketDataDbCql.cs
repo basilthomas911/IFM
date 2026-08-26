@@ -3349,4 +3349,18 @@ internal static class MarketDataDbCql
         LIMIT 1;
     """;
 
+    public const string UpsertMarketOutlookWorkingState = """
+        INSERT INTO market_outlook_working_state
+            (contractId, valueDate, revision, updatedOn, status, workingState)
+        VALUES
+            (:contractId, :valueDate, :revision, :updatedOn, :status, :workingState);
+    """;
+
+    public const string GetMarketOutlookWorkingState = """
+        SELECT workingState AS "WorkingState"
+        FROM market_outlook_working_state
+        WHERE contractId = :contractId
+        AND valueDate = :valueDate;
+    """;
+
 }

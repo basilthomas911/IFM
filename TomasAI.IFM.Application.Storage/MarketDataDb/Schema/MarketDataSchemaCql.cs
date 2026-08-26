@@ -82,6 +82,18 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (valueDate DESC);
     """;
 
+    public const string CreateMarketOutlookWorkingStateTable = """
+    CREATE TABLE IF NOT EXISTS market_outlook_working_state (
+        contractId text,
+        valueDate date,
+        revision bigint,
+        updatedOn timestamp,
+        status text,
+        workingState blob,
+        PRIMARY KEY ((contractId), valueDate)
+    ) WITH CLUSTERING ORDER BY (valueDate DESC);
+    """;
+
     public const string CreateMarketDataImportOwnershipTable = """
     CREATE TABLE IF NOT EXISTS market_data_import_ownership (
     dataset text,

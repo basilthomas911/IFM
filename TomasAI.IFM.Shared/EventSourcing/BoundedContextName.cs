@@ -55,4 +55,6 @@ public enum BoundedContextName
     RiskManagementPipelineBoundedContext,
     /// <summary>Routes durable publication of session-aligned futures OHLCV bars.</summary>
     FuturesTradeSessionBarPublisherBoundedContext,
+    /// <summary>Routes event-sourced Market Outlook snapshot accumulation commands.</summary>
+    MarketOutlookSnapshotBoundedContext,
 }

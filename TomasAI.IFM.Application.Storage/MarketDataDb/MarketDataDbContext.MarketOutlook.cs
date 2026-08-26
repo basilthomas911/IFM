@@ -9,6 +9,39 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public partial class MarketDataDbContext
 {
+    /// <summary>Projects an immutable Market Outlook accumulation checkpoint.</summary>
+    public async Task UpsertMarketOutlookWorkingStateAsync(
+        MarketOutlookWorkingStateReadModel workingState,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workingState);
+        await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.UpsertMarketOutlookWorkingState)}", MarketDataDbCql.UpsertMarketOutlookWorkingState)
+            .SetParameters(new UpsertMarketOutlookWorkingState(
+                workingState.EntityId.ContractId,
+                workingState.EntityId.ValueDate,
+                workingState.Revision,
+                workingState.UpdatedOn,
+                workingState.Status.ToString(),
+                MessagePackSerializer.Serialize(workingState)))
+            .ExecuteCommandAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Gets one projected Market Outlook accumulation checkpoint.</summary>
+    public async Task<MarketOutlookWorkingStateReadModel?> GetMarketOutlookWorkingStateAsync(
+        string contractId,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+        => await _dbFactory.MarketDataDb
+            .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketOutlookWorkingState)}", MarketDataDbCql.GetMarketOutlookWorkingState)
+            .SetParameters(new GetMarketOutlookWorkingState(contractId, valueDate))
+            .ExecuteSingleAsync(
+                static row => MessagePackSerializer.Deserialize<MarketOutlookWorkingStateReadModel>(
+                    row.GetBytes(0)),
+                cancellationToken)
+            .ConfigureAwait(false);
+
     public async Task UpsertMarketOutlookSnapshotAsync(
         MarketOutlookSnapshotReadModel snapshot,
         CancellationToken cancellationToken = default)

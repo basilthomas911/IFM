@@ -2676,6 +2676,47 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.IsComplete.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task MarketOutlookWorkingState_RoundTripsImmutableCheckpoint()
+    {
+        var contractId = $"OUTSTATE{Guid.NewGuid():N}";
+        var valueDate = new DateOnly(2026, 8, 22);
+        var sourceEventId = Guid.NewGuid();
+        var expected = new MarketOutlookWorkingStateReadModel
+        {
+            EntityId = new MarketOutlookEntityId(contractId, valueDate),
+            Revision = 7,
+            UpdatedOn = DateTime.UtcNow,
+            FuturesRsiSignal = SampleData.FuturesRsiSignal with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate
+            },
+            SourceWatermarks =
+            [
+                new MarketOutlookSourceWatermark
+                {
+                    ComponentType = MarketOutlookComponentType.Rsi,
+                    SourceEventId = sourceEventId,
+                    SourceEventSequence = 17,
+                    SourceEventTimestamp = DateTime.UtcNow
+                }
+            ],
+            Status = MarketOutlookStateStatus.Collecting
+        };
+
+        await TestFixture.DevDatabase.UpsertMarketOutlookWorkingStateAsync(expected);
+        var result = await TestFixture.DevDatabase.GetMarketOutlookWorkingStateAsync(
+            contractId,
+            valueDate);
+
+        result.Should().BeEquivalentTo(expected);
+        result!.SourceWatermarks.Should().ContainSingle(watermark =>
+            watermark.ComponentType == MarketOutlookComponentType.Rsi
+            && watermark.SourceEventId == sourceEventId
+            && watermark.SourceEventSequence == 17);
+    }
+
     /// <summary>
     /// Unit test for GetLastFuturesTradeSignalBySymbolAsync method using sample data and asserting each expected value.
     /// </summary>
