@@ -13,7 +13,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime;
 
@@ -27,7 +27,7 @@ internal static class FuturesItiSignalGeneratedComplete
 
     internal static async ValueTask<bool> ExecuteRealtimeAsync(
         this FuturesItiSignalGeneratedCompleteEvent source,
-        IEventActorContext context,
+        IEventActorContext<FuturesItiSignalRealtimeActor> context,
         IRealtimeProjector<FuturesItiSignalRealtimeActor> projector,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)
@@ -35,7 +35,7 @@ internal static class FuturesItiSignalGeneratedComplete
         try
         {
             await source.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
-            await source.PublishAsync(context).ConfigureAwait(false);
+            await context.PublishMarketOutlookComponentAsync(source).ConfigureAwait(false);
             if (!FuturesTradeSignalPrerequisites.ShouldGenerate(source))
                 return true;
 

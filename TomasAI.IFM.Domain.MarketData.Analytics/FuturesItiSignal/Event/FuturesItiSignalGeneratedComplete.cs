@@ -7,8 +7,9 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
 
@@ -33,8 +34,7 @@ public static class FuturesItiSignalGeneratedComplete
     /// succeeded; otherwise, <see langword="false"/>.</returns>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesItiSignalGeneratedCompleteEvent e,
-        IEventActorContext context,
-        IEventActorContext commandApi,
+        IEventActorContext<FuturesItiSignalEventActor> context,
         IStatusConsoleWriter statusConsoleWriter,
         ILogger logger)
     {
@@ -42,7 +42,7 @@ public static class FuturesItiSignalGeneratedComplete
         try
         {
             await e.PublishUpdatedNotificationAsync(context, logger).ConfigureAwait(false);
-            await e.PublishAsync(context).ConfigureAwait(false);
+            await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
             if (!FuturesTradeSignalPrerequisites.ShouldGenerate(e))
                 return true;
 
@@ -58,7 +58,7 @@ public static class FuturesItiSignalGeneratedComplete
                 return true;
             }
 
-            await MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
+            await MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(context,
                 inputs.FuturesEodData,
                 inputs.FuturesRsiSignal,
                 inputs.FuturesTdiSignal,

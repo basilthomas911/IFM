@@ -66,7 +66,7 @@ FuturesTradeSignal/Command/State/
 FuturesTradeSignal/Command/Validation/
 FuturesTradeSignal/Event/Actor/
 FuturesTradeSignal/Query/Actor/
-MarketEvaluationSnapshot/
+MarketOutlookSnapshot/
 Query/Api/
 VixVolatility/Command/
 VixVolatility/Event/
@@ -79,7 +79,7 @@ obj/Release/net10.0/ref/
 obj/Release/net10.0/refint/
 ```
 
-`bin/` and `obj/` are generated. `MarketEvaluationSnapshot/` and the three `VixVolatility/` leaves are current scaffolds retained by the project definition. `FuturesAtrSignal/Command/GenerateFuturesAtrDailySignal.cs` is included as a non-compiled project item.
+`bin/` and `obj/` are generated. `MarketOutlookSnapshot/` and the three `VixVolatility/` leaves are current scaffolds retained by the project definition. `FuturesAtrSignal/Command/GenerateFuturesAtrDailySignal.cs` is included as a non-compiled project item.
 
 ## Folder responsibilities
 
@@ -90,7 +90,7 @@ obj/Release/net10.0/refint/
 - Each `Event/Actor/` consumes that signal's events. `Event/Extensions/` holds actor-context helpers and `Event/Model/` holds event-processing data where present.
 - Each `Realtime/Actor/` owns best-effort live calculation state and Core NATS routing. Its `Realtime/Projector/` applies the calculated record once to ScyllaDB and publishes source plus complete/fail events without durable projection replay.
 - Each `Query/Actor/` exposes the signal's read side.
-- `MarketEvaluationSnapshot/` and `VixVolatility/` reserve future feature structure.
+- `MarketOutlookSnapshot/` and `VixVolatility/` reserve future feature structure.
 - `Docs/` contains this document; the root assembly marker supports scanning and registration.
 
 ## Implemented actor groups

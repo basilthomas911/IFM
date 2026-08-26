@@ -4,7 +4,8 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
 
@@ -25,12 +26,15 @@ public static class FuturesTdiSignalGeneratedComplete
     /// <param name="logger"></param>
     /// <returns></returns>
     public static async ValueTask<bool> ExecuteAsync(
-        this FuturesTdiSignalGeneratedCompleteEvent e, IEventActorContext context, IStatusConsoleWriter statusConsoleWriter, ILogger logger)
+        this FuturesTdiSignalGeneratedCompleteEvent e,
+        IEventActorContext<FuturesTdiSignalEventActor> context,
+        IStatusConsoleWriter statusConsoleWriter,
+        ILogger logger)
     {
         var source = $"FuturesTdiSignalGeneratedCompleteEvent for EntityId: {e.EntityId}";
         try
         {
-            await e.PublishAsync(context).ConfigureAwait(false);
+            await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex)

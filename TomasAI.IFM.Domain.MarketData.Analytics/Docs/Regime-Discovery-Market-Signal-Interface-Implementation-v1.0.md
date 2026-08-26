@@ -17,7 +17,7 @@ Implementation Specification v1.0
 This document converts the approved Market Data Analytics signal design into
 a repository-specific implementation plan. It defines project ownership,
 files, actors, contexts, messages, state, projectors, cache behavior, ScyllaDB
-tables, PostgreSQL bootstrap control state, Databento Historical acquisition,
+tables, PostgreSQL data-load control state, Databento Historical acquisition,
 runtime registration, migration order, tests, and gate exit criteria.
 
 The implementation supplies one coherent signal interface for Regime
@@ -40,15 +40,15 @@ ticks, ScyllaDB, Redis, or provider APIs directly.
 5. Realtime projection remains one attempt. A source, complete, or fail event
    is published according to the existing projector convention; actor state
    is confirmed only after projection succeeds.
-6. The historical bootstrap is different from live calculation. It is a
+6. The historical data load is different from live calculation. It is a
    durable, parameter-only external acquisition workflow with Command and
    Event actors, idempotent manifests, checkpoints, and a provider-neutral
    application API.
 7. Historical provider rows never appear in Command/Event messages. The
-   bootstrap complete event carries counts, hashes, and manifest identity,
+   data-load complete event carries counts, hashes, and manifest identity,
    not a year of observations.
 8. ScyllaDB stores raw normalized observations and derived read models.
-   PostgreSQL event-source/control storage owns bootstrap workflow state and
+   PostgreSQL event-source/control storage owns data-load workflow state and
    acquisition manifests.
 9. New Scylla tables use descriptive names with `schemaVersion` columns and no
    `_vX` suffix. There is no production-data compatibility requirement for
@@ -91,7 +91,7 @@ ticks, ScyllaDB, Redis, or provider APIs directly.
 | Storage command naming | `.Use($"{nameof(MarketDataDbCql)}.{nameof(...)}", commandText)` |
 | Read/write API | `IMarketDataDbReadContext`, `IMarketDataDbWriteContext`, `MarketDataDbContext`, and cancellation-aware query overloads |
 | Historical definition query | Pinned Databento C++ client, native opaque result handle, managed `SafeHandle`, strict timeout, complete-or-fail result |
-| Event-source bootstrap control | `BaseEventSourceCommandActor<TActor>`, typed state repository, PostgreSQL event log, and explicit main/complete/fail event family |
+| Event-source data-load control | `BaseEventSourceCommandActor<TActor>`, typed state repository, PostgreSQL event log, and explicit main/complete/fail event family |
 
 ### 3.2 Existing behavior that must not be copied
 
@@ -133,13 +133,13 @@ TomasAI.IFM.Application.MarketData.DataBento
   Domain-symbol resolution and Databento historical application adapter
 
 TomasAI.IFM.Application.Storage
-  Scylla market observation/signal storage and PostgreSQL bootstrap control
+  Scylla market observation/signal storage and PostgreSQL data-load control
 
 TomasAI.IFM.Domain.MarketData.Feed
   Raw Futures EOD cutover and shared observation publication
 
 TomasAI.IFM.Domain.MarketData.Analytics
-  Calculation actors, runtime, cache, snapshot provider, bootstrap actors
+  Calculation actors, runtime, cache, snapshot provider, data-loader actors
 ```
 
 `Domain.MarketData.Analytics.Shared` must not reference Trade.Shared.
@@ -265,7 +265,7 @@ TomasAI.IFM.Domain.MarketData.Analytics/
   FuturesMarketStructureSignal/
   FuturesVxTermStructureSignal/
   FuturesVwapSignal/
-  HistoricalBootstrap/
+  HistoricalDataLoader/
     Command/Actor/
     Command/Extensions/
     Command/State/
@@ -284,7 +284,7 @@ TomasAI.IFM.Domain.MarketData.Analytics/
     MarketDataAnalyticsSignalRuntimeOptions.cs
 ```
 
-Realtime signal roots do not add durable Event actors. HistoricalBootstrap has
+Realtime signal roots do not add durable Event actors. HistoricalDataLoader has
 an Event actor because it participates in a durable external acquisition
 workflow.
 
@@ -304,13 +304,13 @@ TomasAI.IFM.Application.Storage/MarketDataDb/
   Schema/MarketDataSchemaCql.AnalyticsSignals.cs
   Schema/MarketDataSchemaDb.cs
 
-TomasAI.IFM.Application.Storage/HistoricalBootstrapDb/
-  HistoricalBootstrapDbContext.cs
-  IHistoricalBootstrapDbContext.cs
-  HistoricalBootstrapDbSql.cs
-  HistoricalBootstrapDbParameters.cs
-  Schema/HistoricalBootstrapSchemaDb.cs
-  Schema/HistoricalBootstrapSchemaSql.cs
+TomasAI.IFM.Application.Storage/HistoricalDataLoaderDb/
+  HistoricalDataLoaderDbContext.cs
+  IHistoricalDataLoaderDbContext.cs
+  HistoricalDataLoaderDbSql.cs
+  HistoricalDataLoaderDbParameters.cs
+  Schema/HistoricalDataLoaderSchemaDb.cs
+  Schema/HistoricalDataLoaderSchemaSql.cs
 ```
 
 Partial classes may be used to keep the already large MarketData context and
@@ -414,19 +414,19 @@ Required queries are:
 
 - exact latest by series/contract, timeframe, configuration, and value date;
 - bounded history by date/time range with an explicit maximum row count; and
-- bootstrap diagnostics by manifest ID through the bootstrap Query actor.
+- data-load diagnostics by manifest ID through the data-loader Query actor.
 
 No query mutates state. No query uses `ALLOW FILTERING`.
 
-### 6.6 Command and Event actors for bootstrap only
+### 6.6 Command and Event actors for HistoricalDataLoader only
 
-`FuturesAnalyticsHistoryBootstrapCommandActor` derives from
+`FuturesAnalyticsHistoricalDataLoaderCommandActor` derives from
 `BaseEventSourceCommandActor<TActor>`. It validates a parameter-only command,
 loads event-sourced attempt state, commits a Requested event, and returns the
 command ID. Its repository is constructor-injected through the typed context;
 it is not resolved from the container.
 
-`FuturesAnalyticsHistoryBootstrapEventActor` consumes the Requested event via
+`FuturesAnalyticsHistoricalDataLoaderEventActor` consumes the Requested event via
 durable Event delivery. Its extension handler calls
 `IMarketDataHistoricalApi`, resumes the manifest/checkpoints, normalizes and
 persists bounded batches, drives private actor replay, and publishes one
@@ -517,8 +517,8 @@ it is not quote size or cumulative session volume.
 | `FuturesMarketStructureSignalGeneratedEvent` | Market Structure actor | Projector/cache | Realtime subject |
 | `FuturesVxTermStructureSignalGeneratedEvent` | VX actor | Projector/cache | Realtime subject |
 | `FuturesVwapSignalGeneratedEvent` | VWAP actor | Projector/cache | Realtime subject |
-| `FuturesTradeSessionBarReplayBatchRealtimeEvent` | Bootstrap coordinator | Observation/calculation actor | Private Realtime route |
-| `FuturesVwapTradeReplayBatchRealtimeEvent` | Bootstrap coordinator | VWAP actor | Private Realtime route |
+| `FuturesTradeSessionBarReplayBatchRealtimeEvent` | HistoricalDataLoader | Observation/calculation actor | Private Realtime route |
+| `FuturesVwapTradeReplayBatchRealtimeEvent` | HistoricalDataLoader | VWAP actor | Private Realtime route |
 
 Generated event contracts continue to implement the existing event envelope
 expected by realtime projectors, but their `Subject.ActorType` and destination
@@ -531,20 +531,20 @@ marker. Maximum records and serialized bytes are configuration with hard
 validation. A replay generation is all-or-invalid; partial generations do not
 mark a signal warm.
 
-### 7.5 Bootstrap command/event family
+### 7.5 HistoricalDataLoader command/event family
 
 ```text
-BootstrapFuturesAnalyticsHistoryCommand
-FuturesAnalyticsHistoryBootstrapRequestedEvent
-FuturesAnalyticsHistoryBootstrapCompletedEvent
-FuturesAnalyticsHistoryBootstrapFailedEvent
-GetFuturesAnalyticsHistoryBootstrapQuery
+LoadFuturesAnalyticsHistoricalDataCommand
+FuturesAnalyticsHistoricalDataLoaderRequestedEvent
+FuturesAnalyticsHistoricalDataLoaderCompletedEvent
+FuturesAnalyticsHistoricalDataLoaderFailedEvent
+GetFuturesAnalyticsHistoricalDataLoaderQuery
 ```
 
 The command/request event contains only:
 
 ```text
-BootstrapAttemptId
+DataLoadAttemptId
 Series requests (ES continuation, VX front/back, configured contracts)
 StartDate / EndDate
 Requested signal families
@@ -685,7 +685,7 @@ new signal is valid.
 
 | Signal | Actor-owned state | Output |
 | --- | --- | --- |
-| EMA | Four recursive values, four prior values, bootstrap seed depth | EMA10/20/50/200 and slopes |
+| EMA | Four recursive values, four prior values, warm-up seed depth | EMA10/20/50/200 and slopes |
 | BB | Last 20 closes, width history, compatible EMA10/20 | EMA-centered BB10/20, widths, positions |
 | ATR Volatility | Existing Wilder state plus prior/baseline window | ATR, prior, baseline, ratio, true range |
 | Market Structure | Prior highs/lows and bounded ObservationId join | ranges, breakout distance, BB/ATR context |
@@ -738,7 +738,7 @@ Because the environment has no production data dependency:
 1. stop writers;
 2. create the new raw and Analytics schemas;
 3. remove legacy derived EOD table definitions and code paths;
-4. run the one-year historical bootstrap;
+4. run the one-year historical data load;
 5. validate row counts, gaps, hashes, and calculated values;
 6. start new runtime routes; and
 7. run UI/query compatibility tests.
@@ -1151,14 +1151,14 @@ command execution and materialization.
 ### 12.4 Idempotency and batches
 
 Deterministic primary keys make replay inserts idempotent. A conflicting row
-with the same key but a different normalized hash is a bootstrap consistency
+with the same key but a different normalized hash is a data-load consistency
 failure and is recorded in the manifest; it is not silently overwritten.
 
 Use unlogged batches only for bounded statements in the same partition when
 measurements justify them. Cross-partition historical ingestion uses bounded
 parallel prepared statements, not a large logged batch.
 
-## 13. PostgreSQL historical-bootstrap control schema
+## 13. PostgreSQL historical-data-loader control schema
 
 The event-source log remains authoritative for actor transitions. Add
 operational manifest tables because provider jobs/files/checkpoints are not
@@ -1167,8 +1167,8 @@ domain event payloads:
 ```sql
 CREATE SCHEMA IF NOT EXISTS market_data_history;
 
-CREATE TABLE market_data_history.bootstrap_attempt (
-    bootstrap_attempt_id uuid PRIMARY KEY,
+CREATE TABLE market_data_history.data_load_attempt (
+    data_load_attempt_id uuid PRIMARY KEY,
     command_id uuid NOT NULL UNIQUE,
     status smallint NOT NULL,
     stage smallint NOT NULL,
@@ -1191,8 +1191,8 @@ CREATE TABLE market_data_history.bootstrap_attempt (
     row_version bigint NOT NULL DEFAULT 0
 );
 
-CREATE TABLE market_data_history.bootstrap_file (
-    bootstrap_attempt_id uuid NOT NULL,
+CREATE TABLE market_data_history.data_load_file (
+    data_load_attempt_id uuid NOT NULL,
     provider_file_id text NOT NULL,
     file_name text NOT NULL,
     schema_name text NOT NULL,
@@ -1202,11 +1202,11 @@ CREATE TABLE market_data_history.bootstrap_file (
     downloaded_bytes bigint NOT NULL DEFAULT 0,
     decoded_record_count bigint NOT NULL DEFAULT 0,
     status smallint NOT NULL,
-    PRIMARY KEY (bootstrap_attempt_id, provider_file_id)
+    PRIMARY KEY (data_load_attempt_id, provider_file_id)
 );
 
-CREATE TABLE market_data_history.bootstrap_checkpoint (
-    bootstrap_attempt_id uuid NOT NULL,
+CREATE TABLE market_data_history.data_load_checkpoint (
+    data_load_attempt_id uuid NOT NULL,
     checkpoint_name text NOT NULL,
     batch_ordinal bigint NOT NULL,
     source_position text NOT NULL,
@@ -1214,7 +1214,7 @@ CREATE TABLE market_data_history.bootstrap_checkpoint (
     last_source_sequence bigint NULL,
     normalized_sha256 text NOT NULL,
     updated_utc timestamptz NOT NULL,
-    PRIMARY KEY (bootstrap_attempt_id, checkpoint_name)
+    PRIMARY KEY (data_load_attempt_id, checkpoint_name)
 );
 ```
 
@@ -1357,20 +1357,20 @@ market calendar. Domain Event handlers receive only this application contract.
 - Staging paths must remain under a configured absolute staging root. Publish
   verified files atomically; partial files never become inputs.
 
-### 14.8 Historical bootstrap sequence
+### 14.8 Historical data load sequence
 
 ```mermaid
 sequenceDiagram
     participant U as Scheduler/operator
-    participant C as Bootstrap Command actor
-    participant E as Bootstrap Event actor
+    participant C as HistoricalDataLoader Command actor
+    participant E as HistoricalDataLoader Event actor
     participant A as IMarketDataHistoricalApi
     participant D as Databento provider/native API
     participant P as PostgreSQL manifest
     participant S as ScyllaDB
     participant R as Private replay routes
 
-    U->>C: BootstrapFuturesAnalyticsHistoryCommand
+    U->>C: LoadFuturesAnalyticsHistoricalDataCommand
     C->>C: validate and commit Requested
     C-->>E: Requested Event (durable)
     E->>P: create/resume attempt and request hash
@@ -1466,7 +1466,7 @@ IMarketDataHistoricalApi
 IMarketDataHistoricalProvider
 MarketDataAnalyticsSignalRuntime
 MarketAnalyticsSignalCacheWarmer
-HistoricalBootstrapDbContext/interface
+HistoricalDataLoaderDbContext/interface
 validated options
 ```
 
@@ -1476,7 +1476,7 @@ validated options
 reconciliation and before Strategy Workflow realtime routing. It:
 
 1. resolves configured ES and VX contracts/series;
-2. verifies schema and historical bootstrap readiness;
+2. verifies schema and historical data load readiness;
 3. starts/hydrates observation and signal actors;
 4. acquires required market stream ownership;
 5. enables shared observation routes;
@@ -1526,7 +1526,7 @@ options values committed to source control.
 | Historical partial download | Retain staging/checkpoint; never publish as complete |
 | Event redelivery | Resume same manifest/provider job; idempotent Scylla keys |
 | Conflicting normalized primary key | Fail consistency audit and quarantine conflict |
-| Process restart during bootstrap | Rebuild attempt from PostgreSQL manifest/checkpoint |
+| Process restart during a historical data load | Rebuild attempt from PostgreSQL manifest/checkpoint |
 | Process restart during live bar state | Warm bounded state from compatible Scylla history |
 
 Recovery never changes calculation version or provider source silently. A
@@ -1548,7 +1548,7 @@ Metrics include:
 - VWAP eligible/rejected trades, epoch/ordinal gap, recovery duration;
 - VX leg age/skew/roll changes;
 - Historical estimates, jobs, files, bytes, records, gaps, retries, hashes;
-- bootstrap stage duration and second-run idempotency; and
+- data-load stage duration and second-run idempotency; and
 - readiness by required signal family and timeframe.
 
 Health is Green only when all configured required signals are warm, compatible,
@@ -1664,7 +1664,7 @@ Run:
 The accepted end-to-end development run is:
 
 ```text
-Databento historical bootstrap
+Databento historical data load
   -> normalized session observations and roll segments
   -> Scylla raw history
   -> private ordered actor replay
@@ -1729,15 +1729,15 @@ Deliver:
 Exit: offline fixtures pass, handles return to baseline, and opt-in tiny live
 preflight succeeds without starting a live feed.
 
-### MDSI-3 - Roll-aware one-year normalized bootstrap
+### MDSI-3 - Roll-aware one-year historical data load
 
 Status: **Complete (2026-08-25)**. Accepted actor topology, restart behavior,
 one-year fixture, and test evidence are in
-`Regime-Discovery-Market-Signal-Interface-MDSI-3-Historical-Bootstrap-v1.0.md`.
+`Regime-Discovery-Market-Signal-Interface-MDSI-3-Historical-Data-Loader-v1.0.md`.
 
 Deliver:
 
-- bootstrap Command/Event/Query actors and typed contexts;
+- data-loader Command/Event/Query actors and typed contexts;
 - PostgreSQL manifest/checkpoint schema;
 - market-calendar session normalization;
 - ES continuation and VX calendar front/back mapping;
@@ -1941,14 +1941,14 @@ Deliver:
 - update storage documentation.
 
 Exit: schema creation is idempotent, no new query filters, and storage suites
-pass under representative bootstrap volume.
+pass under representative historical data-load volume.
 
 ### MDSI-18 - Real-host qualification
 
 Deliver:
 
 - headless server lifecycle and rollover qualification;
-- approved one-year Databento development bootstrap;
+- approved one-year Databento development data load;
 - restart/warm-up and Regime capture;
 - all domain/application/framework/UI suites; and
 - implementation/test-result documentation.

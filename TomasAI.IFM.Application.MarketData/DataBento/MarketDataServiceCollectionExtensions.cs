@@ -38,7 +38,7 @@ public static class MarketDataServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Registers the provider-neutral historical application API and bootstrap orchestration.</summary>
+    /// <summary>Registers the provider-neutral historical application API and data load orchestration.</summary>
     public static IServiceCollection AddApplicationMarketDataHistoricalApi(
         this IServiceCollection services,
         DatabentoHistoricalOptions options)
@@ -54,7 +54,7 @@ public static class MarketDataServiceCollectionExtensions
             provider.GetRequiredService<DatabentoHistoricalApi>());
         services.TryAddSingleton<IHistoricalReplayPublisher, NullHistoricalReplayPublisher>();
         services.TryAddSingleton<IHistoricalAnalyticsSignalReader, NullHistoricalAnalyticsSignalReader>();
-        services.TryAddSingleton<HistoricalBootstrapCoordinator>();
+        services.TryAddSingleton<HistoricalDataLoader>();
         services.TryAddSingleton<IFuturesEodAnalyticsAssembler, FuturesEodAnalyticsAssembler>();
         return services;
     }

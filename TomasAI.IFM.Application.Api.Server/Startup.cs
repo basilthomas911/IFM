@@ -17,7 +17,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
-using TomasAI.IFM.Application.Storage.HistoricalBootstrap;
+using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
@@ -421,7 +421,7 @@ public static class Startup
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
-            services.AddSingleton<IHistoricalBootstrapStore, PostgresHistoricalBootstrapStore>();
+            services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<LogSchemaDb>();

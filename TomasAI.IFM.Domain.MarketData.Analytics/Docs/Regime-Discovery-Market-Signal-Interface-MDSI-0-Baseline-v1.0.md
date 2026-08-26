@@ -55,7 +55,7 @@ Market Data Analytics currently contains 28 actor classes:
 | Total | 28 |
 
 It also contains seven Command state repositories and six dedicated realtime
-projectors. `MarketOutlookRealtimeActor` performs its coordinated snapshot
+projectors. `MarketOutlookSnapshotRealtimeActor` performs its coordinated snapshot
 upsert directly and therefore is the seventh realtime actor without a matching
 `BaseRealtimeProjector<TActor>` implementation.
 

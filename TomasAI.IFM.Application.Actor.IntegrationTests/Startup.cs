@@ -30,7 +30,7 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.FundDb;
-using TomasAI.IFM.Application.Storage.HistoricalBootstrap;
+using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -373,7 +373,7 @@ public static class Startup
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
             services.AddSingleton<IFundDbContext, FundDbContext>();
             services.AddSingleton<IMarketDataDbContext, MarketDataDbContext>();
-            services.AddSingleton<IHistoricalBootstrapStore, PostgresHistoricalBootstrapStore>();
+            services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
             services.AddSingleton<LogSchemaDb>();

@@ -33,8 +33,9 @@ internal static class FuturesAdxSignalEventExtensions
     /// <param name="futuresRsiSignals">Input RSI signal series used to compute the TDI signal.</param>
     /// <returns>A ValueTask representing the asynchronous operation.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the generate operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask GenerateFuturesTdiSignalAsync(
-        this IEventActorContext commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
+    public static async ValueTask GenerateFuturesTdiSignalAsync<TActor>(
+        this IEventActorContext<TActor> commandApi, FuturesTdiSignalId futuresTdiSignalId, FuturesRsiSignalReadModel[] futuresRsiSignals, TimeFrameType timePeriod)
+        where TActor : IActor
     {
         _ = await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi, futuresTdiSignalId, futuresRsiSignals, timePeriod);
     }

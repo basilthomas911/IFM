@@ -13,10 +13,11 @@ internal static class FuturesItiSignalUpdatedNotification
 {
     static readonly string ServiceId = $"{LogSourceType.FuturesItiSignalEvent}";
 
-    internal static async ValueTask<bool> PublishUpdatedNotificationAsync(
+    internal static async ValueTask<bool> PublishUpdatedNotificationAsync<TActor>(
         this FuturesItiSignalGeneratedCompleteEvent source,
-        IEventActorContext context,
+        IEventActorContext<TActor> context,
         ILogger logger)
+        where TActor : IActor
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(context);

@@ -244,10 +244,10 @@ public static class EventSourceSchemaSql
     );
     """;
 
-    /// <summary>Creates durable historical-bootstrap checkpoint and immutable manifest tables.</summary>
-    public const string CreateHistoricalBootstrap = """
-    CREATE TABLE IF NOT EXISTS historical_bootstrap_checkpoint (
-        bootstrap_attempt_id uuid PRIMARY KEY,
+    /// <summary>Creates durable historical-data-load checkpoint and immutable manifest tables.</summary>
+    public const string CreateHistoricalDataLoader = """
+    CREATE TABLE IF NOT EXISTS historical_data_load_checkpoint (
+        data_load_attempt_id uuid PRIMARY KEY,
         request_sha256 text NOT NULL,
         status smallint NOT NULL,
         stage smallint NOT NULL,
@@ -259,18 +259,18 @@ public static class EventSourceSchemaSql
         updated_at_utc timestamptz NOT NULL
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS ux_historical_bootstrap_completed_request
-        ON historical_bootstrap_checkpoint (request_sha256)
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_historical_data_load_completed_request
+        ON historical_data_load_checkpoint (request_sha256)
         WHERE status = 2;
 
-    CREATE TABLE IF NOT EXISTS historical_bootstrap_manifest (
-        bootstrap_attempt_id uuid PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS historical_data_load_manifest (
+        data_load_attempt_id uuid PRIMARY KEY,
         manifest_json text NOT NULL,
         audit_json text NOT NULL,
         created_at_utc timestamptz NOT NULL,
-        CONSTRAINT fk_historical_bootstrap_manifest_checkpoint
-            FOREIGN KEY (bootstrap_attempt_id)
-            REFERENCES historical_bootstrap_checkpoint(bootstrap_attempt_id)
+        CONSTRAINT fk_historical_data_load_manifest_checkpoint
+            FOREIGN KEY (data_load_attempt_id)
+            REFERENCES historical_data_load_checkpoint(data_load_attempt_id)
             ON DELETE CASCADE
     );
     """;

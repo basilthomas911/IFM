@@ -54,7 +54,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
             records = checked(records + estimate.EstimatedRecords);
         }
         return new(
-            request.BootstrapAttemptId,
+            request.DataLoadAttemptId,
             cost,
             bytes,
             records,
@@ -72,7 +72,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
         ValidateRequest(request);
         ArgumentNullException.ThrowIfNull(checkpoint);
         ArgumentNullException.ThrowIfNull(sink);
-        if (checkpoint.BootstrapAttemptId != request.BootstrapAttemptId)
+        if (checkpoint.DataLoadAttemptId != request.DataLoadAttemptId)
             throw new ArgumentException("Checkpoint attempt does not match the request.", nameof(checkpoint));
 
         var estimate = await EstimateAsync(request, cancellationToken).ConfigureAwait(false);
@@ -101,7 +101,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
             {
                 await checkpointSink.CheckpointAsync(new HistoricalAcquisitionCheckpoint
                 {
-                    BootstrapAttemptId = request.BootstrapAttemptId,
+                    DataLoadAttemptId = request.DataLoadAttemptId,
                     Stage = HistoricalAcquisitionStage.Submitted,
                     ProviderJobId = job.ProviderJobId,
                     ProviderFileId = checkpoint.ProviderFileId,
@@ -117,7 +117,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
             foreach (var file in files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var path = ResolveStagingPath(stagingRoot, request.BootstrapAttemptId, file.FileName);
+                var path = ResolveStagingPath(stagingRoot, request.DataLoadAttemptId, file.FileName);
                 await _provider.DownloadBatchFileAsync(
                     job.ProviderJobId, file, path, cancellationToken).ConfigureAwait(false);
                 await VerifyFileAsync(path, file, cancellationToken).ConfigureAwait(false);
@@ -154,7 +154,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
         return new MarketDataHistoricalManifest
         {
             ManifestId = DeterministicGuid($"{estimate.RequestSha256}|{string.Join('|', jobIds)}"),
-            BootstrapAttemptId = request.BootstrapAttemptId,
+            DataLoadAttemptId = request.DataLoadAttemptId,
             ProviderJobId = string.Join(',', jobIds),
             RequestSha256 = estimate.RequestSha256,
             NormalizedSha256 = Convert.ToHexString(normalizedHash.GetHashAndReset()),
@@ -256,7 +256,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
 
         var hash = ComputeNormalizedHash(observations, trades);
         return new(
-            request.BootstrapAttemptId,
+            request.DataLoadAttemptId,
             providerFileId,
             source.BatchOrdinal,
             source.SourcePosition,
@@ -341,7 +341,7 @@ public sealed class DatabentoHistoricalApi : IMarketDataHistoricalApi
     static void ValidateRequest(MarketDataHistoricalRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.BootstrapAttemptId == Guid.Empty) throw new ArgumentException("BootstrapAttemptId is required.");
+        if (request.DataLoadAttemptId == Guid.Empty) throw new ArgumentException("DataLoadAttemptId is required.");
         if (request.Series is not { Length: > 0 }) throw new ArgumentException("At least one series is required.");
         if (request.StartDate > request.EndDate) throw new ArgumentException("StartDate must not follow EndDate.");
         if (request.MaximumCostUsd < 0 || request.MaximumBytes < 0) throw new ArgumentException("Budgets cannot be negative.");

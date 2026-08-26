@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -17,11 +18,10 @@ public sealed class FuturesRsiSignalsGeneratedTests
     [Fact]
     public async Task ExecuteAsync_StandardIntradayWindow_SendsDeterministicTdiCommand()
     {
-        var commandApi = Substitute.For<IEventActorContext>();
-        commandApi.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(
+        var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();
+        context.RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(
                 Arg.Any<GenerateFuturesTdiSignalCommand>())
             .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
-        var context = Substitute.For<IEventActorContext>();
         var logger = Substitute.For<ILogger>();
         var eventId = Guid.NewGuid();
         var @event = new FuturesRsiSignalsGeneratedEvent
@@ -37,10 +37,10 @@ public sealed class FuturesRsiSignalsGeneratedTests
             FuturesRsiSignals = SampleData.TdiRsiSignals
         };
 
-        var handled = await @event.ExecuteAsync(context, commandApi, logger);
+        var handled = await @event.ExecuteAsync(context, logger);
 
         handled.Should().BeTrue();
-        await commandApi.Received(1)
+        await context.Received(1)
             .RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(
                 Arg.Is<GenerateFuturesTdiSignalCommand>(command =>
                     command.FuturesTdiSignalId.ContractId == SampleData.ContractId
@@ -54,7 +54,7 @@ public sealed class FuturesRsiSignalsGeneratedTests
     [Fact]
     public async Task ExecuteAsync_NonIntradayRsiEvent_IsIgnored()
     {
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesTdiSignalEventActor>>();
         var @event = new FuturesRsiSignalsGeneratedEvent
         {
             EntityId = new FuturesRsiSignalEntityId(
@@ -68,13 +68,10 @@ public sealed class FuturesRsiSignalsGeneratedTests
                 .ToArray()
         };
 
-        var handled = await @event.ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
-            commandApi,
-            Substitute.For<ILogger>());
+        var handled = await @event.ExecuteAsync(context, Substitute.For<ILogger>());
 
         handled.Should().BeTrue();
-        await commandApi.DidNotReceiveWithAnyArgs()
+        await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<GenerateFuturesTdiSignalCommand, FuturesTdiSignalEntityId>(default!);
     }
 }

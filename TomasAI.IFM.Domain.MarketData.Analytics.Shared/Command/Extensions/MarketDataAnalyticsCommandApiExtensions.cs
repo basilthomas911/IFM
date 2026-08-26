@@ -63,13 +63,14 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="futuresRsiSignals">The RSI signals used to generate the result.</param>
     /// <param name="timePeriod">The signal time-frame type.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesTdiSignalAsync(
-        this IEventActorContext context,
+    public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesTdiSignalAsync<TActor>(
+        this IEventActorContext<TActor> context,
         FuturesTdiSignalId signalId,
         FuturesRsiSignalReadModel[] futuresRsiSignals,
         TimeFrameType timePeriod,
         FuturesTdiConfiguration? configuration = null,
         Guid? commandId = null)
+        where TActor : IActor
     {
         configuration ??= FuturesTdiConfiguration.Standard;
         var normalizedSignalId = new FuturesTdiSignalId(
@@ -189,14 +190,15 @@ public static class MarketDataAnalyticsCommandApiExtensions
     /// <param name="commandId">An optional stable command identifier used by deterministic durable derivation.</param>
     /// <param name="timePeriod">The signal time-frame type.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
-    public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesTradeSignalAsync(
-        this IEventActorContext context,
+    public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesTradeSignalAsync<TActor>(
+        this IEventActorContext<TActor> context,
         FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel? futuresRsiSignal,
         FuturesTdiSignalReadModel? futuresTdiSignal,
         FuturesItiSignalDataReadModel? futuresItiSignalData,
         decimal vixFuturesPrice,
         TimeFrameType timePeriod)
+        where TActor : IActor
     {
         var entityId = new FuturesTradeSignalEntityId(
             futuresEodData.ContractId ?? string.Empty,

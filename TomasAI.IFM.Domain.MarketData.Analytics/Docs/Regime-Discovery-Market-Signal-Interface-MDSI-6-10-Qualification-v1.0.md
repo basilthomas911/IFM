@@ -88,6 +88,6 @@ The focused unit coverage proves:
 ## 5. Deferred work
 
 This qualification does not advance MDSI-11 or later gates. The consolidated
-latest cache is intentionally transitional until MDSI-15. Historical bootstrap
+latest cache is intentionally transitional until MDSI-15. Historical data load
 orchestration remains owned by MDSI-3; these gates only ensure that historical
 and live observations execute the same formulas.

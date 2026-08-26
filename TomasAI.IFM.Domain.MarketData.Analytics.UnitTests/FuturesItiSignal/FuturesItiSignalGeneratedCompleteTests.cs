@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -30,8 +31,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task Completion_LoadsRequiredInputsAndSendsTradeSignalUpdate()
     {
         var source = CreateCompletion(TimeFrameType.Daily);
-        var context = Substitute.For<IEventActorContext>();
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var statusConsole = Substitute.For<IStatusConsoleWriter>();
         string? handlerError = null;
         statusConsole.WriteConsoleAsync(
@@ -65,13 +65,12 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
                 Arg.Any<GetFuturesItiSignalDataQuery>())
             .Returns(ValueTask.FromResult<ServiceResult<FuturesItiSignalDataReadModel>>(
                 new ServiceOk<FuturesItiSignalDataReadModel>(iti)));
-        commandApi.RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(
+        context.RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(
                 Arg.Any<UpdateFuturesTradeSignalCommand>())
             .Returns(new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid())));
 
         var result = await source.ExecuteAsync(
             context,
-            commandApi,
             statusConsole,
             Substitute.For<ILogger>());
 
@@ -90,7 +89,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
             .RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(default!);
         await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(default!);
-        await commandApi.Received(1)
+        await context.Received(1)
             .RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(
                 Arg.Is<UpdateFuturesTradeSignalCommand>(command =>
                     command.FuturesEodData == eod
@@ -105,7 +104,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task RealtimeCompletion_ProjectsPopulatedTradeSignalEvent()
     {
         var source = CreateCompletion(TimeFrameType.Daily);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>();
         var eod = SampleData.EodData;
         var rsi = SampleData.AtrRsiSignals[0] with
         {
@@ -161,8 +160,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task DailyCompletion_MissingPrerequisitesIsAcknowledgedWithoutExceptionOrCommand()
     {
         var source = CreateCompletion(TimeFrameType.Daily);
-        var context = Substitute.For<IEventActorContext>();
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var statusConsole = Substitute.For<IStatusConsoleWriter>();
         context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
                 Arg.Any<GetLastFuturesEodDataQuery>())
@@ -183,12 +181,11 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
 
         var result = await source.ExecuteAsync(
             context,
-            commandApi,
             statusConsole,
             Substitute.For<ILogger>());
 
         result.Should().BeTrue();
-        await commandApi.DidNotReceiveWithAnyArgs()
+        await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(default!);
         await statusConsole.DidNotReceiveWithAnyArgs().WriteConsoleAsync(default, default, default!);
     }
@@ -197,14 +194,13 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task DailyCompletion_DoesNotDeriveLongerPeriodCommands()
     {
         var source = CreateCompletion(TimeFrameType.Daily);
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         _ = await source.ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
-            commandApi,
+            context,
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger>());
 
-        await commandApi.DidNotReceiveWithAnyArgs()
+        await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(default!);
     }
 
@@ -214,15 +210,14 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task LongerPeriodCompletion_DoesNotRecursivelyGenerateItiCommands(
         TimeFrameType period)
     {
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
 
         _ = await CreateCompletion(period).ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
-            commandApi,
+            context,
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger>());
 
-        await commandApi.DidNotReceiveWithAnyArgs()
+        await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(default!);
     }
 
@@ -232,17 +227,15 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task LongerPeriodCompletion_DoesNotGenerateDuplicateTradeSignal(
         TimeFrameType period)
     {
-        var context = Substitute.For<IEventActorContext>();
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
 
         var result = await CreateCompletion(period).ExecuteAsync(
             context,
-            commandApi,
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger>());
 
         result.Should().BeTrue();
-        await commandApi.DidNotReceiveWithAnyArgs()
+        await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<UpdateFuturesTradeSignalCommand, FuturesTradeSignalEntityId>(default!);
         await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<FuturesRsiSignalReadModel, GetFuturesRsiSignalQuery>(default!);
@@ -251,7 +244,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     [Fact]
     public async Task UnmarkedDailyMutation_DoesNotDeriveLongerPeriods()
     {
-        var commandApi = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         var source = CreateCompletion(TimeFrameType.Daily) with
         {
             DeriveLongerPeriods = false,
@@ -259,12 +252,11 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
         };
 
         _ = await source.ExecuteAsync(
-            Substitute.For<IEventActorContext>(),
-            commandApi,
+            context,
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger>());
 
-        await commandApi.DidNotReceiveWithAnyArgs()
+        await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<GenerateFuturesItiSignalCommand, FuturesItiSignalEntityId>(default!);
     }
 
@@ -280,7 +272,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
                 ReversalLevel = 0.40
             }
         };
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
         FuturesItiSignalUpdatedNotifyEvent? published = null;
         context.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
                 Arg.Do<FuturesItiSignalUpdatedNotifyEvent>(value => published = value))
@@ -288,7 +280,6 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
 
         var result = await source.ExecuteAsync(
             context,
-            Substitute.For<IEventActorContext>(),
             Substitute.For<IStatusConsoleWriter>(),
             Substitute.For<ILogger>());
 
@@ -315,7 +306,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task RealtimeCompletion_PublishesItiNotificationForLongerPeriod()
     {
         var source = CreateCompletion(TimeFrameType.Monthly);
-        var context = Substitute.For<IEventActorContext>();
+        var context = Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>();
 
         var result = await TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime
             .FuturesItiSignalGeneratedComplete.ExecuteRealtimeAsync(
@@ -340,8 +331,12 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
     public async Task Completion_NotificationFailureDoesNotFailPersistedSignal(bool realtime)
     {
         var source = CreateCompletion(TimeFrameType.Weekly);
-        var context = Substitute.For<IEventActorContext>();
-        context.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
+        var eventContext = Substitute.For<IEventActorContext<FuturesItiSignalEventActor>>();
+        var realtimeContext = Substitute.For<IEventActorContext<FuturesItiSignalRealtimeActor>>();
+        eventContext.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
+                Arg.Any<FuturesItiSignalUpdatedNotifyEvent>())
+            .Returns<ValueTask>(_ => throw new InvalidOperationException("Core NATS unavailable"));
+        realtimeContext.SendAsync<FuturesItiSignalUpdatedNotifyEvent, FuturesItiSignalEntityId>(
                 Arg.Any<FuturesItiSignalUpdatedNotifyEvent>())
             .Returns<ValueTask>(_ => throw new InvalidOperationException("Core NATS unavailable"));
 
@@ -349,14 +344,13 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
             ? () => TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Realtime
                 .FuturesItiSignalGeneratedComplete.ExecuteRealtimeAsync(
                     source,
-                    context,
+                    realtimeContext,
                     Substitute.For<IRealtimeProjector<FuturesItiSignalRealtimeActor>>(),
                     Substitute.For<IStatusConsoleWriter>(),
                     Substitute.For<ILogger>())
                 .AsTask()
             : () => source.ExecuteAsync(
-                    context,
-                    Substitute.For<IEventActorContext>(),
+                    eventContext,
                     Substitute.For<IStatusConsoleWriter>(),
                     Substitute.For<ILogger>())
                 .AsTask();

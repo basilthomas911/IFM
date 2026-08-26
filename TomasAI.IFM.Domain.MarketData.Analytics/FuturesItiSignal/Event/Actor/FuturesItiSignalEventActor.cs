@@ -29,12 +29,12 @@ public class FuturesItiSignalEventActor(
         IsArgumentNull.Set(Context as IFuturesItiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesItiSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, commandApi, statusConsoleWriter, logger) =>
+        [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalGeneratedCompleteEvent)!;
-            return await e.ExecuteAsync(context, commandApi, statusConsoleWriter, logger);
+            return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         }
     };
 
@@ -108,7 +108,7 @@ public class FuturesItiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, context, ActorContext.StatusConsoleWriter, ActorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
     /// <summary>

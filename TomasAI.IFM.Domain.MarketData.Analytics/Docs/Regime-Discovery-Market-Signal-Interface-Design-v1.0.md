@@ -41,7 +41,7 @@ database rows.
 - Six intraday observation timeframes plus Daily.
 - Complete source provenance, calculation identity, validity, warm-up, and
   freshness metadata.
-- A Databento historical bootstrap of at least one complete calendar year of
+- A Databento historical data load of at least one complete calendar year of
   daily observations, with enough valid trading sessions to warm EMA200, and
   the volume-bearing intraday history required for historical VWAP when that
   output is requested.
@@ -108,7 +108,7 @@ database rows.
 | ITI | Daily/Weekly/Monthly realtime generation | Target workflow trigger and ITI evidence |
 | Futures EOD | `FuturesEodDataModel`, its command actor, and Scylla projections | Existing raw-plus-derived implementation to split into raw EOD observation and Analytics outputs |
 | EOD indicators | Daily RSI/ATR/ADX/MACD signal variants | Daily warm-up/support input after lifecycle completion |
-| Market Outlook coordinator | `MarketOutlookRealtimeActor` | Useful coordination precedent, not the new signal cache |
+| Market Outlook coordinator | `MarketOutlookSnapshotRealtimeActor` | Useful coordination precedent, not the new signal cache |
 | Redis RSI cache | `FuturesRsiSignalCacheModel` and Daily counterpart | Compatibility cache; not the atomic regime snapshot |
 | Scylla indicator tables | Latest/history queries for RSI/TDI/MACD/ADX/ATR/ITI | Startup warmer and diagnostics |
 | Latest-value channels/cache primitives | Shared caching/channel infrastructure | Reusable implementation primitives |
@@ -588,7 +588,7 @@ approximation may be stored only with a distinct calculation method/version
 and `IsTickExact = false`; it cannot satisfy a parameter set that requires
 tick-exact VWAP.
 
-Historical/bootstrap and current-session recovery use a private, bounded VWAP
+Historical data-load and current-session recovery use a private, bounded VWAP
 warm-up/replay input addressed only to `FuturesVwapSignalRealtimeActor`. They
 do not republish historical trades as live
 `FuturesMarketPriceUpdatedRealtimeEvent` messages, because other live market
@@ -840,9 +840,9 @@ cutover rather than a long-lived dual-write migration. Compatibility adapters
 may remain temporarily for compile-time consumers, but there must be one
 authoritative raw EOD write path and one authoritative calculation per signal.
 
-### 11.3 Databento historical bootstrap
+### 11.3 Databento historical data load
 
-Add a provider-backed, resumable Databento historical bootstrap before Daily
+Add a provider-backed, resumable Databento historical data load before Daily
 EMA/BB qualification. Its initial requested interval is at least one complete
 calendar year ending at the last completed market session. The normalized
 Daily history target is at least 252 valid trading sessions and must contain
@@ -886,14 +886,14 @@ normalization/calculation versions, gap audit, and completion status. Partial
 downloads resume from checkpoints. Duplicate Daily ObservationIds are ignored
 and conflicting observations fail the job.
 
-The bootstrap replays normalized observations through the same signal
+The historical data loader replays normalized observations through the same signal
 calculators used by live Daily processing, in market-time order. It must not
 insert precomputed indicator rows directly. EMA initialization uses the simple
 mean of the first complete period as its deterministic seed, followed by the
 standard recursive EMA formula. After replay, Scylla histories and hot caches
 must agree on the latest ObservationId and calculation version.
 
-This bootstrap is the initial operational working set. It should reuse the
+This historical data load creates the initial operational working set. It should reuse the
 Databento acquisition/manifest conventions in
 `Documents/system/Historical_Market_Data_Backtesting_Archive_Specification_v1.0.md`
 rather than creating an incompatible historical client. The permanent monthly
@@ -912,7 +912,7 @@ archive remains a separate retention workflow.
   no `_vX` suffix is required for these new contracts.
 - Query paths support exact latest-key warm-up and bounded history-window
   loading without `ALLOW FILTERING`.
-- Historical bootstrap manifests, gap reports, and checkpoints are durable
+- Historical data load manifests, gap reports, and checkpoints are durable
   operational records; they are not stored as indicator rows.
 - Cache revision and warm status are not persisted as business history.
 - Existing historical rows that lack required provenance may remain queryable
@@ -1029,7 +1029,7 @@ or unbounded contract-specific metric labels.
   response contains only the requested target horizon plus supporting
   observation signals.
 
-### 16.4 Historical bootstrap and EOD migration tests
+### 16.4 Historical data load and EOD migration tests
 
 - Databento adapter contract tests for paging/batching, cancellation,
   checkpoint resume, duplicates, gaps, provider errors, and manifest content.
@@ -1054,7 +1054,7 @@ or unbounded contract-specific metric labels.
 - Real TickAggregation -> observation -> indicator -> Scylla -> cache flow.
 - Headless server activation without UI startup.
 - Active contract rollover and new-contract readiness.
-- Databento one-year bootstrap -> normalized EOD -> calculators -> Scylla ->
+- Databento one-year historical data load -> normalized EOD -> calculators -> Scylla ->
   hot cache, including restart/resume and second-run idempotency.
 - Raw Futures EOD insertion -> Daily observation -> EMA/BB/VWAP calculation ->
   enriched compatibility query, with no duplicate calculation.
@@ -1079,7 +1079,7 @@ or unbounded contract-specific metric labels.
 | MDSI-5 | Server-owned Futures Trade Session Bar Publisher, actor-centric accumulation Model, and durable publication lifecycle |
 | MDSI-6 | Existing RSI/ATR/ADX/MACD migration to common observations and provenance |
 | MDSI-7 | RSI-14 plus preserved RSI-13/TDI path |
-| MDSI-8 | EMA10/20/50/200 signal, deterministic bootstrap, cache, projection, and queries |
+| MDSI-8 | EMA10/20/50/200 signal, deterministic warm-up, cache, projection, and queries |
 | MDSI-9 | EMA-centered BB10/20 signal, cache, projection, and queries |
 | MDSI-10 | ATR baseline/ratio volatility signal |
 | MDSI-11 | Rolling range/high-low Market Structure signal composed with compatible BB/ATR values |
@@ -1107,7 +1107,7 @@ set leaves it disabled.
    and VIX/VX term-structure gaps are closed.
 5. Futures EOD owns only raw session observations; derived values come from
    independently versioned Analytics calculations and hot caches.
-6. A resumable, audited Databento bootstrap supplies at least one complete
+6. A resumable, audited Databento historical data load supplies at least one complete
    calendar year and enough valid sessions to warm EMA200 deterministically.
 7. Daily support is roll-aware and available without Weekly/Monthly indicator
    actors.

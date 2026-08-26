@@ -6,7 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketEvaluationSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Extensions;
 
@@ -71,7 +71,7 @@ public class FuturesTdiSignalRealtimeActor(
                     failed.EventName, failed.EntityId, failed.ErrorMessage);
                 break;
             case FuturesTdiSignalGeneratedCompleteEvent completed:
-                await completed.PublishAsync(context).ConfigureAwait(false);
+                await context.PublishMarketOutlookComponentAsync(completed).ConfigureAwait(false);
                 break;
             case FuturesTdiSignalGeneratedEvent:
                 break;

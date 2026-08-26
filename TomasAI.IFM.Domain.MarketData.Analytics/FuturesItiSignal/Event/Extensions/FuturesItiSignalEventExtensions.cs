@@ -40,7 +40,8 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="valueDate">The date for which the most recent end-of-day data is retrieved.</param>
     /// <returns>A task representing the asynchronous operation. The result contains the EOD data view model,
     /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync(this IEventActorContext context, string contractId, DateOnly valueDate)
+    public static async ValueTask<FuturesEodDataV2ReadModel?> GetFuturesEodDataAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate)
+        where TActor : IActor
     {
         var futuresEodData = default(FuturesEodDataV2ReadModel);
         var entityId = new GetLastFuturesEodDataParameter(contractId, valueDate);
@@ -65,7 +66,8 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="timePeriod"></param>
     /// <param name="periodLength"></param>
     /// <returns></returns>
-    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync(this IEventActorContext context,  string contractId , DateOnly valueDate,TimeFrameType timePeriod, int periodLength)
+    public static async ValueTask<FuturesRsiSignalReadModel?> GetFuturesRsiSignalAsync<TActor>(this IEventActorContext<TActor> context,  string contractId , DateOnly valueDate,TimeFrameType timePeriod, int periodLength)
+        where TActor : IActor
     {
         var rsiSignal = default(FuturesRsiSignalReadModel);
         var entityId = new FuturesRsiSignalEntityId(contractId, valueDate, timePeriod, periodLength);
@@ -91,11 +93,12 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="timePeriod">The intraday TDI sampling period.</param>
     /// <returns>A task representing the asynchronous operation. The result contains the TDI signal view model,
     /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync(
-        this IEventActorContext context,
+    public static async ValueTask<FuturesTdiSignalReadModel?> GetFuturesTdiSignalAsync<TActor>(
+        this IEventActorContext<TActor> context,
         string contractId,
         DateOnly valueDate,
         TimeFrameType timePeriod)
+        where TActor : IActor
     {
         var tdiSignal = default(FuturesTdiSignalReadModel);
         var entityId = new FuturesTdiSignalEntityId(
@@ -129,7 +132,8 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="timePeriod">The time period classification for the ITI signal data, such as daily or weekly.</param>
     /// <returns>A task representing the asynchronous operation. The result contains the ITI signal data view model,
     /// or null if no data is found.</returns>
-    public static async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync(this IEventActorContext context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
+    public static async ValueTask<FuturesItiSignalDataReadModel?> GetFuturesItiSignalDataAsync<TActor>(this IEventActorContext<TActor> context, string contractId, DateOnly valueDate, TimeFrameType timePeriod)
+        where TActor : IActor
     {
         var itiSignalData = default(FuturesItiSignalDataReadModel);
         var entityId = new GetFuturesItiSignalDataParameter(contractId, valueDate, timePeriod);
@@ -314,14 +318,15 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="vixFuturesPrice">The current price of the VIX futures, used as an input for updating the trade signal.</param>
     /// <returns>A ValueTask representing the asynchronous operation of updating the futures trade signal.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the update operation fails or returns an unsuccessful result.</exception>
-    public static async ValueTask UpdateFuturesTradeSignalAsync(
-        this IEventActorContext commandApi,
+    public static async ValueTask UpdateFuturesTradeSignalAsync<TActor>(
+        this IEventActorContext<TActor> commandApi,
         FuturesEodDataV2ReadModel futuresEodData,
         FuturesRsiSignalReadModel? futuresRsiSignal,
         FuturesTdiSignalReadModel? futuresTdiSignal,
         FuturesItiSignalDataReadModel? futuresItiSignalData,
         decimal vixFuturesPrice,
         TimeFrameType timePeriod)
+        where TActor : IActor
     {
         _ = await MarketDataAnalyticsCommandApiExtensions.UpdateFuturesTradeSignalAsync(commandApi,
             futuresEodData,
@@ -371,7 +376,8 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="context">The context in which the method is executed, providing access to event actor functionalities.</param>
     /// <param name="valueDate">The date for which the end-of-day closing price is requested. Must be a valid date.</param>
     /// <returns>The closing price of the VIX futures for the specified date. Returns 0 if no data is available.</returns>
-    public static async ValueTask<decimal> GetVixFuturesEodDataClosePriceAsync(this IEventActorContext context, DateOnly valueDate)
+    public static async ValueTask<decimal> GetVixFuturesEodDataClosePriceAsync<TActor>(this IEventActorContext<TActor> context, DateOnly valueDate)
+        where TActor : IActor
     {
         var vixFuturesEodData = default(VixFuturesEodDataReadModel);
         var futuresContracts = await context.GetCurrentlyTradedFuturesContractsAsync("VX");

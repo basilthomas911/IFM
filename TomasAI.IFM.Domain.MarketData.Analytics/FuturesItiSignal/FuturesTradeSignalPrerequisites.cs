@@ -20,9 +20,10 @@ internal static class FuturesTradeSignalPrerequisites
     internal static bool ShouldGenerate(FuturesItiSignalGeneratedCompleteEvent source)
         => source.EntityId.TimePeriod == TriggerTimePeriod;
 
-    internal static async ValueTask<FuturesTradeSignalPrerequisiteResult> LoadAsync(
+    internal static async ValueTask<FuturesTradeSignalPrerequisiteResult> LoadAsync<TActor>(
         FuturesItiSignalGeneratedCompleteEvent source,
-        IEventActorContext context)
+        IEventActorContext<TActor> context)
+        where TActor : IActor
     {
         var contractId = source.EntityId.ContractId;
         var valueDate = source.FuturesItiSignal?.ValueDate ?? source.EntityId.ValueDate;

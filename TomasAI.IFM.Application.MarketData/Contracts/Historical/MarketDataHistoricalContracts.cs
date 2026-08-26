@@ -38,8 +38,8 @@ public sealed record MarketDataHistoricalSeriesRequest
 /// <summary>Describes one cost-controlled application historical acquisition.</summary>
 public sealed record MarketDataHistoricalRequest
 {
-    /// <summary>Gets the stable bootstrap attempt identity.</summary>
-    public required Guid BootstrapAttemptId { get; init; }
+    /// <summary>Gets the stable data load attempt identity.</summary>
+    public required Guid DataLoadAttemptId { get; init; }
     /// <summary>Gets the requested series profiles.</summary>
     public required MarketDataHistoricalSeriesRequest[] Series { get; init; }
     /// <summary>Gets the inclusive first futures value date.</summary>
@@ -60,7 +60,7 @@ public sealed record MarketDataHistoricalRequest
 
 /// <summary>Reports the combined non-billable estimate for an application request.</summary>
 public sealed record MarketDataHistoricalEstimate(
-    Guid BootstrapAttemptId,
+    Guid DataLoadAttemptId,
     decimal EstimatedCostUsd,
     long EstimatedBytes,
     long EstimatedRecords,
@@ -70,8 +70,8 @@ public sealed record MarketDataHistoricalEstimate(
 /// <summary>Provides the durable resume position for acquisition redelivery.</summary>
 public sealed record HistoricalAcquisitionCheckpoint
 {
-    /// <summary>Gets the bootstrap attempt identity.</summary>
-    public required Guid BootstrapAttemptId { get; init; }
+    /// <summary>Gets the data load attempt identity.</summary>
+    public required Guid DataLoadAttemptId { get; init; }
     /// <summary>Gets the last durably completed stage.</summary>
     public HistoricalAcquisitionStage Stage { get; init; }
     /// <summary>Gets the existing provider job identity, when submitted.</summary>
@@ -111,7 +111,7 @@ public sealed record NormalizedHistoricalTrade
 
 /// <summary>Provides one bounded normalized sink batch.</summary>
 public sealed record NormalizedHistoricalBatch(
-    Guid BootstrapAttemptId,
+    Guid DataLoadAttemptId,
     string ProviderFileId,
     long BatchOrdinal,
     string SourcePosition,
@@ -125,8 +125,8 @@ public sealed record MarketDataHistoricalManifest
 {
     /// <summary>Gets the manifest identity.</summary>
     public required Guid ManifestId { get; init; }
-    /// <summary>Gets the bootstrap attempt identity.</summary>
-    public required Guid BootstrapAttemptId { get; init; }
+    /// <summary>Gets the data load attempt identity.</summary>
+    public required Guid DataLoadAttemptId { get; init; }
     /// <summary>Gets the provider job identity.</summary>
     public required string ProviderJobId { get; init; }
     /// <summary>Gets the request hash.</summary>
@@ -161,7 +161,7 @@ public interface IHistoricalAcquisitionCheckpointSink
         CancellationToken cancellationToken);
 }
 
-/// <summary>Defines the provider-neutral application historical API used by domain bootstrap actors.</summary>
+/// <summary>Defines the provider-neutral application historical API used by domain data load actors.</summary>
 public interface IMarketDataHistoricalApi
 {
     /// <summary>Estimates a request without submitting billable provider work.</summary>

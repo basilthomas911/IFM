@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event.Actor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Event;
@@ -15,13 +16,11 @@ public static class FuturesRsiSignalsGenerated
     /// </summary>
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesRsiSignalsGeneratedEvent e,
-        IEventActorContext context,
-        IEventActorContext commandApi,
+        IEventActorContext<FuturesTdiSignalEventActor> context,
         ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(e);
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(commandApi);
         ArgumentNullException.ThrowIfNull(logger);
 
         var configuration = FuturesTdiConfiguration.Standard;
@@ -52,7 +51,7 @@ public static class FuturesRsiSignalsGenerated
             latest.Timestamp,
             configuration.ConfigurationId);
 
-        await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(commandApi,
+        await MarketDataAnalyticsCommandApiExtensions.GenerateFuturesTdiSignalAsync(context,
             signalId,
             signals,
             latest.TimePeriod,

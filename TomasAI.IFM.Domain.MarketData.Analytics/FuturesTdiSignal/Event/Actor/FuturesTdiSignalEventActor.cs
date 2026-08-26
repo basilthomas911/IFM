@@ -32,17 +32,17 @@ public class FuturesTdiSignalEventActor(
         FuturesRsiSignalsGeneratedEvent.Actor,
         FuturesRsiSignalsGeneratedEvent.Verb);
 
-    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesTdiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
     {
-        [typeof(FuturesTdiSignalGeneratedCompleteEvent).Name] = async (evt, context, _, statusConsoleWriter, logger) =>
+        [typeof(FuturesTdiSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTdiSignalGeneratedCompleteEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
-        [typeof(FuturesRsiSignalsGeneratedEvent).Name] = async (evt, context, commandApi, _, logger) =>
+        [typeof(FuturesRsiSignalsGeneratedEvent).Name] = async (evt, context, _, logger) =>
         {
             var e = (evt as FuturesRsiSignalsGeneratedEvent)!;
-            return await e.ExecuteAsync(context, commandApi, logger);
+            return await e.ExecuteAsync(context, logger);
         }
     };
 
@@ -103,7 +103,7 @@ public class FuturesTdiSignalEventActor(
         var eventName = @event.GetType().Name;
         if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-        _ = await receiveFunc.Invoke(@event, dispatchContext, context, ActorContext.StatusConsoleWriter, ActorContext.Logger);
+        _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 
     /// <summary>
