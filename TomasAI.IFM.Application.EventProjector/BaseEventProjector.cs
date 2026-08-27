@@ -507,6 +507,12 @@ public abstract class BaseEventProjector<TActor> (
             catch (Exception ex)
             {
                 EventProjectorMetrics.RecordEvent(ProjectorName, "apply-failed", "transient");
+                Logger.LogError(
+                    ex,
+                    "Non-durable projection apply failed for event {EventId} ({EventType}) in projector {ProjectorName}.",
+                    domainEvent.EventId,
+                    domainEvent.GetType().FullName,
+                    ProjectorName);
                 if (descriptor.PublishTerminalEvent)
                 {
                     await PublishTransientFailureAsync(

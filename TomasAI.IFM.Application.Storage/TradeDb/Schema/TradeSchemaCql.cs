@@ -356,6 +356,28 @@ internal static class TradeSchemaCql
     );
     """;
 
+    public const string CreateRegimeDiscoveryTable = """
+    CREATE TABLE IF NOT EXISTS regime_discovery (
+        workflowId uuid PRIMARY KEY,
+        workflowEntityId text,
+        inputWorkflowRevision bigint,
+        commandId uuid,
+        sourceEventId uuid,
+        sourceEventSequence bigint,
+        status text,
+        parameterPayloadSha256 text,
+        signalSnapshotId uuid,
+        resultPayload blob,
+        resultPayloadSha256 text,
+        failureCode int,
+        failureMessage text,
+        reasonsPayload blob,
+        schemaVersion int,
+        terminalAtUtc timestamp,
+        updatedAtUtc timestamp
+    );
+    """;
+
     public const string CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable = """
     CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_active (
         workflowEntityId text PRIMARY KEY,

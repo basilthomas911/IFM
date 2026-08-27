@@ -1,7 +1,9 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -46,6 +48,12 @@ public sealed record StartRegimeDiscoveryPipelineCommand : ICommand<IntrinsicTim
     [Key(12)] public DateTime RequestedAtUtc { get; init; }
     /// <summary>Gets the optional UTC pipeline completion deadline.</summary>
     [Key(13)] public DateTime? ExpectedCompletionAtUtc { get; init; }
+    /// <summary>Gets the complete immutable Regime Discovery parameter set selected by Strategy Workflow.</summary>
+    [Key(14)] public RegimeDiscoveryParameterSet ParameterSet { get; init; } = new();
+    /// <summary>Gets the canonical SHA-256 hash of the immutable parameter payload.</summary>
+    [Key(15)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
+    /// <summary>Gets the single Daily, Weekly, or Monthly target horizon.</summary>
+    [Key(16)] public TimeFrameType TargetHorizon { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(StartRegimeDiscoveryPipelineCommand);
@@ -81,6 +89,9 @@ public sealed record StartRegimeDiscoveryPipelineCommand : ICommand<IntrinsicTim
     /// <param name="causationId">Causative workflow lifecycle event identity.</param>
     /// <param name="requestedAtUtc">UTC request timestamp.</param>
     /// <param name="expectedCompletionAtUtc">Optional UTC completion deadline.</param>
+    /// <param name="parameterSet">Complete immutable Regime Discovery parameter set.</param>
+    /// <param name="parameterPayloadSha256">Canonical SHA-256 parameter payload hash.</param>
+    /// <param name="targetHorizon">Single Daily, Weekly, or Monthly target horizon.</param>
     [SerializationConstructor]
     public StartRegimeDiscoveryPipelineCommand(
         Guid commandId,
@@ -96,7 +107,10 @@ public sealed record StartRegimeDiscoveryPipelineCommand : ICommand<IntrinsicTim
         Guid correlationId,
         Guid causationId,
         DateTime requestedAtUtc,
-        DateTime? expectedCompletionAtUtc)
+        DateTime? expectedCompletionAtUtc,
+        RegimeDiscoveryParameterSet parameterSet,
+        string parameterPayloadSha256,
+        TimeFrameType targetHorizon)
     {
         CommandId = commandId;
         Subject = subject;
@@ -112,5 +126,8 @@ public sealed record StartRegimeDiscoveryPipelineCommand : ICommand<IntrinsicTim
         CausationId = causationId;
         RequestedAtUtc = requestedAtUtc;
         ExpectedCompletionAtUtc = expectedCompletionAtUtc;
+        ParameterSet = parameterSet;
+        ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
+        TargetHorizon = targetHorizon;
     }
 }

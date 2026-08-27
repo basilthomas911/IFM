@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -27,19 +30,14 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
     static readonly ActorTypeId[] ExternalRoutes =
     [
         Route(FuturesItiSignalGeneratedEvent.RealtimeActor, FuturesItiSignalGeneratedEvent.Verb),
-        Route(RegimeDiscoveryPipelineProcessingEvent.Actor, RegimeDiscoveryPipelineProcessingEvent.Verb),
         Route(RegimeDiscoveryPipelineCompletedEvent.Actor, RegimeDiscoveryPipelineCompletedEvent.Verb),
         Route(RegimeDiscoveryPipelineFailedEvent.Actor, RegimeDiscoveryPipelineFailedEvent.Verb),
-        Route(MarketConditionPipelineProcessingEvent.Actor, MarketConditionPipelineProcessingEvent.Verb),
         Route(MarketConditionPipelineCompletedEvent.Actor, MarketConditionPipelineCompletedEvent.Verb),
         Route(MarketConditionPipelineFailedEvent.Actor, MarketConditionPipelineFailedEvent.Verb),
-        Route(TradeSelectionPipelineProcessingEvent.Actor, TradeSelectionPipelineProcessingEvent.Verb),
         Route(TradeSelectionPipelineCompletedEvent.Actor, TradeSelectionPipelineCompletedEvent.Verb),
         Route(TradeSelectionPipelineFailedEvent.Actor, TradeSelectionPipelineFailedEvent.Verb),
-        Route(OrderCompositionPipelineProcessingEvent.Actor, OrderCompositionPipelineProcessingEvent.Verb),
         Route(OrderCompositionPipelineCompletedEvent.Actor, OrderCompositionPipelineCompletedEvent.Verb),
         Route(OrderCompositionPipelineFailedEvent.Actor, OrderCompositionPipelineFailedEvent.Verb),
-        Route(RiskManagementPipelineProcessingEvent.Actor, RiskManagementPipelineProcessingEvent.Verb),
         Route(RiskManagementPipelineCompletedEvent.Actor, RiskManagementPipelineCompletedEvent.Verb),
         Route(RiskManagementPipelineFailedEvent.Actor, RiskManagementPipelineFailedEvent.Verb)
     ];
@@ -87,9 +85,16 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             IntrinsicTimeStrategyWorkflowStartedEvent.Verb => message.AsEvent<IntrinsicTimeStrategyWorkflowStartedEvent>()!,
             IntrinsicTimeStrategyWorkflowContinuedEvent.Verb => message.AsEvent<IntrinsicTimeStrategyWorkflowContinuedEvent>()!,
             IntrinsicTimeStrategyWorkflowStoppedEvent.Verb => message.AsEvent<IntrinsicTimeStrategyWorkflowStoppedEvent>()!,
-            RegimeDiscoveryPipelineProcessingEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineProcessingEvent>()!,
             RegimeDiscoveryPipelineFailedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineFailedEvent>()!,
-            RegimeDiscoveryPipelineCompletedEvent.Verb => ParseCompleted(message),
+            RegimeDiscoveryPipelineCompletedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!,
+            MarketConditionPipelineCompletedEvent.Verb or
+            TradeSelectionPipelineCompletedEvent.Verb or
+            OrderCompositionPipelineCompletedEvent.Verb or
+            RiskManagementPipelineCompletedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!,
+            MarketConditionPipelineFailedEvent.Verb or
+            TradeSelectionPipelineFailedEvent.Verb or
+            OrderCompositionPipelineFailedEvent.Verb or
+            RiskManagementPipelineFailedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineFailedEvent>()!,
             _ => throw new InvalidOperationException(
                 $"Unable to resolve {ActorName} realtime event from message: {message.Subject}")
         };
@@ -116,13 +121,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 break;
             case RegimeDiscoveryPipelineFailedEvent failed:
                 await FailPipelineAsync(context, failed).ConfigureAwait(false);
-                break;
-            case RegimeDiscoveryPipelineProcessingEvent processing:
-                ActorContext.Logger.LogDebug(
-                    "Workflow {WorkflowId} pipeline {Stage} is processing at revision {Revision}",
-                    processing.WorkflowId,
-                    processing.PipelineStage,
-                    processing.InputWorkflowRevision);
                 break;
             case IntrinsicTimeStrategyWorkflowCompletedEvent:
             case IntrinsicTimeStrategyWorkflowStoppedEvent:
@@ -154,6 +152,30 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         var workflowId = StrategyWorkflowId.New(ActorContext.TimeProvider);
         var entityId = IntrinsicTimeStrategyWorkflowEntityId.Create(trigger.EntityId);
         var triggerId = trigger.Id == Guid.Empty ? trigger.CommandId : trigger.Id;
+        var requestedAtUtc = trigger.CreatedOn == default
+            ? ActorContext.TimeProvider.GetUtcNow().UtcDateTime
+            : trigger.CreatedOn;
+        var resolved = await ActorContext.ConfigurationDb
+            .ResolveEffectiveRegimeDiscoveryAsync(requestedAtUtc, trigger.EntityId.TimePeriod).ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                "No published Regime Discovery parameter set is effective for the workflow trigger.");
+        if (ActorContext.Options.RequireWarmRegimeDiscoverySignals)
+        {
+            var readiness = await ActorContext.RegimeDiscoverySnapshotProvider.CaptureAsync(
+                RegimeDiscoverySnapshotRequestFactory.Create(
+                    MarketSeriesIdentity.ForContract(trigger.EntityId.ContractId),
+                    resolved.ParameterSet)).ConfigureAwait(false);
+            if (!readiness.IsSuccess)
+            {
+                ActorContext.Logger.LogWarning(
+                    "Regime Discovery live trigger {TriggerId} was not started because {IssueCount} required signal " +
+                    "observations did not pass cache warm-up qualification",
+                    triggerId,
+                    readiness.Issues.Count(issue => issue.Availability !=
+                        RegimeDiscoverySignalAvailability.Available));
+                return;
+            }
+        }
         var command = new StartIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = triggerId == Guid.Empty ? Guid.CreateVersion7(ActorContext.TimeProvider.GetUtcNow()) : triggerId,
@@ -164,8 +186,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             TriggerEvent = trigger,
             CorrelationId = trigger.CommandId == Guid.Empty ? triggerId : trigger.CommandId,
             CausationId = triggerId,
-            RequestedAtUtc = trigger.CreatedOn == default ? ActorContext.TimeProvider.GetUtcNow().UtcDateTime : trigger.CreatedOn,
-            WorkflowDefinitionVersion = 1
+            RequestedAtUtc = requestedAtUtc,
+            WorkflowDefinitionVersion = 1,
+            RegimeDiscoveryParameterSet = resolved.ParameterSet,
+            RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256
         };
         await context.SendAsync<StartIntrinsicTimeStrategyWorkflowCommand, IntrinsicTimeStrategyWorkflowEntityId>(
             command,
@@ -284,6 +308,15 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         Set(command, "CausationId", input.CausationId);
         Set(command, "RequestedAtUtc", input.RequestedAtUtc);
         Set(command, "ExpectedCompletionAtUtc", input.ExpectedCompletionAtUtc);
+        if (command is StartRegimeDiscoveryPipelineCommand regimeDiscovery)
+        {
+            Set(regimeDiscovery, nameof(StartRegimeDiscoveryPipelineCommand.ParameterSet),
+                input.WorkflowState.RegimeDiscoveryParameterSet);
+            Set(regimeDiscovery, nameof(StartRegimeDiscoveryPipelineCommand.ParameterPayloadSha256),
+                input.WorkflowState.RegimeDiscoveryParameterPayloadSha256);
+            Set(regimeDiscovery, nameof(StartRegimeDiscoveryPipelineCommand.TargetHorizon),
+                input.TriggerEvent.EntityId.TimePeriod);
+        }
         return command;
     }
 
@@ -347,21 +380,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
 
     static void Set(object target, string property, object? value)
         => EventInitHelper.SetProperty(target, property, value);
-
-    static IEvent ParseCompleted(IActorMessage message)
-    {
-        try
-        {
-            var workflowCompleted = message.AsEvent<IntrinsicTimeStrategyWorkflowCompletedEvent>();
-            if (workflowCompleted is not null && workflowCompleted.WorkflowId.Value != Guid.Empty)
-                return workflowCompleted;
-        }
-        catch
-        {
-            // Pipeline completion contracts have a larger payload at the same realtime verb.
-        }
-        return message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!;
-    }
 
     static ActorTypeId Route(string actor, string verb) => new(ActorType.Realtime, actor, verb);
 

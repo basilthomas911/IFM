@@ -45,13 +45,13 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
 
     /// <summary>Confirms only external sources use global realtime route registration.</summary>
     [Fact]
-    public void Realtime_actor_declares_sixteen_external_routes()
+    public void Realtime_actor_declares_eleven_external_progression_routes()
     {
         var routes = (ActorTypeId[])typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
             .GetField("ExternalRoutes", BindingFlags.NonPublic | BindingFlags.Static)!
             .GetValue(null)!;
 
-        routes.Should().HaveCount(16);
+        routes.Should().HaveCount(11);
         routes.Should().OnlyContain(route => route.ActorType == ActorType.Realtime);
         routes.Should().NotContain(route => route.Name == "IntrinsicTimeStrategyWorkflow");
     }

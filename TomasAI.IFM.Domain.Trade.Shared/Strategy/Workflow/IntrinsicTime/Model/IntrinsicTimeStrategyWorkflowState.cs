@@ -1,5 +1,6 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
@@ -80,4 +81,12 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     /// <summary>Gets the stable reason code explaining why workflow processing stopped.</summary>
     [Key(16)]
     public string StopReasonCode { get; init; } = string.Empty;
+
+    /// <summary>Gets the immutable Regime Discovery parameters selected when this workflow was accepted.</summary>
+    [Key(17)]
+    public RegimeDiscoveryParameterSet RegimeDiscoveryParameterSet { get; init; } = new();
+
+    /// <summary>Gets the canonical SHA-256 hash of the selected Regime Discovery parameter payload.</summary>
+    [Key(18)]
+    public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
 }

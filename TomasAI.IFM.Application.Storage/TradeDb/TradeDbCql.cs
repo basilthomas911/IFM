@@ -1729,6 +1729,27 @@ FROM intrinsic_time_strategy_workflow
 WHERE workflowId = :workflowId;
 """;
 
+    public const string GetRegimeDiscovery = """
+SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
+       sourceEventSequence, status, parameterPayloadSha256, signalSnapshotId, resultPayload,
+       resultPayloadSha256, failureCode, failureMessage, reasonsPayload, schemaVersion,
+       terminalAtUtc, updatedAtUtc
+FROM regime_discovery
+WHERE workflowId = :workflowId;
+""";
+
+    public const string UpsertRegimeDiscovery = """
+INSERT INTO regime_discovery (
+    workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
+    sourceEventSequence, status, parameterPayloadSha256, signalSnapshotId, resultPayload,
+    resultPayloadSha256, failureCode, failureMessage, reasonsPayload, schemaVersion,
+    terminalAtUtc, updatedAtUtc)
+VALUES (:workflowId, :workflowEntityId, :inputWorkflowRevision, :commandId, :sourceEventId,
+    :sourceEventSequence, :status, :parameterPayloadSha256, :signalSnapshotId, :resultPayload,
+    :resultPayloadSha256, :failureCode, :failureMessage, :reasonsPayload, :schemaVersion,
+    :terminalAtUtc, :updatedAtUtc);
+""";
+
     public const string GetActiveIntrinsicTimeStrategyWorkflow = """
 SELECT workflowEntityId, workflowId, contractId, timeFrameStartValueDate, timePeriod,
        currentStage, workflowRevision, lastEventId, stateSchemaVersion, statePayload,

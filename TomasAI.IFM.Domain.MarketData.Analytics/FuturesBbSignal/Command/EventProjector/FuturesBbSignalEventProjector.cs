@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.EventProjector;
 
@@ -24,7 +25,11 @@ public sealed class FuturesBbSignalEventProjector(IDbContextFactory dbFactory,
     [
         Describe<FuturesBbSignalGeneratedEvent, FuturesBbSignalGeneratedCompleteEvent,
             FuturesBbSignalGeneratedFailEvent, FuturesTradeSessionBarEntityId>(
-            e => dbFactory.MarketDataDb.InsertFuturesBollingerBandSignalAsync(e.Signal))
+            (Func<FuturesBbSignalGeneratedEvent, Task>)(async e =>
+            {
+                await dbFactory.MarketDataDb.InsertFuturesBollingerBandSignalAsync(e.Signal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal);
+            }))
     ];
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;

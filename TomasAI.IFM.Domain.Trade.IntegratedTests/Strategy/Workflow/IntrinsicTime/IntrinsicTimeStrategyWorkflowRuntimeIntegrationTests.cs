@@ -8,8 +8,13 @@ using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
@@ -17,8 +22,10 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -36,7 +43,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeCollection
 
 /// <summary>
 /// Exercises the strategy workflow skeleton through production actors, NATS, PostgreSQL event sourcing, and ScyllaDB
-/// while substituting only the five not-yet-implemented pipeline workers.
+/// while using the real Regime Discovery worker and substituting only the four not-yet-implemented workers.
 /// </summary>
 [Trait("Category", "Integration")]
 [Collection(IntrinsicTimeStrategyWorkflowRuntimeCollection.Name)]
@@ -54,6 +61,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         StrategyWorkflowStage.OrderComposition,
         StrategyWorkflowStage.RiskManagement
     ];
+    static readonly StrategyWorkflowStage[] DummyStages = Stages[1..];
 
     /// <summary>
     /// Runs three concurrent successful workflows and one injected failure through the complete runtime boundary.
@@ -91,6 +99,8 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 Entity($"ES-ITSW-{runId}-W", TimeFrameType.Weekly),
                 Entity($"ES-ITSW-{runId}-M", TimeFrameType.Monthly)
             };
+            var failedEntity = Entity($"ES-ITSW-{runId}-F", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, successEntities.Append(failedEntity));
 
             await Task.WhenAll(successEntities.Select(entity =>
                 PublishTriggerAsync(publisher, entity.ItiSignalEntityId).AsTask()));
@@ -101,12 +111,15 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
             foreach (var entity in successEntities)
             {
-                pipelines.ProcessedStages(entity).Should().BeEquivalentTo(Stages);
+                pipelines.ProcessedStages(entity).Should().BeEquivalentTo(DummyStages);
                 var history = successful.Single(model => model.WorkflowEntityId == entity.Format());
                 await AssertPersistedProjectionAndReplayAsync(factory.Services, entity, history, expectedCompleted: true);
+                var regime = await database.TradeDb.GetRegimeDiscoveryAsync(history.WorkflowId);
+                regime.Should().NotBeNull();
+                regime!.Status.Should().Be("Completed");
+                regime.ResultPayload.Should().NotBeEmpty();
             }
 
-            var failedEntity = Entity($"ES-ITSW-{runId}-F", TimeFrameType.Daily);
             pipelines.FailAt(failedEntity, StrategyWorkflowStage.TradeSelection);
             await PublishTriggerAsync(publisher, failedEntity.ItiSignalEntityId);
 
@@ -117,11 +130,12 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             failed.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);
             failed.StopReasonCode.Should().Be("7303");
             pipelines.ProcessedStages(failedEntity).Should().BeEquivalentTo(
-            [
+                new[]
+                {
                 StrategyWorkflowStage.RegimeDiscovery,
                 StrategyWorkflowStage.MarketCondition,
                 StrategyWorkflowStage.TradeSelection
-            ]);
+                }.Where(stage => stage != StrategyWorkflowStage.RegimeDiscovery));
             await AssertPersistedProjectionAndReplayAsync(factory.Services, failedEntity, failed, expectedCompleted: false);
         }
         finally
@@ -151,10 +165,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         {
             var runId = Guid.NewGuid().ToString("N")[..8];
             var entity = Entity($"ES-ITSW-{runId}-BUSY", TimeFrameType.Daily);
-            using var hold = pipelines.HoldAt(entity, StrategyWorkflowStage.RegimeDiscovery);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+            using var hold = pipelines.HoldAt(entity, StrategyWorkflowStage.MarketCondition);
 
             var acceptedTrigger = await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
-            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.RegimeDiscovery, 1);
+            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.MarketCondition, 1);
             var running = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
 
             var rejectedTrigger = await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
@@ -164,11 +179,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             rejected.ReasonCode.Should().Be("ActiveWorkflowExists");
             rejected.ActiveWorkflowId.Should().Be(running.WorkflowId);
             rejected.RequestedWorkflowId.Should().NotBe(running.WorkflowId);
-            rejected.ActiveStage.Should().Be(StrategyWorkflowStage.RegimeDiscovery);
+            rejected.ActiveStage.Should().Be(StrategyWorkflowStage.MarketCondition);
             rejected.TriggerEventId.Should().Be(rejectedTrigger.Id);
             rejected.TriggerEventId.Should().NotBe(acceptedTrigger.Id);
             rejected.SourceEventId.Should().BeGreaterThan(0);
-            pipelines.StartCount(entity, StrategyWorkflowStage.RegimeDiscovery).Should().Be(1);
+            pipelines.StartCount(entity, StrategyWorkflowStage.MarketCondition).Should().Be(1);
 
             var eventLog = await factory.Services.GetRequiredService<IEventSourceActorDbContext>()
                 .GetEventLogByEventIdAsync(rejected.SourceEventId);
@@ -194,7 +209,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 StrategyWorkflowStatus.Completed,
                 StrategyWorkflowOutcome.Completed);
             completed.WorkflowId.Should().Be(running.WorkflowId);
-            foreach (var stage in Stages)
+            foreach (var stage in DummyStages)
                 pipelines.StartCount(entity, stage).Should().Be(1);
         }
         finally
@@ -388,6 +403,121 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             _ => throw new ArgumentOutOfRangeException(nameof(stage))
         };
 
+    static async Task PrepareRegimeDiscoveryAsync(
+        IServiceProvider services,
+        IEnumerable<IntrinsicTimeStrategyWorkflowEntityId> entities)
+    {
+        var values = entities.ToArray();
+        await services.GetRequiredService<ConfigurationSchemaDb>().CreateAllAsync();
+        await services.GetRequiredService<TradeSchemaDb>().CreateAsync(["regime_discovery"]);
+        var configuration = services.GetRequiredService<IConfigurationDbContext>();
+        var parameterSets = new Dictionary<TimeFrameType, RegimeDiscoveryParameterSet>();
+        foreach (var horizon in values.Select(value => value.ItiSignalEntityId.TimePeriod).Distinct())
+        {
+            var parameterSet = RegimeDiscoveryParameterSet.CreateDefault(
+                Guid.CreateVersion7(), Guid.CreateVersion7(), horizon);
+            await configuration.InsertRegimeDiscoveryDraftAsync(
+                parameterSet, "RD-16 integration qualification", "rd-16-integration");
+            await configuration.PublishAsync(
+                StrategyParameterSetKind.RegimeDiscovery,
+                parameterSet.ParameterSetId,
+                parameterSet.Version,
+                DateTime.UtcNow.AddMinutes(-1));
+            parameterSets.Add(horizon, parameterSet);
+        }
+
+        var cache = services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>();
+        cache.Clear();
+        long sourceSequence = 0;
+        foreach (var entity in values)
+        {
+            var signalId = entity.ItiSignalEntityId;
+            var parameterSet = parameterSets[signalId.TimePeriod];
+            var request = RegimeDiscoverySnapshotRequestFactory.Create(
+                MarketSeriesIdentity.ForContract(signalId.ContractId), parameterSet);
+            foreach (var requirement in request.Requirements)
+            {
+                var now = DateTime.UtcNow;
+                var key = new MarketAnalyticsSignalKey(
+                    request.MarketSeriesIdentity,
+                    SignalKind(requirement.Metric),
+                    requirement.TimeFrame,
+                    requirement.CalculationConfigurationId);
+                cache.Upsert(new RegimeDiscoverySignalObservation
+                {
+                    Metric = requirement.Metric,
+                    SignalKey = key,
+                    Value = SignalValue(requirement.Metric),
+                    MarketDataAsOfUtc = now,
+                    CalculatedAtUtc = now,
+                    SourceSequence = Interlocked.Increment(ref sourceSequence),
+                    SchemaVersion = 1,
+                    CalculationVersion = "1",
+                    IsWarm = true,
+                    IsValid = true,
+                    Availability = RegimeDiscoverySignalAvailability.Available,
+                    SignalIdentity = $"{signalId.ContractId}.{requirement.Metric}.{requirement.TimeFrame}"
+                });
+            }
+        }
+    }
+
+    static decimal SignalValue(RegimeDiscoverySignalMetric metric) => metric switch
+    {
+        RegimeDiscoverySignalMetric.CurrentPrice => 105m,
+        RegimeDiscoverySignalMetric.Ema20 => 103m,
+        RegimeDiscoverySignalMetric.Ema50 => 101m,
+        RegimeDiscoverySignalMetric.Ema200 => 99m,
+        RegimeDiscoverySignalMetric.Ema20Slope => 0.08m,
+        RegimeDiscoverySignalMetric.Ema50Slope => 0.06m,
+        RegimeDiscoverySignalMetric.Ema200Slope => 0.04m,
+        RegimeDiscoverySignalMetric.Rsi14 => 65m,
+        RegimeDiscoverySignalMetric.Rsi14Slope => 2m,
+        RegimeDiscoverySignalMetric.Adx14 => 30m,
+        RegimeDiscoverySignalMetric.PlusDi14 => 30m,
+        RegimeDiscoverySignalMetric.MinusDi14 => 15m,
+        RegimeDiscoverySignalMetric.MacdHistogram => 0.5m,
+        RegimeDiscoverySignalMetric.Atr14 => 2m,
+        RegimeDiscoverySignalMetric.AtrBaselineRatio => 1m,
+        RegimeDiscoverySignalMetric.VixLevel => 18m,
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio => 0.95m,
+        RegimeDiscoverySignalMetric.PriorVolatilityComposite => 0.35m,
+        RegimeDiscoverySignalMetric.RealizedVolatilityPercentile => 0.40m,
+        RegimeDiscoverySignalMetric.BollingerWidthRatio => 1m,
+        RegimeDiscoverySignalMetric.BollingerPosition => 0.5m,
+        RegimeDiscoverySignalMetric.Ema20Interaction => 1m,
+        RegimeDiscoverySignalMetric.AtrNormalizedRange => 1m,
+        RegimeDiscoverySignalMetric.RollingHigh20 => 104m,
+        RegimeDiscoverySignalMetric.RollingLow20 => 96m,
+        RegimeDiscoverySignalMetric.BreakoutDistanceAtr => 0.6m,
+        RegimeDiscoverySignalMetric.ItiDirection => 1m,
+        RegimeDiscoverySignalMetric.ItiBandLevel => 1.2m,
+        RegimeDiscoverySignalMetric.ItiReversalLevel => 0.1m,
+        _ => 1m
+    };
+
+    static MarketAnalyticsSignalKind SignalKind(RegimeDiscoverySignalMetric metric) => metric switch
+    {
+        RegimeDiscoverySignalMetric.Ema20 or RegimeDiscoverySignalMetric.Ema50 or
+            RegimeDiscoverySignalMetric.Ema200 or RegimeDiscoverySignalMetric.Ema20Slope or
+            RegimeDiscoverySignalMetric.Ema50Slope or RegimeDiscoverySignalMetric.Ema200Slope or
+            RegimeDiscoverySignalMetric.Ema20Interaction => MarketAnalyticsSignalKind.Ema,
+        RegimeDiscoverySignalMetric.Rsi14 or RegimeDiscoverySignalMetric.Rsi14Slope => MarketAnalyticsSignalKind.Rsi,
+        RegimeDiscoverySignalMetric.Adx14 or RegimeDiscoverySignalMetric.PlusDi14 or
+            RegimeDiscoverySignalMetric.MinusDi14 => MarketAnalyticsSignalKind.Adx,
+        RegimeDiscoverySignalMetric.MacdHistogram => MarketAnalyticsSignalKind.Macd,
+        RegimeDiscoverySignalMetric.Atr14 or RegimeDiscoverySignalMetric.AtrBaselineRatio or
+            RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
+        RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
+            RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel =>
+            MarketAnalyticsSignalKind.VxTermStructure,
+        RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
+            RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice =>
+            MarketAnalyticsSignalKind.Iti,
+        _ => MarketAnalyticsSignalKind.MarketStructure
+    };
+
     sealed class DummyPipelineHarness : IAsyncDisposable
     {
         readonly IActorSupervisor _supervisor;
@@ -401,7 +531,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             IActorSupervisor supervisor)
         {
             var harness = new DummyPipelineHarness(supervisor);
-            foreach (var stage in Stages)
+            foreach (var stage in DummyStages)
             {
                 var source = new DummyRealtimeSourceActor(RealtimeActorName(stage));
                 supervisor.AddActor(source);
@@ -669,7 +799,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             where TEvent : class, IEvent<IntrinsicTimeStrategyWorkflowEntityId>, new()
         {
             var now = DateTime.UtcNow;
-            return Create<TEvent>(input, "Processing",
+            return Create<TEvent>(input, EventVerb<TEvent>(),
                 ("ProcessingAtUtc", now));
         }
 
@@ -686,7 +816,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 now,
                 now,
                 "application/json");
-            return Create<TEvent>(input, "Completed",
+            return Create<TEvent>(input, EventVerb<TEvent>(),
                 ("Result", result),
                 ("CompletedAtUtc", now));
         }
@@ -696,7 +826,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         {
             var now = DateTime.UtcNow;
             var domainEvent = new TEvent();
-            Set(domainEvent, "Subject", Subject("Failed", input.EntityId));
+            Set(domainEvent, "Subject", Subject(EventVerb<TEvent>(), input.EntityId));
             Set(domainEvent, "EntityId", input.EntityId);
             Set(domainEvent, "Id", Guid.NewGuid());
             Set(domainEvent, "ErrorDate", now);
@@ -749,6 +879,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
         static void Set(object target, string property, object? value)
             => EventInitHelper.SetProperty(target, property, value);
+
+        static string EventVerb<TEvent>() where TEvent : class
+            => (string)(typeof(TEvent).GetField("Verb")?.GetRawConstantValue()
+                ?? throw new InvalidOperationException($"{typeof(TEvent).Name} does not define a public Verb constant."));
     }
 
     sealed class DummyRealtimeSourceActor(string name) : IActor

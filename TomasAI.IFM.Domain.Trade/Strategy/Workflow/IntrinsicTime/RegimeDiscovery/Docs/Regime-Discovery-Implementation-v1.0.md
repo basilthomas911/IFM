@@ -4,7 +4,7 @@ Implementation Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | Proposed repository-specific implementation plan; no production implementation started |
+| Status | RD-0 through RD-18 implemented and qualified for development use |
 | Date | 2026-08-26 |
 | Design authority | `Regime-Discovery-Specification-v1.0.md` |
 | Workflow authority | `Intrinsic-Time-Strategy-Workflow-Implementation-v1.0.md` |
@@ -40,6 +40,37 @@ Implementation Specification v1.0
 9. Trend, Volatility, and Market Structure may run on ordinary .NET thread
    pool work and be awaited together only if repeatable benchmarks show a
    material benefit over deterministic sequential execution.
+
+### 1.1 RD-0 baseline and compatibility decisions
+
+RD-0 completed its repository inventory and baseline on 2026-08-26:
+
+- `dotnet build TomasAI.IFM.sln --no-restore` succeeded with zero warnings
+  and zero errors;
+- the Regime Discovery implementation folder contains documentation only;
+  no Command actor, state, calculation model, projector, query, or schema has
+  been implemented yet;
+- Strategy Workflow already defines and routes the Regime Discovery Start,
+  Completed, Failed, and legacy Processing contracts;
+- the legacy `RegimeDiscoveryPipelineProcessingEvent` remains a shared
+  compatibility type but is not part of the V1 live flow and must not be
+  published or routed after the workflow routing migration;
+- public terminal events are produced by the Regime Discovery Command
+  projector and are addressed directly to the Strategy Workflow Realtime
+  actor; `RegimeDiscoveryPipelineRealtime` is not created; and
+- the existing `IntrinsicTimeStrategyWorkflowEntityId` remains the pipeline
+  Command stream/thread identity. No second Regime Discovery entity identity
+  is introduced.
+
+The approved implementation order is:
+
+```text
+RD-0 -> RD-1 -> RD-11/RD-12 -> RD-10 -> RD-14/RD-15
+     -> RD-2/RD-3/RD-4 -> RD-5 through RD-9 -> RD-13 -> RD-16 through RD-18
+```
+
+This order builds and tests the deterministic core through an injected
+snapshot-provider boundary before completing live cache/configuration wiring.
 
 ## 2. Project-dependency boundary
 
@@ -179,15 +210,13 @@ payload and never reads ConfigurationDb to reinterpret an old workflow.
 | --- | --- | --- |
 | Latest live futures price | `IMarketDataApi.TryGetLastTickPrice` returning `FuturesMarketPriceSnapshot` from TickAggregation | Usable; has contract/value-date identity, trade source sequence, and exchange timestamp |
 | Stream activity | `IMarketDataApi.IsTickDataStreamActive` | Usable as live-price validity evidence |
-| RSI(14) latest value | `FuturesRsiSignalCacheModel` and Daily counterpart in Redis blackboard | Partly usable; only indicator with an explicit latest-value cache |
-| RSI contract | `FuturesRsiSignalReadModel` | Usable values and source provenance are present |
-| TDI | `FuturesTdiSignalReadModel` and Scylla latest query | Values/provenance exist; no unified latest cache; intraday only |
-| MACD | `FuturesMacdSignalReadModel` and Scylla latest query | Values exist; latest cache and source sequence/event timestamp are missing |
-| ADX | `FuturesAdxSignalReadModel` and Scylla latest query | ADX/+DI/-DI exist; latest cache and source provenance are missing |
-| ATR | `FuturesAtrSignalReadModel` and Scylla latest query | ATR/true range exist; baseline ratio, latest cache, and source provenance are missing |
+| RSI/TDI/MACD/ADX | Dedicated signal contracts, actors, projections, latest queries, and common observation provenance | Calculation foundations are implemented; unified cache registration and restart warming remain |
+| ATR | Dedicated Wilder ATR14 Command/Realtime/Event/Query implementation with baseline and ratio | Calculation foundation is implemented across intraday and Daily-supported horizons; unified cache registration remains |
 | ITI | `FuturesItiSignalGeneratedEvent` / `FuturesItiSignalV2ReadModel` | Target-horizon trigger has direction, band level, reversal level, sequence, and intrinsic time |
-| Daily Bollinger values | futures EOD read models | Only Daily/EOD context; no intraday latest-value contract or width baseline |
-| VIX futures EOD | VIX EOD/open-price Redis blackboard models | Historical/EOD context only; not a current VIX spot/term-structure snapshot |
+| EMA | Dedicated EMA20/50/200 signal actors, projections, queries, and shared observation lineage | Calculation foundation is implemented; normalized slope/prior-value snapshot assembly remains |
+| Bollinger Bands | Dedicated Bollinger(20,2) signal actors with width, position, and baseline support | Calculation foundation is implemented; Market Structure compatible-join output remains |
+| VX term structure | `FuturesVxTermStructureSignal` Command/Realtime/Event/Query implementation | Front/second futures baseline is implemented; VIX spot composition, rollover qualification, and unified cache integration remain |
+| VWAP | Event-sourced session VWAP Command actor with realtime routing, projection, query, and recovery | Implemented but not a V1 required Regime Discovery input unless enabled by a later parameter version |
 | Generic caches | Redis blackboard, `IDataCacheService`, `IDbCache`, latest-value channels | Reusable primitives, but none provides an atomic typed regime snapshot |
 
 Scylla latest queries are useful for startup warming, diagnostics, and tests.
@@ -201,13 +230,13 @@ enabled:
 - one typed latest-signal cache keyed by instrument, signal type, observation
   timeframe, and calculation configuration;
 - atomic snapshot capture with a cache revision and immutable values;
-- common metadata: MarketDataAsOfUtc, CalculatedAtUtc, source sequence,
-  IsWarm, IsValid, schema version, and calculation version;
-- EMA20/EMA50/EMA200 values, ATR-normalized slopes, and prior values;
-- ATR baseline and ATR ratio;
-- intraday Bollinger(20,2) width, position, and width baseline;
-- rolling 20-observation high/low and breakout-distance inputs;
-- current VIX level plus front/second VIX-futures term structure;
+- registration/warming of the existing common provenance and indicator
+  contracts in that unified cache;
+- normalized EMA slope/prior-value snapshot assembly;
+- the Market Structure compatible join containing rolling 20-observation
+  high/low, range, and breakout-distance inputs;
+- current VIX level composition with the implemented front/second
+  VIX-futures term structure;
 - prior volatility composite inputs needed for expanding/contracting; and
 - optional realized-volatility percentile.
 
@@ -374,6 +403,25 @@ RD-13 benchmark demonstrates identical normalized output and a material
 end-to-end latency improvement without p95/p99, allocation, or thread-pool
 regression. Otherwise V1 remains sequential.
 
+RD-13 qualified sequential execution on 2026-08-26 using BenchmarkDotNet
+0.15.8 and .NET 10.0.10. Separate workflows were scheduled independently
+to model actor-dispatcher concurrency; only the three specialists inside each
+workflow varied between sequential and thread-pool-parallel execution.
+
+| Horizon | Workflows | Sequential | Inner parallel | Parallel ratio |
+| --- | ---: | ---: | ---: | ---: |
+| Daily | 1 | 35.11 us | 53.01 us | 1.51 |
+| Daily | 3 | 81.14 us | 81.93 us | 1.02 |
+| Weekly | 1 | 38.35 us | 50.83 us | 1.33 |
+| Weekly | 3 | 84.67 us | 93.98 us | 1.11 |
+| Monthly | 1 | 36.01 us | 52.09 us | 1.45 |
+| Monthly | 3 | 81.34 us | 88.82 us | 1.09 |
+
+Inner parallel execution also allocated approximately two percent more memory.
+V1 therefore uses `RegimeDiscoveryExecutionMode.Sequential`; independent
+workflow actors retain normal dispatcher concurrency without creating nine
+additional inner work items for the maximum three in-flight horizons.
+
 ### 6.3 Private and public event rules
 
 Internal durable domain events are not public workflow contracts:
@@ -421,6 +469,9 @@ model.
 
 ## 8. Implementation gates
 
+Gate identifiers describe dependencies and qualification outcomes; execution
+uses the approved skeleton-first order recorded in section 1.1.
+
 | Gate | Outcome |
 | --- | --- |
 | RD-0 | Approve revised design and this implementation specification; baseline build/tests |
@@ -442,6 +493,37 @@ model.
 | RD-16 | Run boundary integration with real Strategy Workflow for Daily, Weekly, and Monthly executions, success/failure/idempotency/restart paths |
 | RD-17 | Run full Trade, Reference, MarketData Analytics, Application Storage, actor BDD/unit/integration suites and full solution build |
 | RD-18 | Enable live Regime Discovery only after cache warm-up health and all required signals pass qualification |
+
+Implementation status as of 2026-08-26: RD-0 through RD-18 are implemented.
+RD-13 selected sequential execution from the recorded BenchmarkDotNet results.
+RD-16 qualifies the real Regime Discovery worker inside the Strategy Workflow
+with concurrent Daily, Weekly, and Monthly success, injected pipeline failure,
+active-workflow rejection, PostgreSQL replay, and ScyllaDB projection. RD-17
+completed the affected BDD, unit, integration, actor-startup, and storage
+qualification matrix. RD-18's exact-snapshot cache readiness guard defaults to
+required. The overall workflow feature deliberately remains disabled by
+default; enabling it in a development environment still requires published
+horizon configuration and warm qualified signal caches.
+
+The public terminal messages use stage-specific verbs such as
+`RegimeDiscoveryPipelineCompleted` and `RegimeDiscoveryPipelineFailed`. This
+prevents MessagePack contract ambiguity with the Workflow actor's own generic
+`Completed` lifecycle event while keeping the Regime terminal messages directly
+addressed to the Workflow Realtime actor. No Regime Discovery Realtime actor is
+introduced.
+
+Qualification evidence recorded on 2026-08-26:
+
+- Trade: 127 unit, 6 BDD, and 39 integration tests passed; 2 unrelated legacy
+  integration tests remained intentionally skipped.
+- Market Data Analytics: 941 unit, 464 BDD, and 48 integration tests passed.
+- Reference: 8 unit and 14 integration tests passed; the existing Reference BDD
+  assembly contains no discoverable scenarios.
+- Application Storage: 373 of 374 tests passed in the full 7.5-minute run. The
+  sole failure was a transient Scylla `LOCAL_SERIAL` timeout in the concurrent
+  command-log benchmark; that exact concurrency test passed immediately on
+  isolated rerun. All Regime Discovery, configuration, TradeDb, and positional
+  parameter catalog storage tests passed in the full run.
 
 Optional timeout/manual-cancel gates remain deferred and are not blockers for
 RD-18 unless separately approved.

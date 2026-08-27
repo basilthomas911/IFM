@@ -15,10 +15,10 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 [MessagePackObject(AllowPrivate = true)]
 public sealed record RegimeDiscoveryPipelineFailedEvent : IErrorEvent<IntrinsicTimeStrategyWorkflowEntityId>
 {
-    /// <summary>Future pipeline Realtime actor name.</summary>
-    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineRealtime";
+    /// <summary>Workflow Realtime actor that receives the terminal pipeline event.</summary>
+    [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflowRealtime";
     /// <summary>Stable pipeline failure verb.</summary>
-    [IgnoreMember] public const string Verb = "Failed";
+    [IgnoreMember] public const string Verb = "RegimeDiscoveryPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24003;
 

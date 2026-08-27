@@ -171,7 +171,6 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
             contractId, valueDate, SampleData.TimePeriod, SampleData.Timestamp,
             SampleData.FuturesPrice, SampleData.VixFuturesPrice);
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
-
         generateResponse.Success.Should().BeTrue();
         futuresItiSignalGeneratedCompleteEvent.Should().NotBeNull();
         futuresItiSignalGeneratedFailEvent.Should().BeNull();
@@ -240,6 +239,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesItiSignalGeneratedEvent futuresItiSignalGeneratedEvent = default!;
         FuturesItiSignalGeneratedCompleteEvent futuresItiSignalGeneratedCompleteEvent = default!;
         FuturesItiSignalGeneratedFailEvent futuresItiSignalGeneratedFailEvent = default!;
+        var generatedEvents = new System.Collections.Concurrent.ConcurrentDictionary<Guid, FuturesItiSignalGeneratedEvent>();
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await eventListener.StartAsync(
@@ -293,6 +293,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         var setResponse = await marketDataAnalyticsApi.SetFuturesItiSignalHoldTradeAsync(itiSignalId);
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        futuresItiSignalGeneratedEvent = await WaitForGeneratedAsync(setResponse.Value);
 
         setResponse.Success.Should().BeTrue();
         futuresItiSignalGeneratedEvent.FuturesItiSignal!.TradeState.Should().Be(IntrinsicTimeTradeState.Hold);
@@ -306,6 +307,7 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
         var response = await marketDataAnalyticsApi.ClearFuturesItiSignalHoldTradeAsync(itiSignalId);
 
         await terminalEventReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        futuresItiSignalGeneratedEvent = await WaitForGeneratedAsync(response.Value);
 
         // assert...
         response.Should().NotBeNull();
@@ -322,6 +324,18 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
         await eventListener.StopAsync();
 
+        async Task<FuturesItiSignalGeneratedEvent> WaitForGeneratedAsync(Guid commandId)
+        {
+            var timeoutAt = DateTime.UtcNow.AddSeconds(10);
+            while (DateTime.UtcNow < timeoutAt)
+            {
+                if (generatedEvents.TryGetValue(commandId, out var generated))
+                    return generated;
+                await Task.Delay(20);
+            }
+            throw new TimeoutException($"No FuturesItiSignalGeneratedEvent arrived for command {commandId}.");
+        }
+
         async ValueTask EventHandlerAsync(string eventVerb, NatsMsg<byte[]> eventMsg)
         {
             IEvent receivedEvent = eventVerb switch
@@ -336,7 +350,10 @@ public class FuturesItiSignalCommandApiTests(WebApplicationFactory<Program> fact
             IEvent SetEvent(IEvent @event)
             {
                 if (@event is FuturesItiSignalGeneratedEvent generated)
+                {
                     futuresItiSignalGeneratedEvent = generated;
+                    generatedEvents[generated.CommandId] = generated;
+                }
                 if (@event is FuturesItiSignalGeneratedCompleteEvent generatedComplete)
                 {
                     futuresItiSignalGeneratedCompleteEvent = generatedComplete;

@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.EventProjector;
 
@@ -28,9 +29,12 @@ public sealed class FuturesVxTermStructureSignalEventProjector(
         Describe<FuturesVxTermStructureSignalUpdatedEvent,
             FuturesVxTermStructureSignalUpdatedCompleteEvent,
             FuturesVxTermStructureSignalUpdatedFailEvent,
-            FuturesVxTermStructureSignalEntityId>(e => e.Signal is null
-                ? Task.CompletedTask
-                : dbFactory.MarketDataDb.InsertFuturesVxTermStructureSignalAsync(e.Signal))
+            FuturesVxTermStructureSignalEntityId>((Func<FuturesVxTermStructureSignalUpdatedEvent, Task>)(async e =>
+            {
+                if (e.Signal is null) return;
+                await dbFactory.MarketDataDb.InsertFuturesVxTermStructureSignalAsync(e.Signal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal);
+            }))
     ];
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;

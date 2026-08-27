@@ -18,7 +18,7 @@ public sealed record TradeSelectionPipelineFailedEvent : IErrorEvent<IntrinsicTi
     /// <summary>Future pipeline Realtime actor name.</summary>
     [IgnoreMember] public const string Actor = "TradeSelectionPipelineRealtime";
     /// <summary>Stable pipeline failure verb.</summary>
-    [IgnoreMember] public const string Verb = "Failed";
+    [IgnoreMember] public const string Verb = "TradeSelectionPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24009;
 

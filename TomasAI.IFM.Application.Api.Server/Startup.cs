@@ -40,6 +40,10 @@ using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
@@ -393,6 +397,8 @@ public static class Startup
             services.AddSingleton(_ =>
             new DbConnectionSettings()
                 .Add("EventSourceActorDbConnection", config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
+                .Add("ConfigurationDbConnection", config.GetConnectionString("ConfigurationDbConnection")
+                    ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("SystemAdminDbConnection", config.GetConnectionString("SystemAdminDbConnection")
                     ?? config.GetConnectionString("EventSourceActorDbConnection")!, "System.Data.Postgres")
                 .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
@@ -422,6 +428,7 @@ public static class Startup
             services.AddSingleton<IFuturesContractRolloverStore>(provider =>
                 provider.GetRequiredService<ISecuritiesDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<TradeDbContext>() as ITradeDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ConfigurationDbContext>() as IConfigurationDbContext)!);
             services.AddSingleton<IHistoricalDataLoaderStore, PostgresHistoricalDataLoaderStore>();
             services.AddSingleton<IHistoricalObservationStore, ScyllaHistoricalObservationStore>();
             services.AddSingleton<EventSourceSchemaDb>();
@@ -434,6 +441,12 @@ public static class Startup
             services.AddSingleton<SecuritiesSchemaDb>();
             services.AddSingleton<TradeSchemaDb>();
             services.AddSingleton<SystemAdminSchemaDb>();
+            services.AddSingleton<ConfigurationSchemaDb>();
+            services.AddSingleton<RegimeDiscoveryMarketSignalSnapshotProvider>();
+            services.AddSingleton<IRegimeDiscoveryMarketSignalSnapshotProvider>(provider =>
+                provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
+            services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
+                provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)

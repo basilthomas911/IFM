@@ -27,7 +27,12 @@ internal readonly record struct InsertFuturesVwapSignal(
     };
 }
 
-internal readonly record struct GetFuturesVwapSignal(
+internal readonly record struct GetLatestFuturesVwapSignal(
+    string contractId, DateOnly valueDate, string configurationId) : IBindValue
+{
+    public object Bind() => new object[] { contractId, valueDate, configurationId };
+}
+internal readonly record struct GetFuturesVwapSignalHistory(
     string contractId, DateOnly valueDate, string configurationId) : IBindValue
 {
     public object Bind() => new object[] { contractId, valueDate, configurationId };

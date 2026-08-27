@@ -18,7 +18,7 @@ public sealed record RiskManagementPipelineCompletedEvent : ICompleteEvent<Intri
     /// <summary>Future pipeline Realtime actor name.</summary>
     [IgnoreMember] public const string Actor = "RiskManagementPipelineRealtime";
     /// <summary>Stable pipeline lifecycle verb.</summary>
-    [IgnoreMember] public const string Verb = "Completed";
+    [IgnoreMember] public const string Verb = "RiskManagementPipelineCompleted";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24014;
 

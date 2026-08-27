@@ -20,6 +20,8 @@ using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -42,6 +44,7 @@ public interface IDbContextFactory
     ISecuritiesDbContext SecuritiesDb { get; }
     ITradeDbContext TradeDb { get; }
     ISystemAdminDbContext SystemAdminDb { get; }
+    IConfigurationDbContext ConfigurationDb { get; }
 
     EventSourceSchemaDb EventSourceSchema { get; }
     LogSchemaDb LogSchema { get; }
@@ -54,5 +57,6 @@ public interface IDbContextFactory
     SecuritiesSchemaDb SecuritiesSchema { get; }
     TradeSchemaDb TradeSchema { get; }
     SystemAdminSchemaDb SystemAdminSchema { get; }
+    ConfigurationSchemaDb ConfigurationSchema { get; }
 
 }

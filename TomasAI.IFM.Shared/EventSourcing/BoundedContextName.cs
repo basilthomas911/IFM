@@ -65,4 +65,6 @@ public enum BoundedContextName
     FuturesTradeSessionBarPublisherBoundedContext,
     /// <summary>Routes event-sourced Market Outlook snapshot accumulation commands.</summary>
     MarketOutlookSnapshotBoundedContext,
+    /// <summary>Routes immutable strategy parameter-set lifecycle commands.</summary>
+    StrategyConfigurationBoundedContext,
 }

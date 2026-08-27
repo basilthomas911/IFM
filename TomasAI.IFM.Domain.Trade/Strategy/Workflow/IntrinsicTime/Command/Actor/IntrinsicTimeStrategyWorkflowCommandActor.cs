@@ -181,6 +181,20 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             throw new ArgumentException("Workflow commands require a non-empty command identity.", nameof(command));
         if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
             throw new ArgumentException("Workflow commands require an entity routing identity.", nameof(command));
+        if (command is StartIntrinsicTimeStrategyWorkflowCommand start)
+        {
+            var configurationErrors = new Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSetValidationRules()
+                .Execute(start.RegimeDiscoveryParameterSet);
+            if (configurationErrors.Length != 0)
+                throw new ArgumentException(
+                    string.Join("; ", configurationErrors.Select(value => value.ErrorMessage)), nameof(command));
+            var expectedHash = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterPayload
+                .ComputeSha256(start.RegimeDiscoveryParameterSet);
+            if (!string.Equals(expectedHash, start.RegimeDiscoveryParameterPayloadSha256,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Workflow start parameter hash does not match its immutable payload.",
+                    nameof(command));
+        }
         if (!TryNormalizeCompletion(command, out var completion))
             return;
 
@@ -245,6 +259,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             (nameof(StrategyWorkflowStartAcceptedEvent.TriggerEventId), command.TriggerEventId),
             (nameof(StrategyWorkflowStartAcceptedEvent.TriggerEvent), command.TriggerEvent),
             (nameof(StrategyWorkflowStartAcceptedEvent.WorkflowDefinitionVersion), command.WorkflowDefinitionVersion),
+            (nameof(StrategyWorkflowStartAcceptedEvent.RegimeDiscoveryParameterSet), command.RegimeDiscoveryParameterSet),
+            (nameof(StrategyWorkflowStartAcceptedEvent.RegimeDiscoveryParameterPayloadSha256), command.RegimeDiscoveryParameterPayloadSha256),
             (nameof(StrategyWorkflowStartAcceptedEvent.StartedAtUtc), command.RequestedAtUtc)), command);
 
         var route = IntrinsicTimeStrategyPipelineRoutes.Get(firstStage);

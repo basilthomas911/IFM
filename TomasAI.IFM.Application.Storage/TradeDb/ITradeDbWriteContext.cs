@@ -5,11 +5,14 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder;
 using TomasAI.IFM.Domain.Trade.Shared.TradeOrder.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 
 namespace TomasAI.IFM.Application.Storage.TradeDb;
 
 public interface ITradeDbWriteContext
 {
+    Task UpsertRegimeDiscoveryAsync(RegimeDiscoveryReadModel result);
+    Task UpsertRegimeDiscoveryAsync(RegimeDiscoveryReadModel result, CancellationToken cancellationToken);
     Task UpsertIntrinsicTimeStrategyWorkflowAsync(IntrinsicTimeStrategyWorkflowReadModel workflow);
     Task UpsertIntrinsicTimeStrategyWorkflowAsync(IntrinsicTimeStrategyWorkflowReadModel workflow, CancellationToken cancellationToken);
     Task UpsertActiveIntrinsicTimeStrategyWorkflowAsync(ActiveIntrinsicTimeStrategyWorkflowReadModel workflow);

@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Command.EventProjector;
 
@@ -48,6 +49,7 @@ public sealed class FuturesTradeSessionBarPublisherEventProjector(
     {
         var bar = published.Bar;
         _ = await store.TryWriteObservationAsync(bar, CancellationToken.None).ConfigureAwait(false);
+        RegimeDiscoverySignalCacheAdapter.Publish(bar);
         if (bar.TimeFrame != TimeFrameType.Daily) return;
         var session = calendar.GetSession(bar.ValueDate);
         _ = await store.TryWriteRawEodAsync(new FuturesEodObservationReadModel

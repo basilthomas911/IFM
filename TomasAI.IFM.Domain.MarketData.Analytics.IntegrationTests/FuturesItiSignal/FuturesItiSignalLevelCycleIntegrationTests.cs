@@ -56,8 +56,10 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
             TimeFrameType.Daily);
         await ResetAsync(entityId);
 
-        var generated = new ConcurrentQueue<FuturesItiSignalGeneratedEvent>();
-        TaskCompletionSource<FuturesItiSignalGeneratedCompleteEvent>? pending = null;
+        var generated = new ConcurrentDictionary<Guid, FuturesItiSignalGeneratedEvent>();
+        var completions = new ConcurrentDictionary<Guid, FuturesItiSignalGeneratedCompleteEvent>();
+        var failures = new ConcurrentDictionary<Guid, FuturesItiSignalGeneratedFailEvent>();
+        var commandIds = new List<Guid>();
         var timestamp = FirstTimestamp.AddSeconds(-1);
         var listener = new NatsActorEventListener(
             new NatsEventListenerOptions(),
@@ -82,7 +84,6 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
 
             async Task<FuturesItiSignalV2ReadModel> GenerateAsync(double price)
             {
-                pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 var response = await api.GenerateFuturesItiSignalAsync(
                     ContractId,
                     ValueDate,
@@ -92,7 +93,8 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
                     VixPrice);
 
                 response.Success.Should().BeTrue();
-                var completed = await pending.Task.WaitAsync(TimeSpan.FromSeconds(20));
+                commandIds.Add(response.Value);
+                var completed = await WaitForCompletionAsync(response.Value);
                 completed.FuturesItiSignal.Should().NotBeNull();
                 var signal = completed.FuturesItiSignal!;
                 AssertCalculatedLevels(signal);
@@ -154,8 +156,8 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
             var secondUpStart = await GenerateAsync(downTrending.UpTrendTrigger);
             AssertDirectionChange(secondUpStart, IntrinsicTimeTrendType.UpTrend, expectedGroup: 2);
 
-            var completedSignals = generated
-                .Select(@event => @event.FuturesItiSignal!)
+            var completedSignals = commandIds
+                .Select(commandId => generated[commandId].FuturesItiSignal!)
                 .OrderBy(signal => signal.IntrinsicTime)
                 .ToArray();
             completedSignals.Should().HaveCount(29);
@@ -187,22 +189,38 @@ public sealed class FuturesItiSignalLevelCycleIntegrationTests(
             {
                 var @event = message.AsEvent<FuturesItiSignalGeneratedEvent>()!;
                 if (Matches(@event.EntityId))
-                    generated.Enqueue(@event);
+                    generated[@event.CommandId] = @event;
             }
             else if (eventVerb == FuturesItiSignalGeneratedCompleteEvent.Verb)
             {
                 var @event = message.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!;
                 if (Matches(@event.EntityId))
-                    pending?.TrySetResult(@event);
+                    completions[@event.CommandId] = @event;
             }
             else if (eventVerb == FuturesItiSignalGeneratedFailEvent.Verb)
             {
                 var @event = message.AsEvent<FuturesItiSignalGeneratedFailEvent>()!;
                 if (Matches(@event.EntityId))
-                    pending?.TrySetException(new InvalidOperationException(@event.ErrorMessage));
+                    failures[@event.CommandId] = @event;
             }
 
             return ValueTask.CompletedTask;
+        }
+
+        async Task<FuturesItiSignalGeneratedCompleteEvent> WaitForCompletionAsync(Guid commandId)
+        {
+            var timeoutAt = DateTime.UtcNow.AddSeconds(60);
+            while (DateTime.UtcNow < timeoutAt)
+            {
+                if (failures.TryGetValue(commandId, out var failed))
+                    throw new InvalidOperationException(failed.ErrorMessage);
+                if (completions.TryGetValue(commandId, out var completed)
+                    && generated.ContainsKey(commandId))
+                    return completed;
+                await Task.Delay(20);
+            }
+            throw new TimeoutException(
+                $"The ITI signal command {commandId} did not publish correlated generated and completion events.");
         }
 
         bool Matches(FuturesItiSignalEntityId id) =>

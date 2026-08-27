@@ -18,7 +18,7 @@ public sealed record MarketConditionPipelineCompletedEvent : ICompleteEvent<Intr
     /// <summary>Future pipeline Realtime actor name.</summary>
     [IgnoreMember] public const string Actor = "MarketConditionPipelineRealtime";
     /// <summary>Stable pipeline lifecycle verb.</summary>
-    [IgnoreMember] public const string Verb = "Completed";
+    [IgnoreMember] public const string Verb = "MarketConditionPipelineCompleted";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24005;
 

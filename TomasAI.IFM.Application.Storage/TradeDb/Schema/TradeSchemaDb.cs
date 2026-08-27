@@ -15,6 +15,7 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
         new("option_trade", TradeSchemaCql.CreateOptionTradeTable, "DROP TABLE IF EXISTS option_trade;"),
         new("option_trade_spread_bar_data", TradeSchemaCql.CreateOptionTradeSpreadBarDataTable, "DROP TABLE IF EXISTS option_trade_spread_bar_data;"),
         new("option_trade_spread_data", TradeSchemaCql.CreateOptionTradeSpreadDataTable, "DROP TABLE IF EXISTS option_trade_spread_data;"),
+        new("regime_discovery", TradeSchemaCql.CreateRegimeDiscoveryTable, "DROP TABLE IF EXISTS regime_discovery;"),
         new("intrinsic_time_strategy_workflow", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow;"),
         new("intrinsic_time_strategy_workflow_active", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_active;"),
         new("intrinsic_time_strategy_workflow_start_attempt", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowStartAttemptByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_start_attempt;"),

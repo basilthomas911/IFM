@@ -6,15 +6,15 @@ Design Specification v1.0
 
 | --- \| --- \|
 
-| Status \| Revised deterministic V1 design specification \|
+| Status \| Approved deterministic V1 design specification; implementation started \|
 
 | Date \| 2026-08-26 \|
 
 | Purpose \| Authoritative business/architectural contract for Regime
   Discovery \|
 
-| Consumer \| Codex, to create the repository-specific Implementation
-  Specification \|
+| Consumer \| Repository implementation, qualification tests, and later
+  specification revisions \|
 
 | Companion \| Intrinsic Time Strategy Workflow Implementation
   Specification v1.0 \|
@@ -22,7 +22,10 @@ Design Specification v1.0
 | Target \| Deterministic V1 / .NET 10 actor application \|
 
 This document defines WHAT Regime Discovery must do. Repository-specific
-HOW belongs in the later Implementation Specification.
+HOW belongs in `Regime-Discovery-Implementation-v1.0.md`. The approved
+implementation sequence builds the deterministic contracts/models and actor
+skeleton first through an injected snapshot boundary, then attaches
+configuration and live market-signal infrastructure before qualification.
 
 # 1. Purpose
 

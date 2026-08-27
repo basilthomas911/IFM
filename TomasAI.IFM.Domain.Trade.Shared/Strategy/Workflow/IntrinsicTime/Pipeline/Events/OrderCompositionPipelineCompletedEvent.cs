@@ -18,7 +18,7 @@ public sealed record OrderCompositionPipelineCompletedEvent : ICompleteEvent<Int
     /// <summary>Future pipeline Realtime actor name.</summary>
     [IgnoreMember] public const string Actor = "OrderCompositionPipelineRealtime";
     /// <summary>Stable pipeline lifecycle verb.</summary>
-    [IgnoreMember] public const string Verb = "Completed";
+    [IgnoreMember] public const string Verb = "OrderCompositionPipelineCompleted";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24011;
 

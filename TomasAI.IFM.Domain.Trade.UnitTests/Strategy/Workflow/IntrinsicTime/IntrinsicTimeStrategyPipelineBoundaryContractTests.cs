@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
@@ -220,6 +221,13 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             return new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000022"));
         if (type == typeof(StrategyWorkflowStage))
             return StrategyWorkflowStage.RegimeDiscovery;
+        if (type == typeof(TimeFrameType))
+            return TimeFrameType.Daily;
+        if (type == typeof(RegimeDiscoveryParameterSet))
+            return RegimeDiscoveryParameterSet.CreateDefault(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000026"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000027"),
+                TimeFrameType.Daily);
         if (type == typeof(ErrorType))
             return ErrorType.Command;
         if (type == typeof(IntrinsicTimeStrategyWorkflowState))

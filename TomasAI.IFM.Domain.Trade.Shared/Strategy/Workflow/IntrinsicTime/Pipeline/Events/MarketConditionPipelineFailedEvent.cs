@@ -18,7 +18,7 @@ public sealed record MarketConditionPipelineFailedEvent : IErrorEvent<IntrinsicT
     /// <summary>Future pipeline Realtime actor name.</summary>
     [IgnoreMember] public const string Actor = "MarketConditionPipelineRealtime";
     /// <summary>Stable pipeline failure verb.</summary>
-    [IgnoreMember] public const string Verb = "Failed";
+    [IgnoreMember] public const string Verb = "MarketConditionPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24006;
 

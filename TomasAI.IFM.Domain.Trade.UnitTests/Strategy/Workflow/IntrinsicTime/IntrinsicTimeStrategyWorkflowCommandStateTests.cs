@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -616,6 +617,11 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             return CompletedAtUtc.AddMinutes(5);
         if (type == typeof(StrategyWorkflowId))
             return WorkflowId;
+        if (type == typeof(RegimeDiscoveryParameterSet))
+            return RegimeDiscoveryParameterSet.CreateDefault(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000116"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000117"),
+                TimeFrameType.Daily);
         if (type == typeof(StrategyWorkflowStage))
             return StrategyWorkflowStage.RegimeDiscovery;
         if (type == typeof(StrategyWorkflowStartDecision))

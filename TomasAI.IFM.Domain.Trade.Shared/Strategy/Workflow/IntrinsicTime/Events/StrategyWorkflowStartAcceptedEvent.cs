@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -54,6 +55,10 @@ public sealed record StrategyWorkflowStartAcceptedEvent : IEvent<IntrinsicTimeSt
     [Key(15)] public int WorkflowDefinitionVersion { get; init; }
     /// <summary>Gets the UTC workflow start timestamp.</summary>
     [Key(16)] public DateTime StartedAtUtc { get; init; }
+    /// <summary>Gets the immutable Regime Discovery parameters selected at workflow acceptance.</summary>
+    [Key(17)] public RegimeDiscoveryParameterSet RegimeDiscoveryParameterSet { get; init; } = new();
+    /// <summary>Gets the canonical selected parameter payload hash.</summary>
+    [Key(18)] public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the local event-source user for diagnostics.</summary>
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -101,7 +106,9 @@ public sealed record StrategyWorkflowStartAcceptedEvent : IEvent<IntrinsicTimeSt
         Guid triggerEventId,
         FuturesItiSignalGeneratedEvent triggerEvent,
         int workflowDefinitionVersion,
-        DateTime startedAtUtc)
+        DateTime startedAtUtc,
+        RegimeDiscoveryParameterSet regimeDiscoveryParameterSet,
+        string regimeDiscoveryParameterPayloadSha256)
     {
         Subject = subject;
         Id = id;
@@ -120,5 +127,7 @@ public sealed record StrategyWorkflowStartAcceptedEvent : IEvent<IntrinsicTimeSt
         TriggerEvent = triggerEvent;
         WorkflowDefinitionVersion = workflowDefinitionVersion;
         StartedAtUtc = startedAtUtc;
+        RegimeDiscoveryParameterSet = regimeDiscoveryParameterSet;
+        RegimeDiscoveryParameterPayloadSha256 = regimeDiscoveryParameterPayloadSha256 ?? string.Empty;
     }
 }

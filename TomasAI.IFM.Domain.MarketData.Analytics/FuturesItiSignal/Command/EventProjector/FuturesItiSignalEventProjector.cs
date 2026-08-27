@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Command.EventProjector;
 
@@ -30,6 +31,8 @@ public sealed class FuturesItiSignalEventProjector(
                     SequenceId = signal.SequenceId > 0 ? signal.SequenceId : context.EventId
                 };
                 await db.InsertFuturesItiSignalAsync(signal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(signal, signal.SequenceId,
+                    e.CreatedOn == default ? e.ReceivedOn : e.CreatedOn, (decimal)e.VixFuturesPrice);
             })
     ];
 

@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.Storage.ConfigurationDb;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
@@ -17,6 +19,12 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <summary>Gets the live-trigger feature options.</summary>
     IntrinsicTimeStrategyWorkflowOptions Options { get; }
+
+    /// <summary>Gets the immutable strategy-configuration store.</summary>
+    IConfigurationDbContext ConfigurationDb { get; }
+
+    /// <summary>Gets the atomic signal snapshot provider used by the live-readiness gate.</summary>
+    IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider { get; }
 }
 
 /// <summary>Provides the closed-generic context for one-way workflow realtime orchestration.</summary>
@@ -25,6 +33,8 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
       IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>,
       IIntrinsicTimeStrategyWorkflowRealtimeContext
 {
+    readonly Lazy<IConfigurationDbContext> _configurationDb;
+    readonly Lazy<IRegimeDiscoveryMarketSignalSnapshotProvider> _regimeDiscoverySnapshotProvider;
     /// <summary>Initializes the realtime context.</summary>
     public IntrinsicTimeStrategyWorkflowRealtimeContext(
         IActorSupervisor supervisor,
@@ -35,6 +45,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
         TimeProvider = TimeProvider.System;
         Logger = IsArgumentNull.Set(logger);
         Options = IsArgumentNull.Set(options);
+        _configurationDb = new(() => IsArgumentNull.Set(Container.Resolve<IConfigurationDbContext>())!);
+        _regimeDiscoverySnapshotProvider = new(() => IsArgumentNull.Set(
+            Container.Resolve<IRegimeDiscoveryMarketSignalSnapshotProvider>())!);
     }
 
     /// <inheritdoc />
@@ -45,6 +58,13 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <inheritdoc />
     public IntrinsicTimeStrategyWorkflowOptions Options { get; }
+
+    /// <inheritdoc />
+    public IConfigurationDbContext ConfigurationDb => _configurationDb.Value;
+
+    /// <inheritdoc />
+    public IRegimeDiscoveryMarketSignalSnapshotProvider RegimeDiscoverySnapshotProvider =>
+        _regimeDiscoverySnapshotProvider.Value;
 }
 
 /// <summary>Controls live automatic ITI-trigger routing for the workflow skeleton.</summary>
@@ -52,4 +72,10 @@ public sealed class IntrinsicTimeStrategyWorkflowOptions
 {
     /// <summary>Gets or sets whether live ITI triggers may start workflow executions.</summary>
     public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether every required Regime Discovery signal must pass an atomic snapshot preflight before a
+    /// live ITI trigger can start a workflow.
+    /// </summary>
+    public bool RequireWarmRegimeDiscoverySignals { get; set; } = true;
 }

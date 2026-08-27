@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -44,6 +45,10 @@ public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<Intrin
     [Key(11)] public DateTime RequestedAtUtc { get; init; }
     /// <summary>Gets the workflow definition version.</summary>
     [Key(12)] public int WorkflowDefinitionVersion { get; init; }
+    /// <summary>Gets the exact immutable Regime Discovery parameters selected for this workflow.</summary>
+    [Key(13)] public RegimeDiscoveryParameterSet RegimeDiscoveryParameterSet { get; init; } = new();
+    /// <summary>Gets the canonical SHA-256 hash of the selected parameter payload.</summary>
+    [Key(14)] public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(StartIntrinsicTimeStrategyWorkflowCommand);
@@ -92,7 +97,9 @@ public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<Intrin
         Guid correlationId,
         Guid causationId,
         DateTime requestedAtUtc,
-        int workflowDefinitionVersion)
+        int workflowDefinitionVersion,
+        RegimeDiscoveryParameterSet regimeDiscoveryParameterSet,
+        string regimeDiscoveryParameterPayloadSha256)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +114,7 @@ public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<Intrin
         CausationId = causationId;
         RequestedAtUtc = requestedAtUtc;
         WorkflowDefinitionVersion = workflowDefinitionVersion;
+        RegimeDiscoveryParameterSet = regimeDiscoveryParameterSet;
+        RegimeDiscoveryParameterPayloadSha256 = regimeDiscoveryParameterPayloadSha256 ?? string.Empty;
     }
 }

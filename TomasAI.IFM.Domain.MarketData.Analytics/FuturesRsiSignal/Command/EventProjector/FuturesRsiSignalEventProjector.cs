@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.EventProjector;
 
@@ -21,9 +22,9 @@ public sealed class FuturesRsiSignalEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesRsiSignalGeneratedEvent, FuturesRsiSignalGeneratedCompleteEvent, FuturesRsiSignalGeneratedFailEvent, FuturesRsiSignalEntityId>(
-            e => dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal)),
+            (Func<FuturesRsiSignalGeneratedEvent, Task>)(async e => { await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false); RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); })),
         Describe<FuturesRsiDailySignalGeneratedEvent, FuturesRsiDailySignalGeneratedCompleteEvent, FuturesRsiDailySignalGeneratedFailEvent, FuturesRsiDailySignalEntityId>(
-            e => dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal)),
+            (Func<FuturesRsiDailySignalGeneratedEvent, Task>)(async e => { await dbFactory.MarketDataDb.InsertFuturesRsiSignalAsync(e.FuturesRsiSignal).ConfigureAwait(false); RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesRsiSignal); })),
         DescribeNotification<FuturesRsiDailySignalsGeneratedEvent, FuturesRsiDailySignalEntityId>(),
         DescribeNotification<FuturesRsiSignalsGeneratedEvent, FuturesRsiSignalEntityId>(),
         DescribeNotification<FuturesRsiSignalStartedEvent, FuturesRsiSignalEntityId>(useDurableReplay: false),

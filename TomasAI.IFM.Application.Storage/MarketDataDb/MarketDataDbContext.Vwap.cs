@@ -36,7 +36,7 @@ public partial class MarketDataDbContext
         _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetLatestFuturesVwapSignal)}",
                 MarketDataDbCql.GetLatestFuturesVwapSignal)
-            .SetParameters(new GetFuturesVwapSignal(contractId, valueDate, configurationId))
+            .SetParameters(new GetLatestFuturesVwapSignal(contractId, valueDate, configurationId))
             .ExecuteSingleAsync(MapToFuturesVwapSignal!, cancellationToken);
 
     /// <inheritdoc />
@@ -46,7 +46,7 @@ public partial class MarketDataDbContext
         await _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetFuturesVwapSignalHistory)}",
                 MarketDataDbCql.GetFuturesVwapSignalHistory)
-            .SetParameters(new GetFuturesVwapSignal(contractId, valueDate, configurationId))
+            .SetParameters(new GetFuturesVwapSignalHistory(contractId, valueDate, configurationId))
             .ExecuteQueryAsync(MapToFuturesVwapSignal!, cancellationToken);
 
     static FuturesVwapSignalReadModel MapToFuturesVwapSignal<TDataRecord>(

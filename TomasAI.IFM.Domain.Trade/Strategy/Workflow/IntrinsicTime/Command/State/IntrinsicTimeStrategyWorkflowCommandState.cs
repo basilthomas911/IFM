@@ -236,7 +236,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
                 Outcome = StrategyWorkflowOutcome.None,
                 CurrentStage = e.Stage,
                 WorkflowRevision = e.WorkflowRevision,
-                StartedAtUtc = e.StartedAtUtc
+                StartedAtUtc = e.StartedAtUtc,
+                RegimeDiscoveryParameterSet = e.RegimeDiscoveryParameterSet,
+                RegimeDiscoveryParameterPayloadSha256 = e.RegimeDiscoveryParameterPayloadSha256
             },
             e.Stage,
             firstStage);

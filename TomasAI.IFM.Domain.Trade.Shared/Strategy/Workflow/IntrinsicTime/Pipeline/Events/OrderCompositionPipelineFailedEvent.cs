@@ -18,7 +18,7 @@ public sealed record OrderCompositionPipelineFailedEvent : IErrorEvent<Intrinsic
     /// <summary>Future pipeline Realtime actor name.</summary>
     [IgnoreMember] public const string Actor = "OrderCompositionPipelineRealtime";
     /// <summary>Stable pipeline failure verb.</summary>
-    [IgnoreMember] public const string Verb = "Failed";
+    [IgnoreMember] public const string Verb = "OrderCompositionPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 24012;
 

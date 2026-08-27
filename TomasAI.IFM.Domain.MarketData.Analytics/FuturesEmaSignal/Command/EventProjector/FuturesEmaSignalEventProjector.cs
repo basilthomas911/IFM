@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.EventProjector;
 
@@ -24,7 +25,11 @@ public sealed class FuturesEmaSignalEventProjector(IDbContextFactory dbFactory,
     [
         Describe<FuturesEmaSignalGeneratedEvent, FuturesEmaSignalGeneratedCompleteEvent,
             FuturesEmaSignalGeneratedFailEvent, FuturesTradeSessionBarEntityId>(
-            e => dbFactory.MarketDataDb.InsertFuturesEmaSignalAsync(e.Signal))
+            (Func<FuturesEmaSignalGeneratedEvent, Task>)(async e =>
+            {
+                await dbFactory.MarketDataDb.InsertFuturesEmaSignalAsync(e.Signal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal);
+            }))
     ];
     /// <inheritdoc />
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => descriptors;
