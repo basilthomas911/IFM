@@ -1,6 +1,7 @@
 ﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Exceptions;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
@@ -16,12 +17,12 @@ public static class CompleteSpreadDistributionJob
     /// <param name="state">The state against which to execute the command.</param>
     /// <returns></returns>
     /// <exception cref="SpreadDistributionJobNotInProgressException"></exception>
-    public static bool Execute(this CompleteSpreadDistributionJobCommand e, SpreadDistributionJobCommandState state)
+    public static ServiceResult<GuidResult> Execute(this CompleteSpreadDistributionJobCommand e, SpreadDistributionJobCommandState state)
        => e switch
        {
            _ when !state.IsJobStatusInProgress
                => throw new SpreadDistributionJobNotInProgressException(e.EntityId),
-           _ => state.Update(e.CreateSpreadDistributionJobCompletedEvent(), e)
+           _ => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionJobCompletedEvent(), e))
        };
 
     /// <summary>

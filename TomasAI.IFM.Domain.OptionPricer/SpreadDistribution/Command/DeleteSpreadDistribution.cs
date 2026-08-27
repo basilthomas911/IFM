@@ -1,5 +1,6 @@
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
@@ -12,8 +13,8 @@ public static class DeleteSpreadDistribution
     /// Handle an <see cref="DeleteSpreadDistributionCommand"/> by building the corresponding
     /// <see cref="SpreadDistributionDeletedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this DeleteSpreadDistributionCommand e, SpreadDistributionCommandState state)
-        => state.Update(e.CreateSpreadDistributionDeletedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this DeleteSpreadDistributionCommand e, SpreadDistributionCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionDeletedEvent(), e));
 
     /// <summary>
     /// Creates a new SpreadDistributionDeletedEvent instance using the details provided in the specified command.

@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared ;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -17,11 +18,11 @@ public static class HaltTradeLiveFeed
     /// <param name="state">The current actor command state to update.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise <see langword="false"/>.</returns>
     /// <exception cref="HaltTradeLiveFeedException">Thrown if the trade live feed is not currently active for the specified order and trade identifiers.</exception>
-    public static bool Execute(this HaltTradeLiveFeedCommand e, MarketDataFeedCommandState state)
+    public static ServiceResult<GuidResult> Execute(this HaltTradeLiveFeedCommand e, MarketDataFeedCommandState state)
         => e switch
         {
             _ when !state.IsTradeLiveFeedOn => throw new HaltTradeLiveFeedException($"Trade live feed is not on for: {e.OrderId}:{e.TradeId}"),
-            _ => state.Update(e.CreateTradeLiveFeedHaltedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateTradeLiveFeedHaltedEvent(), e))
         };
 
     /// <summary>

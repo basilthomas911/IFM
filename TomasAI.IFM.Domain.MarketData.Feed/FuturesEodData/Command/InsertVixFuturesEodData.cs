@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -11,8 +12,8 @@ public static class InsertVixFuturesEodData
     /// Handle an <see cref="InsertVixFuturesEodDataCommand"/> by building the corresponding
     /// <see cref="VixFuturesEodDataInsertedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this InsertVixFuturesEodDataCommand e, FuturesEodDataCommandState state)
-        => state.Update(e.CreateVixFuturesEodDataInsertedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this InsertVixFuturesEodDataCommand e, FuturesEodDataCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateVixFuturesEodDataInsertedEvent(), e));
 
     /// <summary>
     /// Creates a <see cref="VixFuturesEodDataInsertedEvent"/> from an <see cref="InsertVixFuturesEodDataCommand"/>.

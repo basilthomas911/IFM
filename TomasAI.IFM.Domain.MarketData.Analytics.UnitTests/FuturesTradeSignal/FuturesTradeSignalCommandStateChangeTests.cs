@@ -13,7 +13,7 @@ public sealed class FuturesTradeSignalCommandStateChangeTests
     {
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var state = new FuturesTradeSignalCommandState { Id = command.Subject.ThreadId };
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
         state.FuturesTradeSignal.Should().NotBeNull();
         var baseline = state.FuturesTradeSignal!;
 
@@ -58,7 +58,7 @@ public sealed class FuturesTradeSignalCommandStateChangeTests
     {
         var command = SampleData.CreateTradeSignalUpdateCommand();
         var state = new FuturesTradeSignalCommandState { Id = command.Subject.ThreadId };
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
         state.FuturesTradeSignal.Should().NotBeNull();
         var baseline = state.FuturesTradeSignal!;
 

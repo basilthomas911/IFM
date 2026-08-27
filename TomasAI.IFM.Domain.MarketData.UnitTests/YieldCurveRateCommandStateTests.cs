@@ -43,7 +43,7 @@ public class YieldCurveRateCommandStateTests
             new YieldCurveRateRemovedEvent { ValueDate = valueDate }
         });
 
-        Route(new AddYieldCurveRateCommand(rate)).Execute(state).Should().BeTrue();
+        Route(new AddYieldCurveRateCommand(rate)).Execute(state).Success.Should().BeTrue();
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class YieldCurveRateCommandStateTests
             valueDate.ToDateTime(TimeOnly.MinValue),
             ImportDuplicatePolicy.Reject));
 
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
         state.Events.Should().ContainSingle()
             .Which.Should().BeOfType<YieldCurveRatesImportedEvent>()
             .Which.DuplicatePolicy.Should().Be(ImportDuplicatePolicy.Reject);
@@ -78,7 +78,7 @@ public class YieldCurveRateCommandStateTests
             valueDate.ToDateTime(TimeOnly.MinValue),
             ImportDuplicatePolicy.Overwrite));
 
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
 
         var imported = state.Events.Should().ContainSingle()
             .Which.Should().BeOfType<YieldCurveRatesImportedEvent>().Subject;

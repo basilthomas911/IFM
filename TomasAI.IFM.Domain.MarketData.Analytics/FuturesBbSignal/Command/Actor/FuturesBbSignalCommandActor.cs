@@ -32,18 +32,38 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesBbSignalCommandActor> context) =>
         await typedContext.EventProjector.StopAsync();
     /// <inheritdoc />
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesBbSignalCommandActor> context, IActorMessage message) =>
-        message.Subject is { ActorType: ActorType.Command, Name: ActorName, Verb: GenerateFuturesBbSignalCommand.Verb }
-            ? message.AsCommand<GenerateFuturesBbSignalCommand>()
-            : throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
+    protected override ICommand ParseMessage(ICommandActorContext<FuturesBbSignalCommandActor> context, IActorMessage message)
+    {
+        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
+            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
+        return parseCommand.Invoke(message);
+    }
+
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [GenerateFuturesBbSignalCommand.Verb] = message =>
+            message.AsCommand<GenerateFuturesBbSignalCommand>()
+    };
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<FuturesBbSignalCommandActor> context, IActorState state, ICommand command)
     {
-        if (command is not GenerateFuturesBbSignalCommand generate)
+        var commandName = command.GetType().Name;
+        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
             throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(generate.Execute((FuturesBbSignalCommandState)state));
+        return ValueTask.FromResult(receiveCommand.Invoke(
+            command,
+            context,
+            (FuturesBbSignalCommandState)state));
     }
+
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesBbSignalCommandActor>,
+        FuturesBbSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(GenerateFuturesBbSignalCommand).Name] = static (command, _, state) =>
+            ((GenerateFuturesBbSignalCommand)command).Execute(state)
+    };
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesBbSignalCommandActor> context,
         ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
@@ -53,10 +73,20 @@ public sealed class FuturesBbSignalCommandActor(ICommandActorContext<FuturesBbSi
     {
         await typedContext.DbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow,
             JsonConvert.SerializeObject(command), cancellationToken);
-        if (command.CommandId == Guid.Empty)
-            new List<ValidationError> { new(nameof(command.CommandId), "CommandId is required") }
-                .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
+        var commandName = command.GetType().Name;
+        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
+            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
+        validateCommand.Invoke(command)
+            .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
     }
+
+    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    {
+        [typeof(GenerateFuturesBbSignalCommand).Name] = static command =>
+            command.CommandId == Guid.Empty
+                ? [new ValidationError(nameof(command.CommandId), "CommandId is required")]
+                : []
+    };
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(
         ICommandActorContext<FuturesBbSignalCommandActor> context, ActorThreadId threadId, ICommand command) =>

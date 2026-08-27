@@ -18,45 +18,54 @@ public sealed class DatabentoCurrentFuturesContractResolver(
         if (valueDate == default)
             throw new ArgumentOutOfRangeException(nameof(valueDate));
 
+        var contracts = await ResolveEligibleAsync(symbol, valueDate, 1, cancellationToken)
+            .ConfigureAwait(false);
+        var contract = contracts[0];
+        return new ResolvedCurrentFuturesContract(contract, contract.LastTradeDate);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FuturesContractV2ReadModel>> ResolveEligibleAsync(
+        string symbol,
+        DateOnly valueDate,
+        int count,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        if (valueDate == default) throw new ArgumentOutOfRangeException(nameof(valueDate));
+        if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count));
         var normalizedSymbol = symbol.Trim().ToUpperInvariant();
-        var dataset = ResolveDataset(normalizedSymbol);
-        var queryOptions = options.FeedOptions with { Dataset = dataset };
+        var queryOptions = options.FeedOptions with { Dataset = ResolveDataset(normalizedSymbol) };
         var eligibleFrom = valueDate.AddDays(1);
         var details = await Task.Run(
             () => feeds.CreateMarketDataQueries(queryOptions)
                 .GetContractDetails($"{normalizedSymbol}.FUT", options.ProviderQueryTimeout),
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-
         var selected = details
             .Where(static detail => detail.ContractKind == ContractKind.Future)
             .Select(detail => new { Detail = detail, Maturity = GetMaturity(detail) })
-            .Where(candidate => candidate.Maturity is not null
-                && candidate.Maturity.Value >= eligibleFrom)
+            .Where(candidate => candidate.Maturity is not null && candidate.Maturity.Value >= eligibleFrom)
             .OrderBy(candidate => candidate.Maturity)
             .ThenBy(candidate => candidate.Detail.RawSymbol, StringComparer.Ordinal)
-            .FirstOrDefault()
-            ?? throw new CurrentlyTradedFuturesContractNotFoundException(
-                normalizedSymbol, valueDate);
-
-        var maturity = selected.Maturity!.Value;
-        var detail = selected.Detail;
-        var contractId = $"{normalizedSymbol}{maturity:yyyyMMdd}";
-        var contract = new FuturesContractV2ReadModel(
-            contractId,
-            detail.RawSymbol,
-            normalizedSymbol,
-            detail.RawSymbol,
-            "FUT",
-            DatabentoContractMetadata.ResolveCurrency(
-                detail,
-                contractId,
-                DatabentoContractMetadata.FindCurrencyFallback(options, normalizedSymbol)),
-            detail.Exchange,
-            (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
-            maturity,
-            true);
-        return new ResolvedCurrentFuturesContract(contract, maturity);
+            .Take(count)
+            .ToArray();
+        if (selected.Length < count)
+            throw new CurrentlyTradedFuturesContractNotFoundException(normalizedSymbol, valueDate);
+        return selected.Select(candidate =>
+        {
+            var maturity = candidate.Maturity!.Value;
+            var detail = candidate.Detail;
+            var contractId = $"{normalizedSymbol}{maturity:yyyyMMdd}";
+            return new FuturesContractV2ReadModel(
+                contractId, detail.RawSymbol, normalizedSymbol, detail.RawSymbol, "FUT",
+                DatabentoContractMetadata.ResolveCurrency(detail, contractId,
+                    DatabentoContractMetadata.FindCurrencyFallback(options, normalizedSymbol)),
+                detail.Exchange,
+                (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
+                maturity,
+                true);
+        }).ToArray();
     }
 
     private string ResolveDataset(string symbol)

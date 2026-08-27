@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class UpdateOptionTradeDailyProfitTarget
@@ -17,12 +19,12 @@ internal static class UpdateOptionTradeDailyProfitTarget
     /// <param name="state">The current state of the option trade command.</param>
     /// <returns>true if the update was successful; otherwise, false.</returns>
     /// <exception cref="UpdateOptionTradeDailyProfitTargetException">Thrown when the trade specified in the command does not exist.</exception>
-    public static bool Execute(this UpdateOptionTradeDailyProfitTargetCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this UpdateOptionTradeDailyProfitTargetCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeDoesNotExist(e.EntityId) => throw new UpdateOptionTradeDailyProfitTargetException(
                 $"{e.CommandName}: tradeId: {e.TradeId} orderId: {e.OrderId} does not exist"),
-            _ => state.Update(e.CreateOptionTradeDailyProfitTargetUpdatedEvent(state.TradeType, state.GetDailyProfitTarget(e.TradingDays, e.MaxTradingDays)), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeDailyProfitTargetUpdatedEvent(state.TradeType, state.GetDailyProfitTarget(e.TradingDays, e.MaxTradingDays)), e))
         };
 
     /// <summary>

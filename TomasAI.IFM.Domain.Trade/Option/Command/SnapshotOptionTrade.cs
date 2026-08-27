@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class SnapshotOptionTrade
@@ -16,12 +18,12 @@ internal static class SnapshotOptionTrade
     /// <param name="state"></param>
     /// <returns></returns>
     /// <exception cref="OptionTradeSnapshotException"></exception>
-    public static bool Execute(this SnapshotOptionTradeCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this SnapshotOptionTradeCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeDoesNotExist(e.EntityId) => throw new OptionTradeSnapshotException(
                 $"{e.CommandName}: trade: {e.OrderId}:{e.TradeId} does not exist"),
-            _ => state.Update(e.CreateOptionTradeSnapshotEvent(state.ToOptionTrade()), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeSnapshotEvent(state.ToOptionTrade()), e))
         };
 
     /// <summary>

@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 public static class CloseOptionTrade
@@ -15,12 +17,12 @@ public static class CloseOptionTrade
     /// <param name="state">The current option trade command state.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="CloseOptionTradeException">Thrown when a trade with the specified entity ID already exists.</exception>
-    public static bool Execute(this CloseOptionTradeCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this CloseOptionTradeCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeExists(e.EntityId) => throw new CloseOptionTradeException(
                 $"{e.CommandName}: trade: {e.TradeOrder.TradeId} exists already"),
-            _ => state.Update(e.CreateOptionTradeToCloseEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeToCloseEvent(), e))
         };
 
     /// <summary>

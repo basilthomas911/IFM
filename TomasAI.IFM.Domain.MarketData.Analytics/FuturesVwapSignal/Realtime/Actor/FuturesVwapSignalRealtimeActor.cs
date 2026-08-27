@@ -1,0 +1,83 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Extensions;
+
+namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
+
+/// <summary>Statelessly routes current-contract trades to durable VWAP processing.</summary>
+public sealed class FuturesVwapSignalRealtimeActor(
+    IRealtimeActorContext<FuturesVwapSignalRealtimeActor> actorContext)
+    : BaseEventActor<FuturesVwapSignalRealtimeActor>(actorContext,
+        ((IFuturesVwapSignalRealtimeContext)actorContext).Logger)
+{
+    /// <summary>Identifies the VWAP Realtime mailbox.</summary>
+    public const string ActorName = "FuturesVwapSignal";
+    static readonly ActorTypeId Route = new(ActorType.Realtime,
+        FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+    IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
+        actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
+    readonly FuturesVwapStreamOwnership streamOwnership = new();
+    readonly Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
+        FuturesContractV2ReadModel, ILogger, ValueTask<bool>>> receiveMap = new()
+    {
+        [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
+            await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
+                .ExecuteAsync(context, contract, eventLogger).ConfigureAwait(false)
+    };
+
+    /// <inheritdoc />
+    protected override async ValueTask OnStartup(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
+    {
+        context.AddRealtimeRouter(Route, Id);
+        var configuration = FuturesVwapConfiguration.Standard;
+        if (TypedContext.MarketDataApi.TryGetCurrentlyTradedFuturesContract(
+            configuration.RootSymbol, out _))
+            _ = await streamOwnership.EnsureAsync(
+                TypedContext.MarketDataApi, configuration.RootSymbol).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask OnShutdown(IEventActorContext<FuturesVwapSignalRealtimeActor> context)
+    {
+        context.RemoveRealtimeRouter(Route, Id);
+        await streamOwnership.ReleaseAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    protected override IEvent ParseMessage(IEventActorContext<FuturesVwapSignalRealtimeActor> context,
+        IActorMessage message) =>
+        message.Subject.Is(ActorType.Realtime, ActorName, FuturesMarketPriceUpdatedRealtimeEvent.Verb)
+            ? message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()! : default!;
+
+    /// <inheritdoc />
+    protected override async ValueTask ReceiveAsync(
+        IEventActorContext<FuturesVwapSignalRealtimeActor> context, IEvent @event)
+    {
+        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
+            throw new InvalidOperationException($"Unsupported VWAP Realtime event {@event.EventName}.");
+        FuturesContractV2ReadModel contract;
+        try
+        {
+            contract = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi,
+                FuturesVwapConfiguration.Standard.RootSymbol).ConfigureAwait(false);
+        }
+        catch (MarketDataApiNotRunningException) { return; }
+        _ = await handler(@event, TypedContext, contract, TypedContext.Logger).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    protected override async ValueTask OnExceptionAsync(
+        IEventActorContext<FuturesVwapSignalRealtimeActor> context,
+        ActorThreadId threadId, IEvent @event, Exception exception) =>
+        await exception.SendErrorEventAsync<
+            TomasAI.IFM.Shared.EventModelActor.Events.EventExceptionEvent,
+            ActorEntityId>(ErrorType.EventService, context);
+}

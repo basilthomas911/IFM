@@ -47,6 +47,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
@@ -517,6 +518,7 @@ public static class Startup
                 UseSyntheticProvider = feedOptions.DataSource == FeedDataSourceMode.Synthetic
             });
             services.AddApplicationMarketDataHistoricalApi(historicalOptions);
+            services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
             services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
                 new PrefixFuturesTradeSessionBarSeriesResolver(
                     new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)

@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command;
 
@@ -16,8 +17,8 @@ public static class StopFuturesRsiSignal
     /// <param name="e">The command to execute.</param>
     /// <param name="state">The state to update.</param>
     /// <returns><see langword="true"/> if the command was executed successfully; otherwise, <see langword="false"/>.</returns>
-    public static bool Execute(this StopFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
-        => state.Update(e.CreateFuturesRsiSignalStoppedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this StopFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateFuturesRsiSignalStoppedEvent(), e));
 
     /// <summary>
     /// Creates a new FuturesRsiSignalStoppedEvent from the StopFuturesRsiSignalCommand.

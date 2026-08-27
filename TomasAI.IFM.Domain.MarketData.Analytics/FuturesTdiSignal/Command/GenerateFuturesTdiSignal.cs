@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -16,11 +17,11 @@ public static class GenerateFuturesTdiSignal
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    public static bool Execute(this GenerateFuturesTdiSignalCommand e, FuturesTdiSignalCommandState state)
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesTdiSignalCommand e, FuturesTdiSignalCommandState state)
     {
         if (!e.Compute(state.TdiSignal, out var model))
-            return false;
-        return state.Update(e.CreateFuturesTdiSignalGeneratedEvent(model!), e);
+            return e.UpdateFailed($"{e.CommandName}: unable to compute TDI signal");
+        return e.UpdateResult(() => state.Update(e.CreateFuturesTdiSignalGeneratedEvent(model!), e));
     }
 
     /// <summary>

@@ -62,7 +62,7 @@ public class FuturesRsiSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Updated.Should().BeTrue();
         var generated = state.Events.Should().ContainSingle().Subject as FuturesRsiSignalGeneratedEvent;
         generated.Should().NotBeNull();
@@ -83,7 +83,7 @@ public class FuturesRsiSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var generated = state.Events.OfType<FuturesRsiSignalGeneratedEvent>().Should().ContainSingle().Subject;
         generated.FuturesRsiSignal.RSI.Should().Be(-1);
         generated.FuturesRsiSignal.Price.Should().Be(command.FuturesPrice);
@@ -104,7 +104,7 @@ public class FuturesRsiSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().HaveCount(2);
         var generated = state.Events.OfType<FuturesRsiSignalGeneratedEvent>().Should().ContainSingle().Subject;
         generated.FuturesRsiSignal.RSI.Should().BeGreaterThan(50);
@@ -127,7 +127,7 @@ public class FuturesRsiSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Events.Should().HaveCount(2);
         var generated = state.Events.OfType<FuturesRsiSignalGeneratedEvent>().Should().ContainSingle().Subject;
         generated.FuturesRsiSignal.RSI.Should().BeLessThan(50);
@@ -146,7 +146,7 @@ public class FuturesRsiSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         var generated = state.Events.OfType<FuturesRsiSignalGeneratedEvent>().Should().ContainSingle().Subject;
         generated.FuturesRsiSignal.RSI.Should().Be(0);
     }
@@ -234,7 +234,7 @@ public class FuturesRsiSignalCommandTests
             var result = command.Execute(state);
 
             // Assert
-            result.Should().BeTrue();
+            result.Success.Should().BeTrue();
             var domainEvent = state.Events.Should().ContainSingle().Subject as FuturesRsiSignalGeneratedEvent;
             domainEvent.Should().NotBeNull();
             domainEvent!.FuturesRsiSignal.RSI.Should().Be(-1);

@@ -8,7 +8,7 @@ Design Specification v1.0
 
 | Status \| Revised deterministic V1 design specification \|
 
-| Date \| 2026-08-25 \|
+| Date \| 2026-08-26 \|
 
 | Purpose \| Authoritative business/architectural contract for Regime
   Discovery \|
@@ -45,21 +45,26 @@ deferred to V2 or later.
 FuturesItiSignalGeneratedEvent
  -> Strategy Workflow
  -> StartRegimeDiscoveryPipelineCommand
- -> Trend + Volatility + Market Structure -> Fusion
- -> Completed OR Failed
+ -> Regime Discovery Command actor
+ -> Trend + Volatility + Market Structure calculation models
+ -> Fusion calculation model
+ -> durable private Completed OR Failed event
+ -> EventProjector -> ScyllaDB projection
+ -> public Completed OR Failed event
  -> Strategy Workflow
 ```
 
 The Strategy Workflow owns ordering, dispatch, authoritative workflow
-state, and continuation. Regime Discovery owns its private calculation
-state and final result. Internal Regime Discovery actors never address
-another strategy pipeline.
+state, and continuation. One Regime Discovery Command actor owns its private,
+event-sourced calculation state and final result. Trend, Volatility, Market
+Structure, and Fusion are actor-owned deterministic calculation models, not
+actors. Regime Discovery has no pipeline Realtime actor in V1.
 
 # 3. Fixed V1 Decisions
 
 1.  Realtime, single-attempt processing; no automatic business retries.
 
-2.  After Processing begins, one logical terminal outcome is required:
+2.  Each accepted start produces one logical durable terminal outcome:
     Completed or Failed.
 
 3.  The Strategy Workflow is the authority for effective
@@ -83,8 +88,10 @@ another strategy pipeline.
 
 10. Fusion must succeed before Regime Discovery may complete.
 
-11. Only the pipeline boundary publishes
-    RegimeDiscoveryPipelineCompletedEvent or FailedEvent.
+11. Only the Regime Discovery EventProjector publishes
+    RegimeDiscoveryPipelineCompletedEvent or FailedEvent, and only after the
+    corresponding private terminal event has been committed and its ScyllaDB
+    projection succeeds.
 
 12. Private pipeline/specialist state never becomes Strategy Workflow
     state.
@@ -103,9 +110,19 @@ another strategy pipeline.
     strategy and pipeline parameter sets. ScyllaDB may contain rebuildable
     configuration query projections but is not configuration authority.
 
-17. Trend, Volatility, Market Structure, and Fusion are private Regime
-    Discovery command/realtime actors. Their contracts are not public
-    Strategy Workflow contracts.
+17. Trend, Volatility, Market Structure, and Fusion are sealed, actor-owned
+    calculation models under the Regime Discovery `Model` folder. They have no
+    actor identities, mailboxes, command contracts, Realtime events, or
+    independently persisted state.
+
+18. `StartRegimeDiscoveryPipelineCommand` is dispatched by the Command
+    actor's explicit `_receiveMap` to an asynchronous command extension. The
+    extension returns `Task<ServiceResult<GuidResult>>`, creates the private
+    durable terminal event, and updates Command-actor state.
+
+19. The three independent component calculations may use ordinary .NET thread
+    pool work and be awaited together only if an approved benchmark shows a
+    material advantage over sequential execution with identical results.
 
 # 4. Scope
 
@@ -121,8 +138,8 @@ another strategy pipeline.
 
 -   Observation-timeframe to strategy-horizon bucketing.
 
--   TrendRegimeActor, VolatilityRegimeActor, MarketStructureRegimeActor,
-    and MarketRegimeFusionActor.
+-   Trend, Volatility, and Market Structure calculation models, the Fusion
+    model, and their actor-owned calculation coordinator.
 
 -   Typed RegimeDiscoveryResult and deterministic summary/reason codes.
 
@@ -153,13 +170,19 @@ another strategy pipeline.
 ``` text
 
 StartRegimeDiscoveryPipelineCommand
- -> RegimeDiscoveryPipelineProcessingEvent
- -> successful Fusion -> RegimeDiscoveryPipelineCompletedEvent
- OR required failure -> RegimeDiscoveryPipelineFailedEvent
+ -> asynchronous command extension
+ -> successful Fusion -> private RegimeDiscoveryCalculationCompletedEvent
+ OR required failure -> private RegimeDiscoveryCalculationFailedEvent
+ -> PostgreSQL event log
+ -> EventProjector -> ScyllaDB
+ -> public RegimeDiscoveryPipelineCompletedEvent OR FailedEvent
 ```
 
-Once Processing begins, exactly one logical terminal outcome is
-required. Duplicate transport delivery is idempotent. No failed
+Once a start is accepted, exactly one logical durable terminal outcome is
+required. V1 does not publish an independently durable Processing milestone:
+the calculation occurs inside the asynchronous command transaction and the
+terminal domain event is the durable outcome. Duplicate transport delivery is
+idempotent. No failed
 calculation is automatically retried; a later eligible ITI event may
 create a new workflow.
 
@@ -363,7 +386,7 @@ from 0.60 to below 0.80, and VeryHigh at or above 0.80. Low confidence may
 still produce Completed when all required evidence is valid, but Fusion adds
 an explicit low-confidence restriction.
 
-# 9. TrendRegimeActor
+# 9. Trend Regime Calculation Model
 
 Determines directional trend, strength, phase, normalized score,
 confidence, and cross-timeframe agreement for the workflow's target horizon.
@@ -408,7 +431,7 @@ directional score; Emerging when directional but ITI BandLevel is below 1.0
 or ADX is below 20; Established for any remaining directional result; and
 RangeBound for Neutral.
 
-# 10. VolatilityRegimeActor
+# 10. Volatility Regime Calculation Model
 
 Classifies volatility level, expansion/contraction, VIX term structure,
 score, confidence, and risk/trade-restriction evidence.
@@ -450,7 +473,7 @@ it is stable. NoNewTrade evidence is set when VIX is at or above its Extreme
 boundary, the composite score is at least 0.75, or the configured severe
 backwardation ratio is met (default 1.05).
 
-# 11. MarketStructureRegimeActor
+# 11. Market Structure Regime Calculation Model
 
 Classifies how price is behaving independent of directional bias:
 trending, ranging, compressing, expanding, breaking out, transitioning,
@@ -493,7 +516,7 @@ organization direction for directional Expanding, and zero for Compressing,
 Ranging, or non-directional Transitioning. Unknown is reserved for an
 incomplete diagnostic result and cannot produce pipeline Completed.
 
-# 12. MarketRegimeFusionActor
+# 12. Market Regime Fusion Model
 
 Combines complete Trend, Volatility, and Market Structure results into
 the canonical market regime for the workflow's target strategy horizon.
@@ -603,14 +626,14 @@ the only record of why a regime was produced.
 
 # 14. Failure and Public Pipeline Events
 
-Any required internal component may fail its calculation, but only the
-Regime Discovery pipeline boundary communicates terminal lifecycle
-events to the Strategy Workflow.
+Any required internal model may fail its calculation, but only the Regime
+Discovery EventProjector communicates terminal lifecycle events to the
+Strategy Workflow.
 
 ``` text
 
-Internal failure -> Regime Discovery pipeline owner -> persist terminal state -> RegimeDiscoveryPipelineFailedEvent
-Final Fusion success -> pipeline owner -> persist completion -> envelope result -> RegimeDiscoveryPipelineCompletedEvent
+Internal failure -> Command extension -> private failed event -> persist state -> project failure -> RegimeDiscoveryPipelineFailedEvent
+Final Fusion success -> Command extension -> private completed event -> persist state -> project result -> RegimeDiscoveryPipelineCompletedEvent
 ```
 
 -   Failure examples: invalid parameter set; required signal
@@ -624,13 +647,19 @@ Final Fusion success -> pipeline owner -> persist completion -> envelope result 
 
 # 15. State Ownership and Persistence
 
--   Pipeline boundary and stateful specialist actors own private
-    calculation state only.
+-   The Regime Discovery Command actor is the only Regime Discovery actor that
+    owns private calculation state.
+
+-   Component and Fusion models are stateless with respect to actor
+    persistence. They receive immutable input and return immutable results.
 
 -   Authoritative Command-actor state is event-sourced in PostgreSQL
     following existing application conventions.
 
 -   ScyllaDB contains rebuildable operational/query projections.
+
+-   The EventProjector writes the terminal read model before publishing the
+    public workflow-facing terminal event.
 
 -   Historical reconstruction supports durability, audit, testing, and
     diagnosis; it does not imply automatic business retry.
@@ -641,7 +670,8 @@ Final Fusion success -> pipeline owner -> persist completion -> envelope result 
 
 -   Current Regime Discovery pipeline state by workflow/execution.
 
--   Current/last Trend, Volatility, Market Structure, and Fusion result.
+-   Current/last Trend, Volatility, Market Structure, and Fusion result from
+    the final Regime Discovery projection.
 
 -   RegimeDiscoveryResult by workflow/result identity.
 
@@ -655,8 +685,9 @@ Final Fusion success -> pipeline owner -> persist completion -> envelope result 
 
 -   Operational health/current processing status.
 
-Queries are read-only and diagnostic. The Strategy Workflow does not
-query specialist actors to reconstruct a continuation result.
+Queries are read-only and diagnostic. The Strategy Workflow does not query
+component models or Regime Discovery to reconstruct a continuation result;
+the public completed event carries the full opaque result envelope.
 
 # 17. Optional Timeout - Deferred Implementation Detail
 
@@ -707,9 +738,10 @@ market data.
     horizon, parameter-set IDs/versions, signal snapshot ID, result ID,
     correlation/causation IDs, outcome, reason codes.
 
--   Metrics: processing/completed/failed counts, duration, signal-cache
-    acquisition latency, stale/missing signal counts, specialist/fusion
-    duration, and low-cardinality result quality/confidence metrics.
+-   Metrics: accepted/completed/failed counts, duration, signal-cache
+    acquisition latency, stale/missing signal counts, component/fusion
+    duration, selected sequential/parallel execution mode, and
+    low-cardinality result quality/confidence metrics.
 
 -   Tracing may use the system-wide tracing architecture when finalized;
     no pipeline-specific TraceId architecture is invented here.
@@ -717,10 +749,10 @@ market data.
 -   Do not log full opaque payload bytes or excessive raw signal
     payloads.
 
-A future operational-design update should refine warning/diagnostic
-behavior for a pipeline that enters Processing but does not produce a
-terminal event. This is deliberately parked until the complete Strategy
-Workflow can be observed end to end.
+A future operational-design update should refine warning/diagnostic behavior
+for an accepted command that does not produce a terminal event. This is
+deliberately parked until the complete Strategy Workflow can be observed end
+to end.
 
 # 20. Validation and Idempotency
 
@@ -759,7 +791,19 @@ Workflow can be observed end to end.
 -   Fusion completeness, conflict, confidence, restrictions, and
     deterministic summary generation.
 
--   Processing -\> Completed and Processing -\> Failed terminal paths.
+-   Accepted Start -\> private Completed and Accepted Start -\> private
+    Failed durable terminal paths.
+
+-   `_receiveMap` dispatch to the asynchronous Start command extension and
+    propagation of its `ServiceResult<GuidResult>`.
+
+-   Sequential and thread-pool-parallel component execution produce
+    byte-for-byte equivalent normalized results. Benchmark tests cover typical
+    and maximum snapshots across Daily, Weekly, and Monthly workflows and
+    justify the selected execution mode.
+
+-   EventProjector ordering: PostgreSQL terminal event committed, ScyllaDB
+    terminal projection written, then public Completed/Failed event published.
 
 -   Duplicate/idempotent start and terminal event behavior.
 
@@ -797,8 +841,12 @@ Codex must treat this document as the authoritative domain/design
 contract and inspect the current repository before proposing
 implementation details.
 
--   Reuse existing actor, event-sourcing, realtime routing, projection,
-    storage, validation, MessagePack, logging, and testing conventions.
+-   Reuse existing CommandActor `_parseMap`, `_validationMap`, `_receiveMap`,
+    asynchronous command-extension, event-sourcing, projection, storage,
+    validation, MessagePack, logging, and testing conventions.
+
+-   Do not create a Regime Discovery Realtime actor or private component
+    actors. Put actor-centric computation in sealed types under `Model`.
 
 -   Do not redesign the Intrinsic Time Strategy Workflow architecture.
 
@@ -815,8 +863,9 @@ implementation details.
 -   Mark timeout and manual cancellation as optional implementation
     gates, not mandatory blockers.
 
--   Preserve the rule that only the Regime Discovery pipeline boundary
-    publishes public Processing/Completed/Failed lifecycle events.
+-   Preserve the rule that only the Regime Discovery EventProjector publishes
+    the public Completed/Failed lifecycle event after successful projection.
+    V1 has no public Regime Discovery Processing event.
 
 # 24. Definition of Done for this Design
 
@@ -882,10 +931,11 @@ implementation details.
 
 # Appendix B - Source Alignment Note
 
-This design is intentionally aligned with the supplied Intrinsic Time
-Strategy Workflow Implementation Specification v1.0: pipeline workers
-receive immutable workflow context and the original ITI trigger, own
-private durable state, publish Processing/Completed/Failed lifecycle
-events, never decide workflow continuation, and return complete opaque
-results to the workflow. The implementation specification generated from
-this document must preserve those established boundaries.
+This design is intentionally aligned with the supplied Intrinsic Time Strategy
+Workflow Implementation Specification v1.0: the Regime Discovery Command
+actor receives immutable workflow context and the original ITI trigger, owns
+private durable state, never decides workflow continuation, and returns one
+complete opaque result through a projected public terminal event. Its internal
+component models are implementation details and own no actor state or message
+contracts. The implementation specification generated from this document must
+preserve those established boundaries.

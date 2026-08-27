@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`TomasAI.IFM.Domain.MarketData.Analytics` implements the durable control plane and realtime data plane for futures ADX, ATR, intrinsic-time (ITI), MACD, RSI, TDI, and composite trade signals. It also exposes actor-facing analytics command and query APIs.
+`TomasAI.IFM.Domain.MarketData.Analytics` implements the durable control plane and realtime data plane for futures ADX, ATR, intrinsic-time (ITI), MACD, RSI, TDI, VX term structure, VWAP, and composite trade signals. It also exposes actor-facing analytics command and query APIs.
 
 ## Root-to-leaf directory inventory
 
@@ -68,9 +68,30 @@ FuturesTradeSignal/Event/Actor/
 FuturesTradeSignal/Query/Actor/
 MarketOutlookSnapshot/
 Query/Api/
-VixVolatility/Command/
-VixVolatility/Event/
-VixVolatility/Query/
+FuturesVxTermStructureSignal/Command/Actor/
+FuturesVxTermStructureSignal/Command/EventProjector/
+FuturesVxTermStructureSignal/Command/Model/
+FuturesVxTermStructureSignal/Command/State/
+FuturesVxTermStructureSignal/Event/Actor/
+FuturesVxTermStructureSignal/Event/Extensions/
+FuturesVxTermStructureSignal/Query/Actor/
+FuturesVxTermStructureSignal/Query/Extensions/
+FuturesVxTermStructureSignal/Realtime/Actor/
+FuturesVxTermStructureSignal/Realtime/Extensions/
+FuturesVxTermStructureSignal/Realtime/Model/
+FuturesVwapSignal/Command/Actor/
+FuturesVwapSignal/Command/EventProjector/
+FuturesVwapSignal/Command/Model/
+FuturesVwapSignal/Command/State/
+FuturesVwapSignal/Event/Actor/
+FuturesVwapSignal/Event/Extensions/
+FuturesVwapSignal/Query/Actor/
+FuturesVwapSignal/Query/Extensions/
+FuturesVwapSignal/Realtime/Actor/
+FuturesVwapSignal/Realtime/Extensions/
+FuturesVwapSignal/Realtime/Model/
+FuturesVwapSignal/Recovery/
+SignalSampling/Model/
 bin/Debug/net10.0/runtimes/win-x64/native/
 bin/Release/net10.0/runtimes/win-x64/native/
 obj/Debug/net10.0/ref/
@@ -79,7 +100,7 @@ obj/Release/net10.0/ref/
 obj/Release/net10.0/refint/
 ```
 
-`bin/` and `obj/` are generated. `MarketOutlookSnapshot/` and the three `VixVolatility/` leaves are current scaffolds retained by the project definition. Both intraday and day-based Futures ATR command handlers are compiled business logic.
+`bin/` and `obj/` are generated. The former `VixVolatility/` scaffold has been replaced by the concrete `FuturesVxTermStructureSignal/` capability. Both intraday and day-based Futures ATR command handlers are compiled business logic.
 
 ## Folder responsibilities
 
@@ -88,18 +109,18 @@ obj/Release/net10.0/refint/
 - Each `Futures*Signal/Command/Actor/` owns the signal's command mailbox.
 - Each `Command/State/` contains event-sourced state and repository behavior; `Command/Model/` and `Command/Validation/` hold write-side structures and rules when the feature needs them.
 - Each `Event/Actor/` consumes that signal's events. `Event/Extensions/` holds actor-context helpers and `Event/Model/` holds event-processing data where present.
-- Each `Realtime/Actor/` owns best-effort live calculation state and Core NATS routing. Its `Realtime/Projector/` applies the calculated record once to ScyllaDB and publishes source plus complete/fail events without durable projection replay.
+- Each `Realtime/Actor/` owns Core NATS routing and, where necessary, transient external-resource leases. It retains no calculation/domain state and performs no projection. Dedicated extension handlers translate accepted observations into commands.
 - Each `Query/Actor/` exposes the signal's read side.
-- `MarketOutlookSnapshot/` and `VixVolatility/` reserve future feature structure.
+- `SignalSampling/Model/` contains the shared period-timer sampling model used by concrete signals; it is not a broad signal business capability.
 - `Docs/` contains this document; the root assembly marker supports scanning and registration.
 
 ## Implemented actor groups
 
-ADX, ATR, ITI, MACD, RSI, TDI, and Trade Signal each retain command, event, and query actors. Command actors inherit the shared event-source command base, event actors inherit the supervised event base, and query actors inherit the query base. ITI, ADX, ATR, MACD, RSI, and TDI additionally have realtime actors for their live data planes. `ActorMarketDataAnalyticsCommandApi` and `ActorMarketDataAnalyticsQueryApi` remain the public durable control/query adapters.
+ADX, ATR, ITI, MACD, RSI, TDI, VX Term Structure, VWAP, and Trade Signal each retain command, event, and query actors. Command actors inherit the shared event-source command base, event actors inherit the supervised event base, and query actors inherit the query base. The live signal families additionally have stateless realtime actors for their data planes. `ActorMarketDataAnalyticsCommandApi` and `ActorMarketDataAnalyticsQueryApi` remain the public durable control/query adapters.
 
 ## Processing model
 
-Incoming NATS subjects select an actor mailbox and verb. Durable command actors deserialize and validate their contracts, load state from snapshot/event storage, persist emitted events, and publish them for control-plane processing. Realtime actors receive transient live observations, calculate against actor-owned bounded state, project accepted outputs once, and never create replay work. Event actors dispatch durable lifecycle events and may invoke other actor APIs through context extensions. Query actors retrieve the persisted analytics read models.
+Incoming NATS subjects select an actor mailbox and verb. Durable command actors deserialize and validate their contracts, reconstruct state from snapshot/event storage, calculate transitions, persist emitted events, and publish them for projection. Command-folder event projectors update ScyllaDB read models and publish complete/fail events. Realtime actors receive transient live observations and forward immutable commands without owning calculation state. Event actors dispatch lifecycle events through typed extension handlers. Query actors retrieve persisted read models.
 
 ## Extension points
 

@@ -31,12 +31,18 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         IActorMessage message)
     {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName,
-                Verb: LoadFuturesAnalyticsHistoricalDataCommand.Verb })
+        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
+            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return message.AsCommand<LoadFuturesAnalyticsHistoricalDataCommand>()
-            ?? throw new InvalidOperationException("Unable to deserialize the data load command.");
+        return parseCommand.Invoke(message);
     }
+
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [LoadFuturesAnalyticsHistoricalDataCommand.Verb] = message =>
+            message.AsCommand<LoadFuturesAnalyticsHistoricalDataCommand>()
+            ?? throw new InvalidOperationException("Unable to deserialize the data load command.")
+    };
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(
@@ -44,8 +50,21 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        var value = command as LoadFuturesAnalyticsHistoricalDataCommand
-            ?? throw new InvalidOperationException("Unsupported data load command.");
+        var commandName = command.GetType().Name;
+        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
+            throw new InvalidOperationException("Unsupported data load command.");
+        validateCommand.Invoke(command);
+        return ValueTask.CompletedTask;
+    }
+
+    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    {
+        [typeof(LoadFuturesAnalyticsHistoricalDataCommand).Name] = static command =>
+            ValidateLoad((LoadFuturesAnalyticsHistoricalDataCommand)command)
+    };
+
+    static void ValidateLoad(LoadFuturesAnalyticsHistoricalDataCommand value)
+    {
         if (value.CommandId == Guid.Empty || value.EntityId.Value == Guid.Empty
             || value.CommandId != value.EntityId.Value)
             throw new ArgumentException("CommandId and DataLoadAttemptId must be the same non-empty identity.");
@@ -66,16 +85,30 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
             if (!Enum.IsDefined(series.Schema))
                 throw new ArgumentException("Every data load historical schema must be supported.");
         }
-        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         IActorState state,
-        ICommand command) => ValueTask.FromResult(
-            ((LoadFuturesAnalyticsHistoricalDataCommand)command)
-                .Execute((FuturesAnalyticsHistoricalDataLoaderCommandState)state));
+        ICommand command)
+    {
+        var commandName = command.GetType().Name;
+        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
+            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
+        return ValueTask.FromResult(receiveCommand.Invoke(
+            command,
+            context,
+            (FuturesAnalyticsHistoricalDataLoaderCommandState)state));
+    }
+
+    static readonly Dictionary<string, Func<ICommand,
+        ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor>,
+        FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(LoadFuturesAnalyticsHistoricalDataCommand).Name] = static (command, _, state) =>
+            ((LoadFuturesAnalyticsHistoricalDataCommand)command).Execute(state)
+    };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

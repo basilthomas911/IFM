@@ -5,7 +5,7 @@ Implementation Specification v1.0
 | Item | Value |
 | --- | --- |
 | Status | Proposed repository-specific implementation plan; no production implementation started |
-| Date | 2026-08-25 |
+| Date | 2026-08-26 |
 | Design authority | `Regime-Discovery-Specification-v1.0.md` |
 | Workflow authority | `Intrinsic-Time-Strategy-Workflow-Implementation-v1.0.md` |
 | Target | Deterministic V1 / .NET 10 actor application |
@@ -26,13 +26,20 @@ Implementation Specification v1.0
 5. Regime Discovery captures one immutable latest-signal snapshot and never
    substitutes database reads or numeric defaults for unavailable required
    hot signals.
-6. Trend, Volatility, Market Structure, and Fusion are private Regime
-   Discovery command/realtime processing units. Only the Regime Discovery
-   boundary publishes the public Processing, Completed, or Failed events
-   consumed by Strategy Workflow.
-7. The fourth private actor is `MarketRegimeFusion`; the repeated
-   `MarketStructureRegime` name in the design discussion is treated as a
-   duplicate rather than a fifth actor.
+6. Regime Discovery has one event-sourced Command actor. Trend, Volatility,
+   Market Structure, and Fusion are sealed actor-owned calculation models,
+   not actors. There is no Regime Discovery Realtime actor in V1.
+7. The Command actor dispatches `StartRegimeDiscoveryPipelineCommand` through
+   `_receiveMap` to an asynchronous command extension returning
+   `Task<ServiceResult<GuidResult>>`. The extension owns calculation,
+   private terminal-event creation, and the state update.
+8. The EventProjector writes the final result or failure to ScyllaDB before it
+   publishes the public `RegimeDiscoveryPipelineCompletedEvent` or
+   `RegimeDiscoveryPipelineFailedEvent` to Strategy Workflow. V1 publishes no
+   separate Regime Discovery Processing event.
+9. Trend, Volatility, and Market Structure may run on ordinary .NET thread
+   pool work and be awaited together only if repeatable benchmarks show a
+   material benefit over deterministic sequential execution.
 
 ## 2. Project-dependency boundary
 
@@ -267,122 +274,150 @@ parameter payload hash, and target horizon. Existing keys are never reordered.
 `StrategyStageResultEnvelope`, whose payload is the MessagePack-serialized
 typed RegimeDiscoveryResult.
 
-## 6. Private actor topology
+## 6. Command actor and calculation topology
 
-The private actors live under
+The implementation lives under
 `TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RegimeDiscovery`.
-Their commands/events are `internal` and are not placed in Trade.Shared.
+Only the Regime Discovery Command actor owns durable private state.
 
 ```text
 Strategy Workflow Realtime actor
   -> StartRegimeDiscoveryPipelineCommand
-RegimeDiscoveryPipeline Command actor
-  -> commits RegimeDiscoveryPipelineProcessingEvent
-RegimeDiscoveryPipeline EventProjector
-  -> publishes public Processing
-  -> publishes private specialist-dispatch instruction
-RegimeDiscoveryPipeline Realtime actor
-  -> StartTrendRegimeCommand
-  -> StartVolatilityRegimeCommand
-  -> StartMarketStructureRegimeCommand
-
-Each specialist Command actor
-  -> commits private Processing event
-Specialist EventProjector
-  -> publishes Processing to that specialist Realtime actor
-Specialist Realtime actor
-  -> calculates from the frozen snapshot/configuration
-  -> sends private Complete/Fail command to its own Command actor
-Specialist Command actor
-  -> commits private Completed/Failed event
-Specialist EventProjector
-  -> publishes private terminal realtime event to pipeline Realtime actor
-Pipeline Realtime actor
-  -> sends RecordSpecialistResult/Failure command to pipeline Command actor
-
-When all three specialist results are durably recorded:
-Pipeline EventProjector -> private fusion-dispatch instruction
-Pipeline Realtime actor -> StartMarketRegimeFusionCommand
-Fusion Command/EventProjector/Realtime pair -> same private lifecycle
-Pipeline Command actor -> records fusion -> commits public terminal state
-Pipeline EventProjector -> public Completed or Failed to Strategy Workflow
+RegimeDiscovery Command actor
+  -> _receiveMap
+  -> StartRegimeDiscoveryPipeline.ExecuteAsync(...)
+Async command extension
+  -> capture immutable signal snapshot and configuration
+  -> run Trend, Volatility, and Market Structure calculation models
+  -> pass all three immutable results to Market Regime Fusion model
+  -> state.Update(private RegimeDiscoveryCalculationCompletedEvent, command)
+     OR state.Update(private RegimeDiscoveryCalculationFailedEvent, command)
+  -> Task<ServiceResult<GuidResult>>
+Command actor repository
+  -> commit pending event and state revision to PostgreSQL event log
+RegimeDiscovery EventProjector
+  -> write final result/failure projection to ScyllaDB
+  -> publish public RegimeDiscoveryPipelineCompletedEvent or FailedEvent
+Strategy Workflow Realtime actor
+  -> sends the appropriate continuation command to Strategy Workflow
 ```
 
-This arrangement guarantees that no calculation is dispatched from an
-uncommitted decision, every private actor retains its own event-sourced state,
-and only a committed pipeline-boundary terminal transition can reach Strategy
-Workflow.
+There is no Regime Discovery pipeline Realtime actor, Event actor, private
+component actor, or component mailbox. The EventProjector is part of the
+Command actor's persistence boundary; it is not an Event actor and does not
+create independently durable computation state.
 
-### 6.1 Private actor groups
+### 6.1 Command actor layout and dispatch
 
-Each group has `Command/Actor`, `Command/State`, `Command/EventProjector`,
-`Command/Validation`, `Realtime/Actor`, and `Extensions` folders:
+The Command actor follows the system convention documented in
+`Documents/system/Actor-Implementation-Conventions.md`:
 
-- `TrendRegime`
-- `VolatilityRegime`
-- `MarketStructureRegime`
-- `MarketRegimeFusion`
+```text
+RegimeDiscovery/
+  Command/
+    Actor/
+    State/
+    EventProjector/
+    Validation/
+    Extensions/
+  Model/
+  Query/
+```
 
-The boundary uses the same folders directly under `RegimeDiscovery`.
-Contexts follow the closed-generic `ICommandActorContext<TActor>` and
-`IRealtimeActorContext<TActor>` conventions already used by Strategy Workflow.
-No base actor class changes are required.
+Its derived actor remains mechanical and owns explicit `_parseMap`,
+`_validationMap`, and `_receiveMap` dictionaries. `ReceiveAsync` looks up the
+runtime command name in `_receiveMap`; it must not use a type switch. The Start
+entry delegates to an asynchronous extension:
 
-### 6.2 Private message rules
+```csharp
+static readonly Dictionary<string, Func<
+    ICommand,
+    ICommandActorContext<RegimeDiscoveryCommandActor>,
+    RegimeDiscoveryCommandState,
+    Task<ServiceResult<GuidResult>>>> _receiveMap;
+```
 
-The initial exact private contract names are:
+The framework-facing `ValueTask<ServiceResult<GuidResult>>` override adapts
+the mapped `Task`. The concrete Start extension is named for the business
+operation, for example `StartRegimeDiscoveryPipeline.ExecuteAsync`, without a
+redundant `Command` suffix.
 
-| Processing unit | Commands | Realtime events |
+The extension receives the typed command, typed context, and state. It
+validates state-dependent rules, obtains readonly
+dependencies through typed context properties/extensions, awaits the complete
+calculation, creates exactly one private durable terminal event, invokes
+`state.Update(event, command)`, and returns the command GUID in the service
+result. Returning a failed service result without updating state is reserved
+for a rejected command; a calculation failure that must be durable updates
+state with `RegimeDiscoveryCalculationFailedEvent`.
+
+### 6.2 Actor-owned calculation models
+
+The `Model` folder contains sealed, deterministic computation types:
+
+- `TrendRegimeCalculationModel`
+- `VolatilityRegimeCalculationModel`
+- `MarketStructureRegimeCalculationModel`
+- `MarketRegimeFusionModel`
+- `RegimeDiscoveryCalculationModel`, which coordinates the component models
+
+Each model receives immutable input and returns an immutable typed result. A
+model does not mutate actor state, send messages, resolve services, write
+storage, or publish events. Fusion receives the three completed component
+results directly from the coordinator.
+
+The coordinator initially supports both deterministic sequential execution
+and awaited `Task.Run`/`Task.WhenAll` execution on the normal .NET thread pool.
+It must not use dedicated threads, `TaskCreationOptions.LongRunning`, or
+fire-and-forget work. Production selects parallel execution only after the
+RD-13 benchmark demonstrates identical normalized output and a material
+end-to-end latency improvement without p95/p99, allocation, or thread-pool
+regression. Otherwise V1 remains sequential.
+
+### 6.3 Private and public event rules
+
+Internal durable domain events are not public workflow contracts:
+
+| Outcome | Private committed event | Projected public event |
 | --- | --- | --- |
-| Trend | `StartTrendRegimeCommand`, `CompleteTrendRegimeCommand`, `FailTrendRegimeCommand` | `TrendRegimeProcessingEvent`, `TrendRegimeCompletedEvent`, `TrendRegimeFailedEvent` |
-| Volatility | `StartVolatilityRegimeCommand`, `CompleteVolatilityRegimeCommand`, `FailVolatilityRegimeCommand` | `VolatilityRegimeProcessingEvent`, `VolatilityRegimeCompletedEvent`, `VolatilityRegimeFailedEvent` |
-| Market Structure | `StartMarketStructureRegimeCommand`, `CompleteMarketStructureRegimeCommand`, `FailMarketStructureRegimeCommand` | `MarketStructureRegimeProcessingEvent`, `MarketStructureRegimeCompletedEvent`, `MarketStructureRegimeFailedEvent` |
-| Fusion | `StartMarketRegimeFusionCommand`, `CompleteMarketRegimeFusionCommand`, `FailMarketRegimeFusionCommand` | `MarketRegimeFusionProcessingEvent`, `MarketRegimeFusionCompletedEvent`, `MarketRegimeFusionFailedEvent` |
+| Success | `RegimeDiscoveryCalculationCompletedEvent` | `RegimeDiscoveryPipelineCompletedEvent` |
+| Failure | `RegimeDiscoveryCalculationFailedEvent` | `RegimeDiscoveryPipelineFailedEvent` |
 
-The boundary adds private
-`RecordTrendRegimeResultCommand`, `RecordVolatilityRegimeResultCommand`,
-`RecordMarketStructureRegimeResultCommand`,
-`RecordMarketRegimeFusionResultCommand`, and
-`RecordRegimeDiscoveryInternalFailureCommand`. Its committed private dispatch
-instructions are `RegimeDiscoverySpecialistsDispatchReadyEvent` and
-`MarketRegimeFusionDispatchReadyEvent`. Those two instructions are projected
-to the boundary Realtime actor, which is the only component allowed to send
-the corresponding private Start commands.
-
-- Start commands contain workflow identity/revision, pipeline execution ID,
-  target horizon, immutable relevant configuration, frozen signal snapshot,
-  correlation/causation IDs, and expected input identities.
-- Complete commands contain the full typed specialist result and deterministic
-  result hash.
-- Failed commands contain `StrategyPipelineFailure` plus structured Regime
-  Discovery reason codes; no partial result is treated as complete.
-- Processing/Completed/Failed private realtime events are one-way and have no
-  reply contract.
-- Duplicate starts and duplicate matching terminal results are no-ops.
-- A conflicting result hash for the same execution/result identity is a
-  consistency failure reported to the boundary.
-- Specialists never address one another and never address Strategy Workflow.
-- Fusion receives all three complete typed specialist results from the
-  boundary, not by querying specialist actors.
+- The private completed event contains the full typed result, deterministic
+  result hash, snapshot/configuration identities, and evidence needed to
+  reconstruct Command state.
+- The private failed event contains `StrategyPipelineFailure`, structured
+  Regime Discovery reason codes, and input identities; no partial result is
+  treated as complete.
+- Duplicate starts and matching terminal outcomes are idempotent. A conflicting
+  result hash for the same execution/result identity is a consistency failure.
+- V1 removes the public `RegimeDiscoveryPipelineProcessingEvent` from the live
+  flow. If compatibility requires retaining its contract temporarily, no actor
+  routes or publishes it.
+- Only the EventProjector publishes the public terminal event, and only after
+  the terminal ScyllaDB projection succeeds.
 
 ## 7. Persistence and projections
 
-All five Regime Discovery Command actors use the existing PostgreSQL
-event-source repository for authoritative private state. The boundary and each
-private actor have conventional EventProjectors. There are no Event actors and
-no durable replay consumers.
+The single Regime Discovery Command actor uses the existing PostgreSQL
+event-source repository for authoritative private state and a conventional
+EventProjector. There are no Event actors, Realtime actors, private component
+actors, or durable message-replay consumers in Regime Discovery V1.
 
-TradeDb Scylla projections are rebuildable and should add query tables for:
+TradeDb ScyllaDB projections are rebuildable and add query tables for:
 
-- pipeline state/history;
-- specialist latest/history results;
-- fusion/result by workflow execution;
+- pipeline terminal state/history;
+- Trend, Volatility, and Market Structure component results;
+- Fusion/result by workflow execution;
 - evidence/reasons;
 - snapshot data-quality summary; and
-- processing/terminal operational status.
+- terminal operational status and failure details.
 
 Projection schemas must be query-shaped, versioned, and avoid
-`ALLOW FILTERING`. Projector replay rebuilds them from PostgreSQL event logs.
+`ALLOW FILTERING`. Projector replay rebuilds them deterministically from the
+PostgreSQL event log. Projection precedes public terminal publication so a
+Strategy Workflow continuation never observes a missing Regime Discovery read
+model.
 
 ## 8. Implementation gates
 
@@ -398,11 +433,11 @@ Projection schemas must be query-shaped, versioned, and avoid
 | RD-7 | Implement missing EMA and ATR-baseline upstream signals for all configured observation timeframes |
 | RD-8 | Implement missing Bollinger/range/high-low market-structure signals and caches |
 | RD-9 | Implement current VIX/term-structure inputs; keep realized volatility optional |
-| RD-10 | Implement Regime Discovery boundary Command/Realtime actors, state, projector, validation, and idempotency |
-| RD-11 | Implement private Trend actor pair and exact deterministic tests |
-| RD-12 | Implement private Volatility actor pair and exact deterministic tests |
-| RD-13 | Implement private Market Structure actor pair and exact deterministic tests |
-| RD-14 | Implement private Fusion actor pair, reason ordering, quality/restrictions, and envelope serialization |
+| RD-10 | Implement the single Regime Discovery Command actor, state, repository, EventProjector, validation, `_receiveMap`, asynchronous Start extension, private terminal events, and idempotency |
+| RD-11 | Implement sealed Trend, Volatility, and Market Structure calculation models with exact deterministic tests |
+| RD-12 | Implement the sealed Fusion model and coordinator, including reason ordering, quality/restrictions, and envelope serialization |
+| RD-13 | Benchmark sequential versus awaited thread-pool-parallel component calculation for Daily, Weekly, and Monthly workloads; verify identical output and select the production execution mode |
+| RD-14 | Integrate immutable snapshot acquisition, calculation coordinator, Command state update, PostgreSQL commit, ScyllaDB projection, then public Completed/Failed publication |
 | RD-15 | Add TradeDb projections, query actor/API contracts, replay/rebuild/storage tests |
 | RD-16 | Run boundary integration with real Strategy Workflow for Daily, Weekly, and Monthly executions, success/failure/idempotency/restart paths |
 | RD-17 | Run full Trade, Reference, MarketData Analytics, Application Storage, actor BDD/unit/integration suites and full solution build |
@@ -419,9 +454,16 @@ RD-18 unless separately approved.
 - Cache tests cover missing, stale, future, not-warm, invalid, incompatible,
   optional omission, concurrent mutation, bounded capture retry, and startup
   warming.
-- Actor BDD tests cover private Processing -> Completed/Failed lifecycles,
-  durable private replay, duplicate start, duplicate terminal, conflicting
-  terminal hash, and specialist isolation.
+- Command-actor BDD tests cover `_receiveMap` dispatch, async extension success
+  and failure, durable private terminal replay, duplicate start, duplicate
+  terminal, conflicting terminal hash, and rejected commands that do not
+  change state.
+- Model unit tests prove deterministic Trend, Volatility, Market Structure,
+  and Fusion output without actor infrastructure.
+- Benchmark/correctness tests compare sequential and thread-pool-parallel
+  component execution for typical and maximum Daily, Weekly, and Monthly
+  snapshots, including one and three concurrent workflows. Both modes must
+  produce byte-for-byte equivalent normalized output.
 - Configuration integration tests use real PostgreSQL and verify append-only
   versions, hash validation, deterministic effective selection, retirement,
   and all six table mappings.
@@ -430,9 +472,9 @@ RD-18 unless separately approved.
 - Workflow integration tests run one Daily, one Weekly, and one Monthly
   workflow. Each asserts that only its own target-horizon result is returned,
   while its supporting observation evidence is preserved.
-- A complete integration cycle verifies public Processing then exactly one
-  public Completed or Failed event, opaque envelope round-trip, workflow
-  continuation, and no private specialist contract leaking to Strategy
+- A complete integration cycle verifies exactly one public Completed or Failed
+  event after its ScyllaDB projection, opaque envelope round-trip, workflow
+  continuation, and no private calculation contract leaking to Strategy
   Workflow routes.
 
 ## 10. Initial implementation blockers
@@ -443,6 +485,7 @@ required signal. Tests may inject immutable snapshots; production code may not
 fabricate required EMA, Bollinger, term-structure, freshness, or provenance
 values.
 
-No automatic retry, Event actor, durable message replay consumer, raw
-tick/bar recalculation inside Regime Discovery, cross-pipeline addressing, or
-pipeline-specific TraceId field is introduced by this plan.
+No automatic retry, Regime Discovery Realtime actor, Event actor, private
+component actor, durable message replay consumer, raw tick/bar recalculation
+inside Regime Discovery, cross-pipeline addressing, or pipeline-specific
+TraceId field is introduced by this plan.

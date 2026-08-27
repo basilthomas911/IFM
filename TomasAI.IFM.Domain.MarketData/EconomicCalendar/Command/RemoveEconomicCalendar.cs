@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
 
@@ -16,12 +17,12 @@ public static class RemoveEconomicCalendar
     /// <param name="state">The economic calendar command state.</param>
     /// <returns>true if the economic calendar was successfully removed; otherwise, false.</returns>
     /// <exception cref="RemoveEconomicCalendarException">Thrown if the economic calendar does not exist in the state.</exception>
-    public static bool Execute(this RemoveEconomicCalendarCommand e, EconomicCalendarCommandState state)
+    public static ServiceResult<GuidResult> Execute(this RemoveEconomicCalendarCommand e, EconomicCalendarCommandState state)
     {
         return e switch
         {
             _ when !state.EconomicCalendarExists(e.EntityId) && !e.Overwrite => throw new RemoveEconomicCalendarException(EconomicCalendarDoesNotExist(e)),
-            _ => state.Update(e.CreateEconomicCalendarRemovedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateEconomicCalendarRemovedEvent(), e))
         };
         static string EconomicCalendarDoesNotExist(RemoveEconomicCalendarCommand e) => $"{e.CommandName}: economicCalendar {e.EntityId} does not exist";
     }

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesOptionTickData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -11,8 +12,8 @@ public static class InsertFuturesOptionTickData
     /// Handle an <see cref="InsertFuturesOptionTickDataCommand"/> by building the corresponding
     /// <see cref="FuturesOptionTickDataInsertedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this InsertFuturesOptionTickDataCommand e, FuturesOptionTickDataCommandState state)
-        => state.Update(e.CreateFuturesOptionTickDataInsertedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this InsertFuturesOptionTickDataCommand e, FuturesOptionTickDataCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateFuturesOptionTickDataInsertedEvent(), e));
 
     internal static FuturesOptionTickDataInsertedEvent CreateFuturesOptionTickDataInsertedEvent(this InsertFuturesOptionTickDataCommand e)
        => new()

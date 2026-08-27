@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -17,7 +18,7 @@ public static class GenerateFuturesRsiDailySignal
     /// <param name="e">The command containing the details required to generate the RSI signal.</param>
     /// <param name="state">The state to update with the generated RSI signal.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise, <see langword="false"/></returns>
-    public static bool Execute(this GenerateFuturesRsiDailySignalCommand e, FuturesRsiSignalCommandState state)
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesRsiDailySignalCommand e, FuturesRsiSignalCommandState state)
     {
         var futuresRsiSignal = state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice);
         var futuresRsiSignalGeneratedEvent = e.CreateFuturesRsiDailySignalGeneratedEvent(futuresRsiSignal);
@@ -28,9 +29,9 @@ public static class GenerateFuturesRsiDailySignal
                 var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(e.EntityId.PeriodLength);
                 state.Update(e.CreateFuturesRsiDailySignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e);
             }
-            return true;
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         }
-        return false;
+        return e.UpdateFailed($"{e.CommandName}: unable to apply generated daily RSI signal event");
     }
 
     internal static FuturesRsiDailySignalGeneratedEvent CreateFuturesRsiDailySignalGeneratedEvent(this GenerateFuturesRsiDailySignalCommand e, FuturesRsiSignalReadModel futuresRsiSignal)

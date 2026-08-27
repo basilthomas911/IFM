@@ -86,6 +86,7 @@ public static class SampleData
             ActionType = ActionType.HoldTradePosition,
             ActionSubType = ActionSubType.None,
             ActionState = ActionState.Normal,
+            ActionDate = date.ToDateTime(TimeOnly.MinValue),
             ActionReason = "Test",
             ForwardLossRatio = 0.25,
             LossProbability = 0.10,

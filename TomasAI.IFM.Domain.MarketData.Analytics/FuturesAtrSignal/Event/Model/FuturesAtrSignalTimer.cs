@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.SignalSampling.Model;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Model;
 

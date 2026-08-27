@@ -31,7 +31,7 @@ public class SecuritiesOptimizationTests
 
         var changed = command.Execute(state);
 
-        changed.Should().BeTrue();
+        changed.Success.Should().BeTrue();
         state.Events.Should().HaveCount(2);
     }
 
@@ -62,7 +62,7 @@ public class SecuritiesOptimizationTests
 
         var changed = command.Execute(state);
 
-        changed.Should().BeTrue();
+        changed.Success.Should().BeTrue();
         state.Events.Should().ContainSingle();
     }
 

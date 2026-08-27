@@ -1,5 +1,6 @@
 ﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.OptionPricer.Shared;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Command.State;
@@ -12,8 +13,8 @@ public static class InsertSpreadDistribution
     /// Handle an <see cref="InsertSpreadDistributionCommand"/> by building the corresponding
     /// <see cref="SpreadDistributionInsertedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this InsertSpreadDistributionCommand e, SpreadDistributionCommandState state)
-        => state.Update(e.CreateSpreadDistributionInsertedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this InsertSpreadDistributionCommand e, SpreadDistributionCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionInsertedEvent(), e));
 
     /// <summary>
     /// Creates a new SpreadDistributionInsertedEvent instance using the details provided in the specified command.

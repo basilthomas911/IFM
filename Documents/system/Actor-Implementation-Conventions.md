@@ -1,9 +1,9 @@
-gh# Actor Implementation Conventions
+# Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
-**Status:** Evolving design convention; durable and realtime EventActor conventions documented, CommandActor and QueryActor conventions reserved for later review
+**Status:** Evolving design convention; durable/realtime EventActor and CommandActor conventions documented, QueryActor convention reserved for later review
 **Created:** 2026-08-14  
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-26
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -20,7 +20,7 @@ Across all actor types, this document will be expanded as decisions are made abo
 | --- | --- | --- |
 | EventActor | Initial convention documented | Parse mapping, receive mapping, event-family extensions, and lifecycle handlers are defined below. |
 | RealtimeActor | Initial convention documented | Uses the EventActor mapping/handler structure with `ActorType.Realtime`, Core NATS delivery, a required primary actor, and optional realtime routes. |
-| CommandActor | Reserved for later review | Command parsing, validation, state loading/saving, event production, projectors, and handler organization are not yet standardized by this document. |
+| CommandActor | Initial convention documented | Parse, validation, receive maps, command extensions, event-sourced state, repositories, and projector boundaries are defined below. |
 | QueryActor | Reserved for later review | Query parsing, read-model access, response behavior, paging, and handler organization are not yet standardized by this document. |
 | Additional actor roles | Not yet defined | Add only after the role and its implementation convention are explicitly approved. |
 
@@ -607,7 +607,108 @@ These items must not be inferred as implemented constraints until this document 
 
 ### 13.1 CommandActor convention
 
-Reserved. This section will be written after reviewing representative CommandActor implementations and the changes made during recent actor and event-projector refactoring. No CommandActor mapping, handler, state, persistence, or projector convention is established here yet.
+#### 13.1.1 Responsibility boundary
+
+An event-sourced CommandActor owns the durable command boundary for one aggregate family. Its derived actor implementation is mechanical: parse the concrete command, validate it, load state, resolve a mapped command handler, await that handler, and allow the base actor to save pending events. Domain decisions do not belong in `ReceiveAsync`.
+
+The command extension owns the command-specific behavior. It examines the loaded state, performs any required synchronous or asynchronous domain computation, creates the appropriate private domain event, applies it with `state.Update(domainEvent, command)`, and returns `ServiceResult<GuidResult>`. The state owns event application. The repository owns PostgreSQL event-log persistence. The EventProjector owns rebuildable read-model mutation and publication of projection-complete or projection-failed events.
+
+The `ServiceResult<GuidResult>` is the command acknowledgement and carries the command ID. It is not a substitute for a workflow result that becomes authoritative only after durable event persistence and successful projection.
+
+#### 13.1.2 Explicit command maps
+
+Every derived CommandActor uses three explicit maps as its supported-command manifest:
+
+- `_parseMap` maps the command subject `Verb` to `IActorMessage` deserialization;
+- `_validationMap` maps the concrete command `Type` to its validation rules; and
+- `_receiveMap` maps the concrete command type name to the command extension that executes it.
+
+`ReceiveAsync` must not use a command-type switch. It validates common arguments, casts the loaded state, resolves the concrete command name in `_receiveMap`, throws a clear `InvalidOperationException` when unsupported, invokes the mapped delegate, and returns or awaits its result.
+
+A synchronous receive map has this representative shape:
+
+```csharp
+static readonly Dictionary<string, Func<
+    ICommand,
+    ICommandActorContext<SomeCommandActor>,
+    SomeCommandState,
+    ServiceResult<GuidResult>>> _receiveMap = new()
+{
+    [typeof(CreateSomethingCommand).Name] = static (command, context, state) =>
+        ((CreateSomethingCommand)command).Execute(state)
+};
+```
+
+An actor with genuine asynchronous command work uses `Task<ServiceResult<GuidResult>>` at the extension boundary and in its receive map:
+
+```csharp
+static readonly Dictionary<string, Func<
+    ICommand,
+    ICommandActorContext<SomeCommandActor>,
+    SomeCommandState,
+    Task<ServiceResult<GuidResult>>>> _receiveMap = new()
+{
+    [typeof(CalculateSomethingCommand).Name] = static (command, context, state) =>
+        ((CalculateSomethingCommand)command).ExecuteAsync(
+            context,
+            state)
+};
+```
+
+The framework override may continue to return `ValueTask<ServiceResult<GuidResult>>`; it adapts and awaits the mapped `Task`. No mapped command task is fire-and-forget.
+
+#### 13.1.3 Command extension convention
+
+The extension class and source filename use the command name without the `Command` suffix, for example `CreateFundCommand` maps to `CreateFund` and `StartRegimeDiscoveryPipelineCommand` maps to `StartRegimeDiscoveryPipeline`.
+
+Synchronous command extensions use `Execute`; command extensions that await real work use `ExecuteAsync`. An asynchronous extension returns `Task<ServiceResult<GuidResult>>`, accepts the closed-generic command context when it needs actor-owned models or services, and receives the loaded concrete state. A cancellation token is added only when the actor framework exposes and owns a compatible cancellation boundary.
+
+The extension—not the derived actor—owns:
+
+- state-dependent acceptance and idempotency decisions;
+- actor-owned deterministic computation;
+- private domain-event creation;
+- `state.Update(domainEvent, command)`;
+- `ServiceOk<GuidResult>` or `ServiceFailed<GuidResult>` creation; and
+- conversion of an expected business/calculation failure into a durable failure event when the domain requires one.
+
+`UpdatedOk` is appropriate when the event update succeeds and the command should return success. `UpdateFailed` alone does not add an event. When a failed command must also reconstruct durable failed state, the extension first applies the private failure event and then returns the failed service result.
+
+Unexpected exceptions that are not part of the domain's durable failure model flow through the actor's `OnExceptionAsync` convention. Cancellation caused by transport or host shutdown is not silently converted into a business failure unless the domain explicitly defines that transition.
+
+#### 13.1.4 Context and actor-owned models
+
+Closed-generic `ICommandActorContext<TActor>` is the dependency boundary. Actor-specific readonly context properties are exposed through the approved typed context and context-extension pattern. A command extension does not resolve arbitrary services from the container.
+
+An actor-centric computation used only by one CommandActor belongs in that actor's `Model` folder. The model performs calculation and returns an immutable result; it does not create actor events, mutate actor state, send messages, or write storage. The command extension converts the model result into the private domain event.
+
+CPU-bound parallel calculation uses bounded .NET thread-pool work that is owned and awaited by the command extension. Dedicated threads, `TaskCreationOptions.LongRunning`, and unobserved background work are not part of the convention. Sequential and parallel implementations must produce identical deterministic results, and parallel execution is selected only after representative benchmarks demonstrate a material benefit without unacceptable allocation, thread-pool, or tail-latency cost.
+
+#### 13.1.5 State, persistence, and projection
+
+Only the CommandActor is event sourced and owns authoritative durable state. Its state applies every private domain event required to reconstruct the aggregate. The repository saves pending events through the PostgreSQL event source and passes committed events to the actor's EventProjector.
+
+The EventProjector updates the rebuildable read model before publishing the corresponding public completion or failure notification. Public workflow continuation must consume that projected terminal event rather than treating the command's service result as the business result. A domain event stored in the event log and a projection terminal event are separate contracts, following the established `FundCreatedEvent` to `FundCreatedCompleteEvent`/`FundCreatedFailEvent` pattern.
+
+The base actor saves pending state events after the mapped command extension returns. Applying both Processing and Completed during one command therefore records history in one save; it does not make Processing durably observable while the calculation is still executing. A design that requires a durable pre-calculation Processing boundary needs a separately approved second execution trigger.
+
+#### 13.1.6 CommandActor testing checklist
+
+- [ ] `_parseMap` lists every supported command verb.
+- [ ] `_validationMap` lists every supported concrete command type.
+- [ ] `_receiveMap` lists every supported concrete command type.
+- [ ] `ReceiveAsync` performs common checks and mapped dispatch only.
+- [ ] Unsupported command types fail clearly.
+- [ ] Synchronous extensions return `ServiceResult<GuidResult>`.
+- [ ] Genuine asynchronous extensions return `Task<ServiceResult<GuidResult>>` and are awaited; cancellation is propagated when the framework exposes it.
+- [ ] Command extensions create and apply the correct private domain event.
+- [ ] Success and durable-failure service results preserve the command GUID.
+- [ ] State replay reconstructs completed and failed state.
+- [ ] Repository tests verify event-log persistence and projector handoff.
+- [ ] Projector tests verify storage-before-terminal-publication ordering.
+- [ ] Cancellation, duplicate delivery, and conflicting input behavior are tested.
+- [ ] Actor-owned calculation models have focused deterministic unit tests.
+- [ ] Parallel calculation, when selected, is result-equivalent to sequential calculation and benchmark-qualified.
 
 ### 13.2 QueryActor convention
 
@@ -651,3 +752,4 @@ For each approved conversion, validation must cover compilation, equality and ha
 | 2026-08-14 | Added `FuturesItiSignalRealtimeActor` as the first routed signal actor, including ES/VX rollover identity checks, active-stream policy, fresh VX hot-price sampling, the realtime-to-durable command boundary, and retirement of the duplicate EOD ITI trigger. |
 | 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |
 | 2026-08-25 | Recorded `readonly record struct` as a convention preference for eligible entity IDs and required a separate system-wide identity inventory, compatibility assessment, classification, and approved domain-gated plan before converting existing types. |
+| 2026-08-26 | Added the CommandActor convention: explicit parse/validation/receive maps, switch-free mapped dispatch, synchronous and asynchronous command-extension contracts, event-sourced state/repository/projector boundaries, actor-owned calculation models, durable failure handling, and benchmark qualification for thread-pool parallel calculation. |

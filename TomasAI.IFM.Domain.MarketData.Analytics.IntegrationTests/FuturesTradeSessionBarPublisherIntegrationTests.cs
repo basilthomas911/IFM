@@ -6,14 +6,20 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventModelActor.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests;
@@ -31,13 +37,29 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
     [Fact]
     public async Task LiveTrade_ProducesDurableProjectedSessionBar()
     {
-        var contractId = $"TBAR{Guid.NewGuid():N}"[..18];
+        const string contractId = "ES20251010";
         var calendar = factory.Services.GetRequiredService<IMarketSessionCalendar>();
-        var valueDate = calendar.GetValueDate(DateTimeOffset.UtcNow);
+        var valueDate = calendar.GetValueDate(DateTimeOffset.UtcNow).AddDays(-1);
         while (!calendar.IsTradingDate(valueDate))
             valueDate = valueDate.AddDays(-1);
         var timestamp = calendar.GetSession(valueDate).StartUtc.AddHours(1).AddSeconds(1);
         var epoch = Guid.NewGuid();
+        var sourceSequence = Random.Shared.NextInt64(10_000, long.MaxValue - 10);
+        var marketDataApi = factory.Services.GetRequiredService<IMarketDataApi>();
+        factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
+            .ReplaceCurrentFuturesContracts([
+                new FuturesContractV2ReadModel(
+                    contractId,
+                    "ES trade-session bar integration future",
+                    "ES",
+                    "ESZ5",
+                    "FUT",
+                    "USD",
+                    "CME",
+                    "50",
+                    new DateOnly(2025, 10, 10),
+                    true)
+            ]);
         var terminal = new TaskCompletionSource<FuturesTradeSessionBarPublishedCompleteEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var listener = new NatsActorEventListener(
@@ -52,13 +74,16 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
                 [
                     FuturesTradeSessionBarPublishedCompleteEvent.Verb,
                     FuturesTradeSessionBarPublishedFailEvent.Verb
-                ]
+                ],
+                [new ActorMailboxId(ActorType.Event, "EventException")] = [EventExceptionEvent.Verb]
             },
             OnEventAsync);
 
+        await marketDataApi.StartAsync(valueDate);
         try
         {
-            var marketEvent = CreateTrade(contractId, valueDate, timestamp, epoch, 1, 6500.25m);
+            var marketEvent = CreateTrade(
+                contractId, valueDate, timestamp, epoch, 1, sourceSequence, 6500.25m);
             await producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
                 marketEvent.Subject,
                 marketEvent);
@@ -68,6 +93,7 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
                 timestamp.AddSeconds(16),
                 epoch,
                 2,
+                sourceSequence + 1,
                 6501m);
             await producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
                 closingEvent.Subject,
@@ -93,6 +119,7 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
         }
         finally
         {
+            await marketDataApi.StopAsync(valueDate);
             await listener.StopAsync();
         }
 
@@ -114,6 +141,14 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
                         StringComparison.Ordinal))
                     terminal.TrySetException(new InvalidOperationException(failed.ErrorMessage));
             }
+            else if (verb == EventExceptionEvent.Verb)
+            {
+                var failed = message.AsEvent<EventExceptionEvent>();
+                if (failed?.ErrorData.Contains(
+                        nameof(FuturesTradeSessionBarPublisherRealtimeActor),
+                        StringComparison.Ordinal) == true)
+                    terminal.TrySetException(new InvalidOperationException(failed.ErrorData));
+            }
             return ValueTask.CompletedTask;
         }
     }
@@ -124,6 +159,7 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
         DateTimeOffset timestamp,
         Guid epoch,
         long ordinal,
+        long sourceSequence,
         decimal price)
     {
         var entityId = new TickDataEntityId(contractId, valueDate, AssetTypeId.Futures);
@@ -150,7 +186,7 @@ public sealed class FuturesTradeSessionBarPublisherIntegrationTests(
                 new FuturesMarketTradeSnapshot(
                     price,
                     3,
-                    ordinal,
+                    sourceSequence,
                     timestamp,
                     timestamp,
                     NormalizedTradeAction.New,

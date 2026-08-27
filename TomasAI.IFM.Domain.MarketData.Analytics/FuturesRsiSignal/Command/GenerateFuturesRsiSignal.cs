@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -19,7 +20,7 @@ public static class GenerateFuturesRsiSignal
     /// <param name="e">The command containing the details required to generate the RSI signal.</param>
     /// <param name="state">The state to update with the generated RSI signal.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise, <see langword="false"/></returns>
-    public static bool Execute(this GenerateFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
     {
         FuturesRsiWilderResult? wilderResult = null;
         var futuresRsiSignal = e.Observation is { } observation
@@ -49,9 +50,9 @@ public static class GenerateFuturesRsiSignal
                 var futuresRsiSignals = state.FuturesRsiSignals.GenerateFuturesRsiSignals(outputWindow);
                 state.Update(e.CreateFuturesRsiSignalsGeneratedEvent(futuresRsiSignal, futuresRsiSignals, e.EntityId.PeriodLength), e);
             }
-            return true;
+            return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
         }
-        return false;
+        return e.UpdateFailed($"{e.CommandName}: unable to apply generated RSI signal event");
     }
 
     /// <summary>

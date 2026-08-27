@@ -103,15 +103,15 @@ public class FuturesEodDataCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, eodDataState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, eodDataState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures EOD data
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesEodDataCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
+        FuturesEodDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(InsertFuturesEodDataCommand).Name] = (cmd, context, state) => (cmd as InsertFuturesEodDataCommand)!.Execute(state),
         [typeof(InsertVixFuturesEodDataCommand).Name] = (cmd, context, state) => (cmd as InsertVixFuturesEodDataCommand)!.Execute(state)

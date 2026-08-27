@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
@@ -15,11 +16,11 @@ public static class AddYieldCurveRate
     /// <param name="state"></param>
     /// <returns></returns>
     /// <exception cref="AddYieldCurveRateException"></exception>
-    public static bool Execute(this AddYieldCurveRateCommand e, YieldCurveRateCommandState state)
+    public static ServiceResult<GuidResult> Execute(this AddYieldCurveRateCommand e, YieldCurveRateCommandState state)
         => e switch
         {
             _ when state.YieldCurveRateExists(e.YieldCurveRate.ValueDate, e.Overwrite) => throw new AddYieldCurveRateException(e.YieldCurveRateExistsErrorMsg()),
-            _ => state.Update(e.CreateYieldCurveRateAddedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateYieldCurveRateAddedEvent(), e))
         };
 
     /// <summary>

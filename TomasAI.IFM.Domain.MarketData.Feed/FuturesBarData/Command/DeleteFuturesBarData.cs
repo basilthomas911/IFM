@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -11,8 +12,8 @@ public static class DeleteFuturesBarData
     /// Handle a <see cref="DeleteFuturesBarDataCommand"/> by building the corresponding
     /// <see cref="FuturesBarDataDeletedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this DeleteFuturesBarDataCommand e, FuturesBarDataCommandState state)
-        => state.Update(e.CreateFuturesBarDataDeletedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this DeleteFuturesBarDataCommand e, FuturesBarDataCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateFuturesBarDataDeletedEvent(), e));
 
     /// <summary>
     /// Creates a <see cref="FuturesBarDataDeletedEvent"/> from a <see cref="DeleteFuturesBarDataCommand"/>.

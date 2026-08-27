@@ -1,5 +1,6 @@
 ﻿using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ViewModels;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.State;
@@ -14,12 +15,12 @@ public static class SubmitSpreadDistributionJob
     /// <param name="e">The submit spread distribution job command to execute.</param>
     /// <param name="state">The current state of the spread distribution job.</param>
     /// <returns>true if the job was successfully submitted; otherwise, an exception is thrown.</returns>
-    public static bool Execute(this SubmitSpreadDistributionJobCommand e, SpreadDistributionJobCommandState state)
+    public static ServiceResult<GuidResult> Execute(this SubmitSpreadDistributionJobCommand e, SpreadDistributionJobCommandState state)
        => e switch
        {
            _ when !state.IsJobStatusInProgress
-               => state.Update(e.CreateSpreadDistributionJobSubmittedEvent(), e),
-           _ => state.Update(e.CreateSpreadDistributionJobInProgressEvent(state.SpreadDistributionJob!), e)
+               => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionJobSubmittedEvent(), e)),
+           _ => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionJobInProgressEvent(state.SpreadDistributionJob!), e))
        };
 
     /// <summary>

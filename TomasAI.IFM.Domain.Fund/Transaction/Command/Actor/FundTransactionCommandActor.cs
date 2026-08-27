@@ -134,14 +134,21 @@ public class FundTransactionCommandActor(
         IsArgumentNull.Check(cmd);
         await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var fundTxState = IsArgumentNull.Set((state as FundTransactionCommandState)!);
-        return cmd switch
-        {
-            CreateFundTransactionCommand create => await create.ExecuteAsync(fundTxState).ConfigureAwait(false),
-            CreateFundTransactionsCommand createMany => await createMany.ExecuteAsync(fundTxState).ConfigureAwait(false),
-            ProcessEndOfDayFundTransactionCommand endOfDay => await endOfDay.ExecuteAsync(fundTxState).ConfigureAwait(false),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}")
-        };
+        if (!_receiveMap.TryGetValue(cmd.GetType().Name, out var receiveCommand))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        return await receiveCommand.Invoke(cmd, context, fundTxState).ConfigureAwait(false);
     }
+
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FundTransactionCommandActor>,
+        FundTransactionCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new()
+    {
+        [typeof(CreateFundTransactionCommand).Name] = static (command, _, state) =>
+            ((CreateFundTransactionCommand)command).ExecuteAsync(state),
+        [typeof(CreateFundTransactionsCommand).Name] = static (command, _, state) =>
+            ((CreateFundTransactionsCommand)command).ExecuteAsync(state),
+        [typeof(ProcessEndOfDayFundTransactionCommand).Name] = static (command, _, state) =>
+            ((ProcessEndOfDayFundTransactionCommand)command).ExecuteAsync(state)
+    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.

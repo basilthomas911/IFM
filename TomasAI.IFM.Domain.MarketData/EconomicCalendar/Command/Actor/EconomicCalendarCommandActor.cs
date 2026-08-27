@@ -110,8 +110,7 @@ public class EconomicCalendarCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, economicCalendarState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, economicCalendarState));
     }
 
     /// <summary>
@@ -121,7 +120,8 @@ public class EconomicCalendarCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of economic calendar-related commands by associating each command
     /// type name with a function that executes the command against an EconomicCalendarCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, EconomicCalendarCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
+        EconomicCalendarCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(AddEconomicCalendarCommand).Name] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
         [typeof(ChangeEconomicCalendarCommand).Name] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),

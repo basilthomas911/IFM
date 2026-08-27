@@ -59,18 +59,19 @@ public sealed class ApplicationCommandActor(
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName })
+        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var parseCommand))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-
-        ICommand? command = msgSubject.Verb switch
-        {
-            StartApplicationCommand.Verb => message.AsCommand<StartApplicationCommand>(),
-            ShutdownApplicationCommand.Verb => message.AsCommand<ShutdownApplicationCommand>(),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}")
-        };
+        var command = parseCommand.Invoke(message);
         IsArgumentNull.Check(command);
         return command;
     }
+
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [StartApplicationCommand.Verb] = static message => message.AsCommand<StartApplicationCommand>()!,
+        [ShutdownApplicationCommand.Verb] = static message => message.AsCommand<ShutdownApplicationCommand>()!
+    };
 
     /// <summary>
     /// Processes the specified command asynchronously within the given actor context and state, and returns a result
@@ -97,15 +98,20 @@ public sealed class ApplicationCommandActor(
             .InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd))
             .ConfigureAwait(false);
 
-        _ = cmd switch
-        {
-            StartApplicationCommand start => start.Execute(applicationState),
-            ShutdownApplicationCommand shutdown => shutdown.Execute(applicationState),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}")
-        };
-
-        return new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId));
+        var commandName = cmd.GetType().Name;
+        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        return receiveCommand.Invoke(cmd, context, applicationState);
     }
+
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
+        ApplicationCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(StartApplicationCommand).Name] = static (command, _, state) =>
+            ((StartApplicationCommand)command).Execute(state),
+        [typeof(ShutdownApplicationCommand).Name] = static (command, _, state) =>
+            ((ShutdownApplicationCommand)command).Execute(state)
+    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -120,15 +126,25 @@ public sealed class ApplicationCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
 
-        if (cmd is not StartApplicationCommand and not ShutdownApplicationCommand)
+        var commandName = cmd.GetType().Name;
+        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
             throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-
-        // These lifecycle commands have one invariant. Avoid allocating a List,
-        // ValidationError and StringBuilder for every valid message.
-        if (cmd.CommandId == Guid.Empty)
-            throw new CommandValidationException(cmd.ErrorCode, $"{cmd.CommandName}.CommandId is empty{Environment.NewLine}");
-
+        validateCommand.Invoke(cmd);
         return ValueTask.CompletedTask;
+    }
+
+    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    {
+        [typeof(StartApplicationCommand).Name] = ValidateCommand,
+        [typeof(ShutdownApplicationCommand).Name] = ValidateCommand
+    };
+
+    static void ValidateCommand(ICommand command)
+    {
+        if (command.CommandId == Guid.Empty)
+            throw new CommandValidationException(
+                command.ErrorCode,
+                $"{command.CommandName}.CommandId is empty{Environment.NewLine}");
     }
 
     protected override async ValueTask OnShutdown(ICommandActorContext<ApplicationCommandActor> context)

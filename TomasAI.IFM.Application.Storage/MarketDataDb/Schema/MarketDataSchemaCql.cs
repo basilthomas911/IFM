@@ -58,6 +58,39 @@ internal static class MarketDataSchemaCql
     ) WITH CLUSTERING ORDER BY (marketDataAsOf DESC, observationId ASC);
     """;
 
+    public const string CreateFuturesVxTermStructureSignalTable = """
+    CREATE TABLE IF NOT EXISTS futures_vx_term_structure_signal (
+        valueDate date, configurationId text, calculatedAt timestamp,
+        frontSourceSequence bigint, backSourceSequence bigint,
+        frontContractId text, frontExpiry date, frontPrice decimal,
+        backContractId text, backExpiry date, backPrice decimal,
+        frontBackSpread decimal, frontBackRatio decimal, termStructurePercent decimal,
+        termStructureState text, priorFrontBackRatio decimal,
+        priorTermStructurePercent decimal, frontSourceTimestamp timestamp,
+        backSourceTimestamp timestamp, isWarm boolean, isValid boolean,
+        schemaVersion int, calculationVersion text,
+        PRIMARY KEY ((valueDate, configurationId), calculatedAt,
+            frontSourceSequence, backSourceSequence)
+    ) WITH CLUSTERING ORDER BY (calculatedAt DESC,
+        frontSourceSequence DESC, backSourceSequence DESC);
+    """;
+
+    public const string CreateFuturesVwapSignalTable = """
+    CREATE TABLE IF NOT EXISTS futures_vwap_signal (
+        contractId text, valueDate date, configurationId text,
+        asOfUtc timestamp, lastTradeOrdinal bigint,
+        sessionStartUtc timestamp, sessionEndUtc timestamp,
+        cumulativePriceVolume decimal, cumulativeVolume bigint,
+        eligibleTradeCount bigint, rejectedTradeCount bigint,
+        lastPrice decimal, vwap decimal, priceMinusVwap decimal,
+        priceToVwapPercent decimal, lastTradeSourceSequence bigint,
+        streamEpochId uuid, isWarm boolean, isValid boolean,
+        invalidReason text, isTickExact boolean, calculationMethod text,
+        schemaVersion int, calculationVersion text,
+        PRIMARY KEY ((contractId, valueDate, configurationId), asOfUtc, lastTradeOrdinal)
+    ) WITH CLUSTERING ORDER BY (asOfUtc DESC, lastTradeOrdinal DESC);
+    """;
+
     public const string CreateMarketOutlookSnapshotTable = """
     CREATE TABLE IF NOT EXISTS market_outlook_snapshot (
         contractId text,

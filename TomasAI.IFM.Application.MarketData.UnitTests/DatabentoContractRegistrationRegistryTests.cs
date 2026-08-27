@@ -1,5 +1,6 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -8,6 +9,25 @@ namespace TomasAI.IFM.Application.MarketData.UnitTests;
 
 public sealed class DatabentoContractRegistrationRegistryTests
 {
+    [Fact]
+    public void TermStructurePublishesOrderedFrontBackContractsAndRegistersBoth()
+    {
+        var options = Options([]);
+        var registry = new DatabentoContractRegistrationRegistry([], options);
+        var pair = new FuturesTermStructureContracts(
+            Contract("VX", "VX20260916", "VXU6", new DateOnly(2026, 9, 16)),
+            Contract("VX", "VX20261021", "VXV6", new DateOnly(2026, 10, 21)));
+
+        registry.ReplaceFuturesTermStructureContracts("VX", pair);
+
+        registry.TryGetFuturesTermStructureContracts("vx", out var actual).Should().BeTrue();
+        actual.Should().Be(pair);
+        registry.TryGetCurrentlyTradedFuturesContract("VX", out var current).Should().BeTrue();
+        current.Should().Be(pair.Front);
+        registry.Should().Contain(item => item.DomainContractId == pair.Front.ContractId);
+        registry.Should().Contain(item => item.DomainContractId == pair.Back.ContractId);
+    }
+
     [Fact]
     public void Rollover_replaces_matching_roots_and_preserves_explicit_unrelated_contracts()
     {

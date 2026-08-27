@@ -2,6 +2,7 @@
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 
@@ -16,12 +17,12 @@ public static class RemoveLookupType
     /// <param name="state">The current state of the lookup type. Cannot be null.</param>
     /// <returns>true if the lookup type was successfully removed; otherwise, false.</returns>
     /// <exception cref="RemoveLookupTypeException">Thrown if the lookup type does not exist in the state.</exception>
-    public static bool Execute(this RemoveLookupTypeCommand e, LookupTypeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this RemoveLookupTypeCommand e, LookupTypeCommandState state)
     {
         return e switch
         {
             _ when !state.LookupTypeExists(e.EntityId) && !e.Overwrite => throw new RemoveLookupTypeException($"{e.CommandName}: lookupType {e.EntityId} does not exist"),
-            _ => state.Update(e.CreateLookupTypeRemovedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateLookupTypeRemovedEvent(), e))
         };
     }
 

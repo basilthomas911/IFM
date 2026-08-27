@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -22,6 +24,49 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 /// </remarks>
 public static class MarketDataAnalyticsCommandApiExtensions
 {
+    /// <summary>Sends one live exact-trade observation to the event-sourced VWAP actor.</summary>
+    public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesVwapSignalAsync(
+        this IEventActorContext context,
+        FuturesVwapSignalEntityId entityId,
+        FuturesVwapTradeObservation observation,
+        FuturesVwapConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(configuration);
+        UpdateFuturesVwapSignalCommand command = new()
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, UpdateFuturesVwapSignalCommand.Actor,
+                UpdateFuturesVwapSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            Observation = observation,
+            Configuration = configuration
+        };
+        return RequestAsync<UpdateFuturesVwapSignalCommand, FuturesVwapSignalEntityId>(context, command);
+    }
+
+    /// <summary>Sends one immutable VX leg observation to the event-sourced term-structure actor.</summary>
+    public static ValueTask<ServiceResult<GuidResult>> UpdateFuturesVxTermStructureSignalAsync(
+        this IEventActorContext context,
+        FuturesVxTermStructureSignalEntityId entityId,
+        FuturesVxTermStructureLegObservation observation,
+        FuturesVxTermStructureConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(configuration);
+        UpdateFuturesVxTermStructureSignalCommand command = new()
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new(ActorType.Command, UpdateFuturesVxTermStructureSignalCommand.Actor,
+                UpdateFuturesVxTermStructureSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            Observation = observation,
+            Configuration = configuration
+        };
+        return RequestAsync<UpdateFuturesVxTermStructureSignalCommand,
+            FuturesVxTermStructureSignalEntityId>(context, command);
+    }
+
     /// <summary>Sends one closed observation to the event-sourced EMA actor.</summary>
     public static ValueTask<ServiceResult<GuidResult>> GenerateFuturesEmaSignalAsync(
         this IEventActorContext context,

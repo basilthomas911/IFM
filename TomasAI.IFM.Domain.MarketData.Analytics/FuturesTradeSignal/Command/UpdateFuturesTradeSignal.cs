@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -15,14 +16,14 @@ public static class UpdateFuturesTradeSignal
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    public static bool Execute(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCommandState state)
+    public static ServiceResult<GuidResult> Execute(this UpdateFuturesTradeSignalCommand e, FuturesTradeSignalCommandState state)
        => e.Compute(out var model) switch
        {
            _ when state.HasFuturesTradeSignalChanged(model.FuturesTradeSignal)
-               => state.Update(e.CreateFuturesTradeSignalUpdatedEvent(model), e),
+               => e.UpdateResult(() => state.Update(e.CreateFuturesTradeSignalUpdatedEvent(model), e)),
            _ when state.HasFuturesItiSignalHoldTradeChanged(model.FuturesTradeSignal)
-               => state.Update(e.CreateFuturesItiSignalHoldTradeChangedEvent(model), e),
-           _ => false
+               => e.UpdateResult(() => state.Update(e.CreateFuturesItiSignalHoldTradeChangedEvent(model), e)),
+           _ => new ServiceOk<GuidResult>(new GuidResult(e.CommandId))
        };
 
     /// <summary>

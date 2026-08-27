@@ -133,8 +133,7 @@ public class LookupTypeCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, lookupTypeState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, lookupTypeState));
     }
 
     /// <summary>
@@ -144,7 +143,8 @@ public class LookupTypeCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of lookup type-related commands by associating each command
     /// type name with a function that executes the command against a LookupTypeCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, LookupTypeCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
+        LookupTypeCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(AddLookupTypeCommand).Name] = (cmd, context, state) => (cmd as AddLookupTypeCommand)!.Execute(state),
         [typeof(ChangeLookupTypeCommand).Name] = (cmd, context, state) => (cmd as ChangeLookupTypeCommand)!.Execute(state),

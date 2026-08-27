@@ -3,9 +3,12 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
+using TomasAI.IFM.Application.MarketData.Contracts;
+using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
@@ -16,6 +19,13 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventProjector;
@@ -34,6 +44,7 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
 {
     static readonly DateOnly ValueDate = new(2026, 8, 17);
     readonly IActorProducer _producer = factory.Services.GetRequiredService<IActorProducer>();
+    readonly IActorService _actorService = factory.Services.GetRequiredService<IActorService>();
     readonly IMarketDataAnalyticsCommandApi _commandApi = new MarketDataAnalyticsCommandApi(
         factory.Services.GetRequiredService<IActorProducer>());
 
@@ -51,6 +62,187 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             new ActorMailboxId(ActorType.Realtime, FuturesMacdSignalRealtimeActor.ActorName),
             new ActorMailboxId(ActorType.Realtime, FuturesEmaSignalRealtimeActor.ActorName)
         ]);
+    }
+
+    [Fact]
+    public void VxTermStructureRealtimeActor_RegistersMarketPriceRoute()
+    {
+        var routes = factory.Services.GetRequiredService<IActorSupervisor>()
+            .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
+                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb));
+        routes.Should().Contain(new ActorMailboxId(
+            ActorType.Realtime, FuturesVxTermStructureSignalRealtimeActor.ActorName));
+    }
+
+    [Fact]
+    public void VwapRealtimeActor_RegistersMarketPriceRoute()
+    {
+        var routes = factory.Services.GetRequiredService<IActorSupervisor>()
+            .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
+                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb));
+        routes.Should().Contain(new ActorMailboxId(
+            ActorType.Realtime, FuturesVwapSignalRealtimeActor.ActorName));
+    }
+
+    [Fact]
+    public async Task VwapRealtimeTrades_ProjectAndQueryExactSessionValue()
+    {
+        var marketDataApi = factory.Services.GetRequiredService<IMarketDataApi>();
+        var offset = Random.Shared.Next(1, 1500);
+        var valueDate = new DateOnly(2030, 1, 1).AddDays(offset);
+        while (valueDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            valueDate = valueDate.AddDays(1);
+        var contract = new FuturesContractV2ReadModel(
+            "ES20251010", "ES VWAP integration future", "ES", "ESZ5",
+            "FUT", "USD", "CME", "50", new DateOnly(2025, 10, 10), true);
+        factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
+            .ReplaceCurrentFuturesContracts([contract]);
+        await marketDataApi.StartAsync(valueDate);
+        try
+        {
+            var epoch = Guid.NewGuid();
+            var firstTimestamp = new DateTimeOffset(
+                valueDate.AddDays(-1).ToDateTime(new TimeOnly(23, 0), DateTimeKind.Utc));
+
+            foreach (var (ordinal, price, size) in new[] { (1L, 6500m, 2U), (2L, 6503m, 1U) })
+            {
+                var entity = new TickDataEntityId(contract.ContractId, valueDate, AssetTypeId.Futures);
+                var timestamp = firstTimestamp.AddSeconds(ordinal);
+                var @event = new FuturesMarketPriceUpdatedRealtimeEvent
+                {
+                    Subject = new(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                        FuturesMarketPriceUpdatedRealtimeEvent.Verb, entity.Format()),
+                    Id = Guid.NewGuid(),
+                    CommandId = Guid.NewGuid(),
+                    EntityId = entity,
+                    AggregateId = entity.Format(),
+                    EventSource = "VWAP integration",
+                    ReceivedOn = timestamp.UtcDateTime,
+                    UpdateSource = FuturesMarketPriceUpdateSource.Trade,
+                    Price = new FuturesMarketPriceSnapshot(
+                        contract.ContractId, 1, 1, AssetTypeId.Futures, valueDate, null,
+                        new FuturesMarketTradeSnapshot(
+                            price, size, 100 + ordinal, timestamp, timestamp,
+                            NormalizedTradeAction.New, NormalizedTradeSide.Unspecified,
+                            NormalizedTradeConditionFlags.None, epoch, ordinal))
+                };
+                await _producer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+                    @event.Subject, @event);
+            }
+
+            var configuration = FuturesVwapConfiguration.Standard;
+            FuturesVwapSignalReadModel? stored = null;
+            var deadline = DateTime.UtcNow.AddSeconds(30);
+            while (DateTime.UtcNow < deadline && stored?.LastTradeOrdinal != 2)
+            {
+                stored = await dbFixture.MarketDataDb.GetLatestFuturesVwapSignalAsync(
+                    contract.ContractId, valueDate, configuration.ConfigurationId);
+                if (stored?.LastTradeOrdinal != 2) await Task.Delay(100);
+            }
+            stored.Should().NotBeNull();
+            stored!.Vwap.Should().Be((6500m * 2m + 6503m) / 3m);
+            stored.IsTickExact.Should().BeTrue();
+
+            var entityId = new FuturesVwapSignalEntityId(
+                contract.ContractId, valueDate, configuration.ConfigurationId);
+            var query = new GetLatestFuturesVwapSignalQuery
+            {
+                Subject = new(ActorType.Query, GetLatestFuturesVwapSignalQuery.Actor,
+                    GetLatestFuturesVwapSignalQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+                ContractId = contract.ContractId,
+                ValueDate = valueDate,
+                ConfigurationId = configuration.ConfigurationId
+            };
+            var queried = await _actorService.RequestAsync<FuturesVwapSignalReadModel?,
+                GetLatestFuturesVwapSignalQuery>(query);
+            queried.Success.Should().BeTrue();
+            queried.Value.Should().BeEquivalentTo(stored);
+        }
+        finally
+        {
+            await marketDataApi.StopAsync(valueDate);
+        }
+    }
+
+    [Fact]
+    public async Task VxFrontBackCommands_ProjectAndQueryCalculatedCurve()
+    {
+        var runId = Guid.NewGuid().ToString("N");
+        var configuration = FuturesVxTermStructureConfiguration.Standard with
+        {
+            ConfigurationId = $"vx-front-back-integration-{runId}"
+        };
+        var entityId = new FuturesVxTermStructureSignalEntityId(
+            ValueDate, $"VX-FRONT-{runId}", $"VX-BACK-{runId}", configuration.ConfigurationId);
+        var epoch = Guid.NewGuid();
+        var observedAt = new DateTimeOffset(2026, 8, 17, 14, 0, 0, TimeSpan.Zero);
+
+        foreach (var observation in new[]
+        {
+            new FuturesVxTermStructureLegObservation
+            {
+                Leg = FuturesVxTermStructureLeg.Front,
+                ContractId = entityId.FrontContractId,
+                Expiry = new DateOnly(2026, 9, 16),
+                Price = 20m,
+                SourceSequence = 100,
+                SourceTimestampUtc = observedAt,
+                StreamEpochId = epoch
+            },
+            new FuturesVxTermStructureLegObservation
+            {
+                Leg = FuturesVxTermStructureLeg.Back,
+                ContractId = entityId.BackContractId,
+                Expiry = new DateOnly(2026, 10, 21),
+                Price = 21m,
+                SourceSequence = 200,
+                SourceTimestampUtc = observedAt.AddSeconds(1),
+                StreamEpochId = epoch
+            }
+        })
+        {
+            var command = new UpdateFuturesVxTermStructureSignalCommand
+            {
+                CommandId = Guid.NewGuid(),
+                Subject = new(ActorType.Command,
+                    UpdateFuturesVxTermStructureSignalCommand.Actor,
+                    UpdateFuturesVxTermStructureSignalCommand.Verb,
+                    entityId.Format()),
+                EntityId = entityId,
+                Observation = observation,
+                Configuration = configuration
+            };
+            (await _actorService.RequestAsync<UpdateFuturesVxTermStructureSignalCommand,
+                FuturesVxTermStructureSignalEntityId>(command)).Success.Should().BeTrue();
+        }
+
+        FuturesVxTermStructureSignalReadModel? stored = null;
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (DateTime.UtcNow < deadline && stored is null)
+        {
+            stored = await dbFixture.MarketDataDb.GetLatestFuturesVxTermStructureSignalAsync(
+                ValueDate, configuration.ConfigurationId);
+            if (stored is null) await Task.Delay(100);
+        }
+        stored.Should().NotBeNull();
+        stored!.TermStructureState.Should().Be(FuturesVxTermStructureState.Contango);
+        stored.FrontBackSpread.Should().Be(1m);
+
+        var query = new GetLatestFuturesVxTermStructureSignalQuery
+        {
+            Subject = new(ActorType.Query, GetLatestFuturesVxTermStructureSignalQuery.Actor,
+                GetLatestFuturesVxTermStructureSignalQuery.Verb, entityId.Format()),
+            EntityId = entityId,
+            ValueDate = ValueDate,
+            ConfigurationId = configuration.ConfigurationId
+        };
+        var queried = await _actorService.RequestAsync<FuturesVxTermStructureSignalReadModel?,
+            GetLatestFuturesVxTermStructureSignalQuery>(query);
+        queried.Success.Should().BeTrue();
+        queried.Value.Should().BeEquivalentTo(stored);
     }
 
     [Fact]

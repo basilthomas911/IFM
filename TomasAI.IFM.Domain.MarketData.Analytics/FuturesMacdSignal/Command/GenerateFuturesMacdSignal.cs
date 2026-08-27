@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -18,16 +19,16 @@ public static class GenerateFuturesMacdSignal
     /// <param name="e">The command containing the input RSI signals used to generate the MACD signal compute model.</param>
     /// <param name="state">The current state of the FuturesMacdSignal.</param>
     /// <returns>true if the operation succeeds; otherwise, false.</returns>
-    public static bool Execute(this GenerateFuturesMacdSignalCommand e, FuturesMacdSignalCommandState state)
+    public static ServiceResult<GuidResult> Execute(this GenerateFuturesMacdSignalCommand e, FuturesMacdSignalCommandState state)
         => e.Compute(state.MacdSignals, out var model) switch
         {
             _ when model.IsSignalInitializing
-                => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Init, model), e),
+                => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Init, model), e)),
             _ when model.IsSignalUpTrending
-                => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.UpTrending, model), e),
+                => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.UpTrending, model), e)),
             _ when model.IsSignalDownTrending
-                => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model), e),
-            _ => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Flat, model), e),
+                => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.DownTrending, model), e)),
+            _ => e.UpdateResult(() => state.Update(e.CreateFuturesMacdSignalGeneratedEvent(FuturesTrendDirectionType.Flat, model), e)),
         };
 
     /// <summary>

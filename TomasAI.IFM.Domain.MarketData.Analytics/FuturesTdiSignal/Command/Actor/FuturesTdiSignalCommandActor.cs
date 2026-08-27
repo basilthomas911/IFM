@@ -101,15 +101,15 @@ public class FuturesTdiSignalCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, dispatchContext, tdiSignalState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, tdiSignalState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures TDI signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesTdiSignalCommandActor>, FuturesTdiSignalCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesTdiSignalCommandActor>,
+        FuturesTdiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(GenerateFuturesTdiSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesTdiSignalCommand)!.Execute(state)
     };

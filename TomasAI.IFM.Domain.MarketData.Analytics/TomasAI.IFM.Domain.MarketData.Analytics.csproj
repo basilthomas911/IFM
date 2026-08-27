@@ -29,9 +29,6 @@
 
   <ItemGroup>
     <Folder Include="MarketEvaluationSnapshot\" />
-    <Folder Include="VixVolatility\Command\" />
-    <Folder Include="VixVolatility\Event\" />
-    <Folder Include="VixVolatility\Query\" />
   </ItemGroup>
 
 </Project>

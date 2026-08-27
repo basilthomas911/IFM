@@ -20,7 +20,7 @@ public sealed class EconomicCalendarOptimizationTests
         var command = CreateImport(["US", "CA"]);
         var state = new EconomicCalendarCommandState();
 
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
 
         state.Count.Should().Be(0);
         state.Events.Should().ContainSingle();
@@ -34,7 +34,7 @@ public sealed class EconomicCalendarOptimizationTests
         var command = CreateImport([]);
         var state = new EconomicCalendarCommandState();
 
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
 
         state.Count.Should().Be(0);
         state.Events.Should().ContainSingle();
@@ -56,7 +56,7 @@ public sealed class EconomicCalendarOptimizationTests
         var state = new EconomicCalendarCommandState();
         var command = CreateImport(["US"], ImportDuplicatePolicy.Reject);
 
-        command.Execute(state).Should().BeTrue();
+        command.Execute(state).Success.Should().BeTrue();
         state.Events.Should().ContainSingle()
             .Which.Should().BeOfType<EconomicCalendarsImportedEvent>()
             .Which.DuplicatePolicy.Should().Be(ImportDuplicatePolicy.Reject);

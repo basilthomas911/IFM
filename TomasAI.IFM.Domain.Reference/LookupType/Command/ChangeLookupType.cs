@@ -2,6 +2,7 @@
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 
@@ -16,12 +17,12 @@ public static class ChangeLookupType
     /// <param name="state">The current state of the lookup type. Cannot be null.</param>
     /// <returns>true if the lookup type was successfully changed; otherwise, false.</returns>
     /// <exception cref="ChangeLookupTypeException">Thrown if the lookup type does not exist in the state.</exception>
-    public static bool Execute(this ChangeLookupTypeCommand e, LookupTypeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this ChangeLookupTypeCommand e, LookupTypeCommandState state)
     {
         return e switch
         {
             _ when !state.LookupTypeExists(e.EntityId) && !e.Overwrite => throw new ChangeLookupTypeException($"{e.CommandName}: lookupType {e.EntityId} does not exist"),
-            _ => state.Update(e.CreateLookupTypeChangedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateLookupTypeChangedEvent(), e))
         };
     }
 

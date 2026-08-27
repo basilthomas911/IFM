@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 
@@ -17,11 +18,11 @@ public static class TurnTradeLiveFeedOff
     /// <param name="state">The current state of the market data feed, indicating whether the trade live feed is active.</param>
     /// <returns>true if the trade live feed was successfully turned off; otherwise, false.</returns>
     /// <exception cref="TurnTradeLiveFeedOffException">Thrown if the trade live feed is already off for the specified order and trade identifiers.</exception>
-    public static bool Execute(this TurnTradeLiveFeedOffCommand e, MarketDataFeedCommandState state)
+    public static ServiceResult<GuidResult> Execute(this TurnTradeLiveFeedOffCommand e, MarketDataFeedCommandState state)
         => e switch
         {
             _ when !state.IsTradeLiveFeedOn => throw new TurnTradeLiveFeedOffException($"Trade live feed is already off for: {e.OrderId}:{e.TradeId}"),
-            _ => state.Update(e.CreateTradeLiveFeedTurnedOffEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateTradeLiveFeedTurnedOffEvent(), e))
         };
 
     /// <summary>

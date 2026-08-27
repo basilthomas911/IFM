@@ -9,11 +9,16 @@ using TomasAI.IFM.Domain.PredictiveModel.Shared.FuturesItiTrend.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 
 namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbWriteContext
 {
+    /// <summary>Persists one exact or explicitly invalid VWAP session projection.</summary>
+    Task InsertFuturesVwapSignalAsync(FuturesVwapSignalReadModel signal,
+        CancellationToken cancellationToken = default);
     Task UpsertMarketOutlookSnapshotAsync(
         MarketOutlookSnapshotReadModel snapshot,
         CancellationToken cancellationToken = default);
@@ -83,6 +88,9 @@ public interface IMarketDataDbWriteContext
     Task InsertFuturesEmaSignalAsync(FuturesEmaSignalReadModel signal, CancellationToken cancellationToken = default);
     /// <summary>Persists one EMA-centered BB10/20 signal projection.</summary>
     Task InsertFuturesBollingerBandSignalAsync(FuturesBbSignalReadModel signal, CancellationToken cancellationToken = default);
+    /// <summary>Persists one valid front/back VX term-structure projection.</summary>
+    Task InsertFuturesVxTermStructureSignalAsync(FuturesVxTermStructureSignalReadModel signal,
+        CancellationToken cancellationToken = default);
     /// <summary>Persists one extended ATR14 volatility signal projection.</summary>
     Task InsertFuturesTdiSignalAsync(FuturesTdiSignalReadModel e);
     Task InsertFuturesMacdSignalAsync(FuturesMacdSignalReadModel e);

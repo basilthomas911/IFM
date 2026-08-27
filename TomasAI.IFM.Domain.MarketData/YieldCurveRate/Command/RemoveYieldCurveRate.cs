@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
@@ -15,11 +16,11 @@ public static class RemoveYieldCurveRate
     /// <param name="state">The current state of the yield curve rate commands to update.</param>
     /// <returns>true if the yield curve rate was successfully removed; otherwise, false.</returns>
     /// <exception cref="RemoveYieldCurveRateException">Thrown if the specified yield curve rate does not exist in the current state.</exception>
-    public static bool Execute(this RemoveYieldCurveRateCommand e, YieldCurveRateCommandState state)
+    public static ServiceResult<GuidResult> Execute(this RemoveYieldCurveRateCommand e, YieldCurveRateCommandState state)
         => e switch
         {
             _ when state.YieldCurveRateDoesNotExist(e.ValueDate, e.Overwrite) => throw new RemoveYieldCurveRateException(e.YieldCurveRateDoesNotExistErrorMsg()),
-            _ => state.Update(e.CreateYieldCurveRateRemovedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateYieldCurveRateRemovedEvent(), e))
         };
 
     /// <summary>

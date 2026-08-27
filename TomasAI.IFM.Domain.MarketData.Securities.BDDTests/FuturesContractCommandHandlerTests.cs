@@ -34,7 +34,7 @@ public class FuturesContractCommandHandlerTests
 
         var changed = command.Execute(state);
 
-        changed.Should().BeTrue();
+        changed.Success.Should().BeTrue();
         state.FuturesContractExists(SampleData.FuturesContract.Id).Should().BeTrue();
         state.Events.Should().ContainSingle();
     }

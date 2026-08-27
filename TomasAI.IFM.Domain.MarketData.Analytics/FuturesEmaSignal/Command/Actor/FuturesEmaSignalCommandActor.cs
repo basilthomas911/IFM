@@ -35,20 +35,39 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
         await typedContext.EventProjector.StopAsync();
 
     /// <inheritdoc />
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesEmaSignalCommandActor> context, IActorMessage message) =>
-        message.Subject is { ActorType: ActorType.Command, Name: ActorName, Verb: GenerateFuturesEmaSignalCommand.Verb }
-            ? message.AsCommand<GenerateFuturesEmaSignalCommand>()
-            : throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
+    protected override ICommand ParseMessage(ICommandActorContext<FuturesEmaSignalCommandActor> context, IActorMessage message)
+    {
+        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
+            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
+        return parseCommand.Invoke(message);
+    }
+
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [GenerateFuturesEmaSignalCommand.Verb] = message =>
+            message.AsCommand<GenerateFuturesEmaSignalCommand>()
+    };
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<FuturesEmaSignalCommandActor> context, IActorState state, ICommand command)
     {
-        if (command is not GenerateFuturesEmaSignalCommand generate)
+        var commandName = command.GetType().Name;
+        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
             throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(
-            generate.Execute((FuturesEmaSignalCommandState)state));
+        return ValueTask.FromResult(receiveCommand.Invoke(
+            command,
+            context,
+            (FuturesEmaSignalCommandState)state));
     }
+
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesEmaSignalCommandActor>,
+        FuturesEmaSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(GenerateFuturesEmaSignalCommand).Name] = static (command, _, state) =>
+            ((GenerateFuturesEmaSignalCommand)command).Execute(state)
+    };
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesEmaSignalCommandActor> context,
@@ -60,10 +79,20 @@ public sealed class FuturesEmaSignalCommandActor(ICommandActorContext<FuturesEma
     {
         await typedContext.DbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow,
             JsonConvert.SerializeObject(command), cancellationToken);
-        if (command.CommandId == Guid.Empty)
-            new List<ValidationError> { new(nameof(command.CommandId), "CommandId is required") }
-                .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
+        var commandName = command.GetType().Name;
+        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
+            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
+        validateCommand.Invoke(command)
+            .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
     }
+
+    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    {
+        [typeof(GenerateFuturesEmaSignalCommand).Name] = static command =>
+            command.CommandId == Guid.Empty
+                ? [new ValidationError(nameof(command.CommandId), "CommandId is required")]
+                : []
+    };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

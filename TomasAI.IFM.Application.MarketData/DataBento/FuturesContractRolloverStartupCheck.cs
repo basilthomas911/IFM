@@ -82,6 +82,11 @@ public sealed class FuturesContractRolloverStartupCheck(
             currentContracts.Add(contract);
         }
         registry?.ReplaceCurrentFuturesContracts(currentContracts);
+        if (runtimeOptions.FeedOptions.DataSource != FeedDataSourceMode.Synthetic)
+        {
+            _ = await marketDataApi.UpdateFuturesTermStructureContractsAsync(
+                "VX", valueDate, cancellationToken).ConfigureAwait(false);
+        }
         return validated;
     }
 

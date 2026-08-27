@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class PlaceOptionTradeOrder
@@ -19,7 +21,7 @@ internal static class PlaceOptionTradeOrder
     /// langword="false"/>.</returns>
     /// <exception cref="PlaceOptionTradeOrderException">Thrown when the trade already exists, the trade state is invalid for the specified fill type, or position
     /// statuses do not match the order action type.</exception>
-    public static bool Execute(this PlaceOptionTradeOrderCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this PlaceOptionTradeOrderCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeExists(e.EntityId) => throw new PlaceOptionTradeOrderException(
@@ -32,7 +34,7 @@ internal static class PlaceOptionTradeOrder
                 $"{e.CommandName} tradeId: {e.OptionTrade.TradeId} all trade position status MUST be Open to place open order"),
             _ when e.TradeOrder.OrderActionType == OrderActionType.Close && !state.AllTradePositionsInCloseStatus(e.OptionTrade) => throw new PlaceOptionTradeOrderException(
                 $"{e.CommandName} tradeId: {e.OptionTrade.TradeId} all trade position status MUST be Close to place close order"),
-            _ => state.Update(e.CreateOptionTradeOrderPlacedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeOrderPlacedEvent(), e))
         };
 
     /// <summary>

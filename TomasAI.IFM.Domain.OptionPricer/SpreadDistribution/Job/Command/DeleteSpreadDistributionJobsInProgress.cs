@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Commands;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.OptionPricer.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.OptionPricer.SpreadDistribution.Job.Command.Exceptions;
@@ -17,12 +18,12 @@ public static class DeleteSpreadDistributionJobsInProgress
     /// <param name="state">The state object tracking the status of spread distribution jobs.</param>
     /// <returns>true if the deletion is successfully executed; otherwise, an exception is thrown.</returns>
     /// <exception cref="SpreadDistributionJobNotInProgressException">Thrown when the specified job is not in progress for the given entity identifier.</exception>
-    public static bool Execute(this DeleteSpreadDistributionJobsInProgressCommand e, SpreadDistributionJobCommandState state)
+    public static ServiceResult<GuidResult> Execute(this DeleteSpreadDistributionJobsInProgressCommand e, SpreadDistributionJobCommandState state)
         => e switch
         {
             _ when !state.IsJobStatusInProgress
                 => throw new SpreadDistributionJobNotInProgressException(e.EntityId),
-            _ => state.Update(e.CreateSpreadDistributionJobsInProgressDeletedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateSpreadDistributionJobsInProgressDeletedEvent(), e))
         };
 
     /// <summary>

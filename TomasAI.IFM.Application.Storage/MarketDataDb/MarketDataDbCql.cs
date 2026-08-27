@@ -2,6 +2,59 @@
 
 internal static class MarketDataDbCql
 {
+    public const string InsertFuturesVwapSignal = """
+        INSERT INTO futures_vwap_signal (
+            contractId, valueDate, configurationId, asOfUtc, lastTradeOrdinal,
+            sessionStartUtc, sessionEndUtc, cumulativePriceVolume, cumulativeVolume,
+            eligibleTradeCount, rejectedTradeCount, lastPrice, vwap, priceMinusVwap,
+            priceToVwapPercent, lastTradeSourceSequence, streamEpochId, isWarm, isValid,
+            invalidReason, isTickExact, calculationMethod, schemaVersion, calculationVersion
+        ) VALUES (
+            :contractId, :valueDate, :configurationId, :asOfUtc, :lastTradeOrdinal,
+            :sessionStartUtc, :sessionEndUtc, :cumulativePriceVolume, :cumulativeVolume,
+            :eligibleTradeCount, :rejectedTradeCount, :lastPrice, :vwap, :priceMinusVwap,
+            :priceToVwapPercent, :lastTradeSourceSequence, :streamEpochId, :isWarm, :isValid,
+            :invalidReason, :isTickExact, :calculationMethod, :schemaVersion, :calculationVersion
+        );
+        """;
+
+    public const string GetLatestFuturesVwapSignal = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            configurationId AS "ConfigurationId", sessionStartUtc AS "SessionStartUtc",
+            sessionEndUtc AS "SessionEndUtc", asOfUtc AS "AsOfUtc",
+            cumulativePriceVolume AS "CumulativePriceVolume",
+            cumulativeVolume AS "CumulativeVolume", eligibleTradeCount AS "EligibleTradeCount",
+            rejectedTradeCount AS "RejectedTradeCount", lastPrice AS "LastPrice", vwap AS "Vwap",
+            priceMinusVwap AS "PriceMinusVwap", priceToVwapPercent AS "PriceToVwapPercent",
+            lastTradeSourceSequence AS "LastTradeSourceSequence", streamEpochId AS "StreamEpochId",
+            lastTradeOrdinal AS "LastTradeOrdinal", isWarm AS "IsWarm", isValid AS "IsValid",
+            invalidReason AS "InvalidReason", isTickExact AS "IsTickExact",
+            calculationMethod AS "CalculationMethod", schemaVersion AS "SchemaVersion",
+            calculationVersion AS "CalculationVersion"
+        FROM futures_vwap_signal
+        WHERE contractId = :contractId AND valueDate = :valueDate
+            AND configurationId = :configurationId
+        LIMIT 1;
+        """;
+
+    public const string GetFuturesVwapSignalHistory = """
+        SELECT contractId AS "ContractId", valueDate AS "ValueDate",
+            configurationId AS "ConfigurationId", sessionStartUtc AS "SessionStartUtc",
+            sessionEndUtc AS "SessionEndUtc", asOfUtc AS "AsOfUtc",
+            cumulativePriceVolume AS "CumulativePriceVolume",
+            cumulativeVolume AS "CumulativeVolume", eligibleTradeCount AS "EligibleTradeCount",
+            rejectedTradeCount AS "RejectedTradeCount", lastPrice AS "LastPrice", vwap AS "Vwap",
+            priceMinusVwap AS "PriceMinusVwap", priceToVwapPercent AS "PriceToVwapPercent",
+            lastTradeSourceSequence AS "LastTradeSourceSequence", streamEpochId AS "StreamEpochId",
+            lastTradeOrdinal AS "LastTradeOrdinal", isWarm AS "IsWarm", isValid AS "IsValid",
+            invalidReason AS "InvalidReason", isTickExact AS "IsTickExact",
+            calculationMethod AS "CalculationMethod", schemaVersion AS "SchemaVersion",
+            calculationVersion AS "CalculationVersion"
+        FROM futures_vwap_signal
+        WHERE contractId = :contractId AND valueDate = :valueDate
+            AND configurationId = :configurationId;
+        """;
+
     public const string InsertFuturesEmaSignal = """
         INSERT INTO futures_ema_signal (
             seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf, observationId,
@@ -32,6 +85,45 @@ internal static class MarketDataDbCql
             :position20, :width20Baseline, :width20Ratio, :isWarm, :sourceSequence, :calculatedAt,
             :schemaVersion, :calculationVersion, :calculationMethod, :isValid
         );
+        """;
+
+    public const string InsertFuturesVxTermStructureSignal = """
+        INSERT INTO futures_vx_term_structure_signal (
+            valueDate, configurationId, calculatedAt, frontSourceSequence,
+            backSourceSequence, frontContractId, frontExpiry, frontPrice,
+            backContractId, backExpiry, backPrice, frontBackSpread, frontBackRatio,
+            termStructurePercent, termStructureState, priorFrontBackRatio,
+            priorTermStructurePercent, frontSourceTimestamp, backSourceTimestamp,
+            isWarm, isValid, schemaVersion, calculationVersion
+        ) VALUES (
+            :valueDate, :configurationId, :calculatedAt, :frontSourceSequence,
+            :backSourceSequence, :frontContractId, :frontExpiry, :frontPrice,
+            :backContractId, :backExpiry, :backPrice, :frontBackSpread, :frontBackRatio,
+            :termStructurePercent, :termStructureState, :priorFrontBackRatio,
+            :priorTermStructurePercent, :frontSourceTimestamp, :backSourceTimestamp,
+            :isWarm, :isValid, :schemaVersion, :calculationVersion
+        );
+        """;
+
+    public const string GetLatestFuturesVxTermStructureSignal = """
+        SELECT valueDate AS "ValueDate", configurationId AS "ConfigurationId",
+            frontContractId AS "FrontContractId", frontExpiry AS "FrontExpiry",
+            frontPrice AS "FrontPrice", backContractId AS "BackContractId",
+            backExpiry AS "BackExpiry", backPrice AS "BackPrice",
+            frontBackSpread AS "FrontBackSpread", frontBackRatio AS "FrontBackRatio",
+            termStructurePercent AS "TermStructurePercent",
+            termStructureState AS "TermStructureState",
+            priorFrontBackRatio AS "PriorFrontBackRatio",
+            priorTermStructurePercent AS "PriorTermStructurePercent",
+            frontSourceTimestamp AS "FrontSourceTimestamp",
+            backSourceTimestamp AS "BackSourceTimestamp",
+            frontSourceSequence AS "FrontSourceSequence",
+            backSourceSequence AS "BackSourceSequence", calculatedAt AS "CalculatedAt",
+            isWarm AS "IsWarm", isValid AS "IsValid", schemaVersion AS "SchemaVersion",
+            calculationVersion AS "CalculationVersion"
+        FROM futures_vx_term_structure_signal
+        WHERE valueDate = :valueDate AND configurationId = :configurationId
+        LIMIT 1;
         """;
 
     public const string ClaimMarketDataImportOwnership = """

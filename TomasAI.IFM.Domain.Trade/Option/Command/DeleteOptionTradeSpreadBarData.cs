@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 public static class DeleteOptionTradeSpreadBarData
@@ -15,8 +17,8 @@ public static class DeleteOptionTradeSpreadBarData
     /// <param name="e">The delete command containing the spread bar data to remove.</param>
     /// <param name="state">The command state to update with the deleted event.</param>
     /// <returns>true if the state update succeeded; otherwise, false.</returns>
-    public static bool Execute(this DeleteOptionTradeSpreadBarDataCommand e, OptionTradeCommandState state)
-        => state.Update(e.CreateOptionTradeSpreadBarDataDeletedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this DeleteOptionTradeSpreadBarDataCommand e, OptionTradeCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateOptionTradeSpreadBarDataDeletedEvent(), e));
 
     /// <summary>
     /// Creates an <see cref="OptionTradeSpreadBarDataDeletedEvent"/> from a <see cref="DeleteOptionTradeSpreadBarDataCommand"/>.

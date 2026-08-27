@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -11,8 +12,8 @@ public static class StartFuturesTickDataStreaming
     /// Handle a <see cref="StartFuturesTickDataStreamingCommand"/> by building the corresponding
     /// <see cref="FuturesTickDataStreamingStartedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this StartFuturesTickDataStreamingCommand e, FuturesTickDataCommandState state)
-        => state.Update(e.CreateFuturesTickDataStreamingStartedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this StartFuturesTickDataStreamingCommand e, FuturesTickDataCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateFuturesTickDataStreamingStartedEvent(), e));
 
     internal static FuturesTickDataStreamingStartedEvent CreateFuturesTickDataStreamingStartedEvent(this StartFuturesTickDataStreamingCommand e)
        => new()

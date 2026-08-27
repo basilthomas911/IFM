@@ -52,12 +52,12 @@ public class TradePlanCommandApiTests(WebApplicationFactory<Program> factory, Tr
         // act...
         var tradeApi = new TradePlanCommandApi(_actorProducer);
         var response = await tradeApi.UpdateTradePlanAsync(tradePlan);
-        await eventReceived.Task.WaitAsync(EventTimeout);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue(response.ErrorMessage);
         response.Value.Should().NotBe(Guid.Empty);
+        await eventReceived.Task.WaitAsync(EventTimeout);
         tradePlanUpdatedEvent.Should().NotBeNull();
 
         await eventListener.StopAsync();

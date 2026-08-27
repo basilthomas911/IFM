@@ -103,15 +103,15 @@ public class FuturesOptionTickDataCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, futuresOptionTickDataState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, futuresOptionTickDataState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures option tick data
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesOptionTickDataCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
+        FuturesOptionTickDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(InsertFuturesOptionTickDataCommand).Name] = (cmd, context, state) => (cmd as InsertFuturesOptionTickDataCommand)!.Execute(state),
         [typeof(StartFuturesOptionTickDataStreamingCommand).Name] = (cmd, context, state) => (cmd as StartFuturesOptionTickDataStreamingCommand)!.Execute(state),

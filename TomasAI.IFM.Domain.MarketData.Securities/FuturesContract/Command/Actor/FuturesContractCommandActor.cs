@@ -121,8 +121,7 @@ public class FuturesContractCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, context, futuresContractState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, futuresContractState));
     }
 
     /// <summary>
@@ -132,7 +131,7 @@ public class FuturesContractCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of futures contract-related commands by associating each command
     /// type name with a function that executes the command against a FuturesContractState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesContractCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesContractCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(AddFuturesContractCommand).Name] = (cmd, context, state) => (cmd as AddFuturesContractCommand)!.Execute(state),
         [typeof(ChangeFuturesContractCommand).Name] = (cmd, context, state) => (cmd as ChangeFuturesContractCommand)!.Execute(state),

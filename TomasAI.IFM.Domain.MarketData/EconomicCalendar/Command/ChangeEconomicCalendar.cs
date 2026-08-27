@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.EconomicCalendar.Command.State;
 
@@ -18,12 +19,12 @@ public static class ChangeEconomicCalendar
     /// <param name="state">The economic calendar command state.</param>
     /// <returns></returns>
     /// <exception cref="ChangeEconomicCalendarException"></exception>
-    public static bool Execute(this ChangeEconomicCalendarCommand e, EconomicCalendarCommandState state)
+    public static ServiceResult<GuidResult> Execute(this ChangeEconomicCalendarCommand e, EconomicCalendarCommandState state)
     {
         return e switch
         {
             _ when !state.EconomicCalendarExists(e.EntityId) && !e.Overwrite => throw new ChangeEconomicCalendarException(EconomicCalendarDoesNotExist(e)),
-            _ => state.Update(e.CreateEconomicCalendarChangedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateEconomicCalendarChangedEvent(), e))
         };
     }
     /// <summary>

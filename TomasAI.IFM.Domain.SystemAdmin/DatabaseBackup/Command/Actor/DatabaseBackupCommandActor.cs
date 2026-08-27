@@ -30,7 +30,7 @@ public class DatabaseBackupCommandActor(
     /// <summary>Gets the SupportedCommandTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedCommandTypes => CommandTypes;
     /// <summary>Gets the SupportedVerbs value.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => ParseMap.Keys;
+    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys;
 
     static readonly Type[] CommandTypes =
     [
@@ -46,10 +46,22 @@ public class DatabaseBackupCommandActor(
         typeof(RecordDatabaseBackupServiceCapabilityCommand), typeof(RecordDatabaseRecoveryRunStatisticsCommand)
     ];
     static readonly MethodInfo ParseMethod = typeof(DatabaseBackupCommandActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> ParseMap = CommandTypes.ToDictionary(
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = CommandTypes.ToDictionary(
         type => (string)type.GetProperty(nameof(DatabaseBackupCommand.Verb))!.GetValue(Activator.CreateInstance(type))!,
         type => (Func<IActorMessage, ICommand>)ParseMethod.MakeGenericMethod(type).CreateDelegate(typeof(Func<IActorMessage, ICommand>)),
         StringComparer.Ordinal);
+    static readonly Dictionary<string, Action<ICommand>> _validationMap = CommandTypes.ToDictionary(
+        type => type.Name,
+        _ => (Action<ICommand>)(command => ((IDatabaseBackupValidatable)command).Validate()),
+        StringComparer.Ordinal);
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>> _receiveMap =
+        CommandTypes.ToDictionary(
+            type => type.Name,
+            type => typeof(DatabaseBackupCommand).IsAssignableFrom(type)
+                ? (Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>)
+                    ((command, _, state) => ((DatabaseBackupCommand)command).Execute(state))
+                : ((command, _, state) => ((DatabaseBackupInternalCommand)command).Execute(state)),
+            StringComparer.Ordinal);
 
     protected override ValueTask OnStartup(ICommandActorContext<DatabaseBackupCommandActor> context)
         => StartAsync(context, CancellationToken.None);
@@ -77,7 +89,7 @@ public class DatabaseBackupCommandActor(
     protected override ICommand ParseMessage(ICommandActorContext<DatabaseBackupCommandActor> context, IActorMessage message)
     {
         if (message.Subject is not { ActorType: ActorType.Command, Name: Actor }
-            || !ParseMap.TryGetValue(message.Subject.Verb, out var parser))
+            || !_parseMap.TryGetValue(message.Subject.Verb, out var parser))
             throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {message.Subject}");
         return parser(message);
     }
@@ -87,23 +99,18 @@ public class DatabaseBackupCommandActor(
 
     protected override ValueTask OnValidateAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        if (command is not IDatabaseBackupValidatable validatable)
+        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
             throw new InvalidOperationException($"Unsupported DatabaseBackup contract '{command.GetType().Name}'.");
-        validatable.Validate();
+        validate(command);
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<DatabaseBackupCommandActor> context, IActorState state, ICommand command)
     {
-        var dispatchContext = context;
         var aggregate = (DatabaseBackupCommandState)state;
-        var operationId = command switch
-        {
-            DatabaseBackupCommand value => aggregate.Execute(value),
-            DatabaseBackupInternalCommand value => aggregate.Execute(value),
-            _ => throw new InvalidOperationException($"Unsupported DatabaseBackup command '{command.GetType().Name}'.")
-        };
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(operationId.Value)));
+        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
+            throw new InvalidOperationException($"Unsupported DatabaseBackup command '{command.GetType().Name}'.");
+        return ValueTask.FromResult(receive(command, context, aggregate));
     }
 
     protected override async ValueTask<IActorState> OnLoadStateAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, ICommand command)

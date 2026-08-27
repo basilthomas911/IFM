@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class ProcessOptionTradeEndOfDay
@@ -17,9 +19,9 @@ internal static class ProcessOptionTradeEndOfDay
     /// <param name="state">The current state of the option trade command.</param>
     /// <returns>True if the end-of-day processing completed successfully and the state was updated; otherwise, false.</returns>
     /// <exception cref="ProcessOptionTradeEndOfDayException">Thrown when the trade does not exist, is not in end-of-day status, or is not an Iron Condor trade type.</exception>
-    public static bool Execute(this ProcessOptionTradeEndOfDayCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this ProcessOptionTradeEndOfDayCommand e, OptionTradeCommandState state)
     {
-        return e switch
+        return e.UpdateResult(() => e switch
         {
             _ when !state.TradeExists(e.EntityId) => throw new ProcessOptionTradeEndOfDayException(
                 $"{e.CommandName}: trade: {e.OrderId}:{e.TradeId} does not exist"),
@@ -28,7 +30,7 @@ internal static class ProcessOptionTradeEndOfDay
             _ when !state.IsIronCondorTrade(e.TradeType) => throw new ProcessOptionTradeEndOfDayException(
                 $"{e.CommandName} trade: {e.OrderId}:{e.TradeId} trade type {e.TradeType} cannot be processed - must be an Iron Condor trade"),
             _ => ProcessOptionTradeEndOfDay(e, state)
-        };
+        });
 
         /// <summary>
         /// Process the end-of-day updates for the option trade.

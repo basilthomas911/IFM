@@ -94,6 +94,38 @@ public sealed class EventProjectorOutboxDispatcherTests
             Arg.Any<EventProjectorOutboxReadModel>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Removed_event_type_is_failed_immediately_without_transient_retry()
+    {
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        var row = CreateRow(Guid.NewGuid(), 1) with
+        {
+            EventTypeName = "Removed.Namespace.Event, Removed.Assembly"
+        };
+        eventSource.ClaimEventProjectorOutboxAsync(
+                Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<DateTime>(), Arg.Any<TimeSpan>(),
+                Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(call => Task.FromResult<IReadOnlyList<EventProjectorOutboxReadModel>>(
+                [row with { DispatchToken = call.ArgAt<Guid>(1) }]));
+        eventSource.ReleaseEventProjectorOutboxAsync(
+                Arg.Any<EventProjectorOutboxReadModel>(), Arg.Any<EventProjectorOutboxStatus>(),
+                Arg.Any<DateTime?>(), Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        await using var dispatcher = CreateDispatcher(
+            eventSource,
+            static (_, _) => ValueTask.CompletedTask);
+
+        (await dispatcher.DispatchBatchAsync()).Should().Be(1);
+
+        await eventSource.Received(1).ReleaseEventProjectorOutboxAsync(
+            Arg.Any<EventProjectorOutboxReadModel>(),
+            EventProjectorOutboxStatus.Failed,
+            null,
+            Arg.Is<string>(value => value.Contains("Removed.Assembly", StringComparison.Ordinal)),
+            Arg.Any<DateTime>(),
+            CancellationToken.None);
+    }
+
     static EventProjectorOutboxDispatcher CreateDispatcher(
         IEventSourceActorDbContext eventSource,
         Func<IEvent, CancellationToken, ValueTask> publishAsync)

@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -14,8 +15,8 @@ public static class StartMarketDataFeed
     /// <param name="e">The start command to execute.</param>
     /// <param name="state">The current actor command state to update.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise <see langword="false"/>.</returns>
-    public static bool Execute(this StartMarketDataFeedCommand e, MarketDataFeedCommandState state)
-        => state.Update(e.CreateMarketDataFeedStartedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this StartMarketDataFeedCommand e, MarketDataFeedCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateMarketDataFeedStartedEvent(), e));
 
     /// <summary>
     /// Creates a <see cref="MarketDataFeedStartedEvent"/> from a <see cref="StartMarketDataFeedCommand"/>.

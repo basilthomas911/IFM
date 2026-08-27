@@ -7,6 +7,8 @@ using TomasAI.IFM.Domain.Trade.Model;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 public static class ChangeOptionTradeLegData
@@ -19,16 +21,16 @@ public static class ChangeOptionTradeLegData
     /// <param name="state">The current state of the option trade command.</param>
     /// <returns>true if the option leg data was changed and applied; otherwise, false.</returns>
     /// <exception cref="ChangeOptionTradeLegDataException">Thrown when the trade does not exist or the trade status is not in INTRADAY status.</exception>
-    public static bool Execute(this ChangeOptionTradeLegDataCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this ChangeOptionTradeLegDataCommand e, OptionTradeCommandState state)
     {
-        return e switch
+        return e.UpdateResult(() => e switch
         {
             _ when !state.TradeExists(e.EntityId) => throw new ChangeOptionTradeLegDataException(
                 $"{e.CommandName}: trade: {e.TradeId} orderId: {e.OrderId} does not exist"),
             _ when !state.IsTradeInIntraDayStatus(e.TradeStatus) => throw new ChangeOptionTradeLegDataException(
                 $"{e.CommandName}: trade status = {e.TradeStatus} must be in INTRADAY status"),
             _ => ChangeOptionTradeLegData(e, state)
-        };
+        });
 
         /// <summary>
         /// Updates the option trade leg data and trade positions based on the specified command and state.

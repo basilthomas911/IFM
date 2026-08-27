@@ -24,7 +24,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext)
     : BaseEventSourceCommandActor<IntrinsicTimeStrategyWorkflowCommandActor>(actorContext, actorContext.Logger)
 {
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> Parsers =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
             [StartIntrinsicTimeStrategyWorkflowCommand.Verb] = message => message.AsCommand<StartIntrinsicTimeStrategyWorkflowCommand>()!,
@@ -45,6 +45,52 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             [TimeoutRiskManagementCommand.Verb] = message => message.AsCommand<TimeoutRiskManagementCommand>()!,
             [CancelIntrinsicTimeStrategyWorkflowCommand.Verb] = message => message.AsCommand<CancelIntrinsicTimeStrategyWorkflowCommand>()!,
             [RedispatchCurrentStrategyPipelineCommand.Verb] = message => message.AsCommand<RedispatchCurrentStrategyPipelineCommand>()!
+        };
+
+    static readonly IReadOnlyDictionary<string, Action<ICommand>> _validationMap =
+        new Dictionary<string, Action<ICommand>>(StringComparer.Ordinal)
+        {
+            [typeof(StartIntrinsicTimeStrategyWorkflowCommand).Name] = ValidateCommand,
+            [typeof(CompleteRegimeDiscoveryCommand).Name] = ValidateCommand,
+            [typeof(CompleteMarketConditionCommand).Name] = ValidateCommand,
+            [typeof(CompleteTradeSelectionCommand).Name] = ValidateCommand,
+            [typeof(CompleteOrderCompositionCommand).Name] = ValidateCommand,
+            [typeof(CompleteRiskManagementCommand).Name] = ValidateCommand,
+            [typeof(FailRegimeDiscoveryCommand).Name] = ValidateCommand,
+            [typeof(FailMarketConditionCommand).Name] = ValidateCommand,
+            [typeof(FailTradeSelectionCommand).Name] = ValidateCommand,
+            [typeof(FailOrderCompositionCommand).Name] = ValidateCommand,
+            [typeof(FailRiskManagementCommand).Name] = ValidateCommand,
+            [typeof(TimeoutRegimeDiscoveryCommand).Name] = ValidateCommand,
+            [typeof(TimeoutMarketConditionCommand).Name] = ValidateCommand,
+            [typeof(TimeoutTradeSelectionCommand).Name] = ValidateCommand,
+            [typeof(TimeoutOrderCompositionCommand).Name] = ValidateCommand,
+            [typeof(TimeoutRiskManagementCommand).Name] = ValidateCommand,
+            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand).Name] = ValidateCommand,
+            [typeof(RedispatchCurrentStrategyPipelineCommand).Name] = ValidateCommand
+        };
+
+    static readonly IReadOnlyDictionary<string, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, IntrinsicTimeStrategyWorkflowCommandActor, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
+        new Dictionary<string, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, IntrinsicTimeStrategyWorkflowCommandActor, ValueTask<ServiceResult<GuidResult>>>>(StringComparer.Ordinal)
+        {
+            [typeof(StartIntrinsicTimeStrategyWorkflowCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((StartIntrinsicTimeStrategyWorkflowCommand)command).Execute(state, static (s, c) => HandleStart(s, c))),
+            [typeof(CompleteRegimeDiscoveryCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteRegimeDiscoveryCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
+            [typeof(CompleteMarketConditionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteMarketConditionCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
+            [typeof(CompleteTradeSelectionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteTradeSelectionCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
+            [typeof(CompleteOrderCompositionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteOrderCompositionCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
+            [typeof(CompleteRiskManagementCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteRiskManagementCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
+            [typeof(FailRegimeDiscoveryCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailRegimeDiscoveryCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
+            [typeof(FailMarketConditionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailMarketConditionCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
+            [typeof(FailTradeSelectionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailTradeSelectionCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
+            [typeof(FailOrderCompositionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailOrderCompositionCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
+            [typeof(FailRiskManagementCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailRiskManagementCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
+            [typeof(TimeoutRegimeDiscoveryCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutRegimeDiscoveryCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
+            [typeof(TimeoutMarketConditionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutMarketConditionCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
+            [typeof(TimeoutTradeSelectionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutTradeSelectionCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
+            [typeof(TimeoutOrderCompositionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutOrderCompositionCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
+            [typeof(TimeoutRiskManagementCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutRiskManagementCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
+            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CancelIntrinsicTimeStrategyWorkflowCommand)command).Execute(state, static (s, c) => HandleCancel(s, c))),
+            [typeof(RedispatchCurrentStrategyPipelineCommand).Name] = (command, _, state, actor) => ((RedispatchCurrentStrategyPipelineCommand)command).ExecuteAsync(state, actor.HandleRedispatchAsync)
         };
 
     /// <summary>Gets the Command actor name used by dependency injection and actor routing.</summary>
@@ -73,7 +119,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     {
         if (message.Subject.ActorType != ActorType.Command ||
             !string.Equals(message.Subject.Name, ActorName, StringComparison.Ordinal) ||
-            !Parsers.TryGetValue(message.Subject.Verb, out var parse))
+            !_parseMap.TryGetValue(message.Subject.Verb, out var parse))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
 
         return parse(message);
@@ -85,18 +131,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        if (command.CommandId == Guid.Empty)
-            throw new ArgumentException("Workflow commands require a non-empty command identity.", nameof(command));
-        if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
-            throw new ArgumentException("Workflow commands require an entity routing identity.", nameof(command));
-        if (TryNormalizeCompletion(command, out var completion))
-        {
-            var validationErrors = new StrategyStageResultEnvelopeValidationRules().Execute(completion.Result);
-            if (validationErrors.Length != 0)
-                throw new ArgumentException(
-                    string.Join("; ", validationErrors.Select(static error => error.ErrorMessage)),
-                    nameof(command));
-        }
+        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
+            throw new InvalidOperationException($"Unsupported workflow command: {command.GetType().Name}");
+        validate(command);
         return ValueTask.CompletedTask;
     }
 
@@ -124,31 +161,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         IActorState state,
         ICommand command)
     {
-        var workflowState = (IntrinsicTimeStrategyWorkflowCommandState)state;
-        switch (command)
-        {
-            case StartIntrinsicTimeStrategyWorkflowCommand start:
-                HandleStart(workflowState, start);
-                break;
-            case RedispatchCurrentStrategyPipelineCommand redispatch:
-                await HandleRedispatchAsync(workflowState, redispatch).ConfigureAwait(false);
-                break;
-            case CancelIntrinsicTimeStrategyWorkflowCommand cancel:
-                HandleCancel(workflowState, cancel);
-                break;
-            default:
-                if (TryNormalizeCompletion(command, out var completion))
-                    HandleCompletion(workflowState, command, completion);
-                else if (TryNormalizeFailure(command, out var failure))
-                    HandleFailure(workflowState, command, failure);
-                else if (TryNormalizeTimeout(command, out var timeout))
-                    HandleTimeout(workflowState, command, timeout);
-                else
-                    throw new InvalidOperationException($"Unsupported workflow command: {command.GetType().Name}");
-                break;
-        }
-
-        return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
+            throw new InvalidOperationException($"Unsupported workflow command: {command.GetType().Name}");
+        return await receive(command, context, (IntrinsicTimeStrategyWorkflowCommandState)state, this).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -160,7 +175,44 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         => ValueTask.FromResult<ServiceResult<GuidResult>>(
             new ServiceResult<GuidResult>(command?.ErrorCode ?? 21000, ex.Message));
 
-    static void HandleStart(
+    static void ValidateCommand(ICommand command)
+    {
+        if (command.CommandId == Guid.Empty)
+            throw new ArgumentException("Workflow commands require a non-empty command identity.", nameof(command));
+        if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
+            throw new ArgumentException("Workflow commands require an entity routing identity.", nameof(command));
+        if (!TryNormalizeCompletion(command, out var completion))
+            return;
+
+        var validationErrors = new StrategyStageResultEnvelopeValidationRules().Execute(completion.Result);
+        if (validationErrors.Length != 0)
+            throw new ArgumentException(
+                string.Join("; ", validationErrors.Select(static error => error.ErrorMessage)),
+                nameof(command));
+    }
+
+    static void HandleCompletionCommand(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command)
+    {
+        if (!TryNormalizeCompletion(command, out var completion))
+            throw new InvalidOperationException($"Unsupported completion command: {command.GetType().Name}");
+        HandleCompletion(state, command, completion);
+    }
+
+    static void HandleFailureCommand(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command)
+    {
+        if (!TryNormalizeFailure(command, out var failure))
+            throw new InvalidOperationException($"Unsupported failure command: {command.GetType().Name}");
+        HandleFailure(state, command, failure);
+    }
+
+    static void HandleTimeoutCommand(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command)
+    {
+        if (!TryNormalizeTimeout(command, out var timeout))
+            throw new InvalidOperationException($"Unsupported timeout command: {command.GetType().Name}");
+        HandleTimeout(state, command, timeout);
+    }
+
+    internal static void HandleStart(
         IntrinsicTimeStrategyWorkflowCommandState state,
         StartIntrinsicTimeStrategyWorkflowCommand command)
     {
@@ -300,7 +352,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             input.TimeoutId, StrategyWorkflowOutcome.TimedOut, "PipelineTimedOut", input.OccurredAtUtc);
     }
 
-    static void HandleCancel(
+    internal static void HandleCancel(
         IntrinsicTimeStrategyWorkflowCommandState state,
         CancelIntrinsicTimeStrategyWorkflowCommand command)
     {
@@ -313,7 +365,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             command.ReasonCode, command.RequestedAtUtc);
     }
 
-    async ValueTask HandleRedispatchAsync(
+    internal async ValueTask HandleRedispatchAsync(
         IntrinsicTimeStrategyWorkflowCommandState state,
         RedispatchCurrentStrategyPipelineCommand command)
     {

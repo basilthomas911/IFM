@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesBarData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -11,8 +12,8 @@ public static class StopFuturesBarDataStreaming
     /// Handle a <see cref="StopFuturesBarDataStreamingCommand"/> by building the corresponding
     /// <see cref="FuturesBarDataStreamingStoppedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this StopFuturesBarDataStreamingCommand e, FuturesBarDataCommandState state)
-        => state.Update(e.CreateFuturesBarDataStreamingStoppedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this StopFuturesBarDataStreamingCommand e, FuturesBarDataCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateFuturesBarDataStreamingStoppedEvent(), e));
 
     /// <summary>
     /// Creates a <see cref="FuturesBarDataStreamingStoppedEvent"/> from a

@@ -1,6 +1,7 @@
 ﻿using TomasAI.IFM.Domain.Reference.Shared.Commands;
 using TomasAI.IFM.Domain.Reference.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.Exceptions;
 using TomasAI.IFM.Domain.Reference.LookupType.Command.State;
 
@@ -15,12 +16,12 @@ public static class AddLookupType
     /// <param name="state">The current state of the lookup type.</param>
     /// <returns>true if the lookup type was successfully added; otherwise, false.</returns>
     /// <exception cref="AddLookupTypeException">Thrown if the lookup type already exists in the state.</exception>
-    public static bool Execute(this AddLookupTypeCommand e, LookupTypeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this AddLookupTypeCommand e, LookupTypeCommandState state)
     {
         return e switch
         {
             _ when state.LookupTypeExists(e.EntityId) => throw new AddLookupTypeException($"{e.CommandName}: lookupType {e.EntityId} already exists"),
-            _ => state.Update(e.CreateLookupTypeAddedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateLookupTypeAddedEvent(), e))
         };
     }
 

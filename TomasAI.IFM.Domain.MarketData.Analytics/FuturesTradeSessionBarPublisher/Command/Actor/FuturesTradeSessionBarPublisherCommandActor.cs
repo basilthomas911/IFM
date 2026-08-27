@@ -30,12 +30,18 @@ public sealed class FuturesTradeSessionBarPublisherCommandActor(
         ICommandActorContext<FuturesTradeSessionBarPublisherCommandActor> context,
         IActorMessage message)
     {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName,
-                Verb: PublishFuturesTradeSessionBarCommand.Verb })
+        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
+            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return message.AsCommand<PublishFuturesTradeSessionBarCommand>()
-            ?? throw new InvalidOperationException("Unable to deserialize the Publish bar command.");
+        return parseCommand.Invoke(message);
     }
+
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [PublishFuturesTradeSessionBarCommand.Verb] = message =>
+            message.AsCommand<PublishFuturesTradeSessionBarCommand>()
+            ?? throw new InvalidOperationException("Unable to deserialize the Publish bar command.")
+    };
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(
@@ -43,8 +49,21 @@ public sealed class FuturesTradeSessionBarPublisherCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        var value = command as PublishFuturesTradeSessionBarCommand
-            ?? throw new InvalidOperationException("Unsupported publisher command.");
+        var commandName = command.GetType().Name;
+        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
+            throw new InvalidOperationException("Unsupported publisher command.");
+        validateCommand.Invoke(command);
+        return ValueTask.CompletedTask;
+    }
+
+    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    {
+        [typeof(PublishFuturesTradeSessionBarCommand).Name] = static command =>
+            ValidatePublish((PublishFuturesTradeSessionBarCommand)command)
+    };
+
+    static void ValidatePublish(PublishFuturesTradeSessionBarCommand value)
+    {
         if (value.CommandId == Guid.Empty || value.CommandId != value.Bar.ObservationId.Value)
             throw new ArgumentException("CommandId must equal the deterministic bar identity.");
         if (new FuturesTradeSessionBarEntityIdValidationRules().Execute(value.EntityId).Length != 0)
@@ -55,16 +74,30 @@ public sealed class FuturesTradeSessionBarPublisherCommandActor(
             || value.EntityId.TimeFrame != value.Bar.TimeFrame
             || value.Subject.EntityId != value.EntityId.Format())
             throw new ArgumentException("Command routing identity must match the completed bar.");
-        return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<FuturesTradeSessionBarPublisherCommandActor> context,
         IActorState state,
-        ICommand command) => ValueTask.FromResult(
-            ((PublishFuturesTradeSessionBarCommand)command)
-                .Execute((FuturesTradeSessionBarPublisherCommandState)state));
+        ICommand command)
+    {
+        var commandName = command.GetType().Name;
+        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
+            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
+        return ValueTask.FromResult(receiveCommand.Invoke(
+            command,
+            context,
+            (FuturesTradeSessionBarPublisherCommandState)state));
+    }
+
+    static readonly Dictionary<string, Func<ICommand,
+        ICommandActorContext<FuturesTradeSessionBarPublisherCommandActor>,
+        FuturesTradeSessionBarPublisherCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(PublishFuturesTradeSessionBarCommand).Name] = static (command, _, state) =>
+            ((PublishFuturesTradeSessionBarCommand)command).Execute(state)
+    };
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

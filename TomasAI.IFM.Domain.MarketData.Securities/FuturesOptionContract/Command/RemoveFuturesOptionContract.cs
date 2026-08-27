@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 
@@ -8,11 +9,11 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command
 
 public static class RemoveFuturesOptionContract
 {
-    public static bool Execute(this RemoveFuturesOptionContractCommand e, FuturesOptionContractCommandState state)
+    public static ServiceResult<GuidResult> Execute(this RemoveFuturesOptionContractCommand e, FuturesOptionContractCommandState state)
         => e switch
         {
             _ when state.FuturesOptionContractDoesNotExist(e.ContractId, e.Overwrite) => throw new RemoveFuturesOptionContractException(e.FuturesOptionContractDoesNotExistErrorMsg()),
-            _ => state.Update(e.CreateFuturesOptionContractRemovedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateFuturesOptionContractRemovedEvent(), e))
         };
 
     /// <summary>

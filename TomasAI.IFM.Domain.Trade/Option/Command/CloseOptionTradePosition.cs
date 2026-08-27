@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 public static class CloseOptionTradePosition
@@ -17,14 +19,14 @@ public static class CloseOptionTradePosition
     /// <param name="state">The current state of the option trade command.</param>
     /// <returns>The result of the state update operation.</returns>
     /// <exception cref="OpenOptionTradeException">The trade does not exist or is already closed.</exception>
-    public static bool Execute(this CloseOptionTradePositionCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this CloseOptionTradePositionCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when !state.TradeExists(e.EntityId) => throw new OpenOptionTradeException(
                 $"{e.CommandName}: option trade {e.EntityId.OrderId}/{e.EntityId.TradeId} does not exist"),
             _ when state.TradePositionState == TradePositionState.Closed => throw new OpenOptionTradeException(
                 $"{e.CommandName}: option trade {e.EntityId.OrderId}/{e.EntityId.TradeId} already closed"),
-            _ => state.Update(e.CreateOptionTradePositionClosedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradePositionClosedEvent(), e))
         };
 
     /// <summary>

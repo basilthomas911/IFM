@@ -101,15 +101,15 @@ public class FuturesMacdSignalCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, dispatchContext, macdSignalState);
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, macdSignalState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures MACD signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>, FuturesMacdSignalCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>,
+        FuturesMacdSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(StartFuturesMacdSignalCommand).Name] = (cmd, context, state) => ((StartFuturesMacdSignalCommand)cmd).Execute(state),
         [typeof(StopFuturesMacdSignalCommand).Name] = (cmd, context, state) => ((StopFuturesMacdSignalCommand)cmd).Execute(state),

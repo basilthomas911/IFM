@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class InsertOptionTradeSpreadData
@@ -15,12 +17,12 @@ internal static class InsertOptionTradeSpreadData
     /// <param name="state">The current command state.</param>
     /// <returns>The result of updating the state with the spread data inserted event.</returns>
     /// <exception cref="InsertOptionTradeSpreadDataException">Thrown when the trade does not exist.</exception>
-    public static bool Execute(this InsertOptionTradeSpreadDataCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this InsertOptionTradeSpreadDataCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeDoesNotExist(e.EntityId) => throw new InsertOptionTradeSpreadDataException(
                 $"{e.CommandName}: {e.EntityId.TradeId}:{e.EntityId.OrderId} does not exist"),
-            _ => state.Update(e.CreateOptionTradeSpreadDataInsertedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeSpreadDataInsertedEvent(), e))
         };
 
     /// <summary>

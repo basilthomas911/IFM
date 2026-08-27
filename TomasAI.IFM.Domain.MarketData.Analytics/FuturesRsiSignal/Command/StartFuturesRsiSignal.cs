@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
@@ -11,8 +12,8 @@ public static class StartFuturesRsiSignal
     /// Handle a <see cref="StartFuturesRsiSignalCommand"/> by building the corresponding
     /// <see cref="FuturesRsiSignalStartedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this StartFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
-        => state.Update(e.CreateFuturesRsiSignalStartedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this StartFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateFuturesRsiSignalStartedEvent(), e));
 
     internal static FuturesRsiSignalStartedEvent CreateFuturesRsiSignalStartedEvent(this StartFuturesRsiSignalCommand e)
         => new()

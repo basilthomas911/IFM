@@ -122,44 +122,34 @@ public class OptionTradeCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
 
-        if (cmd is DeleteOptionTradesCommand deleteAll)
-        {
-            var db = ActorContext.DbFactory.TradeDb;
-            var trades = await db.GetOptionTradesAsync(deleteAll.OrderId.Id).ConfigureAwait(false);
-            foreach (var trade in trades)
-                await db.DeleteOptionTradeAsync(trade.OrderId, trade.TradeId).ConfigureAwait(false);
-
-            return new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId));
-        }
-
         var optionTradeState = IsArgumentNull.Set((state as OptionTradeCommandState)!);
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, dispatchContext, optionTradeState);
-        return new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId));
+        return await receiveFunc.Invoke(cmd, dispatchContext, optionTradeState).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding option trade command
     /// logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<OptionTradeCommandActor>, OptionTradeCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<OptionTradeCommandActor>, OptionTradeCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new()
     {
-        [typeof(PlaceOptionTradeOrderCommand).Name] = (cmd, context, state) => (cmd as PlaceOptionTradeOrderCommand)!.Execute(state),
-        [typeof(OpenOptionTradeCommand).Name] = (cmd, context, state) => (cmd as OpenOptionTradeCommand)!.Execute(state),
-        [typeof(CloseOptionTradeCommand).Name] = (cmd, context, state) => (cmd as CloseOptionTradeCommand)!.Execute(state),
-        [typeof(DeleteOptionTradeCommand).Name] = (cmd, context, state) => (cmd as DeleteOptionTradeCommand)!.Execute(state),
-        [typeof(SnapshotOptionTradeCommand).Name] = (cmd, context, state) => (cmd as SnapshotOptionTradeCommand)!.Execute(state),
-        [typeof(ChangeOptionTradeLegDataCommand).Name] = (cmd, context, state) => (cmd as ChangeOptionTradeLegDataCommand)!.Execute(state),
-        [typeof(UpdateOptionTradeSpreadDistributionStatisticsCommand).Name] = (cmd, context, state) => (cmd as UpdateOptionTradeSpreadDistributionStatisticsCommand)!.Execute(state),
-        [typeof(OpenOptionTradePositionCommand).Name] = (cmd, context, state) => (cmd as OpenOptionTradePositionCommand)!.Execute(state),
-        [typeof(CloseOptionTradePositionCommand).Name] = (cmd, context, state) => (cmd as CloseOptionTradePositionCommand)!.Execute(state),
-        [typeof(DeleteOptionTradeSpreadBarDataCommand).Name] = (cmd, context, state) => (cmd as DeleteOptionTradeSpreadBarDataCommand)!.Execute(state),
-        [typeof(InsertOptionTradeSpreadBarDataCommand).Name] = (cmd, context, state) => (cmd as InsertOptionTradeSpreadBarDataCommand)!.Execute(state),
-        [typeof(InsertOptionTradeSpreadDataCommand).Name] = (cmd, context, state) => (cmd as InsertOptionTradeSpreadDataCommand)!.Execute(state),
-        [typeof(ProcessOptionTradeEndOfDayCommand).Name] = (cmd, context, state) => (cmd as ProcessOptionTradeEndOfDayCommand)!.Execute(state),
-        [typeof(UpdateOptionTradeDailyProfitTargetCommand).Name] = (cmd, context, state) => (cmd as UpdateOptionTradeDailyProfitTargetCommand)!.Execute(state)
+        [typeof(PlaceOptionTradeOrderCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((PlaceOptionTradeOrderCommand)cmd).Execute(state)),
+        [typeof(OpenOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((OpenOptionTradeCommand)cmd).Execute(state)),
+        [typeof(CloseOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((CloseOptionTradeCommand)cmd).Execute(state)),
+        [typeof(DeleteOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((DeleteOptionTradeCommand)cmd).Execute(state)),
+        [typeof(SnapshotOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((SnapshotOptionTradeCommand)cmd).Execute(state)),
+        [typeof(ChangeOptionTradeLegDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((ChangeOptionTradeLegDataCommand)cmd).Execute(state)),
+        [typeof(UpdateOptionTradeSpreadDistributionStatisticsCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((UpdateOptionTradeSpreadDistributionStatisticsCommand)cmd).Execute(state)),
+        [typeof(OpenOptionTradePositionCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((OpenOptionTradePositionCommand)cmd).Execute(state)),
+        [typeof(CloseOptionTradePositionCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((CloseOptionTradePositionCommand)cmd).Execute(state)),
+        [typeof(DeleteOptionTradeSpreadBarDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((DeleteOptionTradeSpreadBarDataCommand)cmd).Execute(state)),
+        [typeof(InsertOptionTradeSpreadBarDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((InsertOptionTradeSpreadBarDataCommand)cmd).Execute(state)),
+        [typeof(InsertOptionTradeSpreadDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((InsertOptionTradeSpreadDataCommand)cmd).Execute(state)),
+        [typeof(ProcessOptionTradeEndOfDayCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((ProcessOptionTradeEndOfDayCommand)cmd).Execute(state)),
+        [typeof(UpdateOptionTradeDailyProfitTargetCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((UpdateOptionTradeDailyProfitTargetCommand)cmd).Execute(state)),
+        [typeof(DeleteOptionTradesCommand).Name] = (cmd, context, state) => ((DeleteOptionTradesCommand)cmd).ExecuteAsync(context, state)
     };
 
     /// <summary>

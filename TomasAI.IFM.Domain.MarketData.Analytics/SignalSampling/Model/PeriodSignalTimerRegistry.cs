@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Event;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.SignalSampling.Model;
 
 internal static class PeriodSignalTimerPeriod
 {

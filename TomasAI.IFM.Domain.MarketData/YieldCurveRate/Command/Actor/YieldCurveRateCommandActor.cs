@@ -68,19 +68,21 @@ public class YieldCurveRateCommandActor(
     {
         IsArgumentNull.Check(context);
         var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName })
+        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
+            || !_parseMap.TryGetValue(msgSubject.Verb, out var parseCommand))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        ICommand? command = msgSubject.Verb switch
-        {
-            AddYieldCurveRateCommand.Verb => message.AsCommand<AddYieldCurveRateCommand>(),
-            ChangeYieldCurveRateCommand.Verb => message.AsCommand<ChangeYieldCurveRateCommand>(),
-            RemoveYieldCurveRateCommand.Verb => message.AsCommand<RemoveYieldCurveRateCommand>(),
-            ImportYieldCurveRatesCommand.Verb => message.AsCommand<ImportYieldCurveRatesCommand>(),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}")
-        };
+        var command = parseCommand.Invoke(message);
         IsArgumentNull.Check(command);
         return command;
     }
+
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [AddYieldCurveRateCommand.Verb] = static message => message.AsCommand<AddYieldCurveRateCommand>()!,
+        [ChangeYieldCurveRateCommand.Verb] = static message => message.AsCommand<ChangeYieldCurveRateCommand>()!,
+        [RemoveYieldCurveRateCommand.Verb] = static message => message.AsCommand<RemoveYieldCurveRateCommand>()!,
+        [ImportYieldCurveRatesCommand.Verb] = static message => message.AsCommand<ImportYieldCurveRatesCommand>()!
+    };
 
     /// <summary>
     /// Processes the specified command asynchronously within the given actor context and state, and returns a result
@@ -98,17 +100,23 @@ public class YieldCurveRateCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var yieldCurveRateState = IsArgumentNull.Set((state as YieldCurveRateCommandState)!);
-        _ = cmd switch
-        {
-            AddYieldCurveRateCommand command => command.Execute(yieldCurveRateState),
-            ChangeYieldCurveRateCommand command => command.Execute(yieldCurveRateState),
-            RemoveYieldCurveRateCommand command => command.Execute(yieldCurveRateState),
-            ImportYieldCurveRatesCommand command => command.Execute(yieldCurveRateState),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}")
-        };
-        return ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        if (!_receiveMap.TryGetValue(cmd.GetType().Name, out var receiveCommand))
+            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        return ValueTask.FromResult(receiveCommand.Invoke(cmd, context, yieldCurveRateState));
     }
+
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<YieldCurveRateCommandActor>,
+        YieldCurveRateCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(AddYieldCurveRateCommand).Name] = static (command, _, state) =>
+            ((AddYieldCurveRateCommand)command).Execute(state),
+        [typeof(ChangeYieldCurveRateCommand).Name] = static (command, _, state) =>
+            ((ChangeYieldCurveRateCommand)command).Execute(state),
+        [typeof(RemoveYieldCurveRateCommand).Name] = static (command, _, state) =>
+            ((RemoveYieldCurveRateCommand)command).Execute(state),
+        [typeof(ImportYieldCurveRatesCommand).Name] = static (command, _, state) =>
+            ((ImportYieldCurveRatesCommand)command).Execute(state)
+    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
@@ -134,24 +142,30 @@ public class YieldCurveRateCommandActor(
         else
             await _dbEventSource.InsertCommandLogAsync(
                 cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
-        GetValidationErrors(cmd, ValidationRules)
+        if (!_validationMap.TryGetValue(cmd.GetType().Name, out var getValidationErrors))
+            throw new InvalidOperationException(
+                $"Unable to validate {ActorName} commands from message: {cmd.Subject}");
+        getValidationErrors.Invoke(cmd, ValidationRules)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
-    static List<ValidationError> GetValidationErrors(
-        ICommand command,
-        IValidationRules<YieldCurveRateReadModel> validationRules)
-        => command switch
+    static readonly Dictionary<string, Func<ICommand, IValidationRules<YieldCurveRateReadModel>,
+        List<ValidationError>>> _validationMap = new()
+    {
+        [typeof(AddYieldCurveRateCommand).Name] = static (command, rules) =>
+            Validate((AddYieldCurveRateCommand)command, rules),
+        [typeof(ChangeYieldCurveRateCommand).Name] = static (command, rules) =>
+            Validate((ChangeYieldCurveRateCommand)command, rules),
+        [typeof(RemoveYieldCurveRateCommand).Name] = static (command, _) =>
         {
-            AddYieldCurveRateCommand typedCommand => Validate(typedCommand, validationRules),
-            ChangeYieldCurveRateCommand typedCommand => Validate(typedCommand, validationRules),
-            RemoveYieldCurveRateCommand typedCommand => new List<ValidationError>(2)
-                .ValidateCommandId(typedCommand.CommandId, typedCommand.CommandName)
-                .ValidateValueDate(typedCommand.ValueDate, typedCommand.CommandName),
-            ImportYieldCurveRatesCommand typedCommand => Validate(typedCommand, validationRules),
-            _ => throw new InvalidOperationException(
-                $"Unable to validate {ActorName} commands from message: {command.Subject}")
-        };
+            var remove = (RemoveYieldCurveRateCommand)command;
+            return new List<ValidationError>(2)
+                .ValidateCommandId(remove.CommandId, remove.CommandName)
+                .ValidateValueDate(remove.ValueDate, remove.CommandName);
+        },
+        [typeof(ImportYieldCurveRatesCommand).Name] = static (command, rules) =>
+            Validate((ImportYieldCurveRatesCommand)command, rules)
+    };
 
     static List<ValidationError> Validate(
         AddYieldCurveRateCommand command,

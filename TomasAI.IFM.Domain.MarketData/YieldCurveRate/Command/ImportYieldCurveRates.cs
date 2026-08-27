@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.YieldCurveRate.Command.State;
@@ -14,9 +15,9 @@ public static class ImportYieldCurveRates
     /// <param name="e">The import command containing the collection of yield curve rates to import.</param>
     /// <param name="state">The current state of the yield curve rate commands to update.</param>
     /// <returns>true if the yield curve rates were successfully imported; otherwise, false.</returns>
-    public static bool Execute(this ImportYieldCurveRatesCommand e, YieldCurveRateCommandState state)
+    public static ServiceResult<GuidResult> Execute(this ImportYieldCurveRatesCommand e, YieldCurveRateCommandState state)
     {
-        return state.Update(e.CreateYieldCurveRatesImportedEvent(), e);
+        return e.UpdateResult(() => state.Update(e.CreateYieldCurveRatesImportedEvent(), e));
     }
 
     /// <summary>

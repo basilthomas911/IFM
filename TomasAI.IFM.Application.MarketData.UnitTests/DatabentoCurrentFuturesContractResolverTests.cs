@@ -40,6 +40,24 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
     }
 
     [Fact]
+    public async Task ResolvesFrontAndImmediatelyFollowingVxContractsInMaturityOrder()
+    {
+        var factory = new FakeFeedFactory([
+            Detail("VX/X6", "VX", new DateOnly(2026, 11, 18), "CFE"),
+            Detail("VX/U6", "VX", new DateOnly(2026, 9, 16), "CFE"),
+            Detail("VX/V6", "VX", new DateOnly(2026, 10, 21), "CFE")]);
+        var resolver = new DatabentoCurrentFuturesContractResolver(factory, Options());
+
+        var result = await resolver.ResolveEligibleAsync(
+            "vx", new DateOnly(2026, 8, 26), 2);
+
+        result.Select(contract => contract.ContractId).Should().Equal(
+            "VX20260916", "VX20261021");
+        result[0].LastTradeDate.Should().BeBefore(result[1].LastTradeDate);
+        factory.LastDataset.Should().Be("XCBF.PITCH");
+    }
+
+    [Fact]
     public async Task UsesSettlementCurrencyWhenDefinitionCurrencyIsMissing()
     {
         var factory = new FakeFeedFactory([

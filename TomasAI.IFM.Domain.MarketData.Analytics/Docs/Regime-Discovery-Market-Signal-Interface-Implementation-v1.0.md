@@ -4,7 +4,7 @@ Implementation Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | MDSI-0 through MDSI-10 implemented; MDSI-11 onward remains planned |
+| Status | MDSI-0 through MDSI-10, MDSI-12 baseline, and MDSI-13 baseline implemented; remaining gates are planned |
 | Date | 2026-08-25 |
 | Design authority | `Regime-Discovery-Market-Signal-Interface-Design-v1.0.md` |
 | Primary consumer | Intrinsic Time Strategy Workflow - Regime Discovery pipeline |
@@ -31,15 +31,18 @@ ticks, ScyllaDB, Redis, or provider APIs directly.
 2. Bar-derived signals consume one shared immutable OHLCV observation per
    contract/series and timeframe. Session VWAP is the explicit trade-derived
    signal and consumes normalized trade-originated market-price events.
-3. `FuturesVwapSignalRealtimeActor`, not TickAggregation, owns VWAP state and
-   calculation. TickAggregation only appends normalized trade and delivery
-   lineage to `FuturesMarketPriceUpdatedRealtimeEvent`.
-4. New live signal calculation uses Realtime actors, Core NATS routes, and
-   `BaseRealtimeProjector<TActor>`. It does not create durable Event actors,
-   JetStream replay queues, or event-source logs for each calculated sample.
-5. Realtime projection remains one attempt. A source, complete, or fail event
-   is published according to the existing projector convention; actor state
-   is confirmed only after projection succeeds.
+3. `FuturesVwapSignalCommandActor`, not TickAggregation or a Realtime actor,
+   owns VWAP state and calculation. TickAggregation appends normalized trade
+   and delivery lineage to `FuturesMarketPriceUpdatedRealtimeEvent`; the
+   stateless VWAP Realtime actor validates/routes that input to the Command
+   actor.
+4. VWAP follows the durable signal convention: its Command actor reconstructs
+   event-sourced state from PostgreSQL, commits each accepted transition, and
+   its Command-folder event projector writes the ScyllaDB read model and
+   publishes complete/fail events. Its Event and Query actors are stateless.
+5. VWAP does not use a realtime projector or keep calculation state in its
+   Realtime actor. Historical recovery enters through private Command messages
+   and is never republished as live market data.
 6. The historical data load is different from live calculation. It is a
    durable, parameter-only external acquisition workflow with Command and
    Event actors, idempotent manifests, checkpoints, and a provider-neutral
@@ -82,7 +85,7 @@ ticks, ScyllaDB, Redis, or provider APIs directly.
 | Concern | Existing pattern to reuse |
 | --- | --- |
 | Closed generic contexts | `IRealtimeActorContext<FuturesMacdSignalRealtimeActor>` and the other refactored actor contexts |
-| Realtime projection | `FuturesMacdSignalRealtimeProjector`, `FuturesAtrSignalRealtimeProjector`, and `BaseRealtimeProjector<TActor>` |
+| Durable VWAP projection | `BaseEventSourceCommandActor<TActor>`, typed state repository, PostgreSQL event log, and a Command-folder event projector |
 | Runtime routing | `AddRealtimeRouter` during actor startup and `RemoveRealtimeRouter` during shutdown |
 | Open generic DI | Startup assembly scanning for `IActor<>`, all four closed context interfaces, state repositories, and projectors |
 | Scylla schema | `MarketDataSchemaCql` plus ordered `SchemaObjectDefinition` entries in `MarketDataSchemaDb` |
@@ -180,18 +183,17 @@ symbology, schema names, batch job IDs, DBN, Zstandard, or native handles.
 
 ```text
 TomasAI.IFM.Domain.MarketData.Analytics.Shared/
-  MarketSignals/
-    Common/
+  Common/
       MarketAnalyticsSignalKey.cs
       MarketAnalyticsSignalMetadata.cs
       MarketSeriesIdentity.cs
       MarketSignalCalculationMethod.cs
       MarketSignalValidationIssue.cs
-    Observation/
+  FuturesTradeSessionBarPublisher/
       FuturesTradeSessionBarEntityId.cs
       FuturesTradeSessionBarReadModel.cs
       FuturesTradeSessionBarClosedRealtimeEvent.cs
-    Ema/
+  FuturesEmaSignal/
       FuturesEmaSignalEntityId.cs
       FuturesEmaSignalReadModel.cs
       FuturesEmaSignalGeneratedEvent.cs
@@ -199,7 +201,7 @@ TomasAI.IFM.Domain.MarketData.Analytics.Shared/
       FuturesEmaSignalGeneratedFailEvent.cs
       GetLastFuturesEmaSignalQuery.cs
       GetFuturesEmaSignalHistoryQuery.cs
-    BollingerBand/
+  FuturesBbSignal/
       FuturesBbSignalEntityId.cs
       FuturesBbSignalReadModel.cs
       FuturesBbSignalGeneratedEvent.cs
@@ -207,22 +209,24 @@ TomasAI.IFM.Domain.MarketData.Analytics.Shared/
       FuturesBbSignalGeneratedFailEvent.cs
       GetLastFuturesBbSignalQuery.cs
       GetFuturesBbSignalHistoryQuery.cs
-    # ATR contracts remain under the existing FuturesAtrSignal feature.
-    MarketStructure/
+  # ATR contracts remain under the existing FuturesAtrSignal feature.
+  MarketStructure/
       FuturesMarketStructureSignalEntityId.cs
       FuturesMarketStructureSignalReadModel.cs
       generated/complete/fail and query contracts
-    VxTermStructure/
+  FuturesVxTermStructureSignal/
       FuturesVxTermStructureSignalEntityId.cs
       FuturesVxTermStructureSignalReadModel.cs
       generated/complete/fail and query contracts
-    Vwap/
+  FuturesVwapSignal/
       FuturesVwapSignalEntityId.cs
       FuturesVwapSignalReadModel.cs
-      FuturesVwapSignalGeneratedEvent.cs
-      FuturesVwapSignalGeneratedCompleteEvent.cs
-      FuturesVwapSignalGeneratedFailEvent.cs
-      GetLastFuturesVwapSignalQuery.cs
+      UpdateFuturesVwapSignalCommand.cs
+      RecoverFuturesVwapSignalCommand.cs
+      FuturesVwapSignalUpdatedEvent.cs
+      FuturesVwapSignalUpdatedCompleteEvent.cs
+      FuturesVwapSignalUpdatedFailEvent.cs
+      GetLatestFuturesVwapSignalQuery.cs
       GetFuturesVwapSignalHistoryQuery.cs
   RegimeDiscovery/
     Contracts/
@@ -378,25 +382,25 @@ Shutdown performs the reverse order:
 Every route added at startup is removed exactly once during shutdown and in
 startup rollback.
 
-### 6.4 Realtime projection contract
+### 6.4 Projection contracts
 
-Each projector derives from `BaseRealtimeProjector<TActor>` and exposes an
-immutable descriptor array. The normal flow is:
+Legacy live indicators may still use `BaseRealtimeProjector<TActor>`. New
+event-sourced signal implementations, including VWAP, use the Command actor
+contract:
 
 ```text
 input realtime event
-  -> actor evaluates candidate against private state
-  -> generated event
-  -> BaseRealtimeProjector publishes source
-  -> Scylla insert succeeds
-  -> projector publishes complete
-  -> actor confirms candidate and advances latest cache
+  -> stateless Realtime actor sends immutable Command
+  -> Command actor reconstructs event-sourced state and evaluates transition
+  -> PostgreSQL event commit succeeds
+  -> Command-folder projector inserts Scylla read model
+  -> projector publishes complete or fail
 ```
 
-On storage failure the projector publishes fail once, the candidate is not
-confirmed, and no automatic durable replay is created. Cache failure after a
-successful projection marks cache health unhealthy and is repaired from
-Scylla or a later valid signal; it does not roll back Scylla history.
+The PostgreSQL event log is the durable authority for VWAP calculation state;
+ScyllaDB is its query read model. A failed Scylla projection publishes the
+standard failure event and does not move calculation ownership into the
+Realtime or Event actors.
 
 ### 6.5 Query actors
 
@@ -512,14 +516,13 @@ it is not quote size or cumulative session volume.
 | `FuturesAtrSignalGeneratedEvent` | ATR command actor | command event projector and Market Structure route | Durable event plus projected realtime publication |
 | `FuturesMarketStructureSignalGeneratedEvent` | Market Structure actor | Projector/cache | Realtime subject |
 | `FuturesVxTermStructureSignalGeneratedEvent` | VX actor | Projector/cache | Realtime subject |
-| `FuturesVwapSignalGeneratedEvent` | VWAP actor | Projector/cache | Realtime subject |
+| `FuturesVwapSignalUpdatedEvent` | VWAP Command actor | Command projector/Event actor | Durable event plus projected publication |
 | `FuturesTradeSessionBarReplayBatchRealtimeEvent` | HistoricalDataLoader | Observation/calculation actor | Private Realtime route |
-| `FuturesVwapTradeReplayBatchRealtimeEvent` | HistoricalDataLoader | VWAP actor | Private Realtime route |
+| `RecoverFuturesVwapSignalCommand` | HistoricalDataLoader | VWAP Command actor | Private command route |
 
-Generated event contracts continue to implement the existing event envelope
-expected by realtime projectors, but their `Subject.ActorType` and destination
-actor name are Realtime. Complete/fail terminal events use the same Realtime
-mailbox. No reply contract is added.
+VWAP update events implement the durable event envelope. Their complete/fail
+terminal events are handled by the stateless VWAP Event actor. No realtime
+reply contract is added.
 
 Private replay batches contain a bounded immutable array, manifest ID, replay
 generation ID, batch ordinal, first/last source identity, and final-batch
@@ -632,33 +635,36 @@ sequenceDiagram
     participant D as Databento adapter
     participant T as TickAggregation
     participant V as FuturesVwapSignalRealtimeActor
-    participant P as FuturesVwapSignalRealtimeProjector
+    participant C as FuturesVwapSignalCommandActor
+    participant E as PostgreSQL event log
+    participant P as Command EventProjector
     participant S as ScyllaDB
-    participant C as Latest signal cache
+    participant Q as FuturesVwapSignalQueryActor
 
     D->>T: normalized trade record
     T->>T: assign StreamEpochId and TradeOrdinal
     T-->>V: FuturesMarketPriceUpdatedRealtimeEvent (Trade)
-    V->>V: validate identity/action/ordinal
-    V->>V: accumulate price*size and executed size
-    V->>P: FuturesVwapSignalGeneratedEvent
+    V->>V: validate source and current ES stream ownership
+    V->>C: UpdateFuturesVwapSignalCommand
+    C->>C: reconstruct state; validate action/ordinal
+    C->>C: accumulate price*size and executed size
+    C->>E: commit FuturesVwapSignalUpdatedEvent
+    E-->>P: publish committed event
     P->>S: insert VWAP checkpoint/read model
-    P-->>V: projection success/complete
-    V->>V: confirm candidate
-    V->>C: advance latest VWAP
+    P-->>Q: read model available to latest/history queries
 ```
 
-The actor ignores quote-originated events even when their snapshot carries the
+The Realtime handler ignores quote-originated events even when their snapshot carries the
 last cached trade. Duplicate/older ordinals are ignored. A forward ordinal gap,
 unexpected epoch, uncorrelatable correction, or inconsistent close checkpoint
 marks state invalid and starts bounded current-session recovery. The actor
 does not publish a valid-looking value while an unknown contribution is
 missing.
 
-The actor processes every eligible trade. Projection/cache publication may be
-coalesced by configuration to prevent one Scylla row per high-volume trade,
-but coalescing never removes a trade from the private accumulator. Session
-close always publishes a terminal checkpoint.
+The Command actor processes every eligible trade and persists its exact
+accumulator transition. The current baseline projects each committed update;
+projection coalescing and a separate session-close checkpoint are deferred
+until they can preserve the durable event stream as authority.
 
 ### 8.3 VX term structure flow
 
@@ -1399,9 +1405,9 @@ rounded values, ObservationIds, and calculation versions.
 ### 15.3 VWAP replay and recovery
 
 Historical exact VWAP uses normalized trades and the same eligibility and
-accumulator functions as live processing. It enters only through
-`FuturesVwapTradeReplayBatchRealtimeEvent` addressed to the VWAP actor; it is
-never republished as `FuturesMarketPriceUpdatedRealtimeEvent`.
+accumulator functions as live processing. It enters only through bounded
+`RecoverFuturesVwapSignalCommand` messages addressed to the VWAP Command
+actor; it is never republished as `FuturesMarketPriceUpdatedRealtimeEvent`.
 
 For a live restart or detected ordinal gap, load the latest valid same-session
 VWAP checkpoint, acquire/replay every eligible trade after its exact source
@@ -1857,19 +1863,42 @@ Deliver:
 
 Exit: calendar front/back rollover is atomic and no pre/post-roll legs mix.
 
-### MDSI-13 - Actor-owned session VWAP
+Implementation status (2026-08-26): the concrete
+`FuturesVxTermStructureSignal` baseline is implemented. `IMarketDataApi`
+resolves and registers the first two eligible VX expiries, while its stream
+API supplies their trade updates. The stateless Realtime actor owns only the
+two subscription leases and forwards provider-neutral leg observations. The
+event-sourced Command actor owns paired-price/checkpoint state, calculates
+spread, front/back ratio, percentage, and Contango/Flat/Backwardation, and its
+Command-folder projector writes the ScyllaDB read model. Event and Query actors
+follow the typed context and extension-handler conventions. VIX spot
+composition, historical rollover qualification, and a latest-signal cache
+remain later MDSI work.
+
+### MDSI-13 - Event-sourced session VWAP
 
 Deliver:
 
 - enriched market-price event production;
-- VWAP actor/context/extensions/state/formula/projector/query/cache;
+- typed Command/Realtime/Event/Query actors and contexts;
+- event-sourced Command state/repository and exact accumulator model;
+- Command-folder Scylla projector and latest/history queries;
 - private historical/current-session replay;
 - trade eligibility/correction and epoch/ordinal gap behavior;
-- coalesced projection plus session-close checkpoint; and
 - Scylla table.
 
 Exit: full session golden result passes; quotes do not double count; injected
 gap invalidates then exact replay restores the expected VWAP.
+
+Implementation status (2026-08-26): the baseline is implemented. VWAP has no
+timeframe; its identity is contract, futures value date, and configuration.
+The Realtime actor owns only the current-ES stream lease and routing. The
+Command actor owns the exact price-volume accumulator in its durable event
+stream. Recovery is private, bounded, generation-aware Command input. Unit,
+BDD, and real-host integration coverage proves weighted calculation,
+duplicate/gap/epoch/correction behavior, replay parity, full-session
+projection, and latest query behavior. Latest-cache integration, automatic
+gap acquisition, and session-close orchestration remain later gates.
 
 ### MDSI-14 - Daily barrier and historical/live parity
 
@@ -1935,8 +1964,9 @@ routing is enabled only after Analytics Green readiness.
 
 1. Raw Feed data and derived Analytics responsibilities are separated.
 2. All bar-derived signals share exact OHLCV observation lineage.
-3. VWAP is calculated only in its realtime actor from complete normalized
-   trade lineage; TickAggregation performs no VWAP calculation.
+3. VWAP is calculated only in its event-sourced Command actor from complete
+   normalized trade lineage; TickAggregation and its stateless Realtime actor
+   perform no VWAP calculation.
 4. EMA10/20/50/200, BB10/20, ATR ratio, Market Structure, VX term structure,
    and session VWAP have typed contracts, actors, Scylla history, queries, and
    latest cache entries.

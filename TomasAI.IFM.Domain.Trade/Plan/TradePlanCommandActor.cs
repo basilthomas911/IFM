@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
 using TomasAI.IFM.Domain.Trade.Plan;
+using TomasAI.IFM.Domain.Trade.Plan.Decorators;
 
 namespace TomasAI.IFM.Domain.Trade.Plan;
 
@@ -24,11 +25,40 @@ public sealed class TradePlanCommandActor(
 
     public const string ActorName = "TradePlanCommand";
 
+    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    {
+        [UpdateTradePlanCommand.Verb] = message => message.AsCommand<UpdateTradePlanCommand>()!
+    };
+
+    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    {
+        [typeof(UpdateTradePlanCommand).Name] = command =>
+            new TradePlanCommandDecorator().ValidateCommand((UpdateTradePlanCommand)command)
+    };
+
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<TradePlanCommandActor>, TradePlanActorState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new()
+    {
+        [typeof(UpdateTradePlanCommand).Name] = (command, context, state) =>
+            ((UpdateTradePlanCommand)command).ExecuteAsync(context, state)
+    };
+
     protected override ICommand ParseMessage(ICommandActorContext<TradePlanCommandActor> context, IActorMessage message)
     {
-        if (!message.Subject.Is(ActorType.Command, ActorName, UpdateTradePlanCommand.Verb))
+        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName }
+            || !_parseMap.TryGetValue(message.Subject.Verb, out var parse))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        return message.AsCommand<UpdateTradePlanCommand>()!;
+        return parse(message);
+    }
+
+    protected override ValueTask OnValidateAsync(
+        ICommandActorContext<TradePlanCommandActor> context,
+        ActorThreadId threadId,
+        ICommand command)
+    {
+        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
+            throw new InvalidOperationException($"Unable to validate {ActorName} command: {command.GetType().Name}");
+        validate(command);
+        return ValueTask.CompletedTask;
     }
 
     protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
@@ -36,15 +66,9 @@ public sealed class TradePlanCommandActor(
         IActorState state,
         ICommand command)
     {
-        var update = (UpdateTradePlanCommand)command;
-        await ActorContext.DbFactory.TradeDb.InsertTradePlanAsync(update.TradePlan);
-        await ActorContext.EventProducer.PostEventAsync(new TradePlanUpdatedEvent
-        {
-            CommandId = update.CommandId,
-            EntityId = update.EntityId,
-            TradePlan = update.TradePlan
-        });
-        return new ServiceOk<GuidResult>(new GuidResult(update.CommandId));
+        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
+            throw new InvalidOperationException($"Unable to process {ActorName} command: {command.GetType().Name}");
+        return await receive(command, context, (TradePlanActorState)state).ConfigureAwait(false);
     }
 
     protected override ValueTask<IActorState> OnLoadStateAsync(

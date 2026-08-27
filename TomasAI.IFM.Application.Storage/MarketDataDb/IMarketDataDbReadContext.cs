@@ -3,6 +3,8 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -14,6 +16,19 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbReadContext
 {
+    /// <summary>Gets the latest projected exact VWAP for one futures session.</summary>
+    Task<FuturesVwapSignalReadModel?> GetLatestFuturesVwapSignalAsync(
+        string contractId, DateOnly valueDate, string configurationId,
+        CancellationToken cancellationToken = default);
+    /// <summary>Gets projected exact VWAP updates for one futures session.</summary>
+    Task<ICollection<FuturesVwapSignalReadModel>> GetFuturesVwapSignalHistoryAsync(
+        string contractId, DateOnly valueDate, string configurationId,
+        CancellationToken cancellationToken = default);
+    /// <summary>Gets the latest projected front/back VX curve for a trading date.</summary>
+    Task<FuturesVxTermStructureSignalReadModel?> GetLatestFuturesVxTermStructureSignalAsync(
+        DateOnly valueDate,
+        string configurationId,
+        CancellationToken cancellationToken = default);
     Task<MarketOutlookSnapshotReadModel?> GetMarketOutlookSnapshotAsync(
         string contractId,
         DateOnly valueDate,

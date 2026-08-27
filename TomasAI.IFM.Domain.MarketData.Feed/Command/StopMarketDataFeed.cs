@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -13,8 +14,8 @@ public static class StopMarketDataFeed
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    public static bool Execute(this StopMarketDataFeedCommand e, MarketDataFeedCommandState state)
-        => state.Update(e.CreateMarketDataFeedStoppedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this StopMarketDataFeedCommand e, MarketDataFeedCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateMarketDataFeedStoppedEvent(), e));
 
     /// <summary>
     /// Creates a <see cref="MarketDataFeedStoppedEvent"/> from a <see cref="StopMarketDataFeedCommand"/>.

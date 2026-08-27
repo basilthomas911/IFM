@@ -30,6 +30,11 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesAtrSignalGeneratedEvent futuresAtrSignalGeneratedEvent = default!;
         FuturesAtrSignalGeneratedCompleteEvent futuresAtrSignalGeneratedCompleteEvent = default!;
         FuturesAtrSignalGeneratedFailEvent futuresAtrSignalGeneratedFailEvent = default!;
+        var contractId = SampleData.ContractId;
+        var valueDate = SampleData.ValueDate;
+        var atrSignalId = SampleData.AtrSignalId;
+        var futuresItiSignals = SampleData.CreateItiSignalsForAtr();
+        var entityId = SampleData.AtrEntityId;
 
         await eventListener.StartAsync(
             "TestEventListener",
@@ -45,12 +50,6 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
             EventHandlerAsync
         );
 
-        var contractId = SampleData.ContractId;
-        var valueDate = SampleData.ValueDate;
-        var atrSignalId = SampleData.AtrSignalId;
-        var futuresItiSignals = SampleData.CreateItiSignalsForAtr();
-
-        var entityId = SampleData.AtrEntityId;
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesAtrSignalCommand.Actor, GenerateFuturesAtrSignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
         if (eventStreamId > 0)
@@ -95,6 +94,9 @@ public class FuturesAtrSignalCommandApiTests(WebApplicationFactory<Program> fact
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesAtrSignalEntityId> routed
+                    && routed.EntityId != entityId)
+                    return @event;
                 if (@event is FuturesAtrSignalGeneratedEvent generated)
                     futuresAtrSignalGeneratedEvent = generated;
                 if (@event is FuturesAtrSignalGeneratedCompleteEvent generatedComplete)

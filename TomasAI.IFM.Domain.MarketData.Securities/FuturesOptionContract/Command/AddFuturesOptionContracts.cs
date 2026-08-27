@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesOptionContract.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 
@@ -13,8 +14,8 @@ public static class AddFuturesOptionContracts
     /// <param name="e"></param>
     /// <param name="state"></param>
     /// <returns></returns>
-    public static bool Execute(this AddFuturesOptionContractsCommand e, FuturesOptionContractCommandState state)
-       => state.Update(e.CreateFuturesOptionContractsAddedEvent(), e);
+    public static ServiceResult<GuidResult> Execute(this AddFuturesOptionContractsCommand e, FuturesOptionContractCommandState state)
+       => e.UpdateResult(() => state.Update(e.CreateFuturesOptionContractsAddedEvent(), e));
 
     /// <summary>
     /// Creates a <see cref="FuturesOptionContractsAddedEvent"/> from an <see cref="AddFuturesOptionContractsCommand"/>.

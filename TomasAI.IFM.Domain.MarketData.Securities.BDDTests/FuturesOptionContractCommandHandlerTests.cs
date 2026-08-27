@@ -40,7 +40,7 @@ public class FuturesOptionContractCommandHandlerTests
 
         var changed = overwrite.Execute(state);
 
-        changed.Should().BeTrue();
+        changed.Success.Should().BeTrue();
         state.Events.Should().HaveCount(2);
     }
 }

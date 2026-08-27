@@ -198,8 +198,8 @@ configured market calendar and time zone.
 `PriceVolumeSum` is the sum of each accepted trade price multiplied by its
 eligible trade volume within that closed observation. It provides bar-level
 audit/replay evidence when the source schema supplies trades; the live session
-VWAP authority remains `FuturesVwapSignalRealtimeActor`, not the observation
-coordinator. `PriceVolumeSum` is not inferred from OHLC alone. Historical
+VWAP authority remains `FuturesVwapSignalCommandActor`, not the observation
+coordinator or Realtime router. `PriceVolumeSum` is not inferred from OHLC alone. Historical
 inputs that contain only interval bars must state their VWAP calculation
 method and cannot be labeled tick-exact.
 
@@ -522,8 +522,10 @@ configured, a request that requires VIX spot returns RequiredMissing.
 
 Add a logical `FuturesVWAPSignal`, represented in C# as
 `FuturesVwapSignalReadModel`. Calculation is owned by a dedicated
-`FuturesVwapSignalRealtimeActor`; TickAggregation never calculates this
-signal.
+event-sourced `FuturesVwapSignalCommandActor`; TickAggregation never
+calculates this signal. Its stateless `FuturesVwapSignalRealtimeActor` owns
+only live route/stream lifecycle and translates eligible feed events into
+commands.
 
 The read model contains:
 
@@ -539,7 +541,8 @@ Common metadata
 The realtime actor receives `FuturesMarketPriceUpdatedRealtimeEvent` and
 accepts an accumulator input only when `UpdateSource` is `Trade`, the contract
 and value date match, the trade is newer, and its normalized action/condition
-passes the configured eligibility rules. For live data it calculates:
+passes the configured eligibility rules. It sends an immutable update command;
+for live data the Command actor calculates:
 
 ```text
 CumulativePriceVolume += LastPrice * LastSize
@@ -548,12 +551,11 @@ EligibleTradeCount += 1
 Vwap = CumulativePriceVolume / CumulativeVolume
 ```
 
-The actor owns mutable private session state containing the cumulative
-numerator, cumulative executed volume, eligible-trade count, last accepted
-source identity, current value date, current VWAP, and validity. It processes
-every eligible trade internally. Signal/cache publication may be coalesced to
-a configured bounded cadence plus material changes and session close, but
-coalescing must never drop trades from the internal accumulator.
+The Command actor owns durable event-sourced session state containing the
+cumulative numerator, cumulative executed volume, eligible-trade count, last
+accepted source identity, current value date, current VWAP, and validity. It
+processes every eligible trade. The Realtime and Event actors retain no
+calculation state.
 
 The actor resets at the futures value-date session boundary and continues
 across intraday observation closures without resetting for each timeframe.
@@ -576,11 +578,11 @@ session-close ordinal marks the VWAP signal invalid and initiates bounded
 current-session recovery. The actor must not keep publishing an apparently
 valid VWAP after losing an unknown trade contribution.
 
-The actor emits `FuturesVwapSignalGeneratedEvent` through its realtime
-projector. After successful projection, its state is confirmed and the latest
-signal cache is updated using the normal Analytics ordering. The projected
-read model includes the accumulator values needed to establish a restart
-checkpoint, but missing trades after that checkpoint must still be replayed.
+The Command actor commits `FuturesVwapSignalUpdatedEvent` to the PostgreSQL
+event log. Its Command-folder event projector writes the ScyllaDB read model
+and publishes the standard complete/fail lifecycle events. The projected read
+model contains accumulator lineage for diagnostics, while command-state
+reconstruction uses the durable event stream.
 
 Historical VWAP is tick-exact only when the Databento source includes the
 eligible trades needed for the numerator and denominator. A bounded bar-based
@@ -589,7 +591,7 @@ and `IsTickExact = false`; it cannot satisfy a parameter set that requires
 tick-exact VWAP.
 
 Historical data-load and current-session recovery use a private, bounded VWAP
-warm-up/replay input addressed only to `FuturesVwapSignalRealtimeActor`. They
+warm-up/replay Command addressed only to `FuturesVwapSignalCommandActor`. They
 do not republish historical trades as live
 `FuturesMarketPriceUpdatedRealtimeEvent` messages, because other live market
 consumers must not interpret replay prices as current market changes. Replay

@@ -1,4 +1,5 @@
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
@@ -15,11 +16,11 @@ public static class RemoveFuturesContract
     /// <param name="state">The current state of the futures contract commands to update.</param>
     /// <returns>true if the futures contract was successfully removed; otherwise, false.</returns>
     /// <exception cref="RemoveFuturesContractException">Thrown if the specified futures contract does not exist in the current state.</exception>
-    public static bool Execute(this RemoveFuturesContractCommand e, FuturesContractCommandState state)
+    public static ServiceResult<GuidResult> Execute(this RemoveFuturesContractCommand e, FuturesContractCommandState state)
         => e switch
         {
             _ when state.FuturesContractDoesNotExist(e.ContractId, e.Overwrite) => throw new RemoveFuturesContractException(e.FuturesContractDoesNotExistErrorMsg()),
-            _ => state.Update(e.CreateFuturesContractRemovedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateFuturesContractRemovedEvent(), e))
         };
 
     /// <summary>

@@ -16,9 +16,9 @@ public static class ImportEconomicCalendars
     /// <param name="state">The economic calendar command state.</param>
     /// <returns>true if all economic calendars are processed successfully; otherwise, false.</returns>
     /// <exception cref="AddEconomicCalendarException">Thrown if an economic calendar with the same entity identifier already exists in the state.</exception>
-    public static bool Execute(this ImportEconomicCalendarsCommand e, EconomicCalendarCommandState state)
+    public static ServiceResult<GuidResult> Execute(this ImportEconomicCalendarsCommand e, EconomicCalendarCommandState state)
     {
-        return state.Update(e.CreateEconomicCalendarsImportedEvent(), e);
+        return e.UpdateResult(() => state.Update(e.CreateEconomicCalendarsImportedEvent(), e));
     }
 
     /// <summary>

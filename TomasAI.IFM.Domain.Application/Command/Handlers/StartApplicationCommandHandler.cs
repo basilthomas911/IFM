@@ -2,6 +2,7 @@
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
 
@@ -14,9 +15,9 @@ internal static class StartApplicationCommandHandler
     /// </summary>
     /// <param name="e">The start command to execute.</param>
     /// <param name="state">The current actor command state to update.</param>
-    /// <returns><see langword="true"/> if the state was updated successfully; otherwise <see langword="false"/>.</returns>
-    public static bool Execute(this StartApplicationCommand e, ApplicationCommandState state)
-        => state.Update(e.CreateApplicationStartupEvent(), e);
+    /// <returns>The standard command service result containing the command identity.</returns>
+    public static ServiceResult<GuidResult> Execute(this StartApplicationCommand e, ApplicationCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateApplicationStartupEvent(), e));
 
     /// <summary>
     /// Creates an <see cref="ApplicationStartupEvent"/> from a <see cref="StartApplicationCommand"/>.

@@ -9,6 +9,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class UpdateOptionTradeSpreadDistributionStatistics
@@ -20,16 +22,16 @@ internal static class UpdateOptionTradeSpreadDistributionStatistics
     /// <param name="state">The current state of the option trade command.</param>
     /// <returns>True if the statistics were successfully updated; otherwise, false.</returns>
     /// <exception cref="ChangeOptionTradeDistributionStatisticsException">Thrown when the trade does not exist or the trade status is not in INTRADAY status.</exception>
-    public static bool Execute(this UpdateOptionTradeSpreadDistributionStatisticsCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this UpdateOptionTradeSpreadDistributionStatisticsCommand e, OptionTradeCommandState state)
     {
-        return e switch
+        return e.UpdateResult(() => e switch
         {
             _ when !state.TradeExists(e.EntityId) => throw new ChangeOptionTradeDistributionStatisticsException(
                 $"{e.CommandName}: trade: {e.TradeId} orderId: {e.OrderId} does not exist"),
             _ when !state.IsTradeInIntraDayStatus(e.TradeStatus) => throw new ChangeOptionTradeDistributionStatisticsException(
                 $"{e.CommandName}: trade status = {e.TradeStatus} must be in INTRADAY status"),
             _ => ChangeOptionTradeDistributionStatistics(e, state)
-        };
+        });
 
         /// <summary>
         /// Updates the option trade distribution statistics and trade positions based on the specified command and state.

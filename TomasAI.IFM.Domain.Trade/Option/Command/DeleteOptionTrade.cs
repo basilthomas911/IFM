@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 public static class DeleteOptionTrade
@@ -16,12 +18,12 @@ public static class DeleteOptionTrade
     /// <param name="state">The current state of option trade commands.</param>
     /// <returns><see langword="true"/> if the state was successfully updated; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="DeleteOptionTradeException">The trade does not exist in the current state.</exception>
-    public static bool Execute(this DeleteOptionTradeCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this DeleteOptionTradeCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeDoesNotExist(e.EntityId) => throw new DeleteOptionTradeException(
                 $"{e.CommandName}: {e.TradeId} orderId: {e.OrderId} invalid trade"),
-            _ => state.Update(e.CreateOptionTradeDeletedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeDeletedEvent(), e))
         };
 
     /// <summary>

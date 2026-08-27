@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -16,11 +17,11 @@ public static class AddTradeLiveFeed
     /// <param name="e">The add-trade-live-feed command to execute.</param>
     /// <param name="state">The current actor command state to update.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise <see langword="false"/>.</returns>
-    public static bool Execute(this AddTradeLiveFeedCommand e, MarketDataFeedCommandState state)
+    public static ServiceResult<GuidResult> Execute(this AddTradeLiveFeedCommand e, MarketDataFeedCommandState state)
         => e switch
         {
             _ when state.IsTradeLiveFeedOn => throw new AddTradeLiveFeedException($"Trade live feed is already on for: {e.OrderId}:{e.TradeId}"),
-            _ => state.Update(e.CreateTradeLiveFeedAddedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateTradeLiveFeedAddedEvent(), e))
         };
 
     /// <summary>

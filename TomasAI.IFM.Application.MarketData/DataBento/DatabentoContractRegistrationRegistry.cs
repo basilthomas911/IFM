@@ -1,4 +1,5 @@
 using System.Collections;
+using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -14,8 +15,16 @@ public interface IDatabentoContractRegistrationRegistry :
         string symbol,
         out FuturesContractV2ReadModel contract);
 
+    bool TryGetFuturesTermStructureContracts(
+        string symbol,
+        out FuturesTermStructureContracts contracts);
+
     void ReplaceCurrentFuturesContracts(
         IReadOnlyCollection<FuturesContractV2ReadModel> contracts);
+
+    void ReplaceFuturesTermStructureContracts(
+        string symbol,
+        FuturesTermStructureContracts contracts);
 }
 
 /// <summary>
@@ -31,6 +40,8 @@ public sealed class DatabentoContractRegistrationRegistry(
     private RegistryState _state = new(
         Validate(initialRegistrations).ToArray(),
         new Dictionary<string, FuturesContractV2ReadModel>(
+            StringComparer.OrdinalIgnoreCase),
+        new Dictionary<string, FuturesTermStructureContracts>(
             StringComparer.OrdinalIgnoreCase));
 
     public int Count => Volatile.Read(ref _state).Registrations.Length;
@@ -48,6 +59,14 @@ public sealed class DatabentoContractRegistrationRegistry(
         return Volatile.Read(ref _state).CurrentFuturesContracts.TryGetValue(
             symbol.Trim(),
             out contract!);
+    }
+
+    public bool TryGetFuturesTermStructureContracts(
+        string symbol,
+        out FuturesTermStructureContracts contracts)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        return Volatile.Read(ref _state).TermStructures.TryGetValue(symbol.Trim(), out contracts);
     }
 
     public void ReplaceCurrentFuturesContracts(
@@ -85,10 +104,58 @@ public sealed class DatabentoContractRegistrationRegistry(
                 .ToDictionary(
                     static contract => contract.Symbol,
                     StringComparer.OrdinalIgnoreCase);
-            var replacementState = new RegistryState(replacement, currentContracts);
+            var retainedStructures = current.TermStructures
+                .Where(item => !symbols.Contains(item.Key))
+                .ToDictionary(static item => item.Key, static item => item.Value,
+                    StringComparer.OrdinalIgnoreCase);
+            var replacementState = new RegistryState(replacement, currentContracts, retainedStructures);
             if (ReferenceEquals(
                 Interlocked.CompareExchange(ref _state, replacementState, current),
                 current))
+                return;
+        }
+    }
+
+    public void ReplaceFuturesTermStructureContracts(
+        string symbol,
+        FuturesTermStructureContracts contracts)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        if (!contracts.IsValid)
+            throw new ArgumentException("A valid ordered front/back pair is required.", nameof(contracts));
+        var normalized = symbol.Trim().ToUpperInvariant();
+        if (!string.Equals(contracts.Front.Symbol, normalized, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("The term-structure symbol does not match its contracts.", nameof(symbol));
+        while (true)
+        {
+            var current = Volatile.Read(ref _state);
+            var retained = current.Registrations.Where(registration =>
+                registration.AssetTypeId != AssetTypeId.Futures
+                || !string.Equals(GetRootSymbol(registration), normalized,
+                    StringComparison.OrdinalIgnoreCase)).ToList();
+            retained.AddRange(new[] { contracts.Front, contracts.Back }.Select(contract =>
+                new DatabentoContractRegistration
+                {
+                    DomainContractId = contract.ContractId,
+                    ProviderContractName = contract.LocalSymbol,
+                    AssetTypeId = AssetTypeId.Futures,
+                    RootSymbol = normalized,
+                    Dataset = DatabentoDatasetSelection.Resolve(options, normalized)
+                }));
+            var structures = current.TermStructures.ToDictionary(
+                static item => item.Key, static item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
+            structures[normalized] = contracts;
+            var currentContracts = current.CurrentFuturesContracts.ToDictionary(
+                static item => item.Key, static item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
+            currentContracts[normalized] = contracts.Front;
+            var replacement = new RegistryState(
+                Validate(retained).OrderBy(static item => item.DomainContractId,
+                    StringComparer.Ordinal).ToArray(),
+                currentContracts,
+                structures);
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _state, replacement, current), current))
                 return;
         }
     }
@@ -99,7 +166,8 @@ public sealed class DatabentoContractRegistrationRegistry(
 
     private sealed record RegistryState(
         DatabentoContractRegistration[] Registrations,
-        IReadOnlyDictionary<string, FuturesContractV2ReadModel> CurrentFuturesContracts);
+        IReadOnlyDictionary<string, FuturesContractV2ReadModel> CurrentFuturesContracts,
+        IReadOnlyDictionary<string, FuturesTermStructureContracts> TermStructures);
 
     private static IEnumerable<DatabentoContractRegistration> Validate(
         IEnumerable<DatabentoContractRegistration> registrations)

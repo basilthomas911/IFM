@@ -6,6 +6,17 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Contracts;
 
+/// <summary>Identifies the first two eligible contracts in one futures term structure.</summary>
+public readonly record struct FuturesTermStructureContracts(
+    FuturesContractV2ReadModel Front,
+    FuturesContractV2ReadModel Back)
+{
+    /// <summary>Gets whether both ordered contracts form a valid term-structure pair.</summary>
+    public bool IsValid => Front.IsValid && Back.IsValid
+        && string.Equals(Front.Symbol, Back.Symbol, StringComparison.Ordinal)
+        && Front.LastTradeDate < Back.LastTradeDate;
+}
+
 /// <summary>
 /// Defines the application boundary for querying futures and futures-option
 /// contracts and prices and controlling their live market-data streams.
@@ -29,6 +40,24 @@ public interface IMarketDataApi
     bool TryGetCurrentlyTradedFuturesContract(
         string symbol,
         out FuturesContractV2ReadModel contract);
+
+    /// <summary>Reads the startup-resolved front and immediately following futures contracts.</summary>
+    bool TryGetFuturesTermStructureContracts(
+        string symbol,
+        out FuturesTermStructureContracts contracts)
+    {
+        contracts = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves and registers the front and immediately following contracts before
+    /// the market-data epoch is started.
+    /// </summary>
+    Task<bool> UpdateFuturesTermStructureContractsAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default) => Task.FromResult(false);
 
     /// <summary>
     /// Resolves and persists the currently traded futures contract when the

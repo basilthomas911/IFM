@@ -2,6 +2,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -16,7 +17,7 @@ public static class InsertFuturesEodData
     /// <see cref="FuturesEodDataModel.CreateFuturesEodData"/> and building the corresponding
     /// <see cref="FuturesEodDataInsertedEvent"/> to update the actor state.
     /// </summary>
-    public static bool Execute(this InsertFuturesEodDataCommand e, FuturesEodDataCommandState state)
+    public static ServiceResult<GuidResult> Execute(this InsertFuturesEodDataCommand e, FuturesEodDataCommandState state)
     {
         var futuresEodData = FuturesEodDataModel.CreateFuturesEodData(
             e.ValueDate,
@@ -27,7 +28,7 @@ public static class InsertFuturesEodData
             e.NormCurveData,
             e.WindowSize,
             e.VixEodData);
-        return state.Update(e.CreateFuturesEodDataInsertedEvent(futuresEodData), e);
+        return e.UpdateResult(() => state.Update(e.CreateFuturesEodDataInsertedEvent(futuresEodData), e));
     }
 
     /// <summary>

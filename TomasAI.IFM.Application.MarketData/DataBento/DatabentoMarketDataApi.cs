@@ -26,6 +26,37 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         return false;
     }
 
+    /// <inheritdoc />
+    public bool TryGetFuturesTermStructureContracts(
+        string symbol,
+        out FuturesTermStructureContracts contracts)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        if (_contractRegistry is not null)
+            return _contractRegistry.TryGetFuturesTermStructureContracts(symbol, out contracts);
+        contracts = default;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> UpdateFuturesTermStructureContractsAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
+        ValidateDate(valueDate, nameof(valueDate));
+        var resolver = _currentContractResolver;
+        var registry = _contractRegistry;
+        if (resolver is null || registry is null) return false;
+        var resolved = await resolver.ResolveEligibleAsync(
+            symbol.Trim().ToUpperInvariant(), valueDate, 2, cancellationToken).ConfigureAwait(false);
+        if (resolved.Count < 2) return false;
+        var pair = new FuturesTermStructureContracts(resolved[0], resolved[1]);
+        registry.ReplaceFuturesTermStructureContracts(symbol, pair);
+        return true;
+    }
+
     /// <summary>
     /// Reads the active epoch's normalized market-price hot-cache snapshot without checking stream ownership.
     /// </summary>

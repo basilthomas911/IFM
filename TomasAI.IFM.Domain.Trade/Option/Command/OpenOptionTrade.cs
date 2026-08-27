@@ -4,6 +4,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class OpenOptionTrade
@@ -15,12 +17,12 @@ internal static class OpenOptionTrade
     /// <param name="state">The current state of option trade commands.</param>
     /// <returns><see langword="true"/> if the state was successfully updated; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="OpenOptionTradeException">Thrown when an option trade with the specified entity ID already exists.</exception>
-    public static bool Execute(this OpenOptionTradeCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this OpenOptionTradeCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeExists(e.EntityId) => throw new OpenOptionTradeException(
                 $"{e.CommandName} option trade: {e.TradeOrder.TradeId} exists already"),
-            _ => state.Update(e.CreateOptionTradeToOpenEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradeToOpenEvent(), e))
         };
 
     /// <summary>

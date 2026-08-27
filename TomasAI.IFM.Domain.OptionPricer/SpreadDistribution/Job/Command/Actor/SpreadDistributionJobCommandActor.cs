@@ -115,15 +115,14 @@ public class SpreadDistributionJobCommandActor(
         var cmdName = cmd.GetType().Name;
         if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
             throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
-        _ = receiveFunc.Invoke(cmd, dispatchContext, spreadDistributionJobState);
-        return await ValueTask.FromResult(new ServiceOk<GuidResult>(new GuidResult(cmd.CommandId)));
+        return await ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, spreadDistributionJobState));
     }
 
     /// <summary>
     /// Provides a mapping from command type names to delegate functions that execute the corresponding spread distribution job command
     /// logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<SpreadDistributionJobCommandActor>, SpreadDistributionJobCommandState, bool>> _receiveMap = new()
+    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<SpreadDistributionJobCommandActor>, SpreadDistributionJobCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
     {
         [typeof(SubmitSpreadDistributionJobCommand).Name] = (cmd, context, state) => (cmd as SubmitSpreadDistributionJobCommand)!.Execute(state),
         [typeof(CompleteSpreadDistributionJobCommand).Name] = (cmd, context, state) => (cmd as CompleteSpreadDistributionJobCommand)!.Execute(state),

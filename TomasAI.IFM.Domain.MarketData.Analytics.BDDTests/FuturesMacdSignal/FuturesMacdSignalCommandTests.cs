@@ -62,7 +62,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.Updated.Should().BeTrue();
         state.MacdSignal.Should().NotBeNull();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.Init);
@@ -83,7 +83,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.UpTrending);
         state.MacdSignal.MacdLine.Should().BeGreaterThan(state.MacdSignal.SignalLine);
     }
@@ -102,7 +102,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.UpTrending);
     }
 
@@ -120,7 +120,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.DownTrending);
         state.MacdSignal.SignalLine.Should().BeGreaterThan(state.MacdSignal.MacdLine);
     }
@@ -139,7 +139,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.DownTrending);
     }
 
@@ -215,7 +215,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.Flat);
     }
 
@@ -235,7 +235,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.Flat);
     }
 
@@ -253,7 +253,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().Be(FuturesTrendDirectionType.Flat);
     }
 
@@ -285,7 +285,7 @@ public class FuturesMacdSignalCommandTests
         var result = command.Execute(state);
 
         // Assert
-        result.Should().BeTrue();
+        result.Success.Should().BeTrue();
         state.MacdSignal.MACD.Should().BeOneOf(FuturesTrendDirectionType.UpTrending, FuturesTrendDirectionType.Flat);
     }
 

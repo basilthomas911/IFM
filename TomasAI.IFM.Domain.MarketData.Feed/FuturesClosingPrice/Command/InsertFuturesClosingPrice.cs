@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesClosingPrice.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 
@@ -12,11 +13,11 @@ public static class InsertFuturesClosingPrice
     /// Handle an <see cref="InsertFuturesClosingPriceCommand"/> by building the corresponding
     /// <see cref="FuturesClosingPriceInsertedEvent"/> and updating the actor state.
     /// </summary>
-    public static bool Execute(this InsertFuturesClosingPriceCommand e, FuturesClosingPriceCommandState state)
+    public static ServiceResult<GuidResult> Execute(this InsertFuturesClosingPriceCommand e, FuturesClosingPriceCommandState state)
         => e switch
         {
             _ when state.FuturesClosingPriceExists(e.FuturesClosingPriceId) => throw new InsertFuturesClosingPriceException(e.InsertFuturesClosingPriceErrorMsg()),
-            _ => state.Update(e.CreateFuturesClosingPriceInsertedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateFuturesClosingPriceInsertedEvent(), e))
         };
 
     /// <summary>

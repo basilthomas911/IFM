@@ -141,7 +141,8 @@ internal sealed class EventProjectorOutboxDispatcher(
         catch (Exception ex)
         {
             var nowUtc = DateTime.UtcNow;
-            var terminal = message.AttemptCount >= _options.MaximumOutboxAttempts;
+            var terminal = IsPermanent(ex)
+                || message.AttemptCount >= _options.MaximumOutboxAttempts;
             DateTime? nextAttemptAtUtc = terminal ? null : nowUtc.Add(GetRetryDelay(message.AttemptCount));
             _ = await _eventSource.ReleaseEventProjectorOutboxAsync(
                 message,
@@ -171,6 +172,9 @@ internal sealed class EventProjectorOutboxDispatcher(
         var ticks = _options.InitialReplayDelay.Ticks * (1L << exponent);
         return TimeSpan.FromTicks(Math.Min(ticks, TimeSpan.FromMinutes(2).Ticks));
     }
+
+    static bool IsPermanent(Exception exception) => exception is
+        TypeLoadException or FileNotFoundException or FileLoadException or BadImageFormatException;
 
     public async ValueTask DisposeAsync()
     {

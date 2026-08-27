@@ -2,6 +2,7 @@
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
 
@@ -13,9 +14,9 @@ internal static class ShutdownApplicationCommandHandler
     /// </summary>
     /// <param name="e">The shutdown command to execute.</param>
     /// <param name="state">The current actor command state to update.</param>
-    /// <returns><see langword="true"/> if the state was updated successfully; otherwise <see langword="false"/>.</returns>
-    public static bool Execute(this ShutdownApplicationCommand e, ApplicationCommandState state)
-        => state.Update(e.CreateApplicationShutdownEvent(), e);
+    /// <returns>The standard command service result containing the command identity.</returns>
+    public static ServiceResult<GuidResult> Execute(this ShutdownApplicationCommand e, ApplicationCommandState state)
+        => e.UpdateResult(() => state.Update(e.CreateApplicationShutdownEvent(), e));
 
     /// <summary>
     /// Creates an <see cref="ApplicationShutdownEvent"/> from a <see cref="ShutdownApplicationCommand"/>.

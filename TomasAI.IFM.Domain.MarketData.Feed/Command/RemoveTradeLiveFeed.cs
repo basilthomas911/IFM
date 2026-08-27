@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -16,11 +17,11 @@ public static class RemoveTradeLiveFeed
     /// <param name="e">The remove-trade-live-feed command to execute.</param>
     /// <param name="state">The current actor command state to update.</param>
     /// <returns><see langword="true"/> if the state was updated successfully; otherwise <see langword="false"/>.</returns>
-    public static bool Execute(this RemoveTradeLiveFeedCommand e, MarketDataFeedCommandState state)
+    public static ServiceResult<GuidResult> Execute(this RemoveTradeLiveFeedCommand e, MarketDataFeedCommandState state)
         => e switch
         {
             _ when !state.IsTradeLiveFeedOn => throw new RemoveTradeLiveFeedException($"Trade live feed is already off for: {e.OrderId}:{e.TradeId}"),
-            _ => state.Update(e.CreateTradeLiveFeedRemovedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateTradeLiveFeedRemovedEvent(), e))
         };
 
     /// <summary>

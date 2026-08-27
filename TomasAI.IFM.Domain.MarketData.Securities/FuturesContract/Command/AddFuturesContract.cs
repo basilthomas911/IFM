@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Exceptions;
@@ -18,11 +19,11 @@ public static class AddFuturesContract
     /// <param name="state">The current state to which the futures contract will be added. Must not be null.</param>
     /// <returns>true if the futures contract was successfully added; otherwise, false.</returns>
     /// <exception cref="AddFuturesContractException">Thrown if a futures contract with the same identifier already exists and overwriting is not permitted.</exception>
-    public static bool Execute(this AddFuturesContractCommand e, FuturesContractCommandState state)
+    public static ServiceResult<GuidResult> Execute(this AddFuturesContractCommand e, FuturesContractCommandState state)
         => e switch
         {
             _ when state.FuturesContractExists(e.Contract.Id, e.Overwrite) => throw new AddFuturesContractException(e.FuturesContractExistsErrorMsg()),
-            _ => state.Update(e.CreateFuturesContractAddedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateFuturesContractAddedEvent(), e))
         };
 
     /// <summary>

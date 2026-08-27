@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Option.Command.Exceptions;
 using TomasAI.IFM.Domain.Trade.Option.Command.State;
 
+using TomasAI.IFM.Shared.EventSourcing;
+
 namespace TomasAI.IFM.Domain.Trade.Option.Command;
 
 internal static class OpenOptionTradePosition
@@ -17,14 +19,14 @@ internal static class OpenOptionTradePosition
     /// <param name="state">The current state of the option trade command.</param>
     /// <returns><see langword="true"/> if the state was successfully updated; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="OpenOptionTradeException">The trade position does not exist or is already opened.</exception>
-    public static bool Execute(this OpenOptionTradePositionCommand e, OptionTradeCommandState state)
+    public static ServiceResult<GuidResult> Execute(this OpenOptionTradePositionCommand e, OptionTradeCommandState state)
         => e switch
         {
             _ when state.TradeDoesNotExist(e.EntityId) => throw new OpenOptionTradeException(
                 $"{e.CommandName}: option trade position {e.EntityId.OrderId}/{e.EntityId.TradeId} does not exist"),
             _ when state.TradePositionState == TradePositionState.Opened => throw new OpenOptionTradeException(
                 $"{e.CommandName}: option trade position {e.EntityId.OrderId}/{e.EntityId.TradeId} already opened"),
-            _ => state.Update(e.CreateOptionTradePositionOpenedEvent(), e)
+            _ => e.UpdateResult(() => state.Update(e.CreateOptionTradePositionOpenedEvent(), e))
         };
 
     /// <summary>

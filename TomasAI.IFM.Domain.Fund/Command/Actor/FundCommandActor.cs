@@ -141,18 +141,10 @@ public class FundCommandActor(
         IsArgumentNull.Check(cmd);
         await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var fundState = IsArgumentNull.Set((state as FundCommandState)!);
-        return cmd switch
-        {
-            AddOrderToFundCommand value => value.Execute(fundState),
-            AddTradeToFundOrderCommand value => value.Execute(fundState),
-            ChangeFundOrderTradeStateCommand value => value.Execute(fundState),
-            CloseFundOrderCommand value => value.Execute(fundState),
-            CreateFundCommand value => value.Execute(fundState),
-            GenerateFundMaxProfitCommand value => value.Execute(fundState),
-            RemoveOrderFromFundCommand value => value.Execute(fundState),
-            RemoveTradeFromFundOrderCommand value => value.Execute(fundState),
-            _ => throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}")
-        };
+        var commandName = cmd.GetType().Name;
+        if (!_receiveMap.TryGetValue(commandName, out var receiveFunction))
+            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}");
+        return receiveFunction.Invoke(cmd, context, fundState);
     }
 
     /// <summary>
@@ -162,6 +154,29 @@ public class FundCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of fund-related commands by associating each command
     /// type name with a function that executes the command against a FundCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
+    static readonly Dictionary<string, Func<
+        ICommand,
+        ICommandActorContext<FundCommandActor>,
+        FundCommandState,
+        ServiceResult<GuidResult>>> _receiveMap = new()
+    {
+        [typeof(AddOrderToFundCommand).Name] = static (command, _, state) =>
+            ((AddOrderToFundCommand)command).Execute(state),
+        [typeof(AddTradeToFundOrderCommand).Name] = static (command, _, state) =>
+            ((AddTradeToFundOrderCommand)command).Execute(state),
+        [typeof(ChangeFundOrderTradeStateCommand).Name] = static (command, _, state) =>
+            ((ChangeFundOrderTradeStateCommand)command).Execute(state),
+        [typeof(CloseFundOrderCommand).Name] = static (command, _, state) =>
+            ((CloseFundOrderCommand)command).Execute(state),
+        [typeof(CreateFundCommand).Name] = static (command, _, state) =>
+            ((CreateFundCommand)command).Execute(state),
+        [typeof(GenerateFundMaxProfitCommand).Name] = static (command, _, state) =>
+            ((GenerateFundMaxProfitCommand)command).Execute(state),
+        [typeof(RemoveOrderFromFundCommand).Name] = static (command, _, state) =>
+            ((RemoveOrderFromFundCommand)command).Execute(state),
+        [typeof(RemoveTradeFromFundOrderCommand).Name] = static (command, _, state) =>
+            ((RemoveTradeFromFundOrderCommand)command).Execute(state)
+    };
 
     /// <summary>
     /// Validates the current command asynchronously within the specified command actor context.
