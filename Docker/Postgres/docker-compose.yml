@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:17.2
     container_name: ifm_db
+    shm_size: "512mb"
     environment:
       POSTGRES_DB: ${IFM_POSTGRES_DATABASE:-ifm_db}
       POSTGRES_USER: ${IFM_POSTGRES_USER:-postgres}
