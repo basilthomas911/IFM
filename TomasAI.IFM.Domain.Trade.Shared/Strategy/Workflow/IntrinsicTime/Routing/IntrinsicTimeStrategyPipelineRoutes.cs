@@ -7,16 +7,16 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
 
-/// <summary>Describes the committed Command and Realtime addresses for one strategy pipeline stage.</summary>
+/// <summary>Describes the committed execution and result addresses for one strategy pipeline stage.</summary>
 public readonly record struct IntrinsicTimeStrategyPipelineRoute
 {
     /// <summary>Gets the workflow stage implemented by the pipeline.</summary>
     public StrategyWorkflowStage Stage { get; init; }
 
-    /// <summary>Gets the pipeline Command actor address.</summary>
+    /// <summary>Gets the pipeline execution actor address; Regime Discovery uses Function.</summary>
     public ActorMailboxId CommandActor { get; init; }
 
-    /// <summary>Gets the pipeline Realtime event-source address.</summary>
+    /// <summary>Gets the pipeline Realtime result source, or Unknown for a direct Function result.</summary>
     public ActorMailboxId RealtimeActor { get; init; }
 
     /// <summary>Gets the pipeline bounded-context route.</summary>
@@ -48,8 +48,8 @@ public static class IntrinsicTimeStrategyPipelineRoutes
     [
         new(
             StrategyWorkflowStage.RegimeDiscovery,
-            new ActorMailboxId(ActorType.Command, ExecuteRegimeDiscoveryPipelineCommand.Actor),
-            new ActorMailboxId(ActorType.Realtime, RegimeDiscoveryPipelineCompletedEvent.Actor),
+            new ActorMailboxId(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor),
+            new ActorMailboxId(ActorType.Unknown, ExecuteRegimeDiscoveryPipelineCommand.Actor),
             BoundedContextName.RegimeDiscoveryPipelineBoundedContext),
         new(
             StrategyWorkflowStage.MarketCondition,

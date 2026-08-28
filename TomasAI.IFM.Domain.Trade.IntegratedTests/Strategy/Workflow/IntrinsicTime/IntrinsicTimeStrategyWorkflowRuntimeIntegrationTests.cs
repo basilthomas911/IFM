@@ -201,9 +201,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
             await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
             var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
-            await WaitForRegimeDiscoveryAsync(started.WorkflowId, "Failed");
             await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
                 StrategyWorkflowOutcome.PipelineFailed);
+
+            (await database.TradeDb.GetRegimeDiscoveryAsync(started.WorkflowId)).Should().BeNull(
+                "failed Function results are returned to workflow and are never projected");
 
             var state = await LoadStateAsync(factory.Services, entity);
             state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
@@ -248,9 +250,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
             await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
             var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
-            await WaitForRegimeDiscoveryAsync(started.WorkflowId, "Failed");
             await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
                 StrategyWorkflowOutcome.TimedOut);
+
+            (await database.TradeDb.GetRegimeDiscoveryAsync(started.WorkflowId)).Should().BeNull(
+                "timed-out Function results are returned to workflow and are never projected");
 
             var state = await LoadStateAsync(factory.Services, entity);
             state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
@@ -822,8 +826,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 throw new InvalidOperationException($"Unexpected dummy pipeline subject {message.Subject}.");
             return stage switch
             {
-                StrategyWorkflowStage.RegimeDiscovery => PipelineStartInput.From(
-                    message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>()!),
                 StrategyWorkflowStage.MarketCondition => PipelineStartInput.From(
                     message.AsCommand<StartMarketConditionPipelineCommand>()!),
                 StrategyWorkflowStage.TradeSelection => PipelineStartInput.From(
@@ -840,8 +842,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         {
             switch (stage)
             {
-                case StrategyWorkflowStage.RegimeDiscovery:
-                    await SendAsync(CreateProcessing<RegimeDiscoveryPipelineProcessingEvent>(input)); break;
                 case StrategyWorkflowStage.MarketCondition:
                     await SendAsync(CreateProcessing<MarketConditionPipelineProcessingEvent>(input)); break;
                 case StrategyWorkflowStage.TradeSelection:

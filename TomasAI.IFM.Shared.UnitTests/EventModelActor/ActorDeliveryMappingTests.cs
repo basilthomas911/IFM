@@ -17,6 +17,7 @@ public sealed class ActorDeliveryMappingTests
     [InlineData(ActorType.Query, ActorDeliveryType.NatsCore)]
     [InlineData(ActorType.Notify, ActorDeliveryType.NatsCore)]
     [InlineData(ActorType.Realtime, ActorDeliveryType.NatsCore)]
+    [InlineData(ActorType.Function, ActorDeliveryType.NatsCore)]
     [InlineData(ActorType.Event, ActorDeliveryType.NatsJetStream)]
     public void Actor_type_has_one_delivery_transport(
         ActorType actorType,
@@ -32,6 +33,7 @@ public sealed class ActorDeliveryMappingTests
         Assert.Equal(4, (int)ActorType.Query);
         Assert.Equal(5, (int)ActorType.Notify);
         Assert.Equal(7, (int)ActorType.Realtime);
+        Assert.Equal(8, (int)ActorType.Function);
         Assert.DoesNotContain("Supervisor", Enum.GetNames<ActorType>());
         Assert.DoesNotContain("UI", Enum.GetNames<ActorType>());
     }

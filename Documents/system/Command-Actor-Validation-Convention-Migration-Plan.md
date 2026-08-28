@@ -420,7 +420,8 @@ Exit gate: 3 actors and 18 commands removed from the legacy allow-list.
 Actors and contracts:
 
 - `IntrinsicTimeStrategyWorkflowCommandActor` — 16 commands;
-- `RegimeDiscoveryCommandActor` — 1 command;
+- `RegimeDiscoveryFunctionActor` — 1 command-shaped Function request (the same command-ingress
+  validation convention applies, although the actor is no longer a `CommandActor`);
 - `RegimeDiscoveryConfigurationCommandActor` — 3 commands.
 
 Focus:

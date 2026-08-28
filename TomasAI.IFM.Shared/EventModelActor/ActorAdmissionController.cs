@@ -194,6 +194,7 @@ public sealed class ActorAdmissionController
             or ActorType.Query
             or ActorType.Notify
             or ActorType.Realtime
+            or ActorType.Function
             ? (int)actorType
             : (int)ActorType.Unknown;
 }

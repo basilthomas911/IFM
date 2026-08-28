@@ -60,7 +60,8 @@ public sealed class NatsConsumerOptionsTests
             FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass>
             {
                 [ActorType.Command] = CoreNatsTrafficClass.RequiredNonDurable,
-                [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly
+                [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly,
+                [ActorType.Function] = CoreNatsTrafficClass.RequestReplyOnly
             }
         };
 
@@ -79,7 +80,8 @@ public sealed class NatsConsumerOptionsTests
             FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass>
             {
                 [ActorType.Command] = CoreNatsTrafficClass.RequestReplyOnly,
-                [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly
+                [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly,
+                [ActorType.Function] = CoreNatsTrafficClass.RequestReplyOnly
             }
         };
 
@@ -89,7 +91,8 @@ public sealed class NatsConsumerOptionsTests
     [Theory]
     [InlineData(ActorType.Command)]
     [InlineData(ActorType.Query)]
-    public void Enforce_RequiresRequestReplyOnlyForCommandsAndQueries(ActorType actorType)
+    [InlineData(ActorType.Function)]
+    public void Enforce_RequiresRequestReplyOnlyForRequestReplyActors(ActorType actorType)
     {
         var admission = CreateEnforcedAdmissionOptions();
         var options = new NatsConsumerOptions
@@ -97,7 +100,8 @@ public sealed class NatsConsumerOptionsTests
             FireAndForgetTraffic = new Dictionary<ActorType, CoreNatsTrafficClass>
             {
                 [ActorType.Command] = CoreNatsTrafficClass.RequestReplyOnly,
-                [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly
+                [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly,
+                [ActorType.Function] = CoreNatsTrafficClass.RequestReplyOnly
             }
         };
         options.FireAndForgetTraffic[actorType] = CoreNatsTrafficClass.Optional;
@@ -132,7 +136,8 @@ public sealed class NatsConsumerOptionsTests
         var classifications = new Dictionary<ActorType, CoreNatsTrafficClass>
         {
             [ActorType.Command] = CoreNatsTrafficClass.RequestReplyOnly,
-            [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly
+            [ActorType.Query] = CoreNatsTrafficClass.RequestReplyOnly,
+            [ActorType.Function] = CoreNatsTrafficClass.RequestReplyOnly
         };
         if (trafficClass != CoreNatsTrafficClass.Unknown)
             classifications[actorType] = trafficClass;

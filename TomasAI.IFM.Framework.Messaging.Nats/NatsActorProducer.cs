@@ -352,6 +352,31 @@ public class NatsActorProducer(
         return result!;
     }
 
+    /// <inheritdoc />
+    public async ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(
+        ActorSubject subject,
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        where TResult : class
+    {
+        EnsureCoreSubject(subject, ActorType.Function);
+        IsArgumentNull.Check(command);
+        IsArgumentNull.Check(entityId);
+        if (!IsRunning)
+            await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
+
+        var replyMessageData = await RequestAsync(
+            subject.ToString(),
+            command.ToCommand<TCommand, TEntityId>(),
+            cancellationToken).ConfigureAwait(false);
+        return _dataSerializer.Deserialize<ServiceResult<TResult>>(replyMessageData)
+            ?? throw new InvalidOperationException(
+                $"Function actor '{subject}' returned no {typeof(TResult).Name} result.");
+    }
+
     async ValueTask PublishAsync<T>(string subject, T message, CancellationToken cancellationToken = default)
     {
         var started = NatsMessagingMetrics.StartOperation();

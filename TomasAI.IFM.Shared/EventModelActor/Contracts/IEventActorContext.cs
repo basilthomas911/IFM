@@ -35,6 +35,14 @@ public interface IEventActorContext
         where TCommand : class, ICommand<TEntityId>
         where TEntityId : IActorEntityId;
 
+    /// <summary>Executes a command-shaped Function request and returns its typed result.</summary>
+    ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(
+        TCommand command,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        where TResult : class;
+
     public void AddEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
     public void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
     public void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);

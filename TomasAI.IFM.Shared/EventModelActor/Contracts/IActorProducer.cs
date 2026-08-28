@@ -75,6 +75,16 @@ public interface IActorProducer
         return RequestAsync<TCommand, TEntityId, TResult>(subject, command, entityId);
     }
 
+    /// <summary>Executes a command-shaped request against a Function actor and awaits its typed result.</summary>
+    ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(
+        ActorSubject subject,
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        where TResult : class;
+
     ValueTask StartAsync(ActorMailboxId mailboxId);
     ValueTask StartAsync(ActorMailboxId mailboxId, CancellationToken cancellationToken)
     {

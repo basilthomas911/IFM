@@ -335,17 +335,8 @@ public abstract class BaseEventSourceActorRepository
             // check for any state change events...
             if (state!.Events.Count > 0)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var domainEvents = cancellationToken.CanBeCanceled
-                    ? await _dbEventSource.SaveEventsAsync(
-                        command.StreamId,
-                        command.CommandId,
-                        state.Events,
-                        cancellationToken).ConfigureAwait(false)
-                    : await _dbEventSource.SaveEventsAsync(
-                        command.StreamId,
-                        command.CommandId,
-                        state.Events).ConfigureAwait(false);
+                var domainEvents = await SaveStateEventsAsync(state, command, cancellationToken)
+                    .ConfigureAwait(false);
                 // Persistence has committed. Required denormalization/publication completes without caller cancellation.
                 await DenormalizeEventsAsync(context, domainEvents).ConfigureAwait(false);
                 _logger.LogInformationEvent(_serviceId, "saving state: {StateName} with {EventsCount} domain events from command: {CommandName} to event stream: {StreamId}", stateName, domainEvents.Count, command.CommandName, command.StreamId);
@@ -361,6 +352,59 @@ public abstract class BaseEventSourceActorRepository
             var errorMsg = $"{_serviceId}.SaveStateAndDenormalizeEventsAsync failed for {stateName} ";
             throw new StorageException(errorMsg, ex);
         }
+    }
+
+    /// <summary>
+    /// Persists pending event-sourced state without invoking denormalization. Function actors use this completed-only
+    /// path after their synchronous read-model projection has already succeeded.
+    /// </summary>
+    protected async Task<DomainEventCollection> SaveStateEventsAsync<TState>(
+        TState state,
+        ICommand invocation,
+        CancellationToken cancellationToken = default)
+        where TState : IEventSourceActorState<TState>
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(invocation);
+        if (state.Events.Count == 0)
+            return [];
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return cancellationToken.CanBeCanceled
+            ? await _dbEventSource.SaveEventsAsync(
+                invocation.StreamId,
+                invocation.CommandId,
+                state.Events,
+                cancellationToken).ConfigureAwait(false)
+            : await _dbEventSource.SaveEventsAsync(
+                invocation.StreamId,
+                invocation.CommandId,
+                state.Events).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Persists pending state at an exact stream version without denormalization. Completed-only Function streams
+    /// use expected version zero so concurrent duplicate executions cannot create two committed completions.
+    /// </summary>
+    protected async Task<DomainEventCollection> SaveStateEventsAsync<TState>(
+        TState state,
+        ICommand invocation,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken = default)
+        where TState : IEventSourceActorState<TState>
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(invocation);
+        if (state.Events.Count == 0)
+            return [];
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _dbEventSource.SaveEventsAsync(
+            invocation.StreamId,
+            invocation.CommandId,
+            state.Events,
+            expectedStreamVersion,
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

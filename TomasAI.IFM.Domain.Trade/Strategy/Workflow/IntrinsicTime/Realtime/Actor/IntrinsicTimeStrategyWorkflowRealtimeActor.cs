@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -7,9 +9,11 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -17,11 +21,16 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
 /// <summary>Starts workflows from eligible ITI triggers and dispatches only committed Started snapshots.</summary>
-/// <remarks>This stateless actor has no replay, resume, redispatch, or pipeline terminal-translation route.</remarks>
+/// <remarks>
+/// This stateless actor has no replay, resume, or redispatch. For Regime Discovery it owns the direct Function
+/// request and translates the typed terminal reply into a Strategy Workflow complete or fail command.
+/// </remarks>
 public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
     IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> actorContext)
     : BaseEventActor<IntrinsicTimeStrategyWorkflowRealtimeActor>(actorContext, RequireContext(actorContext).Logger)
 {
+    static readonly TimeSpan FunctionReplyGrace = TimeSpan.FromSeconds(5);
+
     static readonly ActorTypeId TriggerRoute = new(
         ActorType.Realtime,
         FuturesItiSignalGeneratedEvent.RealtimeActor,
@@ -171,6 +180,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         WorkflowStrategyStateUpdatedEvent snapshot)
     {
         var view = snapshot.State;
+        var timeProvider = RequireEventContext(context).TimeProvider;
         var commandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
             view.WorkflowId,
             view.CurrentStage,
@@ -180,10 +190,61 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         {
             var execute = CreateRegimeExecute(snapshot)
                 ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
-            var executionId = execute.EntityId;
-            await context.SendAsync<ExecuteRegimeDiscoveryPipelineCommand, RegimeDiscoveryExecutionEntityId>(
-                execute,
-                executionId).ConfigureAwait(false);
+            FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
+            try
+            {
+                using var deadline = new CancellationTokenSource();
+                var remaining = execute.ExpiresAtUtc - timeProvider.GetUtcNow().UtcDateTime;
+                // ExpiresAtUtc is the calculation deadline enforced inside the Function. The transport receives a
+                // short reply-only grace period so caller cancellation cannot race a terminal timeout response.
+                deadline.CancelAfter((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + FunctionReplyGrace);
+                var result = await context.RequestFunctionAsync<
+                    ExecuteRegimeDiscoveryPipelineCommand,
+                    RegimeDiscoveryExecutionEntityId,
+                    FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>(
+                    execute,
+                    deadline.Token).ConfigureAwait(false);
+                terminal = result.Value;
+                if (terminal is null || !terminal.IsTerminal)
+                {
+                    terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
+                        RegimeDiscoveryPipelineFailedEvent>.Fail(
+                        ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
+                            execute,
+                            result.ErrorCode == 0 ? RegimeDiscoveryPipelineFailedEvent.ErrorId : result.ErrorCode,
+                            string.IsNullOrWhiteSpace(result.ErrorMessage)
+                                ? "Regime Discovery Function returned no terminal result."
+                                : result.ErrorMessage,
+                            "FunctionRequest",
+                            string.Empty,
+                            timeProvider.GetUtcNow().UtcDateTime));
+                }
+            }
+            catch (Exception exception)
+            {
+                terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
+                    RegimeDiscoveryPipelineFailedEvent>.Fail(
+                    ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
+                        execute,
+                        RegimeDiscoveryPipelineFailedEvent.ErrorId,
+                        "Regime Discovery Function request failed or exceeded its deadline.",
+                        "FunctionRequest",
+                        exception.GetType().Name,
+                        timeProvider.GetUtcNow().UtcDateTime));
+            }
+
+            if (terminal.IsCompleted)
+            {
+                var complete = CreateCompleteCommand(terminal.Completed!);
+                await context.SendAsync<CompleteRegimeDiscoveryCommand,
+                    IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
+            }
+            else
+            {
+                var fail = CreateFailCommand(terminal.Failed!);
+                await context.SendAsync<FailRegimeDiscoveryCommand,
+                    IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+            }
             return;
         }
 
@@ -242,7 +303,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 view.WorkflowId,
                 view.CurrentStage,
                 view.WorkflowRevision),
-            Subject = new ActorSubject(ActorType.Command,
+            Subject = new ActorSubject(ActorType.Function,
                 ExecuteRegimeDiscoveryPipelineCommand.Actor,
                 ExecuteRegimeDiscoveryPipelineCommand.Verb,
                 executionId.Format()),
@@ -314,8 +375,74 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 $"Context must implement {nameof(IIntrinsicTimeStrategyWorkflowRealtimeContext)}.",
                 nameof(context));
 
+    static IIntrinsicTimeStrategyWorkflowRealtimeContext RequireEventContext(
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
+        => context as IIntrinsicTimeStrategyWorkflowRealtimeContext
+            ?? throw new ArgumentException(
+                $"Context must implement {nameof(IIntrinsicTimeStrategyWorkflowRealtimeContext)}.",
+                nameof(context));
+
     static ActorSubject CommandSubject(string verb, IntrinsicTimeStrategyWorkflowEntityId entityId)
         => new(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor, verb, entityId.Format());
+
+    internal static CompleteRegimeDiscoveryCommand CreateCompleteCommand(
+        RegimeDiscoveryPipelineCompletedEvent completed)
+        => new()
+        {
+            CommandId = DeterministicTerminalCommandId(completed.EntityId, completed.WorkflowId,
+                completed.InputWorkflowRevision, completed.Id, CompleteRegimeDiscoveryCommand.Verb),
+            Subject = WorkflowSubject(CompleteRegimeDiscoveryCommand.Verb, completed.EntityId),
+            EntityId = completed.EntityId,
+            WorkflowId = completed.WorkflowId,
+            InputWorkflowRevision = completed.InputWorkflowRevision,
+            SourceEventId = completed.Id,
+            Result = completed.Result,
+            CorrelationId = completed.CorrelationId,
+            CausationId = completed.Id,
+            CompletedAtUtc = completed.CompletedAtUtc
+        };
+
+    internal static FailRegimeDiscoveryCommand CreateFailCommand(RegimeDiscoveryPipelineFailedEvent failed)
+        => new()
+        {
+            CommandId = DeterministicTerminalCommandId(failed.EntityId, failed.WorkflowId,
+                failed.InputWorkflowRevision, failed.Id, FailRegimeDiscoveryCommand.Verb),
+            Subject = WorkflowSubject(FailRegimeDiscoveryCommand.Verb, failed.EntityId),
+            EntityId = failed.EntityId,
+            WorkflowId = failed.WorkflowId,
+            InputWorkflowRevision = failed.InputWorkflowRevision,
+            SourceEventId = failed.Id,
+            Failure = new StrategyPipelineFailure
+            {
+                ErrorCode = failed.ErrorCode,
+                ErrorMessage = failed.ErrorMessage,
+                ErrorType = failed.ErrorCode == 23103 ? "Timeout" : failed.ErrorType.ToString(),
+                ErrorData = failed.ErrorData,
+                FailedAtUtc = failed.ErrorDate
+            },
+            CorrelationId = failed.CorrelationId,
+            CausationId = failed.Id,
+            FailedAtUtc = failed.ErrorDate
+        };
+
+    internal static Guid DeterministicTerminalCommandId(
+        IntrinsicTimeStrategyWorkflowEntityId entityId,
+        StrategyWorkflowId workflowId,
+        long revision,
+        Guid sourceEventId,
+        string verb)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{entityId.Format()}|{workflowId}|{revision}|{sourceEventId:N}|{verb}"));
+        Span<byte> bytes = stackalloc byte[16];
+        hash.AsSpan(0, 16).CopyTo(bytes);
+        bytes[6] = (byte)((bytes[6] & 0x0F) | 0x50);
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80);
+        return new Guid(bytes);
+    }
+
+    static ActorSubject WorkflowSubject(string verb, IntrinsicTimeStrategyWorkflowEntityId entityId)
+        => new(ActorType.Command, CompleteRegimeDiscoveryCommand.Actor, verb, entityId.Format());
 
     readonly record struct LaterPipelineInput(
         IntrinsicTimeStrategyWorkflowView View,

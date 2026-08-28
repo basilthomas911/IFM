@@ -240,7 +240,7 @@ public class NatsActorConsumer(
             throw new InvalidOperationException(
                 $"Enforced Core NATS consumer {actorType} cannot start with traffic class {trafficClass}.");
         }
-        if (actorType is ActorType.Command or ActorType.Query
+        if (actorType is ActorType.Command or ActorType.Query or ActorType.Function
             && trafficClass != CoreNatsTrafficClass.RequestReplyOnly)
         {
             throw new InvalidOperationException(
@@ -322,6 +322,7 @@ public class NatsActorConsumer(
                     await PubSubMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     break;
                 case ActorType.Command:
+                case ActorType.Function:
                     if (_options.UseOwnedCommandPayloads)
                         await CommandMessageLoopAsync(cancellationToken).ConfigureAwait(false);
                     else

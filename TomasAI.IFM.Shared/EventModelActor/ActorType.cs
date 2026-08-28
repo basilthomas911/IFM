@@ -18,7 +18,11 @@ public enum ActorType
     Notify = 5,
 
     // Value 6 was UI and is intentionally not reused.
-    Realtime = 7
+    Realtime = 7,
+
+    // Function actors are non-durable request/reply execution boundaries. Their
+    // successful result may still be committed to an event-sourced state stream.
+    Function = 8
 }
 
 /// <summary>
@@ -41,6 +45,7 @@ public static class ActorTypeExtensions
         ActorType.Query => nameof(ActorType.Query),
         ActorType.Notify => nameof(ActorType.Notify),
         ActorType.Realtime => nameof(ActorType.Realtime),
+        ActorType.Function => nameof(ActorType.Function),
         _ => value.ToString()
     };
 
@@ -49,7 +54,7 @@ public static class ActorTypeExtensions
     /// </summary>
     public static ActorDeliveryType GetDeliveryType(this ActorType value) => value switch
     {
-        ActorType.Command or ActorType.Query or ActorType.Notify or ActorType.Realtime
+        ActorType.Command or ActorType.Query or ActorType.Notify or ActorType.Realtime or ActorType.Function
             => ActorDeliveryType.NatsCore,
         ActorType.Event => ActorDeliveryType.NatsJetStream,
         ActorType.Unknown => ActorDeliveryType.Unknown,
@@ -84,6 +89,7 @@ public static class ActorTypeExtensions
         "Query" => ActorType.Query,
         "Notify" => ActorType.Notify,
         "Realtime" => ActorType.Realtime,
+        "Function" => ActorType.Function,
         _ => Enum.Parse<ActorType>(value)
     };
 }

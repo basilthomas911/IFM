@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 [MessagePackObject(AllowPrivate = true)]
 public sealed record ExecuteRegimeDiscoveryPipelineCommand : ICommand<RegimeDiscoveryExecutionEntityId>
 {
-    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineCommand";
+    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineFunction";
     [IgnoreMember] public const string Verb = "Execute";
     [IgnoreMember] public const int ErrorId = 23001;
 

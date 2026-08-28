@@ -105,7 +105,8 @@ public sealed class ActorAdmissionOptions
                      ActorType.Query,
                      ActorType.Event,
                      ActorType.Notify,
-                     ActorType.Realtime
+                     ActorType.Realtime,
+                     ActorType.Function
                  })
         {
             var limits = GetLimits(actorType);

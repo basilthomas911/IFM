@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Approved design; implementation gates not yet complete |
+| Status | RD-19 complete; FNC FunctionActor refactor complete |
 | Created | 2026-08-27 |
 | Scope | Regime Discovery and the Strategy Workflow changes required to execute it safely |
 
@@ -10,6 +10,10 @@ Companion documents:
 
 - `Regime-Discovery-Specification-v1.0.md`
 - `Regime-Discovery-Implementation-v1.0.md`
+
+> **Authoritative amendment (2026-08-28):** FNC-00 through FNC-12 replace the
+> RD-19F/G CommandActor, EventProjector publication, and Regime Realtime adapter
+> topology. The workflow-state and hard-deadline invariants remain in force.
 
 ## 1. Purpose
 
@@ -24,12 +28,12 @@ The safety objective is fail-closed progression:
 > Regime Discovery completion. Every exception, timeout, process loss, stale
 > result, or lost post-commit notification must result in no forward progress.
 
-The implementation provides atomic **state outcomes**, not a transaction that
-spans calculation and persistence. Calculation performs no durable workflow
-side effects. Its outer command handler commits either one successful terminal
-outcome or one expected failure/timeout outcome. An unexpected exception may
-commit no Regime Discovery outcome; Strategy Workflow then remains Started and
-is recovered by its persisted deadline when a later command arrives.
+The implementation provides atomic **workflow progression outcomes**, not a transaction that
+spans ScyllaDB and PostgreSQL. Calculation performs no durable workflow side effects. The Function
+returns exactly one completed or failed result; only a completed result is projected and saved as
+Function state. Strategy Workflow durably commits the resulting Complete or Fail command. If that
+handoff is lost, Strategy Workflow remains Started and is recovered by its persisted deadline when
+a later command arrives.
 
 ## 2. Approved invariants
 
@@ -64,16 +68,14 @@ enhancements.
 9. The Regime Discovery private timeout covers snapshot acquisition and the
    full calculation. The outer handler alone owns the terminal state update.
    A timed-out worker is never allowed to commit a later success.
-10. Expected domain failures and the private timeout commit a private Failed
-    terminal event. Unexpected infrastructure/programming exceptions are
-    returned and logged without inventing a successful state transition.
-11. The Regime Discovery EventProjector writes the ScyllaDB read model and then
-    publishes the public Completed or Failed notification. That notification
-    is best effort. There is no outbox replay, projector replay, automatic
-    redispatch, or workflow resume in V1.
-12. `RegimeDiscoveryPipelineRealtimeActor` is stateless. It translates public
-    Regime Discovery Completed/Failed notifications into Strategy Workflow
-    Complete/Fail commands. It owns no timer, calculation, or durable state.
+10. Expected domain failures and the private timeout return a typed failed
+    Function result. Failed Function results are not projected or persisted.
+11. Only a completed candidate reaches the synchronous Function projector.
+    Projection succeeds before completed-only Function state is appended; no
+    terminal result is published and there is no projector/message replay.
+12. The Strategy Workflow Realtime actor directly requests the Function and
+    translates its typed result into the matching durable Workflow Complete or
+    Fail command. There is no Regime Discovery Realtime actor.
 13. Lost notifications always fail closed. A missing workflow terminal update
     leaves the workflow Started until a later command observes its persisted
     expiry. It cannot advance toward order execution.
@@ -795,10 +797,10 @@ the stated project boundaries.
 | `Domain.Trade/.../IntrinsicTime/Command/Actor` and `Extensions` | Refactor | Start, Complete, Fail, lazy-expiry, idempotency, and next-stage gates. |
 | `Domain.Trade/.../IntrinsicTime/Command/EventProjector` | Refactor | Project/publish state-update snapshots after commit. |
 | `Domain.Trade/.../IntrinsicTime/Realtime` | Refactor | Dispatch Execute from committed Started; stop consuming Regime terminal events. |
-| `Domain.Trade/.../RegimeDiscovery/Command` | Rename/refactor | Execute route and outer atomic outcome/timeout owner. |
-| `Domain.Trade/.../RegimeDiscovery/Command/State` | Refactor | Per-workflow execution state and idempotency. |
-| `Domain.Trade/.../RegimeDiscovery/Command/EventProjector` | Retain/refactor | Scylla write followed by best-effort terminal notification; no replay. |
-| `Domain.Trade/.../RegimeDiscovery/Realtime/Actor` | Add | Stateless Completed/Failed to Workflow Complete/Fail translation. |
+| `Domain.Trade/.../RegimeDiscovery/Function` | Add/refactor | Function request execution and fixed-deadline terminal-result owner. |
+| `Domain.Trade/.../RegimeDiscovery/Function/State` | Add | Completed-only Function state and exact-input idempotency. |
+| `Domain.Trade/.../RegimeDiscovery/Function/Projector` | Add | Synchronous completed-result Scylla upsert; no queue, publication, or replay. |
+| `Domain.Trade/.../RegimeDiscovery/Realtime/Actor` | Remove | Strategy Workflow realtime actor directly translates the Function result. |
 | `Domain.Trade/.../RegimeDiscovery/Options` | Add | Validated maximum execution duration if no existing options home is suitable. |
 | `Application.Storage/TradeDb` | Refactor only as required | Workflow/Regime read models; no configuration authority. |
 | `Application.Storage/ConfigurationDb` | Hold | Continue current PostgreSQL Regime parameter lookup; no general redesign. |
@@ -924,15 +926,38 @@ Existing tests remain the RD-0 through RD-18 regression baseline until their
 old replay and multi-event-contract expectations are deliberately replaced by
 the corresponding RD-19 tests above.
 
+### 7.8 FNC FunctionActor refactor gates
+
+| Gate | Status | Delivered outcome |
+|---|---|---|
+| FNC-00 | Complete | Added `ActorType.Function` and typed Function contracts. |
+| FNC-01 | Complete | Added Core NATS Function request/reply transport and admission classification. |
+| FNC-02 | Complete | Added generic mapped FunctionActor lifecycle with optional projector. |
+| FNC-03 | Complete | Split event-only completed-state persistence from Command denormalization and required expected version zero. |
+| FNC-04 | Complete | Replaced Regime Command state with completed-only Function state. |
+| FNC-05 | Complete | Changed Regime execution to return exactly one typed completed or failed event. |
+| FNC-06 | Complete | Added synchronous completed-only ScyllaDB Function projection. |
+| FNC-07 | Complete | Added direct Strategy Workflow Function request and terminal command mapping. |
+| FNC-08 | Complete | Removed Regime CommandActor, EventProjector publication, RealtimeActor, private terminal events, and Processing event. |
+| FNC-09 | Complete | Added host registration and `RequestReplyOnly` configuration. |
+| FNC-10 | Complete | Added generic and Regime unit/BDD failure-barrier coverage. |
+| FNC-11 | Complete | Updated and passed live runtime/storage integration coverage. |
+| FNC-12 | Complete | Updated actor conventions, sequence diagrams, and implementation evidence. |
+
+The detailed current sequence is section 6.5 of
+`Regime-Discovery-Implementation-v1.0.md`. RD-19 sections describing the former
+private-event publication chain are retained only as historical execution
+records and are not current implementation instructions.
+
 ## 8. Known failure scenarios and result
 
 | Scenario | Authoritative result | Can workflow advance? | Recovery/visibility |
 |---|---|---:|---|
-| Execute command throws before Regime commit | Workflow remains Started | No | Logged; expiry visible; later Start closes it. |
-| Host dies during calculation | Workflow remains Started | No | Same lazy-expiry behavior. |
-| Private timeout wins | Regime Failed commits | No | Public Failed may close Workflow; otherwise later Start does. |
-| Regime projector/Scylla write fails | Regime terminal exists; Workflow remains Started | No | Projector error + expired workflow observation. |
-| Public terminal notification is lost | Workflow remains Started | No | Later Start closes expired execution. |
+| Function execution throws | Typed Failed is returned and Workflow Fail is requested | No | Logged; if Workflow command cannot commit, later Start closes the expired snapshot. |
+| Function host dies during calculation | Function request fails/times out | No | Workflow caller requests Fail; full-host loss retains lazy-expiry recovery. |
+| Private timeout wins | Typed Failed is returned; no Function state is saved | No | Workflow Fail command records Failed/TimedOut when current. |
+| Function projector/Scylla write fails | Typed Failed is returned; no Function state is saved | No | Projector error is visible and Workflow cannot advance. |
+| Function terminal reply is lost | Caller transport timeout requests Workflow Fail | No | If that command also fails, later Start closes the expired execution. |
 | Workflow Complete/Fail command fails | Workflow remains Started | No | Command error; late retry is not automatic; expiry backstop. |
 | Completion arrives after deadline | Workflow becomes TimedOut or remains newer state | No | Stale/timeout metric and observation. |
 | Old completion arrives after replacement Start | New workflow unchanged | No | Composite identity + Workflow guard reject it. |
@@ -949,7 +974,7 @@ fixed deadline, and it always blocks forward progression.
 This plan does not:
 
 - provide automatic replay, message redelivery, redispatch, or workflow resume;
-- guarantee that best-effort projections/notifications are eventually sent;
+- guarantee cross-database ACID between the completed ScyllaDB upsert and PostgreSQL Function append;
 - redesign PostgreSQL `ConfigurationDbContext` or add Scylla configuration;
 - implement general versioned parameter CRUD for every domain actor;
 - implement later Strategy Workflow pipeline calculations;
@@ -975,7 +1000,7 @@ are true:
 - every Started workflow has a fixed persisted deadline;
 - timeout precedence and lazy expiry are proven at the exact boundary;
 - Regime execution is isolated by workflow ID and has one terminal-state owner;
-- the new Regime Realtime actor exclusively translates terminal notifications;
+- Strategy Workflow Realtime directly translates the typed Function result;
 - all failure/loss/restart tests prove no downstream progression;
 - observation exposes expired/stopped/migration-blocked work without mutating
   it; and

@@ -4,7 +4,7 @@ Implementation Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | RD-0 through RD-18 implemented; atomic execution/workflow revision approved for implementation |
+| Status | RD-0 through RD-19 and FNC-00 through FNC-12 implemented; FunctionActor flow authoritative |
 | Date | 2026-08-27 |
 | Design authority | `Regime-Discovery-Specification-v1.0.md` |
 | Atomic revision plan | `Regime-Discovery-Atomic-Workflow-Implementation-Plan-v1.0.md` |
@@ -27,20 +27,16 @@ Implementation Specification v1.0
 5. Regime Discovery captures one immutable latest-signal snapshot and never
    substitutes database reads or numeric defaults for unavailable required
    hot signals.
-6. Regime Discovery has one event-sourced Command actor and one stateless
-   Realtime adapter. Trend, Volatility, Market Structure, and Fusion are sealed
-   actor-owned calculation models, not actors. The Realtime actor owns no
-   calculation or durable state.
-7. The Command actor dispatches `ExecuteRegimeDiscoveryPipelineCommand` through
-   `_receiveMap` to an asynchronous command extension returning
-   `Task<ServiceResult<GuidResult>>`. The extension owns calculation,
-   private terminal-event creation, and the state update.
-8. The EventProjector writes the final result or failure to ScyllaDB before it
-   publishes the public `RegimeDiscoveryPipelineCompletedEvent` or
-   `RegimeDiscoveryPipelineFailedEvent` to the Regime Discovery Realtime actor.
-   That actor translates a committed terminal notification into the matching
-   Strategy Workflow Complete or Fail command. V1 publishes no separate Regime
-   Discovery Processing event.
+6. Regime Discovery has one completed-only event-sourced Function actor. Trend,
+   Volatility, Market Structure, and Fusion are sealed actor-owned calculation
+   models, not actors. There is no Regime Discovery Realtime actor.
+7. The Function actor dispatches `ExecuteRegimeDiscoveryPipelineCommand`
+   through exact `_parseMap`, `_validationMap`, and `_receiveMap` mappings and
+   directly returns a typed completed or failed event to Strategy Workflow.
+8. Only a completed candidate reaches the synchronous optional Function
+   projector. Projection must succeed before completed-only Function state is
+   saved. Failed results are neither projected nor saved, and no terminal
+   result is published through Core NATS or JetStream.
 9. Every execution has a fixed, persisted `ExpiresAtUtc`. Timeout takes
    precedence at `now >= ExpiresAtUtc`; an expired completion can never advance
    Strategy Workflow. A later Start command is the authoritative lazy backstop
@@ -60,12 +56,10 @@ RD-0 completed its repository inventory and baseline on 2026-08-26:
   been implemented yet;
 - Strategy Workflow already defines and routes the Regime Discovery Start,
   Completed, Failed, and legacy Processing contracts;
-- the legacy `RegimeDiscoveryPipelineProcessingEvent` remains a shared
-  compatibility type but is not part of the V1 live flow and must not be
-  published or routed after the workflow routing migration;
-- public terminal events are produced by the Regime Discovery Command
-  projector and are addressed to `RegimeDiscoveryPipelineRealtime`, which
-  sends the matching Complete or Fail command directly to the Strategy
+- the legacy `RegimeDiscoveryPipelineProcessingEvent` has been removed because
+  a Function request/reply has no public processing lifecycle;
+- terminal events are returned only to the Strategy Workflow realtime caller,
+  which sends the matching Complete or Fail command directly to the Strategy
   Workflow Command actor; and
 - Regime Discovery execution identity combines the stable
   `IntrinsicTimeStrategyWorkflowEntityId` with `StrategyWorkflowId`, so a
@@ -316,45 +310,43 @@ parameter payload hash, and target horizon. Existing keys are never reordered.
 `StrategyStageResultEnvelope`, whose payload is the MessagePack-serialized
 typed RegimeDiscoveryResult.
 
-## 6. Command actor and calculation topology
+## 6. Function actor and calculation topology
 
 The implementation lives under
 `TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime/RegimeDiscovery`.
-Only the Regime Discovery Command actor owns durable private state.
+Only the Regime Discovery Function actor owns completed-only durable state.
 
 ```text
 Strategy Workflow Realtime actor
   -> ExecuteRegimeDiscoveryPipelineCommand
-RegimeDiscovery Command actor
-  -> _receiveMap
+RegimeDiscovery Function actor
+  -> _parseMap -> _validationMap -> exact-type _receiveMap
   -> ExecuteRegimeDiscoveryPipeline.ExecuteAsync(...)
-Async command extension
+Async Function extension
   -> enforce the immutable ExpiresAtUtc deadline around snapshot and calculation
   -> capture immutable signal snapshot and frozen configuration
   -> run Trend, Volatility, Market Structure, and Fusion as pure models
-  -> state.Update(private RegimeDiscoveryCalculationCompletedEvent, command)
-     OR state.Update(private RegimeDiscoveryCalculationFailedEvent, command)
-     OR append nothing when an unexpected exception rolls back the attempt
-  -> Task<ServiceResult<GuidResult>>
-Command actor repository
-  -> commit pending event and state revision to PostgreSQL event log
-RegimeDiscovery EventProjector
-  -> write final result/failure projection to ScyllaDB
-  -> publish public RegimeDiscoveryPipelineCompletedEvent or FailedEvent
-RegimeDiscovery Realtime actor
-  -> send CompleteRegimeDiscoveryCommand or FailRegimeDiscoveryCommand
+  -> return FunctionResult<CompletedEvent, FailedEvent>
+Function projector (completed candidate only)
+  -> synchronously upsert the completed ScyllaDB read model
+Function state repository (after projection succeeds)
+  -> append RegimeDiscoveryPipelineCompletedEvent at expected stream version 0
+Function actor
+  -> return the typed terminal event directly to Strategy Workflow Realtime
+Strategy Workflow Realtime actor
+  -> send CompleteRegimeDiscoveryCommand or FailRegimeDiscoveryCommand and require acceptance
 Strategy Workflow Command actor
   -> validate active WorkflowId/revision/stage/deadline
   -> commit WorkflowStrategyStateUpdatedEvent or ignore a stale terminal message
 ```
 
-There is no Regime Discovery Event actor, private component actor, or component
-mailbox. `RegimeDiscoveryPipelineRealtimeActor` is a stateless event-to-command
-adapter; it owns neither calculation nor durable state. The EventProjector is
-part of the Command actor's post-commit path; it is not an Event actor and does
-not create independently durable computation state.
+There is no Regime Discovery Command actor, Event actor, Realtime actor,
+processing event, private terminal-event family, or component mailbox. The
+Function projector owns no queue, publication, checkpoint, retry, or replay.
+The completed Function stream is replayed only to hydrate idempotency state
+after restart; it is not a message-delivery or projector replay mechanism.
 
-### 6.1 Command actor layout and dispatch
+### 6.1 Function actor layout and dispatch
 
 The Command actor follows the system convention documented in
 `Documents/system/Actor-Implementation-Conventions.md`:
@@ -372,31 +364,19 @@ RegimeDiscovery/
 ```
 
 Its derived actor remains mechanical and owns explicit `_parseMap`,
-`_validationMap`, and `_receiveMap` dictionaries. `ReceiveAsync` looks up the
-runtime command name in `_receiveMap`; it must not use a type switch. The Execute
-entry delegates to an asynchronous extension:
+`_validationMap`, and `_receiveMap` dictionaries. Receive dispatch uses the
+request's exact concrete CLR type; it must not use a type switch or string type
+name. The Execute entry delegates to an asynchronous extension returning:
 
 ```csharp
-static readonly Dictionary<string, Func<
-    ICommand,
-    ICommandActorContext<RegimeDiscoveryCommandActor>,
-    RegimeDiscoveryCommandState,
-    Task<ServiceResult<GuidResult>>>> _receiveMap;
+FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
+               RegimeDiscoveryPipelineFailedEvent>
 ```
 
-The framework-facing `ValueTask<ServiceResult<GuidResult>>` override adapts
-the mapped `Task`. The concrete Execute extension is named for the business
-operation, for example `ExecuteRegimeDiscoveryPipeline.ExecuteAsync`, without a
-redundant `Command` suffix.
-
-The extension receives the typed command, typed context, and state. It
-validates state-dependent rules, obtains readonly
-dependencies through typed context properties/extensions, awaits the complete
-calculation, creates exactly one private durable terminal event, invokes
-`state.Update(event, command)`, and returns the command GUID in the service
-result. Returning a failed service result without updating state is reserved
-for a rejected command; a calculation failure that must be durable updates
-state with `RegimeDiscoveryCalculationFailedEvent`.
+`BaseEventSourceFunctionActor` owns parse, validation, state load, optional
+projection, completed-only state save, exception conversion, and typed reply.
+The concrete Execute extension owns only snapshot capture, calculation, its
+private hard deadline, and creation of the completed or failed candidate.
 
 ### 6.2 Actor-owned calculation models
 
@@ -440,7 +420,11 @@ V1 therefore uses `RegimeDiscoveryExecutionMode.Sequential`; independent
 workflow actors retain normal dispatcher concurrency without creating nine
 additional inner work items for the maximum three in-flight horizons.
 
-### 6.3 Private and public event rules
+### 6.3 Superseded RD-19 private/public event rules (historical)
+
+> This subsection records the former CommandActor/EventProjector/RealtimeActor design and is
+> superseded by the FNC FunctionActor sequence in section 6.5. None of the private events or
+> publication routes described below remains executable.
 
 Internal durable domain events are not public workflow contracts:
 
@@ -464,7 +448,10 @@ Internal durable domain events are not public workflow contracts:
   the terminal ScyllaDB projection succeeds. Only the Regime Discovery Realtime
   actor translates that event into a Strategy Workflow command.
 
-### 6.4 Atomic Regime Discovery and Strategy Workflow sequence
+### 6.4 Superseded RD-19 sequence (historical)
+
+> This diagram is retained only to explain the RD-19 migration history. The authoritative current
+> implementation is section 6.5.
 
 The sequence below is the authoritative V1 data flow for Regime Discovery and
 the Strategy Workflow transitions that surround it. Solid database arrows are
@@ -578,23 +565,92 @@ An unexpected exception produces an operational log but no Regime terminal
 event. A successful command reply is not proof of workflow advancement; only a
 committed `WorkflowStrategyStateUpdatedEvent` is authoritative.
 
+### 6.5 Authoritative FNC FunctionActor sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant WRT as Strategy Workflow Realtime
+    participant FN as Regime Discovery Function
+    participant Calc as Snapshot + Calculation
+    participant Scylla as ScyllaDB Regime Read Model
+    participant PG as PostgreSQL Function Stream
+    participant WC as Strategy Workflow Command
+
+    WRT->>FN: ExecuteRegimeDiscoveryPipelineCommand (Core NATS request/reply)
+    FN->>FN: parse, validate, load completed-only state
+    alt matching completion already committed
+        FN-->>WRT: original RegimeDiscoveryPipelineCompletedEvent
+    else conflicting completion already committed
+        FN-->>WRT: RegimeDiscoveryPipelineFailedEvent
+    else new execution
+        FN->>Calc: capture and calculate before ExpiresAtUtc
+        alt failure or private timeout
+            Calc-->>FN: typed failed event
+            FN-->>WRT: failed event (no projection and no Function save)
+        else completed candidate
+            Calc-->>FN: typed completed event
+            FN->>Scylla: synchronous idempotent completed upsert
+            alt projection fails
+                FN-->>WRT: failed event (no Function save)
+            else projection succeeds
+                FN->>PG: append completion at expected stream version 0
+                alt persistence succeeds
+                    FN-->>WRT: completed event
+                else persistence fails
+                    FN-->>WRT: failed event
+                end
+            end
+        end
+    end
+    alt completed reply
+        WRT->>WC: CompleteRegimeDiscoveryCommand
+        WC->>WC: durably advance only after validation
+    else failed, timeout, malformed, or lost Function reply
+        WRT->>WC: FailRegimeDiscoveryCommand
+        WC->>WC: durably stop/fail when current
+    end
+```
+
+The request's `ExpiresAtUtc` is the authoritative calculation deadline. The
+caller adds five seconds only for the timeout reply to cross the transport; it
+does not extend calculation time. A late worker result is observed and
+discarded and cannot reach projection or persistence.
+
+Only the Strategy Workflow Command actor can authorize progression. A
+completed ScyllaDB row alone is never sufficient. ScyllaDB and PostgreSQL do
+not share an ACID transaction, so a PostgreSQL outage after the completed
+upsert can leave an observational row without Function state. The caller still
+receives failure, and the workflow cannot progress toward order execution.
+
+| Message | Current owner and purpose |
+| --- | --- |
+| `ExecuteRegimeDiscoveryPipelineCommand` | Command-shaped Function request carrying the immutable workflow/parameter view and hard deadline. |
+| `RegimeDiscoveryPipelineCompletedEvent` | Direct completed Function reply and the only event allowed in completed-only Function state. It is never published. |
+| `RegimeDiscoveryPipelineFailedEvent` | Direct non-durable failed Function reply. It is neither projected nor persisted by the Function. |
+| `CompleteRegimeDiscoveryCommand` | Durable Strategy Workflow transition request derived from a completed Function reply. |
+| `FailRegimeDiscoveryCommand` | Durable Strategy Workflow failure/timeout request derived from a failed or unavailable Function reply. |
+
 ## 7. Persistence and projections
 
-The single Regime Discovery Command actor uses the existing PostgreSQL
-event-source repository for authoritative private state and a conventional
-EventProjector. There are no Event actors, private component actors, or durable
-message-replay consumers in Regime Discovery V1. The stateless Realtime actor
-only translates committed public terminal notifications into workflow commands.
+The single Regime Discovery Function actor uses the PostgreSQL event-source
+repository only for completed-only idempotency state. Its optional synchronous
+Function projector writes the completed ScyllaDB result before that state save.
+There are no Regime Command, Event, or Realtime actors and no durable terminal
+message-replay consumer.
 
 TradeDb ScyllaDB projections are non-authoritative observations and add query
 tables for:
 
-- pipeline terminal state/history;
+- completed pipeline result/history;
 - Trend, Volatility, and Market Structure component results;
 - Fusion/result by workflow execution;
 - evidence/reasons;
 - snapshot data-quality summary; and
-- terminal operational status and failure details.
+- completed operational status.
+
+Failed and timed-out Function attempts are visible through Strategy Workflow
+state and logs; Regime Discovery does not create a failed ScyllaDB read model.
 
 Projection schemas must be query-shaped, versioned, and avoid
 `ALLOW FILTERING`. V1 performs no automatic projector replay, workflow
@@ -630,10 +686,11 @@ uses the approved skeleton-first order recorded in section 1.1.
 | RD-16 | Run boundary integration with real Strategy Workflow for Daily, Weekly, and Monthly executions, success/failure/idempotency/restart paths |
 | RD-17 | Run full Trade, Reference, MarketData Analytics, Application Storage, actor BDD/unit/integration suites and full solution build |
 | RD-18 | Enable live Regime Discovery only after cache warm-up health and all required signals pass qualification |
-| RD-19 | Implement the approved atomic revision: composite execution identity, hard private deadline, Regime Realtime adapter, single Workflow StateUpdated snapshot event, immutable view handoff, lazy expiry, and late-result fencing |
+| RD-19 | Implement composite execution identity, hard deadline, single Workflow StateUpdated snapshot event, immutable view handoff, lazy expiry, and late-result fencing |
+| FNC-00..12 | Replace the Regime Command/projector-publication/Realtime chain with direct completed-only FunctionActor request/reply and qualify it |
 
-Implementation status as of 2026-08-27: RD-0 through RD-18 are implemented;
-RD-19 is the approved next implementation gate.
+Implementation status as of 2026-08-28: RD-0 through RD-19 and FNC-00 through
+FNC-12 are implemented.
 RD-13 selected sequential execution from the recorded BenchmarkDotNet results.
 RD-16 qualifies the real Regime Discovery worker inside the Strategy Workflow
 with concurrent Daily, Weekly, and Monthly success, injected pipeline failure,
@@ -645,12 +702,12 @@ required. The overall workflow feature deliberately remains disabled by
 default; enabling it in a development environment still requires published
 horizon configuration and warm qualified signal caches.
 
-The public terminal messages use stage-specific verbs such as
+The terminal result types use stage-specific verbs such as
 `RegimeDiscoveryPipelineCompleted` and `RegimeDiscoveryPipelineFailed`. This
 prevents MessagePack contract ambiguity with the Workflow actor's own generic
-state-update event. They are addressed to the stateless Regime Discovery
-Realtime actor, which sends typed Complete or Fail commands to the Workflow
-Command actor.
+state-update event. They are returned directly to Strategy Workflow Realtime;
+they are not published. Strategy Workflow Realtime sends the typed Complete or
+Fail command to the Workflow Command actor.
 
 Qualification evidence recorded on 2026-08-26:
 
@@ -676,10 +733,9 @@ lazy workflow-expiry backstop are mandatory parts of RD-19.
 - Cache tests cover missing, stale, future, not-warm, invalid, incompatible,
   optional omission, concurrent mutation, bounded capture retry, and startup
   warming.
-- Command-actor BDD tests cover `_receiveMap` dispatch, async extension success
-  and failure, duplicate execute, duplicate terminal, conflicting terminal
-  hash, and rejected commands that do not
-  change state.
+- Function-actor tests cover exact mapped dispatch, async extension success and
+  failure, optional projection, projection/persistence failure barriers,
+  duplicate completion, conflicting completion, and invalid terminal results.
 - Model unit tests prove deterministic Trend, Volatility, Market Structure,
   and Fusion output without actor infrastructure.
 - Benchmark/correctness tests compare sequential and thread-pool-parallel
@@ -694,10 +750,9 @@ lazy workflow-expiry backstop are mandatory parts of RD-19.
 - Workflow integration tests run one Daily, one Weekly, and one Monthly
   workflow. Each asserts that only its own target-horizon result is returned,
   while its supporting observation evidence is preserved.
-- A complete integration cycle verifies exactly one public Completed or Failed
-  event after its ScyllaDB projection, opaque envelope round-trip, workflow
-  continuation through the Regime Realtime adapter, and no private calculation
-  contract leaking to Strategy Workflow routes.
+- A complete integration cycle verifies direct Completed/Failed Function reply,
+  completed-only ScyllaDB projection, opaque envelope round-trip, direct
+  Strategy Workflow command translation, and no terminal publication route.
 - Atomic-flow tests verify timeout precedence at the exact boundary, no state
   commit for an unexpected exception, immutable-view accumulation, rejection
   of late/old-revision results, and atomic old-workflow expiry plus new Start.

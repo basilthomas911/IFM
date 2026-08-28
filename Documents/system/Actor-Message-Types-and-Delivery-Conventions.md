@@ -4,7 +4,7 @@
 
 **Created:** 2026-08-12
 
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-28
 
 ## 1. Purpose
 
@@ -47,6 +47,7 @@ This design avoids a `Durable` flag on individual messages. Such a flag would ma
 | `Query` | 4 | NATS Core | No | Request/reply | Read large projection state without changing actor state |
 | `Notify` | 5 | NATS Core | No | Publish/subscribe | Best-effort notification to external observers |
 | `Realtime` | 7 | NATS Core | No | Low-latency publish/subscribe | High-rate, latency-sensitive delivery to realtime actors |
+| `Function` | 8 | NATS Core | Request is non-durable | Request/reply | Execute bounded work and directly return a typed complete/fail result |
 
 Numeric values `1` and `6` are reserved. They previously represented `Supervisor` and `UI` and must not be reused, because persisted `ActorSubject` payloads could otherwise be interpreted as a different actor type.
 
@@ -64,7 +65,7 @@ The code-level delivery mapping is represented by `ActorDeliveryType`:
 
 ### 4.1 NATS Core
 
-Core NATS is used for `Command`, `Query`, `Notify`, and `Realtime`.
+Core NATS is used for `Command`, `Query`, `Notify`, `Realtime`, and `Function`.
 
 Core NATS provides the lowest-latency path, but it does not retain messages for an offline consumer. A subscriber normally sees only messages published while it is connected and subscribed. Consequently:
 
@@ -106,6 +107,7 @@ Event.>
 Query.>
 Notify.>
 Realtime.>
+Function.>
 ```
 
 A single consumer must not combine multiple actor types. A component that participates in more than one delivery role creates a separate consumer task for each role. For example, a UI requiring both live notifications and durable workflow events uses:
@@ -255,6 +257,22 @@ Databento normalized trade/quote
 
 Durable Event actors remain responsible for explicit command lifecycles such as stream start/stop and manual imports; they do not subscribe to the live tick routes. Corresponding production implementations reside in `Realtime` folders, while retained `Event` folders describe only genuinely durable behavior.
 
+### 6.6 `Function`: bounded request/reply execution
+
+A Function request uses Core NATS request/reply and an `ICommand<TEntityId>` payload addressed with
+`ActorType.Function`. The caller receives one typed completed or failed event directly. Function
+terminal results are not published to Core NATS or JetStream and therefore have no delivery replay,
+redelivery, or external subscriber contract.
+
+A FunctionActor may synchronously project a completed candidate and persist a completed-only event
+for idempotency. That persisted state is local recovery state, not a published workflow event.
+Failed calculations, timeouts, validation failures, and projection failures remain non-durable in
+the Function stream. The owning workflow command actor records the durable complete or failed
+workflow transition after receiving the Function reply.
+
+Function traffic is always classified `RequestReplyOnly`. Fire-and-forget Function sends are not
+part of the convention because losing the reply would remove the caller's terminal decision.
+
 ## 7. Actor and non-actor interaction matrix
 
 | Sender | Receiver | Intent | Message type | Transport | Receiver participation |
@@ -319,6 +337,7 @@ UI and console applications are not actor types. Their listener choice defines t
 | Reliable workflow participation, replay after downtime, or acknowledgement | JetStream `Event` durable listener |
 | Read current or large projection state | Core NATS `Query` request |
 | Ask an actor to perform work | Core NATS `Command` request/send |
+| Execute bounded pipeline work and receive its terminal result directly | Core NATS `Function` request |
 
 A UI may therefore run more than one consumer task, but each task remains specific to one actor type and its assigned transport.
 
@@ -346,6 +365,7 @@ The following rules apply system-wide:
 8. Do not add a per-message durability flag.
 9. Do not treat `Notify` or externally observed `Realtime` delivery as workflow participation.
 10. Do not use a query to mutate actor state.
+11. Do not publish a Function terminal result; return it only to the request caller.
 
 ## 11. Current enforcement boundary
 
@@ -402,5 +422,6 @@ The IFM messaging model is based on semantic roles rather than caller-selected t
 - `Query` provides read-only access to projection state through Core NATS;
 - `Notify` provides non-durable external observation through Core NATS; and
 - `Realtime` provides non-durable low-latency processing for realtime actors, with external subscribers acting only as observers.
+- `Function` provides bounded request/reply execution with a direct typed complete/fail result and no terminal publication.
 
 This convention provides one transport per actor type, one publication per message, explicit handoffs between messaging roles, and a clear distinction between workflow participants and observers.

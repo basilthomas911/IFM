@@ -1,7 +1,7 @@
 # Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
-**Status:** Evolving design convention; durable/realtime EventActor, CommandActor, and QueryActor conventions documented
+**Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
 **Created:** 2026-08-14  
 **Last updated:** 2026-08-28
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
@@ -10,7 +10,7 @@
 
 This document is the system-wide implementation guide for IFM actors. It will define the common structure and actor-type-specific conventions for EventActors, CommandActors, QueryActors, and any additional actor roles approved later.
 
-The current revision defines EventActor, RealtimeActor, CommandActor, and QueryActor conventions.
+The current revision defines EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions.
 
 Across all actor types, this document will be expanded as decisions are made about base actor behavior, derived actor mapping, handler contracts, validation, logging, retries, state, persistence, queries, and testing.
 
@@ -22,6 +22,7 @@ Across all actor types, this document will be expanded as decisions are made abo
 | RealtimeActor | Implemented and repository-enforced | Uses standardized `_parseMap` and exact-type `_receiveMap` dispatch with `ActorType.Realtime`, Core NATS delivery, a required primary actor, optional realtime routes, and parse/receive parity checks. |
 | CommandActor | Initial convention documented | Parse, validation, receive maps, command extensions, event-sourced state, repositories, and projector boundaries are defined below. |
 | QueryActor | Initial convention documented | Verb parsing, exact-type receive and exception mapping, typed failures, and malformed-ingress handling are defined below. |
+| FunctionActor | Implemented for Regime Discovery | Command-shaped request/reply, typed complete/fail result, optional synchronous projection, completed-only state, and no event publication are defined below. |
 | Additional actor roles | Not yet defined | Add only after the role and its implementation convention are explicitly approved. |
 
 ## 1.2 Current EventActor objective
@@ -1099,11 +1100,71 @@ parity.
 - [ ] Success, not-found, execution failure, cancellation, paging, and storage behavior remain covered
       by the owning domain's unit, BDD, or integration tests as appropriate.
 
-### 13.3 Cross-actor conventions
+### 13.3 FunctionActor convention
+
+A FunctionActor executes bounded calculation work as one Core NATS request/reply operation. Its
+request is an ordinary `ICommand<TEntityId>`, but its subject uses `ActorType.Function`. The typed
+reply contains exactly one `TCompletedEvent` or `TFailedEvent` in
+`FunctionResult<TCompletedEvent,TFailedEvent>`.
+
+`BaseEventSourceFunctionActor` fixes the lifecycle order:
+
+1. parse through `_parseMap` and `ParseMappedFunction`;
+2. validate the exact request type through `_validationMap`;
+3. load completed-only state;
+4. return an existing matching completion without recalculation;
+5. execute the exact-type `_receiveMap` handler;
+6. return a calculated failure without projection or persistence;
+7. synchronously run the optional `IFunctionProjector<TCompletedEvent>`;
+8. if projection succeeds, persist the completed event without denormalization; and
+9. return the completed event to the caller.
+
+The maps follow the same visibility and fail-closed rules as other actors. `_parseMap` is keyed by
+the exact verb. `_validationMap` and `_receiveMap` are keyed by exact concrete CLR `Type`.
+Assignable-type fallback, type-name strings, switches, and unmapped default behavior are forbidden.
+
+Function projection owns no actor, queue, route, publication, checkpoint, redelivery, or replay.
+Only a candidate completed event may reach it. A projection exception becomes a typed failed
+Function result and prevents the Function completion from being saved. Failed results are never
+saved in Function state. The workflow command actor, not the Function actor, owns the durable
+workflow failure transition.
+
+Completed Function state is deliberately durable and replayed only to hydrate the Function actor
+for idempotency after restart. This is not message or projector replay. A matching retry receives
+the original completion without executing or projecting again; a conflicting retry fails closed.
+The initial completed append uses expected stream version zero to prevent two committed
+completions for one Function execution stream.
+
+The projector is optional at the generic base boundary. When it is absent, a completed result goes
+directly to completed-state persistence. When present, projection must finish before persistence.
+Because the projection store and PostgreSQL event store are different databases, this ordering is
+a controlled semantic commit protocol, not a distributed ACID transaction: an event-store outage
+after a successful ScyllaDB upsert can leave an idempotent projection row without a committed
+Function completion. The workflow still receives failure and cannot advance to order execution.
+
+The Function request uses structured attempt logging rather than command-audit reservation.
+Reserving a command ID would incorrectly suppress a retry after a non-durable failed attempt.
+
+#### 13.3.1 FunctionActor testing checklist
+
+- [ ] Parsing requires `ActorType.Function`, the exact mailbox name, and a registered verb.
+- [ ] Validation visibly checks `CommandId`, entity ID, payload, and cross-field invariants.
+- [ ] Receive dispatch accepts only exact registered request types.
+- [ ] Calculation failure performs no projection and no Function-state save.
+- [ ] Timeout returns a typed failed event and performs no projection or save.
+- [ ] Projection failure returns a typed failed event and performs no save.
+- [ ] Completion projects before it saves and returns the completed event.
+- [ ] An optional missing projector still permits completed-state persistence.
+- [ ] A matching committed retry returns the original completion without side effects.
+- [ ] A conflicting committed retry fails closed without side effects.
+- [ ] The caller translates complete/fail results into the owning workflow commands.
+- [ ] Failure and timeout cannot start a later strategy pipeline or reach order execution.
+
+### 13.4 Cross-actor conventions
 
 Most cross-actor conventions remain reserved. Once the EventActor, CommandActor, and QueryActor sections are mature, this section will identify behavior that is genuinely common across actor types and determine whether it belongs in shared base classes, reusable helpers, or conformance tests.
 
-#### 13.3.1 Entity-ID representation preference
+#### 13.4.1 Entity-ID representation preference
 
 An immutable `readonly record struct` is the preferred representation for a new entity-ID type when the identity has genuine value semantics and all of its fields are suitable for value-type storage. This is a convention preference only. It is not a system-wide requirement, and it does not authorize converting existing entity-ID types as part of unrelated work.
 
@@ -1144,3 +1205,4 @@ For each approved conversion, validation must cover compilation, equality and ha
 | 2026-08-28 | Migrated all domain CommandActor and EventActor receive maps to exact concrete `Type` keys, added shared exact-type receive resolvers, added `BaseEventActor.ParseMappedEvent`, and required parse/receive map parity through repository conformance gates. |
 | 2026-08-28 | Defined and migrated the QueryActor three-map convention: base verb parsing, exact-type receive and typed exception maps, distinct malformed-ingress handling, map-parity enforcement, and repository conformance tests for all domain QueryActors. |
 | 2026-08-28 | Standardized all domain RealtimeActors on base `_parseMap` and exact concrete-type `_receiveMap` dispatch, made pre-event parse failures null-safe, preserved empty-command-ID private realtime barriers, added a reusable template, and enforced parse/receive parity for all 17 actors. |
+| 2026-08-28 | Added the FunctionActor convention and its Regime Discovery implementation: Core NATS request/reply, exact mapped dispatch, optional synchronous completed-only projection, completed-only event-sourced state with optimistic initial append, direct typed complete/fail return, and Strategy Workflow command ownership of durable terminal state. |

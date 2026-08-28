@@ -9,14 +9,14 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 
 /// <summary>Reports that the Regime Discovery pipeline completed successfully.</summary>
 /// <remarks>
-/// The future pipeline Command actor persists this event and projects its ScyllaDB read model before publishing the
-/// same logical event realtime to the Regime Discovery Pipeline Realtime actor.
+/// The Regime Discovery Function projects this result synchronously, persists its completed-only state, and returns
+/// the same typed event directly to the Strategy Workflow realtime caller. It is never published for replay.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<IntrinsicTimeStrategyWorkflowEntityId>
 {
-    /// <summary>Regime Realtime actor that translates the terminal pipeline event.</summary>
-    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineRealtime";
+    /// <summary>Regime Function actor that returns and persists the terminal pipeline result.</summary>
+    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineFunction";
     /// <summary>Stable pipeline lifecycle verb.</summary>
     [IgnoreMember] public const string Verb = "RegimeDiscoveryPipelineCompleted";
     /// <summary>Stable event error identifier.</summary>
@@ -54,6 +54,10 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
     [Key(14)] public DateTime CompletedAtUtc { get; init; }
     /// <summary>Gets the fixed workflow execution deadline used by the private calculation.</summary>
     [Key(15)] public DateTime ExpiresAtUtc { get; init; }
+    /// <summary>Gets the frozen Regime Discovery parameter payload hash.</summary>
+    [Key(16)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
+    /// <summary>Gets the atomic market-signal snapshot used by the calculation.</summary>
+    [Key(17)] public Guid SignalSnapshotId { get; init; }
 
     /// <summary>Gets the local pipeline event-source user for diagnostics.</summary>
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -98,7 +102,9 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
         StrategyWorkflowStage pipelineStage,
         StrategyStageResultEnvelope result,
         DateTime completedAtUtc,
-        DateTime expiresAtUtc)
+        DateTime expiresAtUtc,
+        string parameterPayloadSha256,
+        Guid signalSnapshotId)
     {
         Subject = subject;
         Id = id;
@@ -116,5 +122,7 @@ public sealed record RegimeDiscoveryPipelineCompletedEvent : ICompleteEvent<Intr
         Result = result;
         CompletedAtUtc = completedAtUtc;
         ExpiresAtUtc = expiresAtUtc;
+        ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
+        SignalSnapshotId = signalSnapshotId;
     }
 }

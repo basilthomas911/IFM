@@ -557,11 +557,14 @@ public static class Startup
         siContainer.Register(typeof(IValidationRules<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IActor<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(ICommandActorContext<>), domainAssemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IFunctionActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IQueryActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IRealtimeActorContext<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IActorStateDenormalizer<>), assemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventSourceActorStateRepository<>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IEventSourceFunctionStateRepository<,>), assemblies, Lifestyle.Singleton);
+        siContainer.Register(typeof(IFunctionProjector<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(typeof(IEventProjector<>), domainAssemblies, Lifestyle.Singleton);
         siContainer.Register(
             typeof(TomasAI.IFM.Application.EventProjector.Realtime.Contracts.IRealtimeProjector<>),

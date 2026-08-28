@@ -84,7 +84,7 @@ public class NatsConsumerOptions : INatsConsumerOptions
         if (admissionOptions?.Mode != ActorAdmissionMode.Enforce)
             return;
 
-        foreach (var actorType in new[] { ActorType.Command, ActorType.Query })
+        foreach (var actorType in new[] { ActorType.Command, ActorType.Query, ActorType.Function })
         {
             var trafficClass = GetFireAndForgetTrafficClass(actorType);
             if (trafficClass == CoreNatsTrafficClass.Unknown)
@@ -99,7 +99,7 @@ public class NatsConsumerOptions : INatsConsumerOptions
             }
         }
 
-        foreach (var actorType in new[] { ActorType.Command, ActorType.Query })
+        foreach (var actorType in new[] { ActorType.Command, ActorType.Query, ActorType.Function })
         {
             if (GetFireAndForgetTrafficClass(actorType) != CoreNatsTrafficClass.RequestReplyOnly)
             {

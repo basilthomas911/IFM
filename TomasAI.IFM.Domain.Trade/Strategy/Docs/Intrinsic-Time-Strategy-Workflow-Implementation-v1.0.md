@@ -2,7 +2,7 @@
 
 ## Implementation Specification v1.0
 
-- **Status:** Initial skeleton implementation specification
+- **Status:** Implemented skeleton with Regime Discovery FunctionActor amendment
 - **Date:** 2026-08-25
 - **Companion design:** [Intrinsic-Time-Strategy-Workflow-Design-v0.2.md](./Intrinsic-Time-Strategy-Workflow-Design-v0.2.md)
 - **Implementation target:** .NET 10, MessagePack, NATS Core/JetStream, PostgreSQL EventSourceDb, and ScyllaDB
@@ -28,6 +28,11 @@ The first implementation creates the workflow skeleton only. It provides:
 
 The implementation deliberately does not calculate regimes, market conditions, trade selections, order compositions, or risk decisions. Those capabilities will be added one pipeline actor at a time.
 
+> **Regime Discovery amendment (2026-08-28):** Regime Discovery now calculates
+> through `ActorType.Function` request/reply. Its old Start/Processing/public
+> terminal publication/Regime Realtime chain is removed. Later pipeline stages
+> retain their existing skeleton contracts until separately refactored.
+
 ---
 
 ## 2. Required Architectural Outcome
@@ -43,12 +48,11 @@ FuturesItiSignalGeneratedEvent
     -> commit StartAccepted + IntrinsicTimeStrategyWorkflowStartedEvent
     -> Workflow EventProjector updates ScyllaDB and publishes Started realtime
     -> IntrinsicTimeStrategyWorkflowRealtimeActor
-    -> StartRegimeDiscoveryPipelineCommand
-    -> Regime Discovery pipeline actors
-    -> RegimeDiscoveryPipelineProcessingEvent
-    -> RegimeDiscoveryPipelineCompletedEvent or FailedEvent
-    -> realtime router
-    -> IntrinsicTimeStrategyWorkflowRealtimeActor
+    -> ExecuteRegimeDiscoveryPipelineCommand as Function request
+    -> RegimeDiscoveryFunctionActor calculates one typed terminal result
+    -> Completed only: synchronous ScyllaDB projection then completed-state append
+    -> RegimeDiscoveryPipelineCompletedEvent or FailedEvent returned directly
+    -> IntrinsicTimeStrategyWorkflowRealtimeActor maps the Function reply
     -> CompleteRegimeDiscoveryCommand or FailRegimeDiscoveryCommand
     -> IntrinsicTimeStrategyWorkflowCommandActor
     -> commit IntrinsicTimeStrategyWorkflowContinuedEvent when another stage is selected
@@ -58,7 +62,10 @@ FuturesItiSignalGeneratedEvent
 
 This pattern repeats for all five stages.
 
-All realtime inputs are one-way. The Workflow Realtime actor does not reply to a source event. It translates trigger and terminal pipeline events into workflow commands. For a projector-published Started or Continued lifecycle event, it executes the already committed dispatch instruction by sending the selected pipeline start command.
+Realtime inputs remain one-way, but the Regime dispatch itself is a tightly
+coupled Function request/reply. The Workflow Realtime actor translates the
+direct Regime terminal result into a workflow command. For later legacy stages,
+the existing one-way skeleton behavior remains until each stage is refactored.
 
 The Workflow Command actor is the orchestration authority: it owns state, continuation, pipeline selection, and the deterministic next command identity. The Workflow Realtime actor is its one-way live-ingress and committed-dispatch adapter, and the Query actor exposes read models. There is no workflow or pipeline Event actor in this version. Pipeline actors are isolated stateful workers:
 
@@ -223,14 +230,13 @@ Commands/
     RedispatchCurrentStrategyPipelineCommand.cs
 
 Pipeline/Commands/
-    StartRegimeDiscoveryPipelineCommand.cs
+    ExecuteRegimeDiscoveryPipelineCommand.cs
     StartMarketConditionPipelineCommand.cs
     StartTradeSelectionPipelineCommand.cs
     StartOrderCompositionPipelineCommand.cs
     StartRiskManagementPipelineCommand.cs
 
 Pipeline/Events/
-    RegimeDiscoveryPipelineProcessingEvent.cs
     RegimeDiscoveryPipelineCompletedEvent.cs
     RegimeDiscoveryPipelineFailedEvent.cs
     MarketConditionPipelineProcessingEvent.cs
@@ -575,7 +581,12 @@ A rejected start does not change `WorkflowRevision`.
 
 ---
 
-## 9. Trigger and Realtime Router Lifecycle
+## 9. Historical skeleton Trigger and Realtime Router Lifecycle
+
+> The route inventory in this section records the original ITSW skeleton. The
+> implemented RD-19/FNC workflow actor now parses only the ITI trigger and
+> `WorkflowStrategyStateUpdatedEvent`. Regime completion/failure is returned by
+> Function request/reply and is never a realtime route.
 
 ### 9.1 Required route set
 
@@ -1157,7 +1168,7 @@ append StartAccepted
 append IntrinsicTimeStrategyWorkflowStartedEvent with the Regime Discovery target
 save both in one transaction
 EventProjector updates ScyllaDB and publishes Started realtime
-Workflow Realtime sends StartRegimeDiscoveryPipelineCommand from that committed instruction
+Workflow Realtime sends ExecuteRegimeDiscoveryPipelineCommand as a Function request from that committed instruction
 ```
 
 ### 16.5 Complete-stage algorithm

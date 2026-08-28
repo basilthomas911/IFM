@@ -6,7 +6,7 @@ Design Specification v1.0
 
 | --- \| --- \|
 
-| Status \| Approved deterministic V1 design including atomic execution and hard deadline \|
+| Status \| Approved deterministic V1 design; FNC FunctionActor topology implemented \|
 
 | Date \| 2026-08-27 \|
 
@@ -26,6 +26,12 @@ HOW belongs in `Regime-Discovery-Implementation-v1.0.md`. The approved
 implementation sequence builds the deterministic contracts/models and actor
 skeleton first through an injected snapshot boundary, then attaches
 configuration and live market-signal infrastructure before qualification.
+
+The 2026-08-28 FNC amendment is authoritative for actor topology: Regime
+Discovery is a completed-only FunctionActor that directly returns a typed
+Completed/Failed result. References below to a Regime CommandActor, private
+terminal events, EventProjector publication, or Regime RealtimeActor describe
+the superseded RD-19 implementation, not the current execution path.
 
 # 1. Purpose
 
@@ -49,13 +55,13 @@ FuturesItiSignalGeneratedEvent
  -> Strategy Workflow
  -> WorkflowStrategyStateUpdatedEvent(Started, RegimeDiscovery, ExpiresAtUtc)
  -> ExecuteRegimeDiscoveryPipelineCommand
- -> Regime Discovery Command actor
+ -> Regime Discovery Function actor (Core NATS request/reply)
  -> Trend + Volatility + Market Structure calculation models
  -> Fusion calculation model
- -> durable private Completed OR Failed event
- -> EventProjector -> ScyllaDB projection
- -> public Completed OR Failed event
- -> Regime Discovery Realtime actor
+ -> typed Completed OR Failed candidate
+ -> completed candidate only: synchronous Function projector -> ScyllaDB
+ -> completed candidate only: PostgreSQL completed-state append
+ -> direct typed Function reply to Strategy Workflow Realtime
  -> CompleteRegimeDiscoveryCommand OR FailRegimeDiscoveryCommand
  -> Strategy Workflow Command actor
  -> WorkflowStrategyStateUpdatedEvent
@@ -63,19 +69,19 @@ FuturesItiSignalGeneratedEvent
 
 The Strategy Workflow owns ordering, dispatch, authoritative workflow
 state, immutable workflow view, deadline enforcement, and continuation. One
-Regime Discovery Command actor owns its private, event-sourced calculation
-state and final result. Trend, Volatility, Market Structure, and Fusion are
-actor-owned deterministic calculation models, not actors. A stateless Regime
-Discovery Realtime actor translates public terminal notifications into typed
-Workflow Command messages. The detailed sequence is authoritative in section
-6.4 of `Regime-Discovery-Implementation-v1.0.md`.
+Regime Discovery Function actor owns completed-only event-sourced idempotency
+state. Trend, Volatility, Market Structure, and Fusion are actor-owned
+deterministic calculation models, not actors. Strategy Workflow Realtime
+translates the direct Function reply into a typed Workflow Command message.
+The detailed sequence is authoritative in section 6.5 of
+`Regime-Discovery-Implementation-v1.0.md`.
 
 # 3. Fixed V1 Decisions
 
 1.  Realtime, single-attempt processing; no automatic business retries.
 
-2.  Each Execute attempt may commit one logical durable terminal outcome:
-    Completed or Failed. An unexpected exception commits no terminal state.
+2.  Each Execute attempt returns exactly one Completed or Failed result. Only
+    successful completion may be projected and saved in Function state.
 
 3.  The Strategy Workflow is the authority for effective
     strategy/pipeline configuration.
@@ -98,10 +104,9 @@ Workflow Command messages. The detailed sequence is authoritative in section
 
 10. Fusion must succeed before Regime Discovery may complete.
 
-11. Only the Regime Discovery EventProjector publishes
-    RegimeDiscoveryPipelineCompletedEvent or FailedEvent, and only after the
-    corresponding private terminal event has been committed and its ScyllaDB
-    projection succeeds.
+11. No Regime terminal event is published. Only a completed candidate is
+    synchronously projected, then saved, and returned directly; a failed
+    result is returned directly without projection or Function persistence.
 
 12. Private pipeline/specialist state never becomes Strategy Workflow
     state.

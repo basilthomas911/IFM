@@ -47,7 +47,6 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(OrderCompositionPipelineProcessingEvent),
         nameof(RegimeDiscoveryPipelineCompletedEvent),
         nameof(RegimeDiscoveryPipelineFailedEvent),
-        nameof(RegimeDiscoveryPipelineProcessingEvent),
         nameof(RiskManagementPipelineCompletedEvent),
         nameof(RiskManagementPipelineFailedEvent),
         nameof(RiskManagementPipelineProcessingEvent),
@@ -155,9 +154,9 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
         var regime = IntrinsicTimeStrategyPipelineRoutes.Get(StrategyWorkflowStage.RegimeDiscovery);
         regime.CommandActor.Should().Be(
-            new ActorMailboxId(ActorType.Command, ExecuteRegimeDiscoveryPipelineCommand.Actor));
+            new ActorMailboxId(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor));
         regime.RealtimeActor.Should().Be(
-            new ActorMailboxId(ActorType.Realtime, RegimeDiscoveryPipelineCompletedEvent.Actor));
+            new ActorMailboxId(ActorType.Unknown, ExecuteRegimeDiscoveryPipelineCommand.Actor));
         regime.BoundedContext.Should().Be(BoundedContextName.RegimeDiscoveryPipelineBoundedContext);
 
         var action = () => IntrinsicTimeStrategyPipelineRoutes.Get(StrategyWorkflowStage.None);
@@ -178,7 +177,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [Fact]
     public void Workflow_lifecycle_events_replace_stage_started_events()
     {
-        typeof(RegimeDiscoveryPipelineProcessingEvent).Assembly.GetType(
+        typeof(RegimeDiscoveryPipelineCompletedEvent).Assembly.GetType(
             "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events.RegimeDiscoveryStartedEvent")
             .Should().BeNull();
 

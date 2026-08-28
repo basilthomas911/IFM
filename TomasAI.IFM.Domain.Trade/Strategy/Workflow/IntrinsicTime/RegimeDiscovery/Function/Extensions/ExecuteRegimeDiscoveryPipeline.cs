@@ -1,97 +1,88 @@
-using System.Security.Cryptography;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.Actor;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.Events;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.Extensions;
+namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Extensions;
 
-/// <summary>Executes one deadline-bounded Regime Discovery calculation with one outer terminal-state owner.</summary>
+/// <summary>Produces one completed candidate or one non-durable failed Function response before the deadline.</summary>
 public static class ExecuteRegimeDiscoveryPipeline
 {
-    /// <summary>Runs pure work against the persisted deadline, then commits exactly one winning terminal outcome.</summary>
-    public static async Task<ServiceResult<GuidResult>> ExecuteAsync(
+    const int SchemaVersion = 1;
+
+    public static async ValueTask<FunctionResult<
+        RegimeDiscoveryPipelineCompletedEvent,
+        RegimeDiscoveryPipelineFailedEvent>> ExecuteAsync(
         this ExecuteRegimeDiscoveryPipelineCommand command,
-        ICommandActorContext<RegimeDiscoveryCommandActor> context,
-        RegimeDiscoveryCommandState state)
+        IFunctionActorContext<RegimeDiscoveryFunctionActor> context,
+        CancellationToken cancellationToken = default)
     {
-        var typed = context as IRegimeDiscoveryCommandContext
+        var typed = context as IRegimeDiscoveryFunctionContext
             ?? throw new InvalidOperationException(
-                $"{nameof(context)} must implement {nameof(IRegimeDiscoveryCommandContext)}.");
+                $"{nameof(context)} must implement {nameof(IRegimeDiscoveryFunctionContext)}.");
         return await ExecuteAtomicAsync(
             command,
-            state,
             typed.TimeProvider,
-            cancellationToken => CaptureAndCalculateAsync(command, typed, cancellationToken),
-            (delay, cancellationToken) => Task.Delay(delay, typed.TimeProvider, cancellationToken))
-            .ConfigureAwait(false);
+            token => CaptureAndCalculateAsync(command, typed, token),
+            (delay, token) => Task.Delay(delay, typed.TimeProvider, token),
+            cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Testable outer atomic owner. The worker delegate never receives durable state.</summary>
-    internal static async Task<ServiceResult<GuidResult>> ExecuteAtomicAsync(
+    internal static async Task<FunctionResult<
+        RegimeDiscoveryPipelineCompletedEvent,
+        RegimeDiscoveryPipelineFailedEvent>> ExecuteAtomicAsync(
         ExecuteRegimeDiscoveryPipelineCommand command,
-        RegimeDiscoveryCommandState state,
         TimeProvider timeProvider,
         Func<CancellationToken, Task<RegimeDiscoveryExecutionOutcome>> worker,
-        Func<TimeSpan, CancellationToken, Task> timeoutDelay)
+        Func<TimeSpan, CancellationToken, Task> timeoutDelay,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(worker);
         ArgumentNullException.ThrowIfNull(timeoutDelay);
 
-        if (state.IsTerminal)
-            return state.Matches(command)
-                ? new ServiceOk<GuidResult>(new(command.CommandId))
-                : new ServiceFailed<GuidResult>(RegimeDiscoveryCalculationFailedEvent.ErrorCode,
-                    "A conflicting terminal Regime Discovery input already exists for this workflow execution.",
-                    new(command.CommandId));
-
         var now = UtcNow(timeProvider);
         if (now >= command.ExpiresAtUtc)
-            return CommitFailure(command, state, TimeoutOutcome(now));
+            return Failed(command, TimeoutOutcome(now));
 
-        using var workerCancellation = new CancellationTokenSource();
-        using var timerCancellation = new CancellationTokenSource();
+        using var workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var timerCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var workerTask = worker(workerCancellation.Token);
         var timeoutTask = timeoutDelay(command.ExpiresAtUtc - now, timerCancellation.Token);
         var winner = await Task.WhenAny(workerTask, timeoutTask).ConfigureAwait(false);
         if (winner == timeoutTask)
         {
             workerCancellation.Cancel();
-            return CommitFailure(command, state, TimeoutOutcome(UtcNow(timeProvider)));
+            _ = ObserveLateWorkerAsync(workerTask);
+            return Failed(command, TimeoutOutcome(UtcNow(timeProvider)));
         }
 
         timerCancellation.Cancel();
         var outcome = await workerTask.ConfigureAwait(false);
         now = UtcNow(timeProvider);
         if (now >= command.ExpiresAtUtc)
-        {
-            workerCancellation.Cancel();
-            return CommitFailure(command, state, TimeoutOutcome(now));
-        }
+            return Failed(command, TimeoutOutcome(now));
 
         return outcome switch
         {
-            RegimeDiscoveryExecutionCompleted completed => CommitCompleted(command, state, completed),
-            RegimeDiscoveryExecutionFailed failed => CommitFailure(command, state, failed),
+            RegimeDiscoveryExecutionCompleted completed => Completed(command, completed),
+            RegimeDiscoveryExecutionFailed failed => Failed(command, failed),
             _ => throw new InvalidOperationException($"Unknown Regime Discovery outcome {outcome.GetType().Name}.")
         };
     }
 
     static async Task<RegimeDiscoveryExecutionOutcome> CaptureAndCalculateAsync(
         ExecuteRegimeDiscoveryPipelineCommand command,
-        IRegimeDiscoveryCommandContext context,
+        IRegimeDiscoveryFunctionContext context,
         CancellationToken cancellationToken)
     {
         var request = RegimeDiscoverySnapshotRequestFactory.Create(
@@ -104,7 +95,7 @@ public static class ExecuteRegimeDiscoveryPipeline
                 UtcNow(context.TimeProvider),
                 "Required Regime Discovery market signals are unavailable.",
                 "RegimeDiscoveryCalculation",
-                RegimeDiscoveryCalculationFailedEvent.ErrorCode,
+                23102,
                 snapshotResult.Issues.Select(ToReason).ToArray(),
                 Guid.Empty);
 
@@ -121,83 +112,94 @@ public static class ExecuteRegimeDiscoveryPipeline
             }, context.ExecutionMode, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         return calculated.Fusion.IsComplete
-            ? new RegimeDiscoveryExecutionCompleted(calculated, snapshotResult.Snapshot.SnapshotId,
+            ? new RegimeDiscoveryExecutionCompleted(
+                calculated,
+                snapshotResult.Snapshot.SnapshotId,
                 snapshotResult.Snapshot.CacheRevision)
             : new RegimeDiscoveryExecutionFailed(
                 calculated.ProducedAtUtc,
                 "Regime Discovery specialist or Fusion calculation did not complete.",
                 "RegimeDiscoveryCalculation",
-                RegimeDiscoveryCalculationFailedEvent.ErrorCode,
+                23102,
                 calculated.Reasons,
                 snapshotResult.Snapshot.SnapshotId);
     }
 
-    static ServiceResult<GuidResult> CommitCompleted(
+    static FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> Completed(
         ExecuteRegimeDiscoveryPipelineCommand command,
-        RegimeDiscoveryCommandState state,
         RegimeDiscoveryExecutionCompleted outcome)
     {
         var payload = MessagePackSerializer.Serialize(outcome.Result);
-        var completed = new RegimeDiscoveryCalculationCompletedEvent
+        var completed = new RegimeDiscoveryPipelineCompletedEvent
         {
-            Subject = EventSubject(RegimeDiscoveryCalculationCompletedEvent.Verb, command),
+            Subject = FunctionSubject(RegimeDiscoveryPipelineCompletedEvent.Verb, command),
             Id = Guid.CreateVersion7(new DateTimeOffset(outcome.Result.ProducedAtUtc, TimeSpan.Zero)),
             EntityId = command.WorkflowEntityId,
+            CommandId = command.CommandId,
+            AggregateId = command.EntityId.Format(),
+            EventSource = $"{ExecuteRegimeDiscoveryPipelineCommand.Actor}Actor",
+            ReceivedOn = outcome.Result.ProducedAtUtc,
             WorkflowId = command.WorkflowId,
             InputWorkflowRevision = command.InputWorkflowRevision,
-            ParameterPayloadSha256 = command.ParameterPayloadSha256,
-            SignalSnapshotId = outcome.SnapshotId,
-            SignalSnapshotRevision = outcome.SnapshotRevision,
-            Result = outcome.Result,
-            ResultPayloadSha256 = Convert.ToHexString(SHA256.HashData(payload)),
-            CompletedAtUtc = outcome.Result.ProducedAtUtc,
             CorrelationId = command.CorrelationId,
             CausationId = command.CausationId,
-            ExpiresAtUtc = command.ExpiresAtUtc
+            PipelineStage = StrategyWorkflowStage.RegimeDiscovery,
+            Result = StrategyStageResultEnvelope.Create(
+                outcome.Result.ResultId,
+                nameof(RegimeDiscoveryResult),
+                SchemaVersion,
+                payload,
+                outcome.Result.MarketDataAsOfUtc,
+                outcome.Result.ProducedAtUtc),
+            CompletedAtUtc = outcome.Result.ProducedAtUtc,
+            ExpiresAtUtc = command.ExpiresAtUtc,
+            ParameterPayloadSha256 = command.ParameterPayloadSha256,
+            SignalSnapshotId = outcome.SnapshotId
         };
-        return state.Update(completed, command)
-            ? new ServiceOk<GuidResult>(new(command.CommandId))
-            : new ServiceFailed<GuidResult>(RegimeDiscoveryCalculationCompletedEvent.ErrorCode,
-                "Regime Discovery state rejected the completed transition.", new(command.CommandId));
+        return FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>
+            .Complete(completed);
     }
 
-    static ServiceResult<GuidResult> CommitFailure(
+    static FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent> Failed(
         ExecuteRegimeDiscoveryPipelineCommand command,
-        RegimeDiscoveryCommandState state,
         RegimeDiscoveryExecutionFailed outcome)
-    {
-        var failed = new RegimeDiscoveryCalculationFailedEvent
+        => FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>.Fail(
+            CreateFailedEvent(command, outcome.ErrorCode, outcome.ErrorMessage, outcome.ErrorType,
+                string.Join(',', outcome.Reasons.Select(reason => reason.Code)), outcome.FailedAtUtc));
+
+    internal static RegimeDiscoveryPipelineFailedEvent CreateFailedEvent(
+        ExecuteRegimeDiscoveryPipelineCommand command,
+        int errorCode,
+        string errorMessage,
+        string errorType,
+        string diagnosticData,
+        DateTime failedAtUtc)
+        => new()
         {
-            Subject = EventSubject(RegimeDiscoveryCalculationFailedEvent.Verb, command),
-            Id = Guid.CreateVersion7(new DateTimeOffset(outcome.FailedAtUtc, TimeSpan.Zero)),
+            Subject = FunctionSubject(RegimeDiscoveryPipelineFailedEvent.Verb, command),
             EntityId = command.WorkflowEntityId,
+            Id = Guid.CreateVersion7(new DateTimeOffset(failedAtUtc, TimeSpan.Zero)),
+            ErrorDate = failedAtUtc,
+            CommandId = command.CommandId,
+            EventSource = $"{ExecuteRegimeDiscoveryPipelineCommand.Actor}Actor",
+            ErrorMessage = errorMessage,
+            ErrorCode = errorCode,
+            ErrorType = ErrorType.Command,
+            ErrorData = string.IsNullOrWhiteSpace(diagnosticData) ? errorType : $"{errorType}:{diagnosticData}",
+            ReceivedOn = failedAtUtc,
+            AggregateId = command.EntityId.Format(),
+            CommandName = command.CommandName,
+            RouteTo = command.RouteTo.ToString(),
             WorkflowId = command.WorkflowId,
             InputWorkflowRevision = command.InputWorkflowRevision,
-            ParameterPayloadSha256 = command.ParameterPayloadSha256,
-            SignalSnapshotId = outcome.SnapshotId,
-            Failure = new StrategyPipelineFailure
-            {
-                ErrorCode = outcome.ErrorCode,
-                ErrorMessage = outcome.ErrorMessage,
-                ErrorType = outcome.ErrorType,
-                ErrorData = string.Join(',', outcome.Reasons.Select(reason => reason.Code)),
-                FailedAtUtc = outcome.FailedAtUtc
-            },
-            Reasons = RegimeDiscoveryMath.OrderReasons(outcome.Reasons),
-            FailedAtUtc = outcome.FailedAtUtc,
             CorrelationId = command.CorrelationId,
             CausationId = command.CausationId,
+            PipelineStage = StrategyWorkflowStage.RegimeDiscovery,
             ExpiresAtUtc = command.ExpiresAtUtc
         };
-        return state.Update(failed, command)
-            ? new ServiceFailed<GuidResult>(outcome.ErrorCode, outcome.ErrorMessage, new(command.CommandId))
-            : new ServiceFailed<GuidResult>(RegimeDiscoveryCalculationFailedEvent.ErrorCode,
-                "Regime Discovery state rejected the failed transition.", new(command.CommandId));
-    }
 
     static RegimeDiscoveryExecutionFailed TimeoutOutcome(DateTime now)
-        => new(now, "Regime Discovery exceeded its fixed workflow deadline.", "Timeout",
-            RegimeDiscoveryCalculationFailedEvent.TimeoutErrorCode,
+        => new(now, "Regime Discovery exceeded its fixed workflow deadline.", "Timeout", 23103,
             [new RegimeDiscoveryReason
             {
                 Code = "RegimeDiscoveryExecutionTimedOut",
@@ -205,10 +207,22 @@ public static class ExecuteRegimeDiscoveryPipeline
                 Area = RegimeEvidenceArea.Data
             }], Guid.Empty);
 
-    static ActorSubject EventSubject(string verb, ExecuteRegimeDiscoveryPipelineCommand command)
-        => new(ActorType.Event, RegimeDiscoveryCalculationCompletedEvent.Actor, verb, command.EntityId.Format());
+    static ActorSubject FunctionSubject(string verb, ExecuteRegimeDiscoveryPipelineCommand command)
+        => new(ActorType.Function, ExecuteRegimeDiscoveryPipelineCommand.Actor, verb, command.EntityId.Format());
 
     static DateTime UtcNow(TimeProvider provider) => provider.GetUtcNow().UtcDateTime;
+
+    static async Task ObserveLateWorkerAsync(Task<RegimeDiscoveryExecutionOutcome> workerTask)
+    {
+        try
+        {
+            await workerTask.ConfigureAwait(false);
+        }
+        catch
+        {
+            // The timeout result is definitive. Observation only prevents a late fault from becoming unobserved.
+        }
+    }
 
     static RegimeDiscoveryReason ToReason(RegimeDiscoverySignalObservation observation) => new()
     {

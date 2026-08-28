@@ -88,6 +88,20 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         => (_producer ??= _supervisor.GetProducer(_actorId))
             .RequestAsync<TCommand, TEntityId, GuidResult>(command.Subject, command, command.EntityId);
 
+    /// <inheritdoc />
+    public ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(
+        TCommand command,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        where TResult : class
+        => (_producer ??= _supervisor.GetProducer(_actorId))
+            .RequestFunctionAsync<TCommand, TEntityId, TResult>(
+                command.Subject,
+                command,
+                command.EntityId,
+                cancellationToken);
+
     /// <summary>
     /// Sends an event to the actor via the configured producer.
     /// </summary>

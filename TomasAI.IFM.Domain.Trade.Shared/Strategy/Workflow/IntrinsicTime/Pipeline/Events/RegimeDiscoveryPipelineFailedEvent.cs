@@ -9,14 +9,14 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 
 /// <summary>Reports terminal failure of the Regime Discovery pipeline calculation.</summary>
 /// <remarks>
-/// The future pipeline Command actor persists this standard failure event and projects its ScyllaDB read model before
-/// publishing the same logical event realtime to the Regime Discovery Pipeline Realtime actor.
+/// The Regime Discovery Function returns this non-durable typed result directly to the Strategy Workflow realtime
+/// caller. The Strategy Workflow command actor then owns the durable failed workflow transition.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record RegimeDiscoveryPipelineFailedEvent : IErrorEvent<IntrinsicTimeStrategyWorkflowEntityId>
 {
-    /// <summary>Regime Realtime actor that translates the terminal pipeline event.</summary>
-    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineRealtime";
+    /// <summary>Regime Function actor that returns the non-durable failed attempt.</summary>
+    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineFunction";
     /// <summary>Stable pipeline failure verb.</summary>
     [IgnoreMember] public const string Verb = "RegimeDiscoveryPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
