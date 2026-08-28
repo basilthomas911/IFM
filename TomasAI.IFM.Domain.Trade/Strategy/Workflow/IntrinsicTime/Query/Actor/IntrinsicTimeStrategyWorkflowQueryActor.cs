@@ -219,10 +219,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
     {
         var entityText = query.WorkflowEntity.Format();
         var now = ActorContext.TimeProvider.GetUtcNow().UtcDateTime;
-        var load = new StartIntrinsicTimeStrategyWorkflowCommand
+        var load = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
-            Subject = new ActorSubject(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor,
-                StartIntrinsicTimeStrategyWorkflowCommand.Verb, entityText),
+            Subject = new ActorSubject(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, entityText),
             EntityId = query.WorkflowEntity
         };
 

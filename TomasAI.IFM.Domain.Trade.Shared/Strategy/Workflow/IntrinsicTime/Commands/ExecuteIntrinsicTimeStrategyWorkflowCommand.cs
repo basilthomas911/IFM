@@ -8,14 +8,14 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 
-/// <summary>Requests a new Intrinsic Time Strategy workflow execution from an eligible ITI signal.</summary>
+/// <summary>Requests execution of a new Intrinsic Time Strategy workflow from an eligible ITI signal.</summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>
+public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<IntrinsicTimeStrategyWorkflowEntityId>
 {
     /// <summary>Workflow Command actor name.</summary>
     [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflowCommand";
     /// <summary>Command verb.</summary>
-    [IgnoreMember] public const string Verb = "Start";
+    [IgnoreMember] public const string Verb = "Execute";
     /// <summary>Stable command error identifier.</summary>
     [IgnoreMember] public const int ErrorId = 21001;
 
@@ -51,7 +51,7 @@ public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<Intrin
     [Key(14)] public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the concrete command contract name.</summary>
-    [IgnoreMember] public string CommandName => nameof(StartIntrinsicTimeStrategyWorkflowCommand);
+    [IgnoreMember] public string CommandName => nameof(ExecuteIntrinsicTimeStrategyWorkflowCommand);
     /// <summary>Gets the event-source stream identity.</summary>
     [IgnoreMember] public string StreamId => Subject.StreamId;
     /// <summary>Gets the workflow command event source.</summary>
@@ -62,7 +62,7 @@ public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<Intrin
     [IgnoreMember] public string OriginatedBy => $"{Environment.UserDomainName}\\{Environment.UserName}";
 
     /// <summary>Initializes an empty command for serialization.</summary>
-    public StartIntrinsicTimeStrategyWorkflowCommand()
+    public ExecuteIntrinsicTimeStrategyWorkflowCommand()
     {
         PostEvents = true;
         ErrorCode = ErrorId;
@@ -84,7 +84,7 @@ public sealed record StartIntrinsicTimeStrategyWorkflowCommand : ICommand<Intrin
     /// <param name="requestedAtUtc">UTC request timestamp.</param>
     /// <param name="workflowDefinitionVersion">Workflow definition version.</param>
     [SerializationConstructor]
-    public StartIntrinsicTimeStrategyWorkflowCommand(
+    public ExecuteIntrinsicTimeStrategyWorkflowCommand(
         Guid commandId,
         ActorSubject subject,
         bool postEvents,

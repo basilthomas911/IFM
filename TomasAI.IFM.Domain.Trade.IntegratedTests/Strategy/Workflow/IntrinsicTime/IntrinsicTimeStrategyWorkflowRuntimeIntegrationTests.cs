@@ -423,13 +423,13 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         IServiceProvider services,
         IntrinsicTimeStrategyWorkflowEntityId entityId)
     {
-        var replayCommand = new StartIntrinsicTimeStrategyWorkflowCommand
+        var replayCommand = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = Guid.NewGuid(),
             Subject = new ActorSubject(
                 ActorType.Command,
-                StartIntrinsicTimeStrategyWorkflowCommand.Actor,
-                StartIntrinsicTimeStrategyWorkflowCommand.Verb,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb,
                 entityId.Format()),
             EntityId = entityId
         };

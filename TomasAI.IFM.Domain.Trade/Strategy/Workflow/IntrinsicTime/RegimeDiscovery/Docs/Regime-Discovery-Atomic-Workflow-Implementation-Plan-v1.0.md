@@ -26,7 +26,7 @@ The safety objective is fail-closed progression:
 
 > Strategy Workflow may advance only from a committed, current, unexpired
 > Regime Discovery completion. Every exception, timeout, process loss, stale
-> result, or lost post-commit notification must result in no forward progress.
+> result, or lost Function/workflow handoff must result in no forward progress.
 
 The implementation provides atomic **workflow progression outcomes**, not a transaction that
 spans ScyllaDB and PostgreSQL. Calculation performs no durable workflow side effects. The Function
@@ -44,7 +44,7 @@ enhancements.
    `WorkflowStrategyStateUpdatedEvent`. Each accepted state transition appends
    a new instance containing the complete immutable workflow view.
 2. The event contract is singular, but one command may append more than one
-   instance in one PostgreSQL transaction. In particular, a new Start may
+   instance in one PostgreSQL transaction. In particular, a new Execute may
    atomically append `TimedOut` for the expired execution and `Started` for the
    replacement execution.
 3. A Started workflow always has a persisted `StartedAtUtc` and `ExpiresAtUtc`.
@@ -52,10 +52,10 @@ enhancements.
    restarts, projection delay, or a later terminal message.
 4. Timeout wins at `now >= ExpiresAtUtc`. A completion received at or after the
    deadline cannot merge results or advance the workflow.
-5. An unexpired Started workflow makes the entity busy. A second Start is
+5. An unexpired Started workflow makes the entity busy. A second Execute is
    rejected without changing state.
 6. An expired Started workflow does not permanently make the entity busy. The
-   next Start closes the old execution as TimedOut and starts the new execution
+   next Execute closes the old execution as TimedOut and starts the new execution
    in one atomic event batch.
 7. Regime Discovery execution identity includes both
    `IntrinsicTimeStrategyWorkflowEntityId` and `StrategyWorkflowId`. Terminal
@@ -76,9 +76,10 @@ enhancements.
 12. The Strategy Workflow Realtime actor directly requests the Function and
     translates its typed result into the matching durable Workflow Complete or
     Fail command. There is no Regime Discovery Realtime actor.
-13. Lost notifications always fail closed. A missing workflow terminal update
-    leaves the workflow Started until a later command observes its persisted
-    expiry. It cannot advance toward order execution.
+13. Lost Function replies or Workflow terminal commands always fail closed. A
+    missing workflow terminal update leaves the workflow Started until a later
+    command observes its persisted expiry. It cannot advance toward order
+    execution.
 14. Every pipeline Execute command receives an immutable workflow view and the
     complete frozen parameter set selected for that execution, including its
     version/hash identity.
@@ -102,7 +103,7 @@ enhancements.
 
 The minimum workflow lifecycle states are:
 
-| State | Busy for a new Start? | Can advance? | Meaning |
+| State | Busy for a new Execute? | Can advance? | Meaning |
 |---|---:|---:|---|
 | `Empty` | No | No | No workflow snapshot exists for the entity. |
 | `Started` | Yes, while unexpired | Only from a valid completion | A pipeline execution is outstanding. |
@@ -151,9 +152,9 @@ All comparisons use the injected `TimeProvider` and UTC.
 
 | Incoming command | Current snapshot | Time/identity condition | Atomic result |
 |---|---|---|---|
-| Start workflow | Empty or terminal | valid request | Append Started snapshot; dispatch occurs only after commit. |
-| Start workflow | Started | `now < ExpiresAtUtc` | Reject Busy; append nothing. |
-| Start workflow | Started | `now >= ExpiresAtUtc` | Append TimedOut(old), then Started(new), in one transaction. |
+| Execute workflow | Empty or terminal | valid request | Append Started snapshot; dispatch occurs only after commit. |
+| Execute workflow | Started | `now < ExpiresAtUtc` | Reject Busy; append nothing. |
+| Execute workflow | Started | `now >= ExpiresAtUtc` | Append TimedOut(old), then Started(new), in one transaction. |
 | Complete Regime Discovery | Started | same entity/workflow/revision and `now < ExpiresAtUtc` | Merge result and append the next valid workflow snapshot. |
 | Complete Regime Discovery | Started | same identity and `now >= ExpiresAtUtc` | Append TimedOut; discard result; do not advance. |
 | Fail Regime Discovery | Started | same identity, non-timeout failure, and `now < ExpiresAtUtc` | Append Failed; do not advance. |
@@ -167,23 +168,27 @@ timeout. An accepted Completed transition must therefore prove
 
 ### 3.4 Notification and recovery semantics
 
-PostgreSQL event commits are authoritative. ScyllaDB projection and Realtime
-notifications are conventional post-commit work and are not authoritative.
+Strategy Workflow PostgreSQL commits are authoritative for workflow state.
+Regime Discovery uses direct Function request/reply; it does not publish
+Processing or terminal events.
 
 ```text
 Workflow state commit
-  -> best-effort StateUpdated projection/notification
-  -> Execute Regime Discovery
-  -> private Regime terminal commit
-  -> best-effort public terminal projection/notification
-  -> Workflow Complete/Fail command
+  -> Workflow StateUpdated projection/notification
+  -> Strategy Workflow Realtime requests Regime Function
+  -> Function calculates within ExpiresAtUtc
+  -> completed only: synchronous ScyllaDB upsert
+  -> completed only: PostgreSQL Function completion append
+  -> direct typed Completed/Failed reply
+  -> Strategy Workflow Realtime sends Workflow Complete/Fail command
   -> next Workflow state commit
 ```
 
-Breaking this chain at any arrow stops progression. V1 does not attempt to
-repair the broken arrow by replaying or redispatching it. The persisted
-workflow deadline is the recovery boundary: a later Start closes an expired
-Started execution before beginning a replacement.
+Breaking this chain at any arrow stops progression. V1 does not repair the
+broken arrow by replaying or redispatching it. A calculation, validation,
+projection, persistence, or transport failure cannot manufacture completion.
+The persisted workflow deadline is the recovery boundary: a later Start closes
+an expired Started execution before beginning a replacement.
 
 ## 4. Current-to-target change map
 
@@ -195,10 +200,10 @@ Started execution before beginning a replacement.
 | Workflow repository replays the complete stream | Runtime loads the latest authoritative snapshot event |
 | Workflow `ExpectedCompletionAtUtc` may be null | Mandatory persisted `ExpiresAtUtc` derived from a fixed maximum duration |
 | Active workflow is simply rejected | Unexpired is rejected; expired is closed and replaced atomically |
-| Workflow Realtime actor consumes Regime terminal events | New Regime Realtime actor owns terminal translation |
+| Workflow Realtime actor consumed Regime terminal events | Workflow Realtime directly requests the Regime Function and translates its typed reply |
 | Workflow Realtime parser fans later-stage Completed/Failed verbs into Regime event types | Parse one typed Workflow StateUpdated notification and dispatch by `CurrentStage` |
-| No complete hard-timeout ownership rule | Regime outer handler races all work against the fixed deadline and owns the only terminal update |
-| Entity-level Regime terminal state can collide with later workflows | Per-workflow execution stream isolates every attempt |
+| No complete hard-timeout ownership rule | Function execution races all work against the fixed deadline and prevents late projection/persistence |
+| Entity-level Regime terminal state can collide with later workflows | Per-workflow completed-only Function stream isolates every successful execution |
 | Redispatch/timeout recovery contracts exist | No automatic redispatch/replay/resume; lazy expiry is authoritative |
 | Configuration is resolved from PostgreSQL and embedded in Start | Keep PostgreSQL; freeze and embed it in Execute with identity/version/hash |
 
@@ -208,17 +213,20 @@ The gates are intentionally ordered. A later gate must not be merged or enabled
 before every dependency gate is green.
 
 ```text
-RD-19A Baseline
-   -> RD-19B Contracts and identity
-   -> RD-19C Snapshot state and legacy safety
-   -> RD-19D Workflow transitions
-   -> RD-19E Workflow post-commit dispatch
-   -> RD-19F Atomic Regime execution and timeout
-   -> RD-19G Regime projection and Realtime translation
+RD-19A..E Workflow foundation
+   -> FNC-00..03 Function platform and persistence
+   -> FNC-04..06 Regime Function state, execution, and projection
+   -> FNC-07..09 Workflow handoff, legacy removal, and registration
+   -> FNC-10..12 Qualification and documentation
    -> RD-19H Observation
    -> RD-19I Test qualification
    -> RD-19J Controlled enablement
 ```
+
+RD-19F/G originally implemented an intermediate CommandActor/private-event/
+EventProjector/Regime-Realtime chain. FNC-00 through FNC-12 replaced and
+removed that chain. The concise migration record below is historical; section
+7.8 is the implemented gate set.
 
 ### RD-19A — Baseline and change isolation
 
@@ -479,8 +487,9 @@ Steps:
    storage in this gate.
 5. Derive a deterministic Execute command ID from the workflow/stage/revision
    so duplicate notifications address the same execution.
-6. Remove Regime Completed/Failed translation routes from the Workflow
-   Realtime actor; those move to the Regime Realtime actor in RD-19G.
+6. Remove Regime Completed/Failed event receive routes from Workflow Realtime.
+   FNC later makes this actor the direct Function caller and result translator,
+   without adding terminal event routes.
 7. Remove the existing later-stage terminal-verb fan-in that deserializes
    Market Condition, Trade Selection, Order Composition, and Risk Management
    messages as Regime Discovery event types. Dispatch from the typed workflow
@@ -506,8 +515,9 @@ Implemented:
 - the Workflow Realtime actor dispatches deterministic Regime Execute only for
   a Started/Regime snapshot, using the composite execution identity and frozen
   PostgreSQL parameter payload/version/hash/deadline;
-- Regime Completed/Failed translation routes and the invalid later-pipeline
-  Regime-type fan-in were removed from Workflow Realtime; and
+- Regime Completed/Failed event routes and the invalid later-pipeline
+  Regime-type fan-in were removed from Workflow Realtime; FNC subsequently
+  added direct Function result translation; and
 - the projector exposes no workflow rebuild path, disables durable replay, and
   schedules no retry after projection/publication failure.
 
@@ -523,118 +533,55 @@ Verification:
 | Workflow storage qualification | 4 passed, including schema/CQL contracts and the two expected-version PostgreSQL cases. |
 | Solution build | Succeeded with 0 warnings and 0 errors. |
 
-RD-19E is complete. The workflow intentionally remains Started after the real
-Regime calculation finishes until RD-19F/G add atomic Regime terminal ownership
-and the new Regime Realtime translator. The feature remains disabled.
+RD-19E is complete as the Workflow dispatch foundation. FNC supplies the final
+Function execution and direct result handoff. The feature remains disabled by
+default.
 
-### RD-19F — Atomic Regime execution and private timeout
+### RD-19F — Superseded atomic-execution foundation
 
-Steps:
+RD-19F established the composite execution identity, immutable input, pure
+calculation models, persisted deadline, exact-boundary timeout precedence, and
+late-worker fencing. Its original private-terminal-event persistence mechanism
+was removed by FNC.
 
-1. Route the Regime Command actor and repository through the composite
-   execution identity from RD-19B.
-2. Rename the command handler/receive-map route from Start to Execute.
-3. Refactor the calculation body to return a pure result/failure outcome. It
-   must not update actor state from worker tasks or specialist models.
-4. Calculate remaining time from the persisted `ExpiresAtUtc`; never create a
-   fresh deadline when Execute is received.
-5. If Execute begins at or after expiry, commit the private timeout failure
-   without starting snapshot/calculation work.
-6. Race the entire snapshot-acquisition and calculation operation against the
-   remaining time. Propagate cancellation where supported.
-7. Let the outer handler select exactly one winner and perform exactly one
-   state update: Completed, expected Failed, or timeout Failed.
-8. Ensure work that ignores cancellation has no durable side effects and no
-   reference capable of committing a late success after timeout.
-9. Preserve the current rule for unexpected exceptions: return/log the error
-   and append no fabricated terminal event.
-10. Keep duplicate Execute handling idempotent for the same composite execution
-    and reject conflicting payload hashes/revisions.
+The implemented Function behavior is:
 
-Exit gate:
+- Execute is isolated by composite workflow/execution identity;
+- snapshot capture and calculation return a pure typed Completed or Failed
+  candidate;
+- `now >= ExpiresAtUtc` returns timeout without starting or accepting work;
+- a timer winner cancels/abandons the worker and prevents late projection or
+  persistence;
+- failed, timed-out, malformed, and exceptional attempts create no Function
+  state; and
+- matching completed state returns the original completion, while conflicting
+  revision/hash input returns failure without execution.
 
-- success, domain failure, timeout-before-start, timeout-during-snapshot, and
-  timeout-during-calculation each commit no more than one terminal event;
-- a late worker cannot overwrite timeout;
-- process loss before commit leaves no terminal outcome; and
-- a previous workflow terminal state cannot block a new workflow execution.
+Current verification belongs to FNC-05, FNC-10, and FNC-11.
 
-#### RD-19F execution record — 2026-08-27
+### RD-19G — Superseded projector/adapter foundation
 
-Implemented:
+RD-19G temporarily used a Regime EventProjector and Regime Realtime adapter.
+FNC removed both actors, the private terminal events, public publication, and
+the Processing contract.
 
-- Execute is isolated by the composite workflow/execution identity;
-- the snapshot-plus-calculation worker returns a pure outcome and cannot append
-  state from a worker continuation;
-- the outer handler races all work against the remaining persisted deadline,
-  gives `now >= ExpiresAtUtc` timeout precedence, and appends one terminal
-  private event;
-- cancellation is propagated, while a worker that ignores it retains no
-  durable commit capability; and
-- unexpected exceptions append no fabricated terminal event. Matching
-  duplicates are no-ops and conflicting revision/hash inputs cannot execute.
+The implemented ownership is:
 
-Verification:
+1. `RegimeDiscoveryFunctionProjector` is an optional synchronous service, not
+   an actor. It upserts completed results only and owns no queue or replay.
+2. Projection must succeed before the Function appends its completed PostgreSQL
+   state at expected stream version zero.
+3. The Function returns the typed completed or failed result directly through
+   Core NATS request/reply; it publishes nothing.
+4. Strategy Workflow Realtime maps that direct result to deterministic
+   `CompleteRegimeDiscoveryCommand` or `FailRegimeDiscoveryCommand`.
+5. The Workflow Command actor remains the only authority that can advance or
+   terminate workflow state.
 
-| Check | Recorded result |
-|---|---|
-| Terminal ownership | Success, expected failure, timeout-before-work, timeout-during-work, and exact-deadline tests each append at most one terminal event. |
-| Late worker | A controllable worker completed after timeout cannot overwrite the committed timeout. |
-| Exception behavior | An unexpected worker exception propagates with no pending state event. |
-| Isolation | Concurrent distinct workflow execution identities complete independently. |
-
-RD-19F is complete.
-
-### RD-19G — Regime projector and Realtime translation
-
-Steps:
-
-1. Keep the Regime EventProjector order: private terminal commit, ScyllaDB
-   result/failure write, then public Completed/Failed notification.
-2. Address the public event to `RegimeDiscoveryPipelineRealtime` with workflow
-   identity, input revision, deadline, causation, and result/failure data.
-3. Add `RegimeDiscoveryPipelineRealtimeContext` and the stateless
-   `RegimeDiscoveryPipelineRealtimeActor`.
-4. Route public Completed to `CompleteRegimeDiscoveryCommand` and public Failed
-   to `FailRegimeDiscoveryCommand` on the Workflow Command actor.
-5. Use deterministic command IDs so a duplicate public notification becomes an
-   idempotent Workflow command.
-6. Register both terminal routes at startup and add route/subject tests.
-7. Do not add a Processing event, actor timer, durable inbox, retry queue,
-   redelivery store, or replay endpoint.
-
-Exit gate:
-
-- the Workflow Realtime actor no longer consumes Regime terminal events;
-- the Regime Realtime actor owns both translations and no state;
-- projector failure/lost notification produces no workflow advancement; and
-- duplicate/late terminal notification is harmless at the Workflow gate.
-
-#### RD-19G execution record — 2026-08-27
-
-Implemented:
-
-- the private terminal projector writes the Regime ScyllaDB projection before
-  best-effort publication of a public terminal notification;
-- public Completed/Failed contracts target `RegimeDiscoveryPipelineRealtime`
-  and carry workflow ID, input revision, fixed deadline, causation/correlation,
-  and terminal data;
-- the new Realtime actor is stateless, owns exactly the Completed and Failed
-  routes, and produces deterministic guarded Workflow Complete/Fail commands;
-- Workflow Realtime no longer consumes Regime terminal events; and
-- no Processing route, timer, inbox, durable replay, retry queue, rebuild, or
-  redispatch endpoint was added.
-
-Verification:
-
-| Check | Recorded result |
-|---|---|
-| Route ownership | Architecture tests prove only the Regime Realtime actor owns the two public terminal routes. |
-| Deterministic translation | Duplicate Completed/Failed notifications produce the same Workflow command identity and preserve all guards. |
-| Project-before-publish | Real topology observes the Regime projection before the matching Workflow snapshot/next-stage dispatch. |
-| Fail closed | Failure and timeout terminal paths produce no next-pipeline command. |
-
-RD-19G is complete.
+Projection, persistence, transport, or Workflow-command failure prevents
+progression. No Processing route, durable inbox, retry queue, redelivery store,
+or replay endpoint exists. Current verification belongs to FNC-06 through
+FNC-12.
 
 ### RD-19H — Observation and operational visibility
 
@@ -646,12 +593,13 @@ Steps:
 2. Show a Started workflow whose `ExpiresAtUtc` is in the past as an operational
    issue even if its authoritative snapshot has not yet been lazily closed.
    This is a derived UI observation, not an automatic state mutation.
-3. Expose the last Regime private terminal result/failure and whether its public
-   notification has produced a matching Workflow terminal snapshot where that
-   correlation is available.
+3. Expose the completed Regime projection and whether it has matching Function
+   state and a matching Workflow completion where that correlation is
+   available. Failures remain visible through Workflow state and logs.
 4. Add structured logs/metrics for busy rejection, lazy expiry, stale terminal,
-   deadline precedence, projector failure, notification loss symptoms, and
-   migration-blocked streams.
+   deadline precedence, projector/persistence failure, Function-reply or
+   Workflow-command loss symptoms, orphan projections, and migration-blocked
+   streams.
 5. Do not add configuration UI/CRUD expansion in this gate.
 
 Exit gate:
@@ -666,19 +614,20 @@ Exit gate:
 Implemented:
 
 - `GetIntrinsicTimeStrategyWorkflowObservationQuery` reads the authoritative
-  snapshot without writing it and composes it with the latest Regime terminal
+  snapshot without writing it and composes it with the latest completed Regime
   projection;
 - the observation exposes entity/workflow/correlation identity, machine
   status, stage, revision, start, fixed expiry, terminal time, and stop reason;
 - Started at or beyond expiry is derived as `ExpiredNotClosed`; the query does
   not close, repair, redispatch, or otherwise mutate the workflow;
 - Regime acceptance is correlated by workflow ID, input revision, and source
-  event ID, with an expired unmatched terminal exposed as likely notification
-  loss; and
+  event ID, with an expired unmatched completion exposed as a likely Function
+  handoff failure or observational orphan; and
 - Running, Failed, TimedOut, Completed, Cancelled, NotStarted, and
   MigrationBlocked have distinct values. Structured logs cover Busy, lazy
   expiry, stale terminal, deadline precedence, expired/unclosed,
-  notification-loss symptom, and migration-blocked conditions.
+  Function-handoff symptom, orphan projection, and migration-blocked
+  conditions.
 
 Verification:
 
@@ -755,7 +704,7 @@ Exit gate:
 
 - the revised Regime flow is live only on the new contracts;
 - fail-closed behavior is proven in the deployed topology; and
-- rollback consists of disabling new Starts, not replaying old messages.
+- rollback consists of disabling new Executes, not replaying old messages.
 
 #### RD-19J controlled-readiness record — 2026-08-27
 
@@ -779,7 +728,7 @@ Repository readiness for RD-19J is complete. The deployed-environment exit
 gate remains an explicit operations action: inventory and archive/reset each
 target environment, deploy all contracts/producers/consumers as one release,
 enable only an approved strategy/entity cohort, observe it, and expand only if
-no anomaly is present. Rollback is disabling new Starts; replay is not used.
+no anomaly is present. Rollback is disabling new Executes; replay is not used.
 
 ## 6. File-level implementation map
 
@@ -806,7 +755,7 @@ the stated project boundaries.
 | `Application.Storage/ConfigurationDb` | Hold | Continue current PostgreSQL Regime parameter lookup; no general redesign. |
 | `Domain.Trade.UnitTests` | Expand | Contracts, state table, identity, timeout race, actor ownership. |
 | `Domain.Trade.BDDTests` | Expand | Business-level busy/free, timeout, stale result, and fail-closed scenarios. |
-| `Domain.Trade.IntegratedTests` | Expand | Actor/message flow and lost-notification boundaries. |
+| `Domain.Trade.IntegratedTests` | Expand | Actor/message flow and lost Function/workflow-handoff boundaries. |
 | `Application.Storage.IntegrationTests` | Expand | Snapshot load, legacy blocking, atomic batch, and projections. |
 
 ## 7. Mandatory test matrix
@@ -845,36 +794,40 @@ the stated project boundaries.
 
 ### 7.3 Regime atomic-execution unit tests
 
-- successful calculation appends one private Completed event.
-- expected validation/data/quality failure appends one private Failed event.
-- Execute received after expiry skips work and appends timeout Failed.
-- snapshot provider exceeds remaining duration -> one timeout Failed.
-- calculation exceeds remaining duration -> one timeout Failed.
+- successful calculation returns one completed candidate, projects it, appends
+  one completed Function event, and then returns it to the caller.
+- expected validation/data/quality failure returns Failed without projection or
+  Function persistence.
+- Execute received after expiry skips work and returns timeout Failed.
+- snapshot provider or calculation exceeding the remaining duration returns
+  timeout Failed and a late worker cannot reach projection or state.
 - completion racing the deadline has exactly one winner under the boundary
   rule; never Completed after timeout.
-- cancelled/late worker cannot update state.
-- unexpected exception appends no terminal event and returns/logs failure.
-- duplicate Execute with matching input is idempotent.
-- duplicate Execute with conflicting workflow revision or parameter hash is
-  rejected.
-- terminal state for workflow A does not block workflow B on the same entity.
+- projector exception returns Failed and prevents Function persistence.
+- persistence exception returns Failed after projection and cannot advance the
+  Workflow.
+- malformed or unexpected execution result returns/logs Failed without state.
+- matching completed Execute returns the original completion without work;
+  conflicting workflow revision or parameter hash returns Failed.
+- completed state for workflow A does not block workflow B on the same entity.
 
 ### 7.4 BDD scenarios
 
-- Given no current workflow, when Start is accepted, then a Started snapshot is
+- Given no current workflow, when Execute is accepted, then a Started snapshot is
   committed before Regime Execute is sent.
-- Given Regime completes before the deadline, when its notification reaches the
-  Regime Realtime actor, then Workflow accepts Complete and may continue.
+- Given Regime completes before the deadline, when its direct Function reply
+  reaches Strategy Workflow Realtime, then Workflow accepts Complete and may
+  continue.
 - Given Regime fails, then Workflow becomes Failed and no next pipeline starts.
 - Given Regime times out, then Workflow becomes TimedOut and no next pipeline
   starts.
-- Given the timeout notification is lost, then Workflow stays Started and does
-  not continue.
-- Given that Started workflow is now expired, when a new Start arrives, then the
+- Given the Function reply or resulting Fail command is lost, then Workflow
+  stays Started and does not continue.
+- Given that Started workflow is now expired, when a new Execute arrives, then the
   old workflow is closed and the new workflow starts atomically.
 - Given a late completion from the old workflow, then it cannot affect the new
   workflow.
-- Given the Started notification or Execute dispatch is lost, then no Regime
+- Given the Started notification or Function request is lost, then no Regime
   completion exists and the same lazy-expiry rule recovers the entity later.
 - Given the process restarts at any pre-commit point, then no workflow advances
   without a valid committed completion.
@@ -885,20 +838,27 @@ the stated project boundaries.
 - Latest StateUpdated snapshot is selected correctly after restart.
 - A non-empty legacy stream without a StateUpdated snapshot fails closed.
 - Workflow projector persists the complete immutable view to ScyllaDB.
-- Regime projector persists terminal data before public publication.
-- Regime Realtime maps Completed/Failed to the correct Workflow actor subject.
-- Suppressing each best-effort notification independently proves no downstream
-  stage is dispatched.
-- Duplicate public terminal notification is harmless.
-- A terminal notification delivered after replacement workflow Start is stale
+- Function projector persists completed data before the PostgreSQL Function
+  append and completed reply.
+- Strategy Workflow Realtime maps direct Completed/Failed Function results to
+  the correct Workflow actor subject.
+- Projector and persistence failures return Failed and dispatch no downstream
+  stage.
+- Suppressing the Function reply or Workflow terminal command proves no
+  downstream stage is dispatched.
+- A late Function result delivered after replacement workflow Execute is stale
   and harmless.
 
 ### 7.6 Architecture tests
 
 - Specialist calculation models remain non-actor, non-persistent components.
-- Regime Realtime actor has no repository/state/timer dependency.
-- Workflow Realtime actor has no Regime terminal-event receive route.
-- Regime Command actor is the only owner of private calculation terminal state.
+- No Regime Command, Event, or Realtime actor type is registered or routed.
+- Workflow Realtime actor has no Regime terminal-event receive route and owns
+  the direct Function request/result translation.
+- Regime Function actor is the only owner of completed execution state; failed
+  results are not persisted.
+- Function projector is a synchronous service with no mailbox, queue,
+  checkpoint, publication, or replay dependency.
 - Workflow Command actor is the only owner of workflow machine transitions.
 - No outbox/replay/redispatch/resume service is introduced for this flow.
 - Configuration remains PostgreSQL-backed and Scylla is read-model-only.
@@ -916,10 +876,11 @@ production contract or seam exists, and RD-19I reruns the complete matrix.
 | Legacy snapshot safety and event-batch atomicity | `Application.Storage.IntegrationTests/TradeDb/IntrinsicTimeStrategyWorkflowStorageTests.cs` plus a workflow event-source storage test | RD-19C/D | Latest snapshot selected; non-empty legacy-only stream rejected; migration emits no dispatch; expired-old/new-start pair commits together; optimistic concurrency rejects a second writer. |
 | Workflow transition table | `IntrinsicTimeStrategyWorkflowCommandStateTests.cs` or `IntrinsicTimeStrategyWorkflowAtomicStateTests.cs` | RD-19D | Empty/terminal Start; Busy rejection; lazy expiry; before/equal/after-deadline Complete and Fail; timeout reason precedence; duplicate and stale input; concurrent Starts; no next-stage event on failure. |
 | Workflow projection and dispatch ownership | `IntrinsicTimeStrategyWorkflowGateQualificationTests.cs` and projector/Realtime unit tests | RD-19E | Dispatch only after committed Started/Regime snapshot; deterministic Execute; no Regime terminal route in Workflow Realtime; no later-stage event parsed as Regime. |
-| Atomic Regime execution | `RegimeDiscoveryAtomicExecutionTests.cs` | RD-19F | Success; expected failure; expired before work; timeout during snapshot; timeout during calculation; exact-boundary race; cancellation ignored by worker; unexpected exception; duplicate Execute; conflicting hash/revision; workflow A cannot block B. |
-| Regime projector and Realtime translation | `RegimeDiscoveryCommandArchitectureTests.cs` plus new projector/Realtime tests | RD-19G | Scylla write precedes publication; Completed/Failed mapping; deterministic Workflow commands; stateless actor; duplicate/late notification harmless; no Processing/timer/replay route. |
-| Business behavior | `IntrinsicTimeStrategyWorkflowAtomicScenarios.cs` in Trade BDD tests | RD-19D–G | Happy Regime continuation; expected failure; hard timeout; lost Started/terminal notification; lazy replacement; old late completion; restart before commit; no downstream command on every failure. |
-| Real actor topology | `IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests.cs` | RD-19E–G | Real Regime success/failure/timeout; new Regime Realtime routes; Busy and expired replacement; duplicate/stale notification; isolated consecutive workflows; suppressed notification proves fail-closed. |
+| Function lifecycle | `FunctionActorLifecycleTests.cs` | FNC-02/03/10 | Project-before-save completion; failed-result barrier; optional projector; invalid result; projector/persistence failure; matching retry; conflict. |
+| Regime Function execution | `RegimeDiscoveryFunctionExecutionTests.cs` | FNC-04/05/10 | Success; expected failure; expired before work; timeout during calculation; exact-boundary/late-worker fencing; completed-only state replay. |
+| Regime Function architecture | `RegimeDiscoveryFunctionArchitectureTests.cs` and pipeline boundary tests | FNC-06..10 | Exact maps; Function subjects; deterministic Workflow commands; no Regime Command/Realtime/Processing route; timeout classification. |
+| Business behavior | Trade BDD workflow scenarios | RD-19D and FNC-07..11 | Happy Regime continuation; expected failure; hard timeout; lost Started/Function reply; lazy replacement; old late completion; restart before commit; no downstream command on every failure. |
+| Real actor topology | `IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests.cs` | FNC-07/09/11 | Direct Function success/failure/timeout; Busy and expired replacement; isolated workflows; completed projection; failure and timeout are not projected. |
 | Operational view | workflow/Regime query and storage tests | RD-19H | Running, expired-but-unclosed, Failed, TimedOut, Completed, and migration-blocked views; observation performs no state mutation. |
 
 Existing tests remain the RD-0 through RD-18 regression baseline until their
@@ -944,10 +905,15 @@ the corresponding RD-19 tests above.
 | FNC-11 | Complete | Updated and passed live runtime/storage integration coverage. |
 | FNC-12 | Complete | Updated actor conventions, sequence diagrams, and implementation evidence. |
 
-The detailed current sequence is section 6.5 of
+Final FNC verification on 2026-08-28 passed 176 Shared unit tests, 78 NATS unit
+tests, 152 Trade unit tests, 8 Trade BDD scenarios, the selected PostgreSQL
+expected-version storage test, and 4 live Strategy Workflow runtime integration
+scenarios. The API server built with zero warnings and zero errors.
+
+The detailed current sequence is section 6.4 of
 `Regime-Discovery-Implementation-v1.0.md`. RD-19 sections describing the former
-private-event publication chain are retained only as historical execution
-records and are not current implementation instructions.
+actor chain are concise migration records and are not current implementation
+instructions.
 
 ## 8. Known failure scenarios and result
 
@@ -955,7 +921,7 @@ records and are not current implementation instructions.
 |---|---|---:|---|
 | Function execution throws | Typed Failed is returned and Workflow Fail is requested | No | Logged; if Workflow command cannot commit, later Start closes the expired snapshot. |
 | Function host dies during calculation | Function request fails/times out | No | Workflow caller requests Fail; full-host loss retains lazy-expiry recovery. |
-| Private timeout wins | Typed Failed is returned; no Function state is saved | No | Workflow Fail command records Failed/TimedOut when current. |
+| Private calculation timeout wins | Typed Failed is returned; no Function state is saved | No | Workflow Fail command records Failed/TimedOut when current. |
 | Function projector/Scylla write fails | Typed Failed is returned; no Function state is saved | No | Projector error is visible and Workflow cannot advance. |
 | Function terminal reply is lost | Caller transport timeout requests Workflow Fail | No | If that command also fails, later Start closes the expired execution. |
 | Workflow Complete/Fail command fails | Workflow remains Started | No | Command error; late retry is not automatic; expiry backstop. |

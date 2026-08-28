@@ -28,8 +28,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
-            [StartIntrinsicTimeStrategyWorkflowCommand.Verb] =
-                message => message.AsCommand<StartIntrinsicTimeStrategyWorkflowCommand>()!,
+            [ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb] =
+                message => message.AsCommand<ExecuteIntrinsicTimeStrategyWorkflowCommand>()!,
             [CompleteRegimeDiscoveryCommand.Verb] = message => message.AsCommand<CompleteRegimeDiscoveryCommand>()!,
             [CompleteMarketConditionCommand.Verb] = message => message.AsCommand<CompleteMarketConditionCommand>()!,
             [CompleteTradeSelectionCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionCommand>()!,
@@ -51,9 +51,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(StartIntrinsicTimeStrategyWorkflowCommand)] = command =>
+            [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = command =>
             {
-                var typed = (StartIntrinsicTimeStrategyWorkflowCommand)command;
+                var typed = (ExecuteIntrinsicTimeStrategyWorkflowCommand)command;
                 return new List<ValidationError>()
                     .ValidateCommandId(typed.CommandId, typed.CommandName)
                     .ValidateEntityId(typed.EntityId, typed.CommandName)
@@ -187,8 +187,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         new Dictionary<Type, Func<IntrinsicTimeStrategyWorkflowCommandActor, ICommand,
             IntrinsicTimeStrategyWorkflowCommandState, ServiceResult<GuidResult>>>()
         {
-            [typeof(StartIntrinsicTimeStrategyWorkflowCommand)] = static (actor, command, state) =>
-                actor.ProcessWorkflowCommand(state, (StartIntrinsicTimeStrategyWorkflowCommand)command),
+            [typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (ExecuteIntrinsicTimeStrategyWorkflowCommand)command),
             [typeof(CompleteRegimeDiscoveryCommand)] = static (actor, command, state) =>
                 actor.ProcessWorkflowCommand(state, (CompleteRegimeDiscoveryCommand)command),
             [typeof(CompleteMarketConditionCommand)] = static (actor, command, state) =>
@@ -222,7 +222,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         };
 
     /// <summary>Gets the workflow Command actor name.</summary>
-    public const string ActorName = StartIntrinsicTimeStrategyWorkflowCommand.Actor;
+    public const string ActorName = ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor;
 
     IIntrinsicTimeStrategyWorkflowCommandContext ActorContext =>
         Context as IIntrinsicTimeStrategyWorkflowCommandContext
@@ -292,8 +292,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         var eventCount = state.Events.Count;
         switch (command)
         {
-            case StartIntrinsicTimeStrategyWorkflowCommand start:
-                HandleStart(state, start, ActorContext.TimeProvider,
+            case ExecuteIntrinsicTimeStrategyWorkflowCommand execute:
+                HandleExecute(state, execute, ActorContext.TimeProvider,
                     ActorContext.ExecutionOptions.MaximumExecutionDuration);
                 break;
             case CancelIntrinsicTimeStrategyWorkflowCommand cancel:
@@ -320,16 +320,16 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         IntrinsicTimeStrategyWorkflowView? after,
         int appendedEvents)
     {
-        if (command is StartIntrinsicTimeStrategyWorkflowCommand start)
+        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute)
         {
-            if (appendedEvents == 0 && before?.TriggerEventId != start.TriggerEventId)
+            if (appendedEvents == 0 && before?.TriggerEventId != execute.TriggerEventId)
                 ActorContext.Logger.LogWarning(
-                    "Workflow Start rejected as busy for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
-                    start.EntityId.Format(), before?.WorkflowId, before?.WorkflowRevision);
+                    "Workflow Execute rejected as busy for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
+                    execute.EntityId.Format(), before?.WorkflowId, before?.WorkflowRevision);
             else if (appendedEvents == 2)
                 ActorContext.Logger.LogWarning(
                     "Expired workflow {ExpiredWorkflowId} was lazily closed and replaced by {WorkflowId} for {WorkflowEntityId}",
-                    before?.WorkflowId, after?.WorkflowId, start.EntityId.Format());
+                    before?.WorkflowId, after?.WorkflowId, execute.EntityId.Format());
             return;
         }
 
@@ -367,15 +367,15 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             !string.Equals(command.Subject.EntityId, entityCommand.EntityId.Format(), StringComparison.Ordinal))
             throw new ArgumentException("Workflow command subject must match its entity identity.", nameof(command));
 
-        if (command is StartIntrinsicTimeStrategyWorkflowCommand start)
+        if (command is ExecuteIntrinsicTimeStrategyWorkflowCommand execute)
         {
-            var errors = new RegimeDiscoveryParameterSetValidationRules().Execute(start.RegimeDiscoveryParameterSet);
+            var errors = new RegimeDiscoveryParameterSetValidationRules().Execute(execute.RegimeDiscoveryParameterSet);
             if (errors.Length != 0)
                 throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
                     nameof(command));
             if (!string.Equals(
-                    RegimeDiscoveryParameterPayload.ComputeSha256(start.RegimeDiscoveryParameterSet),
-                    start.RegimeDiscoveryParameterPayloadSha256,
+                    RegimeDiscoveryParameterPayload.ComputeSha256(execute.RegimeDiscoveryParameterSet),
+                    execute.RegimeDiscoveryParameterPayloadSha256,
                     StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("Workflow start parameter hash does not match its immutable payload.",
                     nameof(command));
@@ -390,9 +390,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         }
     }
 
-    internal static void HandleStart(
+    internal static void HandleExecute(
         IntrinsicTimeStrategyWorkflowCommandState state,
-        StartIntrinsicTimeStrategyWorkflowCommand command,
+        ExecuteIntrinsicTimeStrategyWorkflowCommand command,
         TimeProvider timeProvider,
         TimeSpan maximumExecutionDuration)
     {

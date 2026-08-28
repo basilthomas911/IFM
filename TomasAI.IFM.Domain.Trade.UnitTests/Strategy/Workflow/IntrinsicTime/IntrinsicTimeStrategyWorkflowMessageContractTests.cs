@@ -21,7 +21,7 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
     const string EventsNamespace =
         "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events";
 
-    static readonly Assembly ContractAssembly = typeof(StartIntrinsicTimeStrategyWorkflowCommand).Assembly;
+    static readonly Assembly ContractAssembly = typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand).Assembly;
     static readonly Type[] CommandTypes = ContractAssembly.GetTypes()
         .Where(type => type is { IsClass: true, IsAbstract: false } && type.Namespace == CommandsNamespace)
         .OrderBy(type => type.Name, StringComparer.Ordinal)
@@ -39,13 +39,13 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         nameof(CompleteRegimeDiscoveryCommand),
         nameof(CompleteRiskManagementCommand),
         nameof(CompleteTradeSelectionCommand),
+        nameof(ExecuteIntrinsicTimeStrategyWorkflowCommand),
         nameof(FailMarketConditionCommand),
         nameof(FailOrderCompositionCommand),
         nameof(FailRegimeDiscoveryCommand),
         nameof(FailRiskManagementCommand),
         nameof(FailTradeSelectionCommand),
         nameof(RedispatchCurrentStrategyPipelineCommand),
-        nameof(StartIntrinsicTimeStrategyWorkflowCommand),
         nameof(TimeoutMarketConditionCommand),
         nameof(TimeoutOrderCompositionCommand),
         nameof(TimeoutRegimeDiscoveryCommand),
@@ -90,6 +90,16 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
     {
         CommandTypes.Select(type => type.Name).Should().Equal(ExpectedCommandNames);
         EventTypes.Select(type => type.Name).Should().Equal(ExpectedEventNames);
+    }
+
+    /// <summary>Confirms Execute replaced the workflow Start command without adding another lifecycle event.</summary>
+    [Fact]
+    public void Workflow_admission_exposes_execute_and_one_authoritative_snapshot_event()
+    {
+        ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb.Should().Be("Execute");
+        ContractAssembly.GetType($"{CommandsNamespace}.StartIntrinsicTimeStrategyWorkflowCommand")
+            .Should().BeNull();
+        EventTypes.Should().ContainSingle(type => type == typeof(WorkflowStrategyStateUpdatedEvent));
     }
 
     /// <summary>Confirms command and event MessagePack integer keys are unique and sequential.</summary>

@@ -126,8 +126,8 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         public IntrinsicTimeStrategyWorkflowCommandState State { get; private set; } = new();
 
         public void Start(DateTime now)
-            => IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-                State, StartCommand(WorkflowId), Time(now), MaximumDuration);
+            => IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+                State, ExecuteCommand(WorkflowId), Time(now), MaximumDuration);
 
         public void StartAndReload(DateTime now)
         {
@@ -195,17 +195,17 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         public void Replace(DateTime now)
         {
             WorkflowId = new StrategyWorkflowId(NextGuid());
-            IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-                State, StartCommand(WorkflowId), Time(now), MaximumDuration);
+            IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+                State, ExecuteCommand(WorkflowId), Time(now), MaximumDuration);
         }
 
-        StartIntrinsicTimeStrategyWorkflowCommand StartCommand(StrategyWorkflowId workflowId)
+        ExecuteIntrinsicTimeStrategyWorkflowCommand ExecuteCommand(StrategyWorkflowId workflowId)
         {
             var triggerId = NextGuid();
-            return new StartIntrinsicTimeStrategyWorkflowCommand
+            return new ExecuteIntrinsicTimeStrategyWorkflowCommand
             {
                 CommandId = NextGuid(),
-                Subject = Subject(StartIntrinsicTimeStrategyWorkflowCommand.Verb),
+                Subject = Subject(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb),
                 EntityId = _entityId,
                 ProposedWorkflowId = workflowId,
                 TriggerEventId = triggerId,
@@ -219,7 +219,7 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         }
 
         ActorSubject Subject(string verb)
-            => new(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor, verb, _entityId.Format());
+            => new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor, verb, _entityId.Format());
 
         Guid NextGuid() => Guid.Parse($"0198E212-3C00-7000-8000-{_identity++:D12}");
     }

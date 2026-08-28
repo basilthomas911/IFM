@@ -21,7 +21,7 @@ The first implementation creates the workflow skeleton only. It provides:
 - one active workflow execution per workflow entity;
 - immutable workflow snapshots passed to strategy pipeline actors;
 - opaque, versioned pipeline result envelopes;
-- pipeline start commands and pipeline Processing/Completed/Failed realtime event contracts;
+- a command-shaped workflow Execute request, one authoritative state-update event, and stage-selected pipeline execution;
 - ACID transactional PostgreSQL event-sourced state for every workflow and pipeline Command actor;
 - unversioned ScyllaDB operational projections;
 - workflow queries, startup registration, recovery, idempotency, observability, and tests.
@@ -32,6 +32,13 @@ The implementation deliberately does not calculate regimes, market conditions, t
 > through `ActorType.Function` request/reply. Its old Start/Processing/public
 > terminal publication/Regime Realtime chain is removed. Later pipeline stages
 > retain their existing skeleton contracts until separately refactored.
+>
+> **Workflow Execute amendment (2026-08-28):** The ITI trigger now creates
+> `ExecuteIntrinsicTimeStrategyWorkflowCommand`, not a Start command. The
+> Workflow Command actor determines busy/free/expired state and commits only
+> `WorkflowStrategyStateUpdatedEvent`. Strategy Workflow Realtime executes the
+> committed `CurrentStage` through an explicit `StrategyWorkflowStage` handler
+> map. No additional pipeline-started event is authoritative or required.
 
 ---
 
@@ -43,11 +50,13 @@ The runtime flow is:
 FuturesItiSignalGeneratedEvent
     -> realtime router
     -> IntrinsicTimeStrategyWorkflowRealtimeActor
-    -> StartIntrinsicTimeStrategyWorkflowCommand
+    -> ExecuteIntrinsicTimeStrategyWorkflowCommand
     -> IntrinsicTimeStrategyWorkflowCommandActor
-    -> commit StartAccepted + IntrinsicTimeStrategyWorkflowStartedEvent
-    -> Workflow EventProjector updates ScyllaDB and publishes Started realtime
+    -> load authoritative snapshot and decide duplicate/busy/expired/free
+    -> commit WorkflowStrategyStateUpdatedEvent(Status=Started, CurrentStage=RegimeDiscovery)
+    -> Workflow EventProjector updates ScyllaDB and sends StateUpdated realtime
     -> IntrinsicTimeStrategyWorkflowRealtimeActor
+    -> select execution handler by StrategyWorkflowStage
     -> ExecuteRegimeDiscoveryPipelineCommand as Function request
     -> RegimeDiscoveryFunctionActor calculates one typed terminal result
     -> Completed only: synchronous ScyllaDB projection then completed-state append
@@ -55,9 +64,10 @@ FuturesItiSignalGeneratedEvent
     -> IntrinsicTimeStrategyWorkflowRealtimeActor maps the Function reply
     -> CompleteRegimeDiscoveryCommand or FailRegimeDiscoveryCommand
     -> IntrinsicTimeStrategyWorkflowCommandActor
-    -> commit IntrinsicTimeStrategyWorkflowContinuedEvent when another stage is selected
-    -> Workflow EventProjector updates ScyllaDB and publishes Continued realtime
-    -> IntrinsicTimeStrategyWorkflowRealtimeActor sends the selected StartXXXPipelineCommand
+    -> commit the next WorkflowStrategyStateUpdatedEvent
+    -> valid completion remains Started with CurrentStage advanced, or becomes terminal
+    -> Workflow EventProjector updates ScyllaDB and sends StateUpdated realtime
+    -> IntrinsicTimeStrategyWorkflowRealtimeActor executes the selected stage handler
 ```
 
 This pattern repeats for all five stages.
@@ -96,20 +106,20 @@ Pipeline actors never address or invoke one another.
 3. The workflow routing entity is the workflow definition plus the complete `FuturesItiSignalEntityId`.
 4. The unique UUIDv7 `StrategyWorkflowId` identifies an execution but is not the actor routing boundary.
 5. Only one workflow may be Running for one workflow entity.
-6. A distinct trigger received while that entity is Running is recorded as Rejected.
+6. A distinct trigger received while that entity is Started and unexpired is rejected as Busy with no state event.
 7. Duplicate delivery of the same trigger event is a no-op, not another start attempt.
-8. The workflow Command actor is the sole workflow-state writer, pipeline-selection authority, and continuation authority. The Workflow Realtime actor performs the actual pipeline send only from a projector-published Started or Continued event that contains the committed target.
-9. Workflow and pipeline Event actors are not applicable in this version. Command actors reconstruct their own durable state directly from their PostgreSQL event streams.
-10. The workflow Realtime actor consumes the ITI trigger, workflow Started/Continued lifecycle events, and pipeline Processing/Completed/Failed realtime events as one-way inputs and sends no realtime reply.
+8. The workflow Command actor is the sole workflow-state writer, pipeline-selection authority, and continuation authority. Workflow Realtime performs pipeline execution only from a projector-sent `WorkflowStrategyStateUpdatedEvent` containing a committed Started state and `CurrentStage`.
+9. Workflow and pipeline Event actors are not applicable in this version. The Workflow Command actor reconstructs only the latest authoritative state-update snapshot from PostgreSQL.
+10. Workflow Realtime consumes only the ITI trigger and committed workflow state-update notification. Regime execution itself uses direct Function request/reply.
 11. The workflow Query actor is side-effect free.
-12. Each pipeline start command carries a readonly workflow snapshot and the original ITI event.
-13. Each pipeline actor retains its own private durable calculation state; that state is never part of workflow state.
+12. Each pipeline Execute request carries a readonly workflow snapshot and the original ITI event.
+13. Regime Discovery retains completed-only Function state; pipeline-private state is never part of workflow state.
 14. Each pipeline completion returns only that stage's complete opaque result and workflow metadata.
 15. Each pipeline failure uses the standard application failure-event shape plus workflow metadata.
-16. Pipeline result events are routed back through lifecycle-owned realtime routes. Pipeline actors do not hard-code the workflow mailbox.
+16. Regime Discovery returns its typed result directly to Workflow Realtime, which maps it to a Workflow Complete/Fail command. Pipeline actors do not hard-code the workflow mailbox.
 17. The skeleton continuation rule is `Proceed` after a structurally valid Completed result.
 18. Failed, invalid, conflicting, cancelled, or timed-out processing stops the workflow.
-19. Every workflow and pipeline Command actor persists its private authoritative state as an ACID transactional event batch in PostgreSQL EventSourceDb and reconstructs that state by replaying its own event log.
+19. The Workflow Command actor persists complete state-update snapshots in PostgreSQL. The Regime Function persists only completed idempotency state after successful projection.
 20. ScyllaDB table names are unversioned because this is a development schema.
 21. Pipeline results before Risk Management are internal strategy calculations and have no authority to affect an external system.
 22. A Risk Manager approval result is the only critical strategy output. A future Order Execution handoff may occur only after that approval and the resulting Completed workflow transition have been durably committed.
@@ -210,7 +220,7 @@ Model/
     IntrinsicTimeStrategyWorkflowState.cs
 
 Commands/
-    StartIntrinsicTimeStrategyWorkflowCommand.cs
+    ExecuteIntrinsicTimeStrategyWorkflowCommand.cs
     CompleteRegimeDiscoveryCommand.cs
     FailRegimeDiscoveryCommand.cs
     TimeoutRegimeDiscoveryCommand.cs
@@ -679,7 +689,7 @@ The Realtime actor ignores a trigger when:
 - `TimePeriod` is not `Daily`, `Weekly`, or `Monthly`;
 - `Id` is empty.
 
-An eligible trigger becomes `StartIntrinsicTimeStrategyWorkflowCommand`.
+An eligible trigger becomes `ExecuteIntrinsicTimeStrategyWorkflowCommand`.
 
 ### 9.6 One-way realtime contract
 
@@ -749,9 +759,9 @@ Queries use:
 
 ## 11. Workflow Command Contracts
 
-### 11.1 Start command
+### 11.1 Execute workflow command
 
-`StartIntrinsicTimeStrategyWorkflowCommand` contains:
+`ExecuteIntrinsicTimeStrategyWorkflowCommand` contains:
 
 ```text
 base command keys 0..5
@@ -762,6 +772,8 @@ base command keys 0..5
 10 CausationId
 11 RequestedAtUtc
 12 WorkflowDefinitionVersion
+13 RegimeDiscoveryParameterSet
+14 RegimeDiscoveryParameterPayloadSha256
 ```
 
 The Realtime actor constructs:
@@ -770,11 +782,11 @@ The Realtime actor constructs:
 EntityId      = IntrinsicTimeStrategy + source.EntityId
 TriggerEventId = source.Id
 CausationId   = source.Id
-CorrelationId = proposed WorkflowId.Value
+CorrelationId = source.CommandId when present, otherwise source.Id
 PostEvents    = true
 ```
 
-The start command is always routed to `IntrinsicTimeStrategyWorkflowCommandActor.ActorName`.
+The Execute command is always routed to `IntrinsicTimeStrategyWorkflowCommandActor.ActorName`.
 
 The Workflow Realtime actor forwards this command without replying to `FuturesItiSignalGeneratedEvent`.
 

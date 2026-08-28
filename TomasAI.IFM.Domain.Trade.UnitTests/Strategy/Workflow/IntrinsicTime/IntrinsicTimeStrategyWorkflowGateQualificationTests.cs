@@ -2,10 +2,12 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using FluentAssertions;
 using MessagePack;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
@@ -71,6 +73,32 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
             typeof(IntrinsicTimeStrategyWorkflowEventProjector));
 
         projector.ProjectedEventTypes.Should().Equal(typeof(WorkflowStrategyStateUpdatedEvent));
+    }
+
+    /// <summary>Confirms workflow admission is an Execute command in every exact dispatch map.</summary>
+    [Fact]
+    public void Workflow_command_maps_use_execute_admission_contract()
+    {
+        ReadMap(typeof(IntrinsicTimeStrategyWorkflowCommandActor), "_parseMap")
+            .Contains(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb).Should().BeTrue();
+        ReadMap(typeof(IntrinsicTimeStrategyWorkflowCommandActor), "_validationMap")
+            .Contains(typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)).Should().BeTrue();
+        ReadMap(typeof(IntrinsicTimeStrategyWorkflowCommandActor), "_receiveMap")
+            .Contains(typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)).Should().BeTrue();
+    }
+
+    /// <summary>Confirms every executable workflow stage has exactly one committed-state handler.</summary>
+    [Fact]
+    public void Workflow_pipeline_execution_map_covers_every_stage()
+    {
+        var map = ReadMap(typeof(IntrinsicTimeStrategyWorkflowRealtimeActor), "_pipelineExecutionMap");
+
+        map.Keys.Cast<StrategyWorkflowStage>().Should().Equal(
+            StrategyWorkflowStage.RegimeDiscovery,
+            StrategyWorkflowStage.MarketCondition,
+            StrategyWorkflowStage.TradeSelection,
+            StrategyWorkflowStage.OrderComposition,
+            StrategyWorkflowStage.RiskManagement);
     }
 
     /// <summary>Confirms only Started/Regime snapshots produce deterministic Regime execution commands.</summary>
@@ -220,4 +248,9 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
             revision, revision, 1, ReadOnlyMemory<byte>.Empty,
             new DateTime(2026, 8, 25, 18, 0, 0, DateTimeKind.Utc),
             new DateTime(2026, 8, 25, 18, 1, 0, DateTimeKind.Utc));
+
+    static System.Collections.IDictionary ReadMap(Type owner, string field)
+        => (System.Collections.IDictionary)owner
+            .GetField(field, BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetValue(null)!;
 }

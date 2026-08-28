@@ -142,7 +142,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
         if (revisionSeed > 0)
             throw new ArgumentOutOfRangeException(nameof(revisionSeed));
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
             state,
             Command(),
             new FixedTimeProvider(Now),
@@ -150,16 +150,16 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
         return state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Single();
     }
 
-    static StartIntrinsicTimeStrategyWorkflowCommand Command()
+    static ExecuteIntrinsicTimeStrategyWorkflowCommand Command()
     {
         var triggerId = Guid.Parse("0198E212-3C00-7000-8000-000000000401");
-        return new StartIntrinsicTimeStrategyWorkflowCommand
+        return new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = triggerId,
             Subject = new ActorSubject(
                 ActorType.Command,
-                StartIntrinsicTimeStrategyWorkflowCommand.Actor,
-                StartIntrinsicTimeStrategyWorkflowCommand.Verb,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor,
+                ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb,
                 EntityId.Format()),
             EntityId = EntityId,
             ProposedWorkflowId = new StrategyWorkflowId(

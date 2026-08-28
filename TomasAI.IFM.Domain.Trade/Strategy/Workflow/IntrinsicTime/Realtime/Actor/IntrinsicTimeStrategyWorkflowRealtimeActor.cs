@@ -20,7 +20,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
-/// <summary>Starts workflows from eligible ITI triggers and dispatches only committed Started snapshots.</summary>
+/// <summary>Requests workflows from eligible ITI triggers and executes only committed Started pipeline snapshots.</summary>
 /// <remarks>
 /// This stateless actor has no replay, resume, or redispatch. For Regime Discovery it owns the direct Function
 /// request and translates the typed terminal reply into a Strategy Workflow complete or fail command.
@@ -62,13 +62,39 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             ValueTask>>
         {
             [typeof(FuturesItiSignalGeneratedEvent)] = static (actor, context, @event) =>
-                actor.StartWorkflowAsync(context, (FuturesItiSignalGeneratedEvent)@event),
+                actor.ExecuteWorkflowAsync(context, (FuturesItiSignalGeneratedEvent)@event),
             [typeof(WorkflowStrategyStateUpdatedEvent)] = static async (actor, context, @event) =>
             {
                 var snapshot = (WorkflowStrategyStateUpdatedEvent)@event;
                 if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })
                     await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
             }
+        };
+
+    delegate ValueTask PipelineExecutionHandler(
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
+        WorkflowStrategyStateUpdatedEvent snapshot);
+
+    static readonly IReadOnlyDictionary<StrategyWorkflowStage, PipelineExecutionHandler> _pipelineExecutionMap =
+        new Dictionary<StrategyWorkflowStage, PipelineExecutionHandler>
+        {
+            [StrategyWorkflowStage.RegimeDiscovery] = ExecuteRegimeDiscoveryAsync,
+            [StrategyWorkflowStage.MarketCondition] = static (context, snapshot) =>
+                ExecuteLaterPipelineAsync<StartMarketConditionPipelineCommand>(
+                    context, snapshot, StartMarketConditionPipelineCommand.Actor,
+                    StartMarketConditionPipelineCommand.Verb, StartMarketConditionPipelineCommand.ErrorId),
+            [StrategyWorkflowStage.TradeSelection] = static (context, snapshot) =>
+                ExecuteLaterPipelineAsync<StartTradeSelectionPipelineCommand>(
+                    context, snapshot, StartTradeSelectionPipelineCommand.Actor,
+                    StartTradeSelectionPipelineCommand.Verb, StartTradeSelectionPipelineCommand.ErrorId),
+            [StrategyWorkflowStage.OrderComposition] = static (context, snapshot) =>
+                ExecuteLaterPipelineAsync<StartOrderCompositionPipelineCommand>(
+                    context, snapshot, StartOrderCompositionPipelineCommand.Actor,
+                    StartOrderCompositionPipelineCommand.Verb, StartOrderCompositionPipelineCommand.ErrorId),
+            [StrategyWorkflowStage.RiskManagement] = static (context, snapshot) =>
+                ExecuteLaterPipelineAsync<StartRiskManagementPipelineCommand>(
+                    context, snapshot, StartRiskManagementPipelineCommand.Actor,
+                    StartRiskManagementPipelineCommand.Verb, StartRiskManagementPipelineCommand.ErrorId)
         };
 
     /// <inheritdoc />
@@ -122,7 +148,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         return ValueTask.CompletedTask;
     }
 
-    async ValueTask StartWorkflowAsync(
+    async ValueTask ExecuteWorkflowAsync(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         FuturesItiSignalGeneratedEvent trigger)
     {
@@ -154,12 +180,12 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             }
         }
 
-        var command = new StartIntrinsicTimeStrategyWorkflowCommand
+        var command = new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = triggerId == Guid.Empty
                 ? Guid.CreateVersion7(ActorContext.TimeProvider.GetUtcNow())
                 : triggerId,
-            Subject = CommandSubject(StartIntrinsicTimeStrategyWorkflowCommand.Verb, entityId),
+            Subject = CommandSubject(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb, entityId),
             EntityId = entityId,
             ProposedWorkflowId = workflowId,
             TriggerEventId = triggerId,
@@ -171,7 +197,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             RegimeDiscoveryParameterSet = resolved.ParameterSet,
             RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256
         };
-        await context.SendAsync<StartIntrinsicTimeStrategyWorkflowCommand,
+        await context.SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
             IntrinsicTimeStrategyWorkflowEntityId>(command, entityId).ConfigureAwait(false);
     }
 
@@ -180,110 +206,96 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         WorkflowStrategyStateUpdatedEvent snapshot)
     {
         var view = snapshot.State;
+        if (view.Status != WorkflowStrategyMachineStatus.Started)
+            return;
+        if (!_pipelineExecutionMap.TryGetValue(view.CurrentStage, out var execute))
+            throw new InvalidOperationException(
+                $"No pipeline execution handler is registered for workflow stage {view.CurrentStage}.");
+        await execute(context, snapshot).ConfigureAwait(false);
+    }
+
+    static async ValueTask ExecuteRegimeDiscoveryAsync(
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
+        WorkflowStrategyStateUpdatedEvent snapshot)
+    {
         var timeProvider = RequireEventContext(context).TimeProvider;
-        var commandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
-            view.WorkflowId,
-            view.CurrentStage,
-            view.WorkflowRevision);
-        var route = IntrinsicTimeStrategyPipelineRoutes.Get(view.CurrentStage);
-        if (view.CurrentStage == StrategyWorkflowStage.RegimeDiscovery)
+        var execute = CreateRegimeExecute(snapshot)
+            ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
+        FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
+        try
         {
-            var execute = CreateRegimeExecute(snapshot)
-                ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
-            FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>? terminal;
-            try
-            {
-                using var deadline = new CancellationTokenSource();
-                var remaining = execute.ExpiresAtUtc - timeProvider.GetUtcNow().UtcDateTime;
-                // ExpiresAtUtc is the calculation deadline enforced inside the Function. The transport receives a
-                // short reply-only grace period so caller cancellation cannot race a terminal timeout response.
-                deadline.CancelAfter((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + FunctionReplyGrace);
-                var result = await context.RequestFunctionAsync<
-                    ExecuteRegimeDiscoveryPipelineCommand,
-                    RegimeDiscoveryExecutionEntityId,
-                    FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>(
-                    execute,
-                    deadline.Token).ConfigureAwait(false);
-                terminal = result.Value;
-                if (terminal is null || !terminal.IsTerminal)
-                {
-                    terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
-                        RegimeDiscoveryPipelineFailedEvent>.Fail(
-                        ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
-                            execute,
-                            result.ErrorCode == 0 ? RegimeDiscoveryPipelineFailedEvent.ErrorId : result.ErrorCode,
-                            string.IsNullOrWhiteSpace(result.ErrorMessage)
-                                ? "Regime Discovery Function returned no terminal result."
-                                : result.ErrorMessage,
-                            "FunctionRequest",
-                            string.Empty,
-                            timeProvider.GetUtcNow().UtcDateTime));
-                }
-            }
-            catch (Exception exception)
+            using var deadline = new CancellationTokenSource();
+            var remaining = execute.ExpiresAtUtc - timeProvider.GetUtcNow().UtcDateTime;
+            // ExpiresAtUtc is the calculation deadline enforced inside the Function. The transport receives a
+            // short reply-only grace period so caller cancellation cannot race a terminal timeout response.
+            deadline.CancelAfter((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + FunctionReplyGrace);
+            var result = await context.RequestFunctionAsync<
+                ExecuteRegimeDiscoveryPipelineCommand,
+                RegimeDiscoveryExecutionEntityId,
+                FunctionResult<RegimeDiscoveryPipelineCompletedEvent, RegimeDiscoveryPipelineFailedEvent>>(
+                execute,
+                deadline.Token).ConfigureAwait(false);
+            terminal = result.Value;
+            if (terminal is null || !terminal.IsTerminal)
             {
                 terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
                     RegimeDiscoveryPipelineFailedEvent>.Fail(
                     ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
                         execute,
-                        RegimeDiscoveryPipelineFailedEvent.ErrorId,
-                        "Regime Discovery Function request failed or exceeded its deadline.",
+                        result.ErrorCode == 0 ? RegimeDiscoveryPipelineFailedEvent.ErrorId : result.ErrorCode,
+                        string.IsNullOrWhiteSpace(result.ErrorMessage)
+                            ? "Regime Discovery Function returned no terminal result."
+                            : result.ErrorMessage,
                         "FunctionRequest",
-                        exception.GetType().Name,
+                        string.Empty,
                         timeProvider.GetUtcNow().UtcDateTime));
             }
-
-            if (terminal.IsCompleted)
-            {
-                var complete = CreateCompleteCommand(terminal.Completed!);
-                await context.SendAsync<CompleteRegimeDiscoveryCommand,
-                    IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
-            }
-            else
-            {
-                var fail = CreateFailCommand(terminal.Failed!);
-                await context.SendAsync<FailRegimeDiscoveryCommand,
-                    IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
-            }
-            return;
         }
-
-        var input = new LaterPipelineInput(view, snapshot.Id, commandId, route.BoundedContext);
-        switch (view.CurrentStage)
+        catch (Exception exception)
         {
-            case StrategyWorkflowStage.MarketCondition:
-                await context.SendAsync<StartMarketConditionPipelineCommand,
-                    IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateLaterStart<StartMarketConditionPipelineCommand>(input,
-                        StartMarketConditionPipelineCommand.Actor,
-                        StartMarketConditionPipelineCommand.Verb,
-                        StartMarketConditionPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.TradeSelection:
-                await context.SendAsync<StartTradeSelectionPipelineCommand,
-                    IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateLaterStart<StartTradeSelectionPipelineCommand>(input,
-                        StartTradeSelectionPipelineCommand.Actor,
-                        StartTradeSelectionPipelineCommand.Verb,
-                        StartTradeSelectionPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.OrderComposition:
-                await context.SendAsync<StartOrderCompositionPipelineCommand,
-                    IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateLaterStart<StartOrderCompositionPipelineCommand>(input,
-                        StartOrderCompositionPipelineCommand.Actor,
-                        StartOrderCompositionPipelineCommand.Verb,
-                        StartOrderCompositionPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.RiskManagement:
-                await context.SendAsync<StartRiskManagementPipelineCommand,
-                    IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateLaterStart<StartRiskManagementPipelineCommand>(input,
-                        StartRiskManagementPipelineCommand.Actor,
-                        StartRiskManagementPipelineCommand.Verb,
-                        StartRiskManagementPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
-                break;
+            terminal = FunctionResult<RegimeDiscoveryPipelineCompletedEvent,
+                RegimeDiscoveryPipelineFailedEvent>.Fail(
+                ExecuteRegimeDiscoveryPipeline.CreateFailedEvent(
+                    execute,
+                    RegimeDiscoveryPipelineFailedEvent.ErrorId,
+                    "Regime Discovery Function request failed or exceeded its deadline.",
+                    "FunctionRequest",
+                    exception.GetType().Name,
+                    timeProvider.GetUtcNow().UtcDateTime));
         }
+
+        if (terminal.IsCompleted)
+        {
+            var complete = CreateCompleteCommand(terminal.Completed!);
+            await context.SendAsync<CompleteRegimeDiscoveryCommand,
+                IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
+        }
+        else
+        {
+            var fail = CreateFailCommand(terminal.Failed!);
+            await context.SendAsync<FailRegimeDiscoveryCommand,
+                IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+        }
+    }
+
+    static async ValueTask ExecuteLaterPipelineAsync<TCommand>(
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
+        WorkflowStrategyStateUpdatedEvent snapshot,
+        string actor,
+        string verb,
+        int errorCode)
+        where TCommand : class, ICommand<IntrinsicTimeStrategyWorkflowEntityId>, new()
+    {
+        var view = snapshot.State;
+        var commandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
+            view.WorkflowId,
+            view.CurrentStage,
+            view.WorkflowRevision);
+        var route = IntrinsicTimeStrategyPipelineRoutes.Get(view.CurrentStage);
+        var input = new LaterPipelineInput(view, snapshot.Id, commandId, route.BoundedContext);
+        await context.SendAsync<TCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+            CreateLaterStart<TCommand>(input, actor, verb, errorCode),
+            view.EntityId).ConfigureAwait(false);
     }
 
     /// <summary>Builds the deterministic Regime Execute command only from a committed Started/Regime snapshot.</summary>
@@ -383,7 +395,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 nameof(context));
 
     static ActorSubject CommandSubject(string verb, IntrinsicTimeStrategyWorkflowEntityId entityId)
-        => new(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor, verb, entityId.Format());
+        => new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor, verb, entityId.Format());
 
     internal static CompleteRegimeDiscoveryCommand CreateCompleteCommand(
         RegimeDiscoveryPipelineCompletedEvent completed)

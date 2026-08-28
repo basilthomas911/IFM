@@ -28,8 +28,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     internal static WorkflowStrategyStateUpdatedEvent CreateStartedSnapshotForQualification()
     {
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-            state, CreateStart(WorkflowId, TriggerId(99)), Time(Now), MaximumDuration);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+            state, CreateExecute(WorkflowId, TriggerId(99)), Time(Now), MaximumDuration);
         return LatestSnapshot(state);
     }
 
@@ -38,9 +38,9 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     public void Empty_start_commits_one_started_snapshot_with_fixed_deadline()
     {
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
-        var command = CreateStart(WorkflowId, TriggerId(1));
+        var command = CreateExecute(WorkflowId, TriggerId(1));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
             state, command, Time(Now), MaximumDuration);
 
         state.Events.Should().ContainSingle();
@@ -73,8 +73,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var loaded = FromSnapshot(LatestSnapshot(state));
         var replacementId = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000202"));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-            loaded, CreateStart(replacementId, TriggerId(3)), Time(Now.AddSeconds(1)), MaximumDuration);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+            loaded, CreateExecute(replacementId, TriggerId(3)), Time(Now.AddSeconds(1)), MaximumDuration);
 
         loaded.Events.Should().ContainSingle();
         loaded.CurrentView!.WorkflowId.Should().Be(replacementId);
@@ -88,8 +88,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now);
         var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000203"));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-            state, CreateStart(replacement, TriggerId(4)), Time(Now.AddSeconds(30)), MaximumDuration);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+            state, CreateExecute(replacement, TriggerId(4)), Time(Now.AddSeconds(30)), MaximumDuration);
 
         state.Events.Should().BeEmpty();
         state.CurrentView!.WorkflowId.Should().Be(WorkflowId);
@@ -102,8 +102,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now.AddMinutes(-3));
         var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000204"));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-            state, CreateStart(replacement, TriggerId(5)), Time(Now), MaximumDuration);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+            state, CreateExecute(replacement, TriggerId(5)), Time(Now), MaximumDuration);
 
         state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Select(value => value.State.Status)
             .Should().Equal(WorkflowStrategyMachineStatus.TimedOut, WorkflowStrategyMachineStatus.Started);
@@ -253,8 +253,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     public void Snapshot_metadata_mismatch_is_rejected()
     {
         var producer = new IntrinsicTimeStrategyWorkflowCommandState();
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-            producer, CreateStart(WorkflowId, TriggerId(101)), Time(Now), MaximumDuration);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+            producer, CreateExecute(WorkflowId, TriggerId(101)), Time(Now), MaximumDuration);
         var valid = LatestSnapshot(producer);
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
 
@@ -265,8 +265,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     static IntrinsicTimeStrategyWorkflowCommandState StartedState(DateTime startedAt)
     {
         var producer = new IntrinsicTimeStrategyWorkflowCommandState();
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
-            producer, CreateStart(WorkflowId, TriggerId(100)), Time(startedAt), MaximumDuration);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
+            producer, CreateExecute(WorkflowId, TriggerId(100)), Time(startedAt), MaximumDuration);
         return FromSnapshot(LatestSnapshot(producer));
     }
 
@@ -280,7 +280,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     static WorkflowStrategyStateUpdatedEvent LatestSnapshot(IntrinsicTimeStrategyWorkflowCommandState state)
         => state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Last();
 
-    static StartIntrinsicTimeStrategyWorkflowCommand CreateStart(
+    static ExecuteIntrinsicTimeStrategyWorkflowCommand CreateExecute(
         StrategyWorkflowId workflowId,
         Guid triggerId)
     {
@@ -289,10 +289,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             Guid.Parse("0198E212-3C00-7000-8000-000000000212"),
             TimeFrameType.Daily,
             version: 3);
-        return new StartIntrinsicTimeStrategyWorkflowCommand
+        return new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = Guid.NewGuid(),
-            Subject = Subject(StartIntrinsicTimeStrategyWorkflowCommand.Verb),
+            Subject = Subject(ExecuteIntrinsicTimeStrategyWorkflowCommand.Verb),
             EntityId = EntityId,
             ProposedWorkflowId = workflowId,
             TriggerEventId = triggerId,
@@ -363,7 +363,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     };
 
     static ActorSubject Subject(string verb)
-        => new(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor, verb, EntityId.Format());
+        => new(ActorType.Command, ExecuteIntrinsicTimeStrategyWorkflowCommand.Actor, verb, EntityId.Format());
 
     static Guid TriggerId(int suffix)
         => Guid.Parse($"0198E212-3C00-7000-8000-{suffix:D12}");
