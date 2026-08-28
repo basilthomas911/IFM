@@ -345,6 +345,33 @@ public class NatsActorEventListenerTests
     }
 
     [Fact]
+    public async Task StopAsync_WithSharedConnection_UnsubscribesPromptlyWithoutClosingOtherListeners()
+    {
+        await using var connectionManager = new NatsConnectionManager();
+        var first = new NatsActorEventListener(_options, _logger, connectionManager);
+        var second = new NatsActorEventListener(_options, _logger, connectionManager);
+        var firstMap = new Dictionary<ActorMailboxId, List<string>>
+        {
+            [new ActorMailboxId(ActorType.Event, "shared-listener-first")] = ["event.created"]
+        };
+        var secondMap = new Dictionary<ActorMailboxId, List<string>>
+        {
+            [new ActorMailboxId(ActorType.Event, "shared-listener-second")] = ["event.created"]
+        };
+
+        await first.StartAsync("shared-listener-first", firstMap, CreateValidEventHandler());
+        await second.StartAsync("shared-listener-second", secondMap, CreateValidEventHandler());
+
+        await first.StopAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+
+        first.State.Should().Be(EventListenerState.Stopped);
+        second.State.Should().BeOneOf(EventListenerState.Started, EventListenerState.Running);
+
+        await second.StopAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        second.State.Should().Be(EventListenerState.Stopped);
+    }
+
+    [Fact]
     public async Task StopAsync_WithoutStart_ShouldNotThrow()
     {
         // Arrange

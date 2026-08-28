@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.RegimeDiscovery;
 
@@ -88,6 +89,27 @@ public sealed class RegimeDiscoveryContractTests
 
         codes.Should().OnlyContain(code => code.StartsWith("RD.", StringComparison.Ordinal));
         codes.Should().OnlyHaveUniqueItems();
+    }
+
+    /// <summary>Confirms startup rejects absent-equivalent, non-positive, and operationally unbounded timeouts.</summary>
+    [Fact]
+    public void Execution_options_enforce_bounded_positive_maximum_duration()
+    {
+        var valid = new RegimeDiscoveryExecutionOptions();
+        var belowMinimum = new RegimeDiscoveryExecutionOptions
+        {
+            MaximumExecutionDuration = RegimeDiscoveryExecutionOptions.MinimumExecutionDuration -
+                                       TimeSpan.FromMilliseconds(1)
+        };
+        var aboveMaximum = new RegimeDiscoveryExecutionOptions
+        {
+            MaximumExecutionDuration = RegimeDiscoveryExecutionOptions.MaximumAllowedExecutionDuration +
+                                       TimeSpan.FromMilliseconds(1)
+        };
+
+        valid.Invoking(options => options.Validate()).Should().NotThrow();
+        belowMinimum.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
+        aboveMaximum.Invoking(options => options.Validate()).Should().Throw<ArgumentOutOfRangeException>();
     }
 
     static readonly Type[] ContractTypes =

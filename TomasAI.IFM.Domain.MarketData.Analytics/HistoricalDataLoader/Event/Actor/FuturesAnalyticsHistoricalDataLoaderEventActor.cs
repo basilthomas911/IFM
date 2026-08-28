@@ -17,6 +17,37 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
     /// <summary>Gets the Event actor mailbox name.</summary>
     public const string ActorName = FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Actor;
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Verb] = static message =>
+                message.AsEvent<FuturesAnalyticsHistoricalDataLoaderRequestedEvent>()!,
+            [FuturesAnalyticsHistoricalDataLoaderCompletedEvent.Verb] = static message =>
+                message.AsEvent<FuturesAnalyticsHistoricalDataLoaderCompletedEvent>()!,
+            [FuturesAnalyticsHistoricalDataLoaderFailedEvent.Verb] = static message =>
+                message.AsEvent<FuturesAnalyticsHistoricalDataLoaderFailedEvent>()!
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<
+        FuturesAnalyticsHistoricalDataLoaderEventActor,
+        IEvent,
+        IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor>,
+        ValueTask>> _receiveMap = new Dictionary<Type, Func<
+            FuturesAnalyticsHistoricalDataLoaderEventActor,
+            IEvent,
+            IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor>,
+            ValueTask>>
+        {
+            [typeof(FuturesAnalyticsHistoricalDataLoaderRequestedEvent)] = static (actor, @event, context) =>
+                actor.ReceiveRequestedAsync(
+                    context,
+                    (FuturesAnalyticsHistoricalDataLoaderRequestedEvent)@event),
+            [typeof(FuturesAnalyticsHistoricalDataLoaderCompletedEvent)] = static (_, _, _) =>
+                ValueTask.CompletedTask,
+            [typeof(FuturesAnalyticsHistoricalDataLoaderFailedEvent)] = static (_, _, _) =>
+                ValueTask.CompletedTask
+        };
+
     /// <inheritdoc />
     protected override ValueTask OnStartup(
         IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor> context) => ValueTask.CompletedTask;
@@ -29,26 +60,21 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Event, Name: ActorName }) return default!;
-        return message.Subject.Verb switch
-        {
-            FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Verb =>
-                message.AsEvent<FuturesAnalyticsHistoricalDataLoaderRequestedEvent>()!,
-            FuturesAnalyticsHistoricalDataLoaderCompletedEvent.Verb =>
-                message.AsEvent<FuturesAnalyticsHistoricalDataLoaderCompletedEvent>()!,
-            FuturesAnalyticsHistoricalDataLoaderFailedEvent.Verb =>
-                message.AsEvent<FuturesAnalyticsHistoricalDataLoaderFailedEvent>()!,
-            _ => default!
-        };
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <inheritdoc />
-    protected override async ValueTask ReceiveAsync(
+    protected override ValueTask ReceiveAsync(
         IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor> context,
         IEvent @event)
     {
-        if (@event is not FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested) return;
+        var receive = ResolveMappedEventHandler(@event, _receiveMap);
+        return receive(this, @event, context);
+    }
+
+    async ValueTask ReceiveRequestedAsync(
+        IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor> context,
+        FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested)
+    {
         var request = ToApplicationRequest(requested);
         try
         {

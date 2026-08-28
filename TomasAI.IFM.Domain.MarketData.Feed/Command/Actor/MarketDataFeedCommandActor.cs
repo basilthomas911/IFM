@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -37,7 +36,6 @@ public class MarketDataFeedCommandActor(
 {
     public const string ActorName = "MarketDataFeedCommand";
     readonly ILogger<MarketDataFeedCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<MarketDataFeedCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<MarketDataFeedCommandState> _repo = default!;
 
@@ -69,24 +67,16 @@ public class MarketDataFeedCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<MarketDataFeedCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<MarketDataFeedCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [StartMarketDataFeedCommand.Verb] = msg => msg.AsCommand<StartMarketDataFeedCommand>()!,
         [StopMarketDataFeedCommand.Verb] = msg => msg.AsCommand<StopMarketDataFeedCommand>()!,
@@ -115,9 +105,7 @@ public class MarketDataFeedCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var marketDataFeedState = IsArgumentNull.Set((state as MarketDataFeedCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, marketDataFeedState));
     }
 
@@ -125,18 +113,19 @@ public class MarketDataFeedCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding market data feed command
     /// logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
-        MarketDataFeedCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
+        MarketDataFeedCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        MarketDataFeedCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(StartMarketDataFeedCommand).Name] = (cmd, context, state) => (cmd as StartMarketDataFeedCommand)!.Execute(state),
-        [typeof(StopMarketDataFeedCommand).Name] = (cmd, context, state) => (cmd as StopMarketDataFeedCommand)!.Execute(state),
-        [typeof(ResetMarketDataFeedCommand).Name] = (cmd, context, state) => (cmd as ResetMarketDataFeedCommand)!.Execute(state),
-        [typeof(AddTradeLiveFeedCommand).Name] = (cmd, context, state) => (cmd as AddTradeLiveFeedCommand)!.Execute(state),
-        [typeof(RemoveTradeLiveFeedCommand).Name] = (cmd, context, state) => (cmd as RemoveTradeLiveFeedCommand)!.Execute(state),
-        [typeof(TurnTradeLiveFeedOnCommand).Name] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOnCommand)!.Execute(state),
-        [typeof(TurnTradeLiveFeedOffCommand).Name] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOffCommand)!.Execute(state),
-        [typeof(DeleteStreamingRequestIdCommand).Name] = (cmd, context, state) => (cmd as DeleteStreamingRequestIdCommand)!.Execute(state),
-        [typeof(HaltTradeLiveFeedCommand).Name] = (cmd, context, state) => (cmd as HaltTradeLiveFeedCommand)!.Execute(state)
+        [typeof(StartMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StartMarketDataFeedCommand)!.Execute(state),
+        [typeof(StopMarketDataFeedCommand)] = (cmd, context, state) => (cmd as StopMarketDataFeedCommand)!.Execute(state),
+        [typeof(ResetMarketDataFeedCommand)] = (cmd, context, state) => (cmd as ResetMarketDataFeedCommand)!.Execute(state),
+        [typeof(AddTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as AddTradeLiveFeedCommand)!.Execute(state),
+        [typeof(RemoveTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as RemoveTradeLiveFeedCommand)!.Execute(state),
+        [typeof(TurnTradeLiveFeedOnCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOnCommand)!.Execute(state),
+        [typeof(TurnTradeLiveFeedOffCommand)] = (cmd, context, state) => (cmd as TurnTradeLiveFeedOffCommand)!.Execute(state),
+        [typeof(DeleteStreamingRequestIdCommand)] = (cmd, context, state) => (cmd as DeleteStreamingRequestIdCommand)!.Execute(state),
+        [typeof(HaltTradeLiveFeedCommand)] = (cmd, context, state) => (cmd as HaltTradeLiveFeedCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -154,72 +143,86 @@ public class MarketDataFeedCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(StartMarketDataFeedCommand).Name] = cmd => {
+        [typeof(StartMarketDataFeedCommand)] = cmd => {
             var e = (StartMarketDataFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesContracts(e.FuturesContracts)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
                 .ValidateResetStream(e.ResetStream, e.CommandName);
         },
-        [typeof(StopMarketDataFeedCommand).Name] = cmd => {
+        [typeof(StopMarketDataFeedCommand)] = cmd => {
             var e = (StopMarketDataFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
-        [typeof(ResetMarketDataFeedCommand).Name] = cmd => {
+        [typeof(ResetMarketDataFeedCommand)] = cmd => {
             var e = (ResetMarketDataFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesContracts(e.FuturesContracts)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
-        [typeof(AddTradeLiveFeedCommand).Name] = cmd => {
+        [typeof(AddTradeLiveFeedCommand)] = cmd => {
             var e = (AddTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOrderId(e.OrderId, e.CommandName)
                 .ValidateTradeId(e.TradeId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
-        [typeof(RemoveTradeLiveFeedCommand).Name] = cmd => {
+        [typeof(RemoveTradeLiveFeedCommand)] = cmd => {
             var e = (RemoveTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOrderId(e.OrderId, e.CommandName)
                 .ValidateTradeId(e.TradeId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
-        [typeof(TurnTradeLiveFeedOnCommand).Name] = cmd => {
+        [typeof(TurnTradeLiveFeedOnCommand)] = cmd => {
             var e = (TurnTradeLiveFeedOnCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOrderId(e.OrderId, e.CommandName)
                 .ValidateTradeId(e.TradeId, e.CommandName);
         },
-        [typeof(TurnTradeLiveFeedOffCommand).Name] = cmd => {
+        [typeof(TurnTradeLiveFeedOffCommand)] = cmd => {
             var e = (TurnTradeLiveFeedOffCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOrderId(e.OrderId, e.CommandName)
                 .ValidateTradeId(e.TradeId, e.CommandName);
         },
-        [typeof(DeleteStreamingRequestIdCommand).Name] = cmd => {
+        [typeof(DeleteStreamingRequestIdCommand)] = cmd => {
             var e = (DeleteStreamingRequestIdCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFeedId(e.FeedId);
         },
-        [typeof(HaltTradeLiveFeedCommand).Name] = cmd => {
+        [typeof(HaltTradeLiveFeedCommand)] = cmd => {
             var e = (HaltTradeLiveFeedCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOrderId(e.OrderId, e.CommandName)
                 .ValidateTradeId(e.TradeId, e.CommandName);
         }

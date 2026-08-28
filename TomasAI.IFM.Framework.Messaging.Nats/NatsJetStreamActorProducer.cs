@@ -40,6 +40,7 @@ public class NatsJetStreamActorProducer(
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     NatsClient _nc;
     INatsJSContext _js;
+    CancellationTokenSource? _operationStopping;
     bool _isRunning;
 
     /// <summary>
@@ -69,6 +70,8 @@ public class NatsJetStreamActorProducer(
                 return;
             _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
             _js = await _connectionManager.GetJetStreamContextAsync(_options.Url, cancellationToken).ConfigureAwait(false);
+            _operationStopping?.Dispose();
+            _operationStopping = new CancellationTokenSource();
             Volatile.Write(ref _isRunning, true);
         }
         finally
@@ -96,6 +99,13 @@ public class NatsJetStreamActorProducer(
             if (!_isRunning)
                 return;
             Volatile.Write(ref _isRunning, false);
+            var operationStopping = _operationStopping;
+            _operationStopping = null;
+            if (operationStopping is not null)
+            {
+                await operationStopping.CancelAsync().ConfigureAwait(false);
+                operationStopping.Dispose();
+            }
             if (_ownsConnectionManager)
                 await _connectionManager.DisposeAsync().ConfigureAwait(false);
             _nc = default!;
@@ -150,11 +160,16 @@ public class NatsJetStreamActorProducer(
         var started = NatsMessagingMetrics.StartOperation();
         try
         {
+            var operationStopping = _operationStopping
+                ?? throw new InvalidOperationException("The NATS JetStream actor producer is not running.");
+            using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                operationStopping.Token);
             var acknowledgement = await _js.PublishAsync(
                 subject,
                 message,
                 serializer: NatsMessagePackSerializer<T>.Default,
-                cancellationToken: cancellationToken).ConfigureAwait(false);
+                cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             acknowledgement.EnsureSuccess();
             NatsMessagingMetrics.Published.Add(1);
         }

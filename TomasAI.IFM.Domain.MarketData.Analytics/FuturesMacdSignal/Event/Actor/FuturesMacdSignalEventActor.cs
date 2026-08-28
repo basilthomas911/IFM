@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -21,7 +21,7 @@ public class FuturesMacdSignalEventActor(IEventActorContext<FuturesMacdSignalEve
     protected IFuturesMacdSignalEventContext FuturesMacdSignalEventContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesMacdSignalEventContext, nameof(actorContext))!;
     readonly ILogger<FuturesMacdSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly Dictionary<Type, Func<IEvent, IFuturesMacdSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesMacdSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesMacdSignalEventContext, ILogger, ValueTask<bool>>>()
     {
         [typeof(FuturesMacdSignalStartedEvent)] = async (@event, context, logger) =>
             await ((FuturesMacdSignalStartedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
@@ -32,7 +32,7 @@ public class FuturesMacdSignalEventActor(IEventActorContext<FuturesMacdSignalEve
         [typeof(FuturesMacdDailySignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
             await ((FuturesMacdDailySignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
     };
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesMacdSignalStartedEvent.Verb] = message => message.AsEvent<FuturesMacdSignalStartedEvent>()!,
         [FuturesMacdSignalStoppedEvent.Verb] = message => message.AsEvent<FuturesMacdSignalStoppedEvent>()!,
@@ -42,23 +42,14 @@ public class FuturesMacdSignalEventActor(IEventActorContext<FuturesMacdSignalEve
 
     /// <summary>Parses a MACD event message.</summary>
     protected override IEvent ParseMessage(IEventActorContext<FuturesMacdSignalEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(message);
-        if (message.Subject is not { ActorType: ActorType.Event, Name: Actor } subject
-            || !_parseMap.TryGetValue(subject.Verb, out var parser)) return default!;
-        var @event = parser(message);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>Dispatches a MACD event by runtime type.</summary>
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesMacdSignalEventActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await handler(@event, FuturesMacdSignalEventContext, _logger).ConfigureAwait(false);
     }
 

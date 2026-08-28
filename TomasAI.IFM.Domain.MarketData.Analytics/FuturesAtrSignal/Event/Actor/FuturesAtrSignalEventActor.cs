@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAtrSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarPublisher;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -22,7 +22,7 @@ public class FuturesAtrSignalEventActor(IEventActorContext<FuturesAtrSignalEvent
         actorContext as IFuturesAtrSignalEventContext, nameof(actorContext))!;
 
     readonly ILogger<FuturesAtrSignalEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly Dictionary<Type, Func<IEvent, IFuturesAtrSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesAtrSignalEventContext, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesAtrSignalEventContext, ILogger, ValueTask<bool>>>()
     {
         [typeof(FuturesAtrSignalStartedEvent)] = async (@event, context, logger) =>
             await ((FuturesAtrSignalStartedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
@@ -34,7 +34,7 @@ public class FuturesAtrSignalEventActor(IEventActorContext<FuturesAtrSignalEvent
             await ((FuturesAtrDailySignalGeneratedCompleteEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false)
     };
 
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesAtrSignalStartedEvent.Verb] = message => message.AsEvent<FuturesAtrSignalStartedEvent>()!,
         [FuturesAtrSignalStoppedEvent.Verb] = message => message.AsEvent<FuturesAtrSignalStoppedEvent>()!,
@@ -44,23 +44,14 @@ public class FuturesAtrSignalEventActor(IEventActorContext<FuturesAtrSignalEvent
 
     /// <summary>Parses an ATR event message.</summary>
     protected override IEvent ParseMessage(IEventActorContext<FuturesAtrSignalEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(message);
-        if (message.Subject is not { ActorType: ActorType.Event, Name: Actor } subject
-            || !_parseMap.TryGetValue(subject.Verb, out var parser)) return default!;
-        var @event = parser(message);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>Dispatches an ATR event by runtime type.</summary>
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesAtrSignalEventActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await handler(@event, FuturesAtrSignalEventContext, _logger).ConfigureAwait(false);
     }
 

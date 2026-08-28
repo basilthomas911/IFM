@@ -34,8 +34,6 @@ public class FuturesOptionContractCommandActor(
     : BaseEventSourceCommandActor<FuturesOptionContractCommandActor>(actorContext, actorContext.Logger)
 {
     public const string ActorName = "FuturesOptionContractCommand";
-    CommandAuditTracker? _commandAudit;
-    CommandAuditTracker CommandAudit => _commandAudit ??= new CommandAuditTracker(Context.DbEventSource);
     readonly IEventProjector<FuturesOptionContractCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesOptionContractCommandState> _repo = default!;
 
@@ -67,18 +65,10 @@ public class FuturesOptionContractCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesOptionContractCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        CommandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesOptionContractCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
@@ -88,7 +78,7 @@ public class FuturesOptionContractCommandActor(
     /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
     /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
     /// use in command deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [AddFuturesOptionContractCommand.Verb] = msg => msg.AsCommand<AddFuturesOptionContractCommand>()!,
         [AddFuturesOptionContractsCommand.Verb] = msg => msg.AsCommand<AddFuturesOptionContractsCommand>()!,
@@ -112,9 +102,7 @@ public class FuturesOptionContractCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var futuresOptionContractState = IsArgumentNull.Set((state as FuturesOptionContractCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, futuresOptionContractState));
     }
 
@@ -125,12 +113,12 @@ public class FuturesOptionContractCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of futures option contract-related commands by associating each command
     /// type name with a function that executes the command against a FuturesOptionContractState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext, FuturesOptionContractCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext, FuturesOptionContractCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext, FuturesOptionContractCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(AddFuturesOptionContractCommand).Name] = (cmd, context, state) => (cmd as AddFuturesOptionContractCommand)!.Execute(state),
-        [typeof(AddFuturesOptionContractsCommand).Name] = (cmd, context, state) => (cmd as AddFuturesOptionContractsCommand)!.Execute(state),
-        [typeof(ChangeFuturesOptionContractCommand).Name] = (cmd, context, state) => (cmd as ChangeFuturesOptionContractCommand)!.Execute(state),
-        [typeof(RemoveFuturesOptionContractCommand).Name] = (cmd, context, state) => (cmd as RemoveFuturesOptionContractCommand)!.Execute(state)
+        [typeof(AddFuturesOptionContractCommand)] = (cmd, context, state) => (cmd as AddFuturesOptionContractCommand)!.Execute(state),
+        [typeof(AddFuturesOptionContractsCommand)] = (cmd, context, state) => (cmd as AddFuturesOptionContractsCommand)!.Execute(state),
+        [typeof(ChangeFuturesOptionContractCommand)] = (cmd, context, state) => (cmd as ChangeFuturesOptionContractCommand)!.Execute(state),
+        [typeof(RemoveFuturesOptionContractCommand)] = (cmd, context, state) => (cmd as RemoveFuturesOptionContractCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -151,14 +139,11 @@ public class FuturesOptionContractCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await CommandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
+        ValidateMappedCommand(cmd, _validationMap);
+
         var refLookupService = Context.ReferenceLookupService;
         await refLookupService.EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd, refLookupService)
+        ValidateReferenceData(cmd, refLookupService)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
@@ -168,30 +153,49 @@ public class FuturesOptionContractCommandActor(
     /// <remarks>Each entry associates the name of a command type with a function that performs validation on
     /// instances of that command, returning a list of validation errors. This map enables dynamic selection of
     /// validation logic based on the command type at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, IReferenceLookupService, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(AddFuturesOptionContractCommand).Name] = (cmd, refService) => {
+        [typeof(AddFuturesOptionContractCommand)] = static cmd => {
             var e = (AddFuturesOptionContractCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesOptionContract(e.Contract, refService);
+                .ValidateEntityId(e.EntityId, e.CommandName);
         },
-        [typeof(AddFuturesOptionContractsCommand).Name] = (cmd, refService) => {
+        [typeof(AddFuturesOptionContractsCommand)] = static cmd => {
             var e = (AddFuturesOptionContractsCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesOptionContracts(e.Contracts, refService);
+                .ValidateEntityId(e.EntityId, e.CommandName);
         },
-        [typeof(ChangeFuturesOptionContractCommand).Name] = (cmd, refService) => {
+        [typeof(ChangeFuturesOptionContractCommand)] = static cmd => {
             var e = (ChangeFuturesOptionContractCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesOptionContractId(e.ContractId)
-                .ValidateFuturesOptionContract(e.Contract, refService);
+                ;
         },
-        [typeof(RemoveFuturesOptionContractCommand).Name] = (cmd, refService) => {
+        [typeof(RemoveFuturesOptionContractCommand)] = static cmd => {
             var e = (RemoveFuturesOptionContractCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesOptionContractId(e.ContractId);
         }
     };
+
+    static List<ValidationError> ValidateReferenceData(
+        ICommand command,
+        IReferenceLookupService referenceLookupService)
+        => command switch
+        {
+            AddFuturesOptionContractCommand add => new List<ValidationError>()
+                .ValidateFuturesOptionContract(add.Contract, referenceLookupService),
+            AddFuturesOptionContractsCommand addMany => new List<ValidationError>()
+                .ValidateFuturesOptionContracts(addMany.Contracts, referenceLookupService),
+            ChangeFuturesOptionContractCommand change => new List<ValidationError>()
+                .ValidateFuturesOptionContract(change.Contract, referenceLookupService),
+            RemoveFuturesOptionContractCommand => [],
+            _ => throw new InvalidOperationException(
+                $"Unable to validate {ActorName} reference data for command: {command.Subject}")
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

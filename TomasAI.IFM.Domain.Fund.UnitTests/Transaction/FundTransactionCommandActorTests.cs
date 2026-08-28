@@ -117,6 +117,7 @@ public class FundTransactionCommandActorTests : IClassFixture<FundTestFixture>
             CommandId = commandId ?? Guid.NewGuid(),
             Subject = new ActorSubject(ActorType.Command, ProcessEndOfDayFundTransactionCommand.Actor, ProcessEndOfDayFundTransactionCommand.Verb, entityId.Format()),
             EntityId = entityId,
+            CorrelationId = Guid.NewGuid(),
             FundTransaction = tx
         };
     }

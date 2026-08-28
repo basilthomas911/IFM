@@ -52,4 +52,28 @@ public sealed record StrategyWorkflowStageState
     /// <summary>Gets the standard pipeline failure when stage processing did not succeed.</summary>
     [Key(9)]
     public StrategyPipelineFailure? Failure { get; init; }
+
+    /// <summary>Gets the immutable workflow revision supplied to this pipeline execution.</summary>
+    [Key(10)]
+    public long InputWorkflowRevision { get; init; }
+
+    /// <summary>Gets the frozen pipeline parameter-set identity.</summary>
+    [Key(11)]
+    public Guid ParameterSetId { get; init; }
+
+    /// <summary>Gets the frozen pipeline parameter-set version.</summary>
+    [Key(12)]
+    public int ParameterSetVersion { get; init; }
+
+    /// <summary>Gets the canonical hash of the frozen pipeline parameter payload.</summary>
+    [Key(13)]
+    public string ParameterPayloadSha256 { get; init; } = string.Empty;
+
+    /// <summary>Gets the fixed UTC deadline inherited by this pipeline execution.</summary>
+    [Key(14)]
+    public DateTime? ExpiresAtUtc { get; init; }
+
+    /// <summary>Gets the accepted terminal pipeline notification identity for idempotency.</summary>
+    [Key(15)]
+    public Guid SourceEventId { get; init; }
 }

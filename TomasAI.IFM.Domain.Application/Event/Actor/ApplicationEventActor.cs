@@ -26,6 +26,20 @@ public sealed class ApplicationEventActor(
 
     public const string Actor = ApplicationStartupEvent.Actor;
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [ApplicationStartupEvent.Verb] = static message => ParseApplicationEvent<ApplicationStartupEvent>(message),
+            [ApplicationShutdownEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownEvent>(message)
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ValueTask>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ValueTask>>
+        {
+            [typeof(ApplicationStartupEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(ApplicationShutdownEvent)] = static (_, _) => ValueTask.CompletedTask
+        };
+
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
     /// subject and verb.
@@ -35,21 +49,12 @@ public sealed class ApplicationEventActor(
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
     protected override IEvent ParseMessage(IEventActorContext<ApplicationEventActor> context, IActorMessage message)
+        => ParseMappedEvent(context, message, _parseMap);
+
+    static IEvent ParseApplicationEvent<TEvent>(IActorMessage message) where TEvent : class, IEvent
     {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor })
-            return default!;
-
-        IEvent? @event = msgSubject.Verb switch
-        {
-            ApplicationStartupEvent.Verb => message.AsEvent<ApplicationStartupEvent>(),
-            ApplicationShutdownEvent.Verb => message.AsEvent<ApplicationShutdownEvent>(),
-            _ => null
-        };
-
-        if (@event is null)
-            return default!;
+        var @event = message.AsEvent<TEvent>()
+            ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TEvent).Name}.");
         @event.CheckForEmptyCommandId();
         return @event;
     }
@@ -63,16 +68,10 @@ public sealed class ApplicationEventActor(
     /// <exception cref="InvalidOperationException"></exception>
     protected override ValueTask ReceiveAsync(IEventActorContext<ApplicationEventActor> context, IEvent @event)
     {
-        var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-
-        if (@event is not ApplicationStartupEvent and not ApplicationShutdownEvent)
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
-
-        // Lifecycle events are intentionally broadcast notifications. External event
-        // listeners perform the work; this domain actor only validates/acknowledges them.
-        return ValueTask.CompletedTask;
+        var receive = ResolveMappedEventHandler(@event, _receiveMap);
+        return receive(@event, context);
     }
 
     /// <summary>

@@ -29,9 +29,9 @@ public class FuturesItiSignalEventActor(
         IsArgumentNull.Set(Context as IFuturesItiSignalEventContext, nameof(Context))!;
 
     public const string Actor = "FuturesItiSignalEvent";
-    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesItiSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
     {
-        [typeof(FuturesItiSignalGeneratedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesItiSignalGeneratedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalGeneratedCompleteEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
@@ -72,22 +72,12 @@ public class FuturesItiSignalEventActor(
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
     protected override IEvent ParseMessage(IEventActorContext<FuturesItiSignalEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesItiSignalGeneratedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesItiSignalGeneratedCompleteEvent>()!
     };
@@ -105,9 +95,7 @@ public class FuturesItiSignalEventActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 

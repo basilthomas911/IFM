@@ -54,10 +54,10 @@ public sealed class RegimeDiscoveryCommandState
     /// <summary>Gets whether the aggregate has a durable terminal event.</summary>
     public bool IsTerminal => Status is RegimeDiscoveryCommandStatus.Completed or RegimeDiscoveryCommandStatus.Failed;
 
-    /// <summary>Determines whether a Start command is an idempotent duplicate of the durable terminal input.</summary>
-    /// <param name="command">Start command to compare.</param>
+    /// <summary>Determines whether an Execute command is an idempotent duplicate of the durable terminal input.</summary>
+    /// <param name="command">Execute command to compare.</param>
     /// <returns><see langword="true"/> when workflow, revision, and parameter hash match.</returns>
-    public bool Matches(StartRegimeDiscoveryPipelineCommand command) => IsTerminal &&
+    public bool Matches(ExecuteRegimeDiscoveryPipelineCommand command) => IsTerminal &&
         WorkflowId == command.WorkflowId &&
         InputWorkflowRevision == command.InputWorkflowRevision &&
         string.Equals(ParameterPayloadSha256, command.ParameterPayloadSha256, StringComparison.OrdinalIgnoreCase);

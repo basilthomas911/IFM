@@ -11,7 +11,7 @@ removed. No production or test C# namespace contains `MarketSignals`.
 Reusable contracts now live with their concrete business capability:
 
 - market-series identity and signal lineage: `Shared/Common`;
-- closed OHLCV observations: `Shared/FuturesTradeSessionBarPublisher`;
+- closed OHLCV observations: `Shared/FuturesTradeSessionBarSignal`;
 - historical load contracts: `Shared/HistoricalDataLoader`;
 - RSI configurations and Wilder state: `FuturesRsiSignal`;
 - EMA contracts and event-sourced state: `FuturesEmaSignal`;

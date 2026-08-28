@@ -73,6 +73,17 @@ internal readonly record struct InsertEventLog(long eventStreamId, int eventName
 {
     public object Bind() => Values(Bigint(eventStreamId), Integer(eventNameId), Text(eventData), Uuid(commandId), Text(eventTimestamp));
 }
+internal readonly record struct InsertEventLogExpectedVersion(
+    long eventStreamId,
+    int eventNameId,
+    string eventData,
+    Guid commandId,
+    string eventTimestamp,
+    long expectedStreamVersion) : IBindValue
+{
+    public object Bind() => Values(Bigint(eventStreamId), Integer(eventNameId), Text(eventData), Uuid(commandId),
+        Text(eventTimestamp), Bigint(expectedStreamVersion));
+}
 internal readonly record struct DeleteEventLog(long eventVersion) : IBindValue
 {
     public object Bind() => Values(Bigint(eventVersion));

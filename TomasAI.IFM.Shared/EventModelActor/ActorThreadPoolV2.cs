@@ -68,6 +68,53 @@ public sealed class ActorThreadPoolV2(
 
     public long DrainedMessageCount => _metricsState.DrainedMessageCount;
 
+    /// <summary>
+    /// Waits until no mailbox is scheduled or executing for a continuous quiet period.
+    /// The timeout is definitive so shutdown cannot wait forever for derivative actor work.
+    /// </summary>
+    public async ValueTask<bool> WaitForIdleAsync(
+        TimeSpan quietPeriod,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        if (quietPeriod < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(quietPeriod));
+        if (timeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        long? idleStarted = null;
+        while (System.Diagnostics.Stopwatch.GetElapsedTime(started) < timeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_readyQueue.ScheduledCount == 0 && _metricsState.ActiveMailboxCount == 0)
+            {
+                idleStarted ??= System.Diagnostics.Stopwatch.GetTimestamp();
+                if (System.Diagnostics.Stopwatch.GetElapsedTime(idleStarted.Value) >= quietPeriod)
+                    return true;
+            }
+            else
+            {
+                idleStarted = null;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), cancellationToken).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    /// <summary>Immediately cancels workers after a bounded graceful-drain attempt has expired.</summary>
+    public async ValueTask StopAsync()
+    {
+        _readyQueue.Complete();
+        var workers = Volatile.Read(ref _workers);
+        foreach (var worker in workers)
+            worker.Stop();
+        foreach (var worker in workers)
+            await worker.Completion.ConfigureAwait(false);
+    }
+
     void ThrowIfUnavailable()
     {
         if (Volatile.Read(ref _initialized) == 0)
@@ -98,9 +145,15 @@ public sealed class ActorThreadPoolV2(
 sealed class ActorThreadPoolMetricsState
 {
     long _drainedMessageCount;
+    int _activeMailboxCount;
     int _measureDrain;
 
     public long DrainedMessageCount => Volatile.Read(ref _drainedMessageCount);
+    public int ActiveMailboxCount => Math.Max(0, Volatile.Read(ref _activeMailboxCount));
+
+    public void RecordMailboxStarted() => Interlocked.Increment(ref _activeMailboxCount);
+
+    public void RecordMailboxCompleted() => Interlocked.Decrement(ref _activeMailboxCount);
 
     public void BeginDrainMeasurement()
     {

@@ -50,7 +50,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     [InlineData("Insert")]
     [InlineData("Start")]
     [InlineData("Stop")]
-    public async Task Given_AValidTickCommandMessage_When_ItIsParsed_Then_ItIsPreservedAndLogged(string kind)
+    public async Task Given_AValidTickCommandMessage_When_ItIsParsed_Then_ItIsPreservedWithoutDomainAuditWrite(string kind)
     {
         var database = Substitute.For<IEventSourceActorDbContext>();
         database.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -63,10 +63,10 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         parsed.GetType().Should().Be(command.GetType());
         parsed.CommandId.Should().Be(command.CommandId);
         parsed.Subject.Should().Be(command.Subject);
-        await database.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(value => value.CommandId == command.CommandId),
+        await database.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
-            Arg.Is<string>(json => json.Contains(command.CommandId.ToString())));
+            Arg.Any<string>());
     }
 
     [Theory]
@@ -109,7 +109,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
     }
 
     [Fact]
-    public async Task Given_TheCommandLogFails_When_ATickMessageIsValidated_Then_TheFailurePropagates()
+    public async Task Given_A_DomainCommandLogFailure_When_ATickMessageIsValidated_Then_ValidationIsIndependent()
     {
         var database = Substitute.For<IEventSourceActorDbContext>();
         database.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -121,7 +121,7 @@ public class FuturesTickDataCommandTests : IClassFixture<MarketDataFeedBddFixtur
         Func<Task> act = () => actor.InvokeOnValidateAsync(
             Substitute.For<ICommandActorContext<FuturesTickDataCommandActor>>(), command.Subject.ThreadId, command).AsTask();
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log failed");
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]

@@ -58,7 +58,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     [InlineData(TimeFrameType.Daily)]
     [InlineData(TimeFrameType.Weekly)]
     [InlineData(TimeFrameType.Monthly)]
-    public async Task ParseMessage_DeserializesUpdateFuturesTradeSignalCommand_AndLogsToDatabase(
+    public async Task ParseMessage_DeserializesUpdateFuturesTradeSignalCommand_WithoutDomainAuditWrite(
         TimeFrameType timePeriod)
     {
         // Arrange
@@ -98,7 +98,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         deserializedCommand.FuturesEodData.ValueDate.Should().Be(command.FuturesEodData.ValueDate);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>()
@@ -318,14 +318,16 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     }
 
     [Fact]
-    public async Task ParseMessage_DatabaseInsertFails_ThrowsException()
+    public async Task ParseMessage_DomainAuditFailure_DoesNotAffectValidation()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesTradeSignalCommandActor>>();
         var actor = _fixture.CreateActor(dbEventSource, logger);
 
-        var command = SampleData.TradeSignalUpdateCommand;
+        var command = SampleData.CreateTradeSignalUpdateCommandFor(
+            TimeFrameType.Daily,
+            vixFuturesPrice: (decimal)SampleData.VixFuturesPrice);
         var payload = ActorExtensions.DataSerializer.Serialize(command);
         var subject = command.Subject.ToString();
         var natsMsg = new NatsMsg<byte[]>(subject, string.Empty, 0, default!, payload, default!, NatsMsgFlags.None);
@@ -340,7 +342,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed);
 
         // Assert
-        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

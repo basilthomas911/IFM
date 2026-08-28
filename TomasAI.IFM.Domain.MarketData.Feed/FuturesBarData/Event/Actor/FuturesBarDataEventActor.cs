@@ -34,21 +34,21 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
     readonly ILogger<FuturesBarDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesBarDataEventParameters _eventParameters = new(
         ((IFuturesBarDataEventContext)actorContext).FuturesBarDataTimer, ((IFuturesBarDataEventContext)actorContext).MarketDataApi, ((IFuturesBarDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly Dictionary<string, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesBarDataEventContext, IEventActorContext, IEventActorContext, FuturesBarDataEventParameters, ValueTask<bool>>>()
     {
-        [typeof(FuturesBarDataStreamingStartedEvent).Name] = async (evt, context, commandApi, eventApi, eventParams) =>
+        [typeof(FuturesBarDataStreamingStartedEvent)] = async (evt, context, commandApi, eventApi, eventParams) =>
         {
             var e = (evt as FuturesBarDataStreamingStartedEvent)!;
             return await e.ExecuteAsync(context, commandApi, eventApi, eventParams);
         },
        
-        [typeof(FuturesBarDataStreamingStoppedEvent).Name] = async (evt, context, _, eventApi, eventParams) =>
+        [typeof(FuturesBarDataStreamingStoppedEvent)] = async (evt, context, _, eventApi, eventParams) =>
         {
             var e = (evt as FuturesBarDataStreamingStoppedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesBarDataInsertedEvent).Name] = static (_, _, _, _, _) => ValueTask.FromResult(true),
-        [typeof(FuturesBarDataDeletedEvent).Name] = static (_, _, _, _, _) => ValueTask.FromResult(true)
+        [typeof(FuturesBarDataInsertedEvent)] = static (_, _, _, _, _) => ValueTask.FromResult(true),
+        [typeof(FuturesBarDataDeletedEvent)] = static (_, _, _, _, _) => ValueTask.FromResult(true)
     };
 
     protected override ValueTask OnStartup(IEventActorContext<FuturesBarDataEventActor> context)
@@ -73,22 +73,12 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
     protected override IEvent ParseMessage(IEventActorContext<FuturesBarDataEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesBarDataStreamingStartedEvent.Verb] = msg => msg.AsEvent<FuturesBarDataStreamingStartedEvent>()!,
         [FuturesBarDataStreamingStoppedEvent.Verb] = msg => msg.AsEvent<FuturesBarDataStreamingStoppedEvent>()!,
@@ -108,9 +98,7 @@ public class FuturesBarDataEventActor(IEventActorContext<FuturesBarDataEventActo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters);
     }
 

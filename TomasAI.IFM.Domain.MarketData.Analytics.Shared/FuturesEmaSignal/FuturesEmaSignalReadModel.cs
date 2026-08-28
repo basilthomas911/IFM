@@ -62,7 +62,7 @@ public sealed record FuturesEmaAccumulatorCheckpoint
     /// <summary>Gets the current EMA200.</summary>
     [Key(8)] public decimal? Ema200 { get; init; }
     /// <summary>Gets the last observation identity.</summary>
-    [Key(9)] public FuturesTradeSessionBarPublisher.FuturesTradeSessionBarId LastObservationId { get; init; }
+    [Key(9)] public FuturesTradeSessionBarSignal.FuturesTradeSessionBarId LastObservationId { get; init; }
     /// <summary>Gets the last source sequence.</summary>
     [Key(10)] public long LastSourceSequence { get; init; }
 }

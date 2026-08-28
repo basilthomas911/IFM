@@ -3,7 +3,9 @@ using NATS.Client.Core;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Shared.EventModelActor;
 
@@ -27,7 +29,7 @@ public abstract class BaseEventSourceCommandActor<TActor>(
     readonly ILogger _logger = IsArgumentNull.Set(logger);
     string _serviceId = string.Empty;
 
-    ICommandDuplicateGuard? _commandDuplicateGuard;
+    ICommandAuditLogger? _commandAuditLogger;
     IActorSupervisor _supervisor;
     int _lifecycle;
 
@@ -75,9 +77,9 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             await producer.StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
             _serviceId = typeof(TActor).Name;
             _logger.LogInformationEvent(_serviceId, "Started {MailboxId} producer.", _actorId);
-            _commandDuplicateGuard = _context.Container.Resolve<ICommandDuplicateGuard>()
+            _commandAuditLogger = _context.Container.Resolve<ICommandAuditLogger>()
                 ?? throw new InvalidOperationException(
-                    $"{nameof(ICommandDuplicateGuard)} must be registered before command actors start.");
+                    $"{nameof(ICommandAuditLogger)} must be registered before command actors start.");
             cancellationToken.ThrowIfCancellationRequested();
             await OnStartup(_context, cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lifecycle, 2);
@@ -178,15 +180,24 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             /// get any existing error code from the message info...
             errorCode = command.ErrorCode;
 
+            // CommandId is the audit reservation key. Reject an invalid envelope before
+            // the audit boundary; derived validation maps retain the same visible rule
+            // so their complete command contract remains explicit and directly testable.
+            if (command.CommandId == Guid.Empty)
+                throw new CommandValidationException(
+                    errorCode,
+                    $"{command.CommandName}.CommandId is empty");
+
             cancellationToken.ThrowIfCancellationRequested();
             activeStage = ActorRuntimeMetrics.DeduplicationStage;
             var stageStarted = ActorRuntimeMetrics.StartStage();
             bool accepted;
             try
             {
-                accepted = await _commandDuplicateGuard!
-                    .TryAcceptAsync(command, cancellationToken)
+                var reservation = await _commandAuditLogger!
+                    .TryReserveAsync(command, cancellationToken)
                     .ConfigureAwait(false);
+                accepted = reservation.Accepted;
             }
             finally
             {
@@ -314,6 +325,74 @@ public abstract class BaseEventSourceCommandActor<TActor>(
 
     // Protected hooks for derived classes
     protected abstract ICommand ParseMessage(ICommandActorContext<TActor> context, IActorMessage message);
+
+    /// <summary>
+    /// Resolves a command parser from an actor-owned verb map and materializes the command.
+    /// </summary>
+    protected ICommand ParseMappedCommand(
+        ICommandActorContext<TActor> context,
+        IActorMessage message,
+        IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> parseMap)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(parseMap);
+
+        var subject = message.Subject;
+        if (subject.ActorType != ActorType.Command
+            || !string.Equals(subject.Name, Id.Name, StringComparison.Ordinal)
+            || !parseMap.TryGetValue(subject.Verb, out var parser))
+            throw new InvalidOperationException(
+                $"Unable to resolve {Id.Name} command from message: {subject}");
+
+        return parser(message)
+            ?? throw new InvalidOperationException(
+                $"Parser for {Id.Name}.{subject.Verb} returned no command.");
+    }
+
+    /// <summary>
+    /// Resolves a command receive handler by the command's exact concrete CLR type.
+    /// </summary>
+    protected THandler ResolveMappedCommandHandler<THandler>(
+        ICommand command,
+        IReadOnlyDictionary<Type, THandler> receiveMap)
+        where THandler : Delegate
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(receiveMap);
+
+        if (!receiveMap.TryGetValue(command.GetType(), out var handler))
+            throw new InvalidOperationException(
+                $"Unable to resolve {Id.Name} command from message: {command.Subject}");
+
+        return handler;
+    }
+
+    /// <summary>
+    /// Resolves exact-type command validation, aggregates every deterministic ingress error,
+    /// and throws one <see cref="CommandValidationException"/> when validation fails.
+    /// </summary>
+    protected void ValidateMappedCommand(
+        ICommand command,
+        IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> validationMap)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(validationMap);
+
+        if (!validationMap.TryGetValue(command.GetType(), out var validator))
+            throw new InvalidOperationException(
+                $"Unable to validate {Id.Name} commands from message: {command.Subject}");
+
+        var errors = validator(command)
+            ?? throw new InvalidOperationException(
+                $"Validator for {command.GetType().Name} returned no error collection.");
+
+        if (errors.Count > 0)
+            throw new CommandValidationException(
+                command.ErrorCode,
+                string.Join(Environment.NewLine, errors.Select(error => error.ErrorMessage))
+                + Environment.NewLine);
+    }
 
     /// <summary>
     /// Compatibility entry point for existing command actor tests during the staged mailbox migration.

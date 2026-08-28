@@ -13,13 +13,22 @@ sealed class ActorReadyQueue
             AllowSynchronousContinuations = false
         });
     int _completed;
+    int _scheduledCount;
 
     public bool IsCompleted => Volatile.Read(ref _completed) != 0;
+    public int ScheduledCount => Math.Max(0, Volatile.Read(ref _scheduledCount));
 
     public bool Schedule(ActorThreadId threadId)
     {
-        if (IsCompleted || !_channel.Writer.TryWrite(threadId))
+        if (IsCompleted)
             return false;
+
+        Interlocked.Increment(ref _scheduledCount);
+        if (!_channel.Writer.TryWrite(threadId))
+        {
+            Interlocked.Decrement(ref _scheduledCount);
+            return false;
+        }
 
         ActorRuntimeMetrics.RecordReadyScheduled(threadId.ActorType);
         return true;
@@ -30,6 +39,7 @@ sealed class ActorReadyQueue
     {
         await foreach (var threadId in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
+            Interlocked.Decrement(ref _scheduledCount);
             ActorRuntimeMetrics.RecordReadyDequeued(threadId.ActorType);
             yield return threadId;
         }

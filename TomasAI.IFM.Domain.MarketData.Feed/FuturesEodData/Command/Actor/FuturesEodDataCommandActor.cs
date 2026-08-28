@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Actor;
@@ -37,7 +36,6 @@ public class FuturesEodDataCommandActor(
 {
     public const string ActorName = "FuturesEodDataCommand";
     readonly ILogger<FuturesEodDataCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<FuturesEodDataCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesEodDataCommandState> _repo = default!;
 
@@ -62,24 +60,16 @@ public class FuturesEodDataCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesEodDataCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesEodDataCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [InsertFuturesEodDataCommand.Verb] = msg => msg.AsCommand<InsertFuturesEodDataCommand>()!,
         [InsertVixFuturesEodDataCommand.Verb] = msg => msg.AsCommand<InsertVixFuturesEodDataCommand>()!
@@ -100,9 +90,7 @@ public class FuturesEodDataCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var eodDataState = IsArgumentNull.Set((state as FuturesEodDataCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, eodDataState));
     }
 
@@ -110,11 +98,12 @@ public class FuturesEodDataCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures EOD data
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
-        FuturesEodDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesEodDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesEodDataCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(InsertFuturesEodDataCommand).Name] = (cmd, context, state) => (cmd as InsertFuturesEodDataCommand)!.Execute(state),
-        [typeof(InsertVixFuturesEodDataCommand).Name] = (cmd, context, state) => (cmd as InsertVixFuturesEodDataCommand)!.Execute(state)
+        [typeof(InsertFuturesEodDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesEodDataCommand)!.Execute(state),
+        [typeof(InsertVixFuturesEodDataCommand)] = (cmd, context, state) => (cmd as InsertVixFuturesEodDataCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -129,23 +118,21 @@ public class FuturesEodDataCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(InsertFuturesEodDataCommand).Name] = cmd => {
+        [typeof(InsertFuturesEodDataCommand)] = cmd => {
             var e = (InsertFuturesEodDataCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
                 .ValidateFuturesTickData(e.FuturesTickData)
                 .ValidateContract(e.Contract)
@@ -155,9 +142,11 @@ public class FuturesEodDataCommandActor(
                 .ValidateWindowSize(e.WindowSize, e.CommandName)
                 .ValidateVixEodData(e.VixEodData, e.CommandName);
         },
-        [typeof(InsertVixFuturesEodDataCommand).Name] = cmd => {
+        [typeof(InsertVixFuturesEodDataCommand)] = cmd => {
             var e = (InsertVixFuturesEodDataCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateVixFuturesTickData(e.VixFuturesTickData);
         }
     };

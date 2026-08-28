@@ -1,24 +1,25 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 
-/// <summary>
-/// Owns the authoritative event-sourced state and deterministic stage transitions for Intrinsic Time Strategy workflows.
-/// </summary>
+/// <summary>Owns atomic snapshot transitions for one Intrinsic Time Strategy Workflow entity.</summary>
 /// <remarks>
-/// The actor persists decisions to PostgreSQL before the conventional projector publishes dispatch lifecycle events.
-/// It never sends pipeline commands directly and it has no durable Event actor dependency.
+/// Every accepted transition appends only <see cref="WorkflowStrategyStateUpdatedEvent"/>. Pipeline work is never
+/// dispatched here; the conventional projector may publish the committed snapshot after PostgreSQL succeeds.
 /// </remarks>
 public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> actorContext)
@@ -27,7 +28,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
-            [StartIntrinsicTimeStrategyWorkflowCommand.Verb] = message => message.AsCommand<StartIntrinsicTimeStrategyWorkflowCommand>()!,
+            [StartIntrinsicTimeStrategyWorkflowCommand.Verb] =
+                message => message.AsCommand<StartIntrinsicTimeStrategyWorkflowCommand>()!,
             [CompleteRegimeDiscoveryCommand.Verb] = message => message.AsCommand<CompleteRegimeDiscoveryCommand>()!,
             [CompleteMarketConditionCommand.Verb] = message => message.AsCommand<CompleteMarketConditionCommand>()!,
             [CompleteTradeSelectionCommand.Verb] = message => message.AsCommand<CompleteTradeSelectionCommand>()!,
@@ -38,92 +40,210 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             [FailTradeSelectionCommand.Verb] = message => message.AsCommand<FailTradeSelectionCommand>()!,
             [FailOrderCompositionCommand.Verb] = message => message.AsCommand<FailOrderCompositionCommand>()!,
             [FailRiskManagementCommand.Verb] = message => message.AsCommand<FailRiskManagementCommand>()!,
-            [TimeoutRegimeDiscoveryCommand.Verb] = message => message.AsCommand<TimeoutRegimeDiscoveryCommand>()!,
             [TimeoutMarketConditionCommand.Verb] = message => message.AsCommand<TimeoutMarketConditionCommand>()!,
             [TimeoutTradeSelectionCommand.Verb] = message => message.AsCommand<TimeoutTradeSelectionCommand>()!,
             [TimeoutOrderCompositionCommand.Verb] = message => message.AsCommand<TimeoutOrderCompositionCommand>()!,
             [TimeoutRiskManagementCommand.Verb] = message => message.AsCommand<TimeoutRiskManagementCommand>()!,
-            [CancelIntrinsicTimeStrategyWorkflowCommand.Verb] = message => message.AsCommand<CancelIntrinsicTimeStrategyWorkflowCommand>()!,
-            [RedispatchCurrentStrategyPipelineCommand.Verb] = message => message.AsCommand<RedispatchCurrentStrategyPipelineCommand>()!
+            [CancelIntrinsicTimeStrategyWorkflowCommand.Verb] =
+                message => message.AsCommand<CancelIntrinsicTimeStrategyWorkflowCommand>()!
         };
 
-    static readonly IReadOnlyDictionary<string, Action<ICommand>> _validationMap =
-        new Dictionary<string, Action<ICommand>>(StringComparer.Ordinal)
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(StartIntrinsicTimeStrategyWorkflowCommand).Name] = ValidateCommand,
-            [typeof(CompleteRegimeDiscoveryCommand).Name] = ValidateCommand,
-            [typeof(CompleteMarketConditionCommand).Name] = ValidateCommand,
-            [typeof(CompleteTradeSelectionCommand).Name] = ValidateCommand,
-            [typeof(CompleteOrderCompositionCommand).Name] = ValidateCommand,
-            [typeof(CompleteRiskManagementCommand).Name] = ValidateCommand,
-            [typeof(FailRegimeDiscoveryCommand).Name] = ValidateCommand,
-            [typeof(FailMarketConditionCommand).Name] = ValidateCommand,
-            [typeof(FailTradeSelectionCommand).Name] = ValidateCommand,
-            [typeof(FailOrderCompositionCommand).Name] = ValidateCommand,
-            [typeof(FailRiskManagementCommand).Name] = ValidateCommand,
-            [typeof(TimeoutRegimeDiscoveryCommand).Name] = ValidateCommand,
-            [typeof(TimeoutMarketConditionCommand).Name] = ValidateCommand,
-            [typeof(TimeoutTradeSelectionCommand).Name] = ValidateCommand,
-            [typeof(TimeoutOrderCompositionCommand).Name] = ValidateCommand,
-            [typeof(TimeoutRiskManagementCommand).Name] = ValidateCommand,
-            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand).Name] = ValidateCommand,
-            [typeof(RedispatchCurrentStrategyPipelineCommand).Name] = ValidateCommand
+            [typeof(StartIntrinsicTimeStrategyWorkflowCommand)] = command =>
+            {
+                var typed = (StartIntrinsicTimeStrategyWorkflowCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(CompleteRegimeDiscoveryCommand)] = command =>
+            {
+                var typed = (CompleteRegimeDiscoveryCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(CompleteMarketConditionCommand)] = command =>
+            {
+                var typed = (CompleteMarketConditionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(CompleteTradeSelectionCommand)] = command =>
+            {
+                var typed = (CompleteTradeSelectionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(CompleteOrderCompositionCommand)] = command =>
+            {
+                var typed = (CompleteOrderCompositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(CompleteRiskManagementCommand)] = command =>
+            {
+                var typed = (CompleteRiskManagementCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(FailRegimeDiscoveryCommand)] = command =>
+            {
+                var typed = (FailRegimeDiscoveryCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(FailMarketConditionCommand)] = command =>
+            {
+                var typed = (FailMarketConditionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(FailTradeSelectionCommand)] = command =>
+            {
+                var typed = (FailTradeSelectionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(FailOrderCompositionCommand)] = command =>
+            {
+                var typed = (FailOrderCompositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(FailRiskManagementCommand)] = command =>
+            {
+                var typed = (FailRiskManagementCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(TimeoutMarketConditionCommand)] = command =>
+            {
+                var typed = (TimeoutMarketConditionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(TimeoutTradeSelectionCommand)] = command =>
+            {
+                var typed = (TimeoutTradeSelectionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(TimeoutOrderCompositionCommand)] = command =>
+            {
+                var typed = (TimeoutOrderCompositionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(TimeoutRiskManagementCommand)] = command =>
+            {
+                var typed = (TimeoutRiskManagementCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            },
+            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = command =>
+            {
+                var typed = (CancelIntrinsicTimeStrategyWorkflowCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed.EntityId, typed.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommand(typed));
+            }
         };
 
-    static readonly IReadOnlyDictionary<string, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, IntrinsicTimeStrategyWorkflowCommandActor, ValueTask<ServiceResult<GuidResult>>>> _receiveMap =
-        new Dictionary<string, Func<ICommand, ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor>, IntrinsicTimeStrategyWorkflowCommandState, IntrinsicTimeStrategyWorkflowCommandActor, ValueTask<ServiceResult<GuidResult>>>>(StringComparer.Ordinal)
+
+    static readonly IReadOnlyDictionary<Type, Func<IntrinsicTimeStrategyWorkflowCommandActor, ICommand,
+        IntrinsicTimeStrategyWorkflowCommandState, ServiceResult<GuidResult>>> _receiveMap =
+        new Dictionary<Type, Func<IntrinsicTimeStrategyWorkflowCommandActor, ICommand,
+            IntrinsicTimeStrategyWorkflowCommandState, ServiceResult<GuidResult>>>()
         {
-            [typeof(StartIntrinsicTimeStrategyWorkflowCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((StartIntrinsicTimeStrategyWorkflowCommand)command).Execute(state, static (s, c) => HandleStart(s, c))),
-            [typeof(CompleteRegimeDiscoveryCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteRegimeDiscoveryCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
-            [typeof(CompleteMarketConditionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteMarketConditionCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
-            [typeof(CompleteTradeSelectionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteTradeSelectionCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
-            [typeof(CompleteOrderCompositionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteOrderCompositionCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
-            [typeof(CompleteRiskManagementCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CompleteRiskManagementCommand)command).Execute(state, static (s, c) => HandleCompletionCommand(s, c))),
-            [typeof(FailRegimeDiscoveryCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailRegimeDiscoveryCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
-            [typeof(FailMarketConditionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailMarketConditionCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
-            [typeof(FailTradeSelectionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailTradeSelectionCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
-            [typeof(FailOrderCompositionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailOrderCompositionCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
-            [typeof(FailRiskManagementCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((FailRiskManagementCommand)command).Execute(state, static (s, c) => HandleFailureCommand(s, c))),
-            [typeof(TimeoutRegimeDiscoveryCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutRegimeDiscoveryCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
-            [typeof(TimeoutMarketConditionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutMarketConditionCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
-            [typeof(TimeoutTradeSelectionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutTradeSelectionCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
-            [typeof(TimeoutOrderCompositionCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutOrderCompositionCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
-            [typeof(TimeoutRiskManagementCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((TimeoutRiskManagementCommand)command).Execute(state, static (s, c) => HandleTimeoutCommand(s, c))),
-            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand).Name] = (command, _, state, _) => ValueTask.FromResult(((CancelIntrinsicTimeStrategyWorkflowCommand)command).Execute(state, static (s, c) => HandleCancel(s, c))),
-            [typeof(RedispatchCurrentStrategyPipelineCommand).Name] = (command, _, state, actor) => ((RedispatchCurrentStrategyPipelineCommand)command).ExecuteAsync(state, actor.HandleRedispatchAsync)
+            [typeof(StartIntrinsicTimeStrategyWorkflowCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (StartIntrinsicTimeStrategyWorkflowCommand)command),
+            [typeof(CompleteRegimeDiscoveryCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (CompleteRegimeDiscoveryCommand)command),
+            [typeof(CompleteMarketConditionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (CompleteMarketConditionCommand)command),
+            [typeof(CompleteTradeSelectionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (CompleteTradeSelectionCommand)command),
+            [typeof(CompleteOrderCompositionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (CompleteOrderCompositionCommand)command),
+            [typeof(CompleteRiskManagementCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (CompleteRiskManagementCommand)command),
+            [typeof(FailRegimeDiscoveryCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (FailRegimeDiscoveryCommand)command),
+            [typeof(FailMarketConditionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (FailMarketConditionCommand)command),
+            [typeof(FailTradeSelectionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (FailTradeSelectionCommand)command),
+            [typeof(FailOrderCompositionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (FailOrderCompositionCommand)command),
+            [typeof(FailRiskManagementCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (FailRiskManagementCommand)command),
+            [typeof(TimeoutMarketConditionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (TimeoutMarketConditionCommand)command),
+            [typeof(TimeoutTradeSelectionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (TimeoutTradeSelectionCommand)command),
+            [typeof(TimeoutOrderCompositionCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (TimeoutOrderCompositionCommand)command),
+            [typeof(TimeoutRiskManagementCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (TimeoutRiskManagementCommand)command),
+            [typeof(CancelIntrinsicTimeStrategyWorkflowCommand)] = static (actor, command, state) =>
+                actor.ProcessWorkflowCommand(state, (CancelIntrinsicTimeStrategyWorkflowCommand)command)
         };
 
-    /// <summary>Gets the Command actor name used by dependency injection and actor routing.</summary>
+    /// <summary>Gets the workflow Command actor name.</summary>
     public const string ActorName = StartIntrinsicTimeStrategyWorkflowCommand.Actor;
 
     IIntrinsicTimeStrategyWorkflowCommandContext ActorContext =>
         Context as IIntrinsicTimeStrategyWorkflowCommandContext
-        ?? throw new InvalidOperationException($"{nameof(Context)} must implement {nameof(IIntrinsicTimeStrategyWorkflowCommandContext)}.");
+        ?? throw new InvalidOperationException(
+            $"{nameof(Context)} must implement {nameof(IIntrinsicTimeStrategyWorkflowCommandContext)}.");
 
     /// <inheritdoc />
-    protected override async ValueTask OnStartup(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
-    {
-        await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
-    }
+    protected override async ValueTask OnStartup(
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
+        => await ActorContext.EventProjector.StartAsync(context).ConfigureAwait(false);
 
     /// <inheritdoc />
-    protected override async ValueTask OnShutdown(ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
-    {
-        await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
-    }
+    protected override async ValueTask OnShutdown(
+        ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context)
+        => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <inheritdoc />
     protected override ICommand ParseMessage(
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject.ActorType != ActorType.Command ||
-            !string.Equals(message.Subject.Name, ActorName, StringComparison.Ordinal) ||
-            !_parseMap.TryGetValue(message.Subject.Verb, out var parse))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-
-        return parse(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(
@@ -131,9 +251,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
-            throw new InvalidOperationException($"Unsupported workflow command: {command.GetType().Name}");
-        validate(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -156,14 +274,78 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             command).ConfigureAwait(false);
 
     /// <inheritdoc />
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<IntrinsicTimeStrategyWorkflowCommandActor> context,
-        IActorState state,
+        IActorState actorState,
         ICommand command)
     {
-        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
-            throw new InvalidOperationException($"Unsupported workflow command: {command.GetType().Name}");
-        return await receive(command, context, (IntrinsicTimeStrategyWorkflowCommandState)state, this).ConfigureAwait(false);
+        var state = (IntrinsicTimeStrategyWorkflowCommandState)actorState;
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
+        return ValueTask.FromResult(receive(this, command, state));
+    }
+
+    ServiceResult<GuidResult> ProcessWorkflowCommand(
+        IntrinsicTimeStrategyWorkflowCommandState state,
+        ICommand command)
+    {
+        var before = state.CurrentView;
+        var eventCount = state.Events.Count;
+        switch (command)
+        {
+            case StartIntrinsicTimeStrategyWorkflowCommand start:
+                HandleStart(state, start, ActorContext.TimeProvider,
+                    ActorContext.ExecutionOptions.MaximumExecutionDuration);
+                break;
+            case CancelIntrinsicTimeStrategyWorkflowCommand cancel:
+                HandleCancel(state, cancel, ActorContext.TimeProvider);
+                break;
+            default:
+                if (TryNormalizeCompletion(command, out var completion))
+                    HandleCompletion(state, command, completion, ActorContext.TimeProvider);
+                else if (TryNormalizeFailure(command, out var failure))
+                    HandleFailure(state, command, failure, ActorContext.TimeProvider);
+                else if (TryNormalizeTimeout(command, out var timeout))
+                    HandleTimeout(state, command, timeout, ActorContext.TimeProvider);
+                else
+                    throw new InvalidOperationException($"Unsupported workflow command: {command.GetType().Name}");
+                break;
+        }
+        LogTransitionObservation(command, before, state.CurrentView, state.Events.Count - eventCount);
+        return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+    }
+
+    void LogTransitionObservation(
+        ICommand command,
+        IntrinsicTimeStrategyWorkflowView? before,
+        IntrinsicTimeStrategyWorkflowView? after,
+        int appendedEvents)
+    {
+        if (command is StartIntrinsicTimeStrategyWorkflowCommand start)
+        {
+            if (appendedEvents == 0 && before?.TriggerEventId != start.TriggerEventId)
+                ActorContext.Logger.LogWarning(
+                    "Workflow Start rejected as busy for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
+                    start.EntityId.Format(), before?.WorkflowId, before?.WorkflowRevision);
+            else if (appendedEvents == 2)
+                ActorContext.Logger.LogWarning(
+                    "Expired workflow {ExpiredWorkflowId} was lazily closed and replaced by {WorkflowId} for {WorkflowEntityId}",
+                    before?.WorkflowId, after?.WorkflowId, start.EntityId.Format());
+            return;
+        }
+
+        if (appendedEvents == 0)
+        {
+            ActorContext.Logger.LogWarning(
+                "Stale or duplicate workflow terminal command {CommandName} ignored for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
+                command.CommandName, command.Subject.EntityId, before?.WorkflowId, before?.WorkflowRevision);
+            return;
+        }
+
+        if (before is { Status: WorkflowStrategyMachineStatus.Started } &&
+            after is { Status: WorkflowStrategyMachineStatus.TimedOut })
+            ActorContext.Logger.LogWarning(
+                "Workflow deadline took precedence for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
+                command.Subject.EntityId, after.WorkflowId, after.WorkflowRevision);
     }
 
     /// <inheritdoc />
@@ -181,251 +363,357 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
             throw new ArgumentException("Workflow commands require a non-empty command identity.", nameof(command));
         if (string.IsNullOrWhiteSpace(command.Subject.EntityId))
             throw new ArgumentException("Workflow commands require an entity routing identity.", nameof(command));
+        if (command is ICommand<IntrinsicTimeStrategyWorkflowEntityId> entityCommand &&
+            !string.Equals(command.Subject.EntityId, entityCommand.EntityId.Format(), StringComparison.Ordinal))
+            throw new ArgumentException("Workflow command subject must match its entity identity.", nameof(command));
+
         if (command is StartIntrinsicTimeStrategyWorkflowCommand start)
         {
-            var configurationErrors = new Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSetValidationRules()
-                .Execute(start.RegimeDiscoveryParameterSet);
-            if (configurationErrors.Length != 0)
-                throw new ArgumentException(
-                    string.Join("; ", configurationErrors.Select(value => value.ErrorMessage)), nameof(command));
-            var expectedHash = Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterPayload
-                .ComputeSha256(start.RegimeDiscoveryParameterSet);
-            if (!string.Equals(expectedHash, start.RegimeDiscoveryParameterPayloadSha256,
+            var errors = new RegimeDiscoveryParameterSetValidationRules().Execute(start.RegimeDiscoveryParameterSet);
+            if (errors.Length != 0)
+                throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
+                    nameof(command));
+            if (!string.Equals(
+                    RegimeDiscoveryParameterPayload.ComputeSha256(start.RegimeDiscoveryParameterSet),
+                    start.RegimeDiscoveryParameterPayloadSha256,
                     StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException("Workflow start parameter hash does not match its immutable payload.",
                     nameof(command));
         }
-        if (!TryNormalizeCompletion(command, out var completion))
-            return;
 
-        var validationErrors = new StrategyStageResultEnvelopeValidationRules().Execute(completion.Result);
-        if (validationErrors.Length != 0)
-            throw new ArgumentException(
-                string.Join("; ", validationErrors.Select(static error => error.ErrorMessage)),
-                nameof(command));
-    }
-
-    static void HandleCompletionCommand(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command)
-    {
-        if (!TryNormalizeCompletion(command, out var completion))
-            throw new InvalidOperationException($"Unsupported completion command: {command.GetType().Name}");
-        HandleCompletion(state, command, completion);
-    }
-
-    static void HandleFailureCommand(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command)
-    {
-        if (!TryNormalizeFailure(command, out var failure))
-            throw new InvalidOperationException($"Unsupported failure command: {command.GetType().Name}");
-        HandleFailure(state, command, failure);
-    }
-
-    static void HandleTimeoutCommand(IntrinsicTimeStrategyWorkflowCommandState state, ICommand command)
-    {
-        if (!TryNormalizeTimeout(command, out var timeout))
-            throw new InvalidOperationException($"Unsupported timeout command: {command.GetType().Name}");
-        HandleTimeout(state, command, timeout);
+        if (TryNormalizeCompletion(command, out var completion))
+        {
+            var errors = new StrategyStageResultEnvelopeValidationRules().Execute(completion.Result);
+            if (errors.Length != 0)
+                throw new ArgumentException(string.Join("; ", errors.Select(value => value.ErrorMessage)),
+                    nameof(command));
+        }
     }
 
     internal static void HandleStart(
         IntrinsicTimeStrategyWorkflowCommandState state,
-        StartIntrinsicTimeStrategyWorkflowCommand command)
+        StartIntrinsicTimeStrategyWorkflowCommand command,
+        TimeProvider timeProvider,
+        TimeSpan maximumExecutionDuration)
     {
-        if (state.IsDuplicateTrigger(command.TriggerEventId))
-            return;
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        if (maximumExecutionDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(maximumExecutionDuration));
 
-        if (state.HasActiveWorkflow)
-        {
-            var active = state.ActiveWorkflow!;
-            state.Update(CreateEvent<StrategyWorkflowStartRejectedEvent>(command,
-                (nameof(StrategyWorkflowStartRejectedEvent.RequestedWorkflowId), command.ProposedWorkflowId),
-                (nameof(StrategyWorkflowStartRejectedEvent.ActiveWorkflowId), active.WorkflowId),
-                (nameof(StrategyWorkflowStartRejectedEvent.ActiveWorkflowRevision), active.WorkflowRevision),
-                (nameof(StrategyWorkflowStartRejectedEvent.CorrelationId), command.CorrelationId),
-                (nameof(StrategyWorkflowStartRejectedEvent.CausationId), command.CausationId),
-                (nameof(StrategyWorkflowStartRejectedEvent.ActiveStage), active.CurrentStage),
-                (nameof(StrategyWorkflowStartRejectedEvent.TriggerEventId), command.TriggerEventId),
-                (nameof(StrategyWorkflowStartRejectedEvent.ReasonCode), "ActiveWorkflowExists"),
-                (nameof(StrategyWorkflowStartRejectedEvent.RejectedAtUtc), command.RequestedAtUtc)), command);
+        var now = UtcNow(timeProvider);
+        var current = state.CurrentView;
+        if (current?.TriggerEventId == command.TriggerEventId)
             return;
+        if (current is { Status: WorkflowStrategyMachineStatus.Started } && now < current.ExpiresAtUtc)
+            return;
+        if (current is { Status: WorkflowStrategyMachineStatus.Started })
+        {
+            var expired = TerminalView(
+                current,
+                WorkflowStrategyMachineStatus.TimedOut,
+                StrategyActorProcessingStatus.TimedOut,
+                current.WorkflowRevision + 1,
+                command.CommandId,
+                now,
+                "WorkflowExecutionExpired",
+                CreateTimeoutFailure(now));
+            AppendSnapshot(state, command, current.Status, expired, now);
+            current = expired;
         }
 
-        const StrategyWorkflowStage firstStage = StrategyWorkflowStage.RegimeDiscovery;
-        state.Update(CreateEvent<StrategyWorkflowStartAcceptedEvent>(command,
-            (nameof(StrategyWorkflowStartAcceptedEvent.WorkflowId), command.ProposedWorkflowId),
-            (nameof(StrategyWorkflowStartAcceptedEvent.WorkflowRevision), 1L),
-            (nameof(StrategyWorkflowStartAcceptedEvent.CorrelationId), command.CorrelationId),
-            (nameof(StrategyWorkflowStartAcceptedEvent.CausationId), command.CausationId),
-            (nameof(StrategyWorkflowStartAcceptedEvent.Stage), firstStage),
-            (nameof(StrategyWorkflowStartAcceptedEvent.TriggerEventId), command.TriggerEventId),
-            (nameof(StrategyWorkflowStartAcceptedEvent.TriggerEvent), command.TriggerEvent),
-            (nameof(StrategyWorkflowStartAcceptedEvent.WorkflowDefinitionVersion), command.WorkflowDefinitionVersion),
-            (nameof(StrategyWorkflowStartAcceptedEvent.RegimeDiscoveryParameterSet), command.RegimeDiscoveryParameterSet),
-            (nameof(StrategyWorkflowStartAcceptedEvent.RegimeDiscoveryParameterPayloadSha256), command.RegimeDiscoveryParameterPayloadSha256),
-            (nameof(StrategyWorkflowStartAcceptedEvent.StartedAtUtc), command.RequestedAtUtc)), command);
+        var expiresAtUtc = now.Add(maximumExecutionDuration);
+        var parameterSet = command.RegimeDiscoveryParameterSet;
+        var started = new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = command.EntityId,
+            WorkflowId = command.ProposedWorkflowId,
+            TriggerEventId = command.TriggerEventId,
+            CorrelationId = command.CorrelationId,
+            CausationId = command.CausationId,
+            WorkflowDefinitionVersion = command.WorkflowDefinitionVersion,
+            Status = WorkflowStrategyMachineStatus.Started,
+            CurrentStage = StrategyWorkflowStage.RegimeDiscovery,
+            WorkflowRevision = 1,
+            StartedAtUtc = now,
+            UpdatedAtUtc = now,
+            ExpiresAtUtc = expiresAtUtc,
+            RegimeDiscovery = new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Processing,
+                StartedAtUtc = now,
+                InputWorkflowRevision = 1,
+                ParameterSetId = parameterSet.ParameterSetId,
+                ParameterSetVersion = parameterSet.Version,
+                ParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
+                ExpiresAtUtc = expiresAtUtc
+            },
+            RegimeDiscoveryParameterSet = parameterSet,
+            RegimeDiscoveryParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
+            TriggerEvent = command.TriggerEvent
+        };
+        AppendSnapshot(state, command, current?.Status ?? WorkflowStrategyMachineStatus.Empty, started, now);
+    }
 
-        var route = IntrinsicTimeStrategyPipelineRoutes.Get(firstStage);
-        state.Update(CreateEvent<IntrinsicTimeStrategyWorkflowStartedEvent>(command,
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.WorkflowId), command.ProposedWorkflowId),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.WorkflowRevision), 1L),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.CorrelationId), command.CorrelationId),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.CausationId), command.CausationId),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.NextPipelineStage), firstStage),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.NextPipelineActorType), route.CommandActor.ActorType),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.NextPipelineActorName), route.CommandActor.Name),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.NextPipelineBoundedContext), route.BoundedContext),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.NextPipelineCommandId), DeterministicCommandId(command.ProposedWorkflowId, firstStage, 1)),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.WorkflowState), state.ActiveWorkflow!),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.TriggerEvent), command.TriggerEvent),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.RequestedAtUtc), command.RequestedAtUtc),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.ExpectedCompletionAtUtc), (object?)null),
-            (nameof(IntrinsicTimeStrategyWorkflowStartedEvent.StartedAtUtc), command.RequestedAtUtc)), command);
+    internal static void HandleCompletionForTest(
+        IntrinsicTimeStrategyWorkflowCommandState state,
+        ICommand command,
+        TimeProvider timeProvider)
+    {
+        if (!TryNormalizeCompletion(command, out var input))
+            throw new ArgumentException("A completion command is required.", nameof(command));
+        HandleCompletion(state, command, input, timeProvider);
     }
 
     static void HandleCompletion(
         IntrinsicTimeStrategyWorkflowCommandState state,
         ICommand command,
-        CompletionInput input)
+        CompletionInput input,
+        TimeProvider timeProvider)
     {
-        if (state.HasProcessedPipelineEvent(input.SourceEventId))
+        var current = state.CurrentView;
+        if (!MatchesCurrent(current, input.WorkflowId, input.Revision, input.Stage))
+            return;
+        var stage = GetStage(current!, input.Stage);
+        if (stage.SourceEventId == input.SourceEventId)
+            return;
+
+        var now = UtcNow(timeProvider);
+        if (now >= current!.ExpiresAtUtc)
         {
-            var currentWorkflow = state.ActiveWorkflow;
-            if (currentWorkflow is not null && state.IsConflictingPipelineResult(input.SourceEventId, input.Stage, input.Result))
-                Stop(state, command, currentWorkflow.WorkflowId, currentWorkflow.WorkflowRevision + 1, currentWorkflow.CurrentStage,
-                    currentWorkflow.CorrelationId, input.SourceEventId, StrategyWorkflowOutcome.ConsistencyFault,
-                    "ConflictingPipelineResult", input.OccurredAtUtc);
+            var timedOut = TerminalView(current, WorkflowStrategyMachineStatus.TimedOut,
+                StrategyActorProcessingStatus.TimedOut, current.WorkflowRevision + 1, input.SourceEventId, now,
+                "WorkflowExecutionExpired", CreateTimeoutFailure(now), input.SourceEventId);
+            AppendSnapshot(state, command, current.Status, timedOut, now);
             return;
         }
-        if (!CanApplyStageInput(state, input.WorkflowId, input.Revision, input.Stage))
-            return;
 
-        var nextRevision = input.Revision + 1;
-        state.Update(CreateResultEvent(command, input, nextRevision), command);
-        state.Update(CreateContinuationEvent(command, input, nextRevision), command);
+        var revision = current.WorkflowRevision + 1;
+        var completedStage = stage with
+        {
+            ProcessingStatus = StrategyActorProcessingStatus.Completed,
+            ContinuationDecision = StrategyWorkflowContinuationDecision.Proceed,
+            CompletedAtUtc = now,
+            FailedAtUtc = null,
+            Result = input.Result,
+            Failure = null,
+            SourceEventId = input.SourceEventId,
+            ContinuationRuleSetId = "IntrinsicTimeStrategyWorkflow.v1",
+            ContinuationRuleSetVersion = 1,
+            ContinuationReasonCodes = []
+        };
+        var updated = SetStage(current with
+        {
+            CausationId = input.CausationId,
+            WorkflowRevision = revision,
+            UpdatedAtUtc = now
+        }, input.Stage, completedStage);
 
-        var active = state.ActiveWorkflow!;
         if (input.Stage == StrategyWorkflowStage.RiskManagement)
+            updated = updated with { Status = WorkflowStrategyMachineStatus.Completed, TerminalAtUtc = now };
+        else
         {
-            state.Update(CreateEvent<IntrinsicTimeStrategyWorkflowCompletedEvent>(command,
-                (nameof(IntrinsicTimeStrategyWorkflowCompletedEvent.WorkflowId), input.WorkflowId),
-                (nameof(IntrinsicTimeStrategyWorkflowCompletedEvent.WorkflowRevision), nextRevision),
-                (nameof(IntrinsicTimeStrategyWorkflowCompletedEvent.CorrelationId), input.CorrelationId),
-                (nameof(IntrinsicTimeStrategyWorkflowCompletedEvent.CausationId), input.CausationId),
-                (nameof(IntrinsicTimeStrategyWorkflowCompletedEvent.Stage), input.Stage),
-                (nameof(IntrinsicTimeStrategyWorkflowCompletedEvent.CompletedAtUtc), input.OccurredAtUtc)), command);
-            return;
+            var next = NextStage(input.Stage);
+            updated = SetStage(updated with { CurrentStage = next }, next, new StrategyWorkflowStageState
+            {
+                ProcessingStatus = StrategyActorProcessingStatus.Processing,
+                StartedAtUtc = now,
+                InputWorkflowRevision = revision,
+                ExpiresAtUtc = current.ExpiresAtUtc
+            });
         }
+        AppendSnapshot(state, command, current.Status, updated, now);
+    }
 
-        var nextStage = NextStage(input.Stage);
-        var route = IntrinsicTimeStrategyPipelineRoutes.Get(nextStage);
-        state.Update(CreateEvent<IntrinsicTimeStrategyWorkflowContinuedEvent>(command,
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.WorkflowId), input.WorkflowId),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.WorkflowRevision), nextRevision),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.CorrelationId), input.CorrelationId),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.CausationId), input.CausationId),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.CompletedPipelineStage), input.Stage),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.NextPipelineStage), nextStage),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.NextPipelineActorType), route.CommandActor.ActorType),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.NextPipelineActorName), route.CommandActor.Name),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.NextPipelineBoundedContext), route.BoundedContext),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.NextPipelineCommandId), DeterministicCommandId(input.WorkflowId, nextStage, nextRevision)),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.WorkflowState), active),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.TriggerEvent), state.ActiveTriggerEvent!),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.ContinuationRuleSetId), "IntrinsicTimeStrategyWorkflow.v1"),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.ContinuationRuleSetVersion), 1),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.ContinuationReasonCodes), Array.Empty<string>()),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.RequestedAtUtc), input.OccurredAtUtc),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.ExpectedCompletionAtUtc), (object?)null),
-            (nameof(IntrinsicTimeStrategyWorkflowContinuedEvent.ContinuedAtUtc), input.OccurredAtUtc)), command);
+    internal static void HandleFailureForTest(
+        IntrinsicTimeStrategyWorkflowCommandState state,
+        ICommand command,
+        TimeProvider timeProvider)
+    {
+        if (!TryNormalizeFailure(command, out var input))
+            throw new ArgumentException("A failure command is required.", nameof(command));
+        HandleFailure(state, command, input, timeProvider);
     }
 
     static void HandleFailure(
         IntrinsicTimeStrategyWorkflowCommandState state,
         ICommand command,
-        FailureInput input)
+        FailureInput input,
+        TimeProvider timeProvider)
     {
-        if (!CanApplyStageInput(state, input.WorkflowId, input.Revision, input.Stage) ||
-            state.HasProcessedPipelineEvent(input.SourceEventId))
+        var current = state.CurrentView;
+        if (!MatchesCurrent(current, input.WorkflowId, input.Revision, input.Stage))
             return;
-        var revision = input.Revision + 1;
-        state.Update(CreateFailureEvent(command, input, revision), command);
-        Stop(state, command, input.WorkflowId, revision, input.Stage, input.CorrelationId,
-            input.CausationId, StrategyWorkflowOutcome.PipelineFailed,
-            input.Failure.ErrorCode.ToString(System.Globalization.CultureInfo.InvariantCulture), input.OccurredAtUtc);
+        if (GetStage(current!, input.Stage).SourceEventId == input.SourceEventId)
+            return;
+
+        var now = UtcNow(timeProvider);
+        var timedOut = now >= current!.ExpiresAtUtc || IsTimeoutFailure(input.Failure);
+        var updated = TerminalView(
+            current,
+            timedOut ? WorkflowStrategyMachineStatus.TimedOut : WorkflowStrategyMachineStatus.Failed,
+            timedOut ? StrategyActorProcessingStatus.TimedOut : StrategyActorProcessingStatus.Failed,
+            current.WorkflowRevision + 1,
+            input.CausationId,
+            now,
+            timedOut ? "PipelineTimedOut" : input.Failure.ErrorCode.ToString(
+                System.Globalization.CultureInfo.InvariantCulture),
+            input.Failure,
+            input.SourceEventId);
+        AppendSnapshot(state, command, current.Status, updated, now);
     }
 
     static void HandleTimeout(
         IntrinsicTimeStrategyWorkflowCommandState state,
         ICommand command,
-        TimeoutInput input)
+        TimeoutInput input,
+        TimeProvider timeProvider)
     {
-        if (!CanApplyStageInput(state, input.WorkflowId, input.Revision, input.Stage) ||
-            state.HasProcessedTimeout(input.TimeoutId))
+        var current = state.CurrentView;
+        if (!MatchesCurrent(current, input.WorkflowId, input.Revision, input.Stage))
             return;
-        var revision = input.Revision + 1;
-        var correlationId = state.ActiveWorkflow!.CorrelationId;
-        state.Update(CreateTimeoutEvent(command, input, revision, correlationId), command);
-        Stop(state, command, input.WorkflowId, revision, input.Stage, correlationId,
-            input.TimeoutId, StrategyWorkflowOutcome.TimedOut, "PipelineTimedOut", input.OccurredAtUtc);
+        var now = UtcNow(timeProvider);
+        var updated = TerminalView(current!, WorkflowStrategyMachineStatus.TimedOut,
+            StrategyActorProcessingStatus.TimedOut, current!.WorkflowRevision + 1, input.TimeoutId, now,
+            "PipelineTimedOut", CreateTimeoutFailure(now), input.TimeoutId);
+        AppendSnapshot(state, command, current.Status, updated, now);
     }
 
     internal static void HandleCancel(
         IntrinsicTimeStrategyWorkflowCommandState state,
-        CancelIntrinsicTimeStrategyWorkflowCommand command)
+        CancelIntrinsicTimeStrategyWorkflowCommand command,
+        TimeProvider timeProvider)
     {
-        var active = state.ActiveWorkflow;
-        if (active is null || active.WorkflowId != command.WorkflowId ||
-            active.WorkflowRevision != command.ExpectedWorkflowRevision)
+        var current = state.CurrentView;
+        if (!MatchesCurrent(current, command.WorkflowId, command.ExpectedWorkflowRevision,
+                current?.CurrentStage ?? StrategyWorkflowStage.None))
             return;
-        Stop(state, command, active.WorkflowId, active.WorkflowRevision + 1, active.CurrentStage,
-            active.CorrelationId, command.CommandId, StrategyWorkflowOutcome.Cancelled,
-            command.ReasonCode, command.RequestedAtUtc);
+        var now = UtcNow(timeProvider);
+        var updated = TerminalView(current!, WorkflowStrategyMachineStatus.Cancelled,
+            StrategyActorProcessingStatus.Cancelled, current!.WorkflowRevision + 1, command.CommandId, now,
+            command.ReasonCode, new StrategyPipelineFailure
+            {
+                ErrorMessage = command.ReasonCode,
+                ErrorType = "Cancelled",
+                FailedAtUtc = now
+            });
+        AppendSnapshot(state, command, current.Status, updated, now);
     }
 
-    internal async ValueTask HandleRedispatchAsync(
-        IntrinsicTimeStrategyWorkflowCommandState state,
-        RedispatchCurrentStrategyPipelineCommand command)
+    static IntrinsicTimeStrategyWorkflowView TerminalView(
+        IntrinsicTimeStrategyWorkflowView current,
+        WorkflowStrategyMachineStatus status,
+        StrategyActorProcessingStatus stageStatus,
+        long revision,
+        Guid causationId,
+        DateTime now,
+        string reason,
+        StrategyPipelineFailure failure,
+        Guid sourceEventId = default)
     {
-        var active = state.ActiveWorkflow;
-        if (active is null || active.WorkflowId != command.WorkflowId ||
-            active.WorkflowRevision != command.ExpectedWorkflowRevision ||
-            active.CurrentStage != command.ExpectedStage)
-            return;
-
-        if (ActorContext.EventProjector is not EventProjector.IntrinsicTimeStrategyWorkflowEventProjector projector)
-            throw new InvalidOperationException(
-                $"Recovery redispatch requires {nameof(EventProjector.IntrinsicTimeStrategyWorkflowEventProjector)}.");
-
-        await projector.RepublishCommittedDispatchAsync(state, command).ConfigureAwait(false);
+        var stage = GetStage(current, current.CurrentStage) with
+        {
+            ProcessingStatus = stageStatus,
+            FailedAtUtc = now,
+            Failure = failure,
+            SourceEventId = sourceEventId
+        };
+        return SetStage(current with
+        {
+            Status = status,
+            WorkflowRevision = revision,
+            CausationId = causationId,
+            UpdatedAtUtc = now,
+            TerminalAtUtc = now,
+            StopReasonCode = reason ?? string.Empty
+        }, current.CurrentStage, stage);
     }
 
-    static void Stop(
+    static void AppendSnapshot(
         IntrinsicTimeStrategyWorkflowCommandState state,
         ICommand command,
-        StrategyWorkflowId workflowId,
-        long revision,
-        StrategyWorkflowStage stage,
-        Guid correlationId,
-        Guid causationId,
-        StrategyWorkflowOutcome outcome,
-        string reason,
-        DateTime stoppedAtUtc)
-        => state.Update(CreateEvent<IntrinsicTimeStrategyWorkflowStoppedEvent>(command,
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.WorkflowId), workflowId),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.WorkflowRevision), revision),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.CorrelationId), correlationId),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.CausationId), causationId),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.Stage), stage),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.Outcome), outcome),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.ReasonCode), reason ?? string.Empty),
-            (nameof(IntrinsicTimeStrategyWorkflowStoppedEvent.StoppedAtUtc), stoppedAtUtc)), command);
+        WorkflowStrategyMachineStatus previousStatus,
+        IntrinsicTimeStrategyWorkflowView view,
+        DateTime now)
+    {
+        var entityCommand = (ICommand<IntrinsicTimeStrategyWorkflowEntityId>)command;
+        state.Update(new WorkflowStrategyStateUpdatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, WorkflowStrategyStateUpdatedEvent.Actor,
+                WorkflowStrategyStateUpdatedEvent.Verb, entityCommand.EntityId.Format()),
+            Id = Guid.CreateVersion7(new DateTimeOffset(now, TimeSpan.Zero)),
+            EntityId = entityCommand.EntityId,
+            CommandId = command.CommandId,
+            AggregateId = entityCommand.EntityId.Format(),
+            EventSource = command.EventSource,
+            ReceivedOn = now,
+            WorkflowId = view.WorkflowId,
+            WorkflowRevision = view.WorkflowRevision,
+            CorrelationId = view.CorrelationId,
+            CausationId = view.CausationId,
+            PreviousStatus = previousStatus,
+            State = view,
+            UpdatedAtUtc = now
+        }, command);
+    }
 
-    static bool CanApplyStageInput(
-        IntrinsicTimeStrategyWorkflowCommandState state,
+    internal static Guid DeterministicPipelineCommandId(
+        StrategyWorkflowId workflowId,
+        StrategyWorkflowStage stage,
+        long revision)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{workflowId}|{stage}|{revision}"));
+        return new Guid(hash.AsSpan(0, 16));
+    }
+
+    static bool MatchesCurrent(
+        IntrinsicTimeStrategyWorkflowView? current,
         StrategyWorkflowId workflowId,
         long revision,
         StrategyWorkflowStage stage)
-        => state.ActiveWorkflow is { } active && active.WorkflowId == workflowId &&
-           active.WorkflowRevision == revision && active.CurrentStage == stage;
+        => current is { Status: WorkflowStrategyMachineStatus.Started } &&
+           current.WorkflowId == workflowId && current.WorkflowRevision == revision && current.CurrentStage == stage;
+
+    static bool IsTimeoutFailure(StrategyPipelineFailure failure)
+        => failure.ErrorCode == 23103 ||
+           failure.ErrorType.Contains("Timeout", StringComparison.OrdinalIgnoreCase) ||
+           failure.ErrorType.Contains("TimedOut", StringComparison.OrdinalIgnoreCase);
+
+    static StrategyPipelineFailure CreateTimeoutFailure(DateTime now) => new()
+    {
+        ErrorCode = 23103,
+        ErrorMessage = "The fixed workflow execution deadline was reached.",
+        ErrorType = "RegimeDiscoveryTimedOut",
+        FailedAtUtc = now
+    };
+
+    static StrategyWorkflowStageState GetStage(
+        IntrinsicTimeStrategyWorkflowView view,
+        StrategyWorkflowStage stage)
+        => stage switch
+        {
+            StrategyWorkflowStage.RegimeDiscovery => view.RegimeDiscovery,
+            StrategyWorkflowStage.MarketCondition => view.MarketCondition,
+            StrategyWorkflowStage.TradeSelection => view.TradeSelection,
+            StrategyWorkflowStage.OrderComposition => view.OrderComposition,
+            StrategyWorkflowStage.RiskManagement => view.RiskManagement,
+            _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "A concrete stage is required.")
+        };
+
+    static IntrinsicTimeStrategyWorkflowView SetStage(
+        IntrinsicTimeStrategyWorkflowView view,
+        StrategyWorkflowStage stage,
+        StrategyWorkflowStageState value)
+        => stage switch
+        {
+            StrategyWorkflowStage.RegimeDiscovery => view with { RegimeDiscovery = value },
+            StrategyWorkflowStage.MarketCondition => view with { MarketCondition = value },
+            StrategyWorkflowStage.TradeSelection => view with { TradeSelection = value },
+            StrategyWorkflowStage.OrderComposition => view with { OrderComposition = value },
+            StrategyWorkflowStage.RiskManagement => view with { RiskManagement = value },
+            _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "A concrete stage is required.")
+        };
 
     static StrategyWorkflowStage NextStage(StrategyWorkflowStage stage) => stage switch
     {
@@ -436,133 +724,22 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
         _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "The final stage has no successor.")
     };
 
-    static Guid DeterministicCommandId(StrategyWorkflowId workflowId, StrategyWorkflowStage stage, long revision)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{workflowId}|{stage}|{revision}"));
-        return new Guid(hash.AsSpan(0, 16));
-    }
-
-    static TEvent CreateEvent<TEvent>(ICommand command, params (string Name, object? Value)[] values)
-        where TEvent : IEvent, new()
-    {
-        var domainEvent = new TEvent();
-        var actor = (string?)typeof(TEvent).GetField("Actor")?.GetRawConstantValue()
-            ?? "IntrinsicTimeStrategyWorkflow";
-        var verb = (string?)typeof(TEvent).GetField("Verb")?.GetRawConstantValue()
-            ?? typeof(TEvent).Name;
-        EventInitHelper.SetProperty(domainEvent, nameof(IEvent.Subject),
-            new ActorSubject(ActorType.Event, actor, verb, command.Subject.EntityId));
-        EventInitHelper.SetProperty(domainEvent, nameof(IEvent.Id), Guid.NewGuid());
-        EventInitHelper.SetProperty(domainEvent, nameof(IEvent.ReceivedOn), DateTime.UtcNow);
-        EventInitHelper.SetProperty(domainEvent, "EntityId",
-            ((ICommand<IntrinsicTimeStrategyWorkflowEntityId>)command).EntityId);
-        foreach (var (name, value) in values)
-            EventInitHelper.SetProperty(domainEvent, name, value);
-        return domainEvent;
-    }
-
-    static IEvent CreateResultEvent(ICommand command, CompletionInput input, long revision)
-    {
-        var values = CommonStageValues(input.WorkflowId, revision, input.CorrelationId, input.CausationId, input.Stage)
-            .Concat([
-                ("SourceEventId", (object?)input.SourceEventId),
-                ("Result", input.Result),
-                ("RecordedAtUtc", input.OccurredAtUtc)
-            ]).ToArray();
-        return input.Stage switch
-        {
-            StrategyWorkflowStage.RegimeDiscovery => CreateEvent<StrategyWorkflowRegimeDiscoveryResultRecordedEvent>(command, values),
-            StrategyWorkflowStage.MarketCondition => CreateEvent<StrategyWorkflowMarketConditionResultRecordedEvent>(command, values),
-            StrategyWorkflowStage.TradeSelection => CreateEvent<StrategyWorkflowTradeSelectionResultRecordedEvent>(command, values),
-            StrategyWorkflowStage.OrderComposition => CreateEvent<StrategyWorkflowOrderCompositionResultRecordedEvent>(command, values),
-            StrategyWorkflowStage.RiskManagement => CreateEvent<StrategyWorkflowRiskManagementResultRecordedEvent>(command, values),
-            _ => throw new ArgumentOutOfRangeException(nameof(input.Stage))
-        };
-    }
-
-    static IEvent CreateContinuationEvent(ICommand command, CompletionInput input, long revision)
-    {
-        var values = CommonStageValues(input.WorkflowId, revision, input.CorrelationId, input.CausationId, input.Stage)
-            .Concat([
-                ("Decision", (object?)StrategyWorkflowContinuationDecision.Proceed),
-                ("RuleSetId", "IntrinsicTimeStrategyWorkflow.v1"),
-                ("RuleSetVersion", 1),
-                ("ReasonCodes", Array.Empty<string>()),
-                ("EvaluatedAtUtc", input.OccurredAtUtc)
-            ]).ToArray();
-        return input.Stage switch
-        {
-            StrategyWorkflowStage.RegimeDiscovery => CreateEvent<StrategyWorkflowRegimeDiscoveryContinuationEvaluatedEvent>(command, values),
-            StrategyWorkflowStage.MarketCondition => CreateEvent<StrategyWorkflowMarketConditionContinuationEvaluatedEvent>(command, values),
-            StrategyWorkflowStage.TradeSelection => CreateEvent<StrategyWorkflowTradeSelectionContinuationEvaluatedEvent>(command, values),
-            StrategyWorkflowStage.OrderComposition => CreateEvent<StrategyWorkflowOrderCompositionContinuationEvaluatedEvent>(command, values),
-            StrategyWorkflowStage.RiskManagement => CreateEvent<StrategyWorkflowRiskManagementContinuationEvaluatedEvent>(command, values),
-            _ => throw new ArgumentOutOfRangeException(nameof(input.Stage))
-        };
-    }
-
-    static IEvent CreateFailureEvent(ICommand command, FailureInput input, long revision)
-    {
-        var values = CommonStageValues(input.WorkflowId, revision, input.CorrelationId, input.CausationId, input.Stage)
-            .Concat([
-                ("SourceEventId", (object?)input.SourceEventId),
-                ("Failure", input.Failure),
-                ("FailedAtUtc", input.OccurredAtUtc)
-            ]).ToArray();
-        return input.Stage switch
-        {
-            StrategyWorkflowStage.RegimeDiscovery => CreateEvent<StrategyWorkflowRegimeDiscoveryFailedEvent>(command, values),
-            StrategyWorkflowStage.MarketCondition => CreateEvent<StrategyWorkflowMarketConditionFailedEvent>(command, values),
-            StrategyWorkflowStage.TradeSelection => CreateEvent<StrategyWorkflowTradeSelectionFailedEvent>(command, values),
-            StrategyWorkflowStage.OrderComposition => CreateEvent<StrategyWorkflowOrderCompositionFailedEvent>(command, values),
-            StrategyWorkflowStage.RiskManagement => CreateEvent<StrategyWorkflowRiskManagementFailedEvent>(command, values),
-            _ => throw new ArgumentOutOfRangeException(nameof(input.Stage))
-        };
-    }
-
-    static IEvent CreateTimeoutEvent(ICommand command, TimeoutInput input, long revision, Guid correlationId)
-    {
-        var active = ((ICommand<IntrinsicTimeStrategyWorkflowEntityId>)command);
-        var values = CommonStageValues(input.WorkflowId, revision, correlationId, input.TimeoutId, input.Stage)
-            .Concat([
-                ("TimeoutId", (object?)input.TimeoutId),
-                ("TimedOutAtUtc", input.OccurredAtUtc)
-            ]).ToArray();
-        return input.Stage switch
-        {
-            StrategyWorkflowStage.RegimeDiscovery => CreateEvent<StrategyWorkflowRegimeDiscoveryTimedOutEvent>(active, values),
-            StrategyWorkflowStage.MarketCondition => CreateEvent<StrategyWorkflowMarketConditionTimedOutEvent>(active, values),
-            StrategyWorkflowStage.TradeSelection => CreateEvent<StrategyWorkflowTradeSelectionTimedOutEvent>(active, values),
-            StrategyWorkflowStage.OrderComposition => CreateEvent<StrategyWorkflowOrderCompositionTimedOutEvent>(active, values),
-            StrategyWorkflowStage.RiskManagement => CreateEvent<StrategyWorkflowRiskManagementTimedOutEvent>(active, values),
-            _ => throw new ArgumentOutOfRangeException(nameof(input.Stage))
-        };
-    }
-
-    static (string Name, object? Value)[] CommonStageValues(
-        StrategyWorkflowId workflowId,
-        long revision,
-        Guid correlationId,
-        Guid causationId,
-        StrategyWorkflowStage stage)
-        =>
-        [
-            ("WorkflowId", workflowId),
-            ("WorkflowRevision", revision),
-            ("CorrelationId", correlationId),
-            ("CausationId", causationId),
-            ("Stage", stage)
-        ];
+    static DateTime UtcNow(TimeProvider timeProvider) => timeProvider.GetUtcNow().UtcDateTime;
 
     static bool TryNormalizeCompletion(ICommand command, out CompletionInput input)
     {
         input = command switch
         {
-            CompleteRegimeDiscoveryCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.RegimeDiscovery, c.SourceEventId, c.Result, c.CorrelationId, c.CausationId, c.CompletedAtUtc),
-            CompleteMarketConditionCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.MarketCondition, c.SourceEventId, c.Result, c.CorrelationId, c.CausationId, c.CompletedAtUtc),
-            CompleteTradeSelectionCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.TradeSelection, c.SourceEventId, c.Result, c.CorrelationId, c.CausationId, c.CompletedAtUtc),
-            CompleteOrderCompositionCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.OrderComposition, c.SourceEventId, c.Result, c.CorrelationId, c.CausationId, c.CompletedAtUtc),
-            CompleteRiskManagementCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.RiskManagement, c.SourceEventId, c.Result, c.CorrelationId, c.CausationId, c.CompletedAtUtc),
+            CompleteRegimeDiscoveryCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.RegimeDiscovery, value.SourceEventId, value.Result, value.CausationId),
+            CompleteMarketConditionCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.MarketCondition, value.SourceEventId, value.Result, value.CausationId),
+            CompleteTradeSelectionCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.TradeSelection, value.SourceEventId, value.Result, value.CausationId),
+            CompleteOrderCompositionCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.OrderComposition, value.SourceEventId, value.Result, value.CausationId),
+            CompleteRiskManagementCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.RiskManagement, value.SourceEventId, value.Result, value.CausationId),
             _ => default
         };
         return input.Result is not null;
@@ -572,11 +749,16 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     {
         input = command switch
         {
-            FailRegimeDiscoveryCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.RegimeDiscovery, c.SourceEventId, c.Failure, c.CorrelationId, c.CausationId, c.FailedAtUtc),
-            FailMarketConditionCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.MarketCondition, c.SourceEventId, c.Failure, c.CorrelationId, c.CausationId, c.FailedAtUtc),
-            FailTradeSelectionCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.TradeSelection, c.SourceEventId, c.Failure, c.CorrelationId, c.CausationId, c.FailedAtUtc),
-            FailOrderCompositionCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.OrderComposition, c.SourceEventId, c.Failure, c.CorrelationId, c.CausationId, c.FailedAtUtc),
-            FailRiskManagementCommand c => new(c.WorkflowId, c.InputWorkflowRevision, StrategyWorkflowStage.RiskManagement, c.SourceEventId, c.Failure, c.CorrelationId, c.CausationId, c.FailedAtUtc),
+            FailRegimeDiscoveryCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.RegimeDiscovery, value.SourceEventId, value.Failure, value.CausationId),
+            FailMarketConditionCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.MarketCondition, value.SourceEventId, value.Failure, value.CausationId),
+            FailTradeSelectionCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.TradeSelection, value.SourceEventId, value.Failure, value.CausationId),
+            FailOrderCompositionCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.OrderComposition, value.SourceEventId, value.Failure, value.CausationId),
+            FailRiskManagementCommand value => new(value.WorkflowId, value.InputWorkflowRevision,
+                StrategyWorkflowStage.RiskManagement, value.SourceEventId, value.Failure, value.CausationId),
             _ => default
         };
         return input.Failure is not null;
@@ -586,24 +768,38 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandActor(
     {
         input = command switch
         {
-            TimeoutRegimeDiscoveryCommand c => new(c.WorkflowId, c.ExpectedWorkflowRevision, StrategyWorkflowStage.RegimeDiscovery, c.TimeoutId, c.TimedOutAtUtc),
-            TimeoutMarketConditionCommand c => new(c.WorkflowId, c.ExpectedWorkflowRevision, StrategyWorkflowStage.MarketCondition, c.TimeoutId, c.TimedOutAtUtc),
-            TimeoutTradeSelectionCommand c => new(c.WorkflowId, c.ExpectedWorkflowRevision, StrategyWorkflowStage.TradeSelection, c.TimeoutId, c.TimedOutAtUtc),
-            TimeoutOrderCompositionCommand c => new(c.WorkflowId, c.ExpectedWorkflowRevision, StrategyWorkflowStage.OrderComposition, c.TimeoutId, c.TimedOutAtUtc),
-            TimeoutRiskManagementCommand c => new(c.WorkflowId, c.ExpectedWorkflowRevision, StrategyWorkflowStage.RiskManagement, c.TimeoutId, c.TimedOutAtUtc),
+            TimeoutMarketConditionCommand value => new(value.WorkflowId, value.ExpectedWorkflowRevision,
+                StrategyWorkflowStage.MarketCondition, value.TimeoutId),
+            TimeoutTradeSelectionCommand value => new(value.WorkflowId, value.ExpectedWorkflowRevision,
+                StrategyWorkflowStage.TradeSelection, value.TimeoutId),
+            TimeoutOrderCompositionCommand value => new(value.WorkflowId, value.ExpectedWorkflowRevision,
+                StrategyWorkflowStage.OrderComposition, value.TimeoutId),
+            TimeoutRiskManagementCommand value => new(value.WorkflowId, value.ExpectedWorkflowRevision,
+                StrategyWorkflowStage.RiskManagement, value.TimeoutId),
             _ => default
         };
         return input.TimeoutId != Guid.Empty;
     }
 
     readonly record struct CompletionInput(
-        StrategyWorkflowId WorkflowId, long Revision, StrategyWorkflowStage Stage, Guid SourceEventId,
-        StrategyStageResultEnvelope Result, Guid CorrelationId, Guid CausationId, DateTime OccurredAtUtc);
+        StrategyWorkflowId WorkflowId,
+        long Revision,
+        StrategyWorkflowStage Stage,
+        Guid SourceEventId,
+        StrategyStageResultEnvelope Result,
+        Guid CausationId);
 
     readonly record struct FailureInput(
-        StrategyWorkflowId WorkflowId, long Revision, StrategyWorkflowStage Stage, Guid SourceEventId,
-        StrategyPipelineFailure Failure, Guid CorrelationId, Guid CausationId, DateTime OccurredAtUtc);
+        StrategyWorkflowId WorkflowId,
+        long Revision,
+        StrategyWorkflowStage Stage,
+        Guid SourceEventId,
+        StrategyPipelineFailure Failure,
+        Guid CausationId);
 
     readonly record struct TimeoutInput(
-        StrategyWorkflowId WorkflowId, long Revision, StrategyWorkflowStage Stage, Guid TimeoutId, DateTime OccurredAtUtc);
+        StrategyWorkflowId WorkflowId,
+        long Revision,
+        StrategyWorkflowStage Stage,
+        Guid TimeoutId);
 }

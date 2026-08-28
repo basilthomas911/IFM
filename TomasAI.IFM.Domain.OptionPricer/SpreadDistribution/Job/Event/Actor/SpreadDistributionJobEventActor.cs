@@ -30,9 +30,9 @@ public class SpreadDistributionJobEventActor(
         IsArgumentNull.Set(Context as ISpreadDistributionJobEventContext, nameof(Context))!;
 
     public const string Actor = "SpreadDistributionJobEvent";
-    static readonly Dictionary<string, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<SpreadDistributionJobEventActor>, IEventActorContext, IEventActorContext, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
     {
-        [typeof(SpreadDistributionJobSubmittedEvent).Name] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
+        [typeof(SpreadDistributionJobSubmittedEvent)] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
         {
             var e = (evt as SpreadDistributionJobSubmittedEvent)!;
             return await e.ExecuteAsync(
@@ -42,7 +42,7 @@ public class SpreadDistributionJobEventActor(
                 statusConsoleWriter,
                 logger);
         },
-        [typeof(SpreadDistributionJobStatusUpdatedEvent).Name] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
+        [typeof(SpreadDistributionJobStatusUpdatedEvent)] = async (evt, ctx, optionPricerCommandApi, tradeCommandApi, statusConsoleWriter, logger) =>
             await ((SpreadDistributionJobStatusUpdatedEvent)evt).ExecuteAsync(ctx, statusConsoleWriter, logger).ConfigureAwait(false)
     };
 
@@ -61,22 +61,12 @@ public class SpreadDistributionJobEventActor(
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
     protected override IEvent ParseMessage(IEventActorContext<SpreadDistributionJobEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [SpreadDistributionJobSubmittedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobSubmittedEvent>()!,
         [SpreadDistributionJobStatusUpdatedEvent.Verb] = msg => msg.AsEvent<SpreadDistributionJobStatusUpdatedEvent>()!
@@ -95,9 +85,7 @@ public class SpreadDistributionJobEventActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(
             @event,
             dispatchContext,

@@ -157,6 +157,12 @@ public interface IEventSourceActorDbContext
         Guid commandId,
         DomainEventCollection domainEvents,
         CancellationToken cancellationToken);
+    Task<DomainEventCollection> SaveEventsAsync(
+        string eventStream,
+        Guid commandId,
+        DomainEventCollection domainEvents,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken);
 
     ValueTask MapReduceActorEventStreamAsync<TState>(long eventStreamId, Action<IEnumerable<EventStreamReadModel>> reducerAction)
     where TState : IActorState<TState>;

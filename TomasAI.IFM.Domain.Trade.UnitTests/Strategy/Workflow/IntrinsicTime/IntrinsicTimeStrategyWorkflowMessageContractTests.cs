@@ -80,7 +80,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
         nameof(StrategyWorkflowTradeSelectionContinuationEvaluatedEvent),
         nameof(StrategyWorkflowTradeSelectionFailedEvent),
         nameof(StrategyWorkflowTradeSelectionResultRecordedEvent),
-        nameof(StrategyWorkflowTradeSelectionTimedOutEvent)
+        nameof(StrategyWorkflowTradeSelectionTimedOutEvent),
+        nameof(WorkflowStrategyStateUpdatedEvent)
     ];
 
     /// <summary>Confirms the gate contains exactly the specified 18 commands and 29 workflow-owned events.</summary>
@@ -277,6 +278,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
             return StrategyWorkflowContinuationDecision.Proceed;
         if (type == typeof(StrategyWorkflowOutcome))
             return StrategyWorkflowOutcome.PipelineFailed;
+        if (type == typeof(WorkflowStrategyMachineStatus))
+            return WorkflowStrategyMachineStatus.Started;
         if (type == typeof(IntrinsicTimeStrategyWorkflowState))
             return new IntrinsicTimeStrategyWorkflowState
             {
@@ -291,6 +294,8 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
                 WorkflowRevision = 1,
                 StartedAtUtc = new DateTime(2026, 8, 25, 15, 30, 0, DateTimeKind.Utc)
             };
+        if (type == typeof(IntrinsicTimeStrategyWorkflowView))
+            return CreateWorkflowView();
         if (type == typeof(DateTime?))
             return new DateTime(2026, 8, 25, 15, 35, 0, DateTimeKind.Utc);
         if (type == typeof(string[]))
@@ -323,6 +328,34 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
             CreatedOn = new DateTime(2026, 8, 25, 15, 29, 0, DateTimeKind.Utc),
             CreatedBy = "contract-test",
             VixFuturesPrice = 17.25
+        };
+    }
+
+    static IntrinsicTimeStrategyWorkflowView CreateWorkflowView()
+    {
+        var entityId = CreateEntityId();
+        var workflowId = new StrategyWorkflowId(
+            Guid.Parse("0198E212-3C00-7000-8000-000000000012"));
+        return new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = entityId,
+            WorkflowId = workflowId,
+            TriggerEventId = Guid.Parse("0198E212-3C00-7000-8000-000000000014"),
+            CorrelationId = workflowId.Value,
+            CausationId = Guid.Parse("0198E212-3C00-7000-8000-000000000015"),
+            WorkflowDefinitionVersion = IntrinsicTimeStrategyWorkflowDefinition.Version,
+            Status = WorkflowStrategyMachineStatus.Started,
+            CurrentStage = StrategyWorkflowStage.RegimeDiscovery,
+            WorkflowRevision = 1,
+            StartedAtUtc = new DateTime(2026, 8, 25, 15, 29, 0, DateTimeKind.Utc),
+            UpdatedAtUtc = new DateTime(2026, 8, 25, 15, 30, 0, DateTimeKind.Utc),
+            ExpiresAtUtc = new DateTime(2026, 8, 25, 15, 35, 0, DateTimeKind.Utc),
+            RegimeDiscoveryParameterSet = RegimeDiscoveryParameterSet.CreateDefault(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000016"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000017"),
+                TimeFrameType.Daily),
+            RegimeDiscoveryParameterPayloadSha256 = new string('A', 64),
+            TriggerEvent = CreateTriggerEvent()
         };
     }
 

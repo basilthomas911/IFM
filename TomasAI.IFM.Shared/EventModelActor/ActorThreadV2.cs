@@ -124,6 +124,7 @@ sealed class ActorThreadV2(
             await foreach (var threadId in _readyQueue.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
                 ActorRuntimeMetrics.RecordWorkerBusy();
+                _metricsState.RecordMailboxStarted();
                 try
                 {
                     await ProcessMailboxAsync(threadId, cancellationToken).ConfigureAwait(false);
@@ -136,6 +137,7 @@ sealed class ActorThreadV2(
                 }
                 finally
                 {
+                    _metricsState.RecordMailboxCompleted();
                     ActorRuntimeMetrics.RecordWorkerAvailable();
                 }
             }

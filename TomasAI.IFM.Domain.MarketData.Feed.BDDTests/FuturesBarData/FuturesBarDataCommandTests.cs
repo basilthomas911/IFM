@@ -50,7 +50,7 @@ public class FuturesBarDataCommandTests : IClassFixture<MarketDataFeedBddFixture
 
     [Theory]
     [MemberData(nameof(SampleData.FuturesBarDataCases), MemberType = typeof(SampleData))]
-    public async Task Given_AValidOneMinuteBar_When_AnInsertMessageIsParsed_Then_TheCommandIsPreservedAndLogged(
+    public async Task Given_AValidOneMinuteBar_When_AnInsertMessageIsParsed_Then_TheCommandIsPreservedWithoutDomainAuditWrite(
         FuturesBarDataReadModel barData, DateTime windowStart, DateTime windowEnd)
     {
         (windowEnd - windowStart).Should().Be(TimeSpan.FromMinutes(1));
@@ -68,17 +68,17 @@ public class FuturesBarDataCommandTests : IClassFixture<MarketDataFeedBddFixture
         parsed.Subject.Should().Be(command.Subject);
         parsed.EntityId.Should().BeEquivalentTo(command.EntityId);
         parsed.FuturesBarData.Should().BeEquivalentTo(command.FuturesBarData);
-        await db.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(logged => logged.CommandId == command.CommandId),
+        await db.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
-            Arg.Is<string>(json => json.Contains(command.CommandId.ToString())));
+            Arg.Any<string>());
     }
 
     [Theory]
     [InlineData("Delete")]
     [InlineData("Start")]
     [InlineData("Stop")]
-    public async Task Given_AValidSupportedMessage_When_ItIsParsed_Then_TheMatchingCommandIsReturnedAndLogged(string commandKind)
+    public async Task Given_AValidSupportedMessage_When_ItIsParsed_Then_TheMatchingCommandIsReturnedWithoutDomainAuditWrite(string commandKind)
     {
         var db = Substitute.For<IEventSourceActorDbContext>();
         db.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -90,8 +90,8 @@ public class FuturesBarDataCommandTests : IClassFixture<MarketDataFeedBddFixture
 
         result.GetType().Should().Be(command.GetType());
         result.CommandId.Should().Be(command.CommandId);
-        await db.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(logged => logged.CommandId == command.CommandId),
+        await db.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
     }

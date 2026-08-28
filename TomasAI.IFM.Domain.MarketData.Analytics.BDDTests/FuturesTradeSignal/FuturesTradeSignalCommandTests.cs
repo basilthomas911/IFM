@@ -244,7 +244,7 @@ public class FuturesTradeSignalCommandTests
         restored.FuturesTdiSignal!.TimePeriod.Should().Be(TimeFrameType.FifteenSeconds,
             "TDI is an intraday input even when the aggregate trade signal is daily or longer");
         restored.FuturesItiSignalData!.TrendDirectionChange!.TimePeriod.Should().Be(timePeriod);
-        await scenario.EventDb.Received(1).InsertCommandLogAsync(
+        await scenario.EventDb.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(command => command.CommandId == expected.CommandId),
             Arg.Any<DateTime>(),
             Arg.Is<string>(json => json.Contains(expected.CommandId.ToString())));
@@ -299,7 +299,7 @@ public class FuturesTradeSignalCommandTests
     }
 
     [Fact]
-    public async Task GivenCommandLoggingFails_WhenTheCommandIsValidated_ThenTheFailureIsPropagated()
+    public async Task GivenDomainCommandLoggingFails_WhenTheCommandIsValidated_ThenValidationIsIndependent()
     {
         var scenario = CreateScenario();
         var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Monthly);
@@ -312,7 +312,7 @@ public class FuturesTradeSignalCommandTests
             parsed.Subject.ThreadId,
             parsed);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("command log unavailable");
+        await act.Should().NotThrowAsync();
     }
 
     // Receive and validation edge cases

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -35,7 +34,6 @@ public class FuturesRsiSignalCommandActor(
         IsArgumentNull.Set(Context as IFuturesRsiSignalCommandContext, nameof(Context))!;
 
     public const string ActorName = "FuturesRsiSignalCommand";
-    IEventSourceActorDbContext DbEventSource => ActorContext.DbEventSource;
     IEventProjector<FuturesRsiSignalCommandActor> EventProjector => ActorContext.EventProjector;
     IEventSourceActorStateRepository<FuturesRsiSignalCommandState> _repo = default!;
 
@@ -61,23 +59,16 @@ public class FuturesRsiSignalCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesRsiSignalCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesRsiSignalCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [StartFuturesRsiSignalCommand.Verb] = msg => msg.AsCommand<StartFuturesRsiSignalCommand>()!,
         [StopFuturesRsiSignalCommand.Verb] = msg => msg.AsCommand<StopFuturesRsiSignalCommand>()!,
@@ -101,9 +92,7 @@ public class FuturesRsiSignalCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var rsiSignalState = IsArgumentNull.Set((state as FuturesRsiSignalCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, rsiSignalState));
     }
 
@@ -111,13 +100,14 @@ public class FuturesRsiSignalCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures RSI signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesRsiSignalCommandActor>,
-        FuturesRsiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesRsiSignalCommandActor>,
+        FuturesRsiSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesRsiSignalCommandActor>,
+        FuturesRsiSignalCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(StartFuturesRsiSignalCommand).Name] = (cmd, context, state) => (cmd as StartFuturesRsiSignalCommand)!.Execute(state),
-        [typeof(StopFuturesRsiSignalCommand).Name] = (cmd, context, state) => (cmd as StopFuturesRsiSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesRsiSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesRsiSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesRsiDailySignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesRsiDailySignalCommand)!.Execute(state),
+        [typeof(StartFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StartFuturesRsiSignalCommand)!.Execute(state),
+        [typeof(StopFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as StopFuturesRsiSignalCommand)!.Execute(state),
+        [typeof(GenerateFuturesRsiSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiSignalCommand)!.Execute(state),
+        [typeof(GenerateFuturesRsiDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesRsiDailySignalCommand)!.Execute(state),
     };
 
     /// <summary>
@@ -135,41 +125,42 @@ public class FuturesRsiSignalCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        if (cancellationToken.CanBeCanceled)
-            await DbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd), cancellationToken).ConfigureAwait(false);
-        else
-            await DbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(StartFuturesRsiSignalCommand).Name] = cmd => {
+        [typeof(StartFuturesRsiSignalCommand)] = cmd => {
             var e = (StartFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiSignalEntityId(e.EntityId);
         },
-        [typeof(StopFuturesRsiSignalCommand).Name] = cmd => {
+        [typeof(StopFuturesRsiSignalCommand)] = cmd => {
             var e = (StopFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiSignalEntityId(e.EntityId);
         },
-        [typeof(GenerateFuturesRsiSignalCommand).Name] = cmd => {
+        [typeof(GenerateFuturesRsiSignalCommand)] = cmd => {
             var e = (GenerateFuturesRsiSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiSignalEntityId(e.EntityId);
         },
-        [typeof(GenerateFuturesRsiDailySignalCommand).Name] = cmd => {
+        [typeof(GenerateFuturesRsiDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesRsiDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesRsiDailySignalEntityId(e.EntityId);
         }
     };

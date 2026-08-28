@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Shared.Domain;
@@ -32,7 +31,6 @@ public class FuturesMacdSignalCommandActor(
         IsArgumentNull.Set(Context as IFuturesMacdSignalCommandContext, nameof(Context))!;
 
     public const string ActorName = "FuturesMacdSignalCommand";
-    IEventSourceActorDbContext DbEventSource => ActorContext.DbEventSource;
     IEventProjector<FuturesMacdSignalCommandActor> EventProjector => ActorContext.EventProjector;
     IEventSourceActorStateRepository<FuturesMacdSignalCommandState> _repo = default!;
 
@@ -58,23 +56,16 @@ public class FuturesMacdSignalCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesMacdSignalCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesMacdSignalCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [StartFuturesMacdSignalCommand.Verb] = msg => msg.AsCommand<StartFuturesMacdSignalCommand>()!,
         [StopFuturesMacdSignalCommand.Verb] = msg => msg.AsCommand<StopFuturesMacdSignalCommand>()!,
@@ -98,9 +89,7 @@ public class FuturesMacdSignalCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var macdSignalState = IsArgumentNull.Set((state as FuturesMacdSignalCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, macdSignalState));
     }
 
@@ -108,13 +97,14 @@ public class FuturesMacdSignalCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures MACD signal
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>,
-        FuturesMacdSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>,
+        FuturesMacdSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesMacdSignalCommandActor>,
+        FuturesMacdSignalCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(StartFuturesMacdSignalCommand).Name] = (cmd, context, state) => ((StartFuturesMacdSignalCommand)cmd).Execute(state),
-        [typeof(StopFuturesMacdSignalCommand).Name] = (cmd, context, state) => ((StopFuturesMacdSignalCommand)cmd).Execute(state),
-        [typeof(GenerateFuturesMacdSignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesMacdSignalCommand)!.Execute(state),
-        [typeof(GenerateFuturesMacdDailySignalCommand).Name] = (cmd, context, state) => (cmd as GenerateFuturesMacdDailySignalCommand)!.Execute(state)
+        [typeof(StartFuturesMacdSignalCommand)] = (cmd, context, state) => ((StartFuturesMacdSignalCommand)cmd).Execute(state),
+        [typeof(StopFuturesMacdSignalCommand)] = (cmd, context, state) => ((StopFuturesMacdSignalCommand)cmd).Execute(state),
+        [typeof(GenerateFuturesMacdSignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesMacdSignalCommand)!.Execute(state),
+        [typeof(GenerateFuturesMacdDailySignalCommand)] = (cmd, context, state) => (cmd as GenerateFuturesMacdDailySignalCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -132,42 +122,43 @@ public class FuturesMacdSignalCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        if (cancellationToken.CanBeCanceled)
-            await DbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd), cancellationToken).ConfigureAwait(false);
-        else
-            await DbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(StartFuturesMacdSignalCommand).Name] = cmd => {
+        [typeof(StartFuturesMacdSignalCommand)] = cmd => {
             var e = (StartFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
-        [typeof(StopFuturesMacdSignalCommand).Name] = cmd => {
+        [typeof(StopFuturesMacdSignalCommand)] = cmd => {
             var e = (StopFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
-        [typeof(GenerateFuturesMacdSignalCommand).Name] = cmd => {
+        [typeof(GenerateFuturesMacdSignalCommand)] = cmd => {
             var e = (GenerateFuturesMacdSignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         },
-        [typeof(GenerateFuturesMacdDailySignalCommand).Name] = cmd => {
+        [typeof(GenerateFuturesMacdDailySignalCommand)] = cmd => {
             var e = (GenerateFuturesMacdDailySignalCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesMacdSignalId(e.FuturesMacdSignalId)
                 .ValidateFuturesMacdConfiguration(e.EntityId.Configuration);
         }

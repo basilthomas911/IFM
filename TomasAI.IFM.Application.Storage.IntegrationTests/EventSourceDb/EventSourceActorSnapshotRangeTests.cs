@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventProjector.ReadModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.EventSourcing.ViewModels;
+using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.Storage;
 using Xunit;
 
@@ -218,7 +220,7 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
-    public async Task Legacy_parse_audit_hands_its_new_reservation_to_the_central_guard_once()
+    public async Task Legacy_parse_audit_hands_its_new_reservation_to_the_central_logger_once()
     {
         var entity = new TickDataEntityId("ESU6", new DateOnly(2026, 8, 7), AssetTypeId.Futures);
         var command = new InsertFuturesTickTradeDataCommand
@@ -228,20 +230,20 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
                 InsertFuturesTickTradeDataCommand.Verb, entity.Format()),
             EntityId = entity
         };
-        var guard = (ICommandDuplicateGuard)fixture.ActorEventDb;
+        var auditLogger = (ICommandAuditLogger)fixture.ActorEventDb;
 
         var legacyAudit = fixture.ActorEventDb.InsertCommandLogAsync(
             command,
             DateTime.UtcNow,
             "payload");
-        (await guard.TryAcceptAsync(command)).Should().BeTrue();
+        (await auditLogger.TryReserveAsync(command)).Accepted.Should().BeTrue();
         await legacyAudit;
 
         var duplicateAudit = fixture.ActorEventDb.InsertCommandLogAsync(
             command,
             DateTime.UtcNow,
             "payload");
-        (await guard.TryAcceptAsync(command)).Should().BeFalse();
+        (await auditLogger.TryReserveAsync(command)).Accepted.Should().BeFalse();
         await duplicateAudit;
     }
 
@@ -884,6 +886,49 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
         persisted.Select(item => item.StreamVersion).Should().OnlyHaveUniqueItems();
         persisted.OrderBy(item => item.EventVersion).Select(item => item.StreamVersion)
             .Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task Expected_version_batch_commits_all_events_with_contiguous_stream_versions()
+    {
+        var stream = NewStream();
+
+        var saved = await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent(), RangeEvent()]),
+            expectedStreamVersion: 0,
+            CancellationToken.None);
+
+        saved.Should().HaveCount(2);
+        var persisted = await fixture.ActorEventDb.LoadActorEventStreamAsync<TestActorState>(
+            await fixture.ActorEventDb.GetEventStreamIdAsync(stream));
+        persisted.Select(item => item.StreamVersion).Should().Equal(1L, 2L);
+    }
+
+    [Fact]
+    public async Task Stale_expected_version_rejects_the_complete_event_batch()
+    {
+        var stream = NewStream();
+        await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent()]),
+            expectedStreamVersion: 0,
+            CancellationToken.None);
+
+        var append = async () => await fixture.ActorEventDb.SaveEventsAsync(
+            stream,
+            Guid.NewGuid(),
+            new DomainEventCollection([RangeEvent(), RangeEvent()]),
+            expectedStreamVersion: 0,
+            CancellationToken.None);
+
+        await append.Should().ThrowAsync<ConcurrencyException>();
+        var persisted = await fixture.ActorEventDb.LoadActorEventStreamAsync<TestActorState>(
+            await fixture.ActorEventDb.GetEventStreamIdAsync(stream));
+        persisted.Should().ContainSingle();
+        persisted.Single().StreamVersion.Should().Be(1);
     }
 
     [Fact]

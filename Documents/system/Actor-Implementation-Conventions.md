@@ -3,14 +3,17 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; durable/realtime EventActor and CommandActor conventions documented, QueryActor convention reserved for later review
 **Created:** 2026-08-14  
-**Last updated:** 2026-08-26
+**Last updated:** 2026-08-28
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
 
 This document is the system-wide implementation guide for IFM actors. It will define the common structure and actor-type-specific conventions for EventActors, CommandActors, QueryActors, and any additional actor roles approved later.
 
-The initial revision documents only the EventActor convention. CommandActor and QueryActor conventions will be added after their existing implementations and recent refactoring changes have been reviewed. The absence of those sections must not be interpreted as permission to apply EventActor-specific behavior to CommandActors or QueryActors.
+The current revision defines EventActor, RealtimeActor, and CommandActor conventions. QueryActor
+conventions remain reserved until their existing implementations have been reviewed. The absence of
+a QueryActor convention must not be interpreted as permission to apply another actor type's
+behavior to QueryActors.
 
 Across all actor types, this document will be expanded as decisions are made about base actor behavior, derived actor mapping, handler contracts, validation, logging, retries, state, persistence, queries, and testing.
 
@@ -140,7 +143,8 @@ Dependencies should be passed explicitly. An extension handler should not resolv
 A representative shape is:
 
 ```csharp
-static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+    new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
 {
     [SomeEvent.Verb] = message => message.AsEvent<SomeEvent>()!,
     [SomeCompleteEvent.Verb] = message => message.AsEvent<SomeCompleteEvent>()!,
@@ -152,7 +156,7 @@ The key is the contract's `Verb`, not the CLR type name.
 
 ### 4.2 Common parse algorithm
 
-`ParseMessage` should perform the same ordered checks in each derived event actor:
+`ParseMessage` delegates to `BaseEventActor.ParseMappedEvent`, which performs these ordered checks:
 
 1. reject a null actor context;
 2. read the parsed `ActorSubject` from the message;
@@ -166,6 +170,13 @@ The key is the contract's `Verb`, not the CLR type name.
 
 Deserialization and envelope validation belong to the actor's common path. Handler extensions should receive an already resolved concrete event.
 
+```csharp
+protected override IEvent ParseMessage(
+    IEventActorContext<SomeEventActor> context,
+    IActorMessage message)
+    => ParseMappedEvent(context, message, _parseMap);
+```
+
 ### 4.3 Parse-map completeness
 
 Every concrete event the actor intends to receive must be registered, including main, complete, and fail events. A lifecycle event must not be silently omitted merely because its initial behavior is logging only.
@@ -176,18 +187,19 @@ Every concrete event the actor intends to receive must be registered, including 
 
 `_receiveMap` maps the concrete event type to a delegate that invokes the correct extension-handler overload.
 
-The current convention uses the concrete CLR type name as the dispatch key:
+The receive map uses the exact concrete CLR `Type` as the dispatch key:
 
 ```csharp
-var eventName = @event.GetType().Name;
+var eventType = @event.GetType();
 ```
 
 The exact delegate signature can include actor-specific dependencies. A representative mapping is:
 
 ```csharp
-readonly Dictionary<string, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap = new()
+readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext, ValueTask<bool>>> _receiveMap =
+    new Dictionary<Type, Func<IEvent, IEventActorContext, ValueTask<bool>>>
 {
-    [typeof(SomeEvent).Name] = (value, context) =>
+    [typeof(SomeEvent)] = (value, context) =>
         ((SomeEvent)value).ExecuteAsync(context)
 };
 ```
@@ -200,8 +212,8 @@ If several handlers require the same services, the actor may pass an actor-speci
 
 1. reject a null actor context;
 2. reject a null event;
-3. obtain the event's concrete type name;
-4. resolve the handler from `_receiveMap`;
+3. resolve the handler by the event's exact concrete `Type` through `ResolveMappedEventHandler`;
+4. reject derived, assignable, or otherwise unregistered types;
 5. throw `InvalidOperationException` when no handler is registered;
 6. invoke the mapped handler with the context and required dependencies; and
 7. await the handler before completing event processing.
@@ -617,24 +629,270 @@ The `ServiceResult<GuidResult>` is the command acknowledgement and carries the c
 
 #### 13.1.2 Explicit command maps
 
-Every derived CommandActor uses three explicit maps as its supported-command manifest:
+Every derived CommandActor uses `_parseMap`, `_validationMap`, and `_receiveMap` as one
+supported-command manifest. The three maps are different views of the same finite command set; they
+are not independent registries.
 
-- `_parseMap` maps the command subject `Verb` to `IActorMessage` deserialization;
-- `_validationMap` maps the concrete command `Type` to its validation rules; and
-- `_receiveMap` maps the concrete command type name to the command extension that executes it.
+| Map | Required key | Required value responsibility | Execution phase |
+| --- | --- | --- | --- |
+| `_parseMap` | command contract `Verb` | deserialize `IActorMessage` into exactly one concrete `ICommand` | before audit and validation |
+| `_validationMap` | exact concrete CLR `Type` | return all deterministic ingress `ValidationError` values | after a new audit reservation, before state loading |
+| `_receiveMap` | exact concrete CLR `Type`, using `typeof(TCommand)` | invoke the command-specific extension with loaded state | after validation and state loading |
 
-`ReceiveAsync` must not use a command-type switch. It validates common arguments, casts the loaded state, resolves the concrete command name in `_receiveMap`, throws a clear `InvalidOperationException` when unsupported, invokes the mapped delegate, and returns or awaits its result.
+For every supported concrete command type `T`, all of the following must exist exactly once:
+
+1. one `_parseMap` entry using `T.Verb` and `AsCommand<T>()`;
+2. one `_validationMap` entry using `typeof(T)`; and
+3. one `_receiveMap` entry using `typeof(T)`.
+
+After normalizing their different keys to concrete command types, the sets must be equal:
+
+```text
+Parse command types == Validation command types == Receive command types
+```
+
+A command must never be parseable without being validated and executable. It must never be
+executable without being parseable and validated. Unsupported verbs and unsupported concrete types
+fail closed. Do not add a default validator, default receiver, assignable-type search, or switch
+fallback.
+
+The maps are initialized once and treated as immutable actor metadata. `_parseMap` and
+`_validationMap` use `IReadOnlyDictionary`. New or refactored `_receiveMap` declarations should also
+use `IReadOnlyDictionary`; a legacy `static readonly Dictionary` must never be mutated after static
+initialization. Reflection-generated maps are not the normal convention. A finite uniform contract
+family may generate parse or receive delegates only from one explicit, reviewable type manifest;
+its `_validationMap` remains explicit so each command's validation contract is visible.
+
+##### 13.1.2.1 `_parseMap`
+
+`_parseMap` has this required shape:
+
+```csharp
+static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+    new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
+    {
+        [CreateSomethingCommand.Verb] = static message =>
+            message.AsCommand<CreateSomethingCommand>()!,
+        [RemoveSomethingCommand.Verb] = static message =>
+            message.AsCommand<RemoveSomethingCommand>()!
+    };
+```
+
+The key is the serialized command `Verb`, never the CLR type name. A parse delegate only
+deserializes its declared command. It does not validate the command, reserve the audit identity,
+resolve services, load state, execute domain behavior, or catch failures.
+
+`ParseMessage` contains no actor-specific routing logic and delegates to the shared base helper:
+
+```csharp
+protected override ICommand ParseMessage(
+    ICommandActorContext<SomeCommandActor> context,
+    IActorMessage message)
+    => ParseMappedCommand(context, message, _parseMap);
+```
+
+`ParseMappedCommand` owns command actor-type and mailbox-name checks, verb resolution,
+deserialization dispatch, and null-result rejection. Domain actors must not write command audit
+records or own a `CommandAuditTracker`.
+
+##### 13.1.2.2 `_validationMap`
+
+`_validationMap` has this required dispatch shape:
+
+```csharp
+static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+    new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+    {
+        [typeof(CreateSomethingCommand)] = command =>
+        {
+            var typed = (CreateSomethingCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateSomethingEntityId(typed.EntityId, typed.CommandName)
+                .ValidateSomethingPayload(typed.Payload)
+                .ValidateEntityIdMatchesPayload(typed);
+        }
+    };
+```
+
+The exact `Type` key is deliberate. It prevents type-name collisions, accidental derived-command
+acceptance, and validation by an unrelated string entry. Each entry explicitly casts to the type
+named by its key and returns one accumulated error list.
+
+`OnValidateAsync` performs only common argument checks and shared exact-type dispatch:
+
+```csharp
+protected override ValueTask OnValidateAsync(
+    ICommandActorContext<SomeCommandActor> context,
+    ActorThreadId threadId,
+    ICommand command)
+{
+    IsArgumentNull.Check(context);
+    IsArgumentNull.Check(threadId);
+    IsArgumentNull.Check(command);
+    ValidateMappedCommand(command, _validationMap);
+    return ValueTask.CompletedTask;
+}
+```
+
+`ValidateMappedCommand` rejects an unmapped concrete type, invokes exactly one validator, rejects a
+null error collection, and throws one `CommandValidationException` containing every accumulated
+error. A map delegate must not load state, call external services, execute the command, apply an
+event, or persist anything.
+
+##### 13.1.2.3 `_receiveMap`
+
+`_receiveMap` maps a validated concrete command to its command extension. Its delegate may receive
+the actor context and loaded state because this is the stateful domain-execution boundary:
+
+```csharp
+static readonly IReadOnlyDictionary<Type, Func<
+    ICommand,
+    ICommandActorContext<SomeCommandActor>,
+    SomeCommandState,
+    ServiceResult<GuidResult>>> _receiveMap =
+    new Dictionary<Type, Func<ICommand, ICommandActorContext<SomeCommandActor>,
+        SomeCommandState, ServiceResult<GuidResult>>>
+    {
+        [typeof(CreateSomethingCommand)] = static (command, context, state) =>
+            ((CreateSomethingCommand)command).Execute(state)
+    };
+```
+
+The mapped delegate forwards to an extension handler; it does not contain the extension's domain
+algorithm. `ReceiveAsync` performs common argument checks, casts the loaded state, resolves the
+exact concrete type through `ResolveMappedCommandHandler`, and invokes or awaits the mapped delegate. It does not parse, repeat deterministic
+ingress validation, load or save state directly, or use a command-type switch.
+
+For genuine asynchronous work, the mapped value returns `Task<ServiceResult<GuidResult>>` and the
+actor awaits it. Fire-and-forget command execution is forbidden.
+
+##### 13.1.2.4 Processing order
+
+The three maps participate in this fixed ingress sequence:
+
+```text
+ParseMappedCommand
+  -> reject empty CommandId
+  -> reserve CommandId in the common audit logger
+  -> ValidateMappedCommand
+  -> load event-sourced state
+  -> dispatch through _receiveMap
+  -> save pending events
+  -> project committed events
+```
+
+An existing audit reservation identifies a duplicate delivery and returns without validation or
+execution. An audit failure prevents validation and execution. A validation failure prevents state
+loading, receive dispatch, event application, and persistence. A receive or persistence failure is
+handled by the actor exception boundary; it must not fall through to another map entry.
+
+After parsing, `BaseEventSourceCommandActor` rejects `Guid.Empty` before calling
+`ICommandAuditLogger.TryReserveAsync`, because `CommandId` is the audit reservation key. The
+operation atomically creates the durable command-log record and reserves a valid `CommandId`. A new
+reservation proceeds to the complete domain validation map; a duplicate is acknowledged without
+validation or execution; and an audit failure prevents domain execution. The explicit
+`ValidateCommandId` call remains first in every `_validationMap` entry so the full command contract
+is visible and directly testable even though runtime ingress has already applied the pre-audit
+envelope guard. A message that cannot be materialized as an `ICommand` is reported through
+infrastructure exception logging and never reaches the audit logger.
+
+#### 13.1.3 Command validation boundary
+
+Commands are the system's validated mutation boundary. Every flow that requires validated data must
+start with a command. Queries, events, and realtime messages in that flow consume data admitted by
+the command boundary and do not repeat command-domain validation. This convention does not permit a
+query, event, or realtime message to bypass the command boundary and introduce unvalidated mutable
+domain data.
+
+`_validationMap` is an
+`IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>>` keyed by the exact concrete
+command type. It is both the validation dispatch table and the actor's validation manifest. An
+unmapped command fails closed with `InvalidOperationException`; it is never allowed to execute with
+partial or default validation.
+
+Every map entry builds one `List<ValidationError>` in this visible order:
+
+1. `ValidateCommandId(command.CommandId, command.CommandName)`;
+2. validate the command `EntityId` with the intrinsic extension belonging to that identifier type;
+3. validate every concrete payload parameter serialized after the common command header;
+4. cross-check duplicated identity or related payload values when the command contract contains
+   both; and
+5. return the list to `ValidateMappedCommand`, which throws one aggregate
+   `CommandValidationException` when the list is non-empty.
+
+The common header is `CommandId`, `Subject`, `PostEvents`, `EntityId`, `ErrorCode`, and `RouteTo`.
+`CommandId` and `EntityId` are deliberate validation exceptions to the general rule that domain
+validation does not inspect technical header fields. `Subject` routing is checked by the base parse
+path. The other technical fields are not treated as domain payload parameters.
+
+```csharp
+static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>>
+    _validationMap = new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+{
+    [typeof(CreateSomethingCommand)] = command =>
+    {
+        var typed = (CreateSomethingCommand)command;
+        return new List<ValidationError>()
+            .ValidateCommandId(typed.CommandId, typed.CommandName)
+            .ValidateSomethingId(typed.EntityId, typed.CommandName)
+            .ValidateSomething(typed.Payload)
+            .ValidateEntityIdMatches(
+                typed.EntityId,
+                typed.Payload?.SomethingId,
+                nameof(typed.Payload),
+                typed.CommandName);
+    }
+};
+```
+
+Validation functions append errors and return the same list. They do not throw for ordinary invalid
+data and do not stop after the first error. This is what guarantees one
+`CommandValidationException` containing the aggregate list. Null payloads must produce validation
+errors rather than `NullReferenceException`.
+
+Use a list extension for a scalar, enum, identifier, or other simple value check. A domain-only
+extension belongs in that domain's `Command/Validation` folder. Only genuinely universal command
+checks, such as `ValidateCommandId` and the final aggregate throw, belong in the shared
+`ValidationErrorsExtension`; domain-specific checks must not be added there.
+
+Use FluentValidation rules for a structured reference-type payload. Its rules cover every payload
+property: either impose the domain constraint or explicitly accept the property's complete valid
+range. Intrinsic validation for a shared `EntityId` or shared read model is co-located with the type
+so all commands carrying that type use one definition. The preferred source-file order is:
+
+1. identifier/read-model definition;
+2. FluentValidation rules for a structured model, when needed; and
+3. the `List<ValidationError>` adapter extension used by `_validationMap`.
+
+`BaseValidationRules` adapts FluentValidation results into the common `ValidationError` model; it is
+not a hidden substitute for the visible `ValidateCommandId` and `EntityId` calls in each map entry.
+Command-specific scalar and cross-parameter checks remain in the domain validation folder.
+
+Do not invent a generic `PayloadId`. Validate identities actually present in the command contract.
+When `EntityId` repeats an identity stored in a payload, validate each independently and then verify
+that they match. Cross-checks should avoid adding derivative mismatch errors when either independent
+identity is already invalid.
+
+The map performs deterministic, state-independent validation only. Validation that depends on the
+loaded aggregate or an external authoritative source belongs in the mapped command extension after
+state loading. It may reject execution, but it does not weaken or replace ingress payload
+validation.
+
+`ReceiveAsync` must not use a command-type switch. It validates common arguments, casts the loaded state, resolves the exact concrete command `Type` through `ResolveMappedCommandHandler`, throws a clear `InvalidOperationException` when unsupported, invokes the mapped delegate, and returns or awaits its result.
 
 A synchronous receive map has this representative shape:
 
 ```csharp
-static readonly Dictionary<string, Func<
+static readonly IReadOnlyDictionary<Type, Func<
     ICommand,
     ICommandActorContext<SomeCommandActor>,
     SomeCommandState,
-    ServiceResult<GuidResult>>> _receiveMap = new()
+    ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<
+        ICommand, ICommandActorContext<SomeCommandActor>, SomeCommandState,
+        ServiceResult<GuidResult>>>()
 {
-    [typeof(CreateSomethingCommand).Name] = static (command, context, state) =>
+    [typeof(CreateSomethingCommand)] = static (command, context, state) =>
         ((CreateSomethingCommand)command).Execute(state)
 };
 ```
@@ -642,13 +900,15 @@ static readonly Dictionary<string, Func<
 An actor with genuine asynchronous command work uses `Task<ServiceResult<GuidResult>>` at the extension boundary and in its receive map:
 
 ```csharp
-static readonly Dictionary<string, Func<
+static readonly IReadOnlyDictionary<Type, Func<
     ICommand,
     ICommandActorContext<SomeCommandActor>,
     SomeCommandState,
-    Task<ServiceResult<GuidResult>>>> _receiveMap = new()
+    Task<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<
+        ICommand, ICommandActorContext<SomeCommandActor>, SomeCommandState,
+        Task<ServiceResult<GuidResult>>>>()
 {
-    [typeof(CalculateSomethingCommand).Name] = static (command, context, state) =>
+    [typeof(CalculateSomethingCommand)] = static (command, context, state) =>
         ((CalculateSomethingCommand)command).ExecuteAsync(
             context,
             state)
@@ -657,9 +917,9 @@ static readonly Dictionary<string, Func<
 
 The framework override may continue to return `ValueTask<ServiceResult<GuidResult>>`; it adapts and awaits the mapped `Task`. No mapped command task is fire-and-forget.
 
-#### 13.1.3 Command extension convention
+#### 13.1.4 Command extension convention
 
-The extension class and source filename use the command name without the `Command` suffix, for example `CreateFundCommand` maps to `CreateFund` and `StartRegimeDiscoveryPipelineCommand` maps to `StartRegimeDiscoveryPipeline`.
+The extension class and source filename use the command name without the `Command` suffix, for example `CreateFundCommand` maps to `CreateFund` and `ExecuteRegimeDiscoveryPipelineCommand` maps to `ExecuteRegimeDiscoveryPipeline`.
 
 Synchronous command extensions use `Execute`; command extensions that await real work use `ExecuteAsync`. An asynchronous extension returns `Task<ServiceResult<GuidResult>>`, accepts the closed-generic command context when it needs actor-owned models or services, and receives the loaded concrete state. A cancellation token is added only when the actor framework exposes and owns a compatible cancellation boundary.
 
@@ -676,7 +936,7 @@ The extension—not the derived actor—owns:
 
 Unexpected exceptions that are not part of the domain's durable failure model flow through the actor's `OnExceptionAsync` convention. Cancellation caused by transport or host shutdown is not silently converted into a business failure unless the domain explicitly defines that transition.
 
-#### 13.1.4 Context and actor-owned models
+#### 13.1.5 Context and actor-owned models
 
 Closed-generic `ICommandActorContext<TActor>` is the dependency boundary. Actor-specific readonly context properties are exposed through the approved typed context and context-extension pattern. A command extension does not resolve arbitrary services from the container.
 
@@ -684,7 +944,7 @@ An actor-centric computation used only by one CommandActor belongs in that actor
 
 CPU-bound parallel calculation uses bounded .NET thread-pool work that is owned and awaited by the command extension. Dedicated threads, `TaskCreationOptions.LongRunning`, and unobserved background work are not part of the convention. Sequential and parallel implementations must produce identical deterministic results, and parallel execution is selected only after representative benchmarks demonstrate a material benefit without unacceptable allocation, thread-pool, or tail-latency cost.
 
-#### 13.1.5 State, persistence, and projection
+#### 13.1.6 State, persistence, and projection
 
 Only the CommandActor is event sourced and owns authoritative durable state. Its state applies every private domain event required to reconstruct the aggregate. The repository saves pending events through the PostgreSQL event source and passes committed events to the actor's EventProjector.
 
@@ -692,13 +952,28 @@ The EventProjector updates the rebuildable read model before publishing the corr
 
 The base actor saves pending state events after the mapped command extension returns. Applying both Processing and Completed during one command therefore records history in one save; it does not make Processing durably observable while the calculation is still executing. A design that requires a durable pre-calculation Processing boundary needs a separately approved second execution trigger.
 
-#### 13.1.6 CommandActor testing checklist
+#### 13.1.7 CommandActor testing checklist
 
 - [ ] `_parseMap` lists every supported command verb.
+- [ ] `_parseMap` is read-only and `ParseMessage` delegates only to `ParseMappedCommand`.
+- [ ] Every parse delegate only deserializes the command declared by its `Verb` key.
+- [ ] `Guid.Empty` is rejected before audit reservation.
+- [ ] The actor has no local `CommandAuditTracker` and does not call `InsertCommandLogAsync`.
+- [ ] Audit failure prevents validation, state loading, execution, and persistence.
+- [ ] Duplicate `CommandId` delivery is acknowledged without re-execution.
 - [ ] `_validationMap` lists every supported concrete command type.
+- [ ] `_validationMap` is read-only and every entry visibly starts with `ValidateCommandId`.
+- [ ] `OnValidateAsync` delegates exact-type dispatch and aggregate throwing to `ValidateMappedCommand`.
+- [ ] Every entry validates `EntityId` and every non-header payload parameter.
+- [ ] Structured payload rules cover every payload property and report null payloads as validation errors.
+- [ ] Repeated identities are independently validated and cross-checked; no synthetic `PayloadId` is added.
+- [ ] Multiple invalid values produce one aggregate `CommandValidationException`.
 - [ ] `_receiveMap` lists every supported concrete command type.
+- [ ] `_receiveMap` is read-only and every delegate forwards to a command extension rather than embedding the domain algorithm.
 - [ ] `ReceiveAsync` performs common checks and mapped dispatch only.
+- [ ] The normalized concrete command-type sets in `_parseMap`, `_validationMap`, and `_receiveMap` are equal.
 - [ ] Unsupported command types fail clearly.
+- [ ] No map uses default handling, assignable-type search, or switch-based fallback.
 - [ ] Synchronous extensions return `ServiceResult<GuidResult>`.
 - [ ] Genuine asynchronous extensions return `Task<ServiceResult<GuidResult>>` and are awaited; cancellation is propagated when the framework exposes it.
 - [ ] Command extensions create and apply the correct private domain event.
@@ -738,6 +1013,7 @@ For each approved conversion, validation must cover compilation, equality and ha
 - [Actor Message Types and Delivery Conventions](Actor-Message-Types-and-Delivery-Conventions.md)
 - [Actor Event Streaming and Paged Query Contracts](Actor-Event-Streaming-and-Paged-Query-Contracts.md)
 - [Event Sourcing Projection Split-Brain Controls](Event-Sourcing-Projection-Split-Brain-Controls.md)
+- [CommandActor Validation Convention Migration Plan](Command-Actor-Validation-Convention-Migration-Plan.md)
 
 ## 15. Revision history
 
@@ -753,3 +1029,6 @@ For each approved conversion, validation must cover compilation, equality and ha
 | 2026-08-14 | Completed the realtime ITI period and ownership contract: actor-owned lazy ES/VX registrations, Daily-only realtime entry, deterministic durable Daily-to-Weekly/Monthly derivation, recursion guards, stable derived command IDs, and source-VX preservation across generated/completed events. |
 | 2026-08-25 | Recorded `readonly record struct` as a convention preference for eligible entity IDs and required a separate system-wide identity inventory, compatibility assessment, classification, and approved domain-gated plan before converting existing types. |
 | 2026-08-26 | Added the CommandActor convention: explicit parse/validation/receive maps, switch-free mapped dispatch, synchronous and asynchronous command-extension contracts, event-sourced state/repository/projector boundaries, actor-owned calculation models, durable failure handling, and benchmark qualification for thread-pool parallel calculation. |
+| 2026-08-28 | Defined command-only ingress validation: base mapped parsing, pre-audit `CommandId` rejection, read-only exact-type validation maps, visible `CommandId`/`EntityId`/payload ordering, FluentValidation for structured payloads, aggregate errors, identity cross-checks, and no synthetic payload identifiers. |
+| 2026-08-28 | Clarified the three-map CommandActor contract: one supported-command manifest, normalized map parity, canonical key and delegate shapes, immutable metadata, base-helper responsibilities, fail-closed dispatch, strict parse/validate/receive boundaries, fixed execution order, and conformance checks. |
+| 2026-08-28 | Migrated all domain CommandActor and EventActor receive maps to exact concrete `Type` keys, added shared exact-type receive resolvers, added `BaseEventActor.ParseMappedEvent`, and required parse/receive map parity through repository conformance gates. |

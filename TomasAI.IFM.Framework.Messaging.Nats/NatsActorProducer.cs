@@ -33,6 +33,7 @@ public class NatsActorProducer(
     readonly bool _ownsConnectionManager = connectionManager is null;
     readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     INatsClient? _nc;
+    CancellationTokenSource? _operationStopping;
     ActorMailboxId _actorId;
     bool _isRunning;
 
@@ -59,6 +60,8 @@ public class NatsActorProducer(
                 if (_isRunning)
                     return;
                 _nc = await _connectionManager.GetClientAsync(_options.Url, cancellationToken).ConfigureAwait(false);
+                _operationStopping?.Dispose();
+                _operationStopping = new CancellationTokenSource();
                 _actorId = mailboxId;
                 Volatile.Write(ref _isRunning, true);
             }
@@ -93,6 +96,13 @@ public class NatsActorProducer(
                 if (!IsRunning)
                     return;
                 Volatile.Write(ref _isRunning, false);
+                var operationStopping = _operationStopping;
+                _operationStopping = null;
+                if (operationStopping is not null)
+                {
+                    await operationStopping.CancelAsync().ConfigureAwait(false);
+                    operationStopping.Dispose();
+                }
                 if (_ownsConnectionManager)
                     await _connectionManager.DisposeAsync().ConfigureAwait(false);
                 _nc = null;
@@ -260,6 +270,8 @@ public class NatsActorProducer(
             if (!IsRunning)
                 await StartAsync(_actorId, cancellationToken).ConfigureAwait(false);
 
+            using var operationCancellation = CreateOperationCancellation(cancellationToken);
+
             // Deserialize the typed reply directly from NATS's receive sequence;
             // do not materialize an intermediate reply byte[].
             var reply = await _nc!.RequestAsync<TQuery, ServiceResult<TResult>>(
@@ -267,7 +279,7 @@ public class NatsActorProducer(
                  query,
                  requestSerializer: NatsMessagePackSerializer<TQuery>.Default,
                  replySerializer: NatsMessagePackSerializer<ServiceResult<TResult>>.Default,
-                 cancellationToken: cancellationToken)
+                 cancellationToken: operationCancellation.Token)
                 .ConfigureAwait(false);
             result = IsArgumentNull.Set(reply.Data);
             NatsMessagingMetrics.Published.Add(1);
@@ -368,12 +380,13 @@ public class NatsActorProducer(
         var started = NatsMessagingMetrics.StartOperation();
         try
         {
+            using var operationCancellation = CreateOperationCancellation(cancellationToken);
             var data = (await _nc!.RequestAsync(
                 subject,
                 message,
                 requestSerializer: NatsMessagePackSerializer<T>.Default,
                 replySerializer: _messageSerializer,
-                cancellationToken: cancellationToken).ConfigureAwait(false)).Data!;
+                cancellationToken: operationCancellation.Token).ConfigureAwait(false)).Data!;
             NatsMessagingMetrics.Published.Add(1);
             return data;
         }
@@ -386,6 +399,15 @@ public class NatsActorProducer(
         {
             NatsMessagingMetrics.RecordOperation(started, NatsMessagingMetrics.CoreRequestOperation);
         }
+    }
+
+    CancellationTokenSource CreateOperationCancellation(CancellationToken cancellationToken)
+    {
+        var operationStopping = _operationStopping
+            ?? throw new InvalidOperationException("The NATS actor producer is not running.");
+        return CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            operationStopping.Token);
     }
 
     static void EnsureCoreSubject(ActorSubject subject, ActorType expectedActorType)

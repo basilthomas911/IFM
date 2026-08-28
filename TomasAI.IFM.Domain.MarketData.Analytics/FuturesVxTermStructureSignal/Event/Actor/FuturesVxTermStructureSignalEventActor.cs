@@ -19,8 +19,16 @@ public sealed class FuturesVxTermStructureSignalEventActor(
     /// <summary>Gets the typed Event context supplied through open-generic registration.</summary>
     IFuturesVxTermStructureSignalEventContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVxTermStructureSignalEventContext, nameof(actorContext))!;
-    readonly Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger, ValueTask<bool>>>
-        receiveMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesVxTermStructureSignalUpdatedCompleteEvent.Verb] = static message =>
+                message.AsEvent<FuturesVxTermStructureSignalUpdatedCompleteEvent>()!,
+            [FuturesVxTermStructureSignalUpdatedFailEvent.Verb] = static message =>
+                message.AsEvent<FuturesVxTermStructureSignalUpdatedFailEvent>()!
+        };
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalEventContext, ILogger, ValueTask<bool>>>()
         {
             [typeof(FuturesVxTermStructureSignalUpdatedCompleteEvent)] = async (@event, context, eventLogger) =>
                 await ((FuturesVxTermStructureSignalUpdatedCompleteEvent)@event)
@@ -31,21 +39,12 @@ public sealed class FuturesVxTermStructureSignalEventActor(
         };
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesVxTermStructureSignalEventActor> context,
-        IActorMessage message) => message.Subject is { ActorType: ActorType.Event, Name: ActorName }
-        ? message.Subject.Verb switch
-        {
-            FuturesVxTermStructureSignalUpdatedCompleteEvent.Verb =>
-                message.AsEvent<FuturesVxTermStructureSignalUpdatedCompleteEvent>()!,
-            FuturesVxTermStructureSignalUpdatedFailEvent.Verb =>
-                message.AsEvent<FuturesVxTermStructureSignalUpdatedFailEvent>()!,
-            _ => default!
-        } : default!;
+        IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesVxTermStructureSignalEventActor> context,
         IEvent @event)
     {
-        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unsupported VX Event actor message {@event.EventName}.");
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await handler(@event, TypedContext, TypedContext.Logger).ConfigureAwait(false);
     }
     /// <inheritdoc />

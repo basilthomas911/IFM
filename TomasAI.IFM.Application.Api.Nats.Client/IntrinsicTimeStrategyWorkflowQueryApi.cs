@@ -101,6 +101,22 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorPr
         => StatusAsync<GetStoppedIntrinsicTimeStrategyWorkflowsQuery>(
             GetStoppedIntrinsicTimeStrategyWorkflowsQuery.Verb, startDate, endDate, pageSize);
 
+    /// <inheritdoc />
+    public Task<ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>> GetObservationAsync(
+        IntrinsicTimeStrategyWorkflowEntityId workflowEntity)
+    {
+        var entityText = workflowEntity.Format();
+        var subject = QuerySubject(GetIntrinsicTimeStrategyWorkflowObservationQuery.Verb, entityText);
+        return RequestAsync<GetIntrinsicTimeStrategyWorkflowObservationQuery,
+            IntrinsicTimeStrategyWorkflowObservationReadModel>(subject,
+            new GetIntrinsicTimeStrategyWorkflowObservationQuery
+            {
+                Subject = subject,
+                EntityId = new ActorEntityId(entityText),
+                WorkflowEntity = workflowEntity
+            }).AsTask();
+    }
+
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> StatusAsync<TQuery>(
         string verb, DateOnly startDate, DateOnly endDate, int pageSize)
         where TQuery : class, IQuery<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>, new()

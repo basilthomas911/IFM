@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
@@ -13,14 +14,15 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State
 /// Holds the private event-sourced state owned by the Intrinsic Time Strategy Workflow Command actor.
 /// </summary>
 /// <remarks>
-/// The framework reuses this state shell while replaying an event stream, but every supported event replaces the
-/// current public workflow snapshot with a newly constructed immutable record graph. Historical snapshots are never
-/// mutated. The state intentionally retains only bounded command metadata; complete history remains in the event log.
+/// Every supported state-update event replaces the current workflow view with a newly constructed immutable record
+/// graph. Runtime recovery applies only the latest authoritative snapshot; legacy workflow events are deliberately
+/// rejected by the repository instead of being replayed into live state.
 /// </remarks>
 public sealed class IntrinsicTimeStrategyWorkflowCommandState
     : BaseEventSourceActorState<IntrinsicTimeStrategyWorkflowCommandState>,
       IEventSourceActorState<IntrinsicTimeStrategyWorkflowCommandState>
 {
+    IntrinsicTimeStrategyWorkflowView? _currentView;
     IntrinsicTimeStrategyWorkflowState? _latestWorkflow;
     FuturesItiSignalGeneratedEvent? _activeTriggerEvent;
     ImmutableDictionary<StrategyWorkflowStage, Guid> _processedPipelineEventIds
@@ -35,6 +37,16 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
 
     /// <summary>Gets the workflow entity associated with the replayed stream.</summary>
     public IntrinsicTimeStrategyWorkflowEntityId EntityId { get; private set; } = new();
+
+    /// <summary>Gets whether an authoritative state-update snapshot has been applied.</summary>
+    public bool HasAuthoritativeSnapshot => _currentView is not null;
+
+    /// <summary>Gets a defensive copy of the latest authoritative workflow view.</summary>
+    public IntrinsicTimeStrategyWorkflowView? CurrentView
+        => _currentView is null ? null : CloneView(_currentView);
+
+    /// <summary>Gets the PostgreSQL stream version observed when this state was loaded.</summary>
+    public long PersistedStreamVersion { get; private set; }
 
     /// <summary>Gets a value indicating whether this entity currently has a running workflow.</summary>
     public bool HasActiveWorkflow => _latestWorkflow is { Status: StrategyWorkflowStatus.Running };
@@ -154,52 +166,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
     {
         var applied = domainEvent switch
         {
-            StrategyWorkflowStartAcceptedEvent e => On(e),
-            StrategyWorkflowStartRejectedEvent e => On(e),
-            IntrinsicTimeStrategyWorkflowStartedEvent e => On(e),
-            IntrinsicTimeStrategyWorkflowContinuedEvent e => On(e),
-            StrategyWorkflowRegimeDiscoveryResultRecordedEvent e => OnResult(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Result, e.RecordedAtUtc),
-            StrategyWorkflowMarketConditionResultRecordedEvent e => OnResult(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Result, e.RecordedAtUtc),
-            StrategyWorkflowTradeSelectionResultRecordedEvent e => OnResult(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Result, e.RecordedAtUtc),
-            StrategyWorkflowOrderCompositionResultRecordedEvent e => OnResult(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Result, e.RecordedAtUtc),
-            StrategyWorkflowRiskManagementResultRecordedEvent e => OnResult(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Result, e.RecordedAtUtc),
-            StrategyWorkflowRegimeDiscoveryContinuationEvaluatedEvent e => OnContinuation(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.Decision, e.RuleSetId, e.RuleSetVersion, e.ReasonCodes),
-            StrategyWorkflowMarketConditionContinuationEvaluatedEvent e => OnContinuation(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.Decision, e.RuleSetId, e.RuleSetVersion, e.ReasonCodes),
-            StrategyWorkflowTradeSelectionContinuationEvaluatedEvent e => OnContinuation(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.Decision, e.RuleSetId, e.RuleSetVersion, e.ReasonCodes),
-            StrategyWorkflowOrderCompositionContinuationEvaluatedEvent e => OnContinuation(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.Decision, e.RuleSetId, e.RuleSetVersion, e.ReasonCodes),
-            StrategyWorkflowRiskManagementContinuationEvaluatedEvent e => OnContinuation(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.Decision, e.RuleSetId, e.RuleSetVersion, e.ReasonCodes),
-            StrategyWorkflowRegimeDiscoveryFailedEvent e => OnFailure(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Failure, e.FailedAtUtc),
-            StrategyWorkflowMarketConditionFailedEvent e => OnFailure(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Failure, e.FailedAtUtc),
-            StrategyWorkflowTradeSelectionFailedEvent e => OnFailure(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Failure, e.FailedAtUtc),
-            StrategyWorkflowOrderCompositionFailedEvent e => OnFailure(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Failure, e.FailedAtUtc),
-            StrategyWorkflowRiskManagementFailedEvent e => OnFailure(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.SourceEventId, e.Failure, e.FailedAtUtc),
-            StrategyWorkflowRegimeDiscoveryTimedOutEvent e => OnTimeout(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.TimeoutId, e.TimedOutAtUtc),
-            StrategyWorkflowMarketConditionTimedOutEvent e => OnTimeout(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.TimeoutId, e.TimedOutAtUtc),
-            StrategyWorkflowTradeSelectionTimedOutEvent e => OnTimeout(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.TimeoutId, e.TimedOutAtUtc),
-            StrategyWorkflowOrderCompositionTimedOutEvent e => OnTimeout(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.TimeoutId, e.TimedOutAtUtc),
-            StrategyWorkflowRiskManagementTimedOutEvent e => OnTimeout(
-                e.Stage, e.WorkflowId, e.WorkflowRevision, e.TimeoutId, e.TimedOutAtUtc),
-            IntrinsicTimeStrategyWorkflowCompletedEvent e => On(e),
-            IntrinsicTimeStrategyWorkflowStoppedEvent e => On(e),
+            WorkflowStrategyStateUpdatedEvent e => On(e),
             _ => false
         };
 
@@ -213,6 +180,34 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             LastPersistedEventId = Math.Max(LastPersistedEventId, workflowEvent.EventId);
         }
 
+        return true;
+    }
+
+    /// <summary>Records the expected PostgreSQL stream version used by the next optimistic write.</summary>
+    internal void SetPersistedStreamVersion(long value)
+    {
+        if (value < 0)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        PersistedStreamVersion = value;
+    }
+
+    bool On(WorkflowStrategyStateUpdatedEvent e)
+    {
+        if (e.State.EntityId != e.EntityId || e.State.WorkflowId != e.WorkflowId ||
+            e.State.WorkflowRevision != e.WorkflowRevision)
+            return false;
+
+        _currentView = CloneView(e.State);
+        _latestWorkflow = ToLegacyWorkflow(e.State);
+        _activeTriggerEvent = e.State.Status == WorkflowStrategyMachineStatus.Started
+            ? CloneTrigger(e.State.TriggerEvent)
+            : null;
+        ActiveDispatchInstruction = null;
+        LastTriggerEventId = e.State.TriggerEventId;
+        LastRequestedWorkflowId = e.State.WorkflowId;
+        LastStartDecision = e.State.Status == WorkflowStrategyMachineStatus.Started
+            ? StrategyWorkflowStartDecision.Accepted
+            : LastStartDecision;
         return true;
     }
 
@@ -587,6 +582,55 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             RiskManagement = CloneStage(source.RiskManagement)
         };
 
+    static IntrinsicTimeStrategyWorkflowView CloneView(IntrinsicTimeStrategyWorkflowView source)
+        => source with
+        {
+            RegimeDiscovery = CloneStage(source.RegimeDiscovery),
+            MarketCondition = CloneStage(source.MarketCondition),
+            TradeSelection = CloneStage(source.TradeSelection),
+            OrderComposition = CloneStage(source.OrderComposition),
+            RiskManagement = CloneStage(source.RiskManagement),
+            TriggerEvent = CloneTrigger(source.TriggerEvent),
+            RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet)
+        };
+
+    static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source)
+        => new()
+        {
+            EntityId = source.EntityId,
+            WorkflowId = source.WorkflowId,
+            TriggerEventId = source.TriggerEventId,
+            CorrelationId = source.CorrelationId,
+            WorkflowDefinitionVersion = source.WorkflowDefinitionVersion,
+            Status = source.Status switch
+            {
+                WorkflowStrategyMachineStatus.Empty => StrategyWorkflowStatus.None,
+                WorkflowStrategyMachineStatus.Started => StrategyWorkflowStatus.Running,
+                WorkflowStrategyMachineStatus.Completed => StrategyWorkflowStatus.Completed,
+                _ => StrategyWorkflowStatus.Stopped
+            },
+            Outcome = source.Status switch
+            {
+                WorkflowStrategyMachineStatus.Completed => StrategyWorkflowOutcome.Completed,
+                WorkflowStrategyMachineStatus.Failed => StrategyWorkflowOutcome.PipelineFailed,
+                WorkflowStrategyMachineStatus.TimedOut => StrategyWorkflowOutcome.TimedOut,
+                WorkflowStrategyMachineStatus.Cancelled => StrategyWorkflowOutcome.Cancelled,
+                _ => StrategyWorkflowOutcome.None
+            },
+            CurrentStage = source.CurrentStage,
+            WorkflowRevision = source.WorkflowRevision,
+            StartedAtUtc = source.StartedAtUtc,
+            TerminalAtUtc = source.TerminalAtUtc,
+            RegimeDiscovery = CloneStage(source.RegimeDiscovery),
+            MarketCondition = CloneStage(source.MarketCondition),
+            TradeSelection = CloneStage(source.TradeSelection),
+            OrderComposition = CloneStage(source.OrderComposition),
+            RiskManagement = CloneStage(source.RiskManagement),
+            StopReasonCode = source.StopReasonCode,
+            RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
+            RegimeDiscoveryParameterPayloadSha256 = source.RegimeDiscoveryParameterPayloadSha256
+        };
+
     static StrategyWorkflowStageState CloneStage(StrategyWorkflowStageState source)
         => source with
         {
@@ -597,6 +641,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
 
     static StrategyStageResultEnvelope CloneResult(StrategyStageResultEnvelope source)
         => source with { Payload = source.Payload };
+
+    static Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet
+        CloneParameterSet(
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet source)
+        => MessagePackSerializer.Deserialize<
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet>(
+            MessagePackSerializer.Serialize(source));
 
     static FuturesItiSignalGeneratedEvent CloneTrigger(FuturesItiSignalGeneratedEvent source)
         => source with

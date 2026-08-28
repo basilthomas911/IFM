@@ -13,16 +13,26 @@ public sealed class FuturesBbSignalEventActor(IEventActorContext<FuturesBbSignal
 {
     /// <summary>Gets the event mailbox name.</summary>
     public const string ActorName = FuturesBbSignalGeneratedEvent.Actor;
+
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesBbSignalGeneratedCompleteEvent.Verb] = static message =>
+                message.AsEvent<FuturesBbSignalGeneratedCompleteEvent>()!
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, ValueTask>>
+        {
+            [typeof(FuturesBbSignalGeneratedCompleteEvent)] = static _ => ValueTask.CompletedTask
+        };
+
     /// <inheritdoc />
-    protected override IEvent ParseMessage(IEventActorContext<FuturesBbSignalEventActor> context, IActorMessage message) =>
-        message.Subject is { ActorType: ActorType.Event, Name: ActorName,
-            Verb: FuturesBbSignalGeneratedCompleteEvent.Verb }
-            ? message.AsEvent<FuturesBbSignalGeneratedCompleteEvent>()! : default!;
+    protected override IEvent ParseMessage(IEventActorContext<FuturesBbSignalEventActor> context, IActorMessage message)
+        => ParseMappedEvent(context, message, _parseMap);
     /// <inheritdoc />
-    protected override ValueTask ReceiveAsync(IEventActorContext<FuturesBbSignalEventActor> context, IEvent @event) =>
-        @event is FuturesBbSignalGeneratedCompleteEvent
-            ? ValueTask.CompletedTask
-            : throw new InvalidOperationException($"Unsupported Bollinger event {@event.EventName}.");
+    protected override ValueTask ReceiveAsync(IEventActorContext<FuturesBbSignalEventActor> context, IEvent @event)
+        => ResolveMappedEventHandler(@event, _receiveMap)(@event);
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesBbSignalEventActor> context,
         ActorThreadId threadId, IEvent @event, Exception exception) =>

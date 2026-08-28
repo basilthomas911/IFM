@@ -26,7 +26,15 @@ public class FundTransactionEventActor(IEventActorContext<FundTransactionEventAc
 
     readonly ILogger<FundTransactionEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
 
-    readonly Dictionary<Type, Func<IEvent, IFundTransactionEventContext, ValueTask>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FundTransactionEvent.Verb] = static message => ParseFundTransactionEvent<FundTransactionEvent>(message),
+            [FundTransactionsEvent.Verb] = static message => ParseFundTransactionEvent<FundTransactionsEvent>(message),
+            [EndOfDayFundTransactionProcessedEvent.Verb] = static message => ParseFundTransactionEvent<EndOfDayFundTransactionProcessedEvent>(message)
+        };
+
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFundTransactionEventContext, ValueTask>> _receiveMap = new Dictionary<Type, Func<IEvent, IFundTransactionEventContext, ValueTask>>()
     {
         [typeof(FundTransactionEvent)] = static (_, _) => ValueTask.CompletedTask,
         [typeof(FundTransactionsEvent)] = static (_, _) => ValueTask.CompletedTask,
@@ -42,20 +50,12 @@ public class FundTransactionEventActor(IEventActorContext<FundTransactionEventAc
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
     protected override IEvent ParseMessage(IEventActorContext<FundTransactionEventActor> context, IActorMessage message)
+        => ParseMappedEvent(context, message, _parseMap);
+
+    static IEvent ParseFundTransactionEvent<TEvent>(IActorMessage message) where TEvent : class, IEvent
     {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor })
-            return default!;
-        IEvent? @event = msgSubject.Verb switch
-        {
-            FundTransactionEvent.Verb => message.AsEvent<FundTransactionEvent>(),
-            FundTransactionsEvent.Verb => message.AsEvent<FundTransactionsEvent>(),
-            EndOfDayFundTransactionProcessedEvent.Verb => message.AsEvent<EndOfDayFundTransactionProcessedEvent>(),
-            _ => null
-        };
-        if (@event is null)
-            return default!;
+        var @event = message.AsEvent<TEvent>()
+            ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TEvent).Name}.");
         @event.CheckForEmptyCommandId();
         return @event;
     }
@@ -72,8 +72,7 @@ public class FundTransactionEventActor(IEventActorContext<FundTransactionEventAc
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         await receiveFunc(@event, FundTransactionEventContext).ConfigureAwait(false);
     }
 

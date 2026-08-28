@@ -49,26 +49,13 @@ public sealed class RegimeDiscoveryEventProjector
     public override IReadOnlyCollection<Type> ProjectedEventTypes
         => _descriptors.Select(static value => value.SourceEventType).ToArray();
 
-    /// <summary>Rebuilds Scylla projections without republishing historical terminal events.</summary>
-    public async ValueTask RebuildAsync(
-        IEnumerable<IEvent> events,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(events);
-        foreach (var domainEvent in events.OrderBy(static value => value.EventId))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await ProjectAsync(domainEvent, publishTerminal: false, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
     EventProjectionDescriptor Describe<TEvent>() where TEvent : class, IEvent
         => new(
             typeof(TEvent),
             EventProjectionIdempotencyStrategy.NaturalKeyMutation,
             async (domainEvent, _) =>
             {
-                await ProjectAsync(domainEvent, publishTerminal: true, CancellationToken.None).ConfigureAwait(false);
+                await ProjectAsync(domainEvent, CancellationToken.None).ConfigureAwait(false);
                 return new EventProjectionApplyResult(EventProjectionApplyOutcome.Applied);
             },
             _ => null,
@@ -77,19 +64,17 @@ public sealed class RegimeDiscoveryEventProjector
             useDurableReplay: false,
             publishTerminalEvent: false);
 
-    async ValueTask ProjectAsync(IEvent domainEvent, bool publishTerminal, CancellationToken cancellationToken)
+    async ValueTask ProjectAsync(IEvent domainEvent, CancellationToken cancellationToken)
     {
         switch (domainEvent)
         {
             case RegimeDiscoveryCalculationCompletedEvent completed:
                 await ProjectCompletedAsync(completed, cancellationToken).ConfigureAwait(false);
-                if (publishTerminal)
-                    await PublishCompletedAsync(completed, cancellationToken).ConfigureAwait(false);
+                await PublishCompletedAsync(completed, cancellationToken).ConfigureAwait(false);
                 break;
             case RegimeDiscoveryCalculationFailedEvent failed:
                 await ProjectFailedAsync(failed, cancellationToken).ConfigureAwait(false);
-                if (publishTerminal)
-                    await PublishFailedAsync(failed, cancellationToken).ConfigureAwait(false);
+                await PublishFailedAsync(failed, cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported Regime Discovery event {domainEvent.GetType().Name}.");
@@ -174,7 +159,8 @@ public sealed class RegimeDiscoveryEventProjector
                 payload,
                 completed.Result.MarketDataAsOfUtc,
                 completed.Result.ProducedAtUtc),
-            CompletedAtUtc = completed.CompletedAtUtc
+            CompletedAtUtc = completed.CompletedAtUtc,
+            ExpiresAtUtc = completed.ExpiresAtUtc
         };
         await _context.SendAsync<RegimeDiscoveryPipelineCompletedEvent,
             Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowEntityId>(
@@ -200,13 +186,14 @@ public sealed class RegimeDiscoveryEventProjector
             ErrorData = failed.Failure.ErrorData,
             ReceivedOn = failed.ReceivedOn,
             AggregateId = failed.AggregateId,
-            CommandName = nameof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.StartRegimeDiscoveryPipelineCommand),
+            CommandName = nameof(Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands.ExecuteRegimeDiscoveryPipelineCommand),
             RouteTo = BoundedContextName.RegimeDiscoveryPipelineBoundedContext.ToString(),
             WorkflowId = failed.WorkflowId,
             InputWorkflowRevision = failed.InputWorkflowRevision,
             CorrelationId = failed.CorrelationId,
             CausationId = failed.CausationId,
-            PipelineStage = StrategyWorkflowStage.RegimeDiscovery
+            PipelineStage = StrategyWorkflowStage.RegimeDiscovery,
+            ExpiresAtUtc = failed.ExpiresAtUtc
         };
         await _context.SendAsync<RegimeDiscoveryPipelineFailedEvent,
             Shared.Strategy.Workflow.IntrinsicTime.Identity.IntrinsicTimeStrategyWorkflowEntityId>(

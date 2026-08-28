@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.C
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Command.Actor;
 
@@ -17,30 +19,36 @@ public sealed class RegimeDiscoveryCommandActor(
     static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
         new Dictionary<string, Func<IActorMessage, ICommand>>(StringComparer.Ordinal)
         {
-            [StartRegimeDiscoveryPipelineCommand.Verb] =
-                message => message.AsCommand<StartRegimeDiscoveryPipelineCommand>()!
+            [ExecuteRegimeDiscoveryPipelineCommand.Verb] =
+                message => message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>()!
         };
 
-    static readonly IReadOnlyDictionary<string, Action<ICommand>> _validationMap =
-        new Dictionary<string, Action<ICommand>>(StringComparer.Ordinal)
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [typeof(StartRegimeDiscoveryPipelineCommand).Name] = command =>
-                Validate((StartRegimeDiscoveryPipelineCommand)command)
+            [typeof(ExecuteRegimeDiscoveryPipelineCommand)] = command =>
+            {
+                var execute = (ExecuteRegimeDiscoveryPipelineCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(execute.CommandId, execute.CommandName)
+                    .ValidateEntityId(execute.EntityId, execute.CommandName)
+                    .CaptureCommandValidation(() => Validate(execute));
+            }
         };
 
-    static readonly IReadOnlyDictionary<string,
+    static readonly IReadOnlyDictionary<Type,
         Func<ICommand, ICommandActorContext<RegimeDiscoveryCommandActor>, RegimeDiscoveryCommandState,
             Task<ServiceResult<GuidResult>>>> _receiveMap =
-        new Dictionary<string,
+        new Dictionary<Type,
             Func<ICommand, ICommandActorContext<RegimeDiscoveryCommandActor>, RegimeDiscoveryCommandState,
-                Task<ServiceResult<GuidResult>>>>(StringComparer.Ordinal)
+                Task<ServiceResult<GuidResult>>>>()
         {
-            [typeof(StartRegimeDiscoveryPipelineCommand).Name] = (command, context, state) =>
-                ((StartRegimeDiscoveryPipelineCommand)command).ExecuteAsync(context, state)
+            [typeof(ExecuteRegimeDiscoveryPipelineCommand)] = (command, context, state) =>
+                ((ExecuteRegimeDiscoveryPipelineCommand)command).ExecuteAsync(context, state)
         };
 
     /// <summary>Gets the Command actor name used for dependency injection and routing.</summary>
-    public const string ActorName = StartRegimeDiscoveryPipelineCommand.Actor;
+    public const string ActorName = ExecuteRegimeDiscoveryPipelineCommand.Actor;
 
     static Microsoft.Extensions.Logging.ILogger<RegimeDiscoveryCommandActor> GetLogger(
         ICommandActorContext<RegimeDiscoveryCommandActor> context)
@@ -64,13 +72,7 @@ public sealed class RegimeDiscoveryCommandActor(
     protected override ICommand ParseMessage(
         ICommandActorContext<RegimeDiscoveryCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject.ActorType != ActorType.Command ||
-            !string.Equals(message.Subject.Name, ActorName, StringComparison.Ordinal) ||
-            !_parseMap.TryGetValue(message.Subject.Verb, out var parse))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        return parse(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(
@@ -78,9 +80,7 @@ public sealed class RegimeDiscoveryCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
-            throw new InvalidOperationException($"Unsupported Regime Discovery command: {command.GetType().Name}");
-        validate(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -106,8 +106,7 @@ public sealed class RegimeDiscoveryCommandActor(
         IActorState state,
         ICommand command)
     {
-        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
-            throw new InvalidOperationException($"Unsupported Regime Discovery command: {command.GetType().Name}");
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
         return await receive(command, context, (RegimeDiscoveryCommandState)state).ConfigureAwait(false);
     }
 
@@ -118,10 +117,10 @@ public sealed class RegimeDiscoveryCommandActor(
         ICommand command,
         Exception ex)
         => ValueTask.FromResult<ServiceResult<GuidResult>>(
-            new ServiceResult<GuidResult>(command?.ErrorCode ?? StartRegimeDiscoveryPipelineCommand.ErrorId,
+            new ServiceResult<GuidResult>(command?.ErrorCode ?? ExecuteRegimeDiscoveryPipelineCommand.ErrorId,
                 ex.Message));
 
-    static void Validate(StartRegimeDiscoveryPipelineCommand command)
+    static void Validate(ExecuteRegimeDiscoveryPipelineCommand command)
     {
         var errors = new List<string>();
         if (command.CommandId == Guid.Empty)
@@ -130,14 +129,21 @@ public sealed class RegimeDiscoveryCommandActor(
             errors.Add("Subject.EntityId is required.");
         if (command.InputWorkflowRevision <= 0)
             errors.Add("InputWorkflowRevision must be positive.");
-        errors.AddRange(new StrategyWorkflowIdValidationRules().Execute(command.WorkflowId)
+        errors.AddRange(new RegimeDiscoveryExecutionEntityIdValidationRules().Execute(command.EntityId)
             .Select(value => value.ErrorMessage));
-        errors.AddRange(new IntrinsicTimeStrategyWorkflowEntityIdValidationRules().Execute(command.EntityId)
-            .Select(value => value.ErrorMessage));
+        if (!string.Equals(command.Subject.EntityId, command.EntityId.Format(), StringComparison.Ordinal))
+            errors.Add("Subject.EntityId must match the composite Regime Discovery execution identity.");
+        if (command.WorkflowView.EntityId != command.WorkflowEntityId ||
+            command.WorkflowView.WorkflowId != command.WorkflowId ||
+            command.WorkflowView.WorkflowRevision != command.InputWorkflowRevision)
+            errors.Add("WorkflowView identity and revision must match the Regime Discovery execution.");
+        if (command.ExpiresAtUtc <= command.RequestedAtUtc)
+            errors.Add("ExpiresAtUtc must be later than RequestedAtUtc.");
         errors.AddRange(new RegimeDiscoveryParameterSetValidationRules().Execute(command.ParameterSet)
             .Select(value => value.ErrorMessage));
         if (command.TargetHorizon != command.ParameterSet.TargetHorizon ||
-            command.TargetHorizon != command.TriggerEvent.EntityId.TimePeriod)
+            command.TargetHorizon != command.TriggerEvent.EntityId.TimePeriod ||
+            command.WorkflowEntityId.ItiSignalEntityId != command.TriggerEvent.EntityId)
             errors.Add("TargetHorizon must match the parameter set and trigger ITI timeframe.");
         if (!IsSha256(command.ParameterPayloadSha256))
             errors.Add("ParameterPayloadSha256 must contain exactly 64 hexadecimal characters.");

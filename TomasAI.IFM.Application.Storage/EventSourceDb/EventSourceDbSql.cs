@@ -993,6 +993,34 @@ public const string InsertEventLog = """
         RETURNING EventVersion;
     """;
 
+/// <summary>Inserts an event only when the stream is still at the caller's observed version.</summary>
+public const string InsertEventLogExpectedVersion = """
+    WITH next_stream_version AS (
+        UPDATE event_stream_id
+        SET CurrentVersion = CurrentVersion + 1
+        WHERE EventStreamId = $1
+          AND CurrentVersion = $6
+        RETURNING CurrentVersion AS StreamVersion
+    )
+    INSERT INTO event_log (
+            EventStreamId,
+            EventNameId,
+            StreamVersion,
+            EventData,
+            CommandId,
+            EventTimestamp
+        )
+        SELECT
+            $1,
+            $2,
+            next_stream_version.StreamVersion,
+            $3,
+            $4,
+            $5
+        FROM next_stream_version
+        RETURNING EventVersion;
+    """;
+
     public const string GetEventProjectorStreamCheckpoint = """
         SELECT ProjectorName as "ProjectorName",
                EventStreamId as "EventStreamId",

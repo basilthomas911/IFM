@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 
@@ -32,6 +33,8 @@ public static class IntrinsicTimeStrategyWorkflowCommandContextExtensions
         public IActorService ActorService => Typed(context).ActorService;
         /// <summary>Gets the workflow clock.</summary>
         public TimeProvider TimeProvider => Typed(context).TimeProvider;
+        /// <summary>Gets the fixed workflow execution duration.</summary>
+        public RegimeDiscoveryExecutionOptions ExecutionOptions => Typed(context).ExecutionOptions;
         /// <summary>Gets the actor logger.</summary>
         public ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger => Typed(context).Logger;
     }

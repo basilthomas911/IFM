@@ -102,6 +102,39 @@ public sealed class ActorThreadPoolV2Tests
     }
 
     [Fact]
+    public async Task WaitForIdleAsync_WaitsForActiveMailboxAndQuietPeriod()
+    {
+        var runtime = CreateRuntime(expectedMessages: 1, handlerDelay: TimeSpan.FromMilliseconds(100));
+        await using var pool = runtime.Pool;
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(
+            new TestActorMessage(1) { Owner = runtime.Actor })).Should().BeTrue();
+
+        var becameIdle = await pool.WaitForIdleAsync(
+            TimeSpan.FromMilliseconds(25),
+            TimeSpan.FromSeconds(2));
+
+        becameIdle.Should().BeTrue();
+        runtime.Actor.Sequences.Should().Equal(1);
+    }
+
+    [Fact]
+    public async Task WaitForIdleAsync_ReturnsFalseAtHardTimeoutWhileMailboxIsActive()
+    {
+        var runtime = CreateRuntime(expectedMessages: 1, handlerDelay: TimeSpan.FromMilliseconds(250));
+        await using var pool = runtime.Pool;
+
+        (await runtime.Mailbox.ThreadQueues.WriteAsync(
+            new TestActorMessage(1) { Owner = runtime.Actor })).Should().BeTrue();
+
+        var becameIdle = await pool.WaitForIdleAsync(
+            TimeSpan.FromMilliseconds(25),
+            TimeSpan.FromMilliseconds(50));
+
+        becameIdle.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ZeroRetainedIdleQueues_RetiresEntityQueueAfterDrain()
     {
         var runtime = CreateRuntime(expectedMessages: 1, maxRetainedIdleQueues: 0);

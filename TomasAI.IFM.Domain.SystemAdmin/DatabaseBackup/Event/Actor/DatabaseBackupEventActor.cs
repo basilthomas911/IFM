@@ -28,7 +28,8 @@ public class DatabaseBackupEventActor(
     /// <summary>Gets the SupportedServiceEventTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedServiceEventTypes => ServiceEventTypes;
     /// <summary>Gets the SupportedVerbs value.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => ParseMap.Keys;
+    public static IReadOnlyCollection<string> SupportedVerbs =>
+        _parseMap.Keys as IReadOnlyCollection<string> ?? _parseMap.Keys.ToArray();
 
     static readonly Type[] ServiceEventTypes =
     [
@@ -44,27 +45,34 @@ public class DatabaseBackupEventActor(
         typeof(DatabaseRetentionExecutionFailedEvent), typeof(DatabaseBackupServiceReconciliationEvent), typeof(DatabaseBackupServiceCapabilityChangedEvent)
     ];
     static readonly MethodInfo ParseMethod = typeof(DatabaseBackupEventActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> ParseMap = ServiceEventTypes.ToDictionary(
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = ServiceEventTypes.ToDictionary(
         type => ((DatabaseBackupServiceEventContract)Activator.CreateInstance(type)!).Verb,
         type => (Func<IActorMessage, IEvent>)ParseMethod.MakeGenericMethod(type).CreateDelegate(typeof(Func<IActorMessage, IEvent>)),
         StringComparer.Ordinal);
+    static readonly IReadOnlyDictionary<Type, Func<
+        IEvent,
+        IEventActorContext<DatabaseBackupEventActor>,
+        ValueTask>> _receiveMap = ServiceEventTypes.ToDictionary(
+            type => type,
+            _ => (Func<IEvent, IEventActorContext<DatabaseBackupEventActor>, ValueTask>)ReceiveServiceEventAsync);
 
     protected override IEvent ParseMessage(IEventActorContext<DatabaseBackupEventActor> context, IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Event, Name: Actor }
-            || !ParseMap.TryGetValue(message.Subject.Verb, out var parser))
-            return default!;
-        return parser(message);
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     static IEvent ParseTyped<TEvent>(IActorMessage message) where TEvent : class, IEvent
         => message.AsEvent<TEvent>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TEvent).Name}.");
 
-    protected override async ValueTask ReceiveAsync(IEventActorContext<DatabaseBackupEventActor> context, IEvent @event)
+    protected override ValueTask ReceiveAsync(IEventActorContext<DatabaseBackupEventActor> context, IEvent @event)
     {
-        var dispatchContext = context;
-        if (@event is not DatabaseBackupServiceEventContract serviceEvent)
-            throw new InvalidOperationException($"Unsupported DatabaseBackup event '{@event.GetType().Name}'.");
+        var receive = ResolveMappedEventHandler(@event, _receiveMap);
+        return receive(@event, context);
+    }
+
+    static async ValueTask ReceiveServiceEventAsync(
+        IEvent @event,
+        IEventActorContext<DatabaseBackupEventActor> context)
+    {
+        var serviceEvent = (DatabaseBackupServiceEventContract)@event;
         var command = DatabaseBackupEventTranslator.Translate(serviceEvent);
         var result = await RequestAsync(context, command).ConfigureAwait(false);
         if (!result.Success)

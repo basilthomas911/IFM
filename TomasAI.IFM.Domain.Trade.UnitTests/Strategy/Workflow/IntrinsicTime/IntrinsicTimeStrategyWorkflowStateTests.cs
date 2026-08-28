@@ -3,6 +3,7 @@ using FluentAssertions;
 using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
@@ -224,6 +225,63 @@ public sealed class IntrinsicTimeStrategyWorkflowStateTests
         propertyNames.Should().NotContain("TriggerEvent");
         propertyNames.Should().NotContain("PipelineState");
         propertyNames.Should().NotContain("PrivateState");
+    }
+
+    /// <summary>Confirms the RD-19 pipeline input carries the complete prior state and fixed deadline immutably.</summary>
+    [Fact]
+    public void Workflow_view_round_trips_complete_pipeline_state_and_deadline()
+    {
+        var state = CreateWorkflowState();
+        var trigger = new FuturesItiSignalGeneratedEvent
+        {
+            Id = state.TriggerEventId,
+            EntityId = state.EntityId.ItiSignalEntityId,
+            AggregateId = string.Empty,
+            EventSource = string.Empty,
+            CreatedBy = string.Empty
+        };
+        var expected = new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = state.EntityId,
+            WorkflowId = state.WorkflowId,
+            TriggerEventId = state.TriggerEventId,
+            CorrelationId = state.CorrelationId,
+            CausationId = Guid.Parse("0198E212-3C00-7000-8000-000000000005"),
+            WorkflowDefinitionVersion = state.WorkflowDefinitionVersion,
+            Status = WorkflowStrategyMachineStatus.Started,
+            CurrentStage = state.CurrentStage,
+            WorkflowRevision = state.WorkflowRevision,
+            StartedAtUtc = state.StartedAtUtc,
+            UpdatedAtUtc = ProducedAtUtc,
+            ExpiresAtUtc = ProducedAtUtc.AddMinutes(2),
+            RegimeDiscovery = state.RegimeDiscovery with
+            {
+                InputWorkflowRevision = 1,
+                ParameterSetId = Guid.Parse("0198E212-3C00-7000-8000-000000000006"),
+                ParameterSetVersion = 3,
+                ParameterPayloadSha256 = new string('A', 64),
+                ExpiresAtUtc = ProducedAtUtc.AddMinutes(2)
+            },
+            MarketCondition = state.MarketCondition,
+            TradeSelection = state.TradeSelection,
+            OrderComposition = state.OrderComposition,
+            RiskManagement = state.RiskManagement,
+            TriggerEvent = trigger
+        };
+
+        var actual = RoundTrip(expected);
+
+        actual.Should().BeEquivalentTo(expected, options => options
+            .Excluding(view => view.RegimeDiscovery.Result));
+        actual.ExpiresAtUtc.Should().Be(ProducedAtUtc.AddMinutes(2));
+        actual.RegimeDiscovery.Result.Should().BeEquivalentTo(
+            expected.RegimeDiscovery.Result,
+            options => options.Excluding(result => result!.Payload));
+        actual.RegimeDiscovery.Result!.Payload.ToArray().Should()
+            .Equal(expected.RegimeDiscovery.Result!.Payload.ToArray());
+        actual.RegimeDiscovery.ParameterSetVersion.Should().Be(3);
+        actual.RegimeDiscovery.ParameterPayloadSha256.Should().Be(new string('A', 64));
+        actual.TriggerEvent.Id.Should().Be(state.TriggerEventId);
     }
 
     static StrategyStageResultEnvelope CreateEnvelope(

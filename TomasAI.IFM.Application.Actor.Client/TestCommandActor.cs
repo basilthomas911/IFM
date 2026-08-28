@@ -22,6 +22,12 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "TestCommand";
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>
+        {
+            ["TestCommand"] = message => message.AsCommand<TestCommand>()!
+        };
+
     /// <summary>
     /// Parses the incoming actor message and resolves the associated command for the actor.
     /// </summary>
@@ -31,16 +37,10 @@ public class TestCommandActor(ICommandActorContext<TestCommandActor> actorContex
     /// <param name="context">The context in which the command actor operates. This provides access to actor-specific resources and state.</param>
     /// <param name="message">The message to be parsed, containing the subject and payload required to resolve the command.</param>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not match the expected command format for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<TestCommandActor> context, IActorMessage message)
-    {
-        var msgSubject = message.Subject;
-        ICommand command = default(ICommand) switch
-        {
-            _ when msgSubject.Is(ActorType.Command, ActorName, "TestCommand") => message.AsCommand<TestCommand>()!,
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}")
-        };
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<TestCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Processes an incoming command asynchronously within the specified actor context and state.

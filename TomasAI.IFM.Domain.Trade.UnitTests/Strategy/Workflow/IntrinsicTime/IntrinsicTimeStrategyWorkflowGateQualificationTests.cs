@@ -1,10 +1,16 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using FluentAssertions;
 using MessagePack;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -43,17 +49,54 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         eventActors.Should().BeEmpty();
     }
 
-    /// <summary>Confirms only external sources use global realtime route registration.</summary>
+    /// <summary>Confirms only the ITI trigger uses global realtime route registration.</summary>
     [Fact]
-    public void Realtime_actor_declares_eleven_external_progression_routes()
+    public void Realtime_actor_declares_only_the_external_trigger_route()
     {
-        var routes = (ActorTypeId[])typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
-            .GetField("ExternalRoutes", BindingFlags.NonPublic | BindingFlags.Static)!
+        var route = (ActorTypeId)typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
+            .GetField("TriggerRoute", BindingFlags.NonPublic | BindingFlags.Static)!
             .GetValue(null)!;
 
-        routes.Should().HaveCount(11);
-        routes.Should().OnlyContain(route => route.ActorType == ActorType.Realtime);
-        routes.Should().NotContain(route => route.Name == "IntrinsicTimeStrategyWorkflow");
+        route.ActorType.Should().Be(ActorType.Realtime);
+        route.Verb.Should().Be("Generated");
+        typeof(IntrinsicTimeStrategyWorkflowRealtimeActor)
+            .GetField("ExternalRoutes", BindingFlags.NonPublic | BindingFlags.Static).Should().BeNull();
+    }
+
+    /// <summary>Confirms the workflow projector accepts only complete authoritative snapshots.</summary>
+    [Fact]
+    public void Workflow_projector_projects_only_state_update_snapshots()
+    {
+        var projector = (IntrinsicTimeStrategyWorkflowEventProjector)RuntimeHelpers.GetUninitializedObject(
+            typeof(IntrinsicTimeStrategyWorkflowEventProjector));
+
+        projector.ProjectedEventTypes.Should().Equal(typeof(WorkflowStrategyStateUpdatedEvent));
+    }
+
+    /// <summary>Confirms only Started/Regime snapshots produce deterministic Regime execution commands.</summary>
+    [Fact]
+    public void Regime_execute_requires_committed_started_regime_snapshot_and_is_deterministic()
+    {
+        var started = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification();
+
+        var first = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateRegimeExecute(started);
+        var duplicate = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateRegimeExecute(started);
+        var terminal = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateRegimeExecute(started with
+        {
+            State = started.State with { Status = WorkflowStrategyMachineStatus.Failed }
+        });
+        var laterStage = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateRegimeExecute(started with
+        {
+            State = started.State with { CurrentStage = StrategyWorkflowStage.MarketCondition }
+        });
+
+        first.Should().NotBeNull();
+        duplicate!.CommandId.Should().Be(first!.CommandId);
+        duplicate.EntityId.Should().Be(first.EntityId);
+        first.WorkflowView.Should().BeEquivalentTo(started.State);
+        first.ExpiresAtUtc.Should().Be(started.State.ExpiresAtUtc);
+        terminal.Should().BeNull();
+        laterStage.Should().BeNull();
     }
 
     /// <summary>Confirms the typed query contract survives the default MessagePack transport boundary.</summary>
@@ -76,6 +119,98 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         actual.EntityId.Format().Should().Be(expected.EntityId.Format());
         actual.WorkflowEntityId.Should().Be(expected.WorkflowEntityId);
         actual.MinimumWorkflowRevision.Should().Be(7);
+    }
+
+    /// <summary>Confirms the operational query retains its stable workflow entity across transport.</summary>
+    [Fact]
+    public void Workflow_observation_query_round_trips_through_messagepack()
+    {
+        var entity = IntrinsicTimeStrategyWorkflowCommandStateTests
+            .CreateStartedSnapshotForQualification().EntityId;
+        var expected = new GetIntrinsicTimeStrategyWorkflowObservationQuery
+        {
+            Subject = new ActorSubject(ActorType.Query, GetIntrinsicTimeStrategyWorkflowObservationQuery.Actor,
+                GetIntrinsicTimeStrategyWorkflowObservationQuery.Verb, entity.Format()),
+            EntityId = new ActorEntityId(entity.Format()),
+            WorkflowEntity = entity
+        };
+
+        var actual = MessagePackSerializer.Deserialize<GetIntrinsicTimeStrategyWorkflowObservationQuery>(
+            MessagePackSerializer.Serialize(expected));
+
+        actual.Subject.Should().Be(expected.Subject);
+        actual.EntityId.Format().Should().Be(entity.Format());
+        actual.WorkflowEntity.Should().Be(entity);
+    }
+
+    /// <summary>Confirms deadline observation is derived without changing authoritative state.</summary>
+    [Fact]
+    public void Operational_view_derives_running_and_expired_without_mutation()
+    {
+        var snapshot = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
+        var original = MessagePackSerializer.Serialize(snapshot);
+
+        var running = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+            snapshot.EntityId.Format(), snapshot, null, snapshot.ExpiresAtUtc.AddTicks(-1));
+        var expired = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+            snapshot.EntityId.Format(), snapshot, null, snapshot.ExpiresAtUtc);
+
+        running.OperationalStatus.Should().Be(IntrinsicTimeStrategyWorkflowOperationalStatus.Running);
+        expired.OperationalStatus.Should().Be(IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed);
+        expired.IsOperationalIssue.Should().BeTrue();
+        MessagePackSerializer.Serialize(snapshot).Should().Equal(original);
+    }
+
+    /// <summary>Confirms all terminal operations states and migration blocking are distinguishable.</summary>
+    [Theory]
+    [InlineData(WorkflowStrategyMachineStatus.Failed, IntrinsicTimeStrategyWorkflowOperationalStatus.Failed)]
+    [InlineData(WorkflowStrategyMachineStatus.TimedOut, IntrinsicTimeStrategyWorkflowOperationalStatus.TimedOut)]
+    [InlineData(WorkflowStrategyMachineStatus.Completed, IntrinsicTimeStrategyWorkflowOperationalStatus.Completed)]
+    public void Operational_view_distinguishes_terminal_states(
+        WorkflowStrategyMachineStatus machine,
+        IntrinsicTimeStrategyWorkflowOperationalStatus operational)
+        => IntrinsicTimeStrategyWorkflowQueryActor.Classify(machine, expired: false).Should().Be(operational);
+
+    /// <summary>Confirms Regime terminal notification acceptance is correlated by workflow, revision, and source.</summary>
+    [Fact]
+    public void Operational_view_correlates_regime_terminal_to_workflow_snapshot()
+    {
+        var snapshot = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
+        var source = Guid.NewGuid();
+        snapshot = snapshot with
+        {
+            RegimeDiscovery = snapshot.RegimeDiscovery with { SourceEventId = source }
+        };
+        var regime = new RegimeDiscoveryReadModel
+        {
+            WorkflowId = snapshot.WorkflowId,
+            WorkflowEntityId = snapshot.EntityId.Format(),
+            InputWorkflowRevision = snapshot.RegimeDiscovery.InputWorkflowRevision,
+            SourceEventId = source,
+            Status = "Completed"
+        };
+
+        var accepted = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+            snapshot.EntityId.Format(), snapshot, regime, snapshot.StartedAtUtc);
+        var lost = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+            snapshot.EntityId.Format(), snapshot,
+            regime with { SourceEventId = Guid.NewGuid() }, snapshot.ExpiresAtUtc);
+
+        accepted.WorkflowAcceptedRegimeTerminal.Should().BeTrue();
+        lost.WorkflowAcceptedRegimeTerminal.Should().BeFalse();
+        lost.NotificationLossSuspected.Should().BeTrue();
+    }
+
+    /// <summary>Confirms migration-blocked streams have a distinct operational issue status.</summary>
+    [Fact]
+    public void Operational_view_distinguishes_migration_blocked_stream()
+    {
+        var result = IntrinsicTimeStrategyWorkflowQueryActor.MigrationBlocked(
+            "entity", DateTime.UnixEpoch, "legacy stream");
+
+        result.OperationalStatus.Should().Be(IntrinsicTimeStrategyWorkflowOperationalStatus.MigrationBlocked);
+        result.IsOperationalIssue.Should().BeTrue();
+        result.Diagnostic.Should().Contain("legacy");
     }
 
     static ActiveIntrinsicTimeStrategyWorkflowReadModel Active(long revision)

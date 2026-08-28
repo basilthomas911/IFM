@@ -53,4 +53,14 @@ public interface IActorThreadPool
 
     /// <summary>Gets messages completed since drain measurement began.</summary>
     long DrainedMessageCount => 0;
+
+    /// <summary>Waits for the pool to remain idle for a continuous quiet period.</summary>
+    ValueTask<bool> WaitForIdleAsync(
+        TimeSpan quietPeriod,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(true);
+
+    /// <summary>Cancels workers when a bounded graceful drain cannot complete.</summary>
+    ValueTask StopAsync() => ValueTask.CompletedTask;
 }

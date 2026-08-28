@@ -22,8 +22,8 @@ public class FuturesContractEventActor(IEventActorContext<FuturesContractEventAc
     readonly ILogger<FuturesContractEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     protected IFuturesContractEventContext FuturesContractContext { get; } =
         IsArgumentNull.Set(actorContext as IFuturesContractEventContext, nameof(actorContext))!;
-    static readonly Dictionary<string, Func<IEvent, IFuturesContractEventContext, ILogger, ValueTask<bool>>> _receiveMap = [];
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = [];
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesContractEventContext, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesContractEventContext, ILogger, ValueTask<bool>>>();
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>();
 
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a corresponding event based on the message
@@ -34,17 +34,7 @@ public class FuturesContractEventActor(IEventActorContext<FuturesContractEventAc
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
     protected override IEvent ParseMessage(IEventActorContext<FuturesContractEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Receives an event and dispatches it to the appropriate handler based on the event's type. 
@@ -58,9 +48,7 @@ public class FuturesContractEventActor(IEventActorContext<FuturesContractEventAc
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, FuturesContractContext, _logger);
     }
 

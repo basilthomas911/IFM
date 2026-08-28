@@ -4,6 +4,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
@@ -19,6 +20,9 @@ public interface IIntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <summary>Gets the live-trigger feature options.</summary>
     IntrinsicTimeStrategyWorkflowOptions Options { get; }
+
+    /// <summary>Gets the validated Regime Discovery hard-timeout options.</summary>
+    RegimeDiscoveryExecutionOptions RegimeDiscoveryExecutionOptions { get; }
 
     /// <summary>Gets the immutable strategy-configuration store.</summary>
     IConfigurationDbContext ConfigurationDb { get; }
@@ -39,12 +43,14 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
     public IntrinsicTimeStrategyWorkflowRealtimeContext(
         IActorSupervisor supervisor,
         ILogger<IntrinsicTimeStrategyWorkflowRealtimeActor> logger,
-        IntrinsicTimeStrategyWorkflowOptions options)
+        IntrinsicTimeStrategyWorkflowOptions options,
+        RegimeDiscoveryExecutionOptions regimeDiscoveryExecutionOptions)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, IntrinsicTimeStrategyWorkflowRealtimeActor.ActorName))
     {
         TimeProvider = TimeProvider.System;
         Logger = IsArgumentNull.Set(logger);
         Options = IsArgumentNull.Set(options);
+        RegimeDiscoveryExecutionOptions = IsArgumentNull.Set(regimeDiscoveryExecutionOptions);
         _configurationDb = new(() => IsArgumentNull.Set(Container.Resolve<IConfigurationDbContext>())!);
         _regimeDiscoverySnapshotProvider = new(() => IsArgumentNull.Set(
             Container.Resolve<IRegimeDiscoveryMarketSignalSnapshotProvider>())!);
@@ -58,6 +64,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeContext
 
     /// <inheritdoc />
     public IntrinsicTimeStrategyWorkflowOptions Options { get; }
+
+    /// <inheritdoc />
+    public RegimeDiscoveryExecutionOptions RegimeDiscoveryExecutionOptions { get; }
 
     /// <inheritdoc />
     public IConfigurationDbContext ConfigurationDb => _configurationDb.Value;

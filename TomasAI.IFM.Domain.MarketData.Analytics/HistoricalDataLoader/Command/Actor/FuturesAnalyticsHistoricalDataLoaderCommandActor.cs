@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Command.Actor;
 
@@ -30,14 +32,9 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
     protected override ICommand ParseMessage(
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
-            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return parseCommand.Invoke(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [LoadFuturesAnalyticsHistoricalDataCommand.Verb] = message =>
             message.AsCommand<LoadFuturesAnalyticsHistoricalDataCommand>()
@@ -50,17 +47,21 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        var commandName = command.GetType().Name;
-        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
-            throw new InvalidOperationException("Unsupported data load command.");
-        validateCommand.Invoke(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(LoadFuturesAnalyticsHistoricalDataCommand).Name] = static command =>
-            ValidateLoad((LoadFuturesAnalyticsHistoricalDataCommand)command)
+        [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static command =>
+        {
+            var load = (LoadFuturesAnalyticsHistoricalDataCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(load.CommandId, load.CommandName)
+                .ValidateEntityId(load.EntityId, load.CommandName)
+                .CaptureCommandValidation(() => ValidateLoad(load));
+        }
     };
 
     static void ValidateLoad(LoadFuturesAnalyticsHistoricalDataCommand value)
@@ -93,20 +94,20 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderCommandActor(
         IActorState state,
         ICommand command)
     {
-        var commandName = command.GetType().Name;
-        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
-            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
+        var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receiveCommand.Invoke(
             command,
             context,
             (FuturesAnalyticsHistoricalDataLoaderCommandState)state));
     }
 
-    static readonly Dictionary<string, Func<ICommand,
+    static readonly IReadOnlyDictionary<Type, Func<ICommand,
         ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor>,
-        FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+        FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand,
+        ICommandActorContext<FuturesAnalyticsHistoricalDataLoaderCommandActor>,
+        FuturesAnalyticsHistoricalDataLoaderCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(LoadFuturesAnalyticsHistoricalDataCommand).Name] = static (command, _, state) =>
+        [typeof(LoadFuturesAnalyticsHistoricalDataCommand)] = static (command, _, state) =>
             ((LoadFuturesAnalyticsHistoricalDataCommand)command).Execute(state)
     };
 

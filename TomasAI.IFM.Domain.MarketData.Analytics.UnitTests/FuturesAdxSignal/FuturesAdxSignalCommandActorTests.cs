@@ -64,7 +64,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public async Task ParseMessage_DeserializesGenerateFuturesAdxSignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesAdxSignalCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -104,7 +104,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         deserialized.FuturesAdxSignalId.ContractId.Should().Be(command.FuturesAdxSignalId.ContractId);
         deserialized.Subject.ToString().Should().Be(subject);
 
-        dbEventSource.Received(1).InsertCommandLogAsync(
+        dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
@@ -179,7 +179,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesGenerateFuturesAdxDailySignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesAdxDailySignalCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -214,7 +214,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         deserialized!.CommandId.Should().Be(command.CommandId);
         deserialized.Subject.ToString().Should().Be(subject);
 
-        dbEventSource.Received(1).InsertCommandLogAsync(
+        dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
@@ -343,7 +343,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public async Task ParseMessage_ThrowsException_WhenDatabaseInsertFails()
+    public async Task ParseMessage_DomainAuditFailure_DoesNotAffectValidation()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -365,7 +365,7 @@ public class FuturesAdxSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed);
 
         // Assert
-        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

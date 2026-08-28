@@ -1,15 +1,17 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
 using TomasAI.IFM.Domain.Application.Actor.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 
 using TomasAI.IFM.Domain.Application.Actor.Command.Extensions;
@@ -55,19 +57,12 @@ public sealed class ApplicationCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<ApplicationCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var parseCommand))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = parseCommand.Invoke(message);
-        IsArgumentNull.Check(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<ApplicationCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [StartApplicationCommand.Verb] = static message => message.AsCommand<StartApplicationCommand>()!,
         [ShutdownApplicationCommand.Verb] = static message => message.AsCommand<ShutdownApplicationCommand>()!
@@ -91,25 +86,18 @@ public sealed class ApplicationCommandActor(
         IsArgumentNull.Check(cmd);
         var applicationState = IsArgumentNull.Set((state as ApplicationCommandState)!);
 
-        // ParseMessage is synchronous because the actor contract must release its pooled
-        // payload immediately after materialization. Persist the log here so storage I/O
-        // remains asynchronous and never blocks the mailbox worker thread.
-        await ActorContext.DbEventSource
-            .InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd))
-            .ConfigureAwait(false);
 
-        var commandName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveCommand = ResolveMappedCommandHandler(cmd, _receiveMap);
         return receiveCommand.Invoke(cmd, context, applicationState);
     }
 
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
-        ApplicationCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
+        ApplicationCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<ApplicationCommandActor>,
+        ApplicationCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(StartApplicationCommand).Name] = static (command, _, state) =>
+        [typeof(StartApplicationCommand)] = static (command, _, state) =>
             ((StartApplicationCommand)command).Execute(state),
-        [typeof(ShutdownApplicationCommand).Name] = static (command, _, state) =>
+        [typeof(ShutdownApplicationCommand)] = static (command, _, state) =>
             ((ShutdownApplicationCommand)command).Execute(state)
     };
 
@@ -126,26 +114,32 @@ public sealed class ApplicationCommandActor(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
 
-        var commandName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        validateCommand.Invoke(cmd);
+        ValidateMappedCommand(cmd, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(StartApplicationCommand).Name] = ValidateCommand,
-        [typeof(ShutdownApplicationCommand).Name] = ValidateCommand
+        [typeof(StartApplicationCommand)] = command =>
+        {
+            var typed = (StartApplicationCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateEntityId(typed.EntityId, typed.CommandName)
+                .ValidateEntityId(typed.EntityId, typed.CommandName)
+                .ValidateApplicationEntityId(typed.EntityId, typed.CommandName);
+        },
+        [typeof(ShutdownApplicationCommand)] = command =>
+        {
+            var typed = (ShutdownApplicationCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(typed.CommandId, typed.CommandName)
+                .ValidateEntityId(typed.EntityId, typed.CommandName)
+                .ValidateEntityId(typed.EntityId, typed.CommandName)
+                .ValidateApplicationEntityId(typed.EntityId, typed.CommandName);
+        }
     };
-
-    static void ValidateCommand(ICommand command)
-    {
-        if (command.CommandId == Guid.Empty)
-            throw new CommandValidationException(
-                command.ErrorCode,
-                $"{command.CommandName}.CommandId is empty{Environment.NewLine}");
-    }
 
     protected override async ValueTask OnShutdown(ICommandActorContext<ApplicationCommandActor> context)
         => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);

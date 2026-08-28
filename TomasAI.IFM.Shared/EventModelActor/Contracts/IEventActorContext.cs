@@ -13,6 +13,8 @@ public interface IEventActorContext
 {
     ActorMailboxId ActorId { get; }
     IContainerInstance Container { get; }
+    /// <summary>Gets whether the supervised actor runtime is still accepting normal work.</summary>
+    bool IsReady => true;
 
     bool SetMessageInfo(ActorThreadId threadId, ActorMessageInfo info);
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId);

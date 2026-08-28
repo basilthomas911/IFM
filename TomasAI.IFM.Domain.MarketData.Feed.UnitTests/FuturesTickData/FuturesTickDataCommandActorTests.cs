@@ -53,7 +53,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public async Task ParseMessage_DeserializesInsertFuturesTickDataCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesInsertFuturesTickDataCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -93,17 +93,16 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         deserializedCommand.TickData.ContractId.Should().Be(command.TickData.ContractId);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
-            Arg.Any<string>()
-        );
+            Arg.Any<string>());
 
         await Task.CompletedTask;
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesStartFuturesTickDataStreamingCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesStartFuturesTickDataStreamingCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -140,17 +139,16 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         deserializedCommand.ValueDate.Should().Be(command.ValueDate);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
-            Arg.Any<string>()
-        );
+            Arg.Any<string>());
 
         await Task.CompletedTask;
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesStopFuturesTickDataStreamingCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesStopFuturesTickDataStreamingCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -187,11 +185,10 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         deserializedCommand.ValueDate.Should().Be(command.ValueDate);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
-            Arg.Any<string>()
-        );
+            Arg.Any<string>());
 
         await Task.CompletedTask;
     }
@@ -425,7 +422,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
     }
 
     [Fact]
-    public async Task ParseMessage_DatabaseInsertFails_ThrowsException()
+    public async Task DomainValidation_DoesNotUseDomainDatabaseAudit()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -453,7 +450,7 @@ public class FuturesTickDataCommandActorTests : IClassFixture<MarketDataFeedTest
         var parsed = actor.InvokeParseMessage(context, natsMsg);
         Func<Task> act = () => actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed).AsTask();
 
-        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

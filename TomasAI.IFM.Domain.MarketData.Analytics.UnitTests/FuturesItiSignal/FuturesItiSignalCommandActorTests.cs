@@ -106,7 +106,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public async Task ParseMessage_DeserializesGenerateFuturesItiSignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesItiSignalCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -139,14 +139,14 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         deserialized.ContractId.Should().Be(command.ContractId);
         deserialized.Subject.ToString().Should().Be(subject);
 
-        dbEventSource.Received(1).InsertCommandLogAsync(
+        dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesSetFuturesItiSignalHoldTradeCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesSetFuturesItiSignalHoldTradeCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -173,14 +173,14 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var deserialized = result as SetFuturesItiSignalHoldTradeCommand;
         deserialized!.CommandId.Should().Be(command.CommandId);
 
-        dbEventSource.Received(1).InsertCommandLogAsync(
+        dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesClearFuturesItiSignalHoldTradeCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesClearFuturesItiSignalHoldTradeCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -207,7 +207,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         var deserialized = result as ClearFuturesItiSignalHoldTradeCommand;
         deserialized!.CommandId.Should().Be(command.CommandId);
 
-        dbEventSource.Received(1).InsertCommandLogAsync(
+        dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
@@ -332,7 +332,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public async Task ParseMessage_ThrowsException_WhenDatabaseInsertFails()
+    public async Task ParseMessage_DomainAuditFailure_DoesNotAffectValidation()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -354,7 +354,7 @@ public class FuturesItiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed);
 
         // Assert
-        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

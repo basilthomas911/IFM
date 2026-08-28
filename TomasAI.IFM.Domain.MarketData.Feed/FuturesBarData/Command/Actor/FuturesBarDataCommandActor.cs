@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -34,7 +33,6 @@ public class FuturesBarDataCommandActor(
 {
     public const string ActorName = "FuturesBarDataCommand";
     readonly ILogger<FuturesBarDataCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<FuturesBarDataCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesBarDataCommandState> _repo = default!;
 
@@ -59,24 +57,16 @@ public class FuturesBarDataCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesBarDataCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesBarDataCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [InsertFuturesBarDataCommand.Verb] = msg => msg.AsCommand<InsertFuturesBarDataCommand>()!,
         [DeleteFuturesBarDataCommand.Verb] = msg => msg.AsCommand<DeleteFuturesBarDataCommand>()!,
@@ -99,9 +89,7 @@ public class FuturesBarDataCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var futuresBarDataState = IsArgumentNull.Set((state as FuturesBarDataCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, futuresBarDataState));
     }
 
@@ -109,13 +97,14 @@ public class FuturesBarDataCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures bar data
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
-        FuturesBarDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesBarDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesBarDataCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(InsertFuturesBarDataCommand).Name] = (cmd, context, state) => (cmd as InsertFuturesBarDataCommand)!.Execute(state),
-        [typeof(DeleteFuturesBarDataCommand).Name] = (cmd, context, state) => (cmd as DeleteFuturesBarDataCommand)!.Execute(state),
-        [typeof(StartFuturesBarDataStreamingCommand).Name] = (cmd, context, state) => (cmd as StartFuturesBarDataStreamingCommand)!.Execute(state),
-        [typeof(StopFuturesBarDataStreamingCommand).Name] = (cmd, context, state) => (cmd as StopFuturesBarDataStreamingCommand)!.Execute(state)
+        [typeof(InsertFuturesBarDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesBarDataCommand)!.Execute(state),
+        [typeof(DeleteFuturesBarDataCommand)] = (cmd, context, state) => (cmd as DeleteFuturesBarDataCommand)!.Execute(state),
+        [typeof(StartFuturesBarDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesBarDataStreamingCommand)!.Execute(state),
+        [typeof(StopFuturesBarDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesBarDataStreamingCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -130,39 +119,43 @@ public class FuturesBarDataCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(InsertFuturesBarDataCommand).Name] = cmd => {
+        [typeof(InsertFuturesBarDataCommand)] = cmd => {
             var e = (InsertFuturesBarDataCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesBarData(e.FuturesBarData);
         },
-        [typeof(DeleteFuturesBarDataCommand).Name] = cmd => {
+        [typeof(DeleteFuturesBarDataCommand)] = cmd => {
             var e = (DeleteFuturesBarDataCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesBarDataId(e.Id);
         },
-        [typeof(StartFuturesBarDataStreamingCommand).Name] = cmd => {
+        [typeof(StartFuturesBarDataStreamingCommand)] = cmd => {
             var e = (StartFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesContracts(e.Contracts, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
-        [typeof(StopFuturesBarDataStreamingCommand).Name] = cmd => {
+        [typeof(StopFuturesBarDataStreamingCommand)] = cmd => {
             var e = (StopFuturesBarDataStreamingCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         }
     };

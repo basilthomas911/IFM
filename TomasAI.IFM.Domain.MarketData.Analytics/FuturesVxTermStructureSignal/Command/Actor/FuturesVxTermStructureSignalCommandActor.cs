@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.Domain;
@@ -33,16 +32,12 @@ public sealed class FuturesVxTermStructureSignalCommandActor(
     protected override async ValueTask OnShutdown(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context) =>
         await typedContext.EventProjector.StopAsync();
     /// <inheritdoc />
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
-            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return parseCommand.Invoke(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [UpdateFuturesVxTermStructureSignalCommand.Verb] = message =>
             message.AsCommand<UpdateFuturesVxTermStructureSignalCommand>()
@@ -52,44 +47,43 @@ public sealed class FuturesVxTermStructureSignalCommandActor(
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         IActorState state, ICommand command)
     {
-        var commandName = command.GetType().Name;
-        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
-            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
+        var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receiveCommand.Invoke(
             command,
             context,
             (FuturesVxTermStructureSignalCommandState)state));
     }
 
-    static readonly Dictionary<string, Func<ICommand,
+    static readonly IReadOnlyDictionary<Type, Func<ICommand,
         ICommandActorContext<FuturesVxTermStructureSignalCommandActor>,
-        FuturesVxTermStructureSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+        FuturesVxTermStructureSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand,
+        ICommandActorContext<FuturesVxTermStructureSignalCommandActor>,
+        FuturesVxTermStructureSignalCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(UpdateFuturesVxTermStructureSignalCommand).Name] = static (command, _, state) =>
+        [typeof(UpdateFuturesVxTermStructureSignalCommand)] = static (command, _, state) =>
             ((UpdateFuturesVxTermStructureSignalCommand)command).Execute(state)
     };
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
     /// <inheritdoc />
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
+    protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesVxTermStructureSignalCommandActor> context,
         ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
-        await typedContext.DbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow,
-            JsonConvert.SerializeObject(command), cancellationToken);
-        var commandName = command.GetType().Name;
-        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
-            throw new InvalidOperationException($"Unsupported {ActorName} command {command.CommandName}.");
-        validateCommand.Invoke(command)
-            .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
+        ValidateMappedCommand(command, _validationMap);
+        return ValueTask.CompletedTask;
     }
 
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(UpdateFuturesVxTermStructureSignalCommand).Name] = static command =>
-            command.CommandId == Guid.Empty
-                ? [new ValidationError(nameof(command.CommandId), "CommandId is required")]
-                : []
+        [typeof(UpdateFuturesVxTermStructureSignalCommand)] = static command =>
+        {
+            var update = (UpdateFuturesVxTermStructureSignalCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(update.CommandId, update.CommandName)
+                .ValidateEntityId(update.EntityId, update.CommandName);
+        }
     };
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

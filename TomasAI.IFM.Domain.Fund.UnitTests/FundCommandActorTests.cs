@@ -304,7 +304,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public void OnStartup_ThrowsArgumentNullException_WhenDbEventSourceIsNull()
+    public void Construction_DoesNotRequireDomainLocalDbEventSource_ForCommandAuditing()
     {
         // Arrange
         var eventProjector = Substitute.For<IEventProjector<FundCommandActor>>();
@@ -314,11 +314,11 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         Action act = () => new TestableFundCommandActor(null!, eventProjector, logger);
 
         // Assert
-        act.Should().Throw<ArgumentNullException>();
+        act.Should().NotThrow();
     }
 
     [Fact]
-    public async Task OnStartup_ThrowsArgumentNullException_WhenLoggerIsNull()
+    public void Constructor_ThrowsArgumentNullException_WhenLoggerIsNull()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -365,7 +365,7 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesAddOrderToFundCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesAddOrderToFundCommand_WithoutDomainAuditWrite()
     {
         // Arrange - ensure actor serializers are set (matches runtime startup behaviour)
         _fixture.DataSerializer.Should().NotBeNull();
@@ -409,10 +409,6 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         // Prepare context substitute
         var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
         
-        // Setup database mock to return a completed task when InsertCommandLogAsync is called
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
 
@@ -426,14 +422,12 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         deserializedCommand.FundOrder.OrderId.Should().Be(command.FundOrder.OrderId);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        // Note: command logging happens during ReceiveAsync in current implementation.
-        // ParseMessage no longer logs to the database, so we do not assert InsertCommandLogAsync here.
-
-        await Task.CompletedTask;
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesAddTradeToFundOrderCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesAddTradeToFundOrderCommand_WithoutDomainAuditWrite()
     {
         _fixture.DataSerializer.Should().NotBeNull();
         _fixture.MsgSerializer.Should().NotBeNull();
@@ -456,10 +450,6 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
-        // Setup database mock to return a completed task when InsertCommandLogAsync is called
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
 
@@ -473,14 +463,12 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         deserializedCommand.FundOrderTrade.TradeId.Should().Be(command.FundOrderTrade.TradeId);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        // Note: command logging happens during ReceiveAsync in current implementation.
-        // ParseMessage no longer logs to the database, so we do not assert InsertCommandLogAsync here.
-
-        await Task.CompletedTask;
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesChangeFundOrderTradeStateCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesChangeFundOrderTradeStateCommand_WithoutDomainAuditWrite()
     {
         _fixture.DataSerializer.Should().NotBeNull();
         _fixture.MsgSerializer.Should().NotBeNull();
@@ -504,10 +492,6 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
-        // Setup database mock to return a completed task when InsertCommandLogAsync is called
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
 
@@ -522,14 +506,12 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         deserializedCommand.TradeState.Should().Be(command.TradeState);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        // Note: command logging happens during ReceiveAsync in current implementation.
-        // ParseMessage no longer logs to the database, so we do not assert InsertCommandLogAsync here.
-
-        await Task.CompletedTask;
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesCloseFundOrderCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesCloseFundOrderCommand_WithoutDomainAuditWrite()
     {
         _fixture.DataSerializer.Should().NotBeNull();
         _fixture.MsgSerializer.Should().NotBeNull();
@@ -553,10 +535,6 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
 
         var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
 
-        // Setup database mock to return a completed task when InsertCommandLogAsync is called
-        dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(Task.CompletedTask);
-
         // Act
         var result = actor.InvokeParseMessage(context, natsMsg);
 
@@ -569,10 +547,8 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         deserializedCommand.FundOrderId.OrderId.Should().Be(command.FundOrderId.OrderId);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        // Note: command logging happens during ReceiveAsync in current implementation.
-        // ParseMessage no longer logs to the database, so we do not assert InsertCommandLogAsync here.
-
-        await Task.CompletedTask;
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>());
     }
 
     [Fact]
@@ -1393,7 +1369,77 @@ public class FundCommandActorTests : IClassFixture<FundTestFixture>
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<IFM.Shared.Exceptions.CommandValidationException>();
+        var exception = await act.Should().ThrowAsync<IFM.Shared.Exceptions.CommandValidationException>();
+        exception.Which.Message.Should().Contain("CommandId is empty");
+        exception.Which.Message.Should().Contain("EntityId.Id must be > 0");
+        exception.Which.Message.Should().Contain("FundOrderId.FundId must be > 0");
+        exception.Which.Message.Should().Contain("FundOrderId.OrderId must be > 0");
+    }
+
+    [Fact]
+    public async Task OnValidateAsync_CreateFundCommand_ThrowsWhenEntityIdDoesNotMatchPayload()
+    {
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FundCommandActor>>();
+        var actor = _fixture.CreateActor(dbEventSource, logger);
+        var entityId = new FundId(SampleData.Fund.FundId + 1);
+        var cmd = new CreateFundCommand(SampleData.Fund)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, CreateFundCommand.Actor, CreateFundCommand.Verb, entityId.Format()),
+            EntityId = entityId
+        };
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
+
+        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
+
+        var exception = await act.Should().ThrowAsync<IFM.Shared.Exceptions.CommandValidationException>();
+        exception.Which.Message.Should().Contain("EntityId.Id must match NewFund.FundId");
+    }
+
+    [Fact]
+    public async Task OnValidateAsync_ChangeTradeState_ThrowsWhenTradeStateIsUndefined()
+    {
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FundCommandActor>>();
+        var actor = _fixture.CreateActor(dbEventSource, logger);
+        var tradeId = SampleData.FundOrderTrade.Id;
+        var entityId = new FundId(tradeId.FundId);
+        var cmd = new ChangeFundOrderTradeStateCommand(tradeId, (TradeState)999)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, ChangeFundOrderTradeStateCommand.Actor, ChangeFundOrderTradeStateCommand.Verb, entityId.Format()),
+            EntityId = entityId
+        };
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
+
+        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
+
+        var exception = await act.Should().ThrowAsync<IFM.Shared.Exceptions.CommandValidationException>();
+        exception.Which.Message.Should().Contain("TradeState is invalid");
+    }
+
+    [Fact]
+    public async Task OnValidateAsync_GenerateMaxProfit_ThrowsWhenFundTimePeriodIsNone()
+    {
+        var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
+        var logger = Substitute.For<ILogger<FundCommandActor>>();
+        var actor = _fixture.CreateActor(dbEventSource, logger);
+        var entityId = new FundId(SampleData.FundOrder.FundId);
+        var cmd = new GenerateFundMaxProfitCommand(
+            SampleData.FundOrder,
+            TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.None)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = new ActorSubject(ActorType.Command, GenerateFundMaxProfitCommand.Actor, GenerateFundMaxProfitCommand.Verb, entityId.Format()),
+            EntityId = entityId
+        };
+        var context = Substitute.For<ICommandActorContext<FundCommandActor>>();
+
+        Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, cmd.Subject.ThreadId, cmd);
+
+        var exception = await act.Should().ThrowAsync<IFM.Shared.Exceptions.CommandValidationException>();
+        exception.Which.Message.Should().Contain("FundTimePeriod is invalid");
     }
 
     #endregion

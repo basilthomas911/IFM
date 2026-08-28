@@ -16,7 +16,7 @@ Shared Identities, Observations, Metadata, and Event Evolution v1.0
 
 MDSI-1 establishes the provider-neutral identity, provenance, observation, and
 trade-lineage contracts required by subsequent signal actors. It does not add
-a trade-session bar publisher, signal actor, historical provider, cache, schema,
+a trade-session bar signal, signal actor, historical provider, cache, schema,
 or storage behavior. Those remain owned by later gates.
 
 The gate preserves all existing MessagePack keys. A pre-MDSI-1 five-field

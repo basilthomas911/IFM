@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -36,7 +35,6 @@ public class FuturesOptionTickDataCommandActor(
 {
     public const string ActorName = "FuturesOptionTickDataCommand";
     readonly ILogger<FuturesOptionTickDataCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<FuturesOptionTickDataCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesOptionTickDataCommandState> _repo = default!;
 
@@ -61,24 +59,16 @@ public class FuturesOptionTickDataCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesOptionTickDataCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesOptionTickDataCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [InsertFuturesOptionTickDataCommand.Verb] = msg => msg.AsCommand<InsertFuturesOptionTickDataCommand>()!,
         [StartFuturesOptionTickDataStreamingCommand.Verb] = msg => msg.AsCommand<StartFuturesOptionTickDataStreamingCommand>()!,
@@ -100,9 +90,7 @@ public class FuturesOptionTickDataCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var futuresOptionTickDataState = IsArgumentNull.Set((state as FuturesOptionTickDataCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, futuresOptionTickDataState));
     }
 
@@ -110,12 +98,13 @@ public class FuturesOptionTickDataCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures option tick data
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
-        FuturesOptionTickDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesOptionTickDataCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesOptionTickDataCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(InsertFuturesOptionTickDataCommand).Name] = (cmd, context, state) => (cmd as InsertFuturesOptionTickDataCommand)!.Execute(state),
-        [typeof(StartFuturesOptionTickDataStreamingCommand).Name] = (cmd, context, state) => (cmd as StartFuturesOptionTickDataStreamingCommand)!.Execute(state),
-        [typeof(StopFuturesOptionTickDataStreamingCommand).Name] = (cmd, context, state) => (cmd as StopFuturesOptionTickDataStreamingCommand)!.Execute(state)
+        [typeof(InsertFuturesOptionTickDataCommand)] = (cmd, context, state) => (cmd as InsertFuturesOptionTickDataCommand)!.Execute(state),
+        [typeof(StartFuturesOptionTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StartFuturesOptionTickDataStreamingCommand)!.Execute(state),
+        [typeof(StopFuturesOptionTickDataStreamingCommand)] = (cmd, context, state) => (cmd as StopFuturesOptionTickDataStreamingCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -130,43 +119,58 @@ public class FuturesOptionTickDataCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd);
+        ValidateMappedCommand(cmd, _validationMap);
+
         var refLookupService = context.Container.Resolve<IReferenceLookupService>();
         await refLookupService.EnsureLoadedAsync().ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd, refLookupService)
+        ValidateReferenceData(cmd, refLookupService)
             .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, IReferenceLookupService, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(InsertFuturesOptionTickDataCommand).Name] = (cmd, refLookupService) => {
+        [typeof(InsertFuturesOptionTickDataCommand)] = static cmd => {
             var e = (InsertFuturesOptionTickDataCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContract(e.Contract, e.CommandName)
                 .ValidateOptionTickData(e.OptionTickData, e.CommandName);
         },
-        [typeof(StartFuturesOptionTickDataStreamingCommand).Name] = (cmd, refLookupService) => {
+        [typeof(StartFuturesOptionTickDataStreamingCommand)] = static cmd => {
             var e = (StartFuturesOptionTickDataStreamingCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFuturesOptionContract(e.Contract, refLookupService, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateBaseContract(e.BaseContract, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
                 .ValidateMaturityDate(e.MaturityDate, e.CommandName)
                 .ValidateRiskFreeRate(e.RiskFreeRate, e.CommandName);
         },
-        [typeof(StopFuturesOptionTickDataStreamingCommand).Name] = (cmd, refLookupService) => {
+        [typeof(StopFuturesOptionTickDataStreamingCommand)] = static cmd => {
             var e = (StopFuturesOptionTickDataStreamingCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateContractId(e.ContractId, e.CommandName);
         }
     };
+
+    static List<ValidationError> ValidateReferenceData(
+        ICommand command,
+        IReferenceLookupService referenceLookupService)
+        => command switch
+        {
+            StartFuturesOptionTickDataStreamingCommand start => new List<ValidationError>()
+                .ValidateFuturesOptionContract(
+                    start.Contract,
+                    referenceLookupService,
+                    start.CommandName),
+            InsertFuturesOptionTickDataCommand or StopFuturesOptionTickDataStreamingCommand => [],
+            _ => throw new InvalidOperationException(
+                $"Unable to validate {ActorName} reference data for command: {command.Subject}")
+        };
 
     /// <summary>
     /// Asynchronously loads the state for the actor using the specified command context and thread identifier.

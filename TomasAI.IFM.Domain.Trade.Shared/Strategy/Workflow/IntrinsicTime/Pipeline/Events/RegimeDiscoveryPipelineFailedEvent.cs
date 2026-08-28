@@ -10,13 +10,13 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 /// <summary>Reports terminal failure of the Regime Discovery pipeline calculation.</summary>
 /// <remarks>
 /// The future pipeline Command actor persists this standard failure event and projects its ScyllaDB read model before
-/// publishing the same logical event realtime to the Workflow Strategy Realtime actor.
+/// publishing the same logical event realtime to the Regime Discovery Pipeline Realtime actor.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record RegimeDiscoveryPipelineFailedEvent : IErrorEvent<IntrinsicTimeStrategyWorkflowEntityId>
 {
-    /// <summary>Workflow Realtime actor that receives the terminal pipeline event.</summary>
-    [IgnoreMember] public const string Actor = "IntrinsicTimeStrategyWorkflowRealtime";
+    /// <summary>Regime Realtime actor that translates the terminal pipeline event.</summary>
+    [IgnoreMember] public const string Actor = "RegimeDiscoveryPipelineRealtime";
     /// <summary>Stable pipeline failure verb.</summary>
     [IgnoreMember] public const string Verb = "RegimeDiscoveryPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
@@ -64,6 +64,8 @@ public sealed record RegimeDiscoveryPipelineFailedEvent : IErrorEvent<IntrinsicT
     [Key(19)] public Guid CausationId { get; init; }
     /// <summary>Gets the pipeline workflow stage.</summary>
     [Key(20)] public StrategyWorkflowStage PipelineStage { get; init; }
+    /// <summary>Gets the fixed workflow execution deadline used by the private calculation.</summary>
+    [Key(21)] public DateTime ExpiresAtUtc { get; init; }
 
     /// <summary>Gets the concrete pipeline event contract name.</summary>
     [IgnoreMember] public string EventName => nameof(RegimeDiscoveryPipelineFailedEvent);
@@ -119,7 +121,8 @@ public sealed record RegimeDiscoveryPipelineFailedEvent : IErrorEvent<IntrinsicT
         long inputWorkflowRevision,
         Guid correlationId,
         Guid causationId,
-        StrategyWorkflowStage pipelineStage)
+        StrategyWorkflowStage pipelineStage,
+        DateTime expiresAtUtc)
     {
         Subject = subject;
         EntityId = entityId;
@@ -142,5 +145,6 @@ public sealed record RegimeDiscoveryPipelineFailedEvent : IErrorEvent<IntrinsicT
         CorrelationId = correlationId;
         CausationId = causationId;
         PipelineStage = pipelineStage;
+        ExpiresAtUtc = expiresAtUtc;
     }
 }

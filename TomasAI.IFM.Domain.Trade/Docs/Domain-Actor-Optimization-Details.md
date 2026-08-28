@@ -12,7 +12,7 @@ The pass removed the synchronous actor audit wait, eliminated position-level N+1
 
 | Rank | Issue | Impact | Resolution |
 |---:|---|---|---|
-| 1 | `ParseMessage` synchronously waited for command auditing | Blocked an actor worker on async I/O and risked thread-pool starvation | Audit work now starts without blocking and is awaited at the validation boundary through `CommandAuditTracker` |
+| 1 | `ParseMessage` synchronously waited for command auditing | Blocked an actor worker on async I/O and risked thread-pool starvation | Command auditing and duplicate reservation now execute once in `BaseEventSourceCommandActor` through `ICommandAuditLogger` |
 | 2 | `FillOptionTradeAsync` used `.Result` inside a LINQ projection | Sync-over-async deadlock/starvation risk in the read path | Removed `.Result`; all storage work is awaited asynchronously |
 | 3 | Option-leg data was queried once per trade position | N+1 I/O grew with unbounded position history | Query once per distinct value date, then group by position identity in memory |
 | 4 | Independent trade graph reads and sibling trade hydration were sequential | Added storage round-trip latency and reduced throughput | Independent reads overlap; sibling/date fan-out is bounded to four concurrent operations |
@@ -29,7 +29,7 @@ During issue 6, the review also found an impossible `Open && EndOfDay` predicate
 
 ### Actor lifecycle and failure semantics
 
-- Command auditing is asynchronous without blocking parsing. A command that bypasses parsing still receives an audit during validation.
+- Command auditing is asynchronous and centralized after parsing. A command cannot reach validation or execution unless its durable audit reservation succeeds.
 - Command success and state mutation remain separate concepts. No change was made to the command result/state-change contract.
 - `OptionTradeCommandState.Apply` no longer catches every exception. Unexpected replay failures are allowed to propagate to the existing actor exception pipeline.
 - `OptionTradeEventActor` keeps its default event target role; dispatch storage is static, but intentionally empty actors/scaffolding are preserved.

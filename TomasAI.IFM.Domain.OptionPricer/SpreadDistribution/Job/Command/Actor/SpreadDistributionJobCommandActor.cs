@@ -36,8 +36,6 @@ public class SpreadDistributionJobCommandActor(
         IsArgumentNull.Set(Context as ISpreadDistributionJobCommandContext, nameof(Context))!;
 
     public const string ActorName = "SpreadDistributionJobCommand";
-    CommandAuditTracker? _commandAudit;
-    CommandAuditTracker CommandAudit => _commandAudit ??= new CommandAuditTracker(ActorContext.DbEventSource);
     IEventSourceActorStateRepository<SpreadDistributionJobCommandState> _repo = default!;
 
     /// <summary>
@@ -69,24 +67,16 @@ public class SpreadDistributionJobCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<SpreadDistributionJobCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        CommandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<SpreadDistributionJobCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [SubmitSpreadDistributionJobCommand.Verb] = msg => msg.AsCommand<SubmitSpreadDistributionJobCommand>()!,
         [CompleteSpreadDistributionJobCommand.Verb] = msg => msg.AsCommand<CompleteSpreadDistributionJobCommand>()!,
@@ -112,9 +102,7 @@ public class SpreadDistributionJobCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var spreadDistributionJobState = IsArgumentNull.Set((state as SpreadDistributionJobCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return await ValueTask.FromResult(receiveFunc.Invoke(cmd, dispatchContext, spreadDistributionJobState));
     }
 
@@ -122,13 +110,13 @@ public class SpreadDistributionJobCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding spread distribution job command
     /// logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<SpreadDistributionJobCommandActor>, SpreadDistributionJobCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<SpreadDistributionJobCommandActor>, SpreadDistributionJobCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<SpreadDistributionJobCommandActor>, SpreadDistributionJobCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(SubmitSpreadDistributionJobCommand).Name] = (cmd, context, state) => (cmd as SubmitSpreadDistributionJobCommand)!.Execute(state),
-        [typeof(CompleteSpreadDistributionJobCommand).Name] = (cmd, context, state) => (cmd as CompleteSpreadDistributionJobCommand)!.Execute(state),
-        [typeof(FailSpreadDistributionJobCommand).Name] = (cmd, context, state) => (cmd as FailSpreadDistributionJobCommand)!.Execute(state),
-        [typeof(ClearSpreadDistributionJobCommand).Name] = (cmd, context, state) => (cmd as ClearSpreadDistributionJobCommand)!.Execute(state),
-        [typeof(DeleteSpreadDistributionJobsInProgressCommand).Name] = (cmd, context, state) => (cmd as DeleteSpreadDistributionJobsInProgressCommand)!.Execute(state)
+        [typeof(SubmitSpreadDistributionJobCommand)] = (cmd, context, state) => (cmd as SubmitSpreadDistributionJobCommand)!.Execute(state),
+        [typeof(CompleteSpreadDistributionJobCommand)] = (cmd, context, state) => (cmd as CompleteSpreadDistributionJobCommand)!.Execute(state),
+        [typeof(FailSpreadDistributionJobCommand)] = (cmd, context, state) => (cmd as FailSpreadDistributionJobCommand)!.Execute(state),
+        [typeof(ClearSpreadDistributionJobCommand)] = (cmd, context, state) => (cmd as ClearSpreadDistributionJobCommand)!.Execute(state),
+        [typeof(DeleteSpreadDistributionJobsInProgressCommand)] = (cmd, context, state) => (cmd as DeleteSpreadDistributionJobsInProgressCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -149,45 +137,46 @@ public class SpreadDistributionJobCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await CommandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(SubmitSpreadDistributionJobCommand).Name] = cmd => {
+        [typeof(SubmitSpreadDistributionJobCommand)] = cmd => {
             var e = cmd as SubmitSpreadDistributionJobCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateSpreadDistributionJob(e.SpreadDistributionJob);
         },
-        [typeof(CompleteSpreadDistributionJobCommand).Name] = cmd => {
+        [typeof(CompleteSpreadDistributionJobCommand)] = cmd => {
             var e = cmd as CompleteSpreadDistributionJobCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName)
                 .ValidateJobCompleted(e.JobCompleted, e.CommandName);
         },
-        [typeof(FailSpreadDistributionJobCommand).Name] = cmd => {
+        [typeof(FailSpreadDistributionJobCommand)] = cmd => {
             var e = cmd as FailSpreadDistributionJobCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName)
                 .ValidateJobFailed(e.JobFailed, e.CommandName);
         },
-        [typeof(ClearSpreadDistributionJobCommand).Name] = cmd => {
+        [typeof(ClearSpreadDistributionJobCommand)] = cmd => {
             var e = cmd as ClearSpreadDistributionJobCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName);
         },
-        [typeof(DeleteSpreadDistributionJobsInProgressCommand).Name] = cmd => {
+        [typeof(DeleteSpreadDistributionJobsInProgressCommand)] = cmd => {
             var e = cmd as DeleteSpreadDistributionJobsInProgressCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(new OptionTradeEntityId(e.EntityId.OrderId, e.EntityId.TradeId), e.CommandName);
         }
     };

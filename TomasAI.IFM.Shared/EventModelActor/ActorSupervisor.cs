@@ -32,6 +32,8 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly ActorAdmissionOptions _admissionOptions;
     readonly ActorAdmissionController _admissionController;
     readonly static string _serviceId = "ActorSupervisor";
+    static readonly TimeSpan ShutdownQuietPeriod = TimeSpan.FromMilliseconds(100);
+    static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(10);
     readonly object _shutdownGate = new();
     readonly object _externalProducerGate = new();
     Task? _shutdownTask;
@@ -643,18 +645,65 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         var completed = false;
         try
         {
+            _threadPool.BeginDrainMeasurement();
             try
             {
-                await StopConsumersAsync(CancellationToken.None).ConfigureAwait(false);
+                await StopIngressConsumersAsync().ConfigureAwait(false);
             }
             catch (Exception exception)
             {
                 (failures ??= []).Add(exception);
                 ActorLifecycleMetrics.RecordCleanupFailure("consumers");
-                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor consumers during shutdown.");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping actor ingress consumers during shutdown.");
             }
 
-            _threadPool.BeginDrainMeasurement();
+            var drained = false;
+            try
+            {
+                drained = await _threadPool.WaitForIdleAsync(
+                    ShutdownQuietPeriod,
+                    ShutdownDrainTimeout,
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while waiting for actor mailboxes to become idle.");
+            }
+
+            try
+            {
+                await StopRemainingConsumersAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+                ActorLifecycleMetrics.RecordCleanupFailure("consumers");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while stopping request/reply consumers during shutdown.");
+            }
+
+            if (!drained)
+            {
+                var timeout = new TimeoutException(
+                    $"Actor mailboxes did not become idle within {ShutdownDrainTimeout}.");
+                ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain_timeout");
+                _logger.LogWarning(timeout,
+                    "{ServiceId}: Actor mailbox drain exceeded its hard shutdown timeout; cancelling producers and workers.",
+                    _serviceId);
+                try
+                {
+                    await StopAllProducersAsync().ConfigureAwait(false);
+                    await _threadPool.StopAsync().ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    failures.Add(exception);
+                    ActorLifecycleMetrics.RecordCleanupFailure("mailbox_force_stop");
+                    _logger.LogErrorEvent(_serviceId, exception, "Failed while force-stopping actor mailbox work.");
+                }
+            }
+
             try
             {
                 if (_threadPool is IAsyncDisposable asyncDisposable)
@@ -664,7 +713,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             {
                 (failures ??= []).Add(exception);
                 ActorLifecycleMetrics.RecordCleanupFailure("mailbox_drain");
-                _logger.LogErrorEvent(_serviceId, exception, "Failed while draining the actor thread pool during shutdown.");
+                _logger.LogErrorEvent(_serviceId, exception, "Failed while disposing the actor thread pool during shutdown.");
             }
 
             foreach (var actor in _children.Values)
@@ -712,6 +761,63 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
             else
                 ActorLifecycleMetrics.ShutdownFailures.Add(1);
         }
+    }
+
+    async ValueTask StopIngressConsumersAsync()
+    {
+        List<Exception>? failures = null;
+        if (_consumers.TryGetValue(ActorType.Realtime, out var realtimeConsumer))
+            await CaptureStopFailureAsync(realtimeConsumer, failures ??= []).ConfigureAwait(false);
+        foreach (var consumer in _jsConsumers.Values)
+            await CaptureStopFailureAsync(consumer, failures ??= []).ConfigureAwait(false);
+        if (failures is { Count: > 0 })
+            throw new AggregateException("One or more actor ingress consumers failed to stop.", failures);
+    }
+
+    async ValueTask StopRemainingConsumersAsync()
+    {
+        List<Exception>? failures = null;
+        foreach (var consumer in _consumers)
+        {
+            if (consumer.Key == ActorType.Realtime)
+                continue;
+            await CaptureStopFailureAsync(consumer.Value, failures ??= []).ConfigureAwait(false);
+        }
+        if (failures is { Count: > 0 })
+            throw new AggregateException("One or more actor request/reply consumers failed to stop.", failures);
+    }
+
+    static async ValueTask CaptureStopFailureAsync(IActorConsumer consumer, List<Exception> failures)
+    {
+        try { await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) { failures.Add(exception); }
+    }
+
+    static async ValueTask CaptureStopFailureAsync(IJSActorConsumer consumer, List<Exception> failures)
+    {
+        try { await consumer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) { failures.Add(exception); }
+    }
+
+    async ValueTask StopAllProducersAsync()
+    {
+        List<Exception>? failures = null;
+        foreach (var producer in new HashSet<IActorProducer>(
+                     _producers.Values,
+                     ReferenceEqualityComparer.Instance))
+        {
+            try { await producer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        foreach (var producer in new HashSet<IJSActorProducer>(
+                     _jsProducers.Values.Concat(_externalJsProducers.Values),
+                     ReferenceEqualityComparer.Instance))
+        {
+            try { await producer.StopAsync(CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        if (failures is not null)
+            throw new AggregateException("One or more actor producers failed to stop.", failures);
     }
 
     /// <summary>Stops intake, drains workers, and releases supervised actor resources.</summary>

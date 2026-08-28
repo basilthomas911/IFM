@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -17,6 +18,12 @@ public interface IIntrinsicTimeStrategyWorkflowQueryContext
     /// <summary>Gets the monotonic active-workflow projection cache.</summary>
     IIntrinsicTimeStrategyWorkflowProjectionCache ProjectionCache { get; }
 
+    /// <summary>Gets the authoritative workflow snapshot repository for read-only operational inspection.</summary>
+    IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> StateRepository { get; }
+
+    /// <summary>Gets the clock used to derive deadline observations.</summary>
+    TimeProvider TimeProvider { get; }
+
     /// <summary>Gets the query actor logger.</summary>
     ILogger<IntrinsicTimeStrategyWorkflowQueryActor> Logger { get; }
 }
@@ -27,6 +34,8 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryContext
       IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>,
       IIntrinsicTimeStrategyWorkflowQueryContext
 {
+    readonly Lazy<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>> _stateRepository;
+
     /// <summary>Initializes the workflow query context.</summary>
     public IntrinsicTimeStrategyWorkflowQueryContext(
         IActorSupervisor supervisor,
@@ -36,7 +45,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryContext
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         ProjectionCache = IntrinsicTimeStrategyWorkflowProjectionCache.Shared;
+        TimeProvider = TimeProvider.System;
         Logger = IsArgumentNull.Set(logger);
+        _stateRepository = new(() => IsArgumentNull.Set(
+            Container.Resolve<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>())!);
     }
 
     /// <inheritdoc />
@@ -44,6 +56,13 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryContext
 
     /// <inheritdoc />
     public IIntrinsicTimeStrategyWorkflowProjectionCache ProjectionCache { get; }
+
+    /// <inheritdoc />
+    public IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState> StateRepository
+        => _stateRepository.Value;
+
+    /// <inheritdoc />
+    public TimeProvider TimeProvider { get; }
 
     /// <inheritdoc />
     public ILogger<IntrinsicTimeStrategyWorkflowQueryActor> Logger { get; }

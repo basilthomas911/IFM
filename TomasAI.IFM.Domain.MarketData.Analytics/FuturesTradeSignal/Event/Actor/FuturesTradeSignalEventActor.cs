@@ -22,14 +22,14 @@ public class FuturesTradeSignalEventActor(
 
     public const string Actor = "FuturesTradeSignalEvent";
 
-    readonly Dictionary<string, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesTradeSignalEventActor>, IStatusConsoleWriter, ILogger, ValueTask<bool>>>()
     {
-        [typeof(FuturesTradeSignalUpdatedCompleteEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesTradeSignalUpdatedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTradeSignalUpdatedCompleteEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
-        [typeof(FuturesItiSignalHoldTradeChangedEvent).Name] = async (evt, context, statusConsoleWriter, logger) =>
+        [typeof(FuturesItiSignalHoldTradeChangedEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesItiSignalHoldTradeChangedEvent)!;
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
@@ -44,22 +44,12 @@ public class FuturesTradeSignalEventActor(
     /// <param name="message">The NATS message containing the event data to parse. Cannot be null.</param>
     /// <returns>An event object representing the parsed event corresponding to the message and verb.</returns>
     protected override IEvent ParseMessage(IEventActorContext<FuturesTradeSignalEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesTradeSignalUpdatedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesTradeSignalUpdatedCompleteEvent>()!,
         [FuturesItiSignalHoldTradeChangedEvent.Verb] = msg => msg.AsEvent<FuturesItiSignalHoldTradeChangedEvent>()!
@@ -77,9 +67,7 @@ public class FuturesTradeSignalEventActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, dispatchContext, ActorContext.StatusConsoleWriter, ActorContext.Logger);
     }
 

@@ -55,7 +55,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
 
     [Theory]
     [MemberData(nameof(ValidCommands))]
-    public async Task ParseMessage_ValidSupportedCommand_ReturnsConcreteCommandAndWritesLog(ICommand command)
+    public async Task ParseMessage_ValidSupportedCommand_ReturnsConcreteCommandWithoutDomainAuditWrite(ICommand command)
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         var logger = Substitute.For<ILogger<FuturesBarDataCommandActor>>();
@@ -69,10 +69,10 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         result.GetType().Should().Be(command.GetType());
         result.CommandId.Should().Be(command.CommandId);
         result.Subject.Should().Be(command.Subject);
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(value => value.CommandId == command.CommandId),
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
-            Arg.Is<string>(json => json.Contains(command.CommandId.ToString())));
+            Arg.Any<string>());
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     [Fact]
-    public async Task ParseMessage_CommandLogFails_PropagatesFailure()
+    public async Task DomainValidation_DoesNotUseDomainCommandLog()
     {
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
         dbEventSource.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
@@ -159,7 +159,7 @@ public class FuturesBarDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         Func<Task> act = () => actor.InvokeOnValidateAsync(
             context, command.Subject.ThreadId, command).AsTask();
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("log unavailable");
+        await act.Should().NotThrowAsync();
     }
 
     [Theory]

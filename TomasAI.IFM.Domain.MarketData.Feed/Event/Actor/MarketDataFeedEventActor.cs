@@ -30,34 +30,34 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
         ((IMarketDataFeedEventContext)actorContext).OptionTradeLiveFeedMap,
         ((IMarketDataFeedEventContext)actorContext).BlackboardService,
         ((IMarketDataFeedEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly Dictionary<string, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IMarketDataFeedEventContext, IEventActorContext, IEventActorContext, MarketDataFeedEventParameters, ValueTask<bool>>>()
     {
-        [typeof(MarketDataFeedStartedEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
+        [typeof(MarketDataFeedStartedEvent)] = async (evt, ctx, _, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedStartedEvent)!;
             return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedStartedCompleteEvent).Name] = async (evt, ctx, commandApi, _, eventParams) =>
+        [typeof(MarketDataFeedStartedCompleteEvent)] = async (evt, ctx, commandApi, _, eventParams) =>
         {
             var e = (evt as MarketDataFeedStartedCompleteEvent)!;
             return await e.ExecuteAsync(ctx, commandApi, eventParams);
         },
-        [typeof(MarketDataFeedStoppedEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
+        [typeof(MarketDataFeedStoppedEvent)] = async (evt, ctx, _, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedStoppedEvent)!;
             return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedStoppedCompleteEvent).Name] = async (evt, ctx, _, _, eventParams) =>
+        [typeof(MarketDataFeedStoppedCompleteEvent)] = async (evt, ctx, _, _, eventParams) =>
         {
             var e = (evt as MarketDataFeedStoppedCompleteEvent)!;
             return await e.ExecuteAsync(ctx, eventParams);
         },
-        [typeof(MarketDataFeedResetEvent).Name] = async (evt, ctx, _, eventApi, eventParams) =>
+        [typeof(MarketDataFeedResetEvent)] = async (evt, ctx, _, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedResetEvent)!;
             return await e.ExecuteAsync(ctx, eventApi, eventParams);
         },
-        [typeof(MarketDataFeedResetCompleteEvent).Name] = async (evt, ctx, commandApi, eventApi, eventParams) =>
+        [typeof(MarketDataFeedResetCompleteEvent)] = async (evt, ctx, commandApi, eventApi, eventParams) =>
         {
             var e = (evt as MarketDataFeedResetCompleteEvent)!;
             return await e.ExecuteAsync(ctx, commandApi, eventApi, eventParams);
@@ -83,22 +83,12 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
     protected override IEvent ParseMessage(IEventActorContext<MarketDataFeedEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [MarketDataFeedStartedEvent.Verb] = msg => msg.AsEvent<MarketDataFeedStartedEvent>()!,
         [MarketDataFeedStartedCompleteEvent.Verb] = msg => msg.AsEvent<MarketDataFeedStartedCompleteEvent>()!,
@@ -120,9 +110,7 @@ public class MarketDataFeedEventActor(IEventActorContext<MarketDataFeedEventActo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, EventContext, EventContext, EventContext, _eventParameters);
     }
 

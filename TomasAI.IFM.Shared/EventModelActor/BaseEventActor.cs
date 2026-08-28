@@ -237,6 +237,54 @@ public abstract class BaseEventActor<TActor>(
     protected abstract IEvent ParseMessage(IEventActorContext<TActor> context, IActorMessage message);
 
     /// <summary>
+    /// Resolves an event parser from an actor-owned verb map and materializes the event.
+    /// </summary>
+    /// <remarks>
+    /// Event messages for another actor or an unsupported verb are ignored because EventActor
+    /// delivery may fan out one owned message branch to multiple consumers. Once a verb is
+    /// registered, however, its parser must materialize a concrete event.
+    /// </remarks>
+    protected IEvent ParseMappedEvent(
+        IEventActorContext<TActor> context,
+        IActorMessage message,
+        IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> parseMap)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(parseMap);
+
+        var subject = message.Subject;
+        if (subject.ActorType != ActorType.Event
+            || !string.Equals(subject.Name, Id.Name, StringComparison.Ordinal)
+            || !parseMap.TryGetValue(subject.Verb, out var parser))
+            return default!;
+
+        var @event = parser(message)
+            ?? throw new InvalidOperationException(
+                $"Parser for {Id.Name}.{subject.Verb} returned no event.");
+        @event.CheckForEmptyCommandId();
+        return @event;
+    }
+
+    /// <summary>
+    /// Resolves an event receive handler by the event's exact concrete CLR type.
+    /// </summary>
+    protected THandler ResolveMappedEventHandler<THandler>(
+        IEvent @event,
+        IReadOnlyDictionary<Type, THandler> receiveMap)
+        where THandler : Delegate
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+        ArgumentNullException.ThrowIfNull(receiveMap);
+
+        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
+            throw new InvalidOperationException(
+                $"Unable to resolve {Id.Name} event from message: {@event.Subject}");
+
+        return handler;
+    }
+
+    /// <summary>
     /// Compatibility entry point for existing event actor tests while the
     /// runtime path uses owned <see cref="IActorMessage"/> branches directly.
     /// </summary>

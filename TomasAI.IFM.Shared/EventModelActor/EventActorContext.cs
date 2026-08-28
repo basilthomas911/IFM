@@ -37,6 +37,9 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
     public IContainerInstance Container
         => _supervisor.Container;
 
+    /// <inheritdoc />
+    public bool IsReady => _supervisor.IsReady;
+
     /// <summary>
     /// Sets the message information associated with the specified actor thread identifier.
     /// </summary>

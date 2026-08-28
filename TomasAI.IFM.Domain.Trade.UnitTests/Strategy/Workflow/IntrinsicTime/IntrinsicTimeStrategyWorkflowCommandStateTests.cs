@@ -1,651 +1,377 @@
-using System.Reflection;
 using FluentAssertions;
 using MessagePack;
-using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
 
-/// <summary>Verifies ITSW-5 workflow command-state reduction, replay, and repository boundaries.</summary>
+/// <summary>Qualifies the RD-19D authoritative workflow snapshot transition table.</summary>
 public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
 {
-    static readonly Guid WorkflowGuid = Guid.Parse("0198E212-3C00-7000-8000-000000000101");
-    static readonly Guid TriggerGuid = Guid.Parse("0198E212-3C00-7000-8000-000000000102");
-    static readonly Guid CommandGuid = Guid.Parse("0198E212-3C00-7000-8000-000000000103");
-    static readonly Guid PipelineEventGuid = Guid.Parse("0198E212-3C00-7000-8000-000000000104");
-    static readonly Guid PipelineCommandGuid = Guid.Parse("0198E212-3C00-7000-8000-000000000105");
-    static readonly DateTime StartedAtUtc = new(2026, 8, 25, 18, 0, 0, DateTimeKind.Utc);
-    static readonly DateTime CompletedAtUtc = StartedAtUtc.AddMinutes(2);
+    static readonly DateTime Now = new(2026, 8, 27, 14, 0, 0, DateTimeKind.Utc);
+    static readonly TimeSpan MaximumDuration = TimeSpan.FromMinutes(2);
     static readonly IntrinsicTimeStrategyWorkflowEntityId EntityId =
-        IntrinsicTimeStrategyWorkflowEntityId.Create(
-            new FuturesItiSignalEntityId("ES-202609", new DateOnly(2026, 8, 25), TimeFrameType.Daily));
-    static readonly StrategyWorkflowId WorkflowId = new(WorkflowGuid);
+        IntrinsicTimeStrategyWorkflowEntityId.Create(new FuturesItiSignalEntityId(
+            "ES-202612", new DateOnly(2026, 8, 27), TimeFrameType.Daily));
+    static readonly StrategyWorkflowId WorkflowId = new(
+        Guid.Parse("0198E212-3C00-7000-8000-000000000201"));
 
-    /// <summary>Confirms an accepted start creates a running immutable workflow and bounded start metadata.</summary>
-    [Fact]
-    public void Start_accepted_creates_active_workflow_and_start_summary()
+    /// <summary>Creates a valid Started snapshot for structural gate qualification tests.</summary>
+    internal static WorkflowStrategyStateUpdatedEvent CreateStartedSnapshotForQualification()
     {
-        var trigger = CreateTriggerEvent();
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            state, CreateStart(WorkflowId, TriggerId(99)), Time(Now), MaximumDuration);
+        return LatestSnapshot(state);
+    }
 
-        state.Apply(CreateStartAccepted(trigger), addEvent: false).Should().BeTrue();
+    /// <summary>Empty state accepts one Started snapshot with one fixed deadline.</summary>
+    [Fact]
+    public void Empty_start_commits_one_started_snapshot_with_fixed_deadline()
+    {
+        var state = new IntrinsicTimeStrategyWorkflowCommandState();
+        var command = CreateStart(WorkflowId, TriggerId(1));
 
-        state.HasActiveWorkflow.Should().BeTrue();
-        state.ActiveWorkflow.Should().BeEquivalentTo(new
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            state, command, Time(Now), MaximumDuration);
+
+        state.Events.Should().ContainSingle();
+        var snapshot = state.Events.Should().ContainSingle().Subject
+            .Should().BeOfType<WorkflowStrategyStateUpdatedEvent>().Subject;
+        snapshot.PreviousStatus.Should().Be(WorkflowStrategyMachineStatus.Empty);
+        snapshot.State.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
+        snapshot.State.ExpiresAtUtc.Should().Be(Now.Add(MaximumDuration));
+        snapshot.State.RegimeDiscovery.Should().BeEquivalentTo(new
         {
-            EntityId,
-            WorkflowId,
-            TriggerEventId = TriggerGuid,
-            Status = StrategyWorkflowStatus.Running,
-            Outcome = StrategyWorkflowOutcome.None,
-            CurrentStage = StrategyWorkflowStage.RegimeDiscovery,
-            WorkflowRevision = 1L,
-            StartedAtUtc
+            ProcessingStatus = StrategyActorProcessingStatus.Processing,
+            InputWorkflowRevision = 1L,
+            ParameterSetId = command.RegimeDiscoveryParameterSet.ParameterSetId,
+            ParameterSetVersion = command.RegimeDiscoveryParameterSet.Version,
+            ParameterPayloadSha256 = command.RegimeDiscoveryParameterPayloadSha256,
+            ExpiresAtUtc = (DateTime?)Now.Add(MaximumDuration)
         });
-        state.ActiveWorkflow!.RegimeDiscovery.ProcessingStatus.Should()
-            .Be(StrategyActorProcessingStatus.Processing);
-        state.TotalStartRequests.Should().Be(1);
-        state.AcceptedStartRequests.Should().Be(1);
-        state.RejectedStartRequests.Should().Be(0);
-        state.LastStartDecision.Should().Be(StrategyWorkflowStartDecision.Accepted);
-        state.ActiveTriggerEvent.Should().NotBeSameAs(trigger);
-        state.ActiveTriggerEvent!.FuturesItiSignal.Should().NotBeSameAs(trigger.FuturesItiSignal);
+        state.CurrentView.Should().BeEquivalentTo(snapshot.State);
     }
 
-    /// <summary>Confirms rejection changes only bounded attempt metadata and preserves the active revision.</summary>
+    /// <summary>A terminal workflow is Free and accepts a different workflow execution.</summary>
     [Fact]
-    public void Start_rejected_preserves_active_workflow_revision()
+    public void Terminal_state_accepts_new_workflow()
     {
-        var state = CreateStartedState();
-        var before = state.ActiveWorkflow;
-        var rejectedTriggerId = Guid.Parse("0198E212-3C00-7000-8000-000000000106");
+        var state = StartedState(Now.AddMinutes(-1));
+        var failure = CreateFailureCommand(WorkflowId, 1, TriggerId(2), "ValidationFailure");
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(state, failure, Time(Now));
+        var terminal = state.CurrentView!;
+        terminal.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
+        var loaded = FromSnapshot(LatestSnapshot(state));
+        var replacementId = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000202"));
 
-        state.Apply(new StrategyWorkflowStartRejectedEvent
-        {
-            EntityId = EntityId,
-            EventId = 3,
-            CommandId = Guid.Parse("0198E212-3C00-7000-8000-000000000107"),
-            RequestedWorkflowId = new StrategyWorkflowId(
-                Guid.Parse("0198E212-3C00-7000-8000-000000000108")),
-            ActiveWorkflowId = WorkflowId,
-            ActiveWorkflowRevision = 1,
-            ActiveStage = StrategyWorkflowStage.RegimeDiscovery,
-            TriggerEventId = rejectedTriggerId,
-            ReasonCode = "WorkflowAlreadyExecuting",
-            RejectedAtUtc = StartedAtUtc.AddSeconds(1)
-        }, addEvent: false).Should().BeTrue();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            loaded, CreateStart(replacementId, TriggerId(3)), Time(Now.AddSeconds(1)), MaximumDuration);
 
-        state.ActiveWorkflow.Should().BeEquivalentTo(before);
-        state.ActiveWorkflow.Should().NotBeSameAs(before);
-        state.ActiveWorkflow!.WorkflowRevision.Should().Be(1);
-        state.TotalStartRequests.Should().Be(2);
-        state.AcceptedStartRequests.Should().Be(1);
-        state.RejectedStartRequests.Should().Be(1);
-        state.LastStartDecision.Should().Be(StrategyWorkflowStartDecision.Rejected);
-        state.LastTriggerEventId.Should().Be(rejectedTriggerId);
+        loaded.Events.Should().ContainSingle();
+        loaded.CurrentView!.WorkflowId.Should().Be(replacementId);
+        loaded.CurrentView.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
     }
 
-    /// <summary>Confirms Started records the exact committed deterministic pipeline dispatch instruction.</summary>
+    /// <summary>An unexpired Started snapshot remains Busy and appends nothing.</summary>
     [Fact]
-    public void Workflow_started_retains_committed_dispatch_instruction()
+    public void Unexpired_started_rejects_new_start_without_event()
     {
-        var trigger = CreateTriggerEvent();
-        var state = new IntrinsicTimeStrategyWorkflowCommandState();
-        state.Apply(CreateStartAccepted(trigger), addEvent: false);
-        var workflow = state.ActiveWorkflow!;
+        var state = StartedState(Now);
+        var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000203"));
 
-        state.Apply(CreateWorkflowStarted(workflow, trigger), addEvent: false).Should().BeTrue();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            state, CreateStart(replacement, TriggerId(4)), Time(Now.AddSeconds(30)), MaximumDuration);
 
-        state.ActiveDispatchInstruction.Should().NotBeNull();
-        var dispatch = state.ActiveDispatchInstruction!;
-        dispatch.Stage.Should().Be(StrategyWorkflowStage.RegimeDiscovery);
-        dispatch.ActorType.Should().Be(ActorType.Command);
-        dispatch.ActorName.Should().Be("RegimeDiscoveryPipelineCommand");
-        dispatch.BoundedContext.Should().Be(BoundedContextName.RegimeDiscoveryPipelineBoundedContext);
-        dispatch.CommandId.Should().Be(PipelineCommandGuid);
-        dispatch.WorkflowState.Should().NotBeSameAs(workflow);
-        dispatch.TriggerEvent.Should().NotBeSameAs(trigger);
+        state.Events.Should().BeEmpty();
+        state.CurrentView!.WorkflowId.Should().Be(WorkflowId);
     }
 
-    /// <summary>Confirms result, continuation, and next-stage events replace rather than mutate snapshot graphs.</summary>
+    /// <summary>Expired-old and Started-new snapshots are one pending PostgreSQL event batch.</summary>
     [Fact]
-    public void Stage_progression_preserves_previous_snapshot_instances()
+    public void Expired_started_closes_old_and_starts_new_in_one_event_batch()
     {
-        var state = CreateStartedState();
-        var beforeResult = state.ActiveWorkflow!;
-        var result = CreateResult();
+        var state = StartedState(Now.AddMinutes(-3));
+        var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000204"));
 
-        state.Apply(new StrategyWorkflowRegimeDiscoveryResultRecordedEvent
-        {
-            EntityId = EntityId,
-            EventId = 3,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            SourceEventId = PipelineEventGuid,
-            Result = result,
-            RecordedAtUtc = CompletedAtUtc
-        }, addEvent: false).Should().BeTrue();
-        var beforeContinuation = state.ActiveWorkflow!;
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            state, CreateStart(replacement, TriggerId(5)), Time(Now), MaximumDuration);
 
-        state.Apply(new StrategyWorkflowRegimeDiscoveryContinuationEvaluatedEvent
-        {
-            EntityId = EntityId,
-            EventId = 4,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            Decision = StrategyWorkflowContinuationDecision.Proceed,
-            RuleSetId = "SkeletonProceedOnValidResult",
-            RuleSetVersion = 1,
-            ReasonCodes = ["VALID_RESULT"],
-            EvaluatedAtUtc = CompletedAtUtc
-        }, addEvent: false).Should().BeTrue();
-        var continuedInput = state.ActiveWorkflow! with
-        {
-            CurrentStage = StrategyWorkflowStage.MarketCondition,
-            MarketCondition = new StrategyWorkflowStageState()
-        };
-
-        state.Apply(CreateWorkflowContinued(continuedInput), addEvent: false).Should().BeTrue();
-
-        beforeResult.RegimeDiscovery.Result.Should().BeNull();
-        beforeResult.WorkflowRevision.Should().Be(1);
-        beforeContinuation.RegimeDiscovery.Result.Should().NotBeNull();
-        beforeContinuation.RegimeDiscovery.ContinuationDecision.Should()
-            .Be(StrategyWorkflowContinuationDecision.None);
-        state.ActiveWorkflow!.RegimeDiscovery.ContinuationDecision.Should()
-            .Be(StrategyWorkflowContinuationDecision.Proceed);
-        state.ActiveWorkflow.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
-        state.ActiveWorkflow.MarketCondition.ProcessingStatus.Should()
-            .Be(StrategyActorProcessingStatus.Processing);
-        state.HasProcessedPipelineEvent(PipelineEventGuid).Should().BeTrue();
-        state.ActiveDispatchInstruction!.Stage.Should().Be(StrategyWorkflowStage.MarketCondition);
+        state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Select(value => value.State.Status)
+            .Should().Equal(WorkflowStrategyMachineStatus.TimedOut, WorkflowStrategyMachineStatus.Started);
+        state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Select(value => value.State.WorkflowId)
+            .Should().Equal(WorkflowId, replacement);
+        state.CurrentView!.WorkflowId.Should().Be(replacement);
     }
 
-    /// <summary>Confirms replayed result identity metadata distinguishes harmless and conflicting redelivery.</summary>
+    /// <summary>A valid pre-deadline completion merges its result and selects only the next stage.</summary>
     [Fact]
-    public void Pipeline_result_identity_detects_conflicting_duplicate_content()
+    public void Completion_before_expiry_merges_result_and_selects_next_stage()
     {
-        var state = CreateStartedState();
-        var result = CreateResult();
-        state.Apply(new StrategyWorkflowRegimeDiscoveryResultRecordedEvent
-        {
-            EntityId = EntityId,
-            EventId = 3,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            SourceEventId = PipelineEventGuid,
-            Result = result,
-            RecordedAtUtc = CompletedAtUtc
-        }, addEvent: false);
+        var state = StartedState(Now);
+        var sourceId = TriggerId(6);
+        var result = CreateResult(sourceId);
 
-        state.IsConflictingPipelineResult(
-            PipelineEventGuid,
-            StrategyWorkflowStage.RegimeDiscovery,
-            result).Should().BeFalse();
-        state.IsConflictingPipelineResult(
-            PipelineEventGuid,
-            StrategyWorkflowStage.RegimeDiscovery,
-            result with { PayloadSha256 = new string('F', 64) }).Should().BeTrue();
-        state.IsConflictingPipelineResult(
-            PipelineEventGuid,
-            StrategyWorkflowStage.MarketCondition,
-            result).Should().BeTrue();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            state, CreateCompletion(WorkflowId, 1, sourceId, result), Time(Now.AddSeconds(30)));
+
+        state.Events.Should().ContainSingle();
+        var view = state.CurrentView!;
+        view.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
+        view.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
+        view.WorkflowRevision.Should().Be(2);
+        view.RegimeDiscovery.Result!.ResultId.Should().Be(result.ResultId);
+        view.RegimeDiscovery.SourceEventId.Should().Be(sourceId);
+        view.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
     }
 
-    /// <summary>Confirms a pipeline failure and stop create terminal state and release active execution metadata.</summary>
+    /// <summary>Equality at the deadline gives timeout precedence and discards the result.</summary>
     [Fact]
-    public void Pipeline_failure_stops_workflow_and_allows_a_new_trigger()
+    public void Completion_exactly_at_expiry_times_out_without_result_merge()
     {
-        var state = CreateStartedState();
-        var failure = CreateFailure();
+        var state = StartedState(Now);
+        var sourceId = TriggerId(7);
 
-        state.Apply(new StrategyWorkflowRegimeDiscoveryFailedEvent
-        {
-            EntityId = EntityId,
-            EventId = 3,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            SourceEventId = PipelineEventGuid,
-            Failure = failure,
-            FailedAtUtc = CompletedAtUtc
-        }, addEvent: false);
-        state.Apply(CreateStopped(
-            StrategyWorkflowOutcome.PipelineFailed,
-            "REGIME_DISCOVERY_FAILED"), addEvent: false);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            state, CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId)),
+            Time(Now.Add(MaximumDuration)));
 
-        state.HasActiveWorkflow.Should().BeFalse();
-        state.ActiveWorkflow.Should().BeNull();
-        state.LatestWorkflow!.Status.Should().Be(StrategyWorkflowStatus.Stopped);
-        state.LatestWorkflow.Outcome.Should().Be(StrategyWorkflowOutcome.PipelineFailed);
-        state.LatestWorkflow.RegimeDiscovery.ProcessingStatus.Should()
-            .Be(StrategyActorProcessingStatus.Failed);
-        state.LatestWorkflow.RegimeDiscovery.Failure.Should().Be(failure);
-        state.ActiveTriggerEvent.Should().BeNull();
-        state.ActiveDispatchInstruction.Should().BeNull();
-        state.HasProcessedPipelineEvent(PipelineEventGuid).Should().BeTrue();
-        state.CanAcceptStart(Guid.NewGuid()).Should().BeTrue();
+        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
+        state.CurrentView.RegimeDiscovery.Result.Should().BeNull();
+        state.CurrentView.RegimeDiscovery.SourceEventId.Should().Be(sourceId);
     }
 
-    /// <summary>Confirms timeout identity and processing status survive terminal replay.</summary>
+    /// <summary>A non-timeout failure before expiry closes the workflow as Failed.</summary>
     [Fact]
-    public void Timeout_stops_workflow_and_retains_bounded_timeout_identity()
+    public void Failure_before_expiry_becomes_failed()
     {
-        var state = CreateStartedState();
-        var timeoutId = Guid.Parse("0198E212-3C00-7000-8000-000000000109");
+        var state = StartedState(Now);
+        var sourceId = TriggerId(8);
 
-        state.Apply(new StrategyWorkflowRegimeDiscoveryTimedOutEvent
-        {
-            EntityId = EntityId,
-            EventId = 3,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            TimeoutId = timeoutId,
-            TimedOutAtUtc = CompletedAtUtc
-        }, addEvent: false);
-        state.Apply(CreateStopped(StrategyWorkflowOutcome.TimedOut, "PIPELINE_TIMEOUT"), addEvent: false);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(
+            state, CreateFailureCommand(WorkflowId, 1, sourceId, "DataUnavailable"),
+            Time(Now.AddSeconds(10)));
 
-        state.LatestWorkflow!.RegimeDiscovery.ProcessingStatus.Should()
-            .Be(StrategyActorProcessingStatus.TimedOut);
-        state.LatestWorkflow.RegimeDiscovery.FailedAtUtc.Should().Be(CompletedAtUtc);
-        state.HasProcessedTimeout(timeoutId).Should().BeTrue();
+        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
+        state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Failed);
+        state.CurrentView.RegimeDiscovery.SourceEventId.Should().Be(sourceId);
     }
 
-    /// <summary>Confirms successful completion preserves the Risk Management result and releases active metadata.</summary>
+    /// <summary>A timeout-classified failure wins even when receipt appears before the persisted deadline.</summary>
     [Fact]
-    public void Completed_event_creates_terminal_completed_snapshot()
+    public void Timeout_classified_failure_has_precedence_before_deadline()
     {
-        var state = CreateStartedState();
-        var riskState = new StrategyWorkflowStageState
-        {
-            ProcessingStatus = StrategyActorProcessingStatus.Completed,
-            CompletedAtUtc = CompletedAtUtc,
-            Result = CreateResult("RiskManagement.Approval")
-        };
-        var workflow = state.ActiveWorkflow! with
-        {
-            CurrentStage = StrategyWorkflowStage.RiskManagement,
-            WorkflowRevision = 5,
-            RiskManagement = riskState
-        };
-        state.Apply(CreateWorkflowContinued(workflow, StrategyWorkflowStage.RiskManagement), addEvent: false);
+        var state = StartedState(Now);
+        var sourceId = TriggerId(9);
 
-        state.Apply(new IntrinsicTimeStrategyWorkflowCompletedEvent
-        {
-            EntityId = EntityId,
-            EventId = 8,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 6,
-            Stage = StrategyWorkflowStage.RiskManagement,
-            CompletedAtUtc = CompletedAtUtc
-        }, addEvent: false).Should().BeTrue();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(
+            state, CreateFailureCommand(WorkflowId, 1, sourceId, "RegimeDiscoveryTimedOut"),
+            Time(Now.AddSeconds(10)));
 
-        state.HasActiveWorkflow.Should().BeFalse();
-        state.LatestWorkflow!.Status.Should().Be(StrategyWorkflowStatus.Completed);
-        state.LatestWorkflow.Outcome.Should().Be(StrategyWorkflowOutcome.Completed);
-        state.LatestWorkflow.TerminalAtUtc.Should().Be(CompletedAtUtc);
-        state.LatestWorkflow.RiskManagement.Result!.ResultType.Should().Be("RiskManagement.Approval");
-        state.ActiveDispatchInstruction.Should().BeNull();
+        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
+        state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.TimedOut);
     }
 
-    /// <summary>Confirms replay reconstructs the same state without leaving replayed events pending for persistence.</summary>
+    /// <summary>Any failure received at or after the deadline becomes TimedOut.</summary>
     [Fact]
-    public void Replay_reconstructs_exact_state_without_pending_events()
+    public void Late_failure_becomes_timed_out()
     {
-        var trigger = CreateTriggerEvent();
-        var accepted = CreateStartAccepted(trigger);
-        var started = CreateWorkflowStarted(CreateInitialWorkflow(), trigger);
-        var result = new StrategyWorkflowRegimeDiscoveryResultRecordedEvent
-        {
-            EntityId = EntityId,
-            EventId = 3,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            SourceEventId = PipelineEventGuid,
-            Result = CreateResult(),
-            RecordedAtUtc = CompletedAtUtc
-        };
-        IEvent[] events = [accepted, started, result];
-        var first = new IntrinsicTimeStrategyWorkflowCommandState();
-        var replayed = new IntrinsicTimeStrategyWorkflowCommandState();
-        foreach (var @event in events)
-            first.Apply(@event, addEvent: false);
+        var state = StartedState(Now);
 
-        replayed.ReplayEvents(events);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(
+            state, CreateFailureCommand(WorkflowId, 1, TriggerId(10), "DataUnavailable"),
+            Time(Now.Add(MaximumDuration)));
 
-        MessagePackSerializer.Serialize(replayed.LatestWorkflow).Should()
-            .Equal(MessagePackSerializer.Serialize(first.LatestWorkflow));
-        replayed.ActiveTriggerEvent.Should().BeEquivalentTo(first.ActiveTriggerEvent);
-        replayed.ActiveDispatchInstruction.Should().BeEquivalentTo(first.ActiveDispatchInstruction);
+        state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
+    }
+
+    /// <summary>Duplicate, stale-workflow, stale-revision, and wrong-stage inputs append nothing.</summary>
+    [Fact]
+    public void Duplicate_and_stale_terminal_inputs_are_no_ops()
+    {
+        var state = StartedState(Now);
+        var sourceId = TriggerId(11);
+        var completion = CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId));
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            state, completion, Time(Now.AddSeconds(10)));
+        var committed = LatestSnapshot(state);
+        var loaded = FromSnapshot(committed);
+
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            loaded, completion, Time(Now.AddSeconds(11)));
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            loaded, CreateCompletion(new StrategyWorkflowId(Guid.NewGuid()), 2, TriggerId(12), CreateResult(TriggerId(12))),
+            Time(Now.AddSeconds(11)));
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            loaded, CreateCompletion(WorkflowId, 1, TriggerId(13), CreateResult(TriggerId(13))),
+            Time(Now.AddSeconds(11)));
+
+        loaded.Events.Should().BeEmpty();
+        MessagePackSerializer.Serialize(loaded.CurrentView).Should()
+            .Equal(MessagePackSerializer.Serialize(committed.State));
+    }
+
+    /// <summary>Restart applies exactly one latest snapshot and never reconstructs dispatch work.</summary>
+    [Fact]
+    public void Latest_snapshot_restart_reconstructs_exact_view_without_dispatch()
+    {
+        var state = StartedState(Now);
+        var sourceId = TriggerId(14);
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
+            state, CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId)), Time(Now.AddSeconds(5)));
+        var latest = LatestSnapshot(state);
+
+        var replayed = FromSnapshot(latest);
+
+        MessagePackSerializer.Serialize(replayed.CurrentView).Should()
+            .Equal(MessagePackSerializer.Serialize(latest.State));
         replayed.Events.Should().BeEmpty();
-        replayed.Updated.Should().BeFalse();
-        replayed.AppliedEntityEventCount.Should().Be(3);
-        replayed.LastPersistedEventId.Should().Be(3);
+        replayed.ActiveDispatchInstruction.Should().BeNull();
+        replayed.HasAuthoritativeSnapshot.Should().BeTrue();
     }
 
-    /// <summary>Confirms every ITSW-3 workflow-owned event contract is explicitly recognized by the reducer.</summary>
+    /// <summary>The runtime state rejects all legacy lifecycle events.</summary>
     [Fact]
-    public void Reducer_explicitly_supports_all_workflow_owned_events()
+    public void Legacy_event_cannot_be_applied_as_authoritative_state()
     {
-        var eventTypes = typeof(StrategyWorkflowStartAcceptedEvent).Assembly.GetTypes()
-            .Where(type => type is { IsClass: true, IsAbstract: false }
-                && type.Namespace == typeof(StrategyWorkflowStartAcceptedEvent).Namespace)
-            .OrderBy(type => type.Name, StringComparer.Ordinal)
-            .ToArray();
-
-        eventTypes.Should().HaveCount(26);
-        foreach (var eventType in eventTypes)
-        {
-            var state = eventType == typeof(StrategyWorkflowStartAcceptedEvent)
-                || eventType == typeof(StrategyWorkflowStartRejectedEvent)
-                    ? new IntrinsicTimeStrategyWorkflowCommandState()
-                    : CreateStartedState();
-            var @event = (IEvent)CreatePopulatedEvent(eventType);
-
-            state.Apply(@event, addEvent: false).Should().BeTrue(eventType.Name);
-        }
-    }
-
-    /// <summary>Confirms unrelated pipeline lifecycle events are not mistaken for workflow-owned state events.</summary>
-    [Fact]
-    public void Reducer_rejects_unknown_event_without_changing_state()
-    {
-        var state = CreateStartedState();
-        var before = state.LatestWorkflow;
-        var beforeCount = state.AppliedEntityEventCount;
-
-        state.Apply(new RegimeDiscoveryPipelineProcessingEvent
-        {
-            EntityId = EntityId,
-            WorkflowId = WorkflowId,
-            PipelineStage = StrategyWorkflowStage.RegimeDiscovery,
-            ProcessingAtUtc = StartedAtUtc
-        }, addEvent: false).Should().BeFalse();
-
-        state.LatestWorkflow.Should().BeEquivalentTo(before);
-        state.AppliedEntityEventCount.Should().Be(beforeCount);
-    }
-
-    /// <summary>Confirms single-flight and immediate duplicate eligibility derive from persisted state only.</summary>
-    [Fact]
-    public void Start_eligibility_enforces_single_flight_and_latest_trigger_deduplication()
-    {
-        var state = CreateStartedState();
-
-        state.CanAcceptStart(Guid.NewGuid()).Should().BeFalse("a workflow is already running");
-        state.IsDuplicateTrigger(TriggerGuid).Should().BeTrue();
-        state.Apply(CreateStopped(StrategyWorkflowOutcome.Cancelled, "TEST_CANCEL"), addEvent: false);
-
-        state.CanAcceptStart(TriggerGuid).Should().BeFalse("the latest trigger is already persisted");
-        state.CanAcceptStart(Guid.NewGuid()).Should().BeTrue();
-    }
-
-    /// <summary>Confirms the repository retains full-stream recovery and adds only post-commit projection.</summary>
-    [Fact]
-    public void Repository_implements_standard_event_source_contract_with_post_commit_projector()
-    {
-        var type = typeof(IntrinsicTimeStrategyWorkflowStateRepository);
-
-        type.IsSealed.Should().BeTrue();
-        type.Should().BeDerivedFrom<BaseEventSourceActorRepository>();
-        type.Should().Implement<IEventSourceActorStateRepository<IntrinsicTimeStrategyWorkflowCommandState>>();
-        type.GetConstructors().Single().GetParameters().Select(parameter => parameter.ParameterType.Name).Should().Equal(
-            "IEventSourceActorStateFactory",
-            "IEventSourceActorDbContext",
-            "IActorService",
-            "IEventProjector`1",
-            "ILogger`1");
-        type.GetConstructors().Single().GetParameters().Should()
-            .ContainSingle(parameter => parameter.ParameterType.Name.StartsWith("IEventProjector", StringComparison.Ordinal));
-    }
-
-    static IntrinsicTimeStrategyWorkflowCommandState CreateStartedState()
-    {
-        var trigger = CreateTriggerEvent();
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
-        state.Apply(CreateStartAccepted(trigger), addEvent: false);
-        state.Apply(CreateWorkflowStarted(state.ActiveWorkflow!, trigger), addEvent: false);
+
+        state.Apply(new IntrinsicTimeStrategyWorkflowStartedEvent(), addEvent: false).Should().BeFalse();
+        state.HasAuthoritativeSnapshot.Should().BeFalse();
+    }
+
+    /// <summary>Snapshot metadata mismatch fails closed.</summary>
+    [Fact]
+    public void Snapshot_metadata_mismatch_is_rejected()
+    {
+        var producer = new IntrinsicTimeStrategyWorkflowCommandState();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            producer, CreateStart(WorkflowId, TriggerId(101)), Time(Now), MaximumDuration);
+        var valid = LatestSnapshot(producer);
+        var state = new IntrinsicTimeStrategyWorkflowCommandState();
+
+        state.Apply(valid with { WorkflowRevision = valid.WorkflowRevision + 1 }, addEvent: false)
+            .Should().BeFalse();
+    }
+
+    static IntrinsicTimeStrategyWorkflowCommandState StartedState(DateTime startedAt)
+    {
+        var producer = new IntrinsicTimeStrategyWorkflowCommandState();
+        IntrinsicTimeStrategyWorkflowCommandActor.HandleStart(
+            producer, CreateStart(WorkflowId, TriggerId(100)), Time(startedAt), MaximumDuration);
+        return FromSnapshot(LatestSnapshot(producer));
+    }
+
+    static IntrinsicTimeStrategyWorkflowCommandState FromSnapshot(WorkflowStrategyStateUpdatedEvent snapshot)
+    {
+        var state = new IntrinsicTimeStrategyWorkflowCommandState();
+        state.Apply(snapshot, addEvent: false).Should().BeTrue();
         return state;
     }
 
-    static StrategyWorkflowStartAcceptedEvent CreateStartAccepted(FuturesItiSignalGeneratedEvent trigger)
-        => new()
-        {
-            EntityId = EntityId,
-            Id = Guid.Parse("0198E212-3C00-7000-8000-000000000110"),
-            EventId = 1,
-            CommandId = CommandGuid,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 1,
-            CorrelationId = WorkflowGuid,
-            CausationId = TriggerGuid,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            TriggerEventId = TriggerGuid,
-            TriggerEvent = trigger,
-            WorkflowDefinitionVersion = IntrinsicTimeStrategyWorkflowDefinition.Version,
-            StartedAtUtc = StartedAtUtc
-        };
+    static WorkflowStrategyStateUpdatedEvent LatestSnapshot(IntrinsicTimeStrategyWorkflowCommandState state)
+        => state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Last();
 
-    static IntrinsicTimeStrategyWorkflowStartedEvent CreateWorkflowStarted(
-        IntrinsicTimeStrategyWorkflowState workflow,
-        FuturesItiSignalGeneratedEvent trigger)
-        => new()
-        {
-            EntityId = EntityId,
-            Id = Guid.Parse("0198E212-3C00-7000-8000-000000000111"),
-            EventId = 2,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 1,
-            CorrelationId = WorkflowGuid,
-            CausationId = TriggerGuid,
-            NextPipelineStage = StrategyWorkflowStage.RegimeDiscovery,
-            NextPipelineActorType = ActorType.Command,
-            NextPipelineActorName = "RegimeDiscoveryPipelineCommand",
-            NextPipelineBoundedContext = BoundedContextName.RegimeDiscoveryPipelineBoundedContext,
-            NextPipelineCommandId = PipelineCommandGuid,
-            WorkflowState = workflow,
-            TriggerEvent = trigger,
-            RequestedAtUtc = StartedAtUtc,
-            ExpectedCompletionAtUtc = StartedAtUtc.AddMinutes(5),
-            StartedAtUtc = StartedAtUtc
-        };
-
-    static IntrinsicTimeStrategyWorkflowContinuedEvent CreateWorkflowContinued(
-        IntrinsicTimeStrategyWorkflowState workflow,
-        StrategyWorkflowStage nextStage = StrategyWorkflowStage.MarketCondition)
-        => new()
-        {
-            EntityId = EntityId,
-            Id = Guid.Parse("0198E212-3C00-7000-8000-000000000112"),
-            EventId = 5,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = workflow.WorkflowRevision,
-            CorrelationId = WorkflowGuid,
-            CausationId = PipelineEventGuid,
-            CompletedPipelineStage = StrategyWorkflowStage.RegimeDiscovery,
-            NextPipelineStage = nextStage,
-            NextPipelineActorType = ActorType.Command,
-            NextPipelineActorName = $"{nextStage}PipelineCommand",
-            NextPipelineBoundedContext = BoundedContextName.MarketConditionPipelineBoundedContext,
-            NextPipelineCommandId = Guid.Parse("0198E212-3C00-7000-8000-000000000113"),
-            WorkflowState = workflow,
-            TriggerEvent = CreateTriggerEvent(),
-            ContinuationRuleSetId = "SkeletonProceedOnValidResult",
-            ContinuationRuleSetVersion = 1,
-            ContinuationReasonCodes = ["VALID_RESULT"],
-            RequestedAtUtc = CompletedAtUtc,
-            ExpectedCompletionAtUtc = CompletedAtUtc.AddMinutes(5),
-            ContinuedAtUtc = CompletedAtUtc
-        };
-
-    static IntrinsicTimeStrategyWorkflowStoppedEvent CreateStopped(
-        StrategyWorkflowOutcome outcome,
-        string reasonCode)
-        => new()
-        {
-            EntityId = EntityId,
-            EventId = 4,
-            WorkflowId = WorkflowId,
-            WorkflowRevision = 2,
-            CorrelationId = WorkflowGuid,
-            CausationId = PipelineEventGuid,
-            Stage = StrategyWorkflowStage.RegimeDiscovery,
-            Outcome = outcome,
-            ReasonCode = reasonCode,
-            StoppedAtUtc = CompletedAtUtc
-        };
-
-    static IntrinsicTimeStrategyWorkflowState CreateInitialWorkflow()
-        => new()
-        {
-            EntityId = EntityId,
-            WorkflowId = WorkflowId,
-            TriggerEventId = TriggerGuid,
-            CorrelationId = WorkflowGuid,
-            WorkflowDefinitionVersion = IntrinsicTimeStrategyWorkflowDefinition.Version,
-            Status = StrategyWorkflowStatus.Running,
-            CurrentStage = StrategyWorkflowStage.RegimeDiscovery,
-            WorkflowRevision = 1,
-            StartedAtUtc = StartedAtUtc,
-            RegimeDiscovery = new StrategyWorkflowStageState
-            {
-                ProcessingStatus = StrategyActorProcessingStatus.Processing,
-                StartedAtUtc = StartedAtUtc
-            }
-        };
-
-    static FuturesItiSignalGeneratedEvent CreateTriggerEvent()
+    static StartIntrinsicTimeStrategyWorkflowCommand CreateStart(
+        StrategyWorkflowId workflowId,
+        Guid triggerId)
     {
-        var signalEntityId = new FuturesItiSignalEntityId(
-            "ES-202609",
-            new DateOnly(2026, 8, 25),
-            TimeFrameType.Daily);
-        return new FuturesItiSignalGeneratedEvent
+        var parameterSet = RegimeDiscoveryParameterSet.CreateDefault(
+            Guid.Parse("0198E212-3C00-7000-8000-000000000211"),
+            Guid.Parse("0198E212-3C00-7000-8000-000000000212"),
+            TimeFrameType.Daily,
+            version: 3);
+        return new StartIntrinsicTimeStrategyWorkflowCommand
         {
-            Subject = new ActorSubject(
-                ActorType.Realtime,
-                FuturesItiSignalGeneratedEvent.Actor,
-                FuturesItiSignalGeneratedEvent.Verb,
-                signalEntityId.Format()),
-            Id = TriggerGuid,
-            EntityId = signalEntityId,
-            EventId = 41,
-            CommandId = Guid.Parse("0198E212-3C00-7000-8000-000000000114"),
-            AggregateId = signalEntityId.Format(),
-            EventSource = "FuturesItiSignalCommandActor",
-            ReceivedOn = StartedAtUtc,
-            FuturesItiSignal = new FuturesItiSignalV2ReadModel
+            CommandId = Guid.NewGuid(),
+            Subject = Subject(StartIntrinsicTimeStrategyWorkflowCommand.Verb),
+            EntityId = EntityId,
+            ProposedWorkflowId = workflowId,
+            TriggerEventId = triggerId,
+            TriggerEvent = new FuturesItiSignalGeneratedEvent { Id = triggerId, EntityId = EntityId.ItiSignalEntityId },
+            CorrelationId = Guid.NewGuid(),
+            CausationId = triggerId,
+            RequestedAtUtc = Now,
+            WorkflowDefinitionVersion = IntrinsicTimeStrategyWorkflowDefinition.Version,
+            RegimeDiscoveryParameterSet = parameterSet,
+            RegimeDiscoveryParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(parameterSet)
+        };
+    }
+
+    static CompleteRegimeDiscoveryCommand CreateCompletion(
+        StrategyWorkflowId workflowId,
+        long revision,
+        Guid sourceId,
+        StrategyStageResultEnvelope result)
+        => new()
+        {
+            CommandId = sourceId,
+            Subject = Subject(CompleteRegimeDiscoveryCommand.Verb),
+            EntityId = EntityId,
+            WorkflowId = workflowId,
+            InputWorkflowRevision = revision,
+            SourceEventId = sourceId,
+            Result = result,
+            CorrelationId = Guid.NewGuid(),
+            CausationId = sourceId,
+            CompletedAtUtc = Now
+        };
+
+    static FailRegimeDiscoveryCommand CreateFailureCommand(
+        StrategyWorkflowId workflowId,
+        long revision,
+        Guid sourceId,
+        string errorType)
+        => new()
+        {
+            CommandId = sourceId,
+            Subject = Subject(FailRegimeDiscoveryCommand.Verb),
+            EntityId = EntityId,
+            WorkflowId = workflowId,
+            InputWorkflowRevision = revision,
+            SourceEventId = sourceId,
+            Failure = new StrategyPipelineFailure
             {
-                ContractId = "ES-202609",
-                ValueDate = new DateOnly(2026, 8, 25),
-                TimeFrameStartValueDate = new DateOnly(2026, 8, 25),
-                TimePeriod = TimeFrameType.Daily,
-                IntrinsicTime = StartedAtUtc,
-                IntrinsicPrice = 6432.25
+                ErrorCode = errorType.Contains("Timeout", StringComparison.OrdinalIgnoreCase) ? 23103 : 23102,
+                ErrorMessage = errorType,
+                ErrorType = errorType,
+                FailedAtUtc = Now
             },
-            CreatedOn = StartedAtUtc,
-            CreatedBy = "itsw-5-test",
-            VixFuturesPrice = 17.25
-        };
-    }
-
-    static StrategyStageResultEnvelope CreateResult(string resultType = "RegimeDiscovery.Result")
-        => StrategyStageResultEnvelope.Create(
-            Guid.Parse("0198E212-3C00-7000-8000-000000000115"),
-            resultType,
-            1,
-            new byte[] { 0x91, 0x01 },
-            StartedAtUtc.AddMinutes(1),
-            CompletedAtUtc);
-
-    static StrategyPipelineFailure CreateFailure()
-        => new()
-        {
-            ErrorCode = 4201,
-            ErrorMessage = "Regime discovery failed.",
-            ErrorType = "RegimeDiscoveryUnavailable",
-            ErrorData = "source=unit-test",
-            FailedAtUtc = CompletedAtUtc
+            CorrelationId = Guid.NewGuid(),
+            CausationId = sourceId,
+            FailedAtUtc = Now
         };
 
-    static object CreatePopulatedEvent(Type type)
+    static StrategyStageResultEnvelope CreateResult(Guid sourceId) => new()
     {
-        var constructor = type.GetConstructors().Single(candidate =>
-            candidate.GetCustomAttribute<SerializationConstructorAttribute>() is not null);
-        return constructor.Invoke(constructor.GetParameters()
-            .Select(parameter => CreateSampleValue(parameter.ParameterType, parameter.Name!))
-            .ToArray());
-    }
+        ResultId = sourceId,
+        ResultType = "RegimeDiscovery.Result",
+        SchemaVersion = 1,
+        ContentType = "application/x-msgpack",
+        Payload = new byte[] { 0x91, 0x01 },
+        PayloadSha256 = new string('A', 64),
+        MarketDataAsOfUtc = Now,
+        ProducedAtUtc = Now
+    };
 
-    static object? CreateSampleValue(Type type, string parameterName)
+    static ActorSubject Subject(string verb)
+        => new(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor, verb, EntityId.Format());
+
+    static Guid TriggerId(int suffix)
+        => Guid.Parse($"0198E212-3C00-7000-8000-{suffix:D12}");
+
+    static FixedTimeProvider Time(DateTime value) => new(new DateTimeOffset(value, TimeSpan.Zero));
+
+    sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
     {
-        if (type == typeof(Guid))
-            return parameterName.Contains("trigger", StringComparison.OrdinalIgnoreCase)
-                ? TriggerGuid
-                : PipelineEventGuid;
-        if (type == typeof(ActorSubject))
-            return new ActorSubject(ActorType.Event, "IntrinsicTimeStrategyWorkflow", "Test", EntityId.Format());
-        if (type == typeof(IntrinsicTimeStrategyWorkflowEntityId))
-            return EntityId;
-        if (type == typeof(long))
-            return parameterName.Contains("revision", StringComparison.OrdinalIgnoreCase) ? 2L : 3L;
-        if (type == typeof(int))
-            return 1;
-        if (type == typeof(string))
-            return parameterName.Contains("actorName", StringComparison.OrdinalIgnoreCase)
-                ? "RegimeDiscoveryPipelineCommand"
-                : $"test-{parameterName}";
-        if (type == typeof(DateTime))
-            return CompletedAtUtc;
-        if (type == typeof(DateTime?))
-            return CompletedAtUtc.AddMinutes(5);
-        if (type == typeof(StrategyWorkflowId))
-            return WorkflowId;
-        if (type == typeof(RegimeDiscoveryParameterSet))
-            return RegimeDiscoveryParameterSet.CreateDefault(
-                Guid.Parse("0198E212-3C00-7000-8000-000000000116"),
-                Guid.Parse("0198E212-3C00-7000-8000-000000000117"),
-                TimeFrameType.Daily);
-        if (type == typeof(StrategyWorkflowStage))
-            return StrategyWorkflowStage.RegimeDiscovery;
-        if (type == typeof(StrategyWorkflowStartDecision))
-            return StrategyWorkflowStartDecision.Accepted;
-        if (type == typeof(StrategyWorkflowContinuationDecision))
-            return StrategyWorkflowContinuationDecision.Proceed;
-        if (type == typeof(StrategyWorkflowOutcome))
-            return StrategyWorkflowOutcome.Cancelled;
-        if (type == typeof(StrategyStageResultEnvelope))
-            return CreateResult();
-        if (type == typeof(StrategyPipelineFailure))
-            return CreateFailure();
-        if (type == typeof(FuturesItiSignalGeneratedEvent))
-            return CreateTriggerEvent();
-        if (type == typeof(IntrinsicTimeStrategyWorkflowState))
-            return CreateInitialWorkflow() with { WorkflowRevision = 2 };
-        if (type == typeof(ActorType))
-            return ActorType.Command;
-        if (type == typeof(BoundedContextName))
-            return BoundedContextName.RegimeDiscoveryPipelineBoundedContext;
-        if (type == typeof(string[]))
-            return new[] { "VALID_RESULT" };
-
-        throw new InvalidOperationException(
-            $"No ITSW-5 event-test value is defined for {type.FullName} ({parameterName}).");
+        public override DateTimeOffset GetUtcNow() => value;
     }
 }

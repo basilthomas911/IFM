@@ -25,14 +25,14 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     readonly ILogger<FuturesOptionTickDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesOptionTickDataEventParameters _eventParameters = new(
         ((IFuturesOptionTickDataEventContext)actorContext).MarketDataApi, ((IFuturesOptionTickDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly Dictionary<string, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesOptionTickDataEventContext, IEventActorContext, FuturesOptionTickDataEventParameters, ValueTask<bool>>>()
     {
-        [typeof(FuturesOptionTickDataStreamingStartedEvent).Name] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesOptionTickDataStreamingStartedEvent)] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStartedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesOptionTickDataStreamingStoppedEvent).Name] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesOptionTickDataStreamingStoppedEvent)] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesOptionTickDataStreamingStoppedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
@@ -74,22 +74,12 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
     protected override IEvent ParseMessage(IEventActorContext<FuturesOptionTickDataEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesOptionTickDataStreamingStartedEvent.Verb] = msg => msg.AsEvent<FuturesOptionTickDataStreamingStartedEvent>()!,
         [FuturesOptionTickDataStreamingStoppedEvent.Verb] = msg => msg.AsEvent<FuturesOptionTickDataStreamingStoppedEvent>()!
@@ -107,9 +97,7 @@ public class FuturesOptionTickDataEventActor(IEventActorContext<FuturesOptionTic
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(
             @event,
             EventContext,

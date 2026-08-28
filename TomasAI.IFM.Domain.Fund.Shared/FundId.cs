@@ -1,6 +1,7 @@
 using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Fund.Shared;
 
@@ -30,4 +31,25 @@ public record FundId(
     /// Returns a compact JSON representation of the identifier.
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
+}
+
+/// <summary>
+/// Intrinsic validation for the Fund aggregate identifier.
+/// </summary>
+public static class FundIdValidationExtensions
+{
+    public static List<ValidationError> ValidateFundId(
+        this List<ValidationError> validationErrors,
+        FundId? fundId,
+        string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+
+        if (fundId is null)
+            validationErrors.Add(new($"{commandName}.EntityId is null"));
+        else if (fundId.Id < 1)
+            validationErrors.Add(new($"{commandName}.EntityId.Id must be > 0"));
+
+        return validationErrors;
+    }
 }

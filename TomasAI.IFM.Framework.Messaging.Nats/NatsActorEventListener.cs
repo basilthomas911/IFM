@@ -29,6 +29,7 @@ public class NatsActorEventListener(
     string _eventListenerId = string.Empty;
     Dictionary<ActorMailboxId, List<string>> _eventMap = [];
     Func<string, NatsMsg<byte[]>, ValueTask> _eventHandler = (verb, msg) => { return ValueTask.CompletedTask; };
+    INatsSub<byte[]>?[] _subscriptions = [];
     Task[] _subscriptionTasks = [];
     int _messageCount;
 
@@ -112,11 +113,24 @@ public class NatsActorEventListener(
             _state = EventListenerState.Started;
             Interlocked.Exchange(ref _messageCount, 0);
             _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} started.", eventListenerId);
+            _subscriptions = new INatsSub<byte[]>?[_eventMap.Count];
             _subscriptionTasks = new Task[_eventMap.Count];
             var taskIndex = 0;
             foreach (var e in _eventMap)
             {
-                _subscriptionTasks[taskIndex++] = PubSubMessageLoopAsync($"{e.Key}", e.Value, _cts.Token);
+                var subscription = await _nc.Connection.SubscribeCoreAsync(
+                    $"{e.Key}.>",
+                    queueGroup: null,
+                    serializer: _deserializer,
+                    opts: _requestOptions,
+                    cancellationToken: _cts.Token).ConfigureAwait(false);
+                _subscriptions[taskIndex] = subscription;
+                _subscriptionTasks[taskIndex] = PubSubMessageLoopAsync(
+                    $"{e.Key}",
+                    e.Value,
+                    subscription,
+                    _cts.Token);
+                taskIndex++;
             }
         }
         catch (Exception ex)
@@ -156,6 +170,11 @@ public class NatsActorEventListener(
             }
 
             _cts.Cancel();
+            foreach (var subscription in _subscriptions)
+            {
+                if (subscription is not null)
+                    await subscription.UnsubscribeAsync().ConfigureAwait(false);
+            }
             if (_subscriptionTasks.Length > 0)
             {
                 try
@@ -168,6 +187,12 @@ public class NatsActorEventListener(
                 }
             }
             _subscriptionTasks = [];
+            foreach (var subscription in _subscriptions)
+            {
+                if (subscription is not null)
+                    await subscription.DisposeAsync().ConfigureAwait(false);
+            }
+            _subscriptions = [];
             _cts.Dispose();
             _cts = default!;
             if (_ownsConnectionManager)
@@ -193,14 +218,18 @@ public class NatsActorEventListener(
     /// <param name="eventVerbs">The list of event verbs to listen for.</param>
     /// <param name="ctsRequestToken">A cancellation token that can be used to request termination of the message processing loop.</param>
     /// <returns>A task that represents the asynchronous operation of the message processing loop.</returns>
-    async Task PubSubMessageLoopAsync(string actorMailboxId, List<string> eventVerbs, CancellationToken ctsRequestToken)
+    async Task PubSubMessageLoopAsync(
+        string actorMailboxId,
+        List<string> eventVerbs,
+        INatsSub<byte[]> subscription,
+        CancellationToken ctsRequestToken)
     {
         _state = EventListenerState.Running;
         _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId}  - {actorMailboxId} running.", _eventListenerId, actorMailboxId);
         var acceptedVerbs = new HashSet<string>(eventVerbs, StringComparer.OrdinalIgnoreCase);
         try
         {
-            await foreach (var msg in _nc!.SubscribeAsync($"{actorMailboxId}.>", serializer: _deserializer, opts: _requestOptions, cancellationToken: ctsRequestToken))
+            await foreach (var msg in subscription.Msgs.ReadAllAsync(ctsRequestToken))
             {
                 try
                 {
@@ -228,6 +257,11 @@ public class NatsActorEventListener(
         catch (OperationCanceledException) when (ctsRequestToken.IsCancellationRequested)
         {
             // Expected during shutdown.
+        }
+        catch (Exception) when (ctsRequestToken.IsCancellationRequested)
+        {
+            // Explicit unsubscribe completes the NATS channel and may surface its terminal
+            // exception instead of OperationCanceledException. It is still expected shutdown.
         }
         _logger.LogInformationEvent(_serviceId, "NATS Event Listener: {eventListenerId} read {MessagesRead} messages.", _eventListenerId, MessageCount);
     }

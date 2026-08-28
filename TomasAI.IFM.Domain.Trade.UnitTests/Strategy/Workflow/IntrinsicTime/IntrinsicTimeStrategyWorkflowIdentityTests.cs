@@ -3,6 +3,8 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
+using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
 
@@ -188,6 +190,66 @@ public sealed class IntrinsicTimeStrategyWorkflowIdentityTests
             error.ErrorMessage == StrategyWorkflowIdValidationRules.VersionErrorMessage);
     }
 
+    /// <summary>Confirms Regime execution identity combines the stable entity with exactly one workflow execution.</summary>
+    [Fact]
+    public void Regime_execution_identity_is_composite_stable_and_serializable()
+    {
+        var workflowEntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(
+            new FuturesItiSignalEntityId("ES-202609", new DateOnly(2026, 8, 24), TimeFrameType.Daily));
+        var workflowId = new StrategyWorkflowId(
+            Guid.Parse("0198E212-3C00-7000-8000-000000000012"));
+        var expected = RegimeDiscoveryExecutionEntityId.Create(workflowEntityId, workflowId);
+
+        expected.Format().Should().Be(
+            "IntrinsicTimeStrategy.ES-202609.20260824.Daily.RegimeDiscovery.0198e2123c0070008000000000000012");
+        expected.ToString().Should().Be(expected.Format());
+        new RegimeDiscoveryExecutionEntityIdValidationRules().Execute(expected).Should().BeEmpty();
+
+        var actual = MessagePackSerializer.Deserialize<RegimeDiscoveryExecutionEntityId>(
+            MessagePackSerializer.Serialize(expected));
+        actual.Should().Be(expected);
+        actual.Format().Should().Be(expected.Format());
+    }
+
+    /// <summary>Confirms consecutive workflows for one strategy entity cannot share a Regime private stream.</summary>
+    [Fact]
+    public void Regime_execution_identity_isolated_by_workflow_id()
+    {
+        var workflowEntityId = IntrinsicTimeStrategyWorkflowEntityId.Create(
+            new FuturesItiSignalEntityId("ES-202609", new DateOnly(2026, 8, 24), TimeFrameType.Daily));
+        var first = RegimeDiscoveryExecutionEntityId.Create(workflowEntityId,
+            new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000012")));
+        var second = RegimeDiscoveryExecutionEntityId.Create(workflowEntityId,
+            new StrategyWorkflowId(Guid.Parse("0198E212-3C01-7000-8000-000000000012")));
+        var firstSubject = new ActorSubject(
+            ActorType.Command,
+            ExecuteRegimeDiscoveryPipelineCommand.Actor,
+            ExecuteRegimeDiscoveryPipelineCommand.Verb,
+            first.Format());
+        var secondSubject = new ActorSubject(
+            ActorType.Command,
+            ExecuteRegimeDiscoveryPipelineCommand.Actor,
+            ExecuteRegimeDiscoveryPipelineCommand.Verb,
+            second.Format());
+
+        second.Should().NotBe(first);
+        second.Format().Should().NotBe(first.Format());
+        secondSubject.EntityId.Should().NotBe(firstSubject.EntityId);
+        secondSubject.StreamId.Should().NotBe(firstSubject.StreamId);
+    }
+
+    /// <summary>Confirms an invalid component makes the complete Regime execution identity invalid.</summary>
+    [Fact]
+    public void Regime_execution_identity_validation_rejects_invalid_components()
+    {
+        var errors = new RegimeDiscoveryExecutionEntityIdValidationRules().Execute(default);
+
+        errors.Should().Contain(error =>
+            error.ErrorMessage == IntrinsicTimeStrategyWorkflowEntityIdValidationRules.WorkflowDefinitionErrorMessage);
+        errors.Should().Contain(error =>
+            error.ErrorMessage == StrategyWorkflowIdValidationRules.EmptyErrorMessage);
+    }
+
     /// <summary>Locks the serialized numeric values of all workflow enums.</summary>
     [Fact]
     public void Workflow_enum_values_are_stable()
@@ -207,6 +269,13 @@ public sealed class IntrinsicTimeStrategyWorkflowIdentityTests
         ((int)StrategyWorkflowStatus.Running).Should().Be(1);
         ((int)StrategyWorkflowStatus.Completed).Should().Be(2);
         ((int)StrategyWorkflowStatus.Stopped).Should().Be(3);
+
+        ((int)WorkflowStrategyMachineStatus.Empty).Should().Be(0);
+        ((int)WorkflowStrategyMachineStatus.Started).Should().Be(1);
+        ((int)WorkflowStrategyMachineStatus.Completed).Should().Be(2);
+        ((int)WorkflowStrategyMachineStatus.Failed).Should().Be(3);
+        ((int)WorkflowStrategyMachineStatus.TimedOut).Should().Be(4);
+        ((int)WorkflowStrategyMachineStatus.Cancelled).Should().Be(5);
 
         ((int)StrategyWorkflowOutcome.None).Should().Be(0);
         ((int)StrategyWorkflowOutcome.Completed).Should().Be(1);
@@ -235,6 +304,7 @@ public sealed class IntrinsicTimeStrategyWorkflowIdentityTests
         RoundTrip(StrategyWorkflowStartDecision.Rejected).Should().Be(StrategyWorkflowStartDecision.Rejected);
         RoundTrip(StrategyWorkflowStage.RiskManagement).Should().Be(StrategyWorkflowStage.RiskManagement);
         RoundTrip(StrategyWorkflowStatus.Stopped).Should().Be(StrategyWorkflowStatus.Stopped);
+        RoundTrip(WorkflowStrategyMachineStatus.TimedOut).Should().Be(WorkflowStrategyMachineStatus.TimedOut);
         RoundTrip(StrategyWorkflowOutcome.ConsistencyFault).Should().Be(StrategyWorkflowOutcome.ConsistencyFault);
         RoundTrip(StrategyActorProcessingStatus.Cancelled).Should().Be(StrategyActorProcessingStatus.Cancelled);
         RoundTrip(StrategyWorkflowContinuationDecision.Stop).Should().Be(StrategyWorkflowContinuationDecision.Stop);

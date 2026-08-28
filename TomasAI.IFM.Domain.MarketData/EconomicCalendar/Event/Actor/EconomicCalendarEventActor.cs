@@ -20,17 +20,17 @@ public class EconomicCalendarEventActor(
 {
     public const string Actor = "EconomicCalendarEvent";
     readonly IEconomicCalendarEventContext _context = actorContext.EconomicCalendarContext;
-    readonly Dictionary<string, Func<IEvent, IEconomicCalendarEventContext, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IEconomicCalendarEventContext, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IEconomicCalendarEventContext, ValueTask<bool>>>()
     {
-        [typeof(EconomicCalendarsImportedEvent).Name] = (@event, context) =>
+        [typeof(EconomicCalendarsImportedEvent)] = (@event, context) =>
             ((EconomicCalendarsImportedEvent)@event).ExecuteAsync(context, context.ReferenceDataApi, context.DbFactory, context.Logger),
-        [typeof(EconomicCalendarsImportedCompleteEvent).Name] = (@event, context) =>
+        [typeof(EconomicCalendarsImportedCompleteEvent)] = (@event, context) =>
             ((EconomicCalendarsImportedCompleteEvent)@event).ExecuteAsync(context, context.Logger),
-        [typeof(EconomicCalendarsImportedFailEvent).Name] = (@event, context) =>
+        [typeof(EconomicCalendarsImportedFailEvent)] = (@event, context) =>
             ((EconomicCalendarsImportedFailEvent)@event).ExecuteAsync(context, context.Logger)
     };
 
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [EconomicCalendarsImportedEvent.Verb] = message => message.AsEvent<EconomicCalendarsImportedEvent>()!,
         [EconomicCalendarsImportedCompleteEvent.Verb] = message => message.AsEvent<EconomicCalendarsImportedCompleteEvent>()!,
@@ -46,17 +46,7 @@ public class EconomicCalendarEventActor(
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
     protected override IEvent ParseMessage(IEventActorContext<EconomicCalendarEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Receives an event and dispatches it to the appropriate handler based on the event's type. 
@@ -70,9 +60,7 @@ public class EconomicCalendarEventActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, _context).ConfigureAwait(false);
     }
 

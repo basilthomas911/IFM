@@ -49,8 +49,8 @@ using TomasAI.IFM.Domain.Fund;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarPublisher.Realtime.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
@@ -62,6 +62,7 @@ using TomasAI.IFM.Domain.SystemAdmin;
 using TomasAI.IFM.Domain.OptionPricer;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
@@ -278,6 +279,14 @@ public static class Startup
             {
                 Enabled = config.GetValue("AppSettings:IntrinsicTimeStrategyWorkflow:Enabled", false)
             });
+            var regimeDiscoveryExecutionOptions = new RegimeDiscoveryExecutionOptions
+            {
+                MaximumExecutionDuration = config.GetValue(
+                    $"{RegimeDiscoveryExecutionOptions.SectionName}:MaximumExecutionDuration",
+                    RegimeDiscoveryExecutionOptions.DefaultMaximumExecutionDuration)
+            };
+            regimeDiscoveryExecutionOptions.Validate();
+            services.AddSingleton(regimeDiscoveryExecutionOptions);
             services.AddSingleton<IBoundedContextFactoryResolver, BoundedContextFactoryResolver>(_ => new BoundedContextFactoryResolver(e => GetContainerInstance(e)!));
             services.AddSingleton<IBoundedContextFactory, BoundedContextFactory>();
             services.AddSingleton<IActorStateFactoryResolver, ActorStateFactoryResolver>(_ => new ActorStateFactoryResolver(e => GetContainerInstance(e)!));
@@ -416,8 +425,8 @@ public static class Startup
             services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
             services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
-            services.AddSingleton<ICommandDuplicateGuard>(provider =>
-                (ICommandDuplicateGuard)provider.GetRequiredService<IEventSourceActorDbContext>());
+            services.AddSingleton<ICommandAuditLogger>(provider =>
+                (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<FundDbContext>() as IFundDbContext)!);

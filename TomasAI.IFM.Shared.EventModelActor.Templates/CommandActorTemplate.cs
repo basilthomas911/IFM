@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Shared.Domain;
@@ -27,18 +26,24 @@ public class CommandActorTemplate(
     /// <summary>Gets the actor mailbox name.</summary>
     public const string ActorName = "CommandActorTemplate";
 
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
     IEventSourceActorStateRepository<CommandActorTemplateState> _repository = default!;
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = [];
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, ICommand>>();
 
-    static readonly Dictionary<string, Func<
+    static readonly IReadOnlyDictionary<Type, Func<
         ICommand,
         ICommandActorContext<CommandActorTemplate>,
         CommandActorTemplateState,
-        ServiceResult<GuidResult>>> _receiveMap = [];
+        ServiceResult<GuidResult>>> _receiveMap =
+            new Dictionary<Type, Func<
+                ICommand,
+                ICommandActorContext<CommandActorTemplate>,
+                CommandActorTemplateState,
+                ServiceResult<GuidResult>>>();
 
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = [];
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>();
 
     protected override ValueTask OnStartup(ICommandActorContext<CommandActorTemplate> context)
     {
@@ -48,21 +53,12 @@ public class CommandActorTemplate(
         return ValueTask.CompletedTask;
     }
 
-    protected override ICommand ParseMessage(ICommandActorContext<CommandActorTemplate> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(subject.Verb, out var parser))
-            throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} command from message: {message.Subject}");
+    protected override ICommand ParseMessage(
+        ICommandActorContext<CommandActorTemplate> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
-        var command = parser.Invoke(message);
-        IsArgumentNull.Check(command);
-        return command;
-    }
-
-    protected override async ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
+    protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(
         ICommandActorContext<CommandActorTemplate> context,
         IActorState state,
         ICommand command)
@@ -71,17 +67,10 @@ public class CommandActorTemplate(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(command);
 
-        await _dbEventSource.InsertCommandLogAsync(
-            command,
-            DateTime.UtcNow,
-            JsonConvert.SerializeObject(command));
-
         var templateState = IsArgumentNull.Set((state as CommandActorTemplateState)!);
-        if (!_receiveMap.TryGetValue(command.GetType().Name, out var handler))
-            throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} command from message: {command.Subject}");
+        var handler = ResolveMappedCommandHandler(command, _receiveMap);
 
-        return handler.Invoke(command, context, templateState);
+        return ValueTask.FromResult(handler.Invoke(command, context, templateState));
     }
 
     protected override ValueTask OnValidateAsync(
@@ -93,11 +82,7 @@ public class CommandActorTemplate(
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(command);
 
-        if (!_validationMap.TryGetValue(command.GetType().Name, out var validator))
-            throw new InvalidOperationException(
-                $"Unable to validate {ActorName} commands from message: {command.Subject}");
-
-        validator.Invoke(command).ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 

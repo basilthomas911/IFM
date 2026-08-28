@@ -189,7 +189,7 @@ TomasAI.IFM.Domain.MarketData.Analytics.Shared/
       MarketSeriesIdentity.cs
       MarketSignalCalculationMethod.cs
       MarketSignalValidationIssue.cs
-  FuturesTradeSessionBarPublisher/
+  FuturesTradeSessionBarSignal/
       FuturesTradeSessionBarEntityId.cs
       FuturesTradeSessionBarReadModel.cs
       FuturesTradeSessionBarClosedRealtimeEvent.cs
@@ -510,7 +510,7 @@ it is not quote size or cumulative session volume.
 
 | Message | Producer | Consumer | Delivery |
 | --- | --- | --- | --- |
-| `FuturesTradeSessionBarClosedRealtimeEvent` | Trade Session Bar Publisher Event actor, after projection | Bar-derived signal actors | Realtime/Core NATS |
+| `FuturesTradeSessionBarClosedRealtimeEvent` | Trade Session Bar Signal Event actor, after projection | Bar-derived signal actors | Realtime/Core NATS |
 | `FuturesEmaSignalGeneratedEvent` | EMA actor/projector source | EMA projector and BB route | Realtime subject |
 | `FuturesBbSignalGeneratedEvent` | BB actor/projector source | BB projector and Market Structure route | Realtime subject |
 | `FuturesAtrSignalGeneratedEvent` | ATR command actor | command event projector and Market Structure route | Durable event plus projected realtime publication |
@@ -579,11 +579,11 @@ contains downloaded provider records.
 ```mermaid
 sequenceDiagram
     participant MP as FuturesMarketPrice actor
-    participant TS as Trade Session Bar Publisher realtime actor
+    participant TS as Trade Session Bar Signal realtime actor
     participant BM as Trade Session Bar accumulator model
-    participant BC as Trade Session Bar Publisher command actor
+    participant BC as Trade Session Bar Signal command actor
     participant BP as Command EventProjector
-    participant BE as Trade Session Bar Publisher event actor
+    participant BE as Trade Session Bar Signal event actor
     participant E as EMA realtime actor
     participant B as BB realtime actor
     participant A as ATR/ADX/MACD/RSI actors
@@ -1741,11 +1741,11 @@ Deliver:
 Exit: raw write contains only session facts and an enriched query uses exact
 Analytics signals rather than recalculation.
 
-### MDSI-5 - Futures Trade Session Bar Publisher
+### MDSI-5 - Futures Trade Session Bar Signal
 
 Status: **Complete; architecture corrected 2026-08-26**. Accepted schedule,
 lineage, actor responsibilities, lifecycle, and test evidence are in
-`Regime-Discovery-Market-Signal-Interface-MDSI-5-Trade-Session-Bar-Publisher-v1.1.md`.
+`Regime-Discovery-Market-Signal-Interface-MDSI-5-Trade-Session-Bar-Signal-v1.1.md`.
 
 Deliver:
 

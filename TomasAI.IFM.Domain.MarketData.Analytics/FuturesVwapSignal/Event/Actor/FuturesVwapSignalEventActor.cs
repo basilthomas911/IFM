@@ -18,8 +18,16 @@ public sealed class FuturesVwapSignalEventActor(
     public const string ActorName = FuturesVwapSignalUpdatedEvent.Actor;
     IFuturesVwapSignalEventContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVwapSignalEventContext, nameof(actorContext))!;
-    readonly Dictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger, ValueTask<bool>>>
-        receiveMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesVwapSignalUpdatedCompleteEvent.Verb] = static message =>
+                message.AsEvent<FuturesVwapSignalUpdatedCompleteEvent>()!,
+            [FuturesVwapSignalUpdatedFailEvent.Verb] = static message =>
+                message.AsEvent<FuturesVwapSignalUpdatedFailEvent>()!
+        };
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesVwapSignalEventContext, ILogger, ValueTask<bool>>>()
         {
             [typeof(FuturesVwapSignalUpdatedCompleteEvent)] = async (@event, context, logger) =>
                 await ((FuturesVwapSignalUpdatedCompleteEvent)@event)
@@ -31,22 +39,13 @@ public sealed class FuturesVwapSignalEventActor(
 
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesVwapSignalEventActor> context,
-        IActorMessage message) => message.Subject is { ActorType: ActorType.Event, Name: ActorName }
-        ? message.Subject.Verb switch
-        {
-            FuturesVwapSignalUpdatedCompleteEvent.Verb =>
-                message.AsEvent<FuturesVwapSignalUpdatedCompleteEvent>()!,
-            FuturesVwapSignalUpdatedFailEvent.Verb =>
-                message.AsEvent<FuturesVwapSignalUpdatedFailEvent>()!,
-            _ => default!
-        } : default!;
+        IActorMessage message) => ParseMappedEvent(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesVwapSignalEventActor> context, IEvent @event)
     {
-        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unsupported VWAP Event actor message {@event.EventName}.");
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await handler(@event, TypedContext, TypedContext.Logger).ConfigureAwait(false);
     }
 

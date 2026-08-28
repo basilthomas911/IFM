@@ -11,6 +11,8 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Extensions;
 
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.Actor;
 
@@ -30,7 +32,8 @@ public class DatabaseBackupCommandActor(
     /// <summary>Gets the SupportedCommandTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedCommandTypes => CommandTypes;
     /// <summary>Gets the SupportedVerbs value.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys;
+    public static IReadOnlyCollection<string> SupportedVerbs =>
+        _parseMap.Keys as IReadOnlyCollection<string> ?? _parseMap.Keys.ToArray();
 
     static readonly Type[] CommandTypes =
     [
@@ -46,22 +49,245 @@ public class DatabaseBackupCommandActor(
         typeof(RecordDatabaseBackupServiceCapabilityCommand), typeof(RecordDatabaseRecoveryRunStatisticsCommand)
     ];
     static readonly MethodInfo ParseMethod = typeof(DatabaseBackupCommandActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = CommandTypes.ToDictionary(
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = CommandTypes.ToDictionary(
         type => (string)type.GetProperty(nameof(DatabaseBackupCommand.Verb))!.GetValue(Activator.CreateInstance(type))!,
         type => (Func<IActorMessage, ICommand>)ParseMethod.MakeGenericMethod(type).CreateDelegate(typeof(Func<IActorMessage, ICommand>)),
         StringComparer.Ordinal);
-    static readonly Dictionary<string, Action<ICommand>> _validationMap = CommandTypes.ToDictionary(
-        type => type.Name,
-        _ => (Action<ICommand>)(command => ((IDatabaseBackupValidatable)command).Validate()),
-        StringComparer.Ordinal);
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>> _receiveMap =
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
+        {
+            [typeof(RequestDatabaseBackupCommand)] = command =>
+            {
+                var typed = (RequestDatabaseBackupCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(CancelDatabaseBackupCommand)] = command =>
+            {
+                var typed = (CancelDatabaseBackupCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RequestDatabaseRestoreCommand)] = command =>
+            {
+                var typed = (RequestDatabaseRestoreCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(ApproveDatabaseRestoreCommand)] = command =>
+            {
+                var typed = (ApproveDatabaseRestoreCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(CancelDatabaseRestoreCommand)] = command =>
+            {
+                var typed = (CancelDatabaseRestoreCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(ApproveDatabaseCutoverCommand)] = command =>
+            {
+                var typed = (ApproveDatabaseCutoverCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RequestDatabaseRestoreDrillCommand)] = command =>
+            {
+                var typed = (RequestDatabaseRestoreDrillCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(UpdateDatabaseBackupPolicyCommand)] = command =>
+            {
+                var typed = (UpdateDatabaseBackupPolicyCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(PlaceBackupLegalHoldCommand)] = command =>
+            {
+                var typed = (PlaceBackupLegalHoldCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(ReleaseBackupLegalHoldCommand)] = command =>
+            {
+                var typed = (ReleaseBackupLegalHoldCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RequestBackupRetentionEvaluationCommand)] = command =>
+            {
+                var typed = (RequestBackupRetentionEvaluationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(ExecuteBackupRetentionPlanCommand)] = command =>
+            {
+                var typed = (ExecuteBackupRetentionPlanCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseOperationAdmissionCommand)] = command =>
+            {
+                var typed = (RecordDatabaseOperationAdmissionCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseOperationStartedCommand)] = command =>
+            {
+                var typed = (RecordDatabaseOperationStartedCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseOperationProgressCommand)] = command =>
+            {
+                var typed = (RecordDatabaseOperationProgressCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseBackupBoundaryCommand)] = command =>
+            {
+                var typed = (RecordDatabaseBackupBoundaryCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseArtifactReplicaCommand)] = command =>
+            {
+                var typed = (RecordDatabaseArtifactReplicaCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseOperationVerificationCommand)] = command =>
+            {
+                var typed = (RecordDatabaseOperationVerificationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseOperationErrorCommand)] = command =>
+            {
+                var typed = (RecordDatabaseOperationErrorCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseRestoreReadyForCutoverCommand)] = command =>
+            {
+                var typed = (RecordDatabaseRestoreReadyForCutoverCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(CompleteDatabaseOperationCommand)] = command =>
+            {
+                var typed = (CompleteDatabaseOperationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(FailDatabaseOperationCommand)] = command =>
+            {
+                var typed = (FailDatabaseOperationCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseOperationCancelledCommand)] = command =>
+            {
+                var typed = (RecordDatabaseOperationCancelledCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseBackupPolicyStatusCommand)] = command =>
+            {
+                var typed = (RecordDatabaseBackupPolicyStatusCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseRetentionResultCommand)] = command =>
+            {
+                var typed = (RecordDatabaseRetentionResultCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(ReconcileDatabaseBackupServiceStateCommand)] = command =>
+            {
+                var typed = (ReconcileDatabaseBackupServiceStateCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseBackupServiceCapabilityCommand)] = command =>
+            {
+                var typed = (RecordDatabaseBackupServiceCapabilityCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            },
+            [typeof(RecordDatabaseRecoveryRunStatisticsCommand)] = command =>
+            {
+                var typed = (RecordDatabaseRecoveryRunStatisticsCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(typed.CommandId, typed.CommandName)
+                    .ValidateEntityId(typed, typed.CommandName)
+                    .CaptureCommandValidation(() => typed.Validate());
+            }
+        };
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>> _receiveMap =
         CommandTypes.ToDictionary(
-            type => type.Name,
+            type => type,
             type => typeof(DatabaseBackupCommand).IsAssignableFrom(type)
                 ? (Func<ICommand, ICommandActorContext<DatabaseBackupCommandActor>, DatabaseBackupCommandState, ServiceResult<GuidResult>>)
                     ((command, _, state) => ((DatabaseBackupCommand)command).Execute(state))
-                : ((command, _, state) => ((DatabaseBackupInternalCommand)command).Execute(state)),
-            StringComparer.Ordinal);
+                : ((command, _, state) => ((DatabaseBackupInternalCommand)command).Execute(state)));
 
     protected override ValueTask OnStartup(ICommandActorContext<DatabaseBackupCommandActor> context)
         => StartAsync(context, CancellationToken.None);
@@ -86,30 +312,24 @@ public class DatabaseBackupCommandActor(
     protected override ValueTask OnShutdown(ICommandActorContext<DatabaseBackupCommandActor> context)
         => _eventProjector.StopAsync(CancellationToken.None);
 
-    protected override ICommand ParseMessage(ICommandActorContext<DatabaseBackupCommandActor> context, IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: Actor }
-            || !_parseMap.TryGetValue(message.Subject.Verb, out var parser))
-            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {message.Subject}");
-        return parser(message);
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<DatabaseBackupCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     static ICommand ParseTyped<TCommand>(IActorMessage message) where TCommand : class, ICommand
         => message.AsCommand<TCommand>() ?? throw new InvalidOperationException($"Unable to deserialize {typeof(TCommand).Name}.");
 
     protected override ValueTask OnValidateAsync(ICommandActorContext<DatabaseBackupCommandActor> context, ActorThreadId threadId, ICommand command)
     {
-        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
-            throw new InvalidOperationException($"Unsupported DatabaseBackup contract '{command.GetType().Name}'.");
-        validate(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> ReceiveAsync(ICommandActorContext<DatabaseBackupCommandActor> context, IActorState state, ICommand command)
     {
         var aggregate = (DatabaseBackupCommandState)state;
-        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
-            throw new InvalidOperationException($"Unsupported DatabaseBackup command '{command.GetType().Name}'.");
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receive(command, context, aggregate));
     }
 

@@ -32,7 +32,6 @@ public class EconomicCalendarCommandActor(
 {
     public const string Actor = "EconomicCalendarCommand";
     readonly ILogger<EconomicCalendarCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     EconomicCalendarStateRepository _repo = default!;
 
     /// <summary>
@@ -62,18 +61,10 @@ public class EconomicCalendarCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<EconomicCalendarCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<EconomicCalendarCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
@@ -83,7 +74,7 @@ public class EconomicCalendarCommandActor(
     /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
     /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
     /// use in command deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [AddEconomicCalendarCommand.Verb] = msg => msg.AsCommand<AddEconomicCalendarCommand>()!,
         [ChangeEconomicCalendarCommand.Verb] = msg => msg.AsCommand<ChangeEconomicCalendarCommand>()!,
@@ -107,9 +98,7 @@ public class EconomicCalendarCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var economicCalendarState = IsArgumentNull.Set((state as EconomicCalendarCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, economicCalendarState));
     }
 
@@ -120,13 +109,14 @@ public class EconomicCalendarCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of economic calendar-related commands by associating each command
     /// type name with a function that executes the command against an EconomicCalendarCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
-        EconomicCalendarCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
+        EconomicCalendarCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        EconomicCalendarCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(AddEconomicCalendarCommand).Name] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
-        [typeof(ChangeEconomicCalendarCommand).Name] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),
-        [typeof(RemoveEconomicCalendarCommand).Name] = (cmd, context, state) => (cmd as RemoveEconomicCalendarCommand)!.Execute(state),
-        [typeof(ImportEconomicCalendarsCommand).Name] = (cmd, context, state) => (cmd as ImportEconomicCalendarsCommand)!.Execute(state)
+        [typeof(AddEconomicCalendarCommand)] = (cmd, context, state) => (cmd as AddEconomicCalendarCommand)!.Execute(state),
+        [typeof(ChangeEconomicCalendarCommand)] = (cmd, context, state) => (cmd as ChangeEconomicCalendarCommand)!.Execute(state),
+        [typeof(RemoveEconomicCalendarCommand)] = (cmd, context, state) => (cmd as RemoveEconomicCalendarCommand)!.Execute(state),
+        [typeof(ImportEconomicCalendarsCommand)] = (cmd, context, state) => (cmd as ImportEconomicCalendarsCommand)!.Execute(state)
     };
 
     /// <summary>
@@ -147,13 +137,8 @@ public class EconomicCalendarCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {Actor} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
@@ -162,28 +147,37 @@ public class EconomicCalendarCommandActor(
     /// <remarks>Each entry associates the name of a command type with a function that performs validation on
     /// instances of that command, returning a list of validation errors. This map enables dynamic selection of
     /// validation logic based on the command type at runtime.</remarks>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(AddEconomicCalendarCommand).Name] = cmd => {
+        [typeof(AddEconomicCalendarCommand)] = cmd => {
             var e = (AddEconomicCalendarCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEconomicCalendar(e.EconomicCalendar);
         },
-        [typeof(ChangeEconomicCalendarCommand).Name] = cmd => {
+        [typeof(ChangeEconomicCalendarCommand)] = cmd => {
             var e = (ChangeEconomicCalendarCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEconomicCalendarId(e.EconomicCalendarId)
                 .ValidateEconomicCalendar(e.EconomicCalendar);
         },
-        [typeof(RemoveEconomicCalendarCommand).Name] = cmd => {
+        [typeof(RemoveEconomicCalendarCommand)] = cmd => {
             var e = (RemoveEconomicCalendarCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEconomicCalendarId(e.EconomicCalendarId);
         },
-        [typeof(ImportEconomicCalendarsCommand).Name] = cmd =>
+        [typeof(ImportEconomicCalendarsCommand)] = cmd =>
         {
             var e = (ImportEconomicCalendarsCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateEconomicCalendarId(e.EntityId)
                 .ValidateImportDate(e.ImportedDate, e.CommandName)
                 .ValidateImportCountryCodes(e.CountryCodes, e.CommandName);

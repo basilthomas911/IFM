@@ -119,6 +119,21 @@ public sealed class ActorCancellationTests
     }
 
     [Fact]
+    public async Task SupervisorShutdown_StopsRealtimeIngressBeforeRequestReplyConsumers()
+    {
+        var order = new List<string>();
+        var container = new Mock<IContainerInstance>();
+        await using var supervisor = new ActorSupervisor(container.Object, NullLogger<ActorSupervisor>.Instance);
+        supervisor.AddConsumer(ActorType.Realtime, new RecordingConsumer(order, label: "realtime"));
+        supervisor.AddConsumer(ActorType.Command, new RecordingConsumer(order, label: "command"));
+        supervisor.AddActor(new RecordingActor(order));
+
+        await supervisor.ShutdownAsync();
+
+        order.Should().Equal("realtime", "command", "actor");
+    }
+
+    [Fact]
     public async Task SupervisorShutdown_EmitsLifecycleMetrics()
     {
         using var metrics = new LifecycleMetricCollector();
@@ -647,7 +662,10 @@ public sealed class ActorCancellationTests
     {
     }
 
-    sealed class RecordingConsumer(List<string> order, bool pauseStop = false) : IActorConsumer
+    sealed class RecordingConsumer(
+        List<string> order,
+        bool pauseStop = false,
+        string label = "consumer") : IActorConsumer
     {
         readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource StopStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -660,7 +678,7 @@ public sealed class ActorCancellationTests
 
         public async ValueTask StopAsync(CancellationToken cancellationToken)
         {
-            order.Add("consumer");
+            order.Add(label);
             StopStarted.TrySetResult();
             if (pauseStop)
                 await _release.Task.ConfigureAwait(false);

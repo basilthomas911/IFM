@@ -103,7 +103,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public async Task ParseMessage_DeserializesGenerateFuturesMacdSignalCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesGenerateFuturesMacdSignalCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -136,7 +136,7 @@ public class FuturesMacdSignalCommandActorTests : IClassFixture<MarketDataAnalyt
         deserialized.FuturesMacdSignalId.ContractId.Should().Be(command.FuturesMacdSignalId.ContractId);
         deserialized.Subject.ToString().Should().Be(subject);
 
-        dbEventSource.Received(1).InsertCommandLogAsync(
+        dbEventSource.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
             Arg.Any<DateTime>(),
             Arg.Any<string>());

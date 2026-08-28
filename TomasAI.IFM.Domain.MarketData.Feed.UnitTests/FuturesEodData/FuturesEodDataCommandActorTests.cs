@@ -54,7 +54,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     #region ParseMessage Happy Path Tests
 
     [Fact]
-    public async Task ParseMessage_DeserializesInsertFuturesEodDataCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesInsertFuturesEodDataCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         _fixture.DataSerializer.Should().NotBeNull();
@@ -96,8 +96,8 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         deserializedCommand.ValueDate.Should().Be(command.ValueDate);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
 
@@ -105,7 +105,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     [Fact]
-    public async Task ParseMessage_DeserializesInsertVixFuturesEodDataCommand_AndLogsToDatabase()
+    public async Task ParseMessage_DeserializesInsertVixFuturesEodDataCommand_WithoutDomainAuditWrite()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -141,8 +141,8 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         deserializedCommand.VixFuturesTickData.ContractId.Should().Be(command.VixFuturesTickData.ContractId);
         deserializedCommand.Subject.ToString().Should().Be(subject);
 
-        await dbEventSource.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(cmd => cmd.CommandId == command.CommandId),
+        await dbEventSource.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
 
@@ -392,7 +392,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
     }
 
     [Fact]
-    public async Task ParseMessage_DatabaseInsertFails_ThrowsException()
+    public async Task DomainValidation_DoesNotUseDomainDatabaseAudit()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -422,7 +422,7 @@ public class FuturesEodDataCommandActorTests : IClassFixture<MarketDataFeedTestF
         var parsed = actor.InvokeParseMessage(context, natsMsg);
         Func<Task> act = () => actor.InvokeOnValidateAsync(context, parsed.Subject.ThreadId, parsed).AsTask();
 
-        await act.Should().ThrowAsync<Exception>().WithMessage("Database connection failed");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

@@ -24,19 +24,19 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
     readonly ILogger<FuturesEodDataEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
     readonly FuturesEodDataEventParameters _eventParameters = new(
         ((IFuturesEodDataEventContext)actorContext).BlackboardService, ((IFuturesEodDataEventContext)actorContext).StatusConsoleWriter, actorContext.Logger);
-    readonly Dictionary<string, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesEodDataEventContext, IEventActorContext, FuturesEodDataEventParameters, ValueTask<bool>>>()
     {
-        [typeof(FuturesEodDataInsertedEvent).Name] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesEodDataInsertedEvent)] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesEodDataInsertedEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(FuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, eventApi, eventParams) =>
+        [typeof(FuturesEodDataInsertedCompleteEvent)] = async (evt, context, eventApi, eventParams) =>
         {
             var e = (evt as FuturesEodDataInsertedCompleteEvent)!;
             return await e.ExecuteAsync(context, eventApi, eventParams);
         },
-        [typeof(VixFuturesEodDataInsertedCompleteEvent).Name] = async (evt, context, _, eventParams) =>
+        [typeof(VixFuturesEodDataInsertedCompleteEvent)] = async (evt, context, _, eventParams) =>
         {
             var e = (evt as VixFuturesEodDataInsertedCompleteEvent)!;
             return await e.ExecuteAsync(context, eventParams);
@@ -60,22 +60,12 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known event or if the event cannot be
     /// resolved from the message.</exception>
     protected override IEvent ParseMessage(IEventActorContext<FuturesEodDataEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FuturesEodDataInsertedEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedEvent>()!,
         [FuturesEodDataInsertedCompleteEvent.Verb] = msg => msg.AsEvent<FuturesEodDataInsertedCompleteEvent>()!,
@@ -94,9 +84,7 @@ public class FuturesEodDataEventActor(IEventActorContext<FuturesEodDataEventActo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        var eventName = @event.GetType().Name;
-        if (!_receiveMap.TryGetValue(eventName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, EventContext, EventContext, _eventParameters);
     }
 

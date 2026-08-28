@@ -1,46 +1,31 @@
 using Microsoft.Extensions.Logging;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
-using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
-using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 
-/// <summary>
-/// Routes eligible ITI triggers into the workflow Command actor and bridges committed workflow lifecycle events to
-/// pipeline commands.
-/// </summary>
-/// <remarks>
-/// This actor owns no durable state, sends no replies, and performs no durable replay. Processing notifications are
-/// observational; only Completed and Failed pipeline events are translated into workflow commands.
-/// </remarks>
+/// <summary>Starts workflows from eligible ITI triggers and dispatches only committed Started snapshots.</summary>
+/// <remarks>This stateless actor has no replay, resume, redispatch, or pipeline terminal-translation route.</remarks>
 public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
     IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> actorContext)
     : BaseEventActor<IntrinsicTimeStrategyWorkflowRealtimeActor>(actorContext, RequireContext(actorContext).Logger)
 {
-    static readonly ActorTypeId[] ExternalRoutes =
-    [
-        Route(FuturesItiSignalGeneratedEvent.RealtimeActor, FuturesItiSignalGeneratedEvent.Verb),
-        Route(RegimeDiscoveryPipelineCompletedEvent.Actor, RegimeDiscoveryPipelineCompletedEvent.Verb),
-        Route(RegimeDiscoveryPipelineFailedEvent.Actor, RegimeDiscoveryPipelineFailedEvent.Verb),
-        Route(MarketConditionPipelineCompletedEvent.Actor, MarketConditionPipelineCompletedEvent.Verb),
-        Route(MarketConditionPipelineFailedEvent.Actor, MarketConditionPipelineFailedEvent.Verb),
-        Route(TradeSelectionPipelineCompletedEvent.Actor, TradeSelectionPipelineCompletedEvent.Verb),
-        Route(TradeSelectionPipelineFailedEvent.Actor, TradeSelectionPipelineFailedEvent.Verb),
-        Route(OrderCompositionPipelineCompletedEvent.Actor, OrderCompositionPipelineCompletedEvent.Verb),
-        Route(OrderCompositionPipelineFailedEvent.Actor, OrderCompositionPipelineFailedEvent.Verb),
-        Route(RiskManagementPipelineCompletedEvent.Actor, RiskManagementPipelineCompletedEvent.Verb),
-        Route(RiskManagementPipelineFailedEvent.Actor, RiskManagementPipelineFailedEvent.Verb)
-    ];
+    static readonly ActorTypeId TriggerRoute = new(
+        ActorType.Realtime,
+        FuturesItiSignalGeneratedEvent.RealtimeActor,
+        FuturesItiSignalGeneratedEvent.Verb);
 
     /// <summary>Gets the workflow Realtime actor name.</summary>
     public const string ActorName = "IntrinsicTimeStrategyWorkflowRealtime";
@@ -56,18 +41,15 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
                 "Intrinsic Time Strategy workflow live routing is disabled; no realtime routes were registered");
             return ValueTask.CompletedTask;
         }
-        foreach (var route in ExternalRoutes)
-            context.AddRealtimeRouter(route, Id);
+        context.AddRealtimeRouter(TriggerRoute, Id);
         return ValueTask.CompletedTask;
     }
 
     /// <inheritdoc />
     protected override ValueTask OnShutdown(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
     {
-        if (!ActorContext.Options.Enabled)
-            return ValueTask.CompletedTask;
-        foreach (var route in ExternalRoutes)
-            context.RemoveRealtimeRouter(route, Id);
+        if (ActorContext.Options.Enabled)
+            context.RemoveRealtimeRouter(TriggerRoute, Id);
         return ValueTask.CompletedTask;
     }
 
@@ -78,23 +60,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
     {
         if (message.Subject is not { ActorType: ActorType.Realtime, Name: ActorName })
             return default!;
-
         return message.Subject.Verb switch
         {
             FuturesItiSignalGeneratedEvent.Verb => message.AsEvent<FuturesItiSignalGeneratedEvent>()!,
-            IntrinsicTimeStrategyWorkflowStartedEvent.Verb => message.AsEvent<IntrinsicTimeStrategyWorkflowStartedEvent>()!,
-            IntrinsicTimeStrategyWorkflowContinuedEvent.Verb => message.AsEvent<IntrinsicTimeStrategyWorkflowContinuedEvent>()!,
-            IntrinsicTimeStrategyWorkflowStoppedEvent.Verb => message.AsEvent<IntrinsicTimeStrategyWorkflowStoppedEvent>()!,
-            RegimeDiscoveryPipelineFailedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineFailedEvent>()!,
-            RegimeDiscoveryPipelineCompletedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!,
-            MarketConditionPipelineCompletedEvent.Verb or
-            TradeSelectionPipelineCompletedEvent.Verb or
-            OrderCompositionPipelineCompletedEvent.Verb or
-            RiskManagementPipelineCompletedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!,
-            MarketConditionPipelineFailedEvent.Verb or
-            TradeSelectionPipelineFailedEvent.Verb or
-            OrderCompositionPipelineFailedEvent.Verb or
-            RiskManagementPipelineFailedEvent.Verb => message.AsEvent<RegimeDiscoveryPipelineFailedEvent>()!,
+            WorkflowStrategyStateUpdatedEvent.Verb => message.AsEvent<WorkflowStrategyStateUpdatedEvent>()!,
             _ => throw new InvalidOperationException(
                 $"Unable to resolve {ActorName} realtime event from message: {message.Subject}")
         };
@@ -110,20 +79,14 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             case FuturesItiSignalGeneratedEvent trigger:
                 await StartWorkflowAsync(context, trigger).ConfigureAwait(false);
                 break;
-            case IntrinsicTimeStrategyWorkflowStartedEvent started:
-                await StartPipelineAsync(context, DispatchInput.From(started)).ConfigureAwait(false);
+            case WorkflowStrategyStateUpdatedEvent snapshot
+                when snapshot.State is
+                {
+                    Status: WorkflowStrategyMachineStatus.Started
+                }:
+                await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
                 break;
-            case IntrinsicTimeStrategyWorkflowContinuedEvent continued:
-                await StartPipelineAsync(context, DispatchInput.From(continued)).ConfigureAwait(false);
-                break;
-            case RegimeDiscoveryPipelineCompletedEvent completed:
-                await CompletePipelineAsync(context, completed).ConfigureAwait(false);
-                break;
-            case RegimeDiscoveryPipelineFailedEvent failed:
-                await FailPipelineAsync(context, failed).ConfigureAwait(false);
-                break;
-            case IntrinsicTimeStrategyWorkflowCompletedEvent:
-            case IntrinsicTimeStrategyWorkflowStoppedEvent:
+            case WorkflowStrategyStateUpdatedEvent:
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported workflow realtime event: {domainEvent.GetType().Name}");
@@ -137,8 +100,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         IEvent domainEvent,
         Exception exception)
     {
-        ActorContext.Logger.LogError(
-            exception,
+        ActorContext.Logger.LogError(exception,
             "One-way workflow realtime handling failed for {EventName} on {ThreadId}",
             domainEvent?.EventName ?? "Unknown",
             threadId);
@@ -171,14 +133,17 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
                     "Regime Discovery live trigger {TriggerId} was not started because {IssueCount} required signal " +
                     "observations did not pass cache warm-up qualification",
                     triggerId,
-                    readiness.Issues.Count(issue => issue.Availability !=
-                        RegimeDiscoverySignalAvailability.Available));
+                    readiness.Issues.Count(issue =>
+                        issue.Availability != RegimeDiscoverySignalAvailability.Available));
                 return;
             }
         }
+
         var command = new StartIntrinsicTimeStrategyWorkflowCommand
         {
-            CommandId = triggerId == Guid.Empty ? Guid.CreateVersion7(ActorContext.TimeProvider.GetUtcNow()) : triggerId,
+            CommandId = triggerId == Guid.Empty
+                ? Guid.CreateVersion7(ActorContext.TimeProvider.GetUtcNow())
+                : triggerId,
             Subject = CommandSubject(StartIntrinsicTimeStrategyWorkflowCommand.Verb, entityId),
             EntityId = entityId,
             ProposedWorkflowId = workflowId,
@@ -191,197 +156,150 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             RegimeDiscoveryParameterSet = resolved.ParameterSet,
             RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256
         };
-        await context.SendAsync<StartIntrinsicTimeStrategyWorkflowCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-            command,
-            entityId).ConfigureAwait(false);
+        await context.SendAsync<StartIntrinsicTimeStrategyWorkflowCommand,
+            IntrinsicTimeStrategyWorkflowEntityId>(command, entityId).ConfigureAwait(false);
     }
 
-    static async ValueTask StartPipelineAsync(
+    static async ValueTask DispatchCommittedStateAsync(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
-        DispatchInput input)
+        WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        switch (input.Stage)
+        var view = snapshot.State;
+        var commandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
+            view.WorkflowId,
+            view.CurrentStage,
+            view.WorkflowRevision);
+        var route = IntrinsicTimeStrategyPipelineRoutes.Get(view.CurrentStage);
+        if (view.CurrentStage == StrategyWorkflowStage.RegimeDiscovery)
         {
-            case StrategyWorkflowStage.RegimeDiscovery:
-                await context.SendAsync<StartRegimeDiscoveryPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateStart<StartRegimeDiscoveryPipelineCommand>(input, StartRegimeDiscoveryPipelineCommand.Actor,
-                        StartRegimeDiscoveryPipelineCommand.Verb, StartRegimeDiscoveryPipelineCommand.ErrorId), input.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.MarketCondition:
-                await context.SendAsync<StartMarketConditionPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateStart<StartMarketConditionPipelineCommand>(input, StartMarketConditionPipelineCommand.Actor,
-                        StartMarketConditionPipelineCommand.Verb, StartMarketConditionPipelineCommand.ErrorId), input.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.TradeSelection:
-                await context.SendAsync<StartTradeSelectionPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateStart<StartTradeSelectionPipelineCommand>(input, StartTradeSelectionPipelineCommand.Actor,
-                        StartTradeSelectionPipelineCommand.Verb, StartTradeSelectionPipelineCommand.ErrorId), input.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.OrderComposition:
-                await context.SendAsync<StartOrderCompositionPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateStart<StartOrderCompositionPipelineCommand>(input, StartOrderCompositionPipelineCommand.Actor,
-                        StartOrderCompositionPipelineCommand.Verb, StartOrderCompositionPipelineCommand.ErrorId), input.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.RiskManagement:
-                await context.SendAsync<StartRiskManagementPipelineCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateStart<StartRiskManagementPipelineCommand>(input, StartRiskManagementPipelineCommand.Actor,
-                        StartRiskManagementPipelineCommand.Verb, StartRiskManagementPipelineCommand.ErrorId), input.EntityId).ConfigureAwait(false);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(input.Stage), input.Stage, "A dispatch requires a concrete pipeline stage.");
+            var execute = CreateRegimeExecute(snapshot)
+                ?? throw new InvalidOperationException("Only a committed Started/Regime snapshot can dispatch Execute.");
+            var executionId = execute.EntityId;
+            await context.SendAsync<ExecuteRegimeDiscoveryPipelineCommand, RegimeDiscoveryExecutionEntityId>(
+                execute,
+                executionId).ConfigureAwait(false);
+            return;
         }
-    }
 
-    static async ValueTask CompletePipelineAsync(
-        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
-        RegimeDiscoveryPipelineCompletedEvent completed)
-    {
-        switch (completed.PipelineStage)
+        var input = new LaterPipelineInput(view, snapshot.Id, commandId, route.BoundedContext);
+        switch (view.CurrentStage)
         {
-            case StrategyWorkflowStage.RegimeDiscovery:
-                await context.SendAsync<CompleteRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateCompletion<CompleteRegimeDiscoveryCommand>(completed, CompleteRegimeDiscoveryCommand.Actor, CompleteRegimeDiscoveryCommand.Verb), completed.EntityId).ConfigureAwait(false);
-                break;
             case StrategyWorkflowStage.MarketCondition:
-                await context.SendAsync<CompleteMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateCompletion<CompleteMarketConditionCommand>(completed, CompleteMarketConditionCommand.Actor, CompleteMarketConditionCommand.Verb), completed.EntityId).ConfigureAwait(false);
+                await context.SendAsync<StartMarketConditionPipelineCommand,
+                    IntrinsicTimeStrategyWorkflowEntityId>(
+                    CreateLaterStart<StartMarketConditionPipelineCommand>(input,
+                        StartMarketConditionPipelineCommand.Actor,
+                        StartMarketConditionPipelineCommand.Verb,
+                        StartMarketConditionPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
                 break;
             case StrategyWorkflowStage.TradeSelection:
-                await context.SendAsync<CompleteTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateCompletion<CompleteTradeSelectionCommand>(completed, CompleteTradeSelectionCommand.Actor, CompleteTradeSelectionCommand.Verb), completed.EntityId).ConfigureAwait(false);
+                await context.SendAsync<StartTradeSelectionPipelineCommand,
+                    IntrinsicTimeStrategyWorkflowEntityId>(
+                    CreateLaterStart<StartTradeSelectionPipelineCommand>(input,
+                        StartTradeSelectionPipelineCommand.Actor,
+                        StartTradeSelectionPipelineCommand.Verb,
+                        StartTradeSelectionPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
                 break;
             case StrategyWorkflowStage.OrderComposition:
-                await context.SendAsync<CompleteOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateCompletion<CompleteOrderCompositionCommand>(completed, CompleteOrderCompositionCommand.Actor, CompleteOrderCompositionCommand.Verb), completed.EntityId).ConfigureAwait(false);
+                await context.SendAsync<StartOrderCompositionPipelineCommand,
+                    IntrinsicTimeStrategyWorkflowEntityId>(
+                    CreateLaterStart<StartOrderCompositionPipelineCommand>(input,
+                        StartOrderCompositionPipelineCommand.Actor,
+                        StartOrderCompositionPipelineCommand.Verb,
+                        StartOrderCompositionPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
                 break;
             case StrategyWorkflowStage.RiskManagement:
-                await context.SendAsync<CompleteRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateCompletion<CompleteRiskManagementCommand>(completed, CompleteRiskManagementCommand.Actor, CompleteRiskManagementCommand.Verb), completed.EntityId).ConfigureAwait(false);
+                await context.SendAsync<StartRiskManagementPipelineCommand,
+                    IntrinsicTimeStrategyWorkflowEntityId>(
+                    CreateLaterStart<StartRiskManagementPipelineCommand>(input,
+                        StartRiskManagementPipelineCommand.Actor,
+                        StartRiskManagementPipelineCommand.Verb,
+                        StartRiskManagementPipelineCommand.ErrorId), view.EntityId).ConfigureAwait(false);
                 break;
         }
     }
 
-    static async ValueTask FailPipelineAsync(
-        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
-        RegimeDiscoveryPipelineFailedEvent failed)
+    /// <summary>Builds the deterministic Regime Execute command only from a committed Started/Regime snapshot.</summary>
+    internal static ExecuteRegimeDiscoveryPipelineCommand? CreateRegimeExecute(
+        WorkflowStrategyStateUpdatedEvent snapshot)
     {
-        switch (failed.PipelineStage)
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var view = snapshot.State;
+        if (view.Status != WorkflowStrategyMachineStatus.Started ||
+            view.CurrentStage != StrategyWorkflowStage.RegimeDiscovery)
+            return null;
+
+        var executionId = RegimeDiscoveryExecutionEntityId.Create(view.EntityId, view.WorkflowId);
+        return new ExecuteRegimeDiscoveryPipelineCommand
         {
-            case StrategyWorkflowStage.RegimeDiscovery:
-                await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateFailure<FailRegimeDiscoveryCommand>(failed, FailRegimeDiscoveryCommand.Actor, FailRegimeDiscoveryCommand.Verb), failed.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.MarketCondition:
-                await context.SendAsync<FailMarketConditionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateFailure<FailMarketConditionCommand>(failed, FailMarketConditionCommand.Actor, FailMarketConditionCommand.Verb), failed.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.TradeSelection:
-                await context.SendAsync<FailTradeSelectionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateFailure<FailTradeSelectionCommand>(failed, FailTradeSelectionCommand.Actor, FailTradeSelectionCommand.Verb), failed.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.OrderComposition:
-                await context.SendAsync<FailOrderCompositionCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateFailure<FailOrderCompositionCommand>(failed, FailOrderCompositionCommand.Actor, FailOrderCompositionCommand.Verb), failed.EntityId).ConfigureAwait(false);
-                break;
-            case StrategyWorkflowStage.RiskManagement:
-                await context.SendAsync<FailRiskManagementCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    CreateFailure<FailRiskManagementCommand>(failed, FailRiskManagementCommand.Actor, FailRiskManagementCommand.Verb), failed.EntityId).ConfigureAwait(false);
-                break;
-        }
+            CommandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
+                view.WorkflowId,
+                view.CurrentStage,
+                view.WorkflowRevision),
+            Subject = new ActorSubject(ActorType.Command,
+                ExecuteRegimeDiscoveryPipelineCommand.Actor,
+                ExecuteRegimeDiscoveryPipelineCommand.Verb,
+                executionId.Format()),
+            EntityId = executionId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            WorkflowView = view,
+            TriggerEvent = view.TriggerEvent,
+            CorrelationId = view.CorrelationId,
+            CausationId = snapshot.Id,
+            RequestedAtUtc = view.UpdatedAtUtc,
+            ExpiresAtUtc = view.ExpiresAtUtc,
+            ParameterSet = view.RegimeDiscoveryParameterSet,
+            ParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
+            TargetHorizon = view.TriggerEvent.EntityId.TimePeriod
+        };
     }
 
-    static TCommand CreateStart<TCommand>(DispatchInput input, string actor, string verb, int errorCode)
+    static TCommand CreateLaterStart<TCommand>(LaterPipelineInput input, string actor, string verb, int errorCode)
         where TCommand : class, ICommand<IntrinsicTimeStrategyWorkflowEntityId>, new()
     {
+        var view = input.View;
         var command = new TCommand();
         Set(command, nameof(ICommand.CommandId), input.CommandId);
-        Set(command, nameof(ICommand.Subject), new ActorSubject(ActorType.Command, actor, verb, input.EntityId.Format()));
+        Set(command, nameof(ICommand.Subject),
+            new ActorSubject(ActorType.Command, actor, verb, view.EntityId.Format()));
         Set(command, "PostEvents", true);
-        Set(command, "EntityId", input.EntityId);
+        Set(command, "EntityId", view.EntityId);
         Set(command, nameof(ICommand.ErrorCode), errorCode);
         Set(command, nameof(ICommand.RouteTo), input.BoundedContext);
-        Set(command, "WorkflowId", input.WorkflowId);
-        Set(command, "InputWorkflowRevision", input.Revision);
-        Set(command, "WorkflowState", input.WorkflowState);
-        Set(command, "TriggerEvent", input.TriggerEvent);
-        Set(command, "CorrelationId", input.CorrelationId);
+        Set(command, "WorkflowId", view.WorkflowId);
+        Set(command, "InputWorkflowRevision", view.WorkflowRevision);
+        Set(command, "WorkflowState", ToLegacyWorkflow(view));
+        Set(command, "TriggerEvent", view.TriggerEvent);
+        Set(command, "CorrelationId", view.CorrelationId);
         Set(command, "CausationId", input.CausationId);
-        Set(command, "RequestedAtUtc", input.RequestedAtUtc);
-        Set(command, "ExpectedCompletionAtUtc", input.ExpectedCompletionAtUtc);
-        if (command is StartRegimeDiscoveryPipelineCommand regimeDiscovery)
-        {
-            Set(regimeDiscovery, nameof(StartRegimeDiscoveryPipelineCommand.ParameterSet),
-                input.WorkflowState.RegimeDiscoveryParameterSet);
-            Set(regimeDiscovery, nameof(StartRegimeDiscoveryPipelineCommand.ParameterPayloadSha256),
-                input.WorkflowState.RegimeDiscoveryParameterPayloadSha256);
-            Set(regimeDiscovery, nameof(StartRegimeDiscoveryPipelineCommand.TargetHorizon),
-                input.TriggerEvent.EntityId.TimePeriod);
-        }
+        Set(command, "RequestedAtUtc", view.UpdatedAtUtc);
+        Set(command, "ExpectedCompletionAtUtc", view.ExpiresAtUtc);
         return command;
     }
 
-    static TCommand CreateCompletion<TCommand>(
-        RegimeDiscoveryPipelineCompletedEvent completed,
-        string actor,
-        string verb)
-        where TCommand : class, ICommand<IntrinsicTimeStrategyWorkflowEntityId>, new()
+    static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView view) => new()
     {
-        var command = new TCommand();
-        SetCommonResultCommand(command, actor, verb, completed.EntityId, completed.WorkflowId,
-            completed.InputWorkflowRevision, completed.Id, completed.CorrelationId, completed.CausationId);
-        Set(command, "Result", completed.Result);
-        Set(command, "CompletedAtUtc", completed.CompletedAtUtc);
-        return command;
-    }
-
-    static TCommand CreateFailure<TCommand>(
-        RegimeDiscoveryPipelineFailedEvent failed,
-        string actor,
-        string verb)
-        where TCommand : class, ICommand<IntrinsicTimeStrategyWorkflowEntityId>, new()
-    {
-        var command = new TCommand();
-        SetCommonResultCommand(command, actor, verb, failed.EntityId, failed.WorkflowId,
-            failed.InputWorkflowRevision, failed.Id, failed.CorrelationId, failed.CausationId);
-        Set(command, "Failure", new StrategyPipelineFailure
-        {
-            ErrorCode = failed.ErrorCode,
-            ErrorMessage = failed.ErrorMessage,
-            ErrorType = failed.ErrorType.ToString(),
-            ErrorData = failed.ErrorData,
-            FailedAtUtc = failed.ErrorDate
-        });
-        Set(command, "FailedAtUtc", failed.ErrorDate);
-        return command;
-    }
-
-    static void SetCommonResultCommand<TCommand>(
-        TCommand command,
-        string actor,
-        string verb,
-        IntrinsicTimeStrategyWorkflowEntityId entityId,
-        StrategyWorkflowId workflowId,
-        long revision,
-        Guid sourceEventId,
-        Guid correlationId,
-        Guid causationId)
-        where TCommand : class, ICommand<IntrinsicTimeStrategyWorkflowEntityId>
-    {
-        Set(command, nameof(ICommand.CommandId), sourceEventId);
-        Set(command, nameof(ICommand.Subject), new ActorSubject(ActorType.Command, actor, verb, entityId.Format()));
-        Set(command, "PostEvents", true);
-        Set(command, "EntityId", entityId);
-        Set(command, "WorkflowId", workflowId);
-        Set(command, "InputWorkflowRevision", revision);
-        Set(command, "SourceEventId", sourceEventId);
-        Set(command, "CorrelationId", correlationId);
-        Set(command, "CausationId", causationId);
-    }
+        EntityId = view.EntityId,
+        WorkflowId = view.WorkflowId,
+        TriggerEventId = view.TriggerEventId,
+        CorrelationId = view.CorrelationId,
+        WorkflowDefinitionVersion = view.WorkflowDefinitionVersion,
+        Status = StrategyWorkflowStatus.Running,
+        Outcome = StrategyWorkflowOutcome.None,
+        CurrentStage = view.CurrentStage,
+        WorkflowRevision = view.WorkflowRevision,
+        StartedAtUtc = view.StartedAtUtc,
+        RegimeDiscovery = view.RegimeDiscovery,
+        MarketCondition = view.MarketCondition,
+        TradeSelection = view.TradeSelection,
+        OrderComposition = view.OrderComposition,
+        RiskManagement = view.RiskManagement,
+        RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet,
+        RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256
+    };
 
     static void Set(object target, string property, object? value)
         => EventInitHelper.SetProperty(target, property, value);
-
-    static ActorTypeId Route(string actor, string verb) => new(ActorType.Realtime, actor, verb);
 
     static IIntrinsicTimeStrategyWorkflowRealtimeContext RequireContext(
         IRealtimeActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
@@ -393,28 +311,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
     static ActorSubject CommandSubject(string verb, IntrinsicTimeStrategyWorkflowEntityId entityId)
         => new(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor, verb, entityId.Format());
 
-    readonly record struct DispatchInput(
-        IntrinsicTimeStrategyWorkflowEntityId EntityId,
-        StrategyWorkflowId WorkflowId,
-        long Revision,
-        StrategyWorkflowStage Stage,
-        Guid CommandId,
-        BoundedContextName BoundedContext,
-        IntrinsicTimeStrategyWorkflowState WorkflowState,
-        FuturesItiSignalGeneratedEvent TriggerEvent,
-        Guid CorrelationId,
+    readonly record struct LaterPipelineInput(
+        IntrinsicTimeStrategyWorkflowView View,
         Guid CausationId,
-        DateTime RequestedAtUtc,
-        DateTime? ExpectedCompletionAtUtc)
-    {
-        public static DispatchInput From(IntrinsicTimeStrategyWorkflowStartedEvent e)
-            => new(e.EntityId, e.WorkflowId, e.WorkflowRevision, e.NextPipelineStage,
-                e.NextPipelineCommandId, e.NextPipelineBoundedContext, e.WorkflowState, e.TriggerEvent,
-                e.CorrelationId, e.Id, e.RequestedAtUtc, e.ExpectedCompletionAtUtc);
-
-        public static DispatchInput From(IntrinsicTimeStrategyWorkflowContinuedEvent e)
-            => new(e.EntityId, e.WorkflowId, e.WorkflowRevision, e.NextPipelineStage,
-                e.NextPipelineCommandId, e.NextPipelineBoundedContext, e.WorkflowState, e.TriggerEvent,
-                e.CorrelationId, e.Id, e.RequestedAtUtc, e.ExpectedCompletionAtUtc);
-    }
+        Guid CommandId,
+        BoundedContextName BoundedContext);
 }

@@ -54,6 +54,8 @@ public sealed record RegimeDiscoveryCalculationCompletedEvent : IEvent<Intrinsic
     [Key(16)] public Guid CorrelationId { get; init; }
     /// <summary>Gets the causative workflow lifecycle event identity.</summary>
     [Key(17)] public Guid CausationId { get; init; }
+    /// <summary>Gets the fixed workflow execution deadline.</summary>
+    [Key(18)] public DateTime ExpiresAtUtc { get; init; }
     /// <inheritdoc />
     [IgnoreMember] public string UserName => string.Empty;
     /// <inheritdoc />
@@ -72,6 +74,8 @@ public sealed record RegimeDiscoveryCalculationFailedEvent : IEvent<IntrinsicTim
     public const string Verb = "CalculationFailed";
     /// <summary>Gets the stable error code used for durable calculation failure.</summary>
     public const int ErrorCode = 23102;
+    /// <summary>Gets the stable failure code used when the fixed workflow deadline wins.</summary>
+    public const int TimeoutErrorCode = 23103;
     /// <inheritdoc />
     [Key(0)] public ActorSubject Subject { get; init; }
     /// <inheritdoc />
@@ -106,6 +110,8 @@ public sealed record RegimeDiscoveryCalculationFailedEvent : IEvent<IntrinsicTim
     [Key(15)] public Guid CorrelationId { get; init; }
     /// <summary>Gets the causative workflow lifecycle event identity.</summary>
     [Key(16)] public Guid CausationId { get; init; }
+    /// <summary>Gets the fixed workflow execution deadline.</summary>
+    [Key(17)] public DateTime ExpiresAtUtc { get; init; }
     /// <inheritdoc />
     [IgnoreMember] public string UserName => string.Empty;
     /// <inheritdoc />

@@ -33,7 +33,7 @@ namespace TomasAI.IFM.Application.Storage.EventSourceDb;
 public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings, IDbContextFactory dbFactory, IBlackboardService blackboardService, ILogger<DbProvider> logger)
     : ObjectDataRepository<EventSourceActorDbContext>(connectionSettings[EventSourceActorDbConnection], logger),
       IEventSourceActorDbContext,
-      ICommandDuplicateGuard
+      ICommandAuditLogger
 {
     readonly IBlackboardService _blackboardService = IsArgumentNull.Set(blackboardService);
     readonly IDbContextFactory _dbFactory = IsArgumentNull.Set(dbFactory);
@@ -346,6 +346,61 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
 
     }
 
+    /// <summary>Saves one atomic event batch using optimistic stream-version concurrency.</summary>
+    public async Task<DomainEventCollection> SaveEventsAsync(
+        string eventStream,
+        Guid commandId,
+        DomainEventCollection domainEvents,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken)
+    {
+        if (expectedStreamVersion < 0)
+            throw new ArgumentOutOfRangeException(nameof(expectedStreamVersion));
+
+        var savedEvents = new DomainEventCollection();
+        List<(int EventNameId, IEvent DomainEvent)> eventLogParams = [];
+        var streamId = await GetEventStreamIdAsync(eventStream, cancellationToken).ConfigureAwait(false);
+        foreach (var domainEvent in domainEvents)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            eventLogParams.Add((
+                await GetEventNameIdFromDomainEventAsync(domainEvent, cancellationToken).ConfigureAwait(false),
+                domainEvent));
+        }
+
+        var db = _dbFactory.ActorEventSourceDb;
+        var tx = db.BeginTransaction();
+        try
+        {
+            var eventDate = DateTime.UtcNow;
+            for (var index = 0; index < eventLogParams.Count; index++)
+            {
+                var entry = eventLogParams[index];
+                var eventVersion = await InsertEventLogExpectedVersionAsync(
+                    db,
+                    streamId,
+                    entry.EventNameId,
+                    entry.DomainEvent.ToEventData(),
+                    commandId,
+                    eventDate,
+                    expectedStreamVersion + index,
+                    cancellationToken).ConfigureAwait(false);
+                if (eventVersion <= 0)
+                    throw new ConcurrencyException(
+                        $"Event stream {eventStream} is no longer at expected version {expectedStreamVersion + index}.");
+                EventInitHelper.SetProperty(entry.DomainEvent, nameof(IEvent.EventId), eventVersion);
+                savedEvents.Add(entry.DomainEvent);
+            }
+            tx?.Commit();
+            return savedEvents;
+        }
+        catch
+        {
+            tx?.Rollback();
+            throw;
+        }
+    }
+
     /// <summary>
     /// Asynchronously inserts a log entry for the specified command into the event source database.
     /// </summary>
@@ -404,22 +459,26 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
             .ConfigureAwait(false);
     }
 
-    public ValueTask<bool> TryAcceptAsync(
+    public async ValueTask<CommandAuditReservation> TryReserveAsync(
         ICommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         if (_legacyCommandReservations.TryRemove(command.CommandId, out var legacyReservation))
-            return AwaitLegacyReservationAsync(legacyReservation.Value, cancellationToken);
+            return new CommandAuditReservation(
+                await AwaitLegacyReservationAsync(legacyReservation.Value, cancellationToken)
+                    .ConfigureAwait(false));
 
-        return _commandDuplicates.Value.TryAcceptAsync(
-            command.CommandId,
-            token => InsertCommandLogCoreAsync(
-                command,
-                DateTime.UtcNow,
-                JsonConvert.SerializeObject(command),
-                token),
-            cancellationToken);
+        var accepted = await _commandDuplicates.Value.TryAcceptAsync(
+                command.CommandId,
+                token => InsertCommandLogCoreAsync(
+                    command,
+                    DateTime.UtcNow,
+                    JsonConvert.SerializeObject(command),
+                    token),
+                cancellationToken)
+            .ConfigureAwait(false);
+        return new CommandAuditReservation(accepted);
     }
 
     static async ValueTask<bool> AwaitLegacyReservationAsync(
@@ -1311,6 +1370,27 @@ public class EventSourceActorDbContext(IDbConnectionSettings connectionSettings,
                 .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventLog)}", EventSourceDbSql.InsertEventLog)
                 .SetParameters(new InsertEventLog(eventStreamId, eventNameId, eventData, commandId, $"{eventTimestamp:o}"))
                 .ExecuteScalarAsync(MapToLong, cancellationToken);
+
+    static async Task<long> InsertEventLogExpectedVersionAsync(
+        IObjectRepository<EventSourceActorDbContext> db,
+        long eventStreamId,
+        int eventNameId,
+        string eventData,
+        Guid commandId,
+        DateTime eventTimestamp,
+        long expectedStreamVersion,
+        CancellationToken cancellationToken)
+        => await db
+            .Use($"{nameof(EventSourceDbSql)}.{nameof(EventSourceDbSql.InsertEventLogExpectedVersion)}",
+                EventSourceDbSql.InsertEventLogExpectedVersion)
+            .SetParameters(new InsertEventLogExpectedVersion(
+                eventStreamId,
+                eventNameId,
+                eventData,
+                commandId,
+                $"{eventTimestamp:o}",
+                expectedStreamVersion))
+            .ExecuteScalarAsync(MapToLong, cancellationToken);
 
     /// <summary>
     /// Retrieves a collection of domain events associated with the specified event stream ID.

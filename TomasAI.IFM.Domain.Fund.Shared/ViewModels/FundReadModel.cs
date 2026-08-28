@@ -1,6 +1,9 @@
 using System.Collections.Immutable;
+using FluentValidation;
+using FluentValidation.Results;
 using MessagePack;
 using Newtonsoft.Json;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -128,4 +131,51 @@ public record FundReadModel
     }
 
     public override string ToString() => JsonConvert.SerializeObject(this, Formatting.None);
+}
+
+/// <summary>Intrinsic validation rules for command payloads carrying a fund.</summary>
+public sealed class FundValidationRules : BaseValidationRules, IValidationRules<FundReadModel>
+{
+    static readonly FundValidator Validator = new();
+
+    public ValidationError[] Execute(FundReadModel fund)
+        => Validate(fund, Validator);
+
+    sealed class FundValidator : AbstractValidator<FundReadModel>
+    {
+        public FundValidator()
+        {
+            RuleFor(x => x.FundId).GreaterThan(0).WithMessage("Fund.FundId is zero or negative");
+            RuleFor(x => x.Name).NotEmpty().WithMessage("Fund.Name is empty");
+            RuleFor(x => x.Description).NotNull().WithMessage("Fund.Description is null");
+            RuleFor(x => x.Balance).GreaterThanOrEqualTo(0).WithMessage("Fund.Balance is negative");
+            // IsProduction uses the complete Boolean domain; both values are valid.
+            RuleFor(x => x.CreatedOn)
+                .Must(value => value > DateTime.MinValue && value < DateTime.MaxValue)
+                .WithMessage("Fund.CreatedOn is not a valid date");
+            RuleFor(x => x.CreatedBy).NotEmpty().WithMessage("Fund.CreatedBy is empty");
+        }
+
+        public override ValidationResult Validate(ValidationContext<FundReadModel> context)
+        {
+            if (context.InstanceToValidate is null)
+                return new ValidationResult([new ValidationFailure("Fund", "Fund instance is null")]);
+            return base.Validate(context);
+        }
+    }
+}
+
+/// <summary>Adapts intrinsic fund rules to the aggregate command-error list.</summary>
+public static class FundReadModelValidationExtensions
+{
+    static readonly FundValidationRules Rules = new();
+
+    public static List<ValidationError> ValidateFund(
+        this List<ValidationError> validationErrors,
+        FundReadModel? fund)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        validationErrors.AddRange(Rules.Execute(fund!));
+        return validationErrors;
+    }
 }

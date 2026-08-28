@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Stat
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Actor;
 
@@ -33,14 +35,9 @@ public sealed class MarketOutlookSnapshotCommandActor(
     protected override ICommand ParseMessage(
         ICommandActorContext<MarketOutlookSnapshotCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
-            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return parseCommand.Invoke(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [ObserveMarketOutlookComponentCommand.Verb] = message =>
             message.AsCommand<ObserveMarketOutlookComponentCommand>()!,
@@ -54,26 +51,30 @@ public sealed class MarketOutlookSnapshotCommandActor(
         ActorThreadId threadId,
         ICommand command)
     {
-        var commandName = command.GetType().Name;
-        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
-            throw new InvalidOperationException($"Unsupported Market Outlook command {commandName}.");
-        validateCommand.Invoke(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
-    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(ObserveMarketOutlookComponentCommand).Name] = static command =>
+        [typeof(ObserveMarketOutlookComponentCommand)] = static command =>
         {
             var observe = (ObserveMarketOutlookComponentCommand)command;
-            ValidateEnvelope(observe, observe.EntityId.Format());
-            ValidateObserve(observe);
+            return new List<ValidationError>()
+                .ValidateCommandId(observe.CommandId, observe.CommandName)
+                .ValidateEntityId(observe.EntityId, observe.CommandName)
+                .CaptureCommandValidation(() => ValidateEnvelope(observe, observe.EntityId.Format()))
+                .CaptureCommandValidation(() => ValidateObserve(observe));
         },
-        [typeof(PublishMarketOutlookSnapshotCommand).Name] = static command =>
+        [typeof(PublishMarketOutlookSnapshotCommand)] = static command =>
         {
             var publish = (PublishMarketOutlookSnapshotCommand)command;
-            ValidateEnvelope(publish, publish.EntityId.Format());
-            ValidatePublish(publish);
+            return new List<ValidationError>()
+                .ValidateCommandId(publish.CommandId, publish.CommandName)
+                .ValidateEntityId(publish.EntityId, publish.CommandName)
+                .CaptureCommandValidation(() => ValidateEnvelope(publish, publish.EntityId.Format()))
+                .CaptureCommandValidation(() => ValidatePublish(publish));
         }
     };
 
@@ -83,22 +84,22 @@ public sealed class MarketOutlookSnapshotCommandActor(
         IActorState state,
         ICommand command)
     {
-        var commandName = command.GetType().Name;
-        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
-            throw new InvalidOperationException($"Unsupported Market Outlook command {commandName}.");
+        var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receiveCommand.Invoke(
             command,
             context,
             (MarketOutlookSnapshotCommandState)state));
     }
 
-    static readonly Dictionary<string, Func<ICommand,
+    static readonly IReadOnlyDictionary<Type, Func<ICommand,
         ICommandActorContext<MarketOutlookSnapshotCommandActor>,
-        MarketOutlookSnapshotCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+        MarketOutlookSnapshotCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand,
+        ICommandActorContext<MarketOutlookSnapshotCommandActor>,
+        MarketOutlookSnapshotCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(ObserveMarketOutlookComponentCommand).Name] = static (command, _, state) =>
+        [typeof(ObserveMarketOutlookComponentCommand)] = static (command, _, state) =>
             ((ObserveMarketOutlookComponentCommand)command).Execute(state),
-        [typeof(PublishMarketOutlookSnapshotCommand).Name] = static (command, _, state) =>
+        [typeof(PublishMarketOutlookSnapshotCommand)] = static (command, _, state) =>
             ((PublishMarketOutlookSnapshotCommand)command).Execute(state)
     };
 

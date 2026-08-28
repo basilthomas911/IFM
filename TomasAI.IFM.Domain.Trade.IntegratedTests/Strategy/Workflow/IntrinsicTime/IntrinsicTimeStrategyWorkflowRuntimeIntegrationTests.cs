@@ -5,6 +5,7 @@ using MessagePack;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Application.Storage;
@@ -26,6 +27,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -64,10 +66,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
     static readonly StrategyWorkflowStage[] DummyStages = Stages[1..];
 
     /// <summary>
-    /// Runs three concurrent successful workflows and one injected failure through the complete runtime boundary.
+    /// Confirms committed Started snapshots dispatch isolated Regime executions and only a projected public completion
+    /// advances the workflow to the next pipeline.
     /// </summary>
     [Fact]
-    public async Task Dummy_pipeline_actors_drive_real_workflow_runtime_end_to_end()
+    public async Task Projected_regime_completion_advances_each_workflow_to_market_condition_once()
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -99,44 +102,31 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 Entity($"ES-ITSW-{runId}-W", TimeFrameType.Weekly),
                 Entity($"ES-ITSW-{runId}-M", TimeFrameType.Monthly)
             };
-            var failedEntity = Entity($"ES-ITSW-{runId}-F", TimeFrameType.Daily);
-            await PrepareRegimeDiscoveryAsync(factory.Services, successEntities.Append(failedEntity));
+            await PrepareRegimeDiscoveryAsync(factory.Services, successEntities);
 
             await Task.WhenAll(successEntities.Select(entity =>
                 PublishTriggerAsync(publisher, entity.ItiSignalEntityId).AsTask()));
 
-            var successful = await Task.WhenAll(successEntities.Select(entity =>
-                WaitForTerminalAsync(entity, StrategyWorkflowStatus.Completed, StrategyWorkflowOutcome.Completed)));
-            successful.Should().OnlyContain(model => model.WorkflowRevision == 6);
+            var started = await Task.WhenAll(successEntities.Select(entity =>
+                WaitForStatusAsync(entity, StrategyWorkflowStatus.Running)));
+            started.Should().OnlyContain(model =>
+                model.WorkflowRevision == 1 && model.CurrentStage == StrategyWorkflowStage.RegimeDiscovery);
 
             foreach (var entity in successEntities)
             {
-                pipelines.ProcessedStages(entity).Should().BeEquivalentTo(DummyStages);
-                var history = successful.Single(model => model.WorkflowEntityId == entity.Format());
-                await AssertPersistedProjectionAndReplayAsync(factory.Services, entity, history, expectedCompleted: true);
+                var history = started.Single(model => model.WorkflowEntityId == entity.Format());
+                await WaitForRegimeDiscoveryAsync(history.WorkflowId, "Completed");
+                await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.MarketCondition, 1);
+                var advanced = await WaitForStageAsync(entity, StrategyWorkflowStage.MarketCondition, 2);
+                await AssertPersistedAdvancedSnapshotAsync(factory.Services, entity, advanced);
                 var regime = await database.TradeDb.GetRegimeDiscoveryAsync(history.WorkflowId);
                 regime.Should().NotBeNull();
                 regime!.Status.Should().Be("Completed");
                 regime.ResultPayload.Should().NotBeEmpty();
+                pipelines.ProcessedStages(entity).Should().Equal(StrategyWorkflowStage.MarketCondition);
+                pipelines.StartCount(entity, StrategyWorkflowStage.MarketCondition).Should().Be(1);
+                DummyStages.Skip(1).Should().OnlyContain(stage => pipelines.StartCount(entity, stage) == 0);
             }
-
-            pipelines.FailAt(failedEntity, StrategyWorkflowStage.TradeSelection);
-            await PublishTriggerAsync(publisher, failedEntity.ItiSignalEntityId);
-
-            var failed = await WaitForTerminalAsync(
-                failedEntity,
-                StrategyWorkflowStatus.Stopped,
-                StrategyWorkflowOutcome.PipelineFailed);
-            failed.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);
-            failed.StopReasonCode.Should().Be("7303");
-            pipelines.ProcessedStages(failedEntity).Should().BeEquivalentTo(
-                new[]
-                {
-                StrategyWorkflowStage.RegimeDiscovery,
-                StrategyWorkflowStage.MarketCondition,
-                StrategyWorkflowStage.TradeSelection
-                }.Where(stage => stage != StrategyWorkflowStage.RegimeDiscovery));
-            await AssertPersistedProjectionAndReplayAsync(factory.Services, failedEntity, failed, expectedCompleted: false);
         }
         finally
         {
@@ -145,11 +135,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
     }
 
     /// <summary>
-    /// Confirms a second ITI signal for an entity with an active workflow is durably rejected without dispatching a
-    /// second pipeline execution.
+    /// Confirms an unexpired Started snapshot is Busy: a second trigger commits no state and dispatches no later work.
     /// </summary>
     [Fact]
-    public async Task Active_workflow_rejects_new_trigger_for_same_iti_signal_entity()
+    public async Task Unexpired_started_workflow_ignores_a_second_trigger_without_a_state_commit()
     {
         await using var factory = sourceFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
@@ -166,51 +155,22 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             var runId = Guid.NewGuid().ToString("N")[..8];
             var entity = Entity($"ES-ITSW-{runId}-BUSY", TimeFrameType.Daily);
             await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
-            using var hold = pipelines.HoldAt(entity, StrategyWorkflowStage.MarketCondition);
-
-            var acceptedTrigger = await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
-            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.MarketCondition, 1);
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
             var running = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForRegimeDiscoveryAsync(running.WorkflowId, "Completed");
+            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.MarketCondition, 1);
 
-            var rejectedTrigger = await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
-            var rejected = await WaitForRejectedStartAsync(entity, rejectedTrigger.Id);
-
-            rejected.Decision.Should().Be(StrategyWorkflowStartDecision.Rejected);
-            rejected.ReasonCode.Should().Be("ActiveWorkflowExists");
-            rejected.ActiveWorkflowId.Should().Be(running.WorkflowId);
-            rejected.RequestedWorkflowId.Should().NotBe(running.WorkflowId);
-            rejected.ActiveStage.Should().Be(StrategyWorkflowStage.MarketCondition);
-            rejected.TriggerEventId.Should().Be(rejectedTrigger.Id);
-            rejected.TriggerEventId.Should().NotBe(acceptedTrigger.Id);
-            rejected.SourceEventId.Should().BeGreaterThan(0);
-            pipelines.StartCount(entity, StrategyWorkflowStage.MarketCondition).Should().Be(1);
-
-            var eventLog = await factory.Services.GetRequiredService<IEventSourceActorDbContext>()
-                .GetEventLogByEventIdAsync(rejected.SourceEventId);
-            eventLog.Should().NotBeNull();
-            var rejectedEvent = eventLog!.ToDomainEvent()
-                .Should().BeOfType<StrategyWorkflowStartRejectedEvent>().Subject;
-            rejectedEvent.ReasonCode.Should().Be("ActiveWorkflowExists");
-            rejectedEvent.TriggerEventId.Should().Be(rejectedTrigger.Id);
-            rejectedEvent.ActiveWorkflowId.Should().Be(running.WorkflowId);
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            await Task.Delay(500);
 
             var replayed = await LoadStateAsync(factory.Services, entity);
             replayed.HasActiveWorkflow.Should().BeTrue();
             replayed.ActiveWorkflow!.WorkflowId.Should().Be(running.WorkflowId);
-            replayed.TotalStartRequests.Should().Be(2);
-            replayed.AcceptedStartRequests.Should().Be(1);
-            replayed.RejectedStartRequests.Should().Be(1);
-            replayed.LastStartDecision.Should().Be(StrategyWorkflowStartDecision.Rejected);
-            replayed.LastTriggerEventId.Should().Be(rejectedTrigger.Id);
-
-            hold.Release();
-            var completed = await WaitForTerminalAsync(
-                entity,
-                StrategyWorkflowStatus.Completed,
-                StrategyWorkflowOutcome.Completed);
-            completed.WorkflowId.Should().Be(running.WorkflowId);
-            foreach (var stage in DummyStages)
-                pipelines.StartCount(entity, stage).Should().Be(1);
+            replayed.CurrentView!.WorkflowRevision.Should().Be(2);
+            replayed.CurrentView.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
+            pipelines.StartCount(entity, StrategyWorkflowStage.MarketCondition).Should().Be(1);
+            foreach (var stage in DummyStages.Skip(1))
+                pipelines.StartCount(entity, stage).Should().Be(0);
         }
         finally
         {
@@ -218,25 +178,110 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         }
     }
 
-    async Task AssertPersistedProjectionAndReplayAsync(
+    /// <summary>Confirms an expected Regime snapshot failure closes the workflow and dispatches no next stage.</summary>
+    [Fact]
+    public async Task Expected_regime_failure_closes_workflow_without_next_pipeline()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+            {
+                Enabled = true,
+                RequireWarmRegimeDiscoverySignals = false
+            })));
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswExpectedFailurePublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-FAIL", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+            factory.Services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>().Clear();
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForRegimeDiscoveryAsync(started.WorkflowId, "Failed");
+            await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
+                StrategyWorkflowOutcome.PipelineFailed);
+
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
+            state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Failed);
+            DummyStages.Should().OnlyContain(stage => pipelines.StartCount(entity, stage) == 0);
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    /// <summary>Confirms the fixed maximum deadline wins and no late/failed worker dispatches a next stage.</summary>
+    [Fact]
+    public async Task Forced_regime_timeout_closes_workflow_without_next_pipeline()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions
+                {
+                    Enabled = true,
+                    RequireWarmRegimeDiscoverySignals = false
+                });
+                services.RemoveAll<RegimeDiscoveryExecutionOptions>();
+                services.AddSingleton(new RegimeDiscoveryExecutionOptions
+                {
+                    MaximumExecutionDuration = TimeSpan.FromSeconds(1)
+                });
+                services.RemoveAll<IRegimeDiscoveryMarketSignalSnapshotProvider>();
+                services.AddSingleton<IRegimeDiscoveryMarketSignalSnapshotProvider>(new BlockingSnapshotProvider());
+            }));
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswForcedTimeoutPublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-TIMEOUT", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForRegimeDiscoveryAsync(started.WorkflowId, "Failed");
+            await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
+                StrategyWorkflowOutcome.TimedOut);
+
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
+            state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.TimedOut);
+            DummyStages.Should().OnlyContain(stage => pipelines.StartCount(entity, stage) == 0);
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    async Task AssertPersistedAdvancedSnapshotAsync(
         IServiceProvider services,
         IntrinsicTimeStrategyWorkflowEntityId entityId,
-        IntrinsicTimeStrategyWorkflowHistoryReadModel history,
-        bool expectedCompleted)
+        IntrinsicTimeStrategyWorkflowHistoryReadModel history)
     {
         var detail = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(history.WorkflowId);
         detail.Should().NotBeNull();
         detail!.WorkflowRevision.Should().Be(history.WorkflowRevision);
         detail.WorkflowEntityId.Should().Be(entityId.Format());
 
-        var projectedState = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowState>(detail.StatePayload);
-        projectedState.Status.Should().Be(history.Status);
-        projectedState.Outcome.Should().Be(history.Outcome);
+        var projectedState = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload);
+        projectedState.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
+        projectedState.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
         projectedState.WorkflowRevision.Should().Be(history.WorkflowRevision);
 
         var replayed = await LoadStateAsync(services, entityId);
-        MessagePackSerializer.Serialize(replayed.LatestWorkflow)
-            .Should().Equal(MessagePackSerializer.Serialize(projectedState));
+        replayed.CurrentView.Should().NotBeNull();
+        MessagePackSerializer.Serialize(replayed.CurrentView!).Should()
+            .Equal(MessagePackSerializer.Serialize(projectedState));
 
         var queryProducer = services.GetRequiredService<IActorProducer>();
         await queryProducer.StartAsync(new ActorMailboxId(ActorType.Query, "ItswRuntimeQueryProbe"));
@@ -247,17 +292,23 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             response.Success.Should().BeTrue();
             response.Value.Should().NotBeNull();
             response.Value!.WorkflowRevision.Should().Be(history.WorkflowRevision);
+
+            var observation = await new IntrinsicTimeStrategyWorkflowQueryApi(queryProducer)
+                .GetObservationAsync(entityId);
+            observation.Success.Should().BeTrue();
+            observation.Value.Should().NotBeNull();
+            observation.Value!.WorkflowId.Should().Be(history.WorkflowId);
+            observation.Value.WorkflowRevision.Should().Be(history.WorkflowRevision);
+            observation.Value.WorkflowAcceptedRegimeTerminal.Should().BeTrue();
+            observation.Value.RegimeTerminal.Should().NotBeNull();
         }
         finally
         {
             await queryProducer.StopAsync();
         }
 
-        if (expectedCompleted)
-            Stages.Select(stage => Stage(projectedState, stage).ProcessingStatus)
-                .Should().OnlyContain(status => status == StrategyActorProcessingStatus.Completed);
-        else
-            projectedState.TradeSelection.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Failed);
+        projectedState.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+        projectedState.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
     }
 
     async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForTerminalAsync(
@@ -287,6 +338,21 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             $"last observed: {lastObserved}.");
     }
 
+    async Task WaitForRegimeDiscoveryAsync(StrategyWorkflowId workflowId, string status)
+    {
+        var deadline = DateTime.UtcNow + ScenarioTimeout;
+        do
+        {
+            var regime = await database.TradeDb.GetRegimeDiscoveryAsync(workflowId);
+            if (regime?.Status == status)
+                return;
+            await Task.Delay(100);
+        } while (DateTime.UtcNow < deadline);
+
+        throw new TimeoutException(
+            $"Regime Discovery {workflowId} did not reach {status} within {ScenarioTimeout}.");
+    }
+
     async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForStatusAsync(
         IntrinsicTimeStrategyWorkflowEntityId entityId,
         StrategyWorkflowStatus status)
@@ -304,6 +370,27 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
         throw new TimeoutException(
             $"Workflow {entityId.Format()} did not reach {status} within {ScenarioTimeout}.");
+    }
+
+    async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForStageAsync(
+        IntrinsicTimeStrategyWorkflowEntityId entityId,
+        StrategyWorkflowStage stage,
+        long minimumRevision)
+    {
+        var deadline = DateTime.UtcNow + ScenarioTimeout;
+        do
+        {
+            var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+                entityId.Format(), DateTime.MaxValue, 10);
+            var match = rows.FirstOrDefault(row =>
+                row.CurrentStage == stage && row.WorkflowRevision >= minimumRevision);
+            if (match is not null)
+                return match;
+            await Task.Delay(100);
+        } while (DateTime.UtcNow < deadline);
+
+        throw new TimeoutException(
+            $"Workflow {entityId.Format()} did not reach {stage} revision {minimumRevision} within {ScenarioTimeout}.");
     }
 
     async Task<IntrinsicTimeStrategyWorkflowStartAttemptReadModel> WaitForRejectedStartAsync(
@@ -518,6 +605,17 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         _ => MarketAnalyticsSignalKind.MarketStructure
     };
 
+    sealed class BlockingSnapshotProvider : IRegimeDiscoveryMarketSignalSnapshotProvider
+    {
+        public async ValueTask<RegimeDiscoveryMarketSignalSnapshotResult> CaptureAsync(
+            RegimeDiscoveryMarketSignalSnapshotRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The timeout owner should cancel this pure worker.");
+        }
+    }
+
     sealed class DummyPipelineHarness : IAsyncDisposable
     {
         readonly IActorSupervisor _supervisor;
@@ -725,7 +823,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             return stage switch
             {
                 StrategyWorkflowStage.RegimeDiscovery => PipelineStartInput.From(
-                    message.AsCommand<StartRegimeDiscoveryPipelineCommand>()!),
+                    message.AsCommand<ExecuteRegimeDiscoveryPipelineCommand>()!),
                 StrategyWorkflowStage.MarketCondition => PipelineStartInput.From(
                     message.AsCommand<StartMarketConditionPipelineCommand>()!),
                 StrategyWorkflowStage.TradeSelection => PipelineStartInput.From(
@@ -942,8 +1040,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         long Revision,
         Guid CorrelationId)
     {
-        public static PipelineStartInput From(StartRegimeDiscoveryPipelineCommand command)
-            => New(command.CommandId, command.EntityId, command.WorkflowId, command.InputWorkflowRevision, command.CorrelationId);
+        public static PipelineStartInput From(ExecuteRegimeDiscoveryPipelineCommand command)
+            => New(command.CommandId, command.WorkflowEntityId, command.WorkflowId,
+                command.InputWorkflowRevision, command.CorrelationId);
         public static PipelineStartInput From(StartMarketConditionPipelineCommand command)
             => New(command.CommandId, command.EntityId, command.WorkflowId, command.InputWorkflowRevision, command.CorrelationId);
         public static PipelineStartInput From(StartTradeSelectionPipelineCommand command)
@@ -964,7 +1063,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
     static string CommandActorName(StrategyWorkflowStage stage) => stage switch
     {
-        StrategyWorkflowStage.RegimeDiscovery => StartRegimeDiscoveryPipelineCommand.Actor,
+        StrategyWorkflowStage.RegimeDiscovery => ExecuteRegimeDiscoveryPipelineCommand.Actor,
         StrategyWorkflowStage.MarketCondition => StartMarketConditionPipelineCommand.Actor,
         StrategyWorkflowStage.TradeSelection => StartTradeSelectionPipelineCommand.Actor,
         StrategyWorkflowStage.OrderComposition => StartOrderCompositionPipelineCommand.Actor,

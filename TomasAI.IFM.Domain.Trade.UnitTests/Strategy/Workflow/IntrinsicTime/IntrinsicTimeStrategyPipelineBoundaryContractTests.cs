@@ -24,15 +24,15 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     const string EventsNamespace =
         "TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events";
 
-    static readonly Assembly ContractAssembly = typeof(StartRegimeDiscoveryPipelineCommand).Assembly;
+    static readonly Assembly ContractAssembly = typeof(ExecuteRegimeDiscoveryPipelineCommand).Assembly;
     static readonly Type[] CommandTypes = GetConcreteTypes(CommandsNamespace);
     static readonly Type[] EventTypes = GetConcreteTypes(EventsNamespace);
 
     static readonly string[] ExpectedCommandNames =
     [
+        nameof(ExecuteRegimeDiscoveryPipelineCommand),
         nameof(StartMarketConditionPipelineCommand),
         nameof(StartOrderCompositionPipelineCommand),
-        nameof(StartRegimeDiscoveryPipelineCommand),
         nameof(StartRiskManagementPipelineCommand),
         nameof(StartTradeSelectionPipelineCommand)
     ];
@@ -56,7 +56,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(TradeSelectionPipelineProcessingEvent)
     ];
 
-    /// <summary>Confirms ITSW-4 contains exactly five Start commands and fifteen pipeline lifecycle events.</summary>
+    /// <summary>Confirms the boundary contains one Regime Execute and four legacy Start pipeline commands.</summary>
     [Fact]
     public void Pipeline_boundary_inventory_is_complete()
     {
@@ -117,13 +117,20 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
              type.Name.Contains("Fail", StringComparison.Ordinal)));
     }
 
-    /// <summary>Confirms Start commands contain immutable inputs without next-stage or private pipeline state.</summary>
+    /// <summary>Confirms pipeline commands contain immutable inputs without next-stage or private pipeline state.</summary>
     [Fact]
-    public void Start_commands_preserve_pipeline_ownership_boundaries()
+    public void Pipeline_commands_preserve_pipeline_ownership_boundaries()
     {
         foreach (var type in CommandTypes)
         {
-            type.GetProperty("WorkflowState").Should().NotBeNull(type.Name);
+            if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand))
+            {
+                type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
+                type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
+                type.GetProperty("WorkflowState").Should().BeNull();
+            }
+            else
+                type.GetProperty("WorkflowState").Should().NotBeNull(type.Name);
             type.GetProperty("TriggerEvent").Should().NotBeNull(type.Name);
             type.GetProperty("NextPipelineStage").Should().BeNull(type.Name);
             type.GetProperty("NextPipelineActorName").Should().BeNull(type.Name);
@@ -148,13 +155,23 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
         var regime = IntrinsicTimeStrategyPipelineRoutes.Get(StrategyWorkflowStage.RegimeDiscovery);
         regime.CommandActor.Should().Be(
-            new ActorMailboxId(ActorType.Command, StartRegimeDiscoveryPipelineCommand.Actor));
+            new ActorMailboxId(ActorType.Command, ExecuteRegimeDiscoveryPipelineCommand.Actor));
         regime.RealtimeActor.Should().Be(
-            new ActorMailboxId(ActorType.Realtime, RegimeDiscoveryPipelineProcessingEvent.Actor));
+            new ActorMailboxId(ActorType.Realtime, RegimeDiscoveryPipelineCompletedEvent.Actor));
         regime.BoundedContext.Should().Be(BoundedContextName.RegimeDiscoveryPipelineBoundedContext);
 
         var action = () => IntrinsicTimeStrategyPipelineRoutes.Get(StrategyWorkflowStage.None);
         action.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>Confirms the old Regime Start contract has no executable shared type or route.</summary>
+    [Fact]
+    public void Regime_boundary_exposes_execute_only()
+    {
+        ExecuteRegimeDiscoveryPipelineCommand.Verb.Should().Be("Execute");
+        ContractAssembly.GetType(
+            $"{CommandsNamespace}.StartRegimeDiscoveryPipelineCommand").Should().BeNull();
+        CommandTypes.Should().ContainSingle(type => type == typeof(ExecuteRegimeDiscoveryPipelineCommand));
     }
 
     /// <summary>Confirms Started and Continued lifecycle events carry deterministic pipeline dispatch data.</summary>
@@ -205,6 +222,10 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             return true;
         if (type == typeof(IntrinsicTimeStrategyWorkflowEntityId))
             return CreateEntityId();
+        if (type == typeof(RegimeDiscoveryExecutionEntityId))
+            return RegimeDiscoveryExecutionEntityId.Create(
+                CreateEntityId(),
+                new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000022")));
         if (type == typeof(int))
             return parameterName == "errorCode" ? 24001 : 1;
         if (type == typeof(long))
@@ -212,7 +233,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         if (type == typeof(string))
             return $"test-{parameterName}";
         if (type == typeof(DateTime))
-            return new DateTime(2026, 8, 25, 16, 0, 0, DateTimeKind.Utc);
+            return new DateTime(2026, 8, 25, 16,
+                parameterName == "expiresAtUtc" ? 5 : 0, 0, DateTimeKind.Utc);
         if (type == typeof(DateTime?))
             return new DateTime(2026, 8, 25, 16, 5, 0, DateTimeKind.Utc);
         if (type == typeof(BoundedContextName))
@@ -232,6 +254,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             return ErrorType.Command;
         if (type == typeof(IntrinsicTimeStrategyWorkflowState))
             return CreateWorkflowState();
+        if (type == typeof(IntrinsicTimeStrategyWorkflowView))
+            return CreateWorkflowView();
         if (type == typeof(FuturesItiSignalGeneratedEvent))
             return CreateTriggerEvent();
         if (type == typeof(StrategyStageResultEnvelope))
@@ -260,6 +284,34 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             WorkflowRevision = 1,
             StartedAtUtc = new DateTime(2026, 8, 25, 15, 58, 0, DateTimeKind.Utc)
         };
+
+    static IntrinsicTimeStrategyWorkflowView CreateWorkflowView()
+    {
+        var state = CreateWorkflowState();
+        return new IntrinsicTimeStrategyWorkflowView
+        {
+            EntityId = state.EntityId,
+            WorkflowId = state.WorkflowId,
+            TriggerEventId = state.TriggerEventId,
+            CorrelationId = state.CorrelationId,
+            CausationId = Guid.Parse("0198E212-3C00-7000-8000-000000000025"),
+            WorkflowDefinitionVersion = state.WorkflowDefinitionVersion,
+            Status = WorkflowStrategyMachineStatus.Started,
+            CurrentStage = state.CurrentStage,
+            WorkflowRevision = state.WorkflowRevision,
+            StartedAtUtc = state.StartedAtUtc,
+            UpdatedAtUtc = new DateTime(2026, 8, 25, 16, 0, 0, DateTimeKind.Utc),
+            ExpiresAtUtc = new DateTime(2026, 8, 25, 16, 5, 0, DateTimeKind.Utc),
+            RegimeDiscovery = state.RegimeDiscovery,
+            MarketCondition = state.MarketCondition,
+            TradeSelection = state.TradeSelection,
+            OrderComposition = state.OrderComposition,
+            RiskManagement = state.RiskManagement,
+            RegimeDiscoveryParameterSet = state.RegimeDiscoveryParameterSet,
+            RegimeDiscoveryParameterPayloadSha256 = state.RegimeDiscoveryParameterPayloadSha256,
+            TriggerEvent = CreateTriggerEvent()
+        };
+    }
 
     static FuturesItiSignalGeneratedEvent CreateTriggerEvent()
     {

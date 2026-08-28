@@ -280,7 +280,7 @@ public class FuturesTdiSignalCommandTests
         parsed.CommandId.Should().Be(expected.CommandId);
         parsed.Subject.Should().Be(expected.Subject);
         ((GenerateFuturesTdiSignalCommand)parsed).EntityId.TimePeriod.Should().Be(timePeriod);
-        await scenario.EventDb.Received(1).InsertCommandLogAsync(
+        await scenario.EventDb.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(command => command.CommandId == expected.CommandId),
             Arg.Any<DateTime>(),
             Arg.Is<string>(json => json.Contains(expected.CommandId.ToString())));
@@ -333,10 +333,10 @@ public class FuturesTdiSignalCommandTests
     }
 
     [Fact]
-    public async Task GivenCommandLoggingFails_WhenTheCommandIsValidated_ThenTheFailureIsPropagated()
+    public async Task GivenDomainCommandLoggingFails_WhenTheCommandIsValidated_ThenValidationIsIndependent()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Monthly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.FifteenMinutes);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
@@ -346,7 +346,7 @@ public class FuturesTdiSignalCommandTests
             parsed.Subject.ThreadId,
             parsed);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("command log unavailable");
+        await act.Should().NotThrowAsync();
     }
 
     // Receive and validation edge cases

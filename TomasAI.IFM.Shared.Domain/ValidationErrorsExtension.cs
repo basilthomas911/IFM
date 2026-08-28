@@ -4,11 +4,82 @@ using TomasAI.IFM.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.Validation;
+using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Shared.Domain;
 
 public static class ValidationErrorsExtension
 {
+    /// <summary>
+    /// Adapts a legacy throwing validator to the aggregate validation-error contract.
+    /// Only expected validation exceptions are captured; programming failures still escape.
+    /// </summary>
+    public static List<ValidationError> CaptureCommandValidation(
+        this List<ValidationError> validationErrors,
+        Action validation)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        ArgumentNullException.ThrowIfNull(validation);
+        try
+        {
+            validation();
+        }
+        catch (CommandValidationException exception)
+        {
+            validationErrors.Add(new(exception.Message));
+        }
+        catch (ArgumentException exception)
+        {
+            validationErrors.Add(new(exception.Message));
+        }
+        return validationErrors;
+    }
+
+    /// <summary>
+    /// Applies the universal structural checks common to every actor entity identifier.
+    /// Domain component rules remain owned by the concrete identifier validator.
+    /// </summary>
+    public static List<ValidationError> ValidateEntityId(
+        this List<ValidationError> validationErrors,
+        IActorEntityId? entityId,
+        string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        if (entityId is null)
+        {
+            validationErrors.Add(new($"{commandName}.EntityId is null"));
+            return validationErrors;
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(entityId.Format()))
+                validationErrors.Add(new($"{commandName}.EntityId format is empty"));
+        }
+        catch (Exception exception)
+        {
+            validationErrors.Add(new($"{commandName}.EntityId is invalid: {exception.Message}"));
+        }
+        return validationErrors;
+    }
+
+    /// <summary>Validates the concrete EntityId carried by an otherwise non-generic command reference.</summary>
+    public static List<ValidationError> ValidateEntityId(
+        this List<ValidationError> validationErrors,
+        ICommand command,
+        string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var property = command.GetType().GetProperty("EntityId");
+        if (property?.GetValue(command) is not IActorEntityId entityId)
+        {
+            validationErrors.Add(new($"{commandName}.EntityId is missing or invalid"));
+            return validationErrors;
+        }
+        return validationErrors.ValidateEntityId(entityId, commandName);
+    }
+
     /// <summary>
     /// Throws a <see cref="CommandValidationException"/> if the provided list of validation errors is not empty.
     /// </summary>

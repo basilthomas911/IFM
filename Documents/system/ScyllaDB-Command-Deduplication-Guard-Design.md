@@ -158,9 +158,9 @@ MessagePack numeric keys are append-only:
 The shared actor runtime resolves this contract at startup and calls it immediately after command materialization:
 
 ```csharp
-public interface ICommandDuplicateGuard
+public interface ICommandAuditLogger
 {
-    ValueTask<bool> TryAcceptAsync(
+    ValueTask<CommandAuditReservation> TryReserveAsync(
         ICommand command,
         CancellationToken cancellationToken = default);
 }
@@ -169,7 +169,7 @@ public interface ICommandDuplicateGuard
 The command actor pipeline becomes:
 
 1. Materialize the command and release its pooled transport payload.
-2. Call `TryAcceptAsync`.
+2. Call `TryReserveAsync` to atomically write the durable audit record and reserve `CommandId`.
 3. If duplicate, reply successfully with the original ID without validation or loading state.
 4. If admitted, continue through ordinary validation and processing.
 5. Publish/reply using the existing correlated command ID.

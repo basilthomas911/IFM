@@ -1,5 +1,6 @@
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.Fund.Shared;
 
 namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Validation;
 
@@ -8,21 +9,6 @@ namespace TomasAI.IFM.Domain.Fund.Transaction.Command.Validation;
 /// </summary>
 public static class FundTransactionValidationExtensions
 {
-    static readonly FundTransactionValidationRules Rules = new();
-    /// <summary>
-    /// Validates the FundReadModel against the FundValidationRules and adds any validation errors to the provided list of validation errors.
-    /// </summary>
-    /// <param name="validationErrors"></param>
-    /// <param name="fundTransaction"></param>
-    /// <returns></returns>
-    public static List<ValidationError> ValidateFundTransaction(this List<ValidationError> validationErrors, FundTransactionReadModel fundTransaction)
-    {
-        var ruleErrors = Rules.Execute(fundTransaction);
-        if (ruleErrors.Length > 0)
-            validationErrors.AddRange(ruleErrors);
-        return validationErrors;
-    }
-
     /// <summary>
     /// Validates an array of fund transactions and adds any validation errors to the specified collection.
     /// </summary>
@@ -32,27 +18,72 @@ public static class FundTransactionValidationExtensions
     /// <param name="validationErrors">The collection to which any validation errors will be added. Must not be null.</param>
     /// <param name="fundTransactions">An array of fund transactions to validate. All transactions must have the same FundId and OrderId.</param>
     /// <returns>The collection of validation errors, including any errors found during validation of the fund transactions.</returns>
-    public static List<ValidationError> ValidateFundTransactions(this List<ValidationError> validationErrors, FundTransactionReadModel[] fundTransactions)
+    public static List<ValidationError> ValidateFundTransactions(this List<ValidationError> validationErrors, FundTransactionReadModel[]? fundTransactions)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
         if (fundTransactions is null || fundTransactions.Length == 0)
             validationErrors.Add(new ValidationError($"{9999}", "ValidateFundTransactions.FundTransactions is empty"));
         else
         {
-            var fundId = fundTransactions[0].FundId;
-            var orderId = fundTransactions[0].OrderId;
+            var first = fundTransactions[0];
+            var fundId = first?.FundId;
+            var orderId = first?.OrderId;
             for (var index = 0; index < fundTransactions.Length; index++)
             {
                 var fundTransaction = fundTransactions[index];
-                if (fundTransaction.FundId != fundId || fundTransaction.OrderId != orderId)
+                if (fundTransaction is not null
+                    && first is not null
+                    && (fundTransaction.FundId != fundId || fundTransaction.OrderId != orderId))
                 {
-                    validationErrors.Add(new ValidationError($"{9999}", "ValidateFundTransactions.FundTransactions must all have same FundId and OrderId"));
-                    return validationErrors;
+                    validationErrors.Add(new ValidationError($"{9999}", $"FundTransactions[{index}] must have the same FundId and OrderId"));
                 }
             }
 
             for (var index = 0; index < fundTransactions.Length; index++)
-                ValidateFundTransaction(validationErrors, fundTransactions[index]);
+                validationErrors.ValidateFundTransaction(fundTransactions[index], $"FundTransactions[{index}]");
         }
+        return validationErrors;
+    }
+
+    public static List<ValidationError> ValidateFundTransactionIdentityMatches(
+        this List<ValidationError> validationErrors,
+        FundTransactionEntityId? entityId,
+        FundTransactionReadModel? transaction,
+        string payloadName,
+        string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        if (entityId is { FundId: > 0, OrderId: > 0 }
+            && transaction is { FundId: > 0, OrderId: > 0 }
+            && (entityId.FundId != transaction.FundId || entityId.OrderId != transaction.OrderId))
+            validationErrors.Add(new($"{commandName}.EntityId must match {payloadName}.FundId and OrderId"));
+        return validationErrors;
+    }
+
+    public static List<ValidationError> ValidateFundTransactionsIdentityMatches(
+        this List<ValidationError> validationErrors,
+        FundTransactionEntityId? entityId,
+        FundTransactionReadModel[]? transactions,
+        string commandName)
+    {
+        if (transactions is null)
+            return validationErrors;
+        for (var index = 0; index < transactions.Length; index++)
+            validationErrors.ValidateFundTransactionIdentityMatches(
+                entityId,
+                transactions[index],
+                $"FundTransactions[{index}]",
+                commandName);
+        return validationErrors;
+    }
+
+    public static List<ValidationError> ValidateCorrelationId(
+        this List<ValidationError> validationErrors,
+        Guid correlationId,
+        string commandName)
+    {
+        if (correlationId == Guid.Empty)
+            validationErrors.Add(new($"{commandName}.CorrelationId is empty"));
         return validationErrors;
     }
 }

@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -31,6 +32,8 @@ public interface IIntrinsicTimeStrategyWorkflowCommandContext
     IActorService ActorService { get; }
     /// <summary>Gets the workflow clock.</summary>
     TimeProvider TimeProvider { get; }
+    /// <summary>Gets the validated fixed workflow execution duration.</summary>
+    RegimeDiscoveryExecutionOptions ExecutionOptions { get; }
     /// <summary>Gets the command actor logger.</summary>
     ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger { get; }
 }
@@ -53,12 +56,14 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
         IBlackboardService blackboardService,
+        RegimeDiscoveryExecutionOptions executionOptions,
         ILogger<IntrinsicTimeStrategyWorkflowCommandActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Command, IntrinsicTimeStrategyWorkflowCommandActor.ActorName))
     {
         DbFactory = IsArgumentNull.Set(dbFactory);
         BlackboardService = IsArgumentNull.Set(blackboardService);
         TimeProvider = TimeProvider.System;
+        ExecutionOptions = IsArgumentNull.Set(executionOptions);
         Logger = IsArgumentNull.Set(logger);
         _dbEventSource = ResolveOnce<IEventSourceActorDbContext>();
         _durableReplayQueue = ResolveOnce<IDurableReplayQueue>();
@@ -74,6 +79,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandContext
     public IBlackboardService BlackboardService { get; }
     /// <inheritdoc />
     public TimeProvider TimeProvider { get; }
+    /// <inheritdoc />
+    public RegimeDiscoveryExecutionOptions ExecutionOptions { get; }
     /// <inheritdoc />
     public ILogger<IntrinsicTimeStrategyWorkflowCommandActor> Logger { get; }
     /// <inheritdoc />

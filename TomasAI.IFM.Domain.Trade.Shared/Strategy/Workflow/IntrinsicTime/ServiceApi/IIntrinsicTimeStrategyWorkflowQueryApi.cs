@@ -24,4 +24,7 @@ public interface IIntrinsicTimeStrategyWorkflowQueryApi
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> GetCompletedAsync(DateOnly startDate, DateOnly endDate, int pageSize);
     /// <summary>Gets stopped workflows in a date range.</summary>
     Task<ServiceResult<IntrinsicTimeStrategyWorkflowHistoryReadModel[]>> GetStoppedAsync(DateOnly startDate, DateOnly endDate, int pageSize);
+    /// <summary>Gets the read-only operational condition for one stable workflow entity.</summary>
+    Task<ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>> GetObservationAsync(
+        IntrinsicTimeStrategyWorkflowEntityId workflowEntity);
 }

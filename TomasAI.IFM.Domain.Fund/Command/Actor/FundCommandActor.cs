@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -9,6 +8,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Commands;
+using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Fund.Command.Extensions;
 using TomasAI.IFM.Domain.Fund.Command.State;
 using TomasAI.IFM.Domain.Fund.Command.Validation;
@@ -33,7 +33,6 @@ public class FundCommandActor(
 {
     public const string Actor = "FundCommand";
     readonly ILogger<FundCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly IEventSourceActorDbContext _dbEventSource = IsArgumentNull.Set(actorContext.DbEventSource);
     readonly IEventProjector<FundCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository <FundCommandState> _repo = default!;
 
@@ -84,25 +83,18 @@ public class FundCommandActor(
     /// <summary>
     /// Parses an incoming NATS message and resolves it to a command instance for the specified actor context.
     /// </summary>
-    /// <remarks>The parsed command is synchronously logged to the database before being returned. This method
-    /// expects the message subject to match a registered command verb for the actor.</remarks>
+    /// <remarks>Parsing only resolves the registered verb and materializes the command. The base command actor owns
+    /// audit reservation, and validation is performed separately through <c>_validationMap</c>.</remarks>
     /// <param name="context">The actor context used to resolve and process the command. Cannot be null.</param>
     /// <param name="message">The NATS message containing the command data to be parsed. Must have a subject and payload appropriate for
     /// command resolution.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FundCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FundCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
@@ -112,7 +104,7 @@ public class FundCommandActor(
     /// their verb. Each entry associates a specific command verb with a function that converts a NATS message payload
     /// into a strongly typed command object implementing the ICommand interface. The mapping is intended for internal
     /// use in command deserialization and routing scenarios.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [AddOrderToFundCommand.Verb] = msg => msg.AsCommand<AddOrderToFundCommand>()!,
         [AddTradeToFundOrderCommand.Verb] = msg => msg.AsCommand<AddTradeToFundOrderCommand>()!,
@@ -139,11 +131,8 @@ public class FundCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
-        await _dbEventSource.InsertCommandLogAsync(cmd, DateTime.UtcNow, JsonConvert.SerializeObject(cmd)).ConfigureAwait(false);
         var fundState = IsArgumentNull.Set((state as FundCommandState)!);
-        var commandName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(commandName, out var receiveFunction))
-            throw new InvalidOperationException($"Unable to resolve {Actor} command from message: {cmd.Subject}");
+        var receiveFunction = ResolveMappedCommandHandler(cmd, _receiveMap);
         return receiveFunction.Invoke(cmd, context, fundState);
     }
 
@@ -154,27 +143,31 @@ public class FundCommandActor(
     /// <remarks>This dictionary enables dynamic dispatch of fund-related commands by associating each command
     /// type name with a function that executes the command against a FundCommandState. The mapping is intended for
     /// internal use to streamline command handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<
+    static readonly IReadOnlyDictionary<Type, Func<
         ICommand,
         ICommandActorContext<FundCommandActor>,
         FundCommandState,
-        ServiceResult<GuidResult>>> _receiveMap = new()
+        ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<
+            ICommand,
+            ICommandActorContext<FundCommandActor>,
+            FundCommandState,
+            ServiceResult<GuidResult>>>()
     {
-        [typeof(AddOrderToFundCommand).Name] = static (command, _, state) =>
+        [typeof(AddOrderToFundCommand)] = static (command, _, state) =>
             ((AddOrderToFundCommand)command).Execute(state),
-        [typeof(AddTradeToFundOrderCommand).Name] = static (command, _, state) =>
+        [typeof(AddTradeToFundOrderCommand)] = static (command, _, state) =>
             ((AddTradeToFundOrderCommand)command).Execute(state),
-        [typeof(ChangeFundOrderTradeStateCommand).Name] = static (command, _, state) =>
+        [typeof(ChangeFundOrderTradeStateCommand)] = static (command, _, state) =>
             ((ChangeFundOrderTradeStateCommand)command).Execute(state),
-        [typeof(CloseFundOrderCommand).Name] = static (command, _, state) =>
+        [typeof(CloseFundOrderCommand)] = static (command, _, state) =>
             ((CloseFundOrderCommand)command).Execute(state),
-        [typeof(CreateFundCommand).Name] = static (command, _, state) =>
+        [typeof(CreateFundCommand)] = static (command, _, state) =>
             ((CreateFundCommand)command).Execute(state),
-        [typeof(GenerateFundMaxProfitCommand).Name] = static (command, _, state) =>
+        [typeof(GenerateFundMaxProfitCommand)] = static (command, _, state) =>
             ((GenerateFundMaxProfitCommand)command).Execute(state),
-        [typeof(RemoveOrderFromFundCommand).Name] = static (command, _, state) =>
+        [typeof(RemoveOrderFromFundCommand)] = static (command, _, state) =>
             ((RemoveOrderFromFundCommand)command).Execute(state),
-        [typeof(RemoveTradeFromFundOrderCommand).Name] = static (command, _, state) =>
+        [typeof(RemoveTradeFromFundOrderCommand)] = static (command, _, state) =>
             ((RemoveTradeFromFundOrderCommand)command).Execute(state)
     };
 
@@ -193,11 +186,7 @@ public class FundCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        if (!_validationMap.TryGetValue(cmd.GetType(), out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {Actor} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        ValidateMappedCommand(cmd, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -207,49 +196,82 @@ public class FundCommandActor(
     /// <remarks>Each entry associates the name of a command type with a function that performs validation on
     /// instances of that command, returning a list of validation errors. This map enables dynamic selection of
     /// validation logic based on the command type at runtime.</remarks>
-    static readonly Dictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
         [typeof(CreateFundCommand)] = cmd => {
             var e = (CreateFundCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFund(e.NewFund);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFund(e.NewFund)
+                .ValidateFundIdMatches(e.EntityId, e.NewFund?.FundId, nameof(e.NewFund), e.CommandName);
         },
         [typeof(AddOrderToFundCommand)] = cmd => {
             var e = (AddOrderToFundCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrder(e.FundOrder);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrder(e.FundOrder)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrder?.FundId, nameof(e.FundOrder), e.CommandName);
         },
         [typeof(RemoveOrderFromFundCommand)] = cmd => {
             var e = (RemoveOrderFromFundCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrderId(e.FundOrderId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrderId(e.FundOrderId, e.CommandName)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrderId?.FundId, nameof(e.FundOrderId), e.CommandName);
         },
         [typeof(AddTradeToFundOrderCommand)] = cmd => {
             var e = (AddTradeToFundOrderCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrderTrade(e.FundOrderTrade);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrderTrade(e.FundOrderTrade)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrderTrade?.FundId, nameof(e.FundOrderTrade), e.CommandName);
         },
         [typeof(ChangeFundOrderTradeStateCommand)] = cmd => {
             var e = (ChangeFundOrderTradeStateCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrderTradeId(e.FundOrderTradeId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrderTradeId(e.FundOrderTradeId, e.CommandName)
+                .ValidateTradeState(e.TradeState, e.CommandName)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrderTradeId?.FundId, nameof(e.FundOrderTradeId), e.CommandName);
         },
         [typeof(RemoveTradeFromFundOrderCommand)] = cmd => {
             var e = (RemoveTradeFromFundOrderCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrderTradeId(e.FundOrderTradeId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrderTradeId(e.FundOrderTradeId, e.CommandName)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrderTradeId?.FundId, nameof(e.FundOrderTradeId), e.CommandName);
         },
         [typeof(CloseFundOrderCommand)] = cmd => {
             var e = (CloseFundOrderCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrderId(e.FundOrderId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrderId(e.FundOrderId, e.CommandName)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrderId?.FundId, nameof(e.FundOrderId), e.CommandName);
         },
         [typeof(GenerateFundMaxProfitCommand)] = cmd => {
             var e = (GenerateFundMaxProfitCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
-                .ValidateFundOrderId(e.FundOrder.Id, e.CommandName)
-                .ValidateOrderDate(e.FundOrder.OrderDate, e.CommandName)
-                .ValidateBaseContractId(e.FundOrder.BaseContractId, e.CommandName);
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateFundId(e.EntityId, e.CommandName)
+                .ValidateFundOrder(e.FundOrder)
+                .ValidateFundTimePeriod(e.FundTimePeriod, e.CommandName)
+                .ValidateFundIdMatches(e.EntityId, e.FundOrder?.FundId, nameof(e.FundOrder), e.CommandName);
         }
     };
 

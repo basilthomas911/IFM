@@ -125,7 +125,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task ParseMessage_ValidCommand_DeserializesAndLogsCommand(
+    public async Task ParseMessage_ValidCommand_DeserializesWithoutDomainAuditWrite(
         TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
@@ -138,7 +138,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         parsed.CommandId.Should().Be(expected.CommandId);
         parsed.Subject.Should().Be(expected.Subject);
         ((GenerateFuturesTdiSignalCommand)parsed).EntityId.TimePeriod.Should().Be(timePeriod);
-        await scenario.EventDb.Received(1).InsertCommandLogAsync(
+        await scenario.EventDb.DidNotReceive().InsertCommandLogAsync(
             Arg.Is<ICommand>(command => command.CommandId == expected.CommandId),
             Arg.Any<DateTime>(),
             Arg.Is<string>(json => json.Contains(expected.CommandId.ToString())));
@@ -206,10 +206,10 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public async Task ParseMessage_CommandLogFailure_PropagatesException()
+    public async Task ParseMessage_DomainAuditFailure_DoesNotAffectValidation()
     {
         var scenario = CreateScenario();
-        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.Weekly);
+        var command = SampleData.TdiGenerateCommandFor(TimeFrameType.FiveMinutes);
         scenario.EventDb.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
             .Returns(Task.FromException(new InvalidOperationException("command log unavailable")));
 
@@ -217,7 +217,7 @@ public class FuturesTdiSignalCommandActorTests : IClassFixture<MarketDataAnalyti
         Func<Task> act = async () => await scenario.Actor.InvokeOnValidateAsync(
             scenario.Context, parsed.Subject.ThreadId, parsed);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("command log unavailable");
+        await act.Should().NotThrowAsync();
     }
 
     // ReceiveAsync

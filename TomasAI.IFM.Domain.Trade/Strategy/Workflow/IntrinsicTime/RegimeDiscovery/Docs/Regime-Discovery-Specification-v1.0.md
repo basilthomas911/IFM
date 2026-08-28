@@ -6,9 +6,9 @@ Design Specification v1.0
 
 | --- \| --- \|
 
-| Status \| Approved deterministic V1 design specification; implementation started \|
+| Status \| Approved deterministic V1 design including atomic execution and hard deadline \|
 
-| Date \| 2026-08-26 \|
+| Date \| 2026-08-27 \|
 
 | Purpose \| Authoritative business/architectural contract for Regime
   Discovery \|
@@ -47,33 +47,40 @@ deferred to V2 or later.
 
 FuturesItiSignalGeneratedEvent
  -> Strategy Workflow
- -> StartRegimeDiscoveryPipelineCommand
+ -> WorkflowStrategyStateUpdatedEvent(Started, RegimeDiscovery, ExpiresAtUtc)
+ -> ExecuteRegimeDiscoveryPipelineCommand
  -> Regime Discovery Command actor
  -> Trend + Volatility + Market Structure calculation models
  -> Fusion calculation model
  -> durable private Completed OR Failed event
  -> EventProjector -> ScyllaDB projection
  -> public Completed OR Failed event
- -> Strategy Workflow
+ -> Regime Discovery Realtime actor
+ -> CompleteRegimeDiscoveryCommand OR FailRegimeDiscoveryCommand
+ -> Strategy Workflow Command actor
+ -> WorkflowStrategyStateUpdatedEvent
 ```
 
 The Strategy Workflow owns ordering, dispatch, authoritative workflow
-state, and continuation. One Regime Discovery Command actor owns its private,
-event-sourced calculation state and final result. Trend, Volatility, Market
-Structure, and Fusion are actor-owned deterministic calculation models, not
-actors. Regime Discovery has no pipeline Realtime actor in V1.
+state, immutable workflow view, deadline enforcement, and continuation. One
+Regime Discovery Command actor owns its private, event-sourced calculation
+state and final result. Trend, Volatility, Market Structure, and Fusion are
+actor-owned deterministic calculation models, not actors. A stateless Regime
+Discovery Realtime actor translates public terminal notifications into typed
+Workflow Command messages. The detailed sequence is authoritative in section
+6.4 of `Regime-Discovery-Implementation-v1.0.md`.
 
 # 3. Fixed V1 Decisions
 
 1.  Realtime, single-attempt processing; no automatic business retries.
 
-2.  Each accepted start produces one logical durable terminal outcome:
-    Completed or Failed.
+2.  Each Execute attempt may commit one logical durable terminal outcome:
+    Completed or Failed. An unexpected exception commits no terminal state.
 
 3.  The Strategy Workflow is the authority for effective
     strategy/pipeline configuration.
 
-4.  StartRegimeDiscoveryPipelineCommand carries a complete immutable
+4.  ExecuteRegimeDiscoveryPipelineCommand carries a complete immutable
     RegimeDiscoveryParameterSet.
 
 5.  Configuration is frozen for the execution; later updates apply only
@@ -102,23 +109,23 @@ actors. Regime Discovery has no pipeline Realtime actor in V1.
 13. The typed RegimeDiscoveryResult is serialized into the existing
     opaque StrategyStageResultEnvelope.
 
-14. Timeout and manual cancellation are optional implementation
-    refinements and never cause retry.
+14. The hard execution deadline and lazy workflow expiry are mandatory and
+    never cause retry. Manual cancellation remains optional.
 
 15. One workflow calculates only its own Daily, Weekly, or Monthly target
     horizon. Supporting timeframes are evidence for that result and never
     create additional workflow-horizon results.
 
 16. PostgreSQL ConfigurationDb is authoritative for immutable, versioned
-    strategy and pipeline parameter sets. ScyllaDB may contain rebuildable
-    configuration query projections but is not configuration authority.
+    strategy and pipeline parameter sets. Any future ScyllaDB configuration UI
+    projection is non-authoritative and outside the Regime V1 implementation.
 
 17. Trend, Volatility, Market Structure, and Fusion are sealed, actor-owned
     calculation models under the Regime Discovery `Model` folder. They have no
     actor identities, mailboxes, command contracts, Realtime events, or
     independently persisted state.
 
-18. `StartRegimeDiscoveryPipelineCommand` is dispatched by the Command
+18. `ExecuteRegimeDiscoveryPipelineCommand` is dispatched by the Command
     actor's explicit `_receiveMap` to an asynchronous command extension. The
     extension returns `Task<ServiceResult<GuidResult>>`, creates the private
     durable terminal event, and updates Command-actor state.
@@ -149,7 +156,8 @@ actors. Regime Discovery has no pipeline Realtime actor in V1.
 -   High-level state, events, queries, persistence, observability,
     validation, and testing expectations.
 
--   Optional timeout and manual cancellation design hooks.
+-   Mandatory hard execution deadline, lazy workflow expiry, and optional
+    manual cancellation design hooks.
 
 ## 4.2 Excluded
 
@@ -165,29 +173,33 @@ actors. Regime Discovery has no pipeline Realtime actor in V1.
 
 -   Automatic retry/restart/business replay after failure or timeout.
 
--   Production timeout durations and final cancellation UI/authorization
-    design.
+-   Final production timeout value and cancellation UI/authorization design.
 
 # 5. Pipeline Lifecycle
 
 ``` text
 
-StartRegimeDiscoveryPipelineCommand
+WorkflowStrategyStateUpdatedEvent(Started, RegimeDiscovery, ExpiresAtUtc)
+ -> ExecuteRegimeDiscoveryPipelineCommand
  -> asynchronous command extension
  -> successful Fusion -> private RegimeDiscoveryCalculationCompletedEvent
- OR required failure -> private RegimeDiscoveryCalculationFailedEvent
+ OR required failure/hard timeout -> private RegimeDiscoveryCalculationFailedEvent
+ OR unexpected exception -> no terminal event
  -> PostgreSQL event log
  -> EventProjector -> ScyllaDB
  -> public RegimeDiscoveryPipelineCompletedEvent OR FailedEvent
+ -> Regime Discovery Realtime actor
+ -> CompleteRegimeDiscoveryCommand OR FailRegimeDiscoveryCommand
+ -> Strategy Workflow Command actor
 ```
 
-Once a start is accepted, exactly one logical durable terminal outcome is
-required. V1 does not publish an independently durable Processing milestone:
-the calculation occurs inside the asynchronous command transaction and the
-terminal domain event is the durable outcome. Duplicate transport delivery is
-idempotent. No failed
-calculation is automatically retried; a later eligible ITI event may
-create a new workflow.
+V1 does not publish an independently durable Processing milestone. The
+calculation occurs inside the asynchronous Execute command and only a committed
+private terminal event records an outcome. Duplicate transport delivery is
+idempotent. No failed, timed-out, or interrupted calculation is automatically
+retried. A later eligible ITI event may create a new workflow after the
+authoritative Start handler expires any previous workflow whose hard deadline
+has passed.
 
 # 6. Configuration
 
@@ -224,10 +236,11 @@ publish or retire a row; changing a published payload always inserts a new
 version.
 
 The Strategy Workflow resolves the effective strategy configuration before
-starting Regime Discovery, records the selected configuration identities and
+executing Regime Discovery, records the selected configuration identities and
 immutable payload/hash in its authoritative PostgreSQL event stream, and
-supplies the complete typed RegimeDiscoveryParameterSet with the start
-command. Replay never re-resolves historical configuration.
+supplies the complete typed RegimeDiscoveryParameterSet with the Execute
+command. State reconstruction never re-resolves historical configuration or
+redispatches work.
 
 ``` text
 
@@ -246,7 +259,7 @@ RegimeDiscoveryParameterSet
 
 The parameter set is immutable for the execution. Internal actors
 receive relevant immutable sub-configuration and do not query changing
-workflow configuration. StartRegimeDiscoveryPipelineCommand must be
+workflow configuration. ExecuteRegimeDiscoveryPipelineCommand must be
 extended append-only with this parameter set; exact repository changes
 belong in the implementation specification.
 
@@ -601,7 +614,8 @@ evidence rather than in the code. V1 reserves these families:
 Every reason has a configured severity (Information, Warning, Restriction, or
 Failure). Failure codes cannot appear in Completed. Output removes duplicates
 and orders codes by area ordinal, reason ordinal, timeframe ordinal, and
-signal identity so replay and summary text are byte-for-byte deterministic.
+signal identity so state reconstruction and summary text are byte-for-byte
+deterministic.
 
 # 13. RegimeDiscoveryResult v1
 
@@ -629,14 +643,16 @@ the only record of why a regime was produced.
 
 # 14. Failure and Public Pipeline Events
 
-Any required internal model may fail its calculation, but only the Regime
-Discovery EventProjector communicates terminal lifecycle events to the
-Strategy Workflow.
+Any required internal model may fail its calculation. The Regime Discovery
+EventProjector publishes the public terminal notification only after private
+commit and successful projection. The stateless Regime Discovery Realtime actor
+is the only adapter that turns that notification into a Strategy Workflow
+Complete or Fail command.
 
 ``` text
 
-Internal failure -> Command extension -> private failed event -> persist state -> project failure -> RegimeDiscoveryPipelineFailedEvent
-Final Fusion success -> Command extension -> private completed event -> persist state -> project result -> RegimeDiscoveryPipelineCompletedEvent
+Internal failure/timeout -> Command extension -> private failed event -> persist -> project -> public Failed -> Regime Realtime -> FailRegimeDiscoveryCommand
+Final Fusion success -> Command extension -> private completed event -> persist -> project -> public Completed -> Regime Realtime -> CompleteRegimeDiscoveryCommand
 ```
 
 -   Failure examples: invalid parameter set; required signal
@@ -648,10 +664,16 @@ Final Fusion success -> Command extension -> private completed event -> persist 
 
 -   Failed means a valid required result could not be produced.
 
+-   Timeout is represented as a private Failed outcome with stable timeout
+    reason metadata and permanently outranks any later completion.
+
 # 15. State Ownership and Persistence
 
 -   The Regime Discovery Command actor is the only Regime Discovery actor that
     owns private calculation state.
+
+-   The Regime Discovery Realtime actor is stateless and only translates public
+    terminal notifications into typed Workflow Command messages.
 
 -   Component and Fusion models are stateless with respect to actor
     persistence. They receive immutable input and return immutable results.
@@ -659,13 +681,18 @@ Final Fusion success -> Command extension -> private completed event -> persist 
 -   Authoritative Command-actor state is event-sourced in PostgreSQL
     following existing application conventions.
 
--   ScyllaDB contains rebuildable operational/query projections.
+-   ScyllaDB contains non-authoritative operational/query projections.
 
 -   The EventProjector writes the terminal read model before publishing the
     public workflow-facing terminal event.
 
--   Historical reconstruction supports durability, audit, testing, and
-    diagnosis; it does not imply automatic business retry.
+-   Strategy Workflow owns one authoritative
+    `WorkflowStrategyStateUpdatedEvent` snapshot containing machine state,
+    immutable accumulated pipeline view, revision, stage, and hard deadline.
+
+-   PostgreSQL state reconstruction supports actor-state loading, audit,
+    testing, and diagnosis; it never republishes, redispatches, or resumes
+    calculation work.
 
 -   Unbounded history is not retained in live actor state.
 
@@ -692,28 +719,35 @@ Queries are read-only and diagnostic. The Strategy Workflow does not query
 component models or Regime Discovery to reconstruct a continuation result;
 the public completed event carries the full opaque result envelope.
 
-# 17. Optional Timeout - Deferred Implementation Detail
+# 17. Mandatory Hard Timeout and Lazy Workflow Expiry
 
-Every Strategy Workflow pipeline, including Regime Discovery, may
-support a workflow-owned execution deadline. Timeout is an external
-completion guard, not a retry mechanism.
+Every Regime Discovery execution has one immutable `ExpiresAtUtc`, derived from
+its start time and fixed maximum execution duration. Timeout is a terminal
+safety boundary, not a retry mechanism.
 
--   StartXXXPipelineCommand may carry ExpectedCompletionAtUtc.
+-   `ExecuteRegimeDiscoveryPipelineCommand` carries `ExpiresAtUtc`.
 
--   If the same workflow/stage/revision remains Processing beyond the
-    deadline, the workflow may apply TimeoutXXXCommand.
+-   The Command handler bounds snapshot capture and calculation by the
+    remaining duration. At `now >= ExpiresAtUtc`, it may commit only a private
+    Failed event with timeout metadata; it may not commit Completed.
 
--   Timeout is terminal and never starts another attempt.
+-   The Workflow Command actor independently checks its persisted deadline
+    before accepting `CompleteRegimeDiscoveryCommand`. It does not trust a
+    producer-supplied completion timestamp to extend the deadline.
 
--   Any later Completed/Failed event for the timed-out revision is
-    stale.
+-   If a private timeout, projection, public notification, or Fail command is
+    lost, the next Start command loads the authoritative workflow snapshot. An
+    unexpired active workflow is busy. An expired workflow is terminalized as
+    TimedOut and the new workflow is started in the same PostgreSQL event batch.
 
--   Exact duration, dispatcher, warning behavior, and UI behavior are
-    optional for initial implementation and should be refined after
-    end-to-end measurements.
+-   Any later terminal message for an expired or superseded workflow identity,
+    revision, or stage is stale and cannot advance the immutable workflow view.
 
-This is a cross-pipeline Strategy Workflow pattern and should be
-preserved in later pipeline specifications.
+-   The exact V1 duration is a runtime option while the common versioned
+    execution-policy configuration is deferred.
+
+This deadline pattern is the candidate for later pipeline specifications after
+Regime Discovery proves it end to end.
 
 # 18. Optional Manual Cancellation - Deferred Implementation Detail
 
@@ -752,10 +786,10 @@ market data.
 -   Do not log full opaque payload bytes or excessive raw signal
     payloads.
 
-A future operational-design update should refine warning/diagnostic behavior
-for an accepted command that does not produce a terminal event. This is
-deliberately parked until the complete Strategy Workflow can be observed end
-to end.
+The observation view must identify workflows still Started beyond their hard
+deadline as `ExpiredWithoutTerminalOutcome` until a later Start atomically
+terminalizes them. Observation is read-only and never resumes or redispatches
+work.
 
 # 20. Validation and Idempotency
 
@@ -763,7 +797,7 @@ to end.
     parameter-set identity/version, required horizon configuration, and
     signal snapshot integrity.
 
--   Duplicate delivery of the same start command must not perform a
+-   Duplicate delivery of the same Execute command must not perform a
     second logical calculation.
 
 -   Duplicate delivery of the same logical Completed/Failed event is a
@@ -773,6 +807,10 @@ to end.
     fault.
 
 -   Unsupported signal/result schemas are never silently accepted.
+
+-   A workflow completion is accepted only when status, WorkflowId, input
+    revision, current stage, and hard deadline all match authoritative Workflow
+    Command state.
 
 # 21. Testing Requirements
 
@@ -794,10 +832,10 @@ to end.
 -   Fusion completeness, conflict, confidence, restrictions, and
     deterministic summary generation.
 
--   Accepted Start -\> private Completed and Accepted Start -\> private
-    Failed durable terminal paths.
+-   Execute -\> private Completed, Execute -\> private Failed, hard timeout -\>
+    private Failed, and unexpected exception -\> no terminal event paths.
 
--   `_receiveMap` dispatch to the asynchronous Start command extension and
+-   `_receiveMap` dispatch to the asynchronous Execute command extension and
     propagation of its `ServiceResult<GuidResult>`.
 
 -   Sequential and thread-pool-parallel component execution produce
@@ -808,15 +846,19 @@ to end.
 -   EventProjector ordering: PostgreSQL terminal event committed, ScyllaDB
     terminal projection written, then public Completed/Failed event published.
 
--   Duplicate/idempotent start and terminal event behavior.
+-   Regime Realtime translation to Complete/Fail Workflow commands, timeout
+    precedence at the exact boundary, late-result rejection, immutable-view
+    accumulation, and atomic expired-workflow replacement on the next Start.
 
--   PostgreSQL state replay and deterministic Scylla projection rebuild.
+-   Duplicate/idempotent Execute and terminal event behavior.
+
+-   PostgreSQL state reconstruction and idempotent Scylla projection writes;
+    neither may redispatch workflow work.
 
 -   Integration with the real Intrinsic Time Strategy Workflow boundary.
 
--   Optional timeout/cancel tests only if selected for initial
-    implementation; automatic retry tests are not applicable because
-    retries are prohibited.
+-   Mandatory hard-timeout/lazy-expiry tests and optional manual-cancel tests;
+    automatic retry tests are not applicable because retries are prohibited.
 
 # 22. Version Evolution
 
@@ -848,10 +890,14 @@ implementation details.
     asynchronous command-extension, event-sourcing, projection, storage,
     validation, MessagePack, logging, and testing conventions.
 
--   Do not create a Regime Discovery Realtime actor or private component
-    actors. Put actor-centric computation in sealed types under `Model`.
+-   Create one stateless Regime Discovery Realtime adapter for public terminal
+    notification to Workflow Command translation. Do not create private
+    component actors. Put actor-centric computation in sealed types under
+    `Model`.
 
--   Do not redesign the Intrinsic Time Strategy Workflow architecture.
+-   Implement the approved single `WorkflowStrategyStateUpdatedEvent` snapshot
+    contract with separate machine state and immutable accumulated workflow
+    view. Do not add alternative workflow authorities.
 
 -   Identify the minimum append-only workflow changes needed to carry
     RegimeDiscoveryParameterSet and expose configuration
@@ -863,12 +909,13 @@ implementation details.
 -   Do not infer additional regime algorithms, thresholds, retries,
     HMMs, ML.NET logic, or continuation rules not approved here.
 
--   Mark timeout and manual cancellation as optional implementation
-    gates, not mandatory blockers.
+-   Treat the hard execution deadline, lazy expiry, and late-result fencing as
+    mandatory. Manual cancellation remains optional.
 
 -   Preserve the rule that only the Regime Discovery EventProjector publishes
-    the public Completed/Failed lifecycle event after successful projection.
-    V1 has no public Regime Discovery Processing event.
+    the public Completed/Failed lifecycle event after successful projection,
+    and only the Regime Realtime actor translates it into a typed Workflow
+    command. V1 has no public Regime Discovery Processing event.
 
 # 24. Definition of Done for this Design
 
@@ -889,8 +936,8 @@ implementation details.
 
 7.  Failure is terminal and no automatic retry exists.
 
-8.  Optional timeout and manual cancellation are documented but not
-    mandatory for initial implementation.
+8.  Hard timeout, lazy expiry, and late-result fencing are mandatory; manual
+    cancellation is documented but not mandatory for initial implementation.
 
 9.  State, persistence, queries, observability, validation, and testing
     expectations are sufficient for Codex to create the

@@ -8,6 +8,8 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 using TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit;
 using TomasAI.IFM.Domain.Trade.Plan.ForwardLossLimit.Decorators;
@@ -25,44 +27,54 @@ public sealed class TradePlanForwardLossLimitCommandActor(
 
     public const string ActorName = "TradePlanForwardLossLimitCommand";
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [UpdateTradePlanForwardLossLimitCommand.Verb] = message => message.AsCommand<UpdateTradePlanForwardLossLimitCommand>()!,
         [ClearTradePlanForwardLossLimitCommand.Verb] = message => message.AsCommand<ClearTradePlanForwardLossLimitCommand>()!
     };
 
-    static readonly Dictionary<string, Action<ICommand>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
-        [typeof(UpdateTradePlanForwardLossLimitCommand).Name] = command =>
-            new TradePlanForwardLossLimitCommandDecorator().ValidateCommand((UpdateTradePlanForwardLossLimitCommand)command),
-        [typeof(ClearTradePlanForwardLossLimitCommand).Name] = command =>
-            new TradePlanForwardLossLimitCommandDecorator().ValidateCommand((ClearTradePlanForwardLossLimitCommand)command)
+        [typeof(UpdateTradePlanForwardLossLimitCommand)] = command =>
+        {
+            var update = (UpdateTradePlanForwardLossLimitCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(update.CommandId, update.CommandName)
+                .ValidateEntityId(update.EntityId, update.CommandName)
+                .CaptureCommandValidation(() =>
+                    new TradePlanForwardLossLimitCommandDecorator().ValidateCommand(update));
+        },
+        [typeof(ClearTradePlanForwardLossLimitCommand)] = command =>
+        {
+            var clear = (ClearTradePlanForwardLossLimitCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(clear.CommandId, clear.CommandName)
+                .ValidateEntityId(clear.EntityId, clear.CommandName)
+                .CaptureCommandValidation(() =>
+                    new TradePlanForwardLossLimitCommandDecorator().ValidateCommand(clear));
+        }
     };
 
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<TradePlanForwardLossLimitCommandActor>, TradePlanActorState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<TradePlanForwardLossLimitCommandActor>, TradePlanActorState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<TradePlanForwardLossLimitCommandActor>, TradePlanActorState, ValueTask<ServiceResult<GuidResult>>>>()
     {
-        [typeof(UpdateTradePlanForwardLossLimitCommand).Name] = (command, context, state) =>
+        [typeof(UpdateTradePlanForwardLossLimitCommand)] = (command, context, state) =>
             ((UpdateTradePlanForwardLossLimitCommand)command).ExecuteAsync(context, state),
-        [typeof(ClearTradePlanForwardLossLimitCommand).Name] = (command, context, state) =>
+        [typeof(ClearTradePlanForwardLossLimitCommand)] = (command, context, state) =>
             ((ClearTradePlanForwardLossLimitCommand)command).ExecuteAsync(context, state)
     };
 
-    protected override ICommand ParseMessage(ICommandActorContext<TradePlanForwardLossLimitCommandActor> context, IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(message.Subject.Verb, out var parse))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        return parse(message);
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<TradePlanForwardLossLimitCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     protected override ValueTask OnValidateAsync(
         ICommandActorContext<TradePlanForwardLossLimitCommandActor> context,
         ActorThreadId threadId,
         ICommand command)
     {
-        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
-            throw new InvalidOperationException($"Unable to validate {ActorName} command: {command.GetType().Name}");
-        validate(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -71,8 +83,7 @@ public sealed class TradePlanForwardLossLimitCommandActor(
         IActorState state,
         ICommand command)
     {
-        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
-            throw new InvalidOperationException($"Unable to process {ActorName} command: {command.GetType().Name}");
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
         return await receive(command, context, (TradePlanActorState)state).ConfigureAwait(false);
     }
 

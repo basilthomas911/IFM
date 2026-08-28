@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.Actor.BDDTests" />
+    <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.BddTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.Actor.UnitTests" />
     <InternalsVisibleTo Include="TomasAI.IFM.Domain.Trade.UnitTests" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />

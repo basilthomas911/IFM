@@ -68,12 +68,19 @@ public static class FundOrderIdValidationExtension
     /// greater than 0.</param>
     /// <param name="commandName">The name of the command being validated, used to prefix error messages for context.</param>
     /// <returns>The updated list of <see cref="ValidationError"/> objects, including any new validation errors found.</returns>
-    public static List<ValidationError> ValidateFundOrderId(this List<ValidationError> validationErrors, FundOrderId fundOrderId, string commandName)
+    public static List<ValidationError> ValidateFundOrderId(this List<ValidationError> validationErrors, FundOrderId? fundOrderId, string commandName)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        if (fundOrderId is null)
+        {
+            validationErrors.Add(new($"{commandName}.FundOrderId is null"));
+            return validationErrors;
+        }
+
         if (fundOrderId.FundId < 1)
-            validationErrors.Add(new($"{commandName}.FundId must be > 0"));
+            validationErrors.Add(new($"{commandName}.FundOrderId.FundId must be > 0"));
         if (fundOrderId.OrderId < 1)
-            validationErrors.Add(new($"{commandName}.OrderId must be > 0"));
+            validationErrors.Add(new($"{commandName}.FundOrderId.OrderId must be > 0"));
         return validationErrors;
     }
 }

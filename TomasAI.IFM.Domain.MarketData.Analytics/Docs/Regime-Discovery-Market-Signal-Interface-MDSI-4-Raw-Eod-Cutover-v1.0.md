@@ -25,7 +25,7 @@ The removed `BollingerBands` model and simplified Feed EOD model prevent new
 derived calculations in Feed. The raw factory copies only OHLCV and constructs
 session boundaries, deterministic observation identity, and source lineage.
 The realtime cutover also prevents the former partial legacy session writer
-from racing the shared trade-session bar publisher.
+from racing the shared trade-session bar signal.
 
 `FuturesEodAnalyticsAssembler` is the compatibility read boundary. It accepts
 one raw EOD row plus exact Analytics signal results and rejects mismatched

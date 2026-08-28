@@ -28,7 +28,7 @@ public class FundEventActor(
         nameof(actorContext))!;
 
     readonly ILogger<FundEventActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly Dictionary<Type, Func<IEvent, IFundEventContext, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFundEventContext, ILogger, ValueTask<bool>>> _receiveMap = new Dictionary<Type, Func<IEvent, IFundEventContext, ILogger, ValueTask<bool>>>()
     {
         [typeof(FundMaxProfitGeneratedEvent)] = async (evt, context, logger) =>
         {
@@ -46,17 +46,7 @@ public class FundEventActor(
     /// <returns>An event object representing the parsed event corresponding to the message and verb, or <see langword="null"/> if the message subject
     /// does not correspond to a known event (indicating the message should be ignored).</returns>
     protected override IEvent ParseMessage(IEventActorContext<FundEventActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Event, Name: Actor }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            return default!;
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedEvent(context, message, _parseMap);
 
     /// <summary>
     /// Maps event verb strings to factory functions that convert NATS messages into corresponding event instances.
@@ -65,7 +55,7 @@ public class FundEventActor(
     /// each event verb with a function that constructs the appropriate event type. The mapping assumes that each verb
     /// is unique and corresponds to a specific event class. The functions expect the message payload to be compatible
     /// with the target event type.</remarks>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap = new Dictionary<string, Func<IActorMessage, IEvent>>()
     {
         [FundMaxProfitGeneratedEvent.Verb] = msg => msg.AsEvent<FundMaxProfitGeneratedEvent>()!
     };
@@ -81,8 +71,7 @@ public class FundEventActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {Actor} event from message: {@event.Subject}");
+        var receiveFunc = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveFunc.Invoke(@event, FundEventContext, _logger).ConfigureAwait(false);
     }
 

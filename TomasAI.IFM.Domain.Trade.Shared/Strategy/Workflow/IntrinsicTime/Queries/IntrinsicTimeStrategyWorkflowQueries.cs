@@ -211,3 +211,18 @@ public sealed record GetStoppedIntrinsicTimeStrategyWorkflowsQuery : IQuery<Intr
     /// <summary>Gets the maximum returned item count.</summary>
     [Key(4)] public int PageSize { get; init; } = 100;
 }
+
+/// <summary>Gets the read-only operational condition of one stable workflow entity.</summary>
+[MessagePackObject(AllowPrivate = true)]
+public sealed record GetIntrinsicTimeStrategyWorkflowObservationQuery
+    : IQuery<IntrinsicTimeStrategyWorkflowObservationReadModel>
+{
+    [IgnoreMember] public const string Actor = GetIntrinsicTimeStrategyWorkflowByIdQuery.Actor;
+    [IgnoreMember] public const string Verb = "GetObservation";
+    [IgnoreMember] public const int ErrorId = 25010;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
+    [IgnoreMember] public string? QueryParams { get; init; }
+    [Key(2)] public IntrinsicTimeStrategyWorkflowEntityId WorkflowEntity { get; init; } = new();
+}

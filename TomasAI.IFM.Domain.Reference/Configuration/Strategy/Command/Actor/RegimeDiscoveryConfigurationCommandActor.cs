@@ -5,6 +5,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Domain;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Reference.Configuration.Strategy.Command.Actor;
 
@@ -21,24 +23,45 @@ public sealed class RegimeDiscoveryConfigurationCommandActor(
             [RetireRegimeDiscoveryParameterSetCommand.Verb] = message => message.AsCommand<RetireRegimeDiscoveryParameterSetCommand>()!
         };
 
-    static readonly IReadOnlyDictionary<string, Action<ICommand>> _validationMap =
-        new Dictionary<string, Action<ICommand>>(StringComparer.Ordinal)
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>
         {
-            [nameof(CreateRegimeDiscoveryParameterSetCommand)] = command => ValidateCreate((CreateRegimeDiscoveryParameterSetCommand)command),
-            [nameof(PublishRegimeDiscoveryParameterSetCommand)] = ValidateCommon,
-            [nameof(RetireRegimeDiscoveryParameterSetCommand)] = ValidateCommon
+            [typeof(CreateRegimeDiscoveryParameterSetCommand)] = command =>
+            {
+                var create = (CreateRegimeDiscoveryParameterSetCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(create.CommandId, create.CommandName)
+                    .ValidateEntityId(create.EntityId, create.CommandName)
+                    .CaptureCommandValidation(() => ValidateCreate(create));
+            },
+            [typeof(PublishRegimeDiscoveryParameterSetCommand)] = command =>
+            {
+                var publish = (PublishRegimeDiscoveryParameterSetCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(publish.CommandId, publish.CommandName)
+                    .ValidateEntityId(publish.EntityId, publish.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommon(publish));
+            },
+            [typeof(RetireRegimeDiscoveryParameterSetCommand)] = command =>
+            {
+                var retire = (RetireRegimeDiscoveryParameterSetCommand)command;
+                return new List<ValidationError>()
+                    .ValidateCommandId(retire.CommandId, retire.CommandName)
+                    .ValidateEntityId(retire.EntityId, retire.CommandName)
+                    .CaptureCommandValidation(() => ValidateCommon(retire));
+            }
         };
 
-    static readonly IReadOnlyDictionary<string, Func<ICommand, ICommandActorContext,
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
         RegimeDiscoveryConfigurationCommandState, Task<ServiceResult<GuidResult>>>> _receiveMap =
-        new Dictionary<string, Func<ICommand, ICommandActorContext,
-            RegimeDiscoveryConfigurationCommandState, Task<ServiceResult<GuidResult>>>>(StringComparer.Ordinal)
+        new Dictionary<Type, Func<ICommand, ICommandActorContext,
+            RegimeDiscoveryConfigurationCommandState, Task<ServiceResult<GuidResult>>>>()
         {
-            [nameof(CreateRegimeDiscoveryParameterSetCommand)] = (command, context, state) =>
+            [typeof(CreateRegimeDiscoveryParameterSetCommand)] = (command, context, state) =>
                 ((CreateRegimeDiscoveryParameterSetCommand)command).ExecuteAsync(context, state),
-            [nameof(PublishRegimeDiscoveryParameterSetCommand)] = (command, context, state) =>
+            [typeof(PublishRegimeDiscoveryParameterSetCommand)] = (command, context, state) =>
                 ((PublishRegimeDiscoveryParameterSetCommand)command).ExecuteAsync(context, state),
-            [nameof(RetireRegimeDiscoveryParameterSetCommand)] = (command, context, state) =>
+            [typeof(RetireRegimeDiscoveryParameterSetCommand)] = (command, context, state) =>
                 ((RetireRegimeDiscoveryParameterSetCommand)command).ExecuteAsync(context, state)
         };
 
@@ -55,22 +78,16 @@ public sealed class RegimeDiscoveryConfigurationCommandActor(
         => await ActorContext.EventProjector.StopAsync().ConfigureAwait(false);
 
     /// <inheritdoc />
-    protected override ICommand ParseMessage(ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context,
+    protected override ICommand ParseMessage(
+        ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } ||
-            !_parseMap.TryGetValue(message.Subject.Verb, out var parse))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return parse(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override ValueTask OnValidateAsync(ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context,
         ActorThreadId threadId, ICommand command)
     {
-        if (!_validationMap.TryGetValue(command.GetType().Name, out var validate))
-            throw new InvalidOperationException($"Unsupported configuration command {command.GetType().Name}.");
-        validate(command);
+        ValidateMappedCommand(command, _validationMap);
         return ValueTask.CompletedTask;
     }
 
@@ -92,8 +109,7 @@ public sealed class RegimeDiscoveryConfigurationCommandActor(
         ICommandActorContext<RegimeDiscoveryConfigurationCommandActor> context,
         IActorState state, ICommand command)
     {
-        if (!_receiveMap.TryGetValue(command.GetType().Name, out var receive))
-            throw new InvalidOperationException($"Unsupported configuration command {command.GetType().Name}.");
+        var receive = ResolveMappedCommandHandler(command, _receiveMap);
         return await receive(command, context, (RegimeDiscoveryConfigurationCommandState)state).ConfigureAwait(false);
     }
 

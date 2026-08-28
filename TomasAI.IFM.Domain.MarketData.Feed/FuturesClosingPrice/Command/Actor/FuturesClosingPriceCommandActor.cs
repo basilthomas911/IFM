@@ -1,7 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
-using Newtonsoft.Json;
 using TomasAI.IFM.Shared.Domain;
 using global::TomasAI.IFM.Shared.EventModelActor;
 using global::TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -39,7 +38,6 @@ public class FuturesClosingPriceCommandActor(
 {
     public const string ActorName = "FuturesClosingPriceCommand";
     readonly ILogger<FuturesClosingPriceCommandActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly CommandAuditTracker _commandAudit = new(IsArgumentNull.Set(actorContext.DbEventSource));
     readonly IEventProjector<FuturesClosingPriceCommandActor> _eventProjector = IsArgumentNull.Set(eventProjector);
     IEventSourceActorStateRepository<FuturesClosingPriceCommandState> _repo = default!;
 
@@ -64,24 +62,16 @@ public class FuturesClosingPriceCommandActor(
     /// <param name="message">The NATS message containing the command data to be parsed.</param>
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesClosingPriceCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        _commandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesClosingPriceCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [InsertFuturesClosingPriceCommand.Verb] = msg => msg.AsCommand<InsertFuturesClosingPriceCommand>()!
     };
@@ -101,9 +91,7 @@ public class FuturesClosingPriceCommandActor(
         IsArgumentNull.Check(state);
         IsArgumentNull.Check(cmd);
         var closingPriceState = IsArgumentNull.Set((state as FuturesClosingPriceCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return ValueTask.FromResult(receiveFunc.Invoke(cmd, context, closingPriceState));
     }
 
@@ -111,10 +99,11 @@ public class FuturesClosingPriceCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding futures closing price
     /// command logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext,
-        FuturesClosingPriceCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesClosingPriceCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext,
+        FuturesClosingPriceCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(InsertFuturesClosingPriceCommand).Name] = (cmd, context, state) => (cmd as InsertFuturesClosingPriceCommand).Execute(state)
+        [typeof(InsertFuturesClosingPriceCommand)] = (cmd, context, state) => (cmd as InsertFuturesClosingPriceCommand).Execute(state)
     };
 
     /// <summary>
@@ -129,23 +118,21 @@ public class FuturesClosingPriceCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await _commandAudit.CompleteAsync(cmd);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(InsertFuturesClosingPriceCommand).Name] = cmd => {
+        [typeof(InsertFuturesClosingPriceCommand)] = cmd => {
             var e = (InsertFuturesClosingPriceCommand)cmd; return new List<ValidationError>()
                 .ValidateCommandId(e.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateFuturesDataId(e.FuturesClosingPriceId)
                 .ValidateClosingPrice(e.ClosingPrice, e.CommandName);
         }

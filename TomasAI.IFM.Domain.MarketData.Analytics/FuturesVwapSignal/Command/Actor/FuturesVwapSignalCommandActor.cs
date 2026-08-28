@@ -1,4 +1,3 @@
-using Newtonsoft.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Shared.Domain;
@@ -30,16 +29,12 @@ public sealed class FuturesVwapSignalCommandActor(
         await typedContext.EventProjector.StopAsync();
 
     /// <inheritdoc />
-    protected override ICommand ParseMessage(ICommandActorContext<FuturesVwapSignalCommandActor> context,
+    protected override ICommand ParseMessage(
+        ICommandActorContext<FuturesVwapSignalCommandActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Command, Name: ActorName } subject
-            || !_parseMap.TryGetValue(subject.Verb, out var parseCommand))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from {message.Subject}.");
-        return parseCommand.Invoke(message);
-    }
+        => ParseMappedCommand(context, message, _parseMap);
 
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [UpdateFuturesVwapSignalCommand.Verb] = message =>
             message.AsCommand<UpdateFuturesVwapSignalCommand>(),
@@ -52,21 +47,20 @@ public sealed class FuturesVwapSignalCommandActor(
         ICommandActorContext<FuturesVwapSignalCommandActor> context,
         IActorState state, ICommand command)
     {
-        var commandName = command.GetType().Name;
-        if (!_receiveMap.TryGetValue(commandName, out var receiveCommand))
-            throw new InvalidOperationException($"Unsupported VWAP command {command.CommandName}.");
+        var receiveCommand = ResolveMappedCommandHandler(command, _receiveMap);
         return ValueTask.FromResult(receiveCommand.Invoke(
             command,
             context,
             (FuturesVwapSignalCommandState)state));
     }
 
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<FuturesVwapSignalCommandActor>,
-        FuturesVwapSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<FuturesVwapSignalCommandActor>,
+        FuturesVwapSignalCommandState, ServiceResult<GuidResult>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<FuturesVwapSignalCommandActor>,
+        FuturesVwapSignalCommandState, ServiceResult<GuidResult>>>()
     {
-        [typeof(UpdateFuturesVwapSignalCommand).Name] = static (command, _, state) =>
+        [typeof(UpdateFuturesVwapSignalCommand)] = static (command, _, state) =>
             ((UpdateFuturesVwapSignalCommand)command).Execute(state),
-        [typeof(RecoverFuturesVwapSignalCommand).Name] = static (command, _, state) =>
+        [typeof(RecoverFuturesVwapSignalCommand)] = static (command, _, state) =>
             ((RecoverFuturesVwapSignalCommand)command).Execute(state)
     };
 
@@ -75,28 +69,31 @@ public sealed class FuturesVwapSignalCommandActor(
         ActorThreadId threadId, ICommand command) => OnValidateAsync(context, threadId, command, CancellationToken.None);
 
     /// <inheritdoc />
-    protected override async ValueTask OnValidateAsync(ICommandActorContext<FuturesVwapSignalCommandActor> context,
+    protected override ValueTask OnValidateAsync(ICommandActorContext<FuturesVwapSignalCommandActor> context,
         ActorThreadId threadId, ICommand command, CancellationToken cancellationToken)
     {
-        await typedContext.DbEventSource.InsertCommandLogAsync(command, DateTime.UtcNow,
-            JsonConvert.SerializeObject(command), cancellationToken);
-        var commandName = command.GetType().Name;
-        if (!_validationMap.TryGetValue(commandName, out var validateCommand))
-            throw new InvalidOperationException($"Unsupported VWAP command {command.CommandName}.");
-        validateCommand.Invoke(command)
-            .ThrowCommandValidationExceptionOnAnyError(command.ErrorCode);
+        ValidateMappedCommand(command, _validationMap);
+        return ValueTask.CompletedTask;
     }
 
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(UpdateFuturesVwapSignalCommand).Name] = ValidateCommand,
-        [typeof(RecoverFuturesVwapSignalCommand).Name] = ValidateCommand
+        [typeof(UpdateFuturesVwapSignalCommand)] = static command =>
+        {
+            var update = (UpdateFuturesVwapSignalCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(update.CommandId, update.CommandName)
+                .ValidateEntityId(update.EntityId, update.CommandName);
+        },
+        [typeof(RecoverFuturesVwapSignalCommand)] = static command =>
+        {
+            var recover = (RecoverFuturesVwapSignalCommand)command;
+            return new List<ValidationError>()
+                .ValidateCommandId(recover.CommandId, recover.CommandName)
+                .ValidateEntityId(recover.EntityId, recover.CommandName);
+        }
     };
-
-    static List<ValidationError> ValidateCommand(ICommand command) =>
-        command.CommandId == Guid.Empty
-            ? [new ValidationError(nameof(command.CommandId), "CommandId is required")]
-            : [];
 
     /// <inheritdoc />
     protected override async ValueTask<IActorState> OnLoadStateAsync(

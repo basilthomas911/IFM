@@ -55,12 +55,9 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
     }
 
     [Fact]
-    public async Task Parse_does_not_block_on_command_audit_and_validation_awaits_it()
+    public async Task Parse_and_validation_do_not_write_a_domain_local_command_audit()
     {
-        var auditCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var database = Substitute.For<IEventSourceActorDbContext>();
-        database.InsertCommandLogAsync(Arg.Any<ICommand>(), Arg.Any<DateTime>(), Arg.Any<string>())
-            .Returns(auditCompletion.Task);
         var actor = _fixture.CreateActor(database);
         var command = new DeleteOptionTradeCommand(1, 2) with
         {
@@ -77,22 +74,16 @@ public class OptionTradeCommandActorTests : IClassFixture<TradeFixture>
             Data = _fixture.DataSerializer.Serialize(command)
         };
 
-        var parseTask = Task.Run(() => actor.InvokeParseMessage(Substitute.For<ICommandActorContext<OptionTradeCommandActor>>(), message));
-        var completed = await Task.WhenAny(parseTask, Task.Delay(TimeSpan.FromSeconds(1)));
-
-        completed.Should().BeSameAs(parseTask);
-        var parsed = await parseTask;
-        var validationTask = actor.InvokeOnValidateAsync(
+        var parsed = actor.InvokeParseMessage(
+            Substitute.For<ICommandActorContext<OptionTradeCommandActor>>(),
+            message);
+        await actor.InvokeOnValidateAsync(
             Substitute.For<ICommandActorContext<OptionTradeCommandActor>>(),
             command.Subject.ThreadId,
-            parsed).AsTask();
-        await Task.Delay(25);
-        validationTask.IsCompleted.Should().BeFalse();
+            parsed);
 
-        auditCompletion.SetResult();
-        await validationTask;
-        await database.Received(1).InsertCommandLogAsync(
-            Arg.Is<ICommand>(value => value.CommandId == command.CommandId),
+        await database.DidNotReceive().InsertCommandLogAsync(
+            Arg.Any<ICommand>(),
             Arg.Any<DateTime>(),
             Arg.Any<string>());
     }

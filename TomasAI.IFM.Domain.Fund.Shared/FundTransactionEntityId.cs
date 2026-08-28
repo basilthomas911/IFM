@@ -1,6 +1,7 @@
 using MessagePack;
 using Newtonsoft.Json;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Fund.Shared;
 
@@ -33,4 +34,25 @@ public record FundTransactionEntityId(
     /// Returns a compact JSON representation of the identifier.
     /// </summary>
     public override string ToString() => JsonConvert.SerializeObject(this);
+}
+
+public static class FundTransactionEntityIdValidationExtensions
+{
+    public static List<ValidationError> ValidateFundTransactionEntityId(
+        this List<ValidationError> validationErrors,
+        FundTransactionEntityId? entityId,
+        string commandName)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        if (entityId is null)
+        {
+            validationErrors.Add(new($"{commandName}.EntityId is null"));
+            return validationErrors;
+        }
+        if (entityId.FundId < 1)
+            validationErrors.Add(new($"{commandName}.EntityId.FundId must be > 0"));
+        if (entityId.OrderId < 0)
+            validationErrors.Add(new($"{commandName}.EntityId.OrderId must be >= 0"));
+        return validationErrors;
+    }
 }

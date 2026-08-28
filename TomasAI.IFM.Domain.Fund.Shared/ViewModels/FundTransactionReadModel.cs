@@ -1,7 +1,9 @@
 using TomasAI.IFM.Domain.Trade.Shared;
+using FluentValidation;
+using FluentValidation.Results;
 using MessagePack;
 using Newtonsoft.Json;
-using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Shared.Validation;
 
 namespace TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -182,4 +184,63 @@ public record FundTransactionReadModel
            amount: amount,
            balance: 0
        );
+}
+
+public sealed class FundTransactionValidationRules : BaseValidationRules, IValidationRules<FundTransactionReadModel>
+{
+    static readonly FundTransactionValidator Validator = new();
+
+    public ValidationError[] Execute(FundTransactionReadModel transaction) => Validate(transaction, Validator);
+
+    sealed class FundTransactionValidator : AbstractValidator<FundTransactionReadModel>
+    {
+        public FundTransactionValidator()
+        {
+            // TransactionId may be zero before persistence assigns the durable identifier.
+            RuleFor(x => x.TransactionId).GreaterThanOrEqualTo(0).WithMessage("FundTransaction.TransactionId is negative");
+            RuleFor(x => x.TransactionDate)
+                .Must(value => value > DateTime.MinValue && value < DateTime.MaxValue)
+                .WithMessage("FundTransaction.TransactionDate is invalid");
+            RuleFor(x => x.TransactionType).Must(Enum.IsDefined).WithMessage("FundTransaction.TransactionType is invalid");
+            RuleFor(x => x.FundId).GreaterThan(0).WithMessage("FundTransaction.FundId is zero or negative");
+            RuleFor(x => x.OrderId).GreaterThan(0).When(x => x.TransactionType.RequiresTradeIdentifiers())
+                .WithMessage("FundTransaction.OrderId is zero or negative");
+            RuleFor(x => x.TradeId).GreaterThan(0).When(x => x.TransactionType.RequiresTradeIdentifiers())
+                .WithMessage("FundTransaction.TradeId is zero or negative");
+            RuleFor(x => x.TradeType)
+                .Must(value => Enum.IsDefined(value) && value != TradeType.Unknown)
+                .When(x => x.TransactionType.RequiresTradeIdentifiers())
+                .WithMessage("FundTransaction.TradeType is invalid");
+            RuleFor(x => x.ValueDate)
+                .Must(value => value > DateOnly.MinValue && value < DateOnly.MaxValue)
+                .WithMessage("FundTransaction.ValueDate is invalid");
+            RuleFor(x => x.TradeStatus).Must(Enum.IsDefined).WithMessage("FundTransaction.TradeStatus is invalid");
+            RuleFor(x => x.Description).NotNull().WithMessage("FundTransaction.Description is null");
+            // Amount and Balance use the complete decimal domain.
+        }
+
+        public override ValidationResult Validate(ValidationContext<FundTransactionReadModel> context)
+            => context.InstanceToValidate is null
+                ? new ValidationResult([new ValidationFailure("FundTransaction", "FundTransaction instance is null")])
+                : base.Validate(context);
+    }
+}
+
+public static class FundTransactionReadModelValidationExtensions
+{
+    static readonly FundTransactionValidationRules Rules = new();
+
+    public static List<ValidationError> ValidateFundTransaction(
+        this List<ValidationError> validationErrors,
+        FundTransactionReadModel? transaction,
+        string? path = null)
+    {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        var errors = Rules.Execute(transaction!);
+        if (string.IsNullOrWhiteSpace(path))
+            validationErrors.AddRange(errors);
+        else
+            validationErrors.AddRange(errors.Select(error => new ValidationError(error.ErrorCode, $"{path}.{error.ErrorMessage}")));
+        return validationErrors;
+    }
 }

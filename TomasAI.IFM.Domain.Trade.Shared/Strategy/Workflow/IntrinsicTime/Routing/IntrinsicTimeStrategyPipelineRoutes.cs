@@ -48,8 +48,8 @@ public static class IntrinsicTimeStrategyPipelineRoutes
     [
         new(
             StrategyWorkflowStage.RegimeDiscovery,
-            new ActorMailboxId(ActorType.Command, StartRegimeDiscoveryPipelineCommand.Actor),
-            new ActorMailboxId(ActorType.Realtime, RegimeDiscoveryPipelineProcessingEvent.Actor),
+            new ActorMailboxId(ActorType.Command, ExecuteRegimeDiscoveryPipelineCommand.Actor),
+            new ActorMailboxId(ActorType.Realtime, RegimeDiscoveryPipelineCompletedEvent.Actor),
             BoundedContextName.RegimeDiscoveryPipelineBoundedContext),
         new(
             StrategyWorkflowStage.MarketCondition,

@@ -37,8 +37,6 @@ public class OptionTradeCommandActor(
         IsArgumentNull.Set(Context as IOptionTradeCommandContext, nameof(Context))!;
 
     public const string ActorName = "OptionTradeCommand";
-    CommandAuditTracker? _commandAudit;
-    CommandAuditTracker CommandAudit => _commandAudit ??= new CommandAuditTracker(ActorContext.DbEventSource);
     IEventSourceActorStateRepository<OptionTradeCommandState> _repo = default!;
 
     /// <summary>
@@ -69,24 +67,16 @@ public class OptionTradeCommandActor(
     /// <returns>An <see cref="ICommand"/> instance representing the parsed command from the message.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject does not correspond to a known command for the actor, or if command resolution
     /// fails.</exception>
-    protected override ICommand ParseMessage(ICommandActorContext<OptionTradeCommandActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Command, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {message.Subject}");
-        var command = messageParser.Invoke(message);
-        IsArgumentNull.Check(command);
-        CommandAudit.Start(command);
-        return command;
-    }
+    protected override ICommand ParseMessage(
+        ICommandActorContext<OptionTradeCommandActor> context,
+        IActorMessage message)
+        => ParseMappedCommand(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from command verb strings to delegate functions that parse a NATS message into the
     /// corresponding command instance.
     /// </summary>
-    static readonly Dictionary<string, Func<IActorMessage, ICommand>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, ICommand>> _parseMap = new Dictionary<string, Func<IActorMessage, ICommand>>()
     {
         [PlaceOptionTradeOrderCommand.Verb] = msg => msg.AsCommand<PlaceOptionTradeOrderCommand>()!,
         [OpenOptionTradeCommand.Verb] = msg => msg.AsCommand<OpenOptionTradeCommand>()!,
@@ -123,9 +113,7 @@ public class OptionTradeCommandActor(
         IsArgumentNull.Check(cmd);
 
         var optionTradeState = IsArgumentNull.Set((state as OptionTradeCommandState)!);
-        var cmdName = cmd.GetType().Name;
-        if (!_receiveMap.TryGetValue(cmdName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} command from message: {cmd.Subject}");
+        var receiveFunc = ResolveMappedCommandHandler(cmd, _receiveMap);
         return await receiveFunc.Invoke(cmd, dispatchContext, optionTradeState).ConfigureAwait(false);
     }
 
@@ -133,23 +121,23 @@ public class OptionTradeCommandActor(
     /// Provides a mapping from command type names to delegate functions that execute the corresponding option trade command
     /// logic on a given state.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, ICommandActorContext<OptionTradeCommandActor>, OptionTradeCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, ICommandActorContext<OptionTradeCommandActor>, OptionTradeCommandState, ValueTask<ServiceResult<GuidResult>>>> _receiveMap = new Dictionary<Type, Func<ICommand, ICommandActorContext<OptionTradeCommandActor>, OptionTradeCommandState, ValueTask<ServiceResult<GuidResult>>>>()
     {
-        [typeof(PlaceOptionTradeOrderCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((PlaceOptionTradeOrderCommand)cmd).Execute(state)),
-        [typeof(OpenOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((OpenOptionTradeCommand)cmd).Execute(state)),
-        [typeof(CloseOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((CloseOptionTradeCommand)cmd).Execute(state)),
-        [typeof(DeleteOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((DeleteOptionTradeCommand)cmd).Execute(state)),
-        [typeof(SnapshotOptionTradeCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((SnapshotOptionTradeCommand)cmd).Execute(state)),
-        [typeof(ChangeOptionTradeLegDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((ChangeOptionTradeLegDataCommand)cmd).Execute(state)),
-        [typeof(UpdateOptionTradeSpreadDistributionStatisticsCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((UpdateOptionTradeSpreadDistributionStatisticsCommand)cmd).Execute(state)),
-        [typeof(OpenOptionTradePositionCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((OpenOptionTradePositionCommand)cmd).Execute(state)),
-        [typeof(CloseOptionTradePositionCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((CloseOptionTradePositionCommand)cmd).Execute(state)),
-        [typeof(DeleteOptionTradeSpreadBarDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((DeleteOptionTradeSpreadBarDataCommand)cmd).Execute(state)),
-        [typeof(InsertOptionTradeSpreadBarDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((InsertOptionTradeSpreadBarDataCommand)cmd).Execute(state)),
-        [typeof(InsertOptionTradeSpreadDataCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((InsertOptionTradeSpreadDataCommand)cmd).Execute(state)),
-        [typeof(ProcessOptionTradeEndOfDayCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((ProcessOptionTradeEndOfDayCommand)cmd).Execute(state)),
-        [typeof(UpdateOptionTradeDailyProfitTargetCommand).Name] = (cmd, _, state) => ValueTask.FromResult(((UpdateOptionTradeDailyProfitTargetCommand)cmd).Execute(state)),
-        [typeof(DeleteOptionTradesCommand).Name] = (cmd, context, state) => ((DeleteOptionTradesCommand)cmd).ExecuteAsync(context, state)
+        [typeof(PlaceOptionTradeOrderCommand)] = (cmd, _, state) => ValueTask.FromResult(((PlaceOptionTradeOrderCommand)cmd).Execute(state)),
+        [typeof(OpenOptionTradeCommand)] = (cmd, _, state) => ValueTask.FromResult(((OpenOptionTradeCommand)cmd).Execute(state)),
+        [typeof(CloseOptionTradeCommand)] = (cmd, _, state) => ValueTask.FromResult(((CloseOptionTradeCommand)cmd).Execute(state)),
+        [typeof(DeleteOptionTradeCommand)] = (cmd, _, state) => ValueTask.FromResult(((DeleteOptionTradeCommand)cmd).Execute(state)),
+        [typeof(SnapshotOptionTradeCommand)] = (cmd, _, state) => ValueTask.FromResult(((SnapshotOptionTradeCommand)cmd).Execute(state)),
+        [typeof(ChangeOptionTradeLegDataCommand)] = (cmd, _, state) => ValueTask.FromResult(((ChangeOptionTradeLegDataCommand)cmd).Execute(state)),
+        [typeof(UpdateOptionTradeSpreadDistributionStatisticsCommand)] = (cmd, _, state) => ValueTask.FromResult(((UpdateOptionTradeSpreadDistributionStatisticsCommand)cmd).Execute(state)),
+        [typeof(OpenOptionTradePositionCommand)] = (cmd, _, state) => ValueTask.FromResult(((OpenOptionTradePositionCommand)cmd).Execute(state)),
+        [typeof(CloseOptionTradePositionCommand)] = (cmd, _, state) => ValueTask.FromResult(((CloseOptionTradePositionCommand)cmd).Execute(state)),
+        [typeof(DeleteOptionTradeSpreadBarDataCommand)] = (cmd, _, state) => ValueTask.FromResult(((DeleteOptionTradeSpreadBarDataCommand)cmd).Execute(state)),
+        [typeof(InsertOptionTradeSpreadBarDataCommand)] = (cmd, _, state) => ValueTask.FromResult(((InsertOptionTradeSpreadBarDataCommand)cmd).Execute(state)),
+        [typeof(InsertOptionTradeSpreadDataCommand)] = (cmd, _, state) => ValueTask.FromResult(((InsertOptionTradeSpreadDataCommand)cmd).Execute(state)),
+        [typeof(ProcessOptionTradeEndOfDayCommand)] = (cmd, _, state) => ValueTask.FromResult(((ProcessOptionTradeEndOfDayCommand)cmd).Execute(state)),
+        [typeof(UpdateOptionTradeDailyProfitTargetCommand)] = (cmd, _, state) => ValueTask.FromResult(((UpdateOptionTradeDailyProfitTargetCommand)cmd).Execute(state)),
+        [typeof(DeleteOptionTradesCommand)] = (cmd, context, state) => ((DeleteOptionTradesCommand)cmd).ExecuteAsync(context, state)
     };
 
     /// <summary>
@@ -170,100 +158,111 @@ public class OptionTradeCommandActor(
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(threadId);
         IsArgumentNull.Check(cmd);
-        await CommandAudit.CompleteAsync(cmd, cancellationToken).ConfigureAwait(false);
-        var cmdName = cmd.GetType().Name;
-        if (!_validationMap.TryGetValue(cmdName, out var getValidationErrors))
-            throw new InvalidOperationException($"Unable to validate {ActorName} commands from message: {cmd.Subject}");
-        getValidationErrors
-            .Invoke(cmd)
-            .ThrowCommandValidationExceptionOnAnyError(cmd.ErrorCode);
+        var cmdName = cmd.GetType();
+        ValidateMappedCommand(cmd, _validationMap);
     }
 
     /// <summary>
     /// Provides a mapping from command type names to their corresponding validation functions.
     /// </summary>
-    static readonly Dictionary<string, Func<ICommand, List<ValidationError>>> _validationMap = new()
+    static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
+        new Dictionary<Type, Func<ICommand, List<ValidationError>>>()
     {
-        [typeof(PlaceOptionTradeOrderCommand).Name] = cmd => {
+        [typeof(PlaceOptionTradeOrderCommand)] = cmd => {
             var e = cmd as PlaceOptionTradeOrderCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName)
                 .ValidateTradeOrder(e.TradeOrder);
         },
-        [typeof(OpenOptionTradeCommand).Name] = cmd => {
+        [typeof(OpenOptionTradeCommand)] = cmd => {
             var e = cmd as OpenOptionTradeCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName)
                 .ValidateTradeOrder(e.TradeOrder);
         },
-        [typeof(CloseOptionTradeCommand).Name] = cmd => {
+        [typeof(CloseOptionTradeCommand)] = cmd => {
             var e = cmd as CloseOptionTradeCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName)
                 .ValidateTradeOrder(e.TradeOrder);
         },
-        [typeof(DeleteOptionTradeCommand).Name] = cmd => {
+        [typeof(DeleteOptionTradeCommand)] = cmd => {
             var e = cmd as DeleteOptionTradeCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName);
         },
-        [typeof(SnapshotOptionTradeCommand).Name] = cmd => {
+        [typeof(SnapshotOptionTradeCommand)] = cmd => {
             var e = cmd as SnapshotOptionTradeCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName);
         },
-        [typeof(ChangeOptionTradeLegDataCommand).Name] = cmd => {
+        [typeof(ChangeOptionTradeLegDataCommand)] = cmd => {
             var e = cmd as ChangeOptionTradeLegDataCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateParameters(e);
         },
-        [typeof(UpdateOptionTradeSpreadDistributionStatisticsCommand).Name] = cmd => {
+        [typeof(UpdateOptionTradeSpreadDistributionStatisticsCommand)] = cmd => {
             var e = cmd as UpdateOptionTradeSpreadDistributionStatisticsCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName)
                 .ValidateDaysToExpiry(e.DaysToExpiry, e.CommandName)
                 .ValidateSpreadDistribution(e.PutSpreadDistribution, e.CallSpreadDistribution, e.CommandName);
         },
-        [typeof(OpenOptionTradePositionCommand).Name] = cmd => {
+        [typeof(OpenOptionTradePositionCommand)] = cmd => {
             var e = cmd as OpenOptionTradePositionCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName);
         },
-        [typeof(CloseOptionTradePositionCommand).Name] = cmd => {
+        [typeof(CloseOptionTradePositionCommand)] = cmd => {
             var e = cmd as CloseOptionTradePositionCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName);
         },
-        [typeof(DeleteOptionTradeSpreadBarDataCommand).Name] = cmd => {
+        [typeof(DeleteOptionTradeSpreadBarDataCommand)] = cmd => {
             var e = cmd as DeleteOptionTradeSpreadBarDataCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName)
                 .ValidateValueDate(e.ValueDate, e.CommandName);
         },
-        [typeof(InsertOptionTradeSpreadBarDataCommand).Name] = cmd => {
+        [typeof(InsertOptionTradeSpreadBarDataCommand)] = cmd => {
             var e = cmd as InsertOptionTradeSpreadBarDataCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeSpreadBarData(e.OptionTradeSpreadBarData);
         },
-        [typeof(InsertOptionTradeSpreadDataCommand).Name] = cmd => {
+        [typeof(InsertOptionTradeSpreadDataCommand)] = cmd => {
             var e = cmd as InsertOptionTradeSpreadDataCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeSpreadData(e.OptionTradeSpreadData);
         },
-        [typeof(ProcessOptionTradeEndOfDayCommand).Name] = cmd => {
+        [typeof(ProcessOptionTradeEndOfDayCommand)] = cmd => {
             var e = cmd as ProcessOptionTradeEndOfDayCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateParameters(e);
         },
-        [typeof(UpdateOptionTradeDailyProfitTargetCommand).Name] = cmd => {
+        [typeof(UpdateOptionTradeDailyProfitTargetCommand)] = cmd => {
             var e = cmd as UpdateOptionTradeDailyProfitTargetCommand; return new List<ValidationError>()
                 .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName)
                 .ValidateOptionTradeId(e.EntityId, e.CommandName);
         },
-        [typeof(DeleteOptionTradesCommand).Name] = cmd => {
+        [typeof(DeleteOptionTradesCommand)] = cmd => {
             var e = cmd as DeleteOptionTradesCommand; return new List<ValidationError>()
-                .ValidateCommandId(e!.CommandId, e.CommandName);
+                .ValidateCommandId(e!.CommandId, e.CommandName)
+                .ValidateEntityId(e.EntityId, e.CommandName);
         }
     };
 

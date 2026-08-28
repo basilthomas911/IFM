@@ -84,14 +84,21 @@ public static class FundOrderTradeIdValidationExtension
     /// properties must all be greater than 0.</param>
     /// <param name="commandName">The name of the command being validated, used to prefix error messages for context.</param>
     /// <returns>The updated list of <see cref="ValidationError"/> objects, including any new validation errors found.</returns>
-    public static List<ValidationError> ValidateFundOrderTradeId(this List<ValidationError> validationErrors, FundOrderTradeId fundOrderTradeId, string commandName)
+    public static List<ValidationError> ValidateFundOrderTradeId(this List<ValidationError> validationErrors, FundOrderTradeId? fundOrderTradeId, string commandName)
     {
+        ArgumentNullException.ThrowIfNull(validationErrors);
+        if (fundOrderTradeId is null)
+        {
+            validationErrors.Add(new($"{commandName}.FundOrderTradeId is null"));
+            return validationErrors;
+        }
+
         if (fundOrderTradeId.FundId < 1)
-            validationErrors.Add(new($"{commandName}.FundId must be > 0"));
+            validationErrors.Add(new($"{commandName}.FundOrderTradeId.FundId must be > 0"));
         if (fundOrderTradeId.OrderId < 1)
-            validationErrors.Add(new($"{commandName}.OrderId must be > 0"));
+            validationErrors.Add(new($"{commandName}.FundOrderTradeId.OrderId must be > 0"));
         if (fundOrderTradeId.TradeId < 1)
-            validationErrors.Add(new($"{commandName}.TradeId must be > 0"));
+            validationErrors.Add(new($"{commandName}.FundOrderTradeId.TradeId must be > 0"));
         return validationErrors;
     }
 

@@ -1,12 +1,15 @@
 using MessagePack;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 
@@ -25,7 +28,8 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
             [GetIntrinsicTimeStrategyWorkflowTimelineQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowTimelineQuery, IntrinsicTimeStrategyWorkflowTimelineReadModel[]>()!,
             [GetRecentIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetRecentIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
             [GetCompletedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetCompletedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
-            [GetStoppedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetStoppedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!
+            [GetStoppedIntrinsicTimeStrategyWorkflowsQuery.Verb] = message => message.AsQuery<GetStoppedIntrinsicTimeStrategyWorkflowsQuery, IntrinsicTimeStrategyWorkflowHistoryReadModel[]>()!,
+            [GetIntrinsicTimeStrategyWorkflowObservationQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowObservationQuery, IntrinsicTimeStrategyWorkflowObservationReadModel>()!
         };
 
     /// <summary>Gets the Query actor name.</summary>
@@ -102,7 +106,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
                 RequireRevision(projection?.WorkflowRevision, stage.MinimumWorkflowRevision, stage.WorkflowId.ToString());
                 if (projection is null)
                     throw new KeyNotFoundException($"Workflow {stage.WorkflowId} was not found.");
-                var state = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowState>(projection.StatePayload);
+                var state = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection.StatePayload);
                 var result = stage.Stage switch
                 {
                     StrategyWorkflowStage.RegimeDiscovery => state.RegimeDiscovery,
@@ -148,6 +152,13 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
                 await ReplyArray(context, query, stopped.Subject.Verb, result).ConfigureAwait(false);
                 break;
             }
+            case GetIntrinsicTimeStrategyWorkflowObservationQuery observation:
+            {
+                var result = await ObserveAsync(observation, cancellationToken).ConfigureAwait(false);
+                await context.ReplyAsync(query.Subject.ThreadId, observation.Subject.Verb,
+                    new ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>(result)).ConfigureAwait(false);
+                break;
+            }
             default:
                 throw new InvalidOperationException($"Unsupported workflow query: {query.GetType().Name}");
         }
@@ -189,6 +200,123 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
             throw new ArgumentOutOfRangeException(nameof(pageSize), pageSize, "Page size must be between 1 and 1000.");
         return pageSize;
     }
+
+    async ValueTask<IntrinsicTimeStrategyWorkflowObservationReadModel> ObserveAsync(
+        GetIntrinsicTimeStrategyWorkflowObservationQuery query,
+        CancellationToken cancellationToken)
+    {
+        var entityText = query.WorkflowEntity.Format();
+        var now = ActorContext.TimeProvider.GetUtcNow().UtcDateTime;
+        var load = new StartIntrinsicTimeStrategyWorkflowCommand
+        {
+            Subject = new ActorSubject(ActorType.Command, StartIntrinsicTimeStrategyWorkflowCommand.Actor,
+                StartIntrinsicTimeStrategyWorkflowCommand.Verb, entityText),
+            EntityId = query.WorkflowEntity
+        };
+
+        IntrinsicTimeStrategyWorkflowView? view;
+        try
+        {
+            view = (await ActorContext.StateRepository.LoadStateAsync(load, cancellationToken)
+                .ConfigureAwait(false)).CurrentView;
+        }
+        catch (LegacyWorkflowStreamException exception)
+        {
+            ActorContext.Logger.LogError(exception,
+                "Workflow observation is migration-blocked for {WorkflowEntityId} {StreamId}",
+                entityText, exception.StreamId);
+            return MigrationBlocked(entityText, now, exception.Message);
+        }
+
+        if (view is null)
+            return new IntrinsicTimeStrategyWorkflowObservationReadModel
+            {
+                WorkflowEntityId = entityText,
+                OperationalStatus = IntrinsicTimeStrategyWorkflowOperationalStatus.NotStarted,
+                ObservedAtUtc = now
+            };
+
+        var regime = await ActorContext.DbFactory.TradeDb
+            .GetRegimeDiscoveryAsync(view.WorkflowId, cancellationToken).ConfigureAwait(false);
+        var result = CreateObservation(entityText, view, regime, now);
+
+        if (result.OperationalStatus == IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed)
+            ActorContext.Logger.LogWarning(
+                "Workflow is expired but not closed for {WorkflowEntityId} {WorkflowId} revision {WorkflowRevision}",
+                entityText, view.WorkflowId, view.WorkflowRevision);
+        if (result.NotificationLossSuspected)
+            ActorContext.Logger.LogWarning(
+                "Regime terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",
+                entityText, view.WorkflowId, regime!.SourceEventId);
+
+        return result;
+    }
+
+    internal static IntrinsicTimeStrategyWorkflowObservationReadModel CreateObservation(
+        string entityText,
+        IntrinsicTimeStrategyWorkflowView view,
+        RegimeDiscoveryReadModel? regime,
+        DateTime now)
+    {
+        var accepted = regime is not null &&
+                       regime.WorkflowId == view.WorkflowId &&
+                       regime.InputWorkflowRevision == view.RegimeDiscovery.InputWorkflowRevision &&
+                       regime.SourceEventId == view.RegimeDiscovery.SourceEventId;
+        var expired = view.Status == WorkflowStrategyMachineStatus.Started && now >= view.ExpiresAtUtc;
+        var notificationLoss = expired && regime is not null && !accepted;
+        var operationalStatus = Classify(view.Status, expired);
+        return new IntrinsicTimeStrategyWorkflowObservationReadModel
+        {
+            WorkflowEntityId = entityText,
+            WorkflowId = view.WorkflowId,
+            CorrelationId = view.CorrelationId,
+            MachineStatus = view.Status,
+            CurrentStage = view.CurrentStage,
+            WorkflowRevision = view.WorkflowRevision,
+            StartedAtUtc = view.StartedAtUtc,
+            ExpiresAtUtc = view.ExpiresAtUtc,
+            TerminalAtUtc = view.TerminalAtUtc,
+            StopReasonCode = view.StopReasonCode,
+            OperationalStatus = operationalStatus,
+            IsOperationalIssue = expired || notificationLoss ||
+                                 operationalStatus is IntrinsicTimeStrategyWorkflowOperationalStatus.Failed or
+                                     IntrinsicTimeStrategyWorkflowOperationalStatus.TimedOut,
+            RegimeTerminal = regime,
+            WorkflowAcceptedRegimeTerminal = accepted,
+            NotificationLossSuspected = notificationLoss,
+            ObservedAtUtc = now,
+            Diagnostic = notificationLoss ? "RegimeTerminalNotAccepted" :
+                expired ? "WorkflowExpiredNotClosed" : string.Empty
+        };
+    }
+
+    internal static IntrinsicTimeStrategyWorkflowOperationalStatus Classify(
+        WorkflowStrategyMachineStatus status,
+        bool expired)
+        => status switch
+        {
+            WorkflowStrategyMachineStatus.Started when expired =>
+                IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed,
+            WorkflowStrategyMachineStatus.Started => IntrinsicTimeStrategyWorkflowOperationalStatus.Running,
+            WorkflowStrategyMachineStatus.Failed => IntrinsicTimeStrategyWorkflowOperationalStatus.Failed,
+            WorkflowStrategyMachineStatus.TimedOut => IntrinsicTimeStrategyWorkflowOperationalStatus.TimedOut,
+            WorkflowStrategyMachineStatus.Completed => IntrinsicTimeStrategyWorkflowOperationalStatus.Completed,
+            WorkflowStrategyMachineStatus.Cancelled => IntrinsicTimeStrategyWorkflowOperationalStatus.Cancelled,
+            _ => IntrinsicTimeStrategyWorkflowOperationalStatus.NotStarted
+        };
+
+    internal static IntrinsicTimeStrategyWorkflowObservationReadModel MigrationBlocked(
+        string entityText,
+        DateTime now,
+        string diagnostic)
+        => new()
+        {
+            WorkflowEntityId = entityText,
+            OperationalStatus = IntrinsicTimeStrategyWorkflowOperationalStatus.MigrationBlocked,
+            IsOperationalIssue = true,
+            ObservedAtUtc = now,
+            Diagnostic = diagnostic
+        };
 
     static void RequireRevision(long? actualRevision, long minimumRevision, string identity)
     {

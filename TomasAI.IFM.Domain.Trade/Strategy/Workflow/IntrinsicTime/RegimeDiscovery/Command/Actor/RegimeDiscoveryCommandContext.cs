@@ -33,7 +33,7 @@ public interface IRegimeDiscoveryCommandContext : ICommandActorContext<RegimeDis
     /// <summary>Gets the atomic market-signal snapshot provider.</summary>
     IRegimeDiscoveryMarketSignalSnapshotProvider SnapshotProvider { get; }
     /// <summary>Gets the deterministic calculation coordinator.</summary>
-    RegimeDiscoveryCalculationModel CalculationModel { get; }
+    IRegimeDiscoveryCalculationModel CalculationModel { get; }
     /// <summary>Gets the specialist scheduling mode.</summary>
     RegimeDiscoveryExecutionMode ExecutionMode { get; }
     /// <summary>Gets the calculation clock.</summary>
@@ -88,7 +88,7 @@ public sealed class RegimeDiscoveryCommandContext
     /// <inheritdoc />
     public TimeProvider TimeProvider { get; }
     /// <inheritdoc />
-    public RegimeDiscoveryCalculationModel CalculationModel { get; }
+    public IRegimeDiscoveryCalculationModel CalculationModel { get; }
     /// <inheritdoc />
     public RegimeDiscoveryExecutionMode ExecutionMode { get; }
     /// <inheritdoc />
