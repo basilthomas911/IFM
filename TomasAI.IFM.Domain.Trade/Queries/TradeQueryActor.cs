@@ -42,20 +42,7 @@ public class TradeQueryActor(
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<TradeQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -88,9 +75,7 @@ public class TradeQueryActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         return receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken);
     }
 
@@ -98,9 +83,9 @@ public class TradeQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding trade
     /// query logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext<TradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext<TradeQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetTradeHistoryQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetTradeHistoryQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeHistoryQuery)!;
             var result = await query.GetTradeHistoryAsync(dbFactory, cancellationToken);
@@ -108,7 +93,7 @@ public class TradeQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeHistoryQuery.Verb,
                 new ServiceResult<TradeHistoryReadModel[]>(result));
         },
-        [typeof(GetTradeLimitQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetTradeLimitQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeLimitQuery)!;
             var result = await query.GetTradeLimitAsync(dbFactory, cancellationToken);
@@ -116,7 +101,7 @@ public class TradeQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeLimitQuery.Verb,
                 new ServiceResult<TradeLimitReadModel>(result));
         },
-        [typeof(GetTradePositionQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetTradePositionQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradePositionQuery)!;
             var result = await query.GetTradePositionAsync(dbFactory, cancellationToken);
@@ -124,7 +109,7 @@ public class TradeQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradePositionQuery.Verb,
                 new ServiceResult<TradePositionReadModel>(result));
         },
-        [typeof(GetTradeQuantityQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetTradeQuantityQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeQuantityQuery)!;
             var result = await query.GetTradeQuantityAsync(dbFactory, cancellationToken);
@@ -132,7 +117,7 @@ public class TradeQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeQuantityQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetTradeTypeLimitQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetTradeTypeLimitQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetTradeTypeLimitQuery)!;
             var result = await query.GetTradeTypeLimitAsync(dbFactory, cancellationToken);
@@ -150,36 +135,15 @@ public class TradeQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<TradeQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetTradeHistoryQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<TradeHistoryReadModel[]>(query.ErrorCode, ex!.Message)),
-                _ when query is GetTradeLimitQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<TradeLimitReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetTradePositionQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<TradePositionReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetTradeQuantityQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<int>>(query.ErrorCode, ex!.Message)),
-                _ when query is GetTradeTypeLimitQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<TradeTypeLimitReadModel>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<TradeQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }
 

@@ -38,20 +38,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<FuturesOptionContractQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -88,9 +75,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(FuturesOptionContractContext, query, cancellationToken);
     }
 
@@ -101,9 +86,9 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <remarks>This dictionary enables dynamic dispatch of futures option contract-related queries by associating each query
     /// type name with a function that processes the query against a FuturesOptionContractQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IFuturesOptionContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IFuturesOptionContractQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetFuturesOptionContractQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
             var result = await query.GetFuturesOptionContractAsync(ctx.DbFactory, cancellationToken);
@@ -111,7 +96,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel?>(result));
         },
-        [typeof(GetFuturesOptionContractsQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetFuturesOptionContractsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractsQuery)!;
             var result = await query.GetFuturesOptionContractsAsync(ctx.DbFactory, cancellationToken);
@@ -119,7 +104,7 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractsQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel[]>(result));
         },
-        [typeof(GetFuturesOptionContractIdsQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetFuturesOptionContractIdsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (q as GetFuturesOptionContractIdsQuery)!;
             var result = await query.GetFuturesOptionContractIdsAsync(ctx.DbFactory, cancellationToken);
@@ -141,30 +126,14 @@ public class FuturesOptionContractQueryActor(IQueryActorContext<FuturesOptionCon
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesOptionContractQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        try
-        {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetFuturesOptionContractQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesOptionContractReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFuturesOptionContractsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesOptionContractReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetFuturesOptionContractIdsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<string[]>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FuturesOptionContractQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

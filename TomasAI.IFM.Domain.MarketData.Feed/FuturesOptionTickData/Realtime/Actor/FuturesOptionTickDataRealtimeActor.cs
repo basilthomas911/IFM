@@ -27,6 +27,24 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
         FuturesTickTradeDataInsertedEvent.Actor,
         FuturesTickTradeDataInsertedEvent.Verb);
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesTickTradeDataInsertedEvent.Verb] =
+                message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!
+        };
+
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesOptionTickDataRealtimeContext, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesOptionTickDataRealtimeContext, ValueTask<bool>>>
+        {
+            [typeof(FuturesTickTradeDataInsertedEvent)] = (@event, context) =>
+                ((FuturesTickTradeDataInsertedEvent)@event).ExecuteAsync(
+                    context,
+                    ((IFuturesOptionTickDataRealtimeContext)actorContext).MarketDataApi,
+                    ((IFuturesOptionTickDataRealtimeContext)actorContext).StatusConsoleWriter,
+                    actorContext.Logger)
+        };
+
     protected override ValueTask OnStartup(IEventActorContext<FuturesOptionTickDataRealtimeActor> context)
     {
         context.AddRealtimeRouter(TickTradeRoute, Id);
@@ -42,39 +60,15 @@ public class FuturesOptionTickDataRealtimeActor(IRealtimeActorContext<FuturesOpt
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
         IActorMessage message)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(message);
-        if (message.Subject is not
-            {
-                ActorType: ActorType.Realtime,
-                Name: ActorName,
-                Verb: FuturesTickTradeDataInsertedEvent.Verb
-            })
-            return default!;
-
-        var domainEvent = message.AsEvent<FuturesTickTradeDataInsertedEvent>();
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        domainEvent.CheckForEmptyCommandId();
-        return domainEvent;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesOptionTickDataRealtimeActor> context,
         IEvent domainEvent)
     {
-        if (domainEvent is not FuturesTickTradeDataInsertedEvent trade)
-        {
-            throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} realtime event from {domainEvent.Subject}.");
-        }
-
-        _ = await trade.ExecuteAsync(
-                RealtimeContext,
-                ((IFuturesOptionTickDataRealtimeContext)actorContext).MarketDataApi,
-                ((IFuturesOptionTickDataRealtimeContext)actorContext).StatusConsoleWriter,
-                actorContext.Logger)
-            .ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
+        _ = await handler(domainEvent, RealtimeContext).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnExceptionAsync(

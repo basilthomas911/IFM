@@ -202,7 +202,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
     }
 
     [Fact]
-    public void ParseMessage_ShouldThrowArgumentNullException_WhenDeserializedQueryIsNull()
+    public void ParseMessage_ShouldThrowInvalidOperationException_WhenDeserializedQueryIsNull()
     {
         // Arrange
         var actor = _fixture.CreateActor(Substitute.For<IDbContextFactory>(), Substitute.For<ILogger<FuturesTickDataQueryActor>>());
@@ -217,7 +217,8 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
 
         // Act & Assert
         var act = () => actor.InvokeParseMessage(context, message);
-        act.Should().Throw<ArgumentNullException>();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Parser for FuturesTickDataQuery.GetLastFuturesTickData returned no query.");
     }
 
     [Fact]
@@ -672,7 +673,7 @@ public class FuturesTickDataQueryActorTests : IClassFixture<MarketDataFeedTestFi
         await context.Received(1).ReplyAsync(
             threadId,
             "UnknownVerb",
-            Arg.Is<ServiceFailed<ActorEntityId>>(r =>
+            Arg.Is<ServiceFailed<object>>(r =>
                 !r.Success &&
                 r.ErrorCode == 9999 &&
                 r.ErrorMessage == "Unknown query type"));

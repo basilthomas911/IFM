@@ -297,7 +297,8 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
 
         // Act & Assert
         var act = () => actor.InvokeParseMessage(context, message);
-        act.Should().Throw<ArgumentNullException>();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Parser for MarketDataQuery.GetLastRateOfReturn returned no query.");
     }
 
     [Fact]
@@ -895,7 +896,7 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
         await context.Received(1).ReplyAsync(
             threadId,
             "UnknownVerb",
-            Arg.Is<ServiceFailed<ActorEntityId>>(r =>
+            Arg.Is<ServiceFailed<object>>(r =>
                 !r.Success &&
                 r.ErrorCode == 9999 &&
                 r.ErrorMessage == "Unknown query type"));

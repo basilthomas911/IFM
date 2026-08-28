@@ -37,20 +37,7 @@ public class FuturesRsiSignalQueryActor(
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<FuturesRsiSignalQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var getQueryFromMessage))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = getQueryFromMessage.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -82,20 +69,17 @@ public class FuturesRsiSignalQueryActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        var resultTask = _receiveMap.TryGetValue(qryName, out var handler )
-            ? handler.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken)
-            : throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
-        await resultTask.ConfigureAwait(false);
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(dispatchContext, ActorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures RSI signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext<FuturesRsiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesRsiSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesRsiSignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesRsiSignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesRsiSignalQuery)!;
             var result = await query.GetLastFuturesRsiSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
@@ -104,7 +88,7 @@ public class FuturesRsiSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiSignalQuery.Verb, serviceResult).ConfigureAwait(false);
 
         },
-        [typeof(GetFuturesRsiDailySignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesRsiDailySignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesRsiDailySignalQuery)!;
             var result = await query.GetLastFuturesRsiDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
@@ -112,7 +96,7 @@ public class FuturesRsiSignalQueryActor(
             var serviceResult = new ServiceResult<FuturesRsiSignalReadModel?>(result);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRsiDailySignalQuery.Verb, serviceResult).ConfigureAwait(false);
         },
-        [typeof(GetFuturesTrendDirectionFromRSISignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesTrendDirectionFromRSISignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (GetFuturesTrendDirectionFromRSISignalQuery)q;
             var result = await query.GetFuturesTrendDirectionAsync(dbFactory, cancellationToken).ConfigureAwait(false);
@@ -133,32 +117,15 @@ public class FuturesRsiSignalQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesRsiSignalQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetFuturesRsiSignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesRsiSignalReadModel?>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesRsiDailySignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesRsiSignalReadModel?>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesTrendDirectionFromRSISignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTrendDirectionReadModel>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FuturesRsiSignalQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
 }

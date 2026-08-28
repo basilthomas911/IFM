@@ -18,7 +18,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
     IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> actorContext)
     : BaseQueryActor<IntrinsicTimeStrategyWorkflowQueryActor>(actorContext, RequireContext(actorContext).Logger)
 {
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> Parsers =
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetIntrinsicTimeStrategyWorkflowByIdQuery.Verb] = message => message.AsQuery<GetIntrinsicTimeStrategyWorkflowByIdQuery, IntrinsicTimeStrategyWorkflowReadModel>()!,
@@ -41,16 +41,7 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
     protected override IQuery ParseMessage(
         IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
         IActorMessage message)
-    {
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Query, Name: ActorName } ||
-            !Parsers.TryGetValue(subject.Verb, out var parser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {subject}");
-
-        var query = parser(message);
-        context.SetMessageInfo(subject.ThreadId, subject.Verb, new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(
@@ -64,126 +55,147 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
-        switch (query)
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+    }
+
+    static readonly Dictionary<Type, Func<IntrinsicTimeStrategyWorkflowQueryActor,
+        IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetIntrinsicTimeStrategyWorkflowByIdQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetIntrinsicTimeStrategyWorkflowByIdQuery)query, cancellationToken),
+        [typeof(GetActiveIntrinsicTimeStrategyWorkflowQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetActiveIntrinsicTimeStrategyWorkflowQuery)query, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery)query, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyWorkflowStageStateQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetIntrinsicTimeStrategyWorkflowStageStateQuery)query, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyWorkflowTimelineQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetIntrinsicTimeStrategyWorkflowTimelineQuery)query, cancellationToken),
+        [typeof(GetRecentIntrinsicTimeStrategyWorkflowsQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetRecentIntrinsicTimeStrategyWorkflowsQuery)query, cancellationToken),
+        [typeof(GetCompletedIntrinsicTimeStrategyWorkflowsQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetCompletedIntrinsicTimeStrategyWorkflowsQuery)query, cancellationToken),
+        [typeof(GetStoppedIntrinsicTimeStrategyWorkflowsQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetStoppedIntrinsicTimeStrategyWorkflowsQuery)query, cancellationToken),
+        [typeof(GetIntrinsicTimeStrategyWorkflowObservationQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetIntrinsicTimeStrategyWorkflowObservationQuery)query, cancellationToken)
+    };
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowByIdQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ActorContext.DbFactory.TradeDb
+            .GetIntrinsicTimeStrategyWorkflowAsync(query.WorkflowId, cancellationToken).ConfigureAwait(false);
+        RequireRevision(result?.WorkflowRevision, query.MinimumWorkflowRevision, query.WorkflowId.ToString());
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<IntrinsicTimeStrategyWorkflowReadModel>(result!)).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetActiveIntrinsicTimeStrategyWorkflowQuery query, CancellationToken cancellationToken)
+    {
+        ActiveIntrinsicTimeStrategyWorkflowReadModel? result;
+        if (!ActorContext.ProjectionCache.TryGet(query.WorkflowEntityId, out result))
         {
-            case GetIntrinsicTimeStrategyWorkflowByIdQuery byId:
-            {
-                var result = await ActorContext.DbFactory.TradeDb
-                    .GetIntrinsicTimeStrategyWorkflowAsync(byId.WorkflowId, cancellationToken).ConfigureAwait(false);
-                RequireRevision(result?.WorkflowRevision, byId.MinimumWorkflowRevision, byId.WorkflowId.ToString());
-                await context.ReplyAsync(query.Subject.ThreadId, byId.Subject.Verb,
-                    new ServiceResult<IntrinsicTimeStrategyWorkflowReadModel>(result!)).ConfigureAwait(false);
-                break;
-            }
-            case GetActiveIntrinsicTimeStrategyWorkflowQuery active:
-            {
-                ActiveIntrinsicTimeStrategyWorkflowReadModel? result;
-                if (!ActorContext.ProjectionCache.TryGet(active.WorkflowEntityId, out result))
-                {
-                    result = await ActorContext.DbFactory.TradeDb
-                        .GetActiveIntrinsicTimeStrategyWorkflowAsync(active.WorkflowEntityId, cancellationToken)
-                        .ConfigureAwait(false);
-                    if (result is not null)
-                        ActorContext.ProjectionCache.Set(result);
-                }
-                RequireRevision(result?.WorkflowRevision, active.MinimumWorkflowRevision, active.WorkflowEntityId);
-                await context.ReplyAsync(query.Subject.ThreadId, active.Subject.Verb,
-                    new ServiceResult<ActiveIntrinsicTimeStrategyWorkflowReadModel>(result!)).ConfigureAwait(false);
-                break;
-            }
-            case GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery attempts:
-            {
-                var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(
-                    attempts.WorkflowEntityId, attempts.BeforeUtc, RequirePageSize(attempts.PageSize), cancellationToken)
-                    .ConfigureAwait(false);
-                await ReplyArray(context, query, attempts.Subject.Verb, result).ConfigureAwait(false);
-                break;
-            }
-            case GetIntrinsicTimeStrategyWorkflowStageStateQuery stage:
-            {
-                var projection = await ActorContext.DbFactory.TradeDb
-                    .GetIntrinsicTimeStrategyWorkflowAsync(stage.WorkflowId, cancellationToken).ConfigureAwait(false);
-                RequireRevision(projection?.WorkflowRevision, stage.MinimumWorkflowRevision, stage.WorkflowId.ToString());
-                if (projection is null)
-                    throw new KeyNotFoundException($"Workflow {stage.WorkflowId} was not found.");
-                var state = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection.StatePayload);
-                var result = stage.Stage switch
-                {
-                    StrategyWorkflowStage.RegimeDiscovery => state.RegimeDiscovery,
-                    StrategyWorkflowStage.MarketCondition => state.MarketCondition,
-                    StrategyWorkflowStage.TradeSelection => state.TradeSelection,
-                    StrategyWorkflowStage.OrderComposition => state.OrderComposition,
-                    StrategyWorkflowStage.RiskManagement => state.RiskManagement,
-                    _ => throw new ArgumentOutOfRangeException(nameof(stage.Stage), stage.Stage, "A concrete stage is required.")
-                };
-                await context.ReplyAsync(query.Subject.ThreadId, stage.Subject.Verb,
-                    new ServiceResult<StrategyWorkflowStageState>(result)).ConfigureAwait(false);
-                break;
-            }
-            case GetIntrinsicTimeStrategyWorkflowTimelineQuery timeline:
-            {
-                var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowTimelineAsync(
-                    timeline.WorkflowId, timeline.AfterEventId, RequirePageSize(timeline.PageSize), cancellationToken)
-                    .ConfigureAwait(false);
-                await ReplyArray(context, query, timeline.Subject.Verb, result).ConfigureAwait(false);
-                break;
-            }
-            case GetRecentIntrinsicTimeStrategyWorkflowsQuery recent:
-            {
-                var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
-                    recent.WorkflowEntityId, recent.BeforeUtc, RequirePageSize(recent.PageSize), cancellationToken)
-                    .ConfigureAwait(false);
-                await ReplyArray(context, query, recent.Subject.Verb, result).ConfigureAwait(false);
-                break;
-            }
-            case GetCompletedIntrinsicTimeStrategyWorkflowsQuery completed:
-            {
-                var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
-                    StrategyWorkflowStatus.Completed, completed.StartDate, completed.EndDate,
-                    RequirePageSize(completed.PageSize), cancellationToken).ConfigureAwait(false);
-                await ReplyArray(context, query, completed.Subject.Verb, result).ConfigureAwait(false);
-                break;
-            }
-            case GetStoppedIntrinsicTimeStrategyWorkflowsQuery stopped:
-            {
-                var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
-                    StrategyWorkflowStatus.Stopped, stopped.StartDate, stopped.EndDate,
-                    RequirePageSize(stopped.PageSize), cancellationToken).ConfigureAwait(false);
-                await ReplyArray(context, query, stopped.Subject.Verb, result).ConfigureAwait(false);
-                break;
-            }
-            case GetIntrinsicTimeStrategyWorkflowObservationQuery observation:
-            {
-                var result = await ObserveAsync(observation, cancellationToken).ConfigureAwait(false);
-                await context.ReplyAsync(query.Subject.ThreadId, observation.Subject.Verb,
-                    new ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>(result)).ConfigureAwait(false);
-                break;
-            }
-            default:
-                throw new InvalidOperationException($"Unsupported workflow query: {query.GetType().Name}");
+            result = await ActorContext.DbFactory.TradeDb
+                .GetActiveIntrinsicTimeStrategyWorkflowAsync(query.WorkflowEntityId, cancellationToken)
+                .ConfigureAwait(false);
+            if (result is not null)
+                ActorContext.ProjectionCache.Set(result);
         }
+        RequireRevision(result?.WorkflowRevision, query.MinimumWorkflowRevision, query.WorkflowEntityId);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<ActiveIntrinsicTimeStrategyWorkflowReadModel>(result!)).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowStartAttemptsQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowStartAttemptsAsync(
+            query.WorkflowEntityId, query.BeforeUtc, RequirePageSize(query.PageSize), cancellationToken)
+            .ConfigureAwait(false);
+        await ReplyArray(context, query, query.Subject.Verb, result).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowStageStateQuery query, CancellationToken cancellationToken)
+    {
+        var projection = await ActorContext.DbFactory.TradeDb
+            .GetIntrinsicTimeStrategyWorkflowAsync(query.WorkflowId, cancellationToken).ConfigureAwait(false);
+        RequireRevision(projection?.WorkflowRevision, query.MinimumWorkflowRevision, query.WorkflowId.ToString());
+        if (projection is null)
+            throw new KeyNotFoundException($"Workflow {query.WorkflowId} was not found.");
+        var state = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(projection.StatePayload);
+        var result = query.Stage switch
+        {
+            StrategyWorkflowStage.RegimeDiscovery => state.RegimeDiscovery,
+            StrategyWorkflowStage.MarketCondition => state.MarketCondition,
+            StrategyWorkflowStage.TradeSelection => state.TradeSelection,
+            StrategyWorkflowStage.OrderComposition => state.OrderComposition,
+            StrategyWorkflowStage.RiskManagement => state.RiskManagement,
+            _ => throw new ArgumentOutOfRangeException(nameof(query.Stage), query.Stage, "A concrete stage is required.")
+        };
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<StrategyWorkflowStageState>(result)).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowTimelineQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowTimelineAsync(
+            query.WorkflowId, query.AfterEventId, RequirePageSize(query.PageSize), cancellationToken)
+            .ConfigureAwait(false);
+        await ReplyArray(context, query, query.Subject.Verb, result).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetRecentIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+            query.WorkflowEntityId, query.BeforeUtc, RequirePageSize(query.PageSize), cancellationToken)
+            .ConfigureAwait(false);
+        await ReplyArray(context, query, query.Subject.Verb, result).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetCompletedIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
+            StrategyWorkflowStatus.Completed, query.StartDate, query.EndDate,
+            RequirePageSize(query.PageSize), cancellationToken).ConfigureAwait(false);
+        await ReplyArray(context, query, query.Subject.Verb, result).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetStoppedIntrinsicTimeStrategyWorkflowsQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ActorContext.DbFactory.TradeDb.GetIntrinsicTimeStrategyWorkflowsByStatusAsync(
+            StrategyWorkflowStatus.Stopped, query.StartDate, query.EndDate,
+            RequirePageSize(query.PageSize), cancellationToken).ConfigureAwait(false);
+        await ReplyArray(context, query, query.Subject.Verb, result).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
+        GetIntrinsicTimeStrategyWorkflowObservationQuery query, CancellationToken cancellationToken)
+    {
+        var result = await ObserveAsync(query, cancellationToken).ConfigureAwait(false);
+        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<IntrinsicTimeStrategyWorkflowObservationReadModel>(result)).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    protected override async ValueTask OnExceptionAsync(
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys, static (query, exception) =>
+            exception is ProjectionSnapshotNotReadyException ? 25009 : query.ErrorCode);
+
+    protected override ValueTask OnExceptionAsync(
         IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,
         Exception exception)
-    {
-        var errorCode = exception is ProjectionSnapshotNotReadyException ? 25009 : query?.ErrorCode ?? 25000;
-        try
-        {
-            await context.ReplyAsync(threadId, verb,
-                new ServiceFailed<ActorEntityId>(errorCode, exception.Message)).ConfigureAwait(false);
-        }
-        catch (Exception replyException)
-        {
-            ActorContext.Logger.LogError(replyException,
-                "Failed to return workflow query error for {ThreadId}", threadId);
-        }
-    }
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
     static async ValueTask ReplyArray<T>(
         IQueryActorContext<IntrinsicTimeStrategyWorkflowQueryActor> context,

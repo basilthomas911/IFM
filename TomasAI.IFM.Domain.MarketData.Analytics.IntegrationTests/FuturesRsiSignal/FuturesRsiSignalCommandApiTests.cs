@@ -269,9 +269,15 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         FuturesRsiDailySignalGeneratedCompleteEvent futuresRsiDailySignalGeneratedCompleteEvent = default!;
         FuturesRsiDailySignalGeneratedFailEvent futuresRsiDailySignalGeneratedFailEvent = default!;
         var terminalEventReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var contractId = $"ESRSI{Guid.NewGuid():N}"[..18];
+        var futuresEodData = SampleData.FuturesEodData with { ContractId = contractId };
+        var entityId = new FuturesRsiDailySignalEntityId(
+            contractId,
+            TimeFrameType.Daily,
+            14);
 
         await eventListener.StartAsync(
-            "TestEventListener",
+            $"rsi-daily-{Guid.NewGuid():N}",
             new()
             {
                 [new ActorMailboxId(ActorType.Event, FuturesRsiDailySignalGeneratedEvent.Actor)] =
@@ -283,9 +289,6 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
             },
             EventHandlerAsync
         );
-
-        var futuresEodData = SampleData.FuturesEodData;
-        var entityId = new FuturesRsiSignalEntityId(futuresEodData.ContractId ?? string.Empty, futuresEodData.ValueDate, SampleData.RSITimePeriod, 14);
 
         var subject = new ActorSubject(ActorType.Command, GenerateFuturesRsiDailySignalCommand.Actor, GenerateFuturesRsiDailySignalCommand.Verb, entityId.Format());
         var eventStreamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync($"{subject.ThreadId}");
@@ -306,13 +309,13 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
         futuresRsiDailySignalGeneratedCompleteEvent.Should().NotBeNull(futuresRsiDailySignalGeneratedFailEvent?.ErrorMessage);
         futuresRsiDailySignalGeneratedFailEvent.Should().BeNull();
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.Should().NotBeNull();
-        futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.ContractId.Should().Be(SampleData.ContractId);
+        futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.ContractId.Should().Be(contractId);
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.ValueDate.Should().Be(SampleData.ValueDate);
         futuresRsiDailySignalGeneratedEvent.FuturesRsiSignal.Price.Should().Be((decimal)SampleData.FuturesPrice);
 
-        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(SampleData.ContractId, SampleData.ValueDate, TimeFrameType.Daily, 14);
+        var lastSignal = await dbFixture.MarketDataDb.GetLastFuturesRsiSignalAsync(contractId, SampleData.ValueDate, TimeFrameType.Daily, 14);
         lastSignal.Should().NotBeNull();
-        lastSignal!.ContractId.Should().Be(SampleData.ContractId);
+        lastSignal!.ContractId.Should().Be(contractId);
         lastSignal.ValueDate.Should().Be(SampleData.ValueDate);
 
         await eventListener.StopAsync();
@@ -330,6 +333,9 @@ public class FuturesRsiSignalCommandApiTests(WebApplicationFactory<Program> fact
 
             IEvent SetEvent(IEvent @event)
             {
+                if (@event is IEvent<FuturesRsiDailySignalEntityId> routed
+                    && routed.EntityId != entityId)
+                    return @event;
                 if (@event is FuturesRsiDailySignalGeneratedEvent generated)
                     futuresRsiDailySignalGeneratedEvent = generated;
                 if (@event is FuturesRsiDailySignalGeneratedCompleteEvent generatedComplete)

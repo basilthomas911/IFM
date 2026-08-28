@@ -43,7 +43,8 @@ public class FuturesItiSignalRealtimeActor(
         FuturesMarketPriceUpdatedRealtimeEvent.Verb);
 
     /// <summary>Maps supported realtime verbs to MessagePack event parsers.</summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
@@ -64,6 +65,78 @@ public class FuturesItiSignalRealtimeActor(
     readonly FuturesItiSignalStreamOwnership _streamOwnership = new();
     readonly FuturesItiSignalRealtimeState _realtimeState = new(actorContext.DbFactory);
 
+    static readonly IReadOnlyDictionary<Type, Func<IEvent,
+        IEventActorContext<FuturesItiSignalRealtimeActor>,
+        IFuturesItiSignalRealtimeContext,
+        FuturesItiSignalStreamOwnership,
+        FuturesItiSignalRealtimeState,
+        ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent,
+            IEventActorContext<FuturesItiSignalRealtimeActor>,
+            IFuturesItiSignalRealtimeContext,
+            FuturesItiSignalStreamOwnership,
+            FuturesItiSignalRealtimeState,
+            ValueTask>>
+        {
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (
+                @event, eventContext, context, ownership, state) =>
+            {
+                _ = await ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(
+                        eventContext,
+                        context.Projector,
+                        context.MarketDataApi,
+                        ownership,
+                        state,
+                        context.Logger)
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesItiSignalGeneratedCompleteEvent)] = async (
+                @event, eventContext, context, ownership, state) =>
+            {
+                _ = await ((FuturesItiSignalGeneratedCompleteEvent)@event).ExecuteRealtimeAsync(
+                        eventContext,
+                        context.Projector,
+                        context.StatusConsoleWriter,
+                        context.Logger)
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesItiSignalGeneratedFailEvent)] = static (
+                @event, eventContext, context, ownership, state) =>
+            {
+                var failed = (FuturesItiSignalGeneratedFailEvent)@event;
+                context.Logger.LogError(
+                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
+                    failed.EventName,
+                    failed.EntityId,
+                    failed.ErrorMessage);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesItiSignalGeneratedEvent)] = static (
+                @event, eventContext, context, ownership, state) => ValueTask.CompletedTask,
+            [typeof(FuturesTradeSignalUpdatedCompleteEvent)] = async (
+                @event, eventContext, context, ownership, state) =>
+            {
+                _ = await ((FuturesTradeSignalUpdatedCompleteEvent)@event).ExecuteAsync(
+                        eventContext,
+                        context.StatusConsoleWriter,
+                        context.Logger)
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesTradeSignalUpdatedFailEvent)] = static (
+                @event, eventContext, context, ownership, state) =>
+            {
+                var failed = (FuturesTradeSignalUpdatedFailEvent)@event;
+                context.Logger.LogError(
+                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
+                    failed.EventName,
+                    failed.EntityId,
+                    failed.ErrorMessage);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesTradeSignalUpdatedEvent)] = static (
+                @event, eventContext, context, ownership, state) => ValueTask.CompletedTask
+        };
+
     /// <summary>Registers the route from the primary market-price actor.</summary>
     protected override async ValueTask OnStartup(IEventActorContext<FuturesItiSignalRealtimeActor> context)
     {
@@ -83,20 +156,7 @@ public class FuturesItiSignalRealtimeActor(
 
     /// <summary>Parses a routed market-price event addressed to this actor.</summary>
     protected override IEvent ParseMessage(IEventActorContext<FuturesItiSignalRealtimeActor> context, IActorMessage message)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(message);
-
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
-            || !_parseMap.TryGetValue(subject.Verb, out var parser))
-            return default!;
-
-        var @event = parser(message);
-        ArgumentNullException.ThrowIfNull(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <summary>Dispatches the parsed realtime event to its mapped handler.</summary>
     protected override async ValueTask ReceiveAsync(
@@ -104,57 +164,14 @@ public class FuturesItiSignalRealtimeActor(
         IEvent @event)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(@event);
-
-        switch (@event)
-        {
-            case FuturesMarketPriceUpdatedRealtimeEvent priceUpdated:
-                _ = await priceUpdated.ExecuteAsync(
-                        context,
-                        actorContext.Projector,
-                        actorContext.MarketDataApi,
-                        _streamOwnership,
-                        _realtimeState,
-                        actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesItiSignalGeneratedCompleteEvent completed:
-                _ = await completed.ExecuteRealtimeAsync(
-                        context,
-                        actorContext.Projector,
-                        actorContext.StatusConsoleWriter,
-                        actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesItiSignalGeneratedFailEvent failed:
-                actorContext.Logger.LogError(
-                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-                    failed.EventName,
-                    failed.EntityId,
-                    failed.ErrorMessage);
-                break;
-            case FuturesItiSignalGeneratedEvent:
-                break;
-            case FuturesTradeSignalUpdatedCompleteEvent tradeCompleted:
-                _ = await tradeCompleted.ExecuteAsync(
-                        context,
-                        actorContext.StatusConsoleWriter,
-                        actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesTradeSignalUpdatedFailEvent tradeFailed:
-                actorContext.Logger.LogError(
-                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-                    tradeFailed.EventName,
-                    tradeFailed.EntityId,
-                    tradeFailed.ErrorMessage);
-                break;
-            case FuturesTradeSignalUpdatedEvent:
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
-        }
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
+        await handler(
+                @event,
+                context,
+                ActorContext,
+                _streamOwnership,
+                _realtimeState)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Publishes the standard actor event error when realtime handling fails.</summary>

@@ -18,8 +18,25 @@ public class MarketOutlookSnapshotRealtimeActor(
     /// <summary>Gets the stable actor mailbox name retained for wire compatibility.</summary>
     public const string ActorName = "MarketOutlook";
 
-    readonly Dictionary<Type, Func<IEvent, IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>>
-        _receiveMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [MarketOutlookComponentChangedRealtimeEvent.Verb] =
+                message => message.AsEvent<MarketOutlookComponentChangedRealtimeEvent>()!,
+            [MarketOutlookEodUpdatedRealtimeEvent.Verb] =
+                message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!,
+            [MarketOutlookComponentObservedCompleteEvent.Verb] =
+                message => message.AsEvent<MarketOutlookComponentObservedCompleteEvent>()!,
+            [MarketOutlookComponentObservedFailEvent.Verb] =
+                message => message.AsEvent<MarketOutlookComponentObservedFailEvent>()!,
+            [MarketOutlookSnapshotPublishedCompleteEvent.Verb] =
+                message => message.AsEvent<MarketOutlookSnapshotPublishedCompleteEvent>()!,
+            [MarketOutlookSnapshotPublishedFailEvent.Verb] =
+                message => message.AsEvent<MarketOutlookSnapshotPublishedFailEvent>()!
+        };
+
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>>
         {
             [typeof(MarketOutlookComponentChangedRealtimeEvent)] = (@event, context) =>
                 ((MarketOutlookComponentChangedRealtimeEvent)@event).ObserveAsync(context),
@@ -39,38 +56,15 @@ public class MarketOutlookSnapshotRealtimeActor(
     protected override IEvent ParseMessage(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Realtime, Name: ActorName })
-            return default!;
-        IEvent? @event = message.Subject.Verb switch
-        {
-            MarketOutlookComponentChangedRealtimeEvent.Verb =>
-                message.AsEvent<MarketOutlookComponentChangedRealtimeEvent>(),
-            MarketOutlookEodUpdatedRealtimeEvent.Verb =>
-                message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>(),
-            MarketOutlookComponentObservedCompleteEvent.Verb =>
-                message.AsEvent<MarketOutlookComponentObservedCompleteEvent>(),
-            MarketOutlookComponentObservedFailEvent.Verb =>
-                message.AsEvent<MarketOutlookComponentObservedFailEvent>(),
-            MarketOutlookSnapshotPublishedCompleteEvent.Verb =>
-                message.AsEvent<MarketOutlookSnapshotPublishedCompleteEvent>(),
-            MarketOutlookSnapshotPublishedFailEvent.Verb =>
-                message.AsEvent<MarketOutlookSnapshotPublishedFailEvent>(),
-            _ => throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} realtime event from {message.Subject}.")
-        };
-        return @event ?? throw new InvalidOperationException(
-            $"Unable to deserialize {ActorName} realtime event from {message.Subject}.");
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         IEvent @event)
     {
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException(
-                $"Unable to dispatch {ActorName} realtime event {@event.GetType().Name}.");
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         await handler(@event, (IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>)context)
             .ConfigureAwait(false);
     }

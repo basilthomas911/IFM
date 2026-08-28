@@ -24,8 +24,15 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
         ActorType.Realtime,
         FuturesTradeSessionBarClosedRealtimeEvent.Actor,
         FuturesTradeSessionBarClosedRealtimeEvent.Verb);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesTradeSessionBarClosedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
+        };
     readonly ILogger<FuturesAtrSignalRealtimeActor> _logger = IsArgumentNull.Set(actorContext.Logger);
-    readonly Dictionary<Type, Func<IEvent, IFuturesAtrSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesAtrSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesAtrSignalRealtimeContext, ILogger, ValueTask<bool>>>
     {
         [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
             await ((FuturesTradeSessionBarClosedRealtimeEvent)@event)
@@ -50,21 +57,14 @@ public class FuturesAtrSignalRealtimeActor(IRealtimeActorContext<FuturesAtrSigna
 
     /// <summary>Parses a routed closed-observation event.</summary>
     protected override IEvent ParseMessage(IEventActorContext<FuturesAtrSignalRealtimeActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(message);
-        return message.Subject.Is(ActorType.Realtime, ActorName, FuturesTradeSessionBarClosedRealtimeEvent.Verb)
-            ? message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
-            : default!;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <summary>Dispatches a routed event to its dedicated extension handler.</summary>
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesAtrSignalRealtimeActor> context, IEvent @event)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await handler(@event, FuturesAtrSignalRealtimeContext, _logger).ConfigureAwait(false);
     }
 

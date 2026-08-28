@@ -32,6 +32,36 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
 
     IIntrinsicTimeStrategyWorkflowRealtimeContext ActorContext { get; } = RequireContext(actorContext);
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesItiSignalGeneratedEvent.Verb] =
+                message => message.AsEvent<FuturesItiSignalGeneratedEvent>()!,
+            [WorkflowStrategyStateUpdatedEvent.Verb] =
+                message => message.AsEvent<WorkflowStrategyStateUpdatedEvent>()!
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<
+        IntrinsicTimeStrategyWorkflowRealtimeActor,
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>,
+        IEvent,
+        ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<
+            IntrinsicTimeStrategyWorkflowRealtimeActor,
+            IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor>,
+            IEvent,
+            ValueTask>>
+        {
+            [typeof(FuturesItiSignalGeneratedEvent)] = static (actor, context, @event) =>
+                actor.StartWorkflowAsync(context, (FuturesItiSignalGeneratedEvent)@event),
+            [typeof(WorkflowStrategyStateUpdatedEvent)] = static async (actor, context, @event) =>
+            {
+                var snapshot = (WorkflowStrategyStateUpdatedEvent)@event;
+                if (snapshot.State is { Status: WorkflowStrategyMachineStatus.Started })
+                    await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
+            }
+        };
+
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context)
     {
@@ -57,40 +87,16 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
     protected override IEvent ParseMessage(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Realtime, Name: ActorName })
-            return default!;
-        return message.Subject.Verb switch
-        {
-            FuturesItiSignalGeneratedEvent.Verb => message.AsEvent<FuturesItiSignalGeneratedEvent>()!,
-            WorkflowStrategyStateUpdatedEvent.Verb => message.AsEvent<WorkflowStrategyStateUpdatedEvent>()!,
-            _ => throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} realtime event from message: {message.Subject}")
-        };
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         IEvent domainEvent)
     {
-        switch (domainEvent)
-        {
-            case FuturesItiSignalGeneratedEvent trigger:
-                await StartWorkflowAsync(context, trigger).ConfigureAwait(false);
-                break;
-            case WorkflowStrategyStateUpdatedEvent snapshot
-                when snapshot.State is
-                {
-                    Status: WorkflowStrategyMachineStatus.Started
-                }:
-                await DispatchCommittedStateAsync(context, snapshot).ConfigureAwait(false);
-                break;
-            case WorkflowStrategyStateUpdatedEvent:
-                break;
-            default:
-                throw new InvalidOperationException($"Unsupported workflow realtime event: {domainEvent.GetType().Name}");
-        }
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
+        await handler(this, context, domainEvent).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

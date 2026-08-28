@@ -427,7 +427,7 @@ public class FuturesAtrSignalQueryTests
         await context.Received(1).ReplyAsync(
             threadId,
             "UnknownVerb",
-            Arg.Is<ServiceFailed<ActorEntityId>>(result =>
+            Arg.Is<ServiceFailed<object>>(result =>
                 !result.Success
                 && result.ErrorCode == 9999
                 && result.ErrorMessage == exception.Message));

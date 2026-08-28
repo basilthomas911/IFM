@@ -82,6 +82,36 @@ public sealed class EventActorTemplateContext : EventActorContext, IEventActorTe
     public ILogger<EventActorTemplate> Logger { get; }
 }
 
+/// <summary>Defines the readonly services required by <see cref="RealtimeActorTemplate"/>.</summary>
+public interface IRealtimeActorTemplateContext : IRealtimeActorContext<RealtimeActorTemplate>
+{
+    /// <summary>Gets the actor supervisor.</summary>
+    IActorSupervisor Supervisor { get; }
+
+    /// <summary>Gets the actor logger.</summary>
+    ILogger<RealtimeActorTemplate> Logger { get; }
+}
+
+/// <summary>Provides the typed runtime context used by <see cref="RealtimeActorTemplate"/>.</summary>
+public sealed class RealtimeActorTemplateContext : EventActorContext, IRealtimeActorTemplateContext
+{
+    /// <summary>Initializes a new realtime template context.</summary>
+    public RealtimeActorTemplateContext(
+        IActorSupervisor supervisor,
+        ILogger<RealtimeActorTemplate> logger)
+        : base(supervisor, new ActorMailboxId(ActorType.Realtime, RealtimeActorTemplate.ActorName))
+    {
+        Supervisor = IsArgumentNull.Set(supervisor);
+        Logger = IsArgumentNull.Set(logger);
+    }
+
+    /// <inheritdoc/>
+    public IActorSupervisor Supervisor { get; }
+
+    /// <inheritdoc/>
+    public ILogger<RealtimeActorTemplate> Logger { get; }
+}
+
 /// <summary>Defines the readonly services required by <see cref="QueryActorTemplate"/>.</summary>
 public interface IQueryActorTemplateContext : IQueryActorContext<QueryActorTemplate>
 {

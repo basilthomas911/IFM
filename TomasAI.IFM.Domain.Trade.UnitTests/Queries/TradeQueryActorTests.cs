@@ -271,7 +271,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
     }
 
     [Fact]
-    public void ParseMessage_ShouldThrowArgumentNullException_WhenPayloadIsEmpty()
+    public void ParseMessage_ShouldThrowInvalidOperationException_WhenPayloadIsEmpty()
     {
         // Arrange
         var actor = _fixture.CreateTradeQueryActor();
@@ -281,7 +281,8 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
 
         // Act & Assert
         var act = () => actor.InvokeParseMessage(context, message);
-        act.Should().Throw<ArgumentNullException>();
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("Parser for TradeQuery.GetTradeHistory returned no query.");
     }
 
     [Fact]
@@ -637,7 +638,7 @@ public class TradeQueryActorTests : IClassFixture<TradeFixture>
         await context.Received(1).ReplyAsync(
             threadId,
             "UnknownVerb",
-            Arg.Any<ServiceFailed<ActorEntityId>>());
+            Arg.Any<ServiceFailed<object>>());
     }
 
     #endregion

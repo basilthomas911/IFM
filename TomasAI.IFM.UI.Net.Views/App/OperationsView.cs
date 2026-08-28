@@ -71,9 +71,10 @@ public partial class OperationsView : UserControl
             _synchronizingTimeFrame = false;
         }
 
+        var strategyHeader = $"Futures ITI - {strategy.ContractId}";
         lblItiStatus.Text = strategy.LastError is null
-            ? strategy.StatusText
-            : $"{strategy.StatusText} | {strategy.LastError.Caption}";
+            ? $"{strategyHeader} | {strategy.StatusText}"
+            : $"{strategyHeader} | {strategy.StatusText} | {strategy.LastError.Caption}";
         lblItiStatus.ForeColor = strategy.LastError is not null
             ? Color.Gold
             : strategy.IsListening ? Color.LimeGreen : Color.Silver;

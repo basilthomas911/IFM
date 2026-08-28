@@ -238,7 +238,7 @@ public class MarketDataFeedQueryTests : IClassFixture<MarketDataFeedBddFixture>
         await actor.InvokeOnExceptionAsync(context, query.Subject.ThreadId, query, "Unknown", new Exception("unknown failure"));
 
         await context.Received(1).ReplyAsync(query.Subject.ThreadId, "Unknown",
-            Arg.Is<ServiceFailed<ActorEntityId>>(result => !result.Success && result.ErrorCode == 9999));
+            Arg.Is<ServiceFailed<object>>(result => !result.Success && result.ErrorCode == 9999));
     }
 
     static ApplicationMarketDataApi CreateMarketDataApi()

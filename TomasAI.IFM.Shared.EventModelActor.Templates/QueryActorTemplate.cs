@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -26,70 +24,38 @@ public class QueryActorTemplate(
 
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = [];
 
-    static readonly Dictionary<string, Func<
+    static readonly Dictionary<Type, Func<
         IQuery,
         IDbContextFactory,
         IQueryActorContext<QueryActorTemplate>,
+        CancellationToken,
         ValueTask>> _receiveMap = [];
 
     protected override IQuery ParseMessage(IQueryActorContext<QueryActorTemplate> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(subject.Verb, out var parser))
-            throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} query from message: {message.Subject}");
+        => ParseMappedQuery(context, message, _parseMap);
 
-        var query = parser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            subject.ThreadId,
-            subject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+    protected override ValueTask ReceiveAsync(IQueryActorContext<QueryActorTemplate> context, IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
 
-    protected override async ValueTask ReceiveAsync(IQueryActorContext<QueryActorTemplate> context, IQuery query)
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext<QueryActorTemplate> context,
+        IQuery query,
+        CancellationToken cancellationToken)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-
-        if (!_receiveMap.TryGetValue(query.GetType().Name, out var handler))
-            throw new InvalidOperationException(
-                $"Unable to process {ActorName} query: {query.GetType().Name}");
-
-        await handler.Invoke(query, actorContext.DbFactory, context);
+        var handler = ResolveMappedQueryHandler(query, _receiveMap);
+        await handler(query, ActorContext.DbFactory, context, cancellationToken).ConfigureAwait(false);
     }
 
-    protected override async ValueTask OnExceptionAsync(
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
         IQueryActorContext<QueryActorTemplate> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,
         Exception exception)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(exception.Message);
-
-        try
-        {
-            await context.ReplyAsync(
-                threadId,
-                verb,
-                new ServiceFailed<ActorEntityId>(9999, exception.Message));
-        }
-        catch (Exception innerException)
-        {
-            actorContext.Logger.LogError(
-                innerException,
-                "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}",
-                ActorName,
-                threadId,
-                innerException.Message);
-        }
-    }
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

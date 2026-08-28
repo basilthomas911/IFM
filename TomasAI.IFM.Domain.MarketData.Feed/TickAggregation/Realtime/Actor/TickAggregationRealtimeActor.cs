@@ -23,7 +23,8 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
     /// <summary>Gets the typed realtime context supplied at construction.</summary>
     ITickAggregationRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as ITickAggregationRealtimeContext, nameof(actorContext))!;
 
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> ParseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesTickTradeDataChangedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataChangedEvent>()!,
@@ -45,6 +46,38 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
             message => message.AsEvent<FuturesTickQuoteDataInsertedFailEvent>()!
     };
 
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, ITickAggregationRealtimeContext, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, ITickAggregationRealtimeContext, ValueTask>>
+        {
+            [typeof(FuturesTickTradeDataChangedEvent)] = async (@event, context) =>
+            {
+                var trade = (FuturesTickTradeDataChangedEvent)@event;
+                _ = await context.Projector.ProcessRealtimeEventAsync(trade.ToInsertedEvent())
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesTickQuoteDataChangedEvent)] = async (@event, context) =>
+            {
+                var quote = (FuturesTickQuoteDataChangedEvent)@event;
+                _ = await context.Projector.ProcessRealtimeEventAsync(quote.ToInsertedEvent())
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesTickTradeDataInsertedFailEvent)] = static (@event, context) =>
+            {
+                LogProjectionFailure((FuturesTickTradeDataInsertedFailEvent)@event, context.Logger);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesTickQuoteDataInsertedFailEvent)] = static (@event, context) =>
+            {
+                LogProjectionFailure((FuturesTickQuoteDataInsertedFailEvent)@event, context.Logger);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesTickTradeDataInsertedEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(FuturesTickQuoteDataInsertedEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(FuturesTickTradeDataInsertedCompleteEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(FuturesTickQuoteDataInsertedCompleteEvent)] = static (_, _) => ValueTask.CompletedTask
+        };
+
     protected override async ValueTask OnStartup(IEventActorContext<TickAggregationRealtimeActor> context) =>
         await ((ITickAggregationRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
 
@@ -54,55 +87,24 @@ public sealed class TickAggregationRealtimeActor(IRealtimeActorContext<TickAggre
     protected override IEvent ParseMessage(
         IEventActorContext<TickAggregationRealtimeActor> context,
         IActorMessage message)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(message);
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
-            || !ParseMap.TryGetValue(subject.Verb, out var parser))
-            return default!;
-
-        var domainEvent = parser(message);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        domainEvent.CheckForEmptyCommandId();
-        return domainEvent;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<TickAggregationRealtimeActor> context,
         IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-
-        switch (domainEvent)
-        {
-            case FuturesTickTradeDataChangedEvent trade:
-                _ = await ((ITickAggregationRealtimeContext)actorContext).Projector.ProcessRealtimeEventAsync(trade.ToInsertedEvent())
-                    .ConfigureAwait(false);
-                break;
-            case FuturesTickQuoteDataChangedEvent quote:
-                _ = await ((ITickAggregationRealtimeContext)actorContext).Projector.ProcessRealtimeEventAsync(quote.ToInsertedEvent())
-                    .ConfigureAwait(false);
-                break;
-            case TickAggregationFailEvent failed:
-                actorContext.Logger.LogErrorEvent(
-                    ActorName,
-                    "{EventName} for {EntityId}: {ErrorMessage}",
-                    failed.EventName,
-                    failed.EntityId,
-                    failed.ErrorMessage);
-                break;
-            case FuturesTickTradeDataInsertedEvent:
-            case FuturesTickQuoteDataInsertedEvent:
-            case FuturesSessionStatisticsUpdatedRealtimeEvent:
-            case TickAggregationCompleteEvent:
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unable to resolve {ActorName} realtime event from {domainEvent.Subject}.");
-        }
+        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
+        await handler(domainEvent, RealtimeContext).ConfigureAwait(false);
     }
+
+    static void LogProjectionFailure(TickAggregationFailEvent failed, ILogger logger) =>
+        logger.LogErrorEvent(
+            ActorName,
+            "{EventName} for {EntityId}: {ErrorMessage}",
+            failed.EventName,
+            failed.EntityId,
+            failed.ErrorMessage);
 
     protected override async ValueTask OnExceptionAsync(
         IEventActorContext<TickAggregationRealtimeActor> context,

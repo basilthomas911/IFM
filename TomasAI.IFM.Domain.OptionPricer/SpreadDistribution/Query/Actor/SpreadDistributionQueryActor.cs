@@ -32,20 +32,7 @@ public class SpreadDistributionQueryActor(
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<SpreadDistributionQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -74,9 +61,7 @@ public class SpreadDistributionQueryActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken);
     }
 
@@ -84,9 +69,9 @@ public class SpreadDistributionQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding spread distribution query
     /// logic against the database context factory.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext<SpreadDistributionQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext<SpreadDistributionQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetSpreadDistributionQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetSpreadDistributionQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetSpreadDistributionQuery)!;
             var result = await query.GetSpreadDistributionAsync(
@@ -111,28 +96,15 @@ public class SpreadDistributionQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<SpreadDistributionQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetSpreadDistributionQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<SpreadDistributionReadModel?>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<SpreadDistributionQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
 }

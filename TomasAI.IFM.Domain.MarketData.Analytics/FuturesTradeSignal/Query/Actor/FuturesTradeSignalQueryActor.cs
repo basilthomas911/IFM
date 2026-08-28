@@ -40,20 +40,7 @@ public class FuturesTradeSignalQueryActor(
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<FuturesTradeSignalQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -85,9 +72,7 @@ public class FuturesTradeSignalQueryActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
@@ -95,9 +80,9 @@ public class FuturesTradeSignalQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures trade signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetMarketOutlookSnapshotQuery).Name] = async (ctx, db, q, cancellationToken) =>
+        [typeof(GetMarketOutlookSnapshotQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (GetMarketOutlookSnapshotQuery)q;
             var result = await db.MarketDataDb.GetMarketOutlookSnapshotAsync(
@@ -106,7 +91,7 @@ public class FuturesTradeSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb,
                 new ServiceResult<MarketOutlookSnapshotReadModel?>(result)).ConfigureAwait(false);
         },
-        [typeof(GetFuturesTradeSignalQuery).Name] = async (ctx, db, q, cancellationToken) =>
+        [typeof(GetFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesTradeSignalQuery)!;
             var result = await query.GetFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
@@ -114,7 +99,7 @@ public class FuturesTradeSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
                 new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
         },
-        [typeof(GetLastFuturesTradeSignalQuery).Name] = async (ctx, db, q, cancellationToken) =>
+        [typeof(GetLastFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetLastFuturesTradeSignalQuery)!;
             var result = await query.GetLastFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
@@ -122,7 +107,7 @@ public class FuturesTradeSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTradeSignalQuery.Verb,
                 new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
         },
-        [typeof(GetFuturesTradeSignalIdsQuery).Name] = async (ctx, db, q, cancellationToken) =>
+        [typeof(GetFuturesTradeSignalIdsQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesTradeSignalIdsQuery)!;
             var result = await query.GetFuturesTradeSignalIdsAsync(db, cancellationToken).ConfigureAwait(false);
@@ -140,33 +125,14 @@ public class FuturesTradeSignalQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesTradeSignalQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetFuturesTradeSignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTradeSignalV2ReadModel?>(query.ErrorCode, ex!.Message)),
-                _ when query is GetMarketOutlookSnapshotQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<MarketOutlookSnapshotReadModel?>(query.ErrorCode, ex!.Message)),
-                _ when query is GetLastFuturesTradeSignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTradeSignalV2ReadModel?>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesTradeSignalIdsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesTradeSignalId[]>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FuturesTradeSignalQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

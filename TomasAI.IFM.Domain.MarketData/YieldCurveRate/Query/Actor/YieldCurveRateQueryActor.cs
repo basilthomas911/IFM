@@ -38,26 +38,19 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<YieldCurveRateQueryActor> context, IActorMessage message)
+        => ParseMappedQuery(context, message, _parseMap);
+
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName })
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        IQuery? query = msgSubject.Verb switch
-        {
-            GetLastYieldCurveRateQuery.Verb => message.AsQuery<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>(),
-            GetYieldCurveRatesQuery.Verb => message.AsQuery<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>(),
-            GetYieldCurveRateExistsQuery.Verb => message.AsQuery<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>(),
-            GetYieldCurveRateYearsQuery.Verb => message.AsQuery<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>(),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}")
-        };
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        [GetLastYieldCurveRateQuery.Verb] = message =>
+            message.AsQuery<GetLastYieldCurveRateQuery, YieldCurveRateReadModel>()!,
+        [GetYieldCurveRatesQuery.Verb] = message =>
+            message.AsQuery<GetYieldCurveRatesQuery, YieldCurveRateReadModel[]>()!,
+        [GetYieldCurveRateExistsQuery.Verb] = message =>
+            message.AsQuery<GetYieldCurveRateExistsQuery, ScalarReadModel<bool>>()!,
+        [GetYieldCurveRateYearsQuery.Verb] = message =>
+            message.AsQuery<GetYieldCurveRateYearsQuery, YieldCurveRateYearsReadModel>()!
+    };
 
     /// <summary>
     /// Handles incoming queries asynchronously and processes them based on their type.
@@ -77,16 +70,22 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        await (query switch
-        {
-            GetLastYieldCurveRateQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
-            GetYieldCurveRatesQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
-            GetYieldCurveRateExistsQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
-            GetYieldCurveRateYearsQuery typedQuery => ReceiveAsync(YieldCurveRateContext, typedQuery, cancellationToken),
-            _ => throw new InvalidOperationException(
-                $"Unable to process {ActorName} query: {query.GetType().Name}")
-        });
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, YieldCurveRateContext, query, cancellationToken).ConfigureAwait(false);
     }
+
+    static readonly Dictionary<Type,
+        Func<YieldCurveRateQueryActor, IYieldCurveRateQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetLastYieldCurveRateQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetLastYieldCurveRateQuery)query, cancellationToken),
+        [typeof(GetYieldCurveRatesQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetYieldCurveRatesQuery)query, cancellationToken),
+        [typeof(GetYieldCurveRateExistsQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetYieldCurveRateExistsQuery)query, cancellationToken),
+        [typeof(GetYieldCurveRateYearsQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetYieldCurveRateYearsQuery)query, cancellationToken)
+    };
 
     async ValueTask ReceiveAsync(
         IQueryActorContext<YieldCurveRateQueryActor> context,
@@ -144,33 +143,15 @@ public class YieldCurveRateQueryActor(IQueryActorContext<YieldCurveRateQueryActo
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<YieldCurveRateQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        try
-        {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetLastYieldCurveRateQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<YieldCurveRateReadModel?>(query.ErrorCode, ex.Message)),
-                _ when query is GetYieldCurveRatesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<YieldCurveRateReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetYieldCurveRateExistsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<bool>>(query.ErrorCode, ex.Message)),
-                _ when query is GetYieldCurveRateYearsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<YieldCurveRateYearsReadModel>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<YieldCurveRateQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
    
 }

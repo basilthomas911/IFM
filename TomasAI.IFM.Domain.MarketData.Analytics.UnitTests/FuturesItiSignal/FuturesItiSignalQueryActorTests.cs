@@ -711,8 +711,8 @@ public class FuturesItiSignalQueryActorTests : IClassFixture<MarketDataAnalytics
         var context = Substitute.For<IQueryActorContext<FuturesItiSignalQueryActor>>();
         var verb = "UnknownVerb";
 
-        ServiceFailed<ActorEntityId>? capturedResult = null;
-        context.ReplyAsync(threadId, verb, Arg.Do<ServiceFailed<ActorEntityId>>(r => capturedResult = r))
+        ServiceFailed<object>? capturedResult = null;
+        context.ReplyAsync(threadId, verb, Arg.Do<ServiceFailed<object>>(r => capturedResult = r))
             .Returns(ValueTask.CompletedTask);
 
         // Act

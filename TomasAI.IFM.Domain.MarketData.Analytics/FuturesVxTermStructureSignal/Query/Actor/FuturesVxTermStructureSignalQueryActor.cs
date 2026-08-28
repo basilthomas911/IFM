@@ -17,16 +17,14 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
     /// <inheritdoc />
     protected override IQuery ParseMessage(IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
         IActorMessage message)
+        => ParseMappedQuery(context, message, _parseMap);
+
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
-        if (message.Subject is not { ActorType: ActorType.Query, Name: ActorName,
-            Verb: GetLatestFuturesVxTermStructureSignalQuery.Verb })
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from {message.Subject}.");
-        var query = message.AsQuery<GetLatestFuturesVxTermStructureSignalQuery,
-            FuturesVxTermStructureSignalReadModel?>();
-        context.SetMessageInfo(message.Subject.ThreadId, message.Subject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        [GetLatestFuturesVxTermStructureSignalQuery.Verb] = message =>
+            message.AsQuery<GetLatestFuturesVxTermStructureSignalQuery,
+                FuturesVxTermStructureSignalReadModel?>()!
+    };
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
         IQuery query) => ReceiveAsync(context, query, CancellationToken.None);
@@ -36,17 +34,31 @@ public sealed class FuturesVxTermStructureSignalQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
-        if (query is not GetLatestFuturesVxTermStructureSignalQuery latest)
-            throw new InvalidOperationException($"Unsupported {ActorName} query {query.GetType().Name}.");
-        var result = await latest.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
-        await context.ReplyAsync(query.Subject.ThreadId,
-            GetLatestFuturesVxTermStructureSignalQuery.Verb,
-            new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result)).ConfigureAwait(false);
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(context, query, cancellationToken).ConfigureAwait(false);
     }
+
+    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesVxTermStructureSignalQueryActor>,
+        IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetLatestFuturesVxTermStructureSignalQuery)] = static async (context, query, cancellationToken) =>
+        {
+            var latest = (GetLatestFuturesVxTermStructureSignalQuery)query;
+            var result = await latest.ExecuteAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId,
+                GetLatestFuturesVxTermStructureSignalQuery.Verb,
+                new ServiceResult<FuturesVxTermStructureSignalReadModel?>(result)).ConfigureAwait(false);
+        }
+    };
     /// <inheritdoc />
-    protected override async ValueTask OnExceptionAsync(
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
         IQueryActorContext<FuturesVxTermStructureSignalQueryActor> context,
-        ActorThreadId threadId, IQuery query, string verb, Exception exception) =>
-        await context.ReplyAsync(threadId, verb,
-            new ServiceResult<FuturesVxTermStructureSignalReadModel?>(query.ErrorCode, exception.Message));
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

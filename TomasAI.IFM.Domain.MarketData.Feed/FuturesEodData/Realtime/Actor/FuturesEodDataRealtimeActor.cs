@@ -48,7 +48,8 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         FuturesSessionStatisticsUpdatedRealtimeEvent.Actor,
         FuturesSessionStatisticsUpdatedRealtimeEvent.Verb);
 
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> ParseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesTickTradeDataInsertedEvent.Verb] =
             message => message.AsEvent<FuturesTickTradeDataInsertedEvent>()!,
@@ -77,6 +78,69 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
         ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
         actorContext.Logger);
 
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
+        FuturesEodDataEventParameters, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesEodDataRealtimeContext,
+            FuturesEodDataEventParameters, ValueTask>>
+        {
+            [typeof(FuturesTickTradeDataInsertedEvent)] = async (@event, context, parameters) =>
+            {
+                _ = await ((FuturesTickTradeDataInsertedEvent)@event).ExecuteAsync(
+                        context,
+                        context.MarketDataApi,
+                        context.BlackboardService,
+                        context.StatusConsoleWriter,
+                        context.Projector,
+                        context.Logger)
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, parameters) =>
+            {
+                _ = await ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteVxQuoteAsync(
+                        context.MarketDataApi,
+                        context.Projector,
+                        context.StatusConsoleWriter,
+                        context.Logger)
+                    .ConfigureAwait(false);
+            },
+            [typeof(FuturesSessionStatisticsUpdatedRealtimeEvent)] = async (@event, context, parameters) =>
+            {
+                _ = await ((FuturesSessionStatisticsUpdatedRealtimeEvent)@event)
+                    .ExecuteAsync(context, context.Projector, context.Logger).ConfigureAwait(false);
+            },
+            [typeof(FuturesEodDataInsertedEvent)] = static (@event, context, _) =>
+            {
+                var inserted = (FuturesEodDataInsertedEvent)@event;
+                context.BlackboardService.MarketDataFeed.FuturesEodData.Set(
+                    inserted.FuturesEodData.ContractId,
+                    inserted.FuturesEodData.ValueDate,
+                    inserted.FuturesEodData);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesEodDataInsertedCompleteEvent)] = async (@event, context, parameters) =>
+            {
+                _ = await ((FuturesEodDataInsertedCompleteEvent)@event)
+                    .ExecuteAsync(context, context, parameters).ConfigureAwait(false);
+            },
+            [typeof(VixFuturesEodDataInsertedCompleteEvent)] = async (@event, context, parameters) =>
+            {
+                _ = await ((VixFuturesEodDataInsertedCompleteEvent)@event)
+                    .ExecuteAsync(context, parameters).ConfigureAwait(false);
+            },
+            [typeof(FuturesEodDataInsertedFailEvent)] = static (@event, context, _) =>
+            {
+                LogProjectionFailure((FuturesEodDataInsertedFailEvent)@event, context.Logger);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(VixFuturesEodDataInsertedFailEvent)] = static (@event, context, _) =>
+            {
+                LogProjectionFailure((VixFuturesEodDataInsertedFailEvent)@event, context.Logger);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(VixFuturesEodDataInsertedEvent)] = static (_, _, _) => ValueTask.CompletedTask,
+            [typeof(FuturesEodSessionStatisticsUpdatedEvent)] = static (_, _, _) => ValueTask.CompletedTask
+        };
+
     protected override async ValueTask OnStartup(IEventActorContext<FuturesEodDataRealtimeActor> context)
     {
         await ((IFuturesEodDataRealtimeContext)actorContext).Projector.StartAsync(context).ConfigureAwait(false);
@@ -96,81 +160,18 @@ public class FuturesEodDataRealtimeActor(IRealtimeActorContext<FuturesEodDataRea
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesEodDataRealtimeActor> context,
         IActorMessage message)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(message);
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
-            || !ParseMap.TryGetValue(subject.Verb, out var parser))
-            return default!;
-
-        var domainEvent = parser(message);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-        domainEvent.CheckForEmptyCommandId();
-        return domainEvent;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesEodDataRealtimeActor> context,
         IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(domainEvent);
-
-        switch (domainEvent)
-        {
-            case FuturesTickTradeDataInsertedEvent trade:
-                _ = await trade.ExecuteAsync(
-                        RealtimeContext,
-                        ((IFuturesEodDataRealtimeContext)actorContext).MarketDataApi,
-                        ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService,
-                        ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
-                        ((IFuturesEodDataRealtimeContext)actorContext).Projector,
-                        actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesMarketPriceUpdatedRealtimeEvent priceUpdated:
-                _ = await priceUpdated.ExecuteVxQuoteAsync(
-                        ((IFuturesEodDataRealtimeContext)actorContext).MarketDataApi,
-                        ((IFuturesEodDataRealtimeContext)actorContext).Projector,
-                        ((IFuturesEodDataRealtimeContext)actorContext).StatusConsoleWriter,
-                        actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesSessionStatisticsUpdatedRealtimeEvent statisticsUpdated:
-                _ = await statisticsUpdated.ExecuteAsync(RealtimeContext, ((IFuturesEodDataRealtimeContext)actorContext).Projector, actorContext.Logger)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesEodDataInsertedEvent inserted:
-                ((IFuturesEodDataRealtimeContext)actorContext).BlackboardService.MarketDataFeed.FuturesEodData.Set(
-                    inserted.FuturesEodData.ContractId,
-                    inserted.FuturesEodData.ValueDate,
-                    inserted.FuturesEodData);
-                break;
-            case FuturesEodDataInsertedCompleteEvent completed:
-                _ = await completed.ExecuteAsync(RealtimeContext, RealtimeContext, _parameters)
-                    .ConfigureAwait(false);
-                break;
-            case VixFuturesEodDataInsertedCompleteEvent vixCompleted:
-                _ = await vixCompleted.ExecuteAsync(RealtimeContext, _parameters)
-                    .ConfigureAwait(false);
-                break;
-            case FuturesEodDataInsertedFailEvent failed:
-                LogProjectionFailure(failed);
-                break;
-            case VixFuturesEodDataInsertedFailEvent failed:
-                LogProjectionFailure(failed);
-                break;
-            case VixFuturesEodDataInsertedEvent:
-            case FuturesEodSessionStatisticsUpdatedEvent:
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unable to resolve {ActorName} realtime event from {domainEvent.Subject}.");
-        }
+        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
+        await handler(domainEvent, RealtimeContext, _parameters).ConfigureAwait(false);
     }
 
-    void LogProjectionFailure(IErrorEvent failed) => actorContext.Logger.LogErrorEvent(
+    static void LogProjectionFailure(IErrorEvent failed, ILogger logger) => logger.LogErrorEvent(
         ActorName,
         "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
         failed.EventName,

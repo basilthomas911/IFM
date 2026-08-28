@@ -311,7 +311,7 @@ public class FuturesEodDataQueryActorTests : IClassFixture<MarketDataFeedTestFix
         await context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             "Unknown",
-            Arg.Is<ServiceFailed<ActorEntityId>>(result =>
+            Arg.Is<ServiceFailed<object>>(result =>
                 !result.Success && result.ErrorCode == 9999 && result.ErrorMessage == "unknown failure"));
     }
 

@@ -37,20 +37,7 @@ public class FuturesAdxSignalQueryActor(
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<FuturesAdxSignalQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -80,9 +67,7 @@ public class FuturesAdxSignalQueryActor(
         var dispatchContext = context;
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(dispatchContext, ActorContext.DbFactory, query, cancellationToken).ConfigureAwait(false);
     }
 
@@ -90,9 +75,9 @@ public class FuturesAdxSignalQueryActor(
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures ADX signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IQueryActorContext<FuturesAdxSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesAdxSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesAdxSignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesAdxSignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesAdxSignalQuery)!;
             var queryResult = await query.GetLastFuturesAdxSignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
@@ -100,7 +85,7 @@ public class FuturesAdxSignalQueryActor(
             var serviceResult = new ServiceResult<FuturesAdxSignalReadModel?>(queryResult);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesAdxSignalQuery.Verb, serviceResult).ConfigureAwait(false);
         },
-        [typeof(GetFuturesAdxDailySignalQuery).Name] = async (ctx, dbFactory, q, cancellationToken) =>
+        [typeof(GetFuturesAdxDailySignalQuery)] = async (ctx, dbFactory, q, cancellationToken) =>
         {
             var query = (q as GetFuturesAdxDailySignalQuery)!;
             var queryResult = await query.GetLastFuturesAdxDailySignalAsync(dbFactory, cancellationToken).ConfigureAwait(false);
@@ -118,29 +103,14 @@ public class FuturesAdxSignalQueryActor(
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesAdxSignalQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetFuturesAdxSignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesAdxSignalReadModel?>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesAdxDailySignalQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesAdxSignalReadModel?>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            Context.Logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FuturesAdxSignalQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

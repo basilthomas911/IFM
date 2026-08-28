@@ -25,6 +25,15 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
         FuturesMarketPriceUpdatedRealtimeEvent.Actor,
         FuturesMarketPriceUpdatedRealtimeEvent.Verb);
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
+            [FuturesTradeSessionBarSignalBarrierRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesTradeSessionBarSignalBarrierRealtimeEvent>()!
+        };
+
     readonly IFuturesTradeSessionBarSignalRealtimeContext context = IsArgumentNull.Set(
         actorContext as IFuturesTradeSessionBarSignalRealtimeContext,
         nameof(actorContext))!;
@@ -32,8 +41,8 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
     readonly CancellationTokenSource barrierStopping = new();
     Task barrierLoop = Task.CompletedTask;
 
-    readonly Dictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalRealtimeContext, ILogger, ValueTask<bool>>>
-        receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalRealtimeContext, ILogger, ValueTask<bool>>>
+        _receiveMap = new Dictionary<Type, Func<IEvent, IFuturesTradeSessionBarSignalRealtimeContext, ILogger, ValueTask<bool>>>
         {
             [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context, logger) =>
                 ((FuturesMarketPriceUpdatedRealtimeEvent)@event).ExecuteAsync(context, logger),
@@ -69,25 +78,15 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Realtime, Name: ActorName }) return default!;
-        return message.Subject.Verb switch
-        {
-            FuturesMarketPriceUpdatedRealtimeEvent.Verb =>
-                message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
-            FuturesTradeSessionBarSignalBarrierRealtimeEvent.Verb =>
-                message.AsEvent<FuturesTradeSessionBarSignalBarrierRealtimeEvent>()!,
-            _ => default!
-        };
-    }
+        => ParseMappedRealtimeEvent(actorContext, message, _parseMap);
 
     /// <summary>Dispatches each supported event to its dedicated extension handler.</summary>
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext,
         IEvent @event)
     {
-        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} realtime event from {@event.Subject}.");
+        ArgumentNullException.ThrowIfNull(actorContext);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await handler(@event, context, logger).ConfigureAwait(false);
     }
 

@@ -163,7 +163,7 @@ public abstract class BaseEventActor<TActor>(
 
     public async ValueTask HandleMessageAsync(IActorMessage message, ActorThreadId threadId, CancellationToken cancellationToken)
     {
-        IEvent @event = default! ;
+        IEvent? @event = null;
         var activeStage = ActorRuntimeMetrics.ValidationStage;
         try
         {
@@ -222,7 +222,10 @@ public abstract class BaseEventActor<TActor>(
         catch (Exception ex)
         {
             ActorRuntimeMetrics.RecordStageFailure(activeStage, _actorId.ActorType);
-            await OnExceptionAsync(_context!, threadId, @event, ex);
+            if (@event is null)
+                HandleEventParseFailure(message, ex);
+            else
+                await OnExceptionAsync(_context!, threadId, @event, ex).ConfigureAwait(false);
         }
     }
 
@@ -267,6 +270,36 @@ public abstract class BaseEventActor<TActor>(
     }
 
     /// <summary>
+    /// Resolves a realtime-event parser from an actor-owned verb map and materializes the event.
+    /// </summary>
+    /// <remarks>
+    /// Realtime messages are one-way Core NATS observations. They use the same event contract and
+    /// exact-type dispatch model as durable EventActors, but private realtime events are not
+    /// required to originate from a command and therefore are not required to carry a command ID.
+    /// Messages for another realtime actor or an unsupported verb are ignored because realtime
+    /// delivery may fan out one owned message branch to multiple routed consumers.
+    /// </remarks>
+    protected IEvent ParseMappedRealtimeEvent(
+        IEventActorContext<TActor> context,
+        IActorMessage message,
+        IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> parseMap)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(parseMap);
+
+        var subject = message.Subject;
+        if (subject.ActorType != ActorType.Realtime
+            || !string.Equals(subject.Name, Id.Name, StringComparison.Ordinal)
+            || !parseMap.TryGetValue(subject.Verb, out var parser))
+            return default!;
+
+        return parser(message)
+            ?? throw new InvalidOperationException(
+                $"Parser for {Id.Name}.{subject.Verb} returned no realtime event.");
+    }
+
+    /// <summary>
     /// Resolves an event receive handler by the event's exact concrete CLR type.
     /// </summary>
     protected THandler ResolveMappedEventHandler<THandler>(
@@ -283,6 +316,14 @@ public abstract class BaseEventActor<TActor>(
 
         return handler;
     }
+
+    void HandleEventParseFailure(IActorMessage message, Exception exception) =>
+        _logger.LogError(
+            exception,
+            "Unable to parse {ActorType} message for {ActorId}: {Subject}.",
+            _actorId.ActorType,
+            Id,
+            message.Subject);
 
     /// <summary>
     /// Compatibility entry point for existing event actor tests while the

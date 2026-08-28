@@ -1,7 +1,7 @@
 # Actor Implementation Conventions
 
 **Document type:** System-wide implementation guide for all actor types  
-**Status:** Evolving design convention; durable/realtime EventActor and CommandActor conventions documented, QueryActor convention reserved for later review
+**Status:** Evolving design convention; durable/realtime EventActor, CommandActor, and QueryActor conventions documented
 **Created:** 2026-08-14  
 **Last updated:** 2026-08-28
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
@@ -10,10 +10,7 @@
 
 This document is the system-wide implementation guide for IFM actors. It will define the common structure and actor-type-specific conventions for EventActors, CommandActors, QueryActors, and any additional actor roles approved later.
 
-The current revision defines EventActor, RealtimeActor, and CommandActor conventions. QueryActor
-conventions remain reserved until their existing implementations have been reviewed. The absence of
-a QueryActor convention must not be interpreted as permission to apply another actor type's
-behavior to QueryActors.
+The current revision defines EventActor, RealtimeActor, CommandActor, and QueryActor conventions.
 
 Across all actor types, this document will be expanded as decisions are made about base actor behavior, derived actor mapping, handler contracts, validation, logging, retries, state, persistence, queries, and testing.
 
@@ -22,9 +19,9 @@ Across all actor types, this document will be expanded as decisions are made abo
 | Actor type | Documentation status | Notes |
 | --- | --- | --- |
 | EventActor | Initial convention documented | Parse mapping, receive mapping, event-family extensions, and lifecycle handlers are defined below. |
-| RealtimeActor | Initial convention documented | Uses the EventActor mapping/handler structure with `ActorType.Realtime`, Core NATS delivery, a required primary actor, and optional realtime routes. |
+| RealtimeActor | Implemented and repository-enforced | Uses standardized `_parseMap` and exact-type `_receiveMap` dispatch with `ActorType.Realtime`, Core NATS delivery, a required primary actor, optional realtime routes, and parse/receive parity checks. |
 | CommandActor | Initial convention documented | Parse, validation, receive maps, command extensions, event-sourced state, repositories, and projector boundaries are defined below. |
-| QueryActor | Reserved for later review | Query parsing, read-model access, response behavior, paging, and handler organization are not yet standardized by this document. |
+| QueryActor | Initial convention documented | Verb parsing, exact-type receive and exception mapping, typed failures, and malformed-ingress handling are defined below. |
 | Additional actor roles | Not yet defined | Add only after the role and its implementation convention are explicitly approved. |
 
 ## 1.2 Current EventActor objective
@@ -490,7 +487,7 @@ The primary actor has exactly one parse-map entry and one receive-map entry, bot
 
 The primary actor does not register a route to itself. Signal realtime actors register and remove their own routes for `(Realtime, FuturesMarketPrice, Updated)` during their lifecycle. Core fan-out includes the registered primary exactly once and gives every routed realtime actor an independent mailbox branch. `Notify`, durable `Event`, `Command`, and `Query` actors cannot register as realtime route destinations.
 
-`FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns `Realtime.FuturesItiSignal`, accepts only the routed `Updated` verb, and uses the same explicit parse-map and receive-map structure. Its handler:
+`FuturesItiSignalRealtimeActor` is the first routed signal actor. It owns `Realtime.FuturesItiSignal`, receives the routed market-price update plus its private realtime calculation lifecycle events, and uses the same explicit parse-map and receive-map structure. Its market-price handler:
 
 1. accepts only the startup-validated current ES contract;
 2. lazily acquires explicit ES and VX stream registrations owned by `FuturesItiSignal/CurrentContracts/ES` and `FuturesItiSignal/CurrentContracts/VX`;
@@ -499,6 +496,23 @@ The primary actor does not register a route to itself. Signal realtime actors re
 5. sends a Daily `GenerateFuturesItiSignalCommand`, crossing from non-durable Core NATS ingress into the durable command workflow.
 
 Expected timing gaps, including an inactive required stream or no fresh VX trade yet, suppress command creation without treating the realtime message as a durable failure. Contract-identity mismatches and missing startup rollover state remain errors. The legacy `FuturesEodDataInsertedCompleteEvent` trigger is no longer registered by `FuturesItiSignalEventActor`, preventing the same ITI generation workflow from being triggered by both EOD and realtime paths.
+
+#### 9.4.1 RealtimeActor structural map convention
+
+Every domain RealtimeActor declares the same two maps:
+
+- `_parseMap` is an `IReadOnlyDictionary<string, Func<IActorMessage, IEvent>>` keyed by the exact supported subject verb;
+- `_receiveMap` is an `IReadOnlyDictionary<Type, ...>` keyed by the exact concrete event type and containing the actor-specific handler dependencies.
+
+`ParseMessage` delegates to `BaseEventActor.ParseMappedRealtimeEvent(context, message, _parseMap)`. The base helper accepts only subjects addressed to `ActorType.Realtime` and the current actor mailbox name, resolves the verb once, and executes the selected MessagePack parser once. An unaddressed actor type, mailbox name, or unsupported verb returns no event. A registered parser that returns `null` is malformed ingress and throws `InvalidOperationException`.
+
+Realtime parsing deliberately does not validate `CommandId`. Public realtime events may carry lineage, while private barriers and timer events may intentionally have an empty command identifier. Commands remain the validated entry boundary; realtime actors must not recreate command validation.
+
+`ReceiveAsync` delegates exact concrete-type selection to `BaseEventActor.ResolveMappedEventHandler(@event, _receiveMap)` and then supplies its typed context and actor-owned state. String type names, assignable-type fallback, receive switches, and local `TryGetValue` dispatch are prohibited. Exact types prevent two event classes with the same simple name from colliding. Every parsed event type must have one receive entry, and every receive type must be produced by one parse entry.
+
+Malformed ingress can fail before an `IEvent` exists. `BaseEventActor.HandleMessageAsync` therefore sends such failures to its logger-only parse-failure path and never invokes a derived `OnExceptionAsync` with `null`. Once an event has parsed, handler exceptions continue through the actor's typed exception behavior. Core realtime delivery remains one-attempt and non-replayable; this structural convention adds deterministic dispatch, not durable delivery.
+
+Repository verification is provided by `scripts/Test-RealtimeActorConventions.ps1`. Shared base tests cover one-time parsing, address and verb filtering, null parser results, empty-command-ID private events, malformed-ingress ownership, and exact-type collision safety. Domain tests remain responsible for each handler's state transitions, emitted messages, lifecycle registration, and failure/no-op behavior.
 
 Actor construction deliberately precedes hosted market-data startup, so stream acquisition cannot occur in `OnStartup`. The first eligible routed update after rollover and market-data initialization performs idempotent acquisition. Subsequent updates reuse the registrations without incrementing ownership. A rollover replacement acquires the new ES/VX contracts before releasing retired contracts. Actor shutdown removes the realtime route first and then releases both registrations; a stopped or replaced market-data epoch is already clean and is treated as successful release.
 
@@ -515,7 +529,7 @@ Core Realtime ES update
 
 Daily, Weekly, and Monthly use default trading-day counts of 1, 5, and 20 respectively. `FuturesItiSignalGeneratedEvent` and its completed event carry the exact source VX futures price and an explicit derivation marker as additive MessagePack fields. The marker is set only by a Daily Generate command; hold-set and hold-clear mutations reuse the event family but must not derive periods. This makes durable period derivation deterministic and replay-safe without rereading a mutable hot cache or substituting an EOD VX observation. Derived command identifiers are stable hashes of the source completion identity and target period, so redelivery addresses the same command identity. Only a marked Daily completion may derive longer periods; Weekly and Monthly completions never generate ITI commands, preventing recursive fan-out. Existing downstream trade-signal completion behavior remains period-specific and unchanged.
 
-#### 9.4.1 Normalized last-price cache
+#### 9.4.2 Normalized last-price cache
 
 `TickAggregationService` deliberately separates runtime stream ownership from hot-cache access. The application-level APIs are:
 
@@ -987,7 +1001,103 @@ The base actor saves pending state events after the mapped command extension ret
 
 ### 13.2 QueryActor convention
 
-Reserved. This section will be written after reviewing representative QueryActor implementations and recent query and storage refactoring. No QueryActor mapping, handler, response, read-model, or paging convention is established here yet.
+Every domain QueryActor declares three maps with one supported-query manifest:
+
+```text
+_parseMap query types == _receiveMap query types == _exceptionMap query types
+```
+
+Queries are a side-effect-free read boundary. They consume data already admitted by a command and
+do not repeat command-domain validation. Each concrete query implements exactly one
+`IQuery<TResult>` contract so its success and failure reply types are unambiguous.
+
+#### 13.2.1 `_parseMap`
+
+`_parseMap` is keyed by serialized query `Verb` and only deserializes the declared query:
+
+```csharp
+static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> _parseMap =
+    new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
+    {
+        [GetSomethingQuery.Verb] = static message =>
+            message.AsQuery<GetSomethingQuery, SomethingReadModel>()!
+    };
+
+protected override IQuery ParseMessage(
+    IQueryActorContext<SomeQueryActor> context,
+    IActorMessage message)
+    => ParseMappedQuery(context, message, _parseMap);
+```
+
+`ParseMappedQuery` owns actor-type, mailbox-name, and verb checks; wraps malformed deserialization
+in a consistent `InvalidOperationException`; rejects a null parser result; and registers the
+message/query correlation required for the reply. A derived actor does not repeat that logic.
+
+A failure before an `IQuery` is materialized is not sent to `OnExceptionAsync` with a null query.
+`BaseQueryActor` logs it and, when the transport can reply, returns the transport-level
+`ServiceFailed<object>` malformed-request response with error code `9998`. It never guesses a
+domain `TResult` from an invalid payload.
+
+#### 13.2.2 `_receiveMap`
+
+`_receiveMap` is keyed by the exact concrete CLR `Type`:
+
+```csharp
+static readonly IReadOnlyDictionary<Type, Func<
+    IQueryActorContext<SomeQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap =
+    new Dictionary<Type, Func<IQueryActorContext<SomeQueryActor>, IQuery,
+        CancellationToken, ValueTask>>
+    {
+        [typeof(GetSomethingQuery)] = static (context, query, cancellationToken) =>
+            ((GetSomethingQuery)query).ExecuteAsync(context, cancellationToken)
+    };
+```
+
+`ReceiveAsync` performs common argument checks, resolves only `query.GetType()` through
+`ResolveMappedQueryHandler`, and awaits the mapped handler. String type names, assignable-type
+search, query switches, default routing, and actor-local `TryGetValue` dispatch are forbidden.
+This prevents equal simple names in different namespaces and derived queries from reaching the
+wrong handler. The mapped handler owns only that concrete query's read and typed reply behavior.
+
+#### 13.2.3 `_exceptionMap`
+
+`_exceptionMap` is also keyed by exact concrete query type. The normal declaration derives its
+entries from the receive manifest and each query's single `IQuery<TResult>` contract:
+
+```csharp
+static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+    CreateQueryExceptionMap(_receiveMap.Keys);
+
+protected override ValueTask OnExceptionAsync(
+    IQueryActorContext<SomeQueryActor> context,
+    ActorThreadId threadId,
+    IQuery query,
+    string verb,
+    Exception exception)
+    => ExceptionMappedQueryAsync(
+        context, threadId, query, verb, exception, _exceptionMap);
+```
+
+The mapped failure is `ServiceFailed<TResult>` with the query's error code and the execution
+failure message. An actor may supply an explicit error-code selector when one exception represents
+a stable protocol condition; for example, an unavailable minimum projection revision uses `25009`.
+The base helper catches and logs reply failures without recursively invoking the query exception
+path. Its unregistered-type response is defensive only; conformance requires receive/exception map
+parity.
+
+#### 13.2.4 QueryActor testing checklist
+
+- [ ] `_parseMap` lists every supported verb and `ParseMessage` only calls `ParseMappedQuery`.
+- [ ] Registered parsers materialize once; malformed and null results fail consistently.
+- [ ] Parse failure never calls a derived exception handler with a null query.
+- [ ] `_receiveMap` lists every supported exact concrete query type.
+- [ ] `ReceiveAsync` only resolves through `ResolveMappedQueryHandler` and awaits the handler.
+- [ ] `_exceptionMap` covers the same exact types and returns `ServiceFailed<TResult>`.
+- [ ] Parse, receive, and exception map query sets are equal.
+- [ ] Equal CLR simple names from different namespaces dispatch independently.
+- [ ] Unsupported concrete types fail closed; no switch, string-name, or assignable fallback exists.
+- [ ] Success, not-found, execution failure, cancellation, paging, and storage behavior remain covered
+      by the owning domain's unit, BDD, or integration tests as appropriate.
 
 ### 13.3 Cross-actor conventions
 
@@ -1032,3 +1142,5 @@ For each approved conversion, validation must cover compilation, equality and ha
 | 2026-08-28 | Defined command-only ingress validation: base mapped parsing, pre-audit `CommandId` rejection, read-only exact-type validation maps, visible `CommandId`/`EntityId`/payload ordering, FluentValidation for structured payloads, aggregate errors, identity cross-checks, and no synthetic payload identifiers. |
 | 2026-08-28 | Clarified the three-map CommandActor contract: one supported-command manifest, normalized map parity, canonical key and delegate shapes, immutable metadata, base-helper responsibilities, fail-closed dispatch, strict parse/validate/receive boundaries, fixed execution order, and conformance checks. |
 | 2026-08-28 | Migrated all domain CommandActor and EventActor receive maps to exact concrete `Type` keys, added shared exact-type receive resolvers, added `BaseEventActor.ParseMappedEvent`, and required parse/receive map parity through repository conformance gates. |
+| 2026-08-28 | Defined and migrated the QueryActor three-map convention: base verb parsing, exact-type receive and typed exception maps, distinct malformed-ingress handling, map-parity enforcement, and repository conformance tests for all domain QueryActors. |
+| 2026-08-28 | Standardized all domain RealtimeActors on base `_parseMap` and exact concrete-type `_receiveMap` dispatch, made pre-event parse failures null-safe, preserved empty-command-ID private realtime barriers, added a reusable template, and enforced parse/receive parity for all 17 actors. |

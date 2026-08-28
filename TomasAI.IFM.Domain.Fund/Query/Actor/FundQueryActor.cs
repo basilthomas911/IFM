@@ -43,20 +43,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     /// <returns>The thread identifier extracted from the message subject.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<FundQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -98,9 +85,7 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var queryType = query.GetType();
-        if (!_receiveMap.TryGetValue(queryType, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {queryType.Name}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc(query, FundQueryContext, cancellationToken).ConfigureAwait(false);
     }
 
@@ -209,47 +194,15 @@ public class FundQueryActor(IQueryActorContext<FundQueryActor> actorContext)
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FundQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex.Message);
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetClosingFundBalanceQuery 
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundBalanceReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundBalanceQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundBalanceReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundDrawdownBalancesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundDrawdownBalancesReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundIdFromOrderIdQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<int>>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundOrdersQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundOrderReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundOrderTradesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundOrderTradeReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundPnlReportQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundPnlReportReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundWinLossRatioQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundWinLossRatioReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetOpeningFundBalanceQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundBalanceReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFundMaxProfitGeneratedQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FundMaxProfitGeneratedReadModel>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FundQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
 }

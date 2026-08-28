@@ -33,20 +33,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<LookupTypeQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -82,9 +69,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(LookupTypeQueryContext, query, cancellationToken);
     }
 
@@ -95,9 +80,9 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <remarks>This dictionary enables dynamic dispatch of lookup type-related queries by associating each query
     /// type name with a function that processes the query against a LookupTypeQueryActorState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<ILookupTypeQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetLookupTypesQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetLookupTypesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypesQuery);
             var result = await query.GetLookupTypesAsync(ctx.DbFactory, cancellationToken);
@@ -105,7 +90,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypesQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
         },
-        [typeof(GetLookupTypeNamesQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetLookupTypeNamesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeNamesQuery);
             var result = await query.GetLookupTypeNamesAsync(ctx.DbFactory, cancellationToken);
@@ -113,7 +98,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeNamesQuery.Verb,
                 new ServiceResult<string[]>(result));
         },
-        [typeof(GetLookupTypeQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetLookupTypeQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeQuery);
             var result = await query.GetLookupTypeAsync(ctx.DbFactory, cancellationToken);
@@ -121,7 +106,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeQuery.Verb,
                 new ServiceResult<LookupTypeCollection>(result));
         },
-        [typeof(GetLookupTypeShortCodesQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetLookupTypeShortCodesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodesQuery);
             var result = await query.GetLookupTypeShortCodesAsync(ctx.DbFactory, cancellationToken);
@@ -129,7 +114,7 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLookupTypeShortCodesQuery.Verb,
                 new ServiceResult<LookupTypeShortCodeReadModel[]>(result));
         },
-        [typeof(GetLookupTypeShortCodeExistsQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetLookupTypeShortCodeExistsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetLookupTypeShortCodeExistsQuery);
             var result = await query.GetLookupTypeShortCodeExistsAsync(ctx.DbFactory, cancellationToken);
@@ -151,34 +136,14 @@ public class LookupTypeQueryActor(IQueryActorContext<LookupTypeQueryActor> actor
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<LookupTypeQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        try
-        {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetLookupTypesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<LookupTypeCollection>(query.ErrorCode, ex.Message)),
-                _ when query is GetLookupTypeQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<LookupTypeCollection>(query.ErrorCode, ex.Message)),
-                _ when query is GetLookupTypeNamesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<string[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetLookupTypeShortCodeExistsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<bool>>(query.ErrorCode, ex.Message)),
-                _ when query is GetLookupTypeShortCodesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<LookupTypeShortCodeReadModel[]>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<LookupTypeQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

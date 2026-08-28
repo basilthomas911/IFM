@@ -23,16 +23,18 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     protected IFuturesMarketPriceRealtimeContext RealtimeContext { get; } = IsArgumentNull.Set(actorContext as IFuturesMarketPriceRealtimeContext, nameof(actorContext))!;
 
     /// <summary>Maps supported realtime verbs to their concrete MessagePack deserializers.</summary>
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> _parseMap = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
             message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
     };
 
     /// <summary>Maps supported realtime event types to their extension handlers.</summary>
-    readonly Dictionary<string, Func<IEvent, IFuturesMarketPriceRealtimeContext, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesMarketPriceRealtimeContext, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesMarketPriceRealtimeContext, ValueTask<bool>>>
     {
-        [typeof(FuturesMarketPriceUpdatedRealtimeEvent).Name] =
+        [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] =
             (@event, context) => ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
                 .ExecuteAsync(context, actorContext.Logger)
     };
@@ -44,20 +46,7 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
     /// <param name="message">The actor message containing the serialized realtime event.</param>
     /// <returns>The parsed event, or <see langword="null"/> when the subject is not supported.</returns>
     protected override IEvent ParseMessage(IEventActorContext<FuturesMarketPriceRealtimeActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(message);
-
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
-            || !_parseMap.TryGetValue(subject.Verb, out var messageParser))
-            return default!;
-
-        var @event = messageParser.Invoke(message);
-        IsArgumentNull.Check(@event);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <summary>
     /// Dispatches a futures market-price realtime event to its extension handler.
@@ -70,12 +59,7 @@ public class FuturesMarketPriceRealtimeActor(IRealtimeActorContext<FuturesMarket
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
 
-        if (!_receiveMap.TryGetValue(@event.GetType().Name, out var receiveHandler))
-        {
-            throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
-        }
-
+        var receiveHandler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveHandler.Invoke(@event, RealtimeContext).ConfigureAwait(false);
     }
 

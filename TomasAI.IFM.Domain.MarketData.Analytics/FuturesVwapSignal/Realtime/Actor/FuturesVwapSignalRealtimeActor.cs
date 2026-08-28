@@ -22,11 +22,19 @@ public sealed class FuturesVwapSignalRealtimeActor(
     public const string ActorName = "FuturesVwapSignal";
     static readonly ActorTypeId Route = new(ActorType.Realtime,
         FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
+        };
     IFuturesVwapSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
     readonly FuturesVwapStreamOwnership streamOwnership = new();
-    readonly Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
-        FuturesContractV2ReadModel, ILogger, ValueTask<bool>>> receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
+        FuturesContractV2ReadModel, ILogger, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
+            FuturesContractV2ReadModel, ILogger, ValueTask<bool>>>
     {
         [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
             await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
@@ -54,15 +62,14 @@ public sealed class FuturesVwapSignalRealtimeActor(
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesVwapSignalRealtimeActor> context,
         IActorMessage message) =>
-        message.Subject.Is(ActorType.Realtime, ActorName, FuturesMarketPriceUpdatedRealtimeEvent.Verb)
-            ? message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()! : default!;
+        ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesVwapSignalRealtimeActor> context, IEvent @event)
     {
-        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unsupported VWAP Realtime event {@event.EventName}.");
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         FuturesContractV2ReadModel contract;
         try
         {

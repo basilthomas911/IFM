@@ -40,20 +40,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<ReferenceQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -89,9 +76,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(ReferenceQueryContext, query, cancellationToken);
     }
 
@@ -102,9 +87,9 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// <remarks>This dictionary enables dynamic dispatch of reference-related queries by associating each query
     /// type name with a function that processes the query against a ReferenceQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IReferenceQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetCurrentSeedIdQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetCurrentSeedIdQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetCurrentSeedIdQuery);
             var result = await query.GetCurrentSeedIdAsync(ctx.DbFactory, cancellationToken);
@@ -112,14 +97,14 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
             await ctx.ReplyAsync(q.Subject.ThreadId, GetCurrentSeedIdQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetNextSeedIdQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetNextSeedIdQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetNextSeedIdQuery);
             var result = await query.GetNextSeedIdAsync(ctx.DbFactory, cancellationToken);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetNextSeedIdQuery.Verb,
                 new ServiceResult<ScalarReadModel<int>>(result));
         },
-        [typeof(GetDefaultFuturesContractDefinitionsQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetDefaultFuturesContractDefinitionsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetDefaultFuturesContractDefinitionsQuery);
             var result = await query.GetDefaultFuturesContractDefinitionsAsync(ctx.DbFactory, cancellationToken);
@@ -127,7 +112,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
             await ctx.ReplyAsync(q.Subject.ThreadId, GetDefaultFuturesContractDefinitionsQuery.Verb,
                 new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(result));
         },
-        [typeof(GetFuturesOptionStrikePriceDefinitionsQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetFuturesOptionStrikePriceDefinitionsQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetFuturesOptionStrikePriceDefinitionsQuery);
             var result = await query.GetFuturesOptionStrikePriceDefinitionsAsync(ctx.DbFactory, cancellationToken);
@@ -135,7 +120,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionStrikePriceDefinitionsQuery.Verb,
                 new ServiceResult<FuturesOptionStrikePriceReadModel>(result));
         },
-        [typeof(GetMDIForwardLossRatiosQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetMDIForwardLossRatiosQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = IsArgumentNull.Set(q as GetMDIForwardLossRatiosQuery);
             var result = await query.GetMDIForwardLossRatiosAsync(ctx.DbFactory, cancellationToken);
@@ -157,34 +142,14 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
     /// <param name="verb">The verb associated with the query that caused the exception.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns>A task that represents the asynchronous exception handling operation.</returns>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<ReferenceQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        try
-        {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetCurrentSeedIdQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<int>>(query.ErrorCode, ex.Message)),
-                _ when query is GetNextSeedIdQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<int>>(query.ErrorCode, ex.Message)),
-                _ when query is GetDefaultFuturesContractDefinitionsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<DefaultFuturesContractDefinitionsReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetFuturesOptionStrikePriceDefinitionsQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesOptionStrikePriceReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetMDIForwardLossRatiosQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<MDIForwardLossRatioReadModel[]>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); } catch { }
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<ReferenceQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

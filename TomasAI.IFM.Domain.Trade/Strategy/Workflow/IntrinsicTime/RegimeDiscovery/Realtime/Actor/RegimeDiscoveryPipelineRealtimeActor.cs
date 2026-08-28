@@ -29,6 +29,34 @@ public sealed class RegimeDiscoveryPipelineRealtimeActor(
 
     IRegimeDiscoveryPipelineRealtimeContext ActorContext { get; } = Typed(actorContext);
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [RegimeDiscoveryPipelineCompletedEvent.Verb] =
+                message => message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!,
+            [RegimeDiscoveryPipelineFailedEvent.Verb] =
+                message => message.AsEvent<RegimeDiscoveryPipelineFailedEvent>()!
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<IEvent,
+        IEventActorContext<RegimeDiscoveryPipelineRealtimeActor>, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent,
+            IEventActorContext<RegimeDiscoveryPipelineRealtimeActor>, ValueTask>>
+        {
+            [typeof(RegimeDiscoveryPipelineCompletedEvent)] = async (@event, context) =>
+            {
+                var command = CreateCompleteCommand((RegimeDiscoveryPipelineCompletedEvent)@event);
+                await context.SendAsync<CompleteRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+                    command, command.EntityId).ConfigureAwait(false);
+            },
+            [typeof(RegimeDiscoveryPipelineFailedEvent)] = async (@event, context) =>
+            {
+                var command = CreateFailCommand((RegimeDiscoveryPipelineFailedEvent)@event);
+                await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(
+                    command, command.EntityId).ConfigureAwait(false);
+            }
+        };
+
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<RegimeDiscoveryPipelineRealtimeActor> context)
     {
@@ -49,44 +77,16 @@ public sealed class RegimeDiscoveryPipelineRealtimeActor(
     protected override IEvent ParseMessage(
         IEventActorContext<RegimeDiscoveryPipelineRealtimeActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Realtime, Name: ActorName })
-            return default!;
-        return message.Subject.Verb switch
-        {
-            RegimeDiscoveryPipelineCompletedEvent.Verb =>
-                message.AsEvent<RegimeDiscoveryPipelineCompletedEvent>()!,
-            RegimeDiscoveryPipelineFailedEvent.Verb =>
-                message.AsEvent<RegimeDiscoveryPipelineFailedEvent>()!,
-            _ => throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} realtime event from message: {message.Subject}")
-        };
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<RegimeDiscoveryPipelineRealtimeActor> context,
         IEvent domainEvent)
     {
-        switch (domainEvent)
-        {
-            case RegimeDiscoveryPipelineCompletedEvent completed:
-            {
-                var command = CreateCompleteCommand(completed);
-                await context.SendAsync<CompleteRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    command, command.EntityId).ConfigureAwait(false);
-                break;
-            }
-            case RegimeDiscoveryPipelineFailedEvent failed:
-            {
-                var command = CreateFailCommand(failed);
-                await context.SendAsync<FailRegimeDiscoveryCommand, IntrinsicTimeStrategyWorkflowEntityId>(
-                    command, command.EntityId).ConfigureAwait(false);
-                break;
-            }
-            default:
-                throw new InvalidOperationException($"Unsupported Regime terminal event {domainEvent.GetType().Name}.");
-        }
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(domainEvent, _receiveMap);
+        await handler(domainEvent, context).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

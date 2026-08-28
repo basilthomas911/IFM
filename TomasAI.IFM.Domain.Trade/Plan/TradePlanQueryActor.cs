@@ -24,18 +24,9 @@ public sealed class TradePlanQueryActor(
     public const string ActorName = "TradePlanQuery";
 
     protected override IQuery ParseMessage(IQueryActorContext<TradePlanQueryActor> context, IActorMessage message)
-    {
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parsers.TryGetValue(subject.Verb, out var parser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {subject}");
+        => ParseMappedQuery(context, message, _parseMap);
 
-        var query = IsArgumentNull.Set(parser(message));
-        context.SetMessageInfo(subject.ThreadId, subject.Verb, new ActorMessageInfo(message, query));
-        return query;
-    }
-
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parsers = new()
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetStopLossLimitQuery.Verb] = message => message.AsQuery<GetStopLossLimitQuery, TradePlanStopLossLimitReadModel>()!,
         [GetTradePlanForwardLossRatiosQuery.Verb] = message => message.AsQuery<GetTradePlanForwardLossRatiosQuery, TradePlanForwardLossRatioReadModel[]>()!,
@@ -53,75 +44,66 @@ public sealed class TradePlanQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
-        var dispatchContext = context;
         cancellationToken.ThrowIfCancellationRequested();
-        switch (query)
-        {
-            case GetStopLossLimitQuery q:
-                await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
-                    new ServiceResult<TradePlanStopLossLimitReadModel>(
-                        await new GetStopLossLimitQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
-                break;
-            case GetTradePlanForwardLossRatiosQuery q:
-                await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
-                    new ServiceResult<TradePlanForwardLossRatioReadModel[]>(
-                        await new GetTradePlanForwardLossRatiosQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
-                break;
-            case GetTradePlanForwardLossRatioQuery q:
-                await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
-                    new ServiceResult<TradePlanForwardLossRatioReadModel>(
-                        await new GetTradePlanForwardLossRatioQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
-                break;
-            case GetTradePlansQuery q:
-                await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
-                    new ServiceResult<TradePlanReadModel[]>(
-                        await new GetTradePlansQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
-                break;
-            case GetIronCondorForwardDeltaQuery q:
-                await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
-                    new ServiceResult<IronCondorForwardDeltaDataModel>(
-                        await new GetIronCondorForwardDeltaQueryHandler(ActorContext.DbFactory.MarketDataDb).ExecuteAsync(q)));
-                break;
-            case GetTradePlanForwardLossLimitQuery q:
-                await context.ReplyAsync(q.Subject.ThreadId, q.Subject.Verb,
-                    new ServiceResult<TradePlanForwardLossLimitReadModel>(
-                        await new GetTradePlanForwardLossLimitQueryHandler(ActorContext.DbFactory.TradeDb).ExecuteAsync(q)));
-                break;
-            default:
-                throw new InvalidOperationException($"Unable to process {ActorName} query: {query.GetType().Name}");
-        }
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    protected override async ValueTask OnExceptionAsync(
+    static readonly Dictionary<Type, Func<TradePlanQueryActor,
+        IQueryActorContext<TradePlanQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetStopLossLimitQuery)] = static async (actor, context, query, _) =>
+        {
+            var value = (GetStopLossLimitQuery)query;
+            await context.ReplyAsync(value.Subject.ThreadId, value.Subject.Verb,
+                new ServiceResult<TradePlanStopLossLimitReadModel>(
+                    await new GetStopLossLimitQueryHandler(actor.ActorContext.DbFactory.TradeDb).ExecuteAsync(value)));
+        },
+        [typeof(GetTradePlanForwardLossRatiosQuery)] = static async (actor, context, query, _) =>
+        {
+            var value = (GetTradePlanForwardLossRatiosQuery)query;
+            await context.ReplyAsync(value.Subject.ThreadId, value.Subject.Verb,
+                new ServiceResult<TradePlanForwardLossRatioReadModel[]>(
+                    await new GetTradePlanForwardLossRatiosQueryHandler(actor.ActorContext.DbFactory.TradeDb).ExecuteAsync(value)));
+        },
+        [typeof(GetTradePlanForwardLossRatioQuery)] = static async (actor, context, query, _) =>
+        {
+            var value = (GetTradePlanForwardLossRatioQuery)query;
+            await context.ReplyAsync(value.Subject.ThreadId, value.Subject.Verb,
+                new ServiceResult<TradePlanForwardLossRatioReadModel>(
+                    await new GetTradePlanForwardLossRatioQueryHandler(actor.ActorContext.DbFactory.TradeDb).ExecuteAsync(value)));
+        },
+        [typeof(GetTradePlansQuery)] = static async (actor, context, query, _) =>
+        {
+            var value = (GetTradePlansQuery)query;
+            await context.ReplyAsync(value.Subject.ThreadId, value.Subject.Verb,
+                new ServiceResult<TradePlanReadModel[]>(
+                    await new GetTradePlansQueryHandler(actor.ActorContext.DbFactory.TradeDb).ExecuteAsync(value)));
+        },
+        [typeof(GetIronCondorForwardDeltaQuery)] = static async (actor, context, query, _) =>
+        {
+            var value = (GetIronCondorForwardDeltaQuery)query;
+            await context.ReplyAsync(value.Subject.ThreadId, value.Subject.Verb,
+                new ServiceResult<IronCondorForwardDeltaDataModel>(
+                    await new GetIronCondorForwardDeltaQueryHandler(actor.ActorContext.DbFactory.MarketDataDb).ExecuteAsync(value)));
+        },
+        [typeof(GetTradePlanForwardLossLimitQuery)] = static async (actor, context, query, _) =>
+        {
+            var value = (GetTradePlanForwardLossLimitQuery)query;
+            await context.ReplyAsync(value.Subject.ThreadId, value.Subject.Verb,
+                new ServiceResult<TradePlanForwardLossLimitReadModel>(
+                    await new GetTradePlanForwardLossLimitQueryHandler(actor.ActorContext.DbFactory.TradeDb).ExecuteAsync(value)));
+        }
+    };
+
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
         IQueryActorContext<TradePlanQueryActor> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,
-        Exception ex)
-    {
-        switch (query)
-        {
-            case GetStopLossLimitQuery:
-                await context.ReplyAsync(threadId, verb, new ServiceResult<TradePlanStopLossLimitReadModel>(query.ErrorCode, ex.Message));
-                break;
-            case GetTradePlanForwardLossRatiosQuery:
-                await context.ReplyAsync(threadId, verb, new ServiceResult<TradePlanForwardLossRatioReadModel[]>(query.ErrorCode, ex.Message));
-                break;
-            case GetTradePlanForwardLossRatioQuery:
-                await context.ReplyAsync(threadId, verb, new ServiceResult<TradePlanForwardLossRatioReadModel>(query.ErrorCode, ex.Message));
-                break;
-            case GetTradePlansQuery:
-                await context.ReplyAsync(threadId, verb, new ServiceResult<TradePlanReadModel[]>(query.ErrorCode, ex.Message));
-                break;
-            case GetIronCondorForwardDeltaQuery:
-                await context.ReplyAsync(threadId, verb, new ServiceResult<IronCondorForwardDeltaDataModel>(query.ErrorCode, ex.Message));
-                break;
-            case GetTradePlanForwardLossLimitQuery:
-                await context.ReplyAsync(threadId, verb, new ServiceResult<TradePlanForwardLossLimitReadModel>(query.ErrorCode, ex.Message));
-                break;
-            default:
-                await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message));
-                break;
-        }
-    }
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

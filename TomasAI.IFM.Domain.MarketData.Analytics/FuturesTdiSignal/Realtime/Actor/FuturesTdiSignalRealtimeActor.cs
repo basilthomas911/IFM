@@ -27,13 +27,47 @@ public class FuturesTdiSignalRealtimeActor(
         ActorType.Realtime,
         FuturesRsiSignalRealtimeActor.ActorName,
         FuturesRsiSignalsGeneratedEvent.Verb);
-    static readonly Dictionary<string, Func<IActorMessage, IEvent>> Parsers = new()
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
     {
         [FuturesRsiSignalsGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalsGeneratedEvent>()!,
         [FuturesTdiSignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedEvent>()!,
         [FuturesTdiSignalGeneratedCompleteEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedCompleteEvent>()!,
         [FuturesTdiSignalGeneratedFailEvent.Verb] = message => message.AsEvent<FuturesTdiSignalGeneratedFailEvent>()!
     };
+
+    static readonly IReadOnlyDictionary<Type, Func<IEvent,
+        IEventActorContext<FuturesTdiSignalRealtimeActor>,
+        IFuturesTdiSignalRealtimeContext,
+        FuturesTdiSignalRealtimeState,
+        ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent,
+            IEventActorContext<FuturesTdiSignalRealtimeActor>,
+            IFuturesTdiSignalRealtimeContext,
+            FuturesTdiSignalRealtimeState,
+            ValueTask>>
+        {
+            [typeof(FuturesRsiSignalsGeneratedEvent)] = async (@event, eventContext, context, state) =>
+            {
+                _ = await ((FuturesRsiSignalsGeneratedEvent)@event)
+                    .ExecuteRealtimeAsync(context.Projector, state, context.Logger).ConfigureAwait(false);
+            },
+            [typeof(FuturesTdiSignalGeneratedFailEvent)] = static (@event, eventContext, context, state) =>
+            {
+                var failed = (FuturesTdiSignalGeneratedFailEvent)@event;
+                context.Logger.LogError(
+                    "{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
+                    failed.EventName,
+                    failed.EntityId,
+                    failed.ErrorMessage);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesTdiSignalGeneratedCompleteEvent)] = async (@event, eventContext, context, state) =>
+                await eventContext.PublishMarketOutlookComponentAsync(
+                    (FuturesTdiSignalGeneratedCompleteEvent)@event).ConfigureAwait(false),
+            [typeof(FuturesTdiSignalGeneratedEvent)] = static (
+                @event, eventContext, context, state) => ValueTask.CompletedTask
+        };
 
     protected override async ValueTask OnStartup(IEventActorContext<FuturesTdiSignalRealtimeActor> context)
     {
@@ -48,36 +82,13 @@ public class FuturesTdiSignalRealtimeActor(
     }
 
     protected override IEvent ParseMessage(IEventActorContext<FuturesTdiSignalRealtimeActor> context, IActorMessage message)
-    {
-        var subject = message.Subject;
-        if (subject is not { ActorType: ActorType.Realtime, Name: ActorName }
-            || !Parsers.TryGetValue(subject.Verb, out var parser))
-            return default!;
-        var @event = parser(message);
-        @event.CheckForEmptyCommandId();
-        return @event;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesTdiSignalRealtimeActor> context, IEvent @event)
     {
-        var dispatchContext = context;
-        switch (@event)
-        {
-            case FuturesRsiSignalsGeneratedEvent rsiWindow:
-                _ = await rsiWindow.ExecuteRealtimeAsync(actorContext.Projector, _state, actorContext.Logger).ConfigureAwait(false);
-                break;
-            case FuturesTdiSignalGeneratedFailEvent failed:
-                actorContext.Logger.LogError("{EventName} for {EntityId}: {ErrorMessage}; no replay or retry will be attempted",
-                    failed.EventName, failed.EntityId, failed.ErrorMessage);
-                break;
-            case FuturesTdiSignalGeneratedCompleteEvent completed:
-                await context.PublishMarketOutlookComponentAsync(completed).ConfigureAwait(false);
-                break;
-            case FuturesTdiSignalGeneratedEvent:
-                break;
-            default:
-                throw new InvalidOperationException($"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
-        }
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
+        await handler(@event, context, ActorContext, _state).ConfigureAwait(false);
     }
 
     protected override async ValueTask OnExceptionAsync(

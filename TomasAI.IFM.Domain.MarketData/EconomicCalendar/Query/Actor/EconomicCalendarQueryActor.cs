@@ -40,20 +40,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// <returns>The thread identifier extracted from the message subject.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<EconomicCalendarQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -89,9 +76,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(EconomicCalendarContext, query, cancellationToken);
     }
 
@@ -102,9 +87,9 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// <remarks>This dictionary enables dynamic dispatch of economic calendar-related queries by associating each query
     /// type name with a function that processes the query against an EconomicCalendarQueryState. The mapping is intended for
     /// internal use to streamline query handling and should not be modified at runtime.</remarks>
-    static readonly Dictionary<string, Func<IEconomicCalendarQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IEconomicCalendarQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetEconomicCalendarPageQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarPageQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = (GetEconomicCalendarPageQuery)q;
             var result = await query.GetEconomicCalendarPageAsync(ctx.DbFactory, cancellationToken);
@@ -112,7 +97,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarPageQuery.Verb,
                 new ServiceResult<EconomicCalendarPageReadModel>(result));
         },
-        [typeof(GetEconomicCalendarAllQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarAllQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarAllQuery;
             var result = await query.GetEconomicCalendarAllAsync(ctx.DbFactory, cancellationToken);
@@ -120,7 +105,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarAllQuery.Verb,
                 new ServiceResult<EconomicCalendarReadModel[]>(result));
         },
-        [typeof(GetEconomicCalendarQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarQuery;
             var result = await query.GetEconomicCalendarAsync(ctx.DbFactory, cancellationToken);
@@ -128,7 +113,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarQuery.Verb,
                 new ServiceResult<EconomicCalendarReadModel[]>(result));
         },
-        [typeof(GetEconomicCalendarDateQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarDateQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarDateQuery;
             var result = await query.GetEconomicCalendarDateAsync(cancellationToken);
@@ -136,7 +121,7 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
             await ctx.ReplyAsync(q.Subject.ThreadId, GetEconomicCalendarDateQuery.Verb,
                 new ServiceResult<string>(result));
         },
-        [typeof(GetEconomicCalendarCountryCodesQuery).Name] = async (ctx, q, cancellationToken) =>
+        [typeof(GetEconomicCalendarCountryCodesQuery)] = async (ctx, q, cancellationToken) =>
         {
             var query = q as GetEconomicCalendarCountryCodesQuery;
             var result = await query.GetEconomicCalendarCountryCodesAsync(ctx.DbFactory, cancellationToken);
@@ -159,36 +144,14 @@ public class EconomicCalendarQueryActor(IQueryActorContext<EconomicCalendarQuery
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported or cannot be processed by the actor.</exception>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<EconomicCalendarQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        try
-        {
-            IsArgumentNull.Check(context);
-            IsArgumentNull.Check(threadId);
-            IsArgumentNull.Check(query);
-            IsArgumentNull.Check(verb);
-            IsArgumentNull.Check(ex.Message);
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetEconomicCalendarPageQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarPageReadModel>(query.ErrorCode, ex.Message)),
-                _ when query is GetEconomicCalendarAllQuery 
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetEconomicCalendarQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarReadModel[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetEconomicCalendarDateQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<string>(query.ErrorCode, ex.Message)),
-                _ when query is GetEconomicCalendarCountryCodesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<EconomicCalendarCountryCodeReadModel[]>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            try { await context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, innerEx.Message)); }
-            catch { /* Swallow secondary exceptions during exception handling */ }
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<EconomicCalendarQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

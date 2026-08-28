@@ -12,7 +12,7 @@ public sealed class RegimeDiscoveryQueryActor(
     IQueryActorContext<RegimeDiscoveryQueryActor> actorContext)
     : BaseQueryActor<RegimeDiscoveryQueryActor>(actorContext, Typed(actorContext).Logger)
 {
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> Parsers =
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetRegimeDiscoveryQuery.Verb] = message =>
@@ -28,14 +28,7 @@ public sealed class RegimeDiscoveryQueryActor(
     protected override IQuery ParseMessage(
         IQueryActorContext<RegimeDiscoveryQueryActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Query, Name: ActorName } ||
-            !Parsers.TryGetValue(message.Subject.Verb, out var parse))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = parse(message);
-        context.SetMessageInfo(message.Subject.ThreadId, message.Subject.Verb, new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(
@@ -49,36 +42,36 @@ public sealed class RegimeDiscoveryQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
-        if (query is not GetRegimeDiscoveryQuery get)
-            throw new InvalidOperationException($"Unsupported Regime Discovery query: {query.GetType().Name}");
-        var result = await ActorContext.DbFactory.TradeDb
-            .GetRegimeDiscoveryAsync(get.WorkflowId, cancellationToken).ConfigureAwait(false);
-        if (result is null)
-            throw new KeyNotFoundException($"Regime Discovery result for workflow {get.WorkflowId} was not found.");
-        await context.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
-            new ServiceResult<RegimeDiscoveryReadModel>(result)).ConfigureAwait(false);
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
+    static readonly Dictionary<Type, Func<RegimeDiscoveryQueryActor,
+        IQueryActorContext<RegimeDiscoveryQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetRegimeDiscoveryQuery)] = static async (actor, context, query, cancellationToken) =>
+        {
+            var get = (GetRegimeDiscoveryQuery)query;
+            var result = await actor.ActorContext.DbFactory.TradeDb
+                .GetRegimeDiscoveryAsync(get.WorkflowId, cancellationToken).ConfigureAwait(false);
+            if (result is null)
+                throw new KeyNotFoundException($"Regime Discovery result for workflow {get.WorkflowId} was not found.");
+            await context.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
+                new ServiceResult<RegimeDiscoveryReadModel>(result)).ConfigureAwait(false);
+        }
+    };
+
     /// <inheritdoc />
-    protected override async ValueTask OnExceptionAsync(
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
         IQueryActorContext<RegimeDiscoveryQueryActor> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,
         Exception exception)
-    {
-        try
-        {
-            await context.ReplyAsync(threadId, verb,
-                new ServiceFailed<ActorEntityId>(query?.ErrorCode ?? GetRegimeDiscoveryQuery.ErrorId,
-                    exception.Message)).ConfigureAwait(false);
-        }
-        catch (Exception replyException)
-        {
-            ActorContext.Logger.LogError(replyException,
-                "Failed to return Regime Discovery query error for {ThreadId}", threadId);
-        }
-    }
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
     static IRegimeDiscoveryQueryContext Typed(IQueryActorContext<RegimeDiscoveryQueryActor> context)
         => context as IRegimeDiscoveryQueryContext

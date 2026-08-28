@@ -12,7 +12,7 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
     IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> actorContext)
     : BaseQueryActor<RegimeDiscoveryConfigurationQueryActor>(actorContext, Typed(actorContext).Logger)
 {
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IQuery>> Parsers =
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetRegimeDiscoveryParameterSetQuery.Verb] = message =>
@@ -28,14 +28,7 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
     /// <inheritdoc />
     protected override IQuery ParseMessage(IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context,
         IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Query, Name: ActorName } ||
-            !Parsers.TryGetValue(message.Subject.Verb, out var parser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from {message.Subject}.");
-        var query = parser(message);
-        context.SetMessageInfo(message.Subject.ThreadId, message.Subject.Verb, new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(
@@ -48,40 +41,51 @@ public sealed class RegimeDiscoveryConfigurationQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
     {
-        RegimeDiscoveryParameterSet? result = query switch
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
+    }
+
+    static readonly Dictionary<Type, Func<RegimeDiscoveryConfigurationQueryActor,
+        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetRegimeDiscoveryParameterSetQuery)] = static async (actor, context, query, cancellationToken) =>
         {
-            GetRegimeDiscoveryParameterSetQuery exact =>
-                (await ActorContext.ConfigurationDb.GetRegimeDiscoveryAsync(
-                    exact.ParameterSetId, exact.Version, cancellationToken).ConfigureAwait(false))?.ParameterSet,
-            ResolveRegimeDiscoveryParameterSetQuery effective =>
-                (await ActorContext.ConfigurationDb.ResolveEffectiveRegimeDiscoveryAsync(
-                    effective.EffectiveAtUtc, effective.TargetHorizon, cancellationToken).ConfigureAwait(false))?.ParameterSet,
-            _ => throw new InvalidOperationException($"Unsupported configuration query {query.GetType().Name}.")
-        };
+            var exact = (GetRegimeDiscoveryParameterSetQuery)query;
+            var result = (await actor.ActorContext.ConfigurationDb.GetRegimeDiscoveryAsync(
+                exact.ParameterSetId, exact.Version, cancellationToken).ConfigureAwait(false))?.ParameterSet;
+            await ReplyAsync(context, query, result).ConfigureAwait(false);
+        },
+        [typeof(ResolveRegimeDiscoveryParameterSetQuery)] = static async (actor, context, query, cancellationToken) =>
+        {
+            var effective = (ResolveRegimeDiscoveryParameterSetQuery)query;
+            var result = (await actor.ActorContext.ConfigurationDb.ResolveEffectiveRegimeDiscoveryAsync(
+                effective.EffectiveAtUtc, effective.TargetHorizon, cancellationToken).ConfigureAwait(false))?.ParameterSet;
+            await ReplyAsync(context, query, result).ConfigureAwait(false);
+        }
+    };
+
+    static ValueTask ReplyAsync(
+        IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context,
+        IQuery query,
+        RegimeDiscoveryParameterSet? result)
+    {
         if (result is null)
             throw new KeyNotFoundException("The requested Regime Discovery parameter set was not found.");
-        await context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
-            new ServiceResult<RegimeDiscoveryParameterSet>(result)).ConfigureAwait(false);
+        return context.ReplyAsync(query.Subject.ThreadId, query.Subject.Verb,
+            new ServiceResult<RegimeDiscoveryParameterSet>(result));
     }
 
     /// <inheritdoc />
-    protected override async ValueTask OnExceptionAsync(
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
         IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context,
         ActorThreadId threadId,
         IQuery query,
         string verb,
         Exception exception)
-    {
-        try
-        {
-            await context.ReplyAsync(threadId, verb,
-                new ServiceFailed<ActorEntityId>(query?.ErrorCode ?? 33100, exception.Message)).ConfigureAwait(false);
-        }
-        catch (Exception replyException)
-        {
-            ActorContext.Logger.LogError(replyException, "Unable to return configuration query failure.");
-        }
-    }
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
     static IRegimeDiscoveryConfigurationQueryContext Typed(
         IQueryActorContext<RegimeDiscoveryConfigurationQueryActor> context)

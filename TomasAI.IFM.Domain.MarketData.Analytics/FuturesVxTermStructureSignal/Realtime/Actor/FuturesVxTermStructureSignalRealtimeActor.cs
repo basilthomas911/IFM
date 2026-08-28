@@ -20,12 +20,20 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     public const string ActorName = "FuturesVxTermStructureSignal";
     static readonly ActorTypeId Route = new(ActorType.Realtime,
         FuturesMarketPriceUpdatedRealtimeEvent.Actor, FuturesMarketPriceUpdatedRealtimeEvent.Verb);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!
+        };
     /// <summary>Gets the typed realtime context supplied through open-generic registration.</summary>
     IFuturesVxTermStructureSignalRealtimeContext TypedContext { get; } = IsArgumentNull.Set(
         actorContext as IFuturesVxTermStructureSignalRealtimeContext, nameof(actorContext))!;
     readonly FuturesVxTermStructureStreamOwnership streamOwnership = new();
-    readonly Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
-        FuturesTermStructureContracts, ILogger, ValueTask<bool>>> receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
+        FuturesTermStructureContracts, ILogger, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesVxTermStructureSignalRealtimeContext,
+            FuturesTermStructureContracts, ILogger, ValueTask<bool>>>
     {
         [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contracts, eventLogger) =>
             await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
@@ -50,14 +58,13 @@ public sealed class FuturesVxTermStructureSignalRealtimeActor(
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context,
         IActorMessage message) =>
-        message.Subject.Is(ActorType.Realtime, ActorName, FuturesMarketPriceUpdatedRealtimeEvent.Verb)
-            ? message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()! : default!;
+        ParseMappedRealtimeEvent(context, message, _parseMap);
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<FuturesVxTermStructureSignalRealtimeActor> context, IEvent @event)
     {
-        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException($"Unsupported VX realtime event {@event.EventName}.");
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
         var contracts = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi).ConfigureAwait(false);
         _ = await handler(@event, TypedContext, contracts, TypedContext.Logger).ConfigureAwait(false);
     }

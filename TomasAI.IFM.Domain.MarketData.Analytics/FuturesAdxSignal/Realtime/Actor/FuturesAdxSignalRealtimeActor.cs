@@ -30,10 +30,18 @@ public class FuturesAdxSignalRealtimeActor(
         FuturesTradeSessionBarClosedRealtimeEvent.Actor,
         FuturesTradeSessionBarClosedRealtimeEvent.Verb);
 
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesTradeSessionBarClosedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
+        };
+
     readonly ILogger<FuturesAdxSignalRealtimeActor> _logger = IsArgumentNull.Set(actorContext.Logger);
 
     /// <summary>Maps supported realtime event types to their dedicated extension handlers.</summary>
-    readonly Dictionary<Type, Func<IEvent, IFuturesAdxSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap = new()
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesAdxSignalRealtimeContext, ILogger, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesAdxSignalRealtimeContext, ILogger, ValueTask<bool>>>
     {
         [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = async (@event, context, logger) =>
         {
@@ -62,17 +70,7 @@ public class FuturesAdxSignalRealtimeActor(
     protected override IEvent ParseMessage(
         IEventActorContext<FuturesAdxSignalRealtimeActor> context,
         IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(message);
-        var subject = message.Subject;
-        return subject.Is(
-            ActorType.Realtime,
-            ActorName,
-            FuturesTradeSessionBarClosedRealtimeEvent.Verb)
-                ? message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
-                : default!;
-    }
+        => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     /// <summary>Dispatches a closed observation to its ADX command-forwarding extension handler.</summary>
     protected override async ValueTask ReceiveAsync(
@@ -81,9 +79,7 @@ public class FuturesAdxSignalRealtimeActor(
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(@event);
-        if (!_receiveMap.TryGetValue(@event.GetType(), out var receiveHandler))
-            throw new InvalidOperationException(
-                $"Unable to resolve {ActorName} realtime event from message: {@event.Subject}");
+        var receiveHandler = ResolveMappedEventHandler(@event, _receiveMap);
         _ = await receiveHandler
             .Invoke(@event, FuturesAdxSignalRealtimeContext, _logger)
             .ConfigureAwait(false);

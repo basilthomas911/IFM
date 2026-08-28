@@ -37,26 +37,19 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<MarketDataQueryActor> context, IActorMessage message)
+        => ParseMappedQuery(context, message, _parseMap);
+
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName })
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        IQuery? query = msgSubject.Verb switch
-        {
-            GetLastRateOfReturnQuery.Verb => message.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>(),
-            GetTradingDaysQuery.Verb => message.AsQuery<GetTradingDaysQuery, ScalarReadModel<int>>(),
-            GetTradingDatesQuery.Verb => message.AsQuery<GetTradingDatesQuery, DateOnly[]>(),
-            GetValueDateQuery.Verb => message.AsQuery<GetValueDateQuery, ScalarReadModel<DateOnly>>(),
-            _ => throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}")
-        };
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        [GetLastRateOfReturnQuery.Verb] = message =>
+            message.AsQuery<GetLastRateOfReturnQuery, RateOfReturnReadModel>()!,
+        [GetTradingDaysQuery.Verb] = message =>
+            message.AsQuery<GetTradingDaysQuery, ScalarReadModel<int>>()!,
+        [GetTradingDatesQuery.Verb] = message =>
+            message.AsQuery<GetTradingDatesQuery, DateOnly[]>()!,
+        [GetValueDateQuery.Verb] = message =>
+            message.AsQuery<GetValueDateQuery, ScalarReadModel<DateOnly>>()!
+    };
 
     /// <summary>
     /// Handles incoming queries asynchronously and processes them based on their type.
@@ -75,23 +68,29 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        await (query switch
-        {
-            GetLastRateOfReturnQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
-            GetTradingDaysQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
-            GetTradingDatesQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
-            GetValueDateQuery typedQuery => ReceiveAsync(MarketDataContext, typedQuery, cancellationToken),
-            _ => throw new InvalidOperationException(
-                $"Unable to process {ActorName} query: {query.GetType().Name}")
-        });
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, MarketDataContext, query, cancellationToken).ConfigureAwait(false);
     }
+
+    static readonly Dictionary<Type,
+        Func<MarketDataQueryActor, IMarketDataQueryContext, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetLastRateOfReturnQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetLastRateOfReturnQuery)query, cancellationToken),
+        [typeof(GetTradingDaysQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetTradingDaysQuery)query, cancellationToken),
+        [typeof(GetTradingDatesQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetTradingDatesQuery)query, cancellationToken),
+        [typeof(GetValueDateQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetValueDateQuery)query, cancellationToken)
+    };
 
     async ValueTask ReceiveAsync(
         IQueryActorContext<MarketDataQueryActor> context,
         GetLastRateOfReturnQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetLastRateOfReturnAsync(MarketDataContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetLastRateOfReturnAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetLastRateOfReturnQuery.Verb,
             new ServiceResult<RateOfReturnReadModel>(result)).ConfigureAwait(false);
@@ -102,7 +101,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         GetTradingDaysQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetTradingDaysAsync(MarketDataContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetTradingDaysAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetTradingDaysQuery.Verb,
             new ServiceResult<ScalarReadModel<int>>(result)).ConfigureAwait(false);
@@ -113,7 +112,7 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         GetTradingDatesQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetTradingDatesAsync(MarketDataContext.DbFactory, cancellationToken).ConfigureAwait(false);
+        var result = await query.GetTradingDatesAsync(context.DbFactory, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetTradingDatesQuery.Verb,
             new ServiceResult<DateOnly[]>(result)).ConfigureAwait(false);
@@ -139,34 +138,15 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
     /// <exception cref="InvalidOperationException">Thrown if the query type is not supported.</exception>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<MarketDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetLastRateOfReturnQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<RateOfReturnReadModel?>(query.ErrorCode, ex.Message)),
-                _ when query is GetTradingDaysQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<int>>(query.ErrorCode, ex.Message)),
-                _ when query is GetTradingDatesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<DateOnly[]>(query.ErrorCode, ex.Message)),
-                _ when query is GetValueDateQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarReadModel<DateOnly>>(query.ErrorCode, ex.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<MarketDataQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 
 }

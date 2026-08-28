@@ -23,21 +23,15 @@ public sealed class FuturesVwapSignalQueryActor(
     /// <inheritdoc />
     protected override IQuery ParseMessage(IQueryActorContext<FuturesVwapSignalQueryActor> context,
         IActorMessage message)
+        => ParseMappedQuery(context, message, _parseMap);
+
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
-        if (message.Subject is not { ActorType: ActorType.Query, Name: ActorName })
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from {message.Subject}.");
-        IQuery query = message.Subject.Verb switch
-        {
-            GetLatestFuturesVwapSignalQuery.Verb =>
-                message.AsQuery<GetLatestFuturesVwapSignalQuery, FuturesVwapSignalReadModel?>()!,
-            GetFuturesVwapSignalHistoryQuery.Verb =>
-                message.AsQuery<GetFuturesVwapSignalHistoryQuery, FuturesVwapSignalReadModel[]>()!,
-            _ => throw new InvalidOperationException($"Unsupported VWAP query verb {message.Subject.Verb}.")
-        };
-        context.SetMessageInfo(message.Subject.ThreadId, message.Subject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        [GetLatestFuturesVwapSignalQuery.Verb] = message =>
+            message.AsQuery<GetLatestFuturesVwapSignalQuery, FuturesVwapSignalReadModel?>()!,
+        [GetFuturesVwapSignalHistoryQuery.Verb] = message =>
+            message.AsQuery<GetFuturesVwapSignalHistoryQuery, FuturesVwapSignalReadModel[]>()!
+    };
 
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(
@@ -49,35 +43,40 @@ public sealed class FuturesVwapSignalQueryActor(
         IQueryActorContext<FuturesVwapSignalQueryActor> context,
         IQuery query, CancellationToken cancellationToken)
     {
-        switch (query)
-        {
-            case GetLatestFuturesVwapSignalQuery latest:
-                var current = await latest.ExecuteAsync(
-                    TypedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-                await context.ReplyAsync(query.Subject.ThreadId, latest.Subject.Verb,
-                    new ServiceResult<FuturesVwapSignalReadModel?>(current)).ConfigureAwait(false);
-                break;
-            case GetFuturesVwapSignalHistoryQuery history:
-                var values = await history.ExecuteAsync(
-                    TypedContext.DbFactory, cancellationToken).ConfigureAwait(false);
-                await context.ReplyAsync(query.Subject.ThreadId, history.Subject.Verb,
-                    new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);
-                break;
-            default:
-                throw new InvalidOperationException($"Unsupported VWAP query {query.GetType().Name}.");
-        }
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
-    protected override async ValueTask OnExceptionAsync(
-        IQueryActorContext<FuturesVwapSignalQueryActor> context,
-        ActorThreadId threadId, IQuery query, string verb, Exception exception)
+    static readonly Dictionary<Type, Func<FuturesVwapSignalQueryActor,
+        IQueryActorContext<FuturesVwapSignalQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        if (query is GetFuturesVwapSignalHistoryQuery)
-            await context.ReplyAsync(threadId, verb,
-                new ServiceResult<FuturesVwapSignalReadModel[]>(query.ErrorCode, exception.Message));
-        else
-            await context.ReplyAsync(threadId, verb,
-                new ServiceResult<FuturesVwapSignalReadModel?>(query.ErrorCode, exception.Message));
-    }
+        [typeof(GetLatestFuturesVwapSignalQuery)] = static async (actor, context, query, cancellationToken) =>
+        {
+            var latest = (GetLatestFuturesVwapSignalQuery)query;
+            var current = await latest.ExecuteAsync(
+                actor.TypedContext.DbFactory, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, latest.Subject.Verb,
+                new ServiceResult<FuturesVwapSignalReadModel?>(current)).ConfigureAwait(false);
+        },
+        [typeof(GetFuturesVwapSignalHistoryQuery)] = static async (actor, context, query, cancellationToken) =>
+        {
+            var history = (GetFuturesVwapSignalHistoryQuery)query;
+            var values = await history.ExecuteAsync(
+                actor.TypedContext.DbFactory, cancellationToken).ConfigureAwait(false);
+            await context.ReplyAsync(query.Subject.ThreadId, history.Subject.Verb,
+                new ServiceResult<FuturesVwapSignalReadModel[]>(values)).ConfigureAwait(false);
+        }
+    };
+
+    /// <inheritdoc />
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
+
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FuturesVwapSignalQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

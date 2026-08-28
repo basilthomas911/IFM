@@ -41,20 +41,7 @@ public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActo
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<FuturesEodDataQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -82,9 +69,7 @@ public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(QueryContext, query).ConfigureAwait(false);
     }
 
@@ -92,51 +77,51 @@ public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActo
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures EOD data query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IFuturesEodDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IFuturesEodDataQueryContext, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesEodDataByDateRangeQuery).Name] = async (ctx, q) =>
+        [typeof(GetFuturesEodDataByDateRangeQuery)] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataByDateRangeQuery)!;
             var result = await query.GetFuturesEodDataByDateRangeAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataByDateRangeQuery.Verb,
                 new ServiceResult<FuturesEodDataV2ReadModel[]>(result));
         },
-        [typeof(GetFuturesEodDataParametersQuery).Name] = async (ctx, q) =>
+        [typeof(GetFuturesEodDataParametersQuery)] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataParametersQuery)!;
             var result = await query.GetFuturesEodDataParametersAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataParametersQuery.Verb,
                 new ServiceResult<FuturesEodDataParametersReadModel>(result));
         },
-        [typeof(GetFuturesEodDataQuery).Name] = async (ctx, q) =>
+        [typeof(GetFuturesEodDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataQuery)!;
             var result = await query.GetFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataQuery.Verb,
                 new ServiceResult<FuturesEodDataV2ReadModel>(result));
         },
-        [typeof(GetLastFuturesEodDataQuery).Name] = async (ctx, q) =>
+        [typeof(GetLastFuturesEodDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastFuturesEodDataQuery)!;
             var result = await query.GetLastFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesEodDataQuery.Verb,
                 new ServiceResult<FuturesEodDataV2ReadModel>(result));
         },
-        [typeof(GetFuturesEodDataMovingAveragesQuery).Name] = async (ctx, q) =>
+        [typeof(GetFuturesEodDataMovingAveragesQuery)] = async (ctx, q) =>
         {
             var query = (q as GetFuturesEodDataMovingAveragesQuery)!;
             var result = await query.GetFuturesEodMovingAveragesAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesEodDataMovingAveragesQuery.Verb,
                 new ServiceResult<FuturesEodDataMovingAveragesReadModel>(result));
         },
-        [typeof(GetLastVixFuturesEodDataQuery).Name] = async (ctx, q) =>
+        [typeof(GetLastVixFuturesEodDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetLastVixFuturesEodDataQuery)!;
             var result = await query.GetLastVixFuturesEodDataAsync(ctx.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastVixFuturesEodDataQuery.Verb,
                 new ServiceResult<VixFuturesEodDataReadModel?>(result));
         },
-        [typeof(GetVixFuturesEodDataQuery).Name] = async (ctx, q) =>
+        [typeof(GetVixFuturesEodDataQuery)] = async (ctx, q) =>
         {
             var query = (q as GetVixFuturesEodDataQuery)!;
             var result = await query.GetVixFuturesEodDataAsync(ctx.DbFactory);
@@ -153,39 +138,14 @@ public class FuturesEodDataQueryActor(IQueryActorContext<FuturesEodDataQueryActo
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<FuturesEodDataQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetFuturesEodDataByDateRangeQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesEodDataV2ReadModel[]>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesEodDataParametersQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesEodDataParametersReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesEodDataQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesEodDataV2ReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetLastFuturesEodDataQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesEodDataV2ReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesEodDataMovingAveragesQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesEodDataMovingAveragesReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetLastVixFuturesEodDataQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<VixFuturesEodDataReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetVixFuturesEodDataQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<VixFuturesEodDataReadModel[]>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<FuturesEodDataQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

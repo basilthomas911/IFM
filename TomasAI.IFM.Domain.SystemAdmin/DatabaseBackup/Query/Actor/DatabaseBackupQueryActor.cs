@@ -28,7 +28,7 @@ public class DatabaseBackupQueryActor(
     /// <summary>Gets the SupportedQueryTypes value.</summary>
     public static IReadOnlyCollection<Type> SupportedQueryTypes => QueryRoutes.Select(route => route.QueryType).ToArray();
     /// <summary>Gets the SupportedVerbs value.</summary>
-    public static IReadOnlyCollection<string> SupportedVerbs => ParseMap.Keys;
+    public static IReadOnlyCollection<string> SupportedVerbs => _parseMap.Keys;
 
     static readonly (Type QueryType, Type ResultType)[] QueryRoutes =
     [
@@ -49,20 +49,13 @@ public class DatabaseBackupQueryActor(
         (typeof(GetDatabaseRecoveryRunStatsQuery), typeof(DatabaseRecoveryRunStatsReadModel))
     ];
     static readonly MethodInfo ParseMethod = typeof(DatabaseBackupQueryActor).GetMethod(nameof(ParseTyped), BindingFlags.Static | BindingFlags.NonPublic)!;
-    static readonly Dictionary<string, Func<IActorMessage, IQuery>> ParseMap = QueryRoutes.ToDictionary(
+    static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = QueryRoutes.ToDictionary(
         route => ((DatabaseBackupQuery)Activator.CreateInstance(route.QueryType)!).Verb,
         route => (Func<IActorMessage, IQuery>)ParseMethod.MakeGenericMethod(route.QueryType, route.ResultType).CreateDelegate(typeof(Func<IActorMessage, IQuery>)),
         StringComparer.Ordinal);
 
     protected override IQuery ParseMessage(IQueryActorContext<DatabaseBackupQueryActor> context, IActorMessage message)
-    {
-        if (message.Subject is not { ActorType: ActorType.Query, Name: Actor }
-            || !ParseMap.TryGetValue(message.Subject.Verb, out var parser))
-            throw new InvalidOperationException($"Unable to resolve {Actor} query from message: {message.Subject}");
-        var query = parser(message);
-        context.SetMessageInfo(message.Subject.ThreadId, message.Subject.Verb, new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     static IQuery ParseTyped<TQuery, TResult>(IActorMessage message)
         where TQuery : class, IQuery<TResult>
@@ -74,28 +67,60 @@ public class DatabaseBackupQueryActor(
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<DatabaseBackupQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
-        var dispatchContext = context;
         ((DatabaseBackupQuery)query).Validate();
-        switch (query)
-        {
-            case GetDatabaseProtectionSetsQuery value: await Reply(context, value, await _dbContext.GetProtectionSetsAsync(value, cancellationToken)); break;
-            case GetDatabaseBackupPolicyQuery value: await ReplyOne(context, value, await _dbContext.GetPolicyAsync(value, cancellationToken)); break;
-            case GetDatabaseBackupOperationQuery value: await ReplyOne(context, value, await _dbContext.GetBackupOperationAsync(value, cancellationToken)); break;
-            case ListDatabaseBackupOperationsQuery value: await Reply(context, value, await _dbContext.ListBackupOperationsAsync(value, cancellationToken)); break;
-            case GetDatabaseBackupSetQuery value: await ReplyOne(context, value, await _dbContext.GetBackupSetAsync(value, cancellationToken)); break;
-            case ListDatabaseRestorePointsQuery value: await Reply(context, value, await _dbContext.ListRestorePointsAsync(value, cancellationToken)); break;
-            case GetDatabaseRestorePointQuery value: await ReplyOne(context, value, await _dbContext.GetRestorePointAsync(value, cancellationToken)); break;
-            case GetLatestVerifiedDatabaseBackupQuery value: await ReplyOne(context, value, await _dbContext.GetLatestVerifiedBackupAsync(value, cancellationToken)); break;
-            case GetLatestRestoreTestedDatabaseBackupQuery value: await ReplyOne(context, value, await _dbContext.GetLatestRestoreTestedBackupAsync(value, cancellationToken)); break;
-            case GetDatabaseRecoveryObjectiveComplianceQuery value: await Reply(context, value, await _dbContext.GetRecoveryObjectiveComplianceAsync(value, cancellationToken)); break;
-            case GetDatabaseRestoreOperationQuery value: await ReplyOne(context, value, await _dbContext.GetRestoreOperationAsync(value, cancellationToken)); break;
-            case ListDatabaseRestoreDrillsQuery value: await Reply(context, value, await _dbContext.ListRestoreDrillsAsync(value, cancellationToken)); break;
-            case GetDatabaseRetentionForecastQuery value: await ReplyOne(context, value, await _dbContext.GetRetentionForecastAsync(value, cancellationToken)); break;
-            case GetDatabaseBackupServiceHealthQuery value: await Reply(context, value, await _dbContext.GetServiceHealthAsync(value, cancellationToken)); break;
-            case GetDatabaseRecoveryRunStatsQuery value: await ReplyOne(context, value, await _dbContext.GetRecoveryRunStatsAsync(value, cancellationToken)); break;
-            default: throw new InvalidOperationException($"Unsupported DatabaseBackup query '{query.GetType().Name}'.");
-        }
+        var receive = ResolveMappedQueryHandler(query, _receiveMap);
+        await receive(this, context, query, cancellationToken).ConfigureAwait(false);
     }
+
+    static readonly Dictionary<Type, Func<DatabaseBackupQueryActor,
+        IQueryActorContext<DatabaseBackupQueryActor>, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
+    {
+        [typeof(GetDatabaseProtectionSetsQuery)] = static async (actor, context, query, cancellationToken) =>
+            await Reply(context, (GetDatabaseProtectionSetsQuery)query,
+                await actor._dbContext.GetProtectionSetsAsync((GetDatabaseProtectionSetsQuery)query, cancellationToken)),
+        [typeof(GetDatabaseBackupPolicyQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseBackupPolicyQuery)query,
+                await actor._dbContext.GetPolicyAsync((GetDatabaseBackupPolicyQuery)query, cancellationToken)),
+        [typeof(GetDatabaseBackupOperationQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseBackupOperationQuery)query,
+                await actor._dbContext.GetBackupOperationAsync((GetDatabaseBackupOperationQuery)query, cancellationToken)),
+        [typeof(ListDatabaseBackupOperationsQuery)] = static async (actor, context, query, cancellationToken) =>
+            await Reply(context, (ListDatabaseBackupOperationsQuery)query,
+                await actor._dbContext.ListBackupOperationsAsync((ListDatabaseBackupOperationsQuery)query, cancellationToken)),
+        [typeof(GetDatabaseBackupSetQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseBackupSetQuery)query,
+                await actor._dbContext.GetBackupSetAsync((GetDatabaseBackupSetQuery)query, cancellationToken)),
+        [typeof(ListDatabaseRestorePointsQuery)] = static async (actor, context, query, cancellationToken) =>
+            await Reply(context, (ListDatabaseRestorePointsQuery)query,
+                await actor._dbContext.ListRestorePointsAsync((ListDatabaseRestorePointsQuery)query, cancellationToken)),
+        [typeof(GetDatabaseRestorePointQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseRestorePointQuery)query,
+                await actor._dbContext.GetRestorePointAsync((GetDatabaseRestorePointQuery)query, cancellationToken)),
+        [typeof(GetLatestVerifiedDatabaseBackupQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetLatestVerifiedDatabaseBackupQuery)query,
+                await actor._dbContext.GetLatestVerifiedBackupAsync((GetLatestVerifiedDatabaseBackupQuery)query, cancellationToken)),
+        [typeof(GetLatestRestoreTestedDatabaseBackupQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetLatestRestoreTestedDatabaseBackupQuery)query,
+                await actor._dbContext.GetLatestRestoreTestedBackupAsync((GetLatestRestoreTestedDatabaseBackupQuery)query, cancellationToken)),
+        [typeof(GetDatabaseRecoveryObjectiveComplianceQuery)] = static async (actor, context, query, cancellationToken) =>
+            await Reply(context, (GetDatabaseRecoveryObjectiveComplianceQuery)query,
+                await actor._dbContext.GetRecoveryObjectiveComplianceAsync((GetDatabaseRecoveryObjectiveComplianceQuery)query, cancellationToken)),
+        [typeof(GetDatabaseRestoreOperationQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseRestoreOperationQuery)query,
+                await actor._dbContext.GetRestoreOperationAsync((GetDatabaseRestoreOperationQuery)query, cancellationToken)),
+        [typeof(ListDatabaseRestoreDrillsQuery)] = static async (actor, context, query, cancellationToken) =>
+            await Reply(context, (ListDatabaseRestoreDrillsQuery)query,
+                await actor._dbContext.ListRestoreDrillsAsync((ListDatabaseRestoreDrillsQuery)query, cancellationToken)),
+        [typeof(GetDatabaseRetentionForecastQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseRetentionForecastQuery)query,
+                await actor._dbContext.GetRetentionForecastAsync((GetDatabaseRetentionForecastQuery)query, cancellationToken)),
+        [typeof(GetDatabaseBackupServiceHealthQuery)] = static async (actor, context, query, cancellationToken) =>
+            await Reply(context, (GetDatabaseBackupServiceHealthQuery)query,
+                await actor._dbContext.GetServiceHealthAsync((GetDatabaseBackupServiceHealthQuery)query, cancellationToken)),
+        [typeof(GetDatabaseRecoveryRunStatsQuery)] = static async (actor, context, query, cancellationToken) =>
+            await ReplyOne(context, (GetDatabaseRecoveryRunStatsQuery)query,
+                await actor._dbContext.GetRecoveryRunStatsAsync((GetDatabaseRecoveryRunStatsQuery)query, cancellationToken))
+    };
 
     static ValueTask Reply<TQuery, TResult>(IQueryActorContext<DatabaseBackupQueryActor> context, TQuery query, TResult result)
         where TQuery : DatabaseBackupQuery, IQuery<TResult> where TResult : class
@@ -108,26 +133,14 @@ public class DatabaseBackupQueryActor(
                 ? new ServiceFailed<TResult>(404, "DatabaseBackup projection was not found.")
                 : new ServiceOk<TResult>(result));
 
-    protected override ValueTask OnExceptionAsync(IQueryActorContext<DatabaseBackupQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception exception)
-    {
-        return query switch
-        {
-            GetDatabaseProtectionSetsQuery or GetDatabaseRecoveryObjectiveComplianceQuery => Failure<DatabaseProtectionSetReadModel[]>(),
-            GetDatabaseBackupPolicyQuery => Failure<DatabaseBackupPolicyReadModel>(),
-            GetDatabaseBackupOperationQuery => Failure<DatabaseBackupOperationReadModel>(),
-            ListDatabaseBackupOperationsQuery => Failure<DatabaseBackupOperationReadModel[]>(),
-            GetDatabaseBackupSetQuery => Failure<DatabaseBackupSetReadModel>(),
-            ListDatabaseRestorePointsQuery => Failure<DatabaseRestorePointReadModel[]>(),
-            GetDatabaseRestorePointQuery or GetLatestVerifiedDatabaseBackupQuery or GetLatestRestoreTestedDatabaseBackupQuery => Failure<DatabaseRestorePointReadModel>(),
-            GetDatabaseRestoreOperationQuery => Failure<DatabaseRestoreOperationReadModel>(),
-            ListDatabaseRestoreDrillsQuery => Failure<DatabaseRestoreOperationReadModel[]>(),
-            GetDatabaseRetentionForecastQuery => Failure<DatabaseRetentionReadModel>(),
-            GetDatabaseBackupServiceHealthQuery => Failure<DatabaseBackupHealthReadModel[]>(),
-            GetDatabaseRecoveryRunStatsQuery => Failure<DatabaseRecoveryRunStatsReadModel>(),
-            _ => throw new InvalidOperationException($"Unsupported DatabaseBackup query '{query.GetType().Name}'.")
-        };
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        ValueTask Failure<TResult>() where TResult : class
-            => context.ReplyAsync(threadId, verb, new ServiceFailed<TResult>(query.ErrorCode, exception.Message));
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<DatabaseBackupQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

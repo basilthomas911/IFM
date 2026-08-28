@@ -16,8 +16,20 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
     public const string ActorName = "FuturesEmaSignal";
     static readonly ActorTypeId Route = new(ActorType.Realtime,
         FuturesTradeSessionBarClosedRealtimeEvent.Actor, FuturesTradeSessionBarClosedRealtimeEvent.Verb);
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+        new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
+        {
+            [FuturesTradeSessionBarClosedRealtimeEvent.Verb] =
+                message => message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()!
+        };
     readonly IFuturesEmaSignalRealtimeContext typedContext = IsArgumentNull.Set(
         actorContext as IFuturesEmaSignalRealtimeContext, nameof(actorContext))!;
+    readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesEmaSignalRealtimeContext, ValueTask<bool>>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IFuturesEmaSignalRealtimeContext, ValueTask<bool>>>
+        {
+            [typeof(FuturesTradeSessionBarClosedRealtimeEvent)] = (@event, context) =>
+                ((FuturesTradeSessionBarClosedRealtimeEvent)@event).ExecuteAsync(context, context.Logger)
+        };
 
     /// <inheritdoc />
     protected override ValueTask OnStartup(IEventActorContext<FuturesEmaSignalRealtimeActor> context)
@@ -27,14 +39,13 @@ public sealed class FuturesEmaSignalRealtimeActor(IRealtimeActorContext<FuturesE
     { context.RemoveRealtimeRouter(Route, Id); return ValueTask.CompletedTask; }
     /// <inheritdoc />
     protected override IEvent ParseMessage(IEventActorContext<FuturesEmaSignalRealtimeActor> context, IActorMessage message) =>
-        message.Subject.Is(ActorType.Realtime, ActorName, FuturesTradeSessionBarClosedRealtimeEvent.Verb)
-            ? message.AsEvent<FuturesTradeSessionBarClosedRealtimeEvent>()! : default!;
+        ParseMappedRealtimeEvent(context, message, _parseMap);
     /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(IEventActorContext<FuturesEmaSignalRealtimeActor> context, IEvent @event)
     {
-        if (@event is not FuturesTradeSessionBarClosedRealtimeEvent closed)
-            throw new InvalidOperationException($"Unsupported EMA realtime event {@event.EventName}.");
-        _ = await closed.ExecuteAsync(typedContext, typedContext.Logger);
+        ArgumentNullException.ThrowIfNull(context);
+        var handler = ResolveMappedEventHandler(@event, _receiveMap);
+        _ = await handler(@event, typedContext).ConfigureAwait(false);
     }
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesEmaSignalRealtimeActor> context,

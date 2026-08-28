@@ -36,20 +36,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     /// <returns>The parsed query instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the message subject cannot be resolved to a valid query for the actor.</exception>
     protected override IQuery ParseMessage(IQueryActorContext<MarketDataFeedQueryActor> context, IActorMessage message)
-    {
-        IsArgumentNull.Check(context);
-        var msgSubject = message.Subject;
-        if (msgSubject is not { ActorType: ActorType.Query, Name: ActorName }
-            || !_parseMap.TryGetValue(msgSubject.Verb, out var messageParser))
-            throw new InvalidOperationException($"Unable to resolve {ActorName} query from message: {message.Subject}");
-        var query = messageParser.Invoke(message);
-        IsArgumentNull.Check(query);
-        context.SetMessageInfo(
-            msgSubject.ThreadId,
-            verb: msgSubject.Verb,
-            new ActorMessageInfo(message, query));
-        return query;
-    }
+        => ParseMappedQuery(context, message, _parseMap);
 
     /// <summary>
     /// Provides a mapping from query verb strings to delegate functions that parse a NATS message into the
@@ -76,9 +63,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     {
         IsArgumentNull.Check(context);
         IsArgumentNull.Check(query);
-        var qryName = query.GetType().Name;
-        if (!_receiveMap.TryGetValue(qryName, out var receiveFunc))
-            throw new InvalidOperationException($"Unable to process {ActorName} query: {qryName}");
+        var receiveFunc = ResolveMappedQueryHandler(query, _receiveMap);
         await receiveFunc.Invoke(QueryContext, _qryParameters, query).ConfigureAwait(false);
     }
 
@@ -86,44 +71,44 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     /// Provides a mapping from query type names to delegate functions that execute the corresponding market data feed query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<string, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IMarketDataFeedQueryContext, MarketDataFeedQueryParameters, IQuery, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetFuturesOptionContractQuery).Name] = async (ctx, qryParams, q) =>
+        [typeof(GetFuturesOptionContractQuery)] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesOptionContractQuery)!;
             var result = await query.GetFuturesOptionContractFromProviderAsync(qryParams.MarketDataApi);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionContractQuery.Verb,
                 new ServiceResult<FuturesOptionContractReadModel>(result));
         },
-        [typeof(GetFuturesOptionSpreadDataQuery).Name] = async (ctx, qryParams, q) =>
+        [typeof(GetFuturesOptionSpreadDataQuery)] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesOptionSpreadDataQuery)!;
             var result = await query.GetFuturesOptionSpreadDataAsync(qryParams.MarketDataApi);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesOptionSpreadDataQuery.Verb,
                 new ServiceResult<FuturesOptionSpreadDataReadModel>(result));
         },
-        [typeof(GetFuturesRiskPositionTypeQuery).Name] = async (ctx, qryParams, q) =>
+        [typeof(GetFuturesRiskPositionTypeQuery)] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetFuturesRiskPositionTypeQuery)!;
             var result = await query.GetFuturesRiskPositionTypeAsync(qryParams.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesRiskPositionTypeQuery.Verb,
                 new ServiceResult<RiskPositionTypeReadModel>(result));
         },
-        [typeof(GetIronCondorMarketDataFeedQuery).Name] = async (ctx, qryParams, q) =>
+        [typeof(GetIronCondorMarketDataFeedQuery)] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetIronCondorMarketDataFeedQuery)!;
             var result = await query.GetIronCondorMarketDataFeedAsync(qryParams.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetIronCondorMarketDataFeedQuery.Verb,
                 new ServiceResult<IronCondorMarketDataFeedReadModel>(result));
         },
-        [typeof(GetNormalCurveTableQuery).Name] = async (ctx, qryParams, q) =>
+        [typeof(GetNormalCurveTableQuery)] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetNormalCurveTableQuery)!;
             var result = await query.GetNormalCurveTableAsync(qryParams.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb,
                 new ServiceResult<NormalCurveTableReadModel>(result));
         },
-        [typeof(GetStreamingRequestIdQuery).Name] = async (ctx, qryParams, q) =>
+        [typeof(GetStreamingRequestIdQuery)] = async (ctx, qryParams, q) =>
         {
             var query = (q as GetStreamingRequestIdQuery)!;
             var result = await query.GetStreamingRequestIdAsync(qryParams.SequenceIdGenerator);
@@ -140,37 +125,14 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
     /// <param name="query">The query that caused the exception.</param>
     /// <param name="verb">The verb representing the type of query being processed.</param>
     /// <param name="ex">The exception that was thrown during query processing.</param>
-    protected override async ValueTask OnExceptionAsync(IQueryActorContext<MarketDataFeedQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
-    {
-        IsArgumentNull.Check(context);
-        IsArgumentNull.Check(threadId);
-        IsArgumentNull.Check(query);
-        IsArgumentNull.Check(verb);
-        IsArgumentNull.Check(ex?.Message!);
+    static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap =
+        CreateQueryExceptionMap(_receiveMap.Keys);
 
-        try
-        {
-            var serviceResultTask = default(ValueTask) switch
-            {
-                _ when query is GetFuturesOptionContractQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesOptionContractReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesOptionSpreadDataQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<FuturesOptionSpreadDataReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetFuturesRiskPositionTypeQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<RiskPositionTypeReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetIronCondorMarketDataFeedQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<IronCondorMarketDataFeedReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetNormalCurveTableQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<NormalCurveTableReadModel>(query.ErrorCode, ex!.Message)),
-                _ when query is GetStreamingRequestIdQuery
-                    => context.ReplyAsync(threadId, verb, new ServiceResult<ScalarValue<int>>(query.ErrorCode, ex!.Message)),
-                _ => context.ReplyAsync(threadId, verb, new ServiceFailed<ActorEntityId>(9999, ex!.Message))
-            };
-            await serviceResultTask;
-        }
-        catch (Exception innerEx)
-        {
-            _logger.LogError(innerEx, "Error handling exception in {ActorName} for thread {ThreadId}: {ErrorMessage}", ActorName, threadId, innerEx.Message);
-        }
-    }
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<MarketDataFeedQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
 }

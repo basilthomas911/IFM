@@ -327,7 +327,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         var (dbFactory, _) = CreateDbFactory();
         var actor = _fixture.CreateActor(dbFactory, Substitute.For<ILogger<FundTransactionQueryActor>>());
         var context = actor.FundTransactionContext;
-        context.ReplyAsync(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ServiceFailed<ActorEntityId>>())
+        context.ReplyAsync(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ServiceFailed<object>>())
             .Returns(ValueTask.CompletedTask);
         var unsupportedQuery = Substitute.For<IQuery>();
         var threadId = new ActorThreadId(ActorType.Query, FundTransactionQueryActor.ActorName, "1");
@@ -340,7 +340,7 @@ public class FundTransactionQueryActorTests : IClassFixture<FundTestFixture>
         await context.Received(1).ReplyAsync(
             Arg.Is<ActorThreadId>(id => id == threadId),
             Arg.Is<string>(v => v == "UnknownVerb"),
-            Arg.Is<ServiceFailed<ActorEntityId>>(r => !r.Success && r.ErrorCode == 9999 && r.ErrorMessage == ex.Message));
+            Arg.Is<ServiceFailed<object>>(r => !r.Success && r.ErrorCode == 9999 && r.ErrorMessage == ex.Message));
     }
 
     [Fact]
