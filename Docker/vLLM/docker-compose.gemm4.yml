@@ -1,0 +1,46 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.20.0
+    container_name: ifm-vllm-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              count: 1 # Allocate a single GPU
+    command: >
+      cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+      --max-model-len 32768
+      --max-num-batched-tokens 4096
+      --safetensors-load-strategy prefetch
+      --gpu-memory-utilization 0.90
+      --enable-auto-tool-choice
+      --tool-call-parser gemma4
+      --reasoning-parser gemma4
+      --limit-mm-per-prompt '{"image":0,"audio":0}'
+      --trust-remote-code
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface # Cache Hugging Face models
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ifm-open-webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm:8000/v1
+      - OPENAI_API_KEY=none
+      - ENABLE_OLLAMA_API=false
+      - AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=30
+    volumes:
+      - ./open-webui-data:/app/backend/data # Persistent storage for Open WebUI data
+    depends_on:
+      - vllm

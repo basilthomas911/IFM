@@ -1,0 +1,49 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.28.0-cu129
+    container_name: ifm-vllm-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN:-}
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              count: 1 # Allocate a single GPU
+    command: >
+      cyankiwi/Qwen3.8-27B-AWQ-INT4
+      --max-model-len 32768
+      --max-num-seqs 4
+      --max-num-batched-tokens 1024
+      --safetensors-load-strategy prefetch
+      --gpu-memory-utilization 0.93
+      --kv-cache-dtype fp8
+      --enforce-eager
+      --enable-auto-tool-choice 
+      --tool-call-parser qwen3_xml
+      --reasoning-parser qwen3
+      --limit-mm-per-prompt '{"image":0,"video":0}'
+      --trust-remote-code
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface # Cache Hugging Face models
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ifm-open-webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm:8000/v1
+      - OPENAI_API_KEY=none
+      - ENABLE_OLLAMA_API=false
+      - AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=30
+    volumes:
+      - ./open-webui-data:/app/backend/data # Persistent storage for Open WebUI data
+    depends_on:
+      - vllm
