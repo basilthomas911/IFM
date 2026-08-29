@@ -53,8 +53,9 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
 
         try
         {
-            var valueDate = SampleData.ValueDate;
-            var contractId = SampleData.FuturesContractId;
+            var scenario = CreateIsolatedFuturesEodScenario();
+            var valueDate = scenario.ValueDate;
+            var contractId = scenario.ContractId;
             var entityId = new FuturesEodDataId(contractId, valueDate);
             await dbFixture.MarketDataDb.DeleteFuturesEodDataAsync(contractId, valueDate);
             await dbFixture.DeleteRawEodObservationAsync(
@@ -71,10 +72,10 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
 
             var response = await marketDataFeedApi.InsertFuturesEodDataAsync(
                 valueDate,
-                SampleData.UnderlyingFuturesTickData,
-                SampleData.FuturesContract,
-                SampleData.FuturesEodDataRange[0],
-                SampleData.FuturesEodDataRange,
+                scenario.TickData,
+                scenario.Contract,
+                scenario.EodDataRange[0],
+                scenario.EodDataRange,
                 new NormalCurveTableReadModel([new NormalCurveDataReadModel(0, 50.0)]),
                 20,
                 []);
@@ -97,7 +98,7 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
             notification.FuturesEodData.ContractId.Should().Be(contractId);
             notification.FuturesEodData.ValueDate.Should().Be(valueDate);
             notification.FuturesEodData.ClosePrice.Should().Be(
-                SampleData.UnderlyingFuturesTickData.Price);
+                scenario.TickData.Price);
         }
         finally
         {
@@ -155,12 +156,13 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
             },
             NotificationHandlerAsync);
 
-        var valueDate = SampleData.ValueDate;
-        var contractId = SampleData.FuturesContractId;
-        var futuresTickData = SampleData.UnderlyingFuturesTickData;
-        var contract = SampleData.FuturesContract;
-        var eodDataToday = SampleData.FuturesEodDataRange[0];
-        var eodDataRange = SampleData.FuturesEodDataRange;
+        var scenario = CreateIsolatedFuturesEodScenario();
+        var valueDate = scenario.ValueDate;
+        var contractId = scenario.ContractId;
+        var futuresTickData = scenario.TickData;
+        var contract = scenario.Contract;
+        var eodDataToday = scenario.EodDataRange[0];
+        var eodDataRange = scenario.EodDataRange;
         var normCurveData = new NormalCurveTableReadModel([new NormalCurveDataReadModel(0, 50.0)]);
         var windowSize = 20;
         var vixEodData = Array.Empty<VixFuturesEodDataReadModel>();
@@ -348,4 +350,38 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
             }
         }
     }
+
+    static FuturesEodScenario CreateIsolatedFuturesEodScenario()
+    {
+        var valueDate = new DateOnly(2025, 10, 10); // Friday; independent of the host clock.
+        var contractId = $"ESIT{Guid.NewGuid():N}";
+        var eodDataRange = SampleData.FuturesEodDataRange
+            .Select((value, index) => value with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate.AddDays(-index)
+            })
+            .ToArray();
+
+        return new FuturesEodScenario(
+            contractId,
+            valueDate,
+            SampleData.UnderlyingFuturesTickData with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate
+            },
+            SampleData.FuturesContract with
+            {
+                ContractId = contractId
+            },
+            eodDataRange);
+    }
+
+    sealed record FuturesEodScenario(
+        string ContractId,
+        DateOnly ValueDate,
+        FuturesTickDataV2ReadModel TickData,
+        FuturesContractV2ReadModel Contract,
+        FuturesEodDataV2ReadModel[] EodDataRange);
 }

@@ -649,10 +649,10 @@ production-enabled while any gate is Partial or Blocked.
 | Focused Market Condition Storage Integration | 1 passed; exact/latest/history, duplicate upsert, payload/hash preservation |
 | Broad Application.Storage Integration | 385 passed; 0 failed; 0 skipped; 7 m 48 s |
 | Serialization | Framework Serialization Unit 11 passed; 0 failed; 0 skipped |
-| MarketData Feed | Unit 489 and BDD 314 passed. Integration: 44 passed; two reproducible legacy Futures EOD notification timeouts and four existing skips are outside the Market Condition adapter path and recorded as baseline observations. |
+| MarketData Feed | Unit 489 and BDD 314 passed. Integration: 46 passed and four existing skips; the two former Futures EOD timeouts were fixed by using an isolated, deterministic trading-date scenario, then passed in three consecutive focused runs. |
 | MarketData Analytics | Unit 944, BDD 464, Integration 48 passed; 0 failed; 0 skipped |
 | MarketData/Securities dependencies | Securities Unit 11, BDD 2, Integration 14; MarketData Unit 102 and Integration 21; Framework MarketData Unit 46; DataBento Unit 123; Application MarketData Unit 82 all passed |
-| Actor/transport dependencies | Domain Application Actor Unit 5, BDD 1, Integrated 1 and NATS Unit 78 passed. NATS Integrated passed 52 with one reproducible pre-existing SPSC ten-second stress timeout outside the Market Condition path. The Application Actor project is a host assembly with no discoverable tests. |
+| Actor/transport dependencies | Domain Application Actor Unit 5, BDD 1, Integrated 1, NATS Unit 78, and NATS Integrated 54 passed. The former SPSC timeout was fixed with a full-fence waiter handshake and small-capacity lost-wakeup regression, then both concurrency cases passed in 20 consecutive runs. The Application Actor project is a host assembly with no discoverable tests. |
 | Actor convention gates | Realtime 16, Command 36, Query 33, and Event 31 domain actors passed; stale expected inventories and Market Condition query helper parameter names were corrected |
 | Legacy C# boundary scan | No `StartMarketConditionPipelineCommand` or `MarketConditionPipelineProcessingEvent` references |
 | `git diff --check` | Passed; only existing LF-to-CRLF notices |

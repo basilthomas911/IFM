@@ -236,6 +236,57 @@ public class NatsActorSpscRingBufferTests
  }
 
  /// <summary>
+ /// Exercises full/non-full and empty/non-empty hand-offs at high frequency so a parked
+ /// producer or consumer cannot miss a transition observed from a stale peer index.
+ /// </summary>
+ [Fact]
+ public async Task ProducerConsumer_SmallCapacity_DoesNotLoseWakeups()
+ {
+ const int cap =2;
+ const int total =5_000;
+
+ var buf = CreateAndStart(cap, spinEnq:0, spinDeq:0);
+ try
+ {
+ var msg = new NatsActorMessage(default);
+ using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+ int produced =0;
+ int consumed =0;
+
+ var producer = Task.Factory.StartNew(() =>
+ {
+ try
+ {
+ for (int i =0; i < total; i++)
+ {
+ buf.Enqueue(msg, cts.Token);
+ produced++;
+ }
+ }
+ catch (OperationCanceledException) { }
+ }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+ var consumer = Task.Factory.StartNew(() =>
+ {
+ try
+ {
+ for (int i =0; i < total; i++)
+ {
+ _ = buf.Dequeue(cts.Token);
+ consumed++;
+ }
+ }
+ catch (OperationCanceledException) { }
+ }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+ await Task.WhenAll(producer, consumer);
+ new { Produced = produced, Consumed = consumed, Count = buf.Count }.Should().BeEquivalentTo(
+ new { Produced = total, Consumed = total, Count = 0 });
+ }
+ finally { buf.Stop(); }
+ }
+
+ /// <summary>
  /// Verifies Stop prevents further use and throws <see cref="ObjectDisposedException"/>.
  /// Also ensures Stop can be called twice without throwing.
  /// </summary>

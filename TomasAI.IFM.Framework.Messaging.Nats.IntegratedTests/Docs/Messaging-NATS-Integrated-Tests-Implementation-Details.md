@@ -78,7 +78,7 @@ The options point to `nats://localhost:4222`; startup and message-delivery cases
 
 ## SPSC ring-buffer coverage
 
-`NatsActorSpscRingBufferTests` validates capacity rules, initial state, single-thread flow, cancellation when full/empty, producer/consumer unblock behavior, concurrent processing of all messages, and terminal disposal behavior. These tests are in-process concurrency tests and do not require NATS.
+`NatsActorSpscRingBufferTests` validates capacity rules, initial state, single-thread flow, cancellation when full/empty, producer/consumer unblock behavior, concurrent processing of all messages, small-capacity waiter hand-offs without lost wake-ups, and terminal disposal behavior. These tests are in-process concurrency tests and do not require NATS.
 
 ## Durable JetStream coverage
 

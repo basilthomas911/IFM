@@ -238,9 +238,6 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         if ((uint)(head - tail) >= (uint)_capacity)
             return false;
 
-        // Snapshot empty state before publishing, using the same head/tail values.
-        bool wasEmpty = head == tail;
-
         // Store item at the masked slot index.
         _buffer[head & _mask] = item;
 
@@ -248,8 +245,10 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         // sees the stored item before the updated index.
         Volatile.Write(ref _head.Value, head + 1);
 
-        // Signal consumer only on empty → non-empty transition.
-        if (wasEmpty && Volatile.Read(ref _consumerWaiting) != 0)
+        // Signal a parked consumer after publishing the new head.
+        // A parked consumer may have drained the last item after this producer
+        // read tail, so the earlier empty-state snapshot is not a safe signal gate.
+        if (Interlocked.CompareExchange(ref _consumerWaiting, 0, 0) != 0)
             _itemAvailable.Set();
 
         return true;
@@ -273,9 +272,6 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
             return false;
         }
 
-        // Snapshot full state before publishing, using the same head/tail values.
-        bool wasFull = (uint)(head - tail) >= (uint)_capacity;
-
         int slot = tail & _mask;
         item = _buffer[slot];
 
@@ -285,8 +281,10 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         // Publish the new tail with release semantics.
         Volatile.Write(ref _tail.Value, tail + 1);
 
-        // Signal producer only on full → non-full transition.
-        if (wasFull && Volatile.Read(ref _producerWaiting) != 0)
+        // Signal a parked producer after publishing the new tail.
+        // A parked producer may have filled the last slot after this consumer
+        // read head, so the earlier full-state snapshot is not a safe signal gate.
+        if (Interlocked.CompareExchange(ref _producerWaiting, 0, 0) != 0)
             _slotAvailable.Set();
 
         return true;
@@ -302,7 +300,9 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
     void BlockUntilSlotAvailable(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        Volatile.Write(ref _producerWaiting, 1);
+        // Interlocked publication pairs with the consumer's interlocked observation.
+        // The full fence prevents both sides from observing stale waiter/index state.
+        Interlocked.Exchange(ref _producerWaiting, 1);
         try
         {
             // Close the missed-wakeup window between TryEnqueue and publishing the waiter flag.
@@ -321,14 +321,16 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         }
         finally
         {
-            Volatile.Write(ref _producerWaiting, 0);
+            Interlocked.Exchange(ref _producerWaiting, 0);
         }
     }
 
     void BlockUntilItemAvailable(CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        Volatile.Write(ref _consumerWaiting, 1);
+        // Interlocked publication pairs with the producer's interlocked observation.
+        // The full fence prevents both sides from observing stale waiter/index state.
+        Interlocked.Exchange(ref _consumerWaiting, 1);
         try
         {
             // Close the missed-wakeup window between TryDequeue and publishing the waiter flag.
@@ -347,7 +349,7 @@ public sealed class NatsActorSpscRingBuffer : IActorSpscRingBuffer<IActorMessage
         }
         finally
         {
-            Volatile.Write(ref _consumerWaiting, 0);
+            Interlocked.Exchange(ref _consumerWaiting, 0);
         }
     }
 }
