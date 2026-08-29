@@ -17,6 +17,12 @@ public enum MarketConditionVolatilityBehavior : byte
 public enum MarketConditionLiquidityQuality : byte { Unknown = 0, Healthy = 1, Degraded = 2, Unusable = 3 }
 public enum MarketConditionDataQuality : byte { Unknown = 0, Healthy = 1, Degraded = 2, Unusable = 3 }
 public enum MarketConditionUpstreamAlignment : byte { Unknown = 0, Aligned = 1, Neutral = 2, Conflict = 3 }
+/// <summary>Identifies the bounded trade families understood as advisory downstream consumers.</summary>
+public enum MarketConditionTradeType : byte
+    { Unknown = 0, Futures = 1, VerticalSpread = 2, IronCondor = 3 }
+/// <summary>Describes an advisory hint without constraining the primary market classification.</summary>
+public enum MarketConditionHintSuitability : byte
+    { Unknown = 0, Avoid = 1, Eligible = 2, Preferred = 3 }
 public enum MarketConditionFailureCategory : byte
 {
     Undefined = 0, ContractInvalid = 1, ConfigurationUnavailable = 2, RequiredInputInvalid = 3,
@@ -56,6 +62,9 @@ public static class MarketConditionReasonCodes
     public const string Transition = "MC.CONDITION.TRANSITION";
     public const string VolatilityExpansion = "MC.CONDITION.VOLATILITY_EXPANSION";
     public const string VolatilityContraction = "MC.CONDITION.VOLATILITY_CONTRACTION";
+    public const string HintFuturesDaily = "MC.HINT.FUTURES.DAILY";
+    public const string HintVerticalSpreadWeekly = "MC.HINT.VERTICAL_SPREAD.WEEKLY";
+    public const string HintIronCondorMonthly = "MC.HINT.IRON_CONDOR.MONTHLY";
     public const string ContractInvalid = "MC.FAIL.CONTRACT_INVALID";
     public const string Configuration = "MC.FAIL.CONFIGURATION";
     public const string RequiredInput = "MC.FAIL.REQUIRED_INPUT";

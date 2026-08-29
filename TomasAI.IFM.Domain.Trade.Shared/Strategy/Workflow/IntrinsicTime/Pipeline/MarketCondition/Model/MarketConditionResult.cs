@@ -30,6 +30,21 @@ public sealed record MarketConditionBlockingReason
     [Key(2)] public string SourceId { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Carries a non-binding, evidence-derived hint for Trade Selection. The primary Market Condition decision remains
+/// authoritative market language; downstream policy may accept, reject, rerank, or augment this hint.
+/// </summary>
+[MessagePackObject]
+public sealed record MarketConditionOutputHint
+{
+    [Key(0)] public MarketConditionTradeType TradeType { get; init; }
+    [Key(1)] public TimeFrameType TimeFrame { get; init; }
+    [Key(2)] public MarketConditionHintSuitability Suitability { get; init; }
+    [Key(3)] public decimal Confidence { get; init; }
+    [Key(4)] public string ReasonCode { get; init; } = string.Empty;
+    [Key(5)] public bool IsAdvisory { get; init; } = true;
+}
+
 [MessagePackObject]
 public sealed record MarketConditionResult
 {
@@ -37,8 +52,9 @@ public sealed record MarketConditionResult
     MarketConditionEvidenceItem[]? _conflictingEvidenceItems = [];
     MarketConditionBlockingReason[]? _blockingReasons = [];
     string[]? _reasons = [];
+    MarketConditionOutputHint[]? _outputHints = [];
 
-    public const ushort CurrentSchemaVersion = 1;
+    public const ushort CurrentSchemaVersion = 2;
     [Key(0)] public ushort SchemaVersion { get; init; } = CurrentSchemaVersion;
     [Key(1)] public Guid ResultId { get; init; }
     [Key(2)] public StrategyWorkflowId WorkflowId { get; init; }
@@ -89,4 +105,10 @@ public sealed record MarketConditionResult
         init => _reasons = value is null ? null : [.. value];
     }
     [Key(33)] public string SummaryText { get; init; } = string.Empty;
+    /// <summary>Gets extensible, non-binding hints emitted after the primary decision is complete.</summary>
+    [Key(34)] public MarketConditionOutputHint[] OutputHints
+    {
+        get => _outputHints is null ? [] : [.. _outputHints];
+        init => _outputHints = value is null ? null : [.. value];
+    }
 }

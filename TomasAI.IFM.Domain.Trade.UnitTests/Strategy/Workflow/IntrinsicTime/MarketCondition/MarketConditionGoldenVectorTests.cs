@@ -15,10 +15,10 @@ public sealed class MarketConditionGoldenVectorTests
     [Theory]
     [InlineData("Bullish", MarketConditionType.Directional, MarketConditionDirection.Bullish, 96, 0.931546)]
     [InlineData("Bearish", MarketConditionType.Directional, MarketConditionDirection.Bearish, 96, 0.931546)]
-    [InlineData("Range", MarketConditionType.RangeBound, MarketConditionDirection.Bullish, 85, 0.931546)]
-    [InlineData("Transition", MarketConditionType.Transition, MarketConditionDirection.Bullish, 85, 0.831546)]
+    [InlineData("Range", MarketConditionType.RangeBound, MarketConditionDirection.Neutral, 85, 0.931546)]
+    [InlineData("Transition", MarketConditionType.Transition, MarketConditionDirection.Neutral, 85, 0.831546)]
     [InlineData("Expansion", MarketConditionType.VolatilityExpansion, MarketConditionDirection.Bullish, 96, 0.931546)]
-    [InlineData("Contraction", MarketConditionType.VolatilityContraction, MarketConditionDirection.Bullish, 85, 0.931546)]
+    [InlineData("Contraction", MarketConditionType.VolatilityContraction, MarketConditionDirection.Neutral, 85, 0.931546)]
     public void Exact_classification_strength_and_confidence_vectors_are_frozen(string scenario,
         MarketConditionType condition, MarketConditionDirection direction, int strength, double confidence)
     {

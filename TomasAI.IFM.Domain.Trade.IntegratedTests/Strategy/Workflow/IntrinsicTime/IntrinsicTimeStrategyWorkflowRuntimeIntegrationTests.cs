@@ -565,8 +565,20 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         var marketConditionResult = MessagePackSerializer.Deserialize<MarketConditionResult>(
             marketCondition.ResultPayload);
         marketConditionResult.ResultId.Should().Be(marketCondition.SourceEventId);
+        marketConditionResult.SchemaVersion.Should().Be(MarketConditionResult.CurrentSchemaVersion);
+        marketConditionResult.SchemaVersion.Should().Be(2);
         marketConditionResult.SnapshotSha256.Should().Be(marketCondition.SnapshotSha256);
         marketConditionResult.Tradeability.Should().Be(MarketTradeability.Tradeable);
+        marketConditionResult.OutputHints.Should().ContainSingle();
+        marketConditionResult.OutputHints[0].TimeFrame.Should().Be(marketConditionResult.TargetHorizon);
+        marketConditionResult.OutputHints[0].TradeType.Should().Be(marketConditionResult.TargetHorizon switch
+        {
+            TimeFrameType.Daily => MarketConditionTradeType.Futures,
+            TimeFrameType.Weekly => MarketConditionTradeType.VerticalSpread,
+            TimeFrameType.Monthly => MarketConditionTradeType.IronCondor,
+            _ => MarketConditionTradeType.Unknown
+        });
+        marketConditionResult.OutputHints[0].IsAdvisory.Should().BeTrue();
 
         var replayed = await LoadStateAsync(services, entityId);
         replayed.CurrentView.Should().NotBeNull();

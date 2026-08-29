@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Implemented and qualified; MC-00 through MC-16 complete |
+| Status | Implemented and qualified; MC-00 through MC-22 complete |
 | Created | 2026-08-28 |
 | Source design | `MarketCondition-High-Level-Design-v0.1.md` |
 | Workflow stage | `StrategyWorkflowStage.MarketCondition` |
@@ -17,7 +17,7 @@ Market Condition is the second Intrinsic Time Strategy Workflow stage. It consum
 
 > Is there a sufficiently current, liquid, operational, and coherent opportunity to consider for this fund and decision horizon now?
 
-Market Condition describes the opportunity. It does not choose a trade structure, compose an order, allocate capital, approve risk, or interact with a broker to place an order.
+Market Condition describes the opportunity. It does not choose a trade structure, compose an order, allocate capital, approve risk, or interact with a broker to place an order. It may emit bounded, non-binding output hints so Trade Selection understands the intended downstream context; those hints never replace or constrain the primary market decision.
 
 The three valid business outcomes are:
 
@@ -85,6 +85,10 @@ The legacy `StartMarketConditionPipelineCommand`, `MarketConditionPipelineProces
 18. Deterministic structured fields and reason codes are authoritative; summary text is diagnostic only.
 19. An LLM cannot classify, block, permit, or alter a Market Condition result.
 20. `StrategyWorkflowOutcome.NoTrade` is a distinct normal terminal outcome.
+21. `RegimeDiscoveryDecision` is the primary upstream market-language authority. The exact ITI trigger and frozen futures/options observations corroborate, conflict with, or qualify it; they do not silently replace it.
+22. Market Condition uses every relevant populated decision field: direction, directional score, conviction, confidence, trend phase/strength/agreement, volatility level/change/term structure, structure classification, breakout, and restrictions.
+23. Output hints are generated only after the primary decision is complete and cannot change classification, strength, confidence, blockers, or tradeability.
+24. The minimum hint mapping is Daily/Futures, Weekly/VerticalSpread, and Monthly/IronCondor. The collection contract is append-only so later trade families can be added without redefining Market Condition language.
 
 ## 4. Scope and responsibility boundaries
 
@@ -99,11 +103,11 @@ The legacy `StartMarketConditionPipelineCommand`, `MarketConditionPipelineProces
 - direct typed Function result handoff to Strategy Workflow Realtime;
 - Tradeable continuation, normal NoTrade termination, failure termination, expiry, deduplication, and hard timeout;
 - read-only query and Operations UI projections;
-- Unit, BDD, integration, and V1 verification coverage.
+- Unit, BDD, integration, and schema-V2 verification coverage.
 
 ### 4.2 Excluded
 
-- selecting futures-option strategy types, strikes, expiries, quantities, or prices;
+- selecting a binding futures-option strategy type, strike, expiry, quantity, or price; advisory trade-family/timeframe hints are permitted;
 - portfolio allocation, margin approval, exposure limits, or final risk authorization;
 - order routing, broker submission, modification, or cancellation;
 - unrestricted order-book or full-chain persistence in workflow events;
@@ -114,6 +118,41 @@ The legacy `StartMarketConditionPipelineCommand`, `MarketConditionPipelineProces
 - calibration claims that the V1 defaults are economically optimal.
 
 The V1 numeric defaults are conservative, deterministic starting values. They are operational rules to be verified and calibrated through captured fixtures and paper-trading observations; they are not immutable business truths.
+
+## 4.3 MC-17 through MC-22 authority and hint amendment
+
+The calculation follows this authority order:
+
+1. Validate immutable identities, result completeness, snapshot lineage, source fitness, and workflow eligibility.
+2. Treat the accepted `RegimeDiscoveryDecision` as the primary upstream market interpretation.
+3. Use its direction, score, conviction, confidence, trend phase/strength/timeframe agreement, volatility level/change/term structure, structure classification, breakout, and restrictions wherever relevant to classification, scoring, gating, or structured evidence.
+4. Use the original exact ITI event independently for direction agreement, trigger quality, and timing phase fallback when the appended Regime field is absent.
+5. Use the sealed futures quote/trade and option-chain aggregate independently for integrity, liquidity, freshness, data quality, opportunity strength/confidence, and hint confidence.
+6. Complete the primary Tradeable/NotTradeable decision before deriving any output hint.
+
+This can be stated more directly:
+
+> Use as much reliable input information as is available to decide the market condition. After that decision exists,
+> add best-effort hints about likely downstream use. A hint is context, not truth and not authorization.
+
+### Minimum output hints
+
+| Evaluated horizon | Trade-family hint | Preferred examples | Non-preferred behavior |
+|---|---|---|---|
+| Daily | Futures | Directional or volatility-expansion market | `Eligible` when tradeable; `Avoid` when blocked |
+| Weekly | VerticalSpread | Directional or volatility-expansion market | `Eligible` when tradeable; `Avoid` when blocked |
+| Monthly | IronCondor | Range-bound or volatility-contraction market | `Eligible` when tradeable; `Avoid` when blocked |
+
+`OutputHints[]` is deliberately a collection even though the minimum implementation emits one item per horizon.
+Adding a later trade family is an append-only policy extension. Trade Selection remains responsible for permitted product
+sets, final compatibility, strategy selection, strikes, expiries, quantities, and prices.
+
+### Result schema V2
+
+`MarketConditionResult.CurrentSchemaVersion` is 2. MessagePack key 34 appends `OutputHints[]`; keys 0 through 33 are
+unchanged. The workflow result envelope advertises the same schema version. A schema-V1-shaped payload remains readable
+with an empty hint collection, while all new completed results must contain one valid advisory hint matching their
+target horizon.
 
 ## 5. Identities and routing
 

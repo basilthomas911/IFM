@@ -23,7 +23,7 @@ public sealed record MarketConditionCalculationInput
     public MarketConditionEvidenceItem[] ConflictingEvidenceItems { get; init; } = [];
 }
 
-/// <summary>Evaluates all V1 gates and opportunity formulas without reading external state.</summary>
+/// <summary>Evaluates all gates, primary market language, and schema-V2 advisory hints without reading external state.</summary>
 public sealed class MarketConditionCalculationModel
 {
     public MarketConditionResult Calculate(MarketConditionCalculationInput input)
@@ -42,18 +42,21 @@ public sealed class MarketConditionCalculationModel
         if (!double.IsFinite(signal.BandLevel) || !double.IsFinite(signal.ReversalLevel))
             throw Invalid("The ITI trigger contains a non-finite numeric value.");
 
-        var direction = signal.IntrinsicTimeTrend switch
+        var triggerDirection = signal.IntrinsicTimeTrend switch
         {
             IntrinsicTimeTrendType.UpTrend => MarketConditionDirection.Bullish,
             IntrinsicTimeTrendType.DownTrend => MarketConditionDirection.Bearish,
             _ => throw Invalid("The ITI trigger trend is not directional.")
         };
-        var alignment = Alignment(direction, input.RegimeResult.Decision.Direction);
+        var decisionDirection = input.RegimeResult.Decision.Direction;
+        var direction = Direction(decisionDirection);
+        var alignment = Alignment(triggerDirection, decisionDirection);
         if (alignment == MarketConditionUpstreamAlignment.Unknown)
             throw Invalid("The upstream Regime direction is unknown.");
 
         var evidence = new List<MarketConditionEvidenceItem>();
         var blockers = new List<MarketConditionBlockingReason>();
+        AddDecisionEvidence(input.RegimeResult, evidence);
         GateWorkflow(input, blockers);
         if (alignment == MarketConditionUpstreamAlignment.Conflict)
             Add(blockers, MarketConditionEvidenceArea.Workflow, MarketConditionReasonCodes.RegimeTriggerConflict);
@@ -65,7 +68,7 @@ public sealed class MarketConditionCalculationModel
         var optionScore = GateOptions(s, p, blockers, evidence);
         GateOperations(s, p, blockers);
 
-        var phase = Phase(signal, p.Classification);
+        var phase = Phase(input.RegimeResult.Decision.TrendPhase, signal, p.Classification);
         var volatility = Volatility(input.RegimeResult, s, p);
         var condition = Classify(input.RegimeResult, direction, alignment, volatility, blockers);
         var dataScore = DataQualityScore(s, p);
@@ -74,8 +77,8 @@ public sealed class MarketConditionCalculationModel
         if (blockers.Count == 0)
         {
             var triggerQuality = TriggerQuality(signal);
-            var regimeAlignment = Clamp(0.70m * AlignmentScore(alignment) +
-                                        0.30m * input.RegimeResult.OverallConfidence);
+            var decisionQuality = DecisionQuality(input.RegimeResult);
+            var regimeAlignment = Clamp(0.70m * AlignmentScore(alignment) + 0.30m * decisionQuality);
             var entryTiming = EntryTiming(s.SessionState.ExchangeLocalTime, p.Session);
             strength = Math.Round(100m * Clamp(
                 p.Scoring.RegimeAlignmentWeight * regimeAlignment +
@@ -93,7 +96,7 @@ public sealed class MarketConditionCalculationModel
                 Math.Min(p.Scoring.ConflictingEvidenceMaximumPenalty,
                     Math.Max(input.ConflictingEvidenceCount, input.ConflictingEvidenceItems.Length) *
                     p.Scoring.ConflictingEvidencePenalty));
-            confidence = Round(Clamp(0.40m * input.RegimeResult.OverallConfidence +
+            confidence = Round(Clamp(0.40m * decisionQuality +
                 0.20m * triggerQuality + 0.15m * dataScore + 0.125m * futuresScore +
                 0.125m * optionScore - penalties));
             evidence.Add(ScoreEvidence("RegimeAlignment", regimeAlignment,
@@ -178,7 +181,10 @@ public sealed class MarketConditionCalculationModel
             BlockingReasons = blockers.ToArray(),
             PrimaryReasonCode = reason,
             Reasons = blockers.Count == 0 ? [reason] :
-                blockers.Select(x => x.ReasonCode).Distinct(StringComparer.Ordinal).ToArray()
+                blockers.Select(x => x.ReasonCode).Distinct(StringComparer.Ordinal).ToArray(),
+            OutputHints = [BuildOutputHint(p.TargetHorizon,
+                tradeable ? MarketTradeability.Tradeable : MarketTradeability.NotTradeable,
+                condition, confidence, futuresScore, optionScore)]
         };
         var completed = result with { SummaryText = Summary(result, reason) };
         ValidateResult(completed, p);
@@ -197,6 +203,10 @@ public sealed class MarketConditionCalculationModel
                       result.MarketDataAsOfUtc == default || result.MarketDataAsOfUtc > result.EvaluatedAtUtc ||
                       result.Strength is < 0m or > 100m || result.Confidence is < 0m or > 1m ||
                       result.Tradeability == MarketTradeability.Undefined ||
+                      result.OutputHints.Length != 1 ||
+                      result.OutputHints.Any(x => x.TradeType == MarketConditionTradeType.Unknown ||
+                          x.TimeFrame != result.TargetHorizon || x.Suitability == MarketConditionHintSuitability.Unknown ||
+                          x.Confidence is < 0m or > 1m || string.IsNullOrWhiteSpace(x.ReasonCode) || !x.IsAdvisory) ||
                       string.IsNullOrWhiteSpace(result.PrimaryReasonCode) ||
                       string.IsNullOrWhiteSpace(result.SummaryText) || result.Reasons.Length == 0;
         if (result.Tradeability == MarketTradeability.Tradeable)
@@ -223,6 +233,7 @@ public sealed class MarketConditionCalculationModel
             x.WorkflowView.EntityId != x.RegimeResult.EntityId ||
             x.WorkflowView.WorkflowId != x.Snapshot.WorkflowId ||
             x.WorkflowView.EntityId != x.Snapshot.EntityId ||
+            !x.RegimeResult.Decision.IsComplete ||
             x.ParameterSet.FundId != x.Snapshot.FundId ||
             x.ParameterSet.TargetHorizon != x.Snapshot.TargetHorizon ||
             x.ParameterSet.TargetHorizon != x.RegimeResult.TargetHorizon)
@@ -359,7 +370,20 @@ public sealed class MarketConditionCalculationModel
         }
     }
 
-    static MarketConditionPhase Phase(Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel s,
+    static MarketConditionPhase Phase(TrendRegimePhase decisionPhase,
+        Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel s,
+        MarketConditionClassificationConfiguration p) => decisionPhase switch
+    {
+        TrendRegimePhase.RangeBound => MarketConditionPhase.Confirmed,
+        TrendRegimePhase.Emerging => MarketConditionPhase.Initiating,
+        TrendRegimePhase.Established => MarketConditionPhase.Continuing,
+        TrendRegimePhase.Exhausting => MarketConditionPhase.Exhausting,
+        TrendRegimePhase.Reversing => MarketConditionPhase.Reversing,
+        _ => TriggerPhase(s, p)
+    };
+
+    static MarketConditionPhase TriggerPhase(
+        Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel s,
         MarketConditionClassificationConfiguration p) => s.IntrinsicTimeMode switch
     {
         IntrinsicTimeModeType.TrendDirectionChanged => MarketConditionPhase.Initiating,
@@ -377,7 +401,7 @@ public sealed class MarketConditionCalculationModel
         => s.VolatilityShockState.FiveMinuteRelativeIncrease > p.MarketIntegrity.MaximumFiveMinuteVolatilityIncrease ||
            Math.Abs(s.FuturesQuote.OneMinuteMoveAtr) > p.MarketIntegrity.MaximumOneMinuteMoveAtr
             ? MarketConditionVolatilityBehavior.Shock
-            : r.Volatility.Change switch
+            : EffectiveVolatilityChange(r) switch
             {
                 VolatilityRegimeChange.Expanding => MarketConditionVolatilityBehavior.Expanding,
                 VolatilityRegimeChange.Contracting => MarketConditionVolatilityBehavior.Contracting,
@@ -389,14 +413,19 @@ public sealed class MarketConditionCalculationModel
     {
         if (b.Any(x => x.Area == MarketConditionEvidenceArea.MarketIntegrity)) return MarketConditionType.Dislocated;
         if (a == MarketConditionUpstreamAlignment.Conflict) return MarketConditionType.NoOpportunity;
+        var structure = EffectiveStructure(r);
         if (r.Decision.Restrictions.Contains(RegimeRestriction.Transition) ||
-            r.MarketStructure.Classification == MarketStructureClassification.Transitioning) return MarketConditionType.Transition;
+            structure == MarketStructureClassification.Transitioning ||
+            r.Decision.TrendPhase is TrendRegimePhase.Exhausting or TrendRegimePhase.Reversing)
+            return MarketConditionType.Transition;
         if (v == MarketConditionVolatilityBehavior.Expanding && !r.Decision.Restrictions.Contains(RegimeRestriction.NoNewTrade))
             return MarketConditionType.VolatilityExpansion;
         if (v == MarketConditionVolatilityBehavior.Contracting &&
-            r.MarketStructure.Classification is MarketStructureClassification.Ranging or MarketStructureClassification.Compressing &&
+            structure is MarketStructureClassification.Ranging or MarketStructureClassification.Compressing &&
             r.Decision.Direction == RegimeDirection.Neutral) return MarketConditionType.VolatilityContraction;
-        if (r.MarketStructure.Classification == MarketStructureClassification.Ranging && r.Decision.Direction == RegimeDirection.Neutral)
+        if (structure is MarketStructureClassification.BreakingOut || r.Decision.Breakout != MarketBreakoutState.None)
+            return MarketConditionType.Directional;
+        if (structure == MarketStructureClassification.Ranging && r.Decision.Direction == RegimeDirection.Neutral)
             return MarketConditionType.RangeBound;
         if (r.Decision.Direction is RegimeDirection.Up or RegimeDirection.Down && a == MarketConditionUpstreamAlignment.Aligned)
             return MarketConditionType.Directional;
@@ -411,8 +440,115 @@ public sealed class MarketConditionCalculationModel
         RegimeDirection.Up or RegimeDirection.Down => MarketConditionUpstreamAlignment.Conflict,
         _ => MarketConditionUpstreamAlignment.Unknown
     };
+    static MarketConditionDirection Direction(RegimeDirection value) => value switch
+    {
+        RegimeDirection.Up => MarketConditionDirection.Bullish,
+        RegimeDirection.Down => MarketConditionDirection.Bearish,
+        RegimeDirection.Neutral => MarketConditionDirection.Neutral,
+        _ => MarketConditionDirection.Undefined
+    };
     static decimal AlignmentScore(MarketConditionUpstreamAlignment a) => a switch
         { MarketConditionUpstreamAlignment.Aligned => 1m, MarketConditionUpstreamAlignment.Neutral => 0.5m, _ => 0m };
+    static VolatilityRegimeChange EffectiveVolatilityChange(RegimeDiscoveryResult result)
+        => result.Decision.VolatilityChange != VolatilityRegimeChange.Unknown
+            ? result.Decision.VolatilityChange
+            : result.Volatility.Change;
+    static MarketStructureClassification EffectiveStructure(RegimeDiscoveryResult result)
+        => result.Decision.StructureClassification != MarketStructureClassification.Unknown
+            ? result.Decision.StructureClassification
+            : result.MarketStructure.Classification;
+    static decimal DecisionQuality(RegimeDiscoveryResult result)
+    {
+        var decision = result.Decision;
+        var confidence = decision.Confidence > 0m ? decision.Confidence : result.OverallConfidence;
+        var directional = decision.DirectionalScore != 0m ? Math.Abs(decision.DirectionalScore) : confidence;
+        var conviction = decision.RiskAdjustedConviction > 0m ? decision.RiskAdjustedConviction : directional;
+        var agreement = decision.TrendTimeFrameAgreement > 0m
+            ? decision.TrendTimeFrameAgreement
+            : result.Trend.TimeFrameAgreement > 0m ? result.Trend.TimeFrameAgreement : confidence;
+        var strength = decision.TrendStrength switch
+        {
+            TrendRegimeStrength.Weak => 0.25m,
+            TrendRegimeStrength.Moderate => 0.50m,
+            TrendRegimeStrength.Strong => 0.75m,
+            TrendRegimeStrength.Extreme => 1m,
+            _ => confidence
+        };
+        return Round(Clamp(0.40m * confidence + 0.20m * conviction + 0.15m * directional +
+                           0.15m * agreement + 0.10m * strength));
+    }
+    static void AddDecisionEvidence(RegimeDiscoveryResult result, List<MarketConditionEvidenceItem> evidence)
+    {
+        var decision = result.Decision;
+        Add("RD.Direction", (decimal)decision.Direction, decision.Direction.ToString());
+        Add("RD.DirectionalScore", decision.DirectionalScore, string.Empty);
+        Add("RD.RiskAdjustedConviction", decision.RiskAdjustedConviction, string.Empty);
+        Add("RD.Confidence", decision.Confidence > 0m ? decision.Confidence : result.OverallConfidence,
+            decision.ConfidenceBand.ToString());
+        Add("RD.Quality", (decimal)decision.Quality, decision.Quality.ToString());
+        Add("RD.TrendPhase", (decimal)decision.TrendPhase, decision.TrendPhase.ToString());
+        Add("RD.TrendStrength", (decimal)decision.TrendStrength, decision.TrendStrength.ToString());
+        Add("RD.TrendTimeFrameAgreement", decision.TrendTimeFrameAgreement, string.Empty);
+        Add("RD.VolatilityLevel", (decimal)decision.VolatilityLevel, decision.VolatilityLevel.ToString());
+        Add("RD.VolatilityChange", (decimal)EffectiveVolatilityChange(result),
+            EffectiveVolatilityChange(result).ToString());
+        Add("RD.TermStructure", (decimal)decision.TermStructure, decision.TermStructure.ToString());
+        Add("RD.Structure", (decimal)EffectiveStructure(result), EffectiveStructure(result).ToString());
+        Add("RD.Breakout", (decimal)decision.Breakout, decision.Breakout.ToString());
+        Add("RD.RestrictionCount", decision.Restrictions.Length,
+            string.Join(',', decision.Restrictions.Select(x => x.ToString())));
+        Add("RD.ReasonCount", decision.Reasons.Length,
+            string.Join(',', decision.Reasons.Select(x => x.Code)));
+        return;
+
+        void Add(string code, decimal value, string text) => evidence.Add(new MarketConditionEvidenceItem
+        {
+            Area = MarketConditionEvidenceArea.Classification,
+            FeatureCode = code,
+            ObservedValue = value,
+            ObservedText = text,
+            NormalizedValue = value is >= 0m and <= 1m ? value : 0m,
+            SourceId = "RegimeDiscoveryDecision",
+            SourceTimestampUtc = result.ProducedAtUtc,
+            Availability = MarketSourceAvailability.Available,
+            Freshness = MarketFreshnessState.Fresh,
+            ReasonCode = MarketConditionReasonCodes.DataFit
+        });
+    }
+    static MarketConditionOutputHint BuildOutputHint(TimeFrameType horizon, MarketTradeability tradeability,
+        MarketConditionType condition, decimal confidence, decimal futuresScore, decimal optionScore)
+    {
+        var (tradeType, reason, liquidityScore, preferred) = horizon switch
+        {
+            TimeFrameType.Daily => (MarketConditionTradeType.Futures,
+                MarketConditionReasonCodes.HintFuturesDaily, futuresScore,
+                condition is MarketConditionType.Directional or MarketConditionType.VolatilityExpansion),
+            TimeFrameType.Weekly => (MarketConditionTradeType.VerticalSpread,
+                MarketConditionReasonCodes.HintVerticalSpreadWeekly, optionScore,
+                condition is MarketConditionType.Directional or MarketConditionType.VolatilityExpansion),
+            TimeFrameType.Monthly => (MarketConditionTradeType.IronCondor,
+                MarketConditionReasonCodes.HintIronCondorMonthly, optionScore,
+                condition is MarketConditionType.RangeBound or MarketConditionType.VolatilityContraction),
+            _ => (MarketConditionTradeType.Unknown, string.Empty, 0m, false)
+        };
+        var suitability = tradeability != MarketTradeability.Tradeable
+            ? MarketConditionHintSuitability.Avoid
+            : preferred ? MarketConditionHintSuitability.Preferred : MarketConditionHintSuitability.Eligible;
+        var hintConfidence = suitability switch
+        {
+            MarketConditionHintSuitability.Preferred => Math.Min(confidence, liquidityScore),
+            MarketConditionHintSuitability.Eligible => 0.75m * Math.Min(confidence, liquidityScore),
+            _ => 0m
+        };
+        return new MarketConditionOutputHint
+        {
+            TradeType = tradeType,
+            TimeFrame = horizon,
+            Suitability = suitability,
+            Confidence = Round(hintConfidence),
+            ReasonCode = reason
+        };
+    }
     static decimal TriggerQuality(Domain.MarketData.Analytics.Shared.ViewModels.FuturesItiSignalV2ReadModel s)
     {
         var factor = s.IntrinsicTimeMode switch
@@ -483,9 +619,13 @@ public sealed class MarketConditionCalculationModel
         MarketConditionType.VolatilityContraction => MarketConditionReasonCodes.VolatilityContraction,
         _ => MarketConditionReasonCodes.Strength
     };
-    static string Summary(MarketConditionResult r, string reason) =>
-        $"{r.TargetHorizon} {r.InstrumentRoot} condition is {r.Tradeability}: {r.Direction} {r.ConditionType}, " +
-        $"{r.Phase} phase, strength {r.Strength:0}, confidence {r.Confidence:0.00}. {reason}";
+    static string Summary(MarketConditionResult r, string reason)
+    {
+        var hint = r.OutputHints.Single();
+        return $"{r.TargetHorizon} {r.InstrumentRoot} condition is {r.Tradeability}: {r.Direction} {r.ConditionType}, " +
+               $"{r.Phase} phase, strength {r.Strength:0}, confidence {r.Confidence:0.00}. {reason}. " +
+               $"Advisory hint: {hint.TradeType}/{hint.TimeFrame} {hint.Suitability}.";
+    }
     static MarketConditionCalculationException Invalid(string message) => new(
         MarketConditionFailureCategory.RequiredInputInvalid, MarketConditionReasonCodes.RequiredInput, message);
 }

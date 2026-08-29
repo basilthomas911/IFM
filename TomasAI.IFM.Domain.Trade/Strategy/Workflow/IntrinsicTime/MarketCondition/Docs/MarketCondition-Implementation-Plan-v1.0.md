@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Implemented and qualified; MC-00 through MC-16 complete |
+| Status | Implemented and qualified; MC-00 through MC-22 complete |
 | Created | 2026-08-28 |
 | Source design | `MarketCondition-High-Level-Design-v0.1.md` |
 | Authoritative specification | `MarketCondition-Specification-v1.0.md` |
@@ -42,7 +42,7 @@ Expired/timeout          -> TimedOut
 
 ## 2. Gate execution rules
 
-1. Gates execute in order from MC-00 through MC-16.
+1. Gates execute in order from MC-00 through MC-22.
 2. A later gate may begin only after the prior gate's build and targeted tests are green.
 3. Every gate records files changed, tests added/updated, exact pass counts, and unresolved observations.
 4. Existing uncommitted work is preserved. Unrelated files are not reformatted, reverted, or folded into a gate.
@@ -50,7 +50,7 @@ Expired/timeout          -> TimedOut
 6. No gate is complete with skipped, disabled, placeholder, or assertion-free Market Condition tests.
 7. Test doubles may replace a not-yet-implemented later pipeline, but may not replace the Market Condition Function, calculation model, workflow command actor, or persistence path in final integration/verification gates.
 8. Failures found during a gate are fixed in the owning gate; they are not deferred to final qualification merely to preserve apparent progress.
-9. Documentation status changes from Planned to Complete only after MC-16 passes.
+9. Documentation status changes from Planned to Complete only after the current terminal gate, MC-22, passes.
 
 ## 3. Gate sequence
 
@@ -72,6 +72,12 @@ MC-00 Baseline and change isolation
   -> MC-14 Storage and runtime integration qualification
   -> MC-15 Basic Market Condition verification suite
   -> MC-16 Full regression, controlled enablement, and documentation closure
+  -> MC-17 Input-authority and unused-input audit
+  -> MC-18 Full RegimeDiscoveryDecision consumption
+  -> MC-19 ITI and futures/options corroboration
+  -> MC-20 Advisory output-hint contract and result schema V2
+  -> MC-21 Hint derivation, projection, and workflow handoff
+  -> MC-22 Pairwise decision qualification and documentation closure
 ```
 
 ## 4. Implementation gates
@@ -423,10 +429,27 @@ Steps:
 
 Exit gate:
 
-- MC-00 through MC-16 have complete execution records;
+- MC-00 through MC-16 have complete execution records for the original V1 closure;
 - solution and affected suites pass;
 - documentation describes the code that exists;
 - the implementation is ready for Trade Selection design without weakening the order-execution safety chain.
+
+### MC-17 through MC-22 — Maximum input use and advisory output hints
+
+These gates are an append-only upgrade to the completed V1 actor topology.
+
+| Gate | Required implementation and exit evidence |
+|---|---|
+| MC-17 | Audit every Regime Discovery, trigger, futures, option, session, event-risk, health, and workflow field. Record primary authority, corroboration, scoring, gate, evidence-only, or unavailable semantics. No populated decision field may be silently ignored. |
+| MC-18 | Make `RegimeDiscoveryDecision` the primary source of market direction, phase, volatility behavior, structure, breakout, restrictions, and decision quality. Retain specialist fallbacks only for schema-V1-shaped upstream payload compatibility. |
+| MC-19 | Keep the exact ITI event as directional/timing corroboration and the frozen futures/options snapshot as independent tradeability, liquidity, data-quality, and hint-quality evidence. A conflict is explicit and deterministic. |
+| MC-20 | Add append-only `MarketConditionResult` schema V2 `OutputHints[]` with typed trade family, timeframe, suitability, confidence, reason, and an explicit advisory marker. |
+| MC-21 | Emit exactly one minimum hint for the evaluated horizon: `Futures/Daily`, `VerticalSpread/Weekly`, or `IronCondor/Monthly`. Derive it after the primary result; blocked results emit `Avoid`. Preserve it in the Function envelope and projected result payload. |
+| MC-22 | Qualify unit/contract, BDD, runtime integration, and a 12-case pairwise verification matrix; update high-level design, specification, implementation plan, exact counts, and schema language. |
+
+Direct implementation rule: **inputs determine the Market Condition decision; hints describe possible downstream use.**
+Hints may be changed, reranked, ignored, or augmented by Trade Selection. They cannot make a blocked market tradeable,
+erase evidence, override a Regime restriction, or narrow the market language Market Condition is permitted to emit.
 
 ## 5. File-level implementation map
 
@@ -581,7 +604,7 @@ ConfigurationDb and other affected storage projects receive focused commands det
 
 Market Condition V1 is complete only when:
 
-1. MC-00 through MC-16 are recorded Complete.
+1. MC-00 through MC-22 are recorded Complete.
 2. The FunctionActor topology is the only executable Market Condition topology.
 3. Parameter configuration is immutable, versioned, stored in its own ConfigurationDb table, and frozen in workflow state.
 4. ES futures and futures-option inputs are captured in one immutable snapshot.
@@ -606,6 +629,9 @@ Market Condition V1 is complete only when:
 | MC-11 | Projection, queries, UI observation, and telemetry |
 | MC-12–15 | Unit, BDD, integration, and basic verification qualification |
 | MC-16 | Full regression and controlled completion |
+| MC-17–19 | Input audit, full Regime decision consumption, and independent trigger/futures/options corroboration |
+| MC-20–21 | Result schema V2 and advisory horizon/trade-family hints |
+| MC-22 | Pairwise decision qualification and documentation closure |
 
 ## Appendix B — Gate execution record (2026-08-28)
 
@@ -632,18 +658,23 @@ production-enabled while any gate is Partial or Blocked.
 | MC-14 | Complete | The registered Workflow Realtime -> Market Condition Function -> Workflow Command topology passes through NATS, PostgreSQL event sourcing, ConfigurationDb, and Scylla. Daily/Weekly/Monthly success cross-checks payload/hash, Function result identity, workflow revision, reconstructed state, query observation, and exactly-once continuation. NoTrade is projected as explicit `NoTrade` and never dispatches Trade Selection; timeout is unprojected and terminal; injected projector and Function-state persistence failures prove both storage/dispatch barriers and observable notification-orphan detection. A matching retry returns the same completion without recapture, and a new host reconstructs that Function completion from PostgreSQL without capture or redispatch. The generic pipeline simulator remains on typed Execute requests and the collection is non-parallel. |
 | MC-15 | Complete | `Strategy/IntrinsicTime/MarketCondition` now contains 19 deterministic business cases plus three `Verification`-tagged qualification cases: production snapshot aggregation/sealing, infrastructure-backed Daily/Weekly/Monthly success, and the combined NoTrade/timeout/projection/persistence/lost-notification/retry/restart matrix. The Verification assembly reuses the Integration scenario implementation so NATS, PostgreSQL Function state, ConfigurationDb, Scylla projection, workflow reconstruction, query payload/hash, and exactly-once assertions cannot drift. Full Verification is green at 55/55 with no skips. |
 | MC-16 | Complete | Full build, core regressions, repeated focused verification, affected Storage/actor/serialization/MarketData suites, legacy-route scans, and actor-convention gates are complete. Changed-file formatting and `git diff --check` pass. The production API host's controlled live-trigger setting is enabled; the registered unavailable broker-readiness authority remains fail-closed and cannot authorize continuation. |
+| MC-17 | Complete | Input ownership was re-audited after RD20–25. `RegimeDiscoveryDecision` is primary; exact ITI, frozen futures/options, session, event, health, and workflow observations retain independent corroboration/gate/scoring roles. |
+| MC-18 | Complete | Direction, phase, decision quality, volatility change, structure, breakout, restrictions, conviction, agreement, and trend strength consume the expanded Decision contract with explicit evidence and safe legacy specialist fallback. |
+| MC-19 | Complete | Trigger conflict remains explicit; futures/options quality independently gates and scores the opportunity and contributes to hint confidence. Hints cannot bypass any hard blocker. |
+| MC-20 | Complete | `MarketConditionResult` schema V2 appends typed `OutputHints[]` at MessagePack key 34 without changing keys 0–33. Invariants require a bounded advisory hint on every new result. |
+| MC-21 | Complete | Daily/Futures, Weekly/VerticalSpread, and Monthly/IronCondor mappings emit Preferred/Eligible/Avoid suitability after the primary decision. Function-envelope and live projected payload assertions use schema V2. |
+| MC-22 | Complete | Unit, BDD, integration, and 12-case minimum pairwise verification cover all reasonable initial market-language/hint combinations. Design, specification, plan, and qualification evidence are synchronized. |
 
 ### Qualification evidence
 
 | Command/suite | Result |
 |---|---|
-| `dotnet build TomasAI.IFM.sln --no-restore -m:1` | Passed on the final post-edit rerun; 0 warnings, 0 errors; 34.86 s |
-| Trade Unit | 315 passed; 0 failed; 0 skipped |
-| Trade BDD | 14 passed; 0 failed; 0 skipped |
+| `dotnet build TomasAI.IFM.sln --no-restore -m:1` | Passed on the final post-edit rerun; 0 warnings, 0 errors; 5 m 02.99 s |
+| Trade Unit | 332 passed; 0 failed; 0 skipped; includes true schema-V1-shaped payload compatibility and schema-V2 hint invariants |
+| Trade BDD | 22 passed; 0 failed; 0 skipped; includes four MC17–22 business scenarios |
 | Trade Integrated | 46 passed; 0 failed; 2 unrelated pre-existing TradePlan skips; infrastructure actor suites run sequentially |
-| Trade Verification | 55 passed; 0 failed; 0 skipped |
-| Focused Market Condition Verification | 19 deterministic business cases plus 3 production/infrastructure qualification cases; 0 failed; 0 skipped |
-| Repeated Focused Market Condition Verification | Two consecutive runs of 22 passed; 0 failed; 0 skipped; no fixed-address teardown or state leakage detected |
+| Trade Verification | 79 passed; 0 failed; 0 skipped; 49 s on final rerun |
+| Focused Market Condition Verification | Existing 22 cases plus the 12-case minimum pairwise decision/hint matrix; 0 failed; 0 skipped |
 | Focused MC-02 Unit | 18 passed; defaults, canonical scale-independent hash, defensive arrays, and complete nested validation boundaries |
 | Focused MC-02 ConfigurationDb PostgreSQL Integration | 8 passed; insert/exact round trip, publish, effective boundary, future exclusion, retire, ambiguity, invalid transitions, immutable payload, no-delete, corrupt hash/schema/identity, and closed table map |
 | Focused Market Condition Storage Integration | 1 passed; exact/latest/history, duplicate upsert, payload/hash preservation |
@@ -660,7 +691,7 @@ production-enabled while any gate is Partial or Blocked.
 
 ### Readiness decision
 
-MC-00 through MC-16 are closed. `TomasAI.IFM.Application.Api.Server` enables the qualified live ITI-trigger route,
+MC-00 through MC-22 are closed. `TomasAI.IFM.Application.Api.Server` enables the qualified live ITI-trigger route,
 while test hosts remain disabled unless a scenario opts in. This is controlled workflow enablement, not trading
 authority: the registered IBKR readiness source deliberately remains fail-closed until a real broker connection
 authority replaces it, and later trade-selection/order stages retain their own independent safety boundaries.

@@ -1,7 +1,7 @@
 # MarketCondition High-Level Design
 
 **Document version:** 0.1<br>
-**Status:** Implemented V1; qualified through MC-16 on 2026-08-29<br>
+**Status:** Implemented result schema V2; qualified through MC-22 on 2026-08-29<br>
 **System:** Intrinsic Time Trade Strategy Workflow<br>
 **Stage:** MarketCondition<br>
 **Primary implementation target:** .NET 10 / C# actor-based trading system
@@ -23,7 +23,7 @@ Its central question is:
 
 > Given the discovered regime, the intrinsic-time trigger, and current market and operational conditions, is the market tradeable now, and what condition is present?
 
-MarketCondition does not select a trade, compose an order, approve portfolio risk, or execute anything. It produces a deterministic, typed result that the Strategy Workflow evaluates before deciding whether to continue to TradeSelection.
+MarketCondition does not select a binding trade, compose an order, approve portfolio risk, or execute anything. It produces a deterministic, typed result that the Strategy Workflow evaluates before deciding whether to continue to TradeSelection. Its optional output hints communicate intended downstream use while remaining explicitly advisory.
 
 ## 2. Position in the Strategy Workflow
 
@@ -54,13 +54,30 @@ flowchart TD
 | Stage | Primary question | Typical time character | Authoritative output |
 | --- | --- | --- | --- |
 | RegimeDiscovery | What market regime exists? | Broader and relatively persistent | Trend, volatility, structure, scores, and horizon context |
-| MarketCondition | Is there a tradeable opportunity now? | Immediate and short-lived | Tradeability, condition classification, direction, phase, strength, confidence, evidence, and blockers |
+| MarketCondition | Is there a tradeable opportunity now? | Immediate and short-lived | Tradeability, condition classification, direction, phase, strength, confidence, evidence, blockers, and non-binding output hints |
 | TradeSelection | Which permitted trade structure best fits? | Workflow decision | Selected trade type or no compatible trade |
 | OrderComposition | What exact legs, quantities, and prices express it? | Execution preparation | Candidate order |
 | RiskManagement | May the portfolio accept this candidate order? | Portfolio and capital state | Approved or denied |
 | OrderExecution | Can and should the approved order be submitted now? | Broker and venue state | Submission and execution result |
 
 This separation prevents MarketCondition from becoming a second regime engine, strategy selector, or risk manager.
+
+### 3.1 Input authority and output-hint rule
+
+MarketCondition starts with the maximum reliable input set. The accepted `RegimeDiscoveryDecision` supplies the primary
+market interpretation. The exact ITI trigger, futures quote/trade, futures-option chain quality, session, event risk,
+volatility shock, operational health, and workflow eligibility independently corroborate, qualify, score, or block that
+interpretation.
+
+Only after the primary condition is complete does MarketCondition emit a best-effort downstream hint. The initial map is:
+
+- `Futures` for `Daily`;
+- `VerticalSpread` for `Weekly`; and
+- `IronCondor` for `Monthly`.
+
+The hint communicates context to TradeSelection. It is not a constraint on MarketCondition output, is not a selected
+trade, and cannot authorize continuation. This same primary-input/optional-output-hint pattern should be used by later
+pipeline actors where downstream context is useful without surrendering the actor's own decision authority.
 
 ## 4. Core Design Decisions
 
