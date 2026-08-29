@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
@@ -89,4 +90,8 @@ public sealed record IntrinsicTimeStrategyWorkflowState
     /// <summary>Gets the canonical SHA-256 hash of the selected Regime Discovery parameter payload.</summary>
     [Key(18)]
     public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
+
+    [Key(19)] public int FundId { get; init; }
+    [Key(20)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
+    [Key(21)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
 }

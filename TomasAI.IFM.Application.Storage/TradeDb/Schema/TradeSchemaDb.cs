@@ -16,6 +16,10 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
         new("option_trade_spread_bar_data", TradeSchemaCql.CreateOptionTradeSpreadBarDataTable, "DROP TABLE IF EXISTS option_trade_spread_bar_data;"),
         new("option_trade_spread_data", TradeSchemaCql.CreateOptionTradeSpreadDataTable, "DROP TABLE IF EXISTS option_trade_spread_data;"),
         new("regime_discovery", TradeSchemaCql.CreateRegimeDiscoveryTable, "DROP TABLE IF EXISTS regime_discovery;"),
+        new("market_condition", TradeSchemaCql.CreateMarketConditionTable, "DROP TABLE IF EXISTS market_condition;"),
+        new("market_condition_by_fund", TradeSchemaCql.CreateMarketConditionByFundTable, "DROP TABLE IF EXISTS market_condition_by_fund;"),
+        ..EvidenceColumns("market_condition"),
+        ..EvidenceColumns("market_condition_by_fund"),
         new("intrinsic_time_strategy_workflow", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow;"),
         new("intrinsic_time_strategy_workflow_active", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_active;"),
         new("intrinsic_time_strategy_workflow_start_attempt", TradeSchemaCql.CreateIntrinsicTimeStrategyWorkflowStartAttemptByEntityTable, "DROP TABLE IF EXISTS intrinsic_time_strategy_workflow_start_attempt;"),
@@ -35,6 +39,25 @@ public sealed class TradeSchemaDb(IDbConnectionSettings connectionSettings, ILog
         new("trade_position_state", TradeSchemaCql.CreateTradePositionStateTable, "DROP TABLE IF EXISTS trade_position_state;"),
         new("trade_type_limit", TradeSchemaCql.CreateTradeTypeLimitTable, "DROP TABLE IF EXISTS trade_type_limit;")
     ];
+
+    static SchemaObjectDefinition[] EvidenceColumns(string table) =>
+    [
+        Column(table, "volatilityBehavior", "text"),
+        Column(table, "liquidityQuality", "text"),
+        Column(table, "dataQuality", "text"),
+        Column(table, "upstreamAlignment", "text"),
+        Column(table, "evidencePayload", "blob"),
+        Column(table, "conflictingEvidencePayload", "blob"),
+        Column(table, "blockingReasonsPayload", "blob"),
+        Column(table, "reasonsPayload", "blob"),
+        Column(table, "summaryText", "text")
+    ];
+
+    static SchemaObjectDefinition Column(string table, string column, string type) => new(
+        $"{table}_{column}",
+        $"ALTER TABLE {table} ADD {column} {type};",
+        $"ALTER TABLE {table} DROP {column};",
+        ["already exists", "conflicts with an existing column"]);
 
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;
 }

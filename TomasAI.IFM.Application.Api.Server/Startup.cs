@@ -63,6 +63,7 @@ using TomasAI.IFM.Domain.OptionPricer;
 using TomasAI.IFM.Domain.SystemAdmin.DatabaseBackup.Command.State;
 using TomasAI.IFM.Domain.Trade;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Framework.Caching;
@@ -456,6 +457,11 @@ public static class Startup
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
             services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
+            services.AddSingleton<MarketConditionSnapshotProvider>();
+            services.AddSingleton<IMarketConditionSnapshotProvider>(provider =>
+                provider.GetRequiredService<MarketConditionSnapshotProvider>());
+            services.AddSingleton<IMarketConditionSnapshotCache>(provider =>
+                provider.GetRequiredService<MarketConditionSnapshotProvider>());
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)

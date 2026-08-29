@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 
@@ -53,4 +54,12 @@ public sealed record IntrinsicTimeStrategyWorkflowView
     [Key(20)] public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
     /// <summary>Gets the complete immutable trigger supplied to pipeline actors.</summary>
     [Key(21)] public FuturesItiSignalGeneratedEvent TriggerEvent { get; init; } = new();
+    /// <summary>Gets the explicit terminal business outcome.</summary>
+    [Key(22)] public StrategyWorkflowOutcome Outcome { get; init; }
+    /// <summary>Gets the fund identity frozen for Market Condition.</summary>
+    [Key(23)] public int FundId { get; init; }
+    /// <summary>Gets the frozen Market Condition parameters.</summary>
+    [Key(24)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
+    /// <summary>Gets the canonical frozen Market Condition parameter hash.</summary>
+    [Key(25)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
 }

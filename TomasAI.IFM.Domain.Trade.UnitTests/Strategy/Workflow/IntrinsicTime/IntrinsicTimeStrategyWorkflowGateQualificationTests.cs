@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.EventProjector;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
@@ -87,6 +88,36 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
             .Contains(typeof(ExecuteIntrinsicTimeStrategyWorkflowCommand)).Should().BeTrue();
     }
 
+    /// <summary>Confirms every receive entry has one command-named extension-handler class.</summary>
+    [Fact]
+    public void Workflow_receive_map_is_implemented_by_typed_command_extensions()
+    {
+        var receiveTypes = ReadMap(typeof(IntrinsicTimeStrategyWorkflowCommandActor), "_receiveMap")
+            .Keys.Cast<Type>();
+        var handlers = typeof(ExecuteIntrinsicTimeStrategyWorkflow).Assembly.GetTypes()
+            .Where(type => type.Namespace == typeof(ExecuteIntrinsicTimeStrategyWorkflow).Namespace)
+            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            .Where(method => method.Name == "Execute" && method.IsDefined(typeof(ExtensionAttribute), false))
+            .ToArray();
+
+        handlers.Select(method => method.GetParameters()[0].ParameterType)
+            .Should().BeEquivalentTo(receiveTypes);
+        foreach (var commandType in receiveTypes)
+        {
+            var expectedHandlerName = commandType.Name[..^"Command".Length];
+            handlers.Should().ContainSingle(method =>
+                method.GetParameters()[0].ParameterType == commandType &&
+                method.DeclaringType!.Name == expectedHandlerName);
+        }
+        typeof(IntrinsicTimeStrategyWorkflowCommandActor)
+            .GetMethod("ProcessWorkflowCommand", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Should().BeNull();
+        typeof(ExecuteIntrinsicTimeStrategyWorkflow).Assembly
+            .GetType("TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions." +
+                     "IntrinsicTimeStrategyWorkflowTransitions")
+            .Should().BeNull();
+    }
+
     /// <summary>Confirms every executable workflow stage has exactly one committed-state handler.</summary>
     [Fact]
     public void Workflow_pipeline_execution_map_covers_every_stage()
@@ -125,6 +156,38 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         first.ExpiresAtUtc.Should().Be(started.State.ExpiresAtUtc);
         terminal.Should().BeNull();
         laterStage.Should().BeNull();
+    }
+
+    /// <summary>Confirms only committed Started/MarketCondition snapshots produce deterministic Function requests.</summary>
+    [Fact]
+    public void Market_condition_execute_requires_committed_stage_and_freezes_configuration()
+    {
+        var started = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification();
+        var marketCondition = started with
+        {
+            State = started.State with
+            {
+                CurrentStage = StrategyWorkflowStage.MarketCondition,
+                WorkflowRevision = 2,
+                UpdatedAtUtc = started.State.UpdatedAtUtc.AddSeconds(1)
+            }
+        };
+
+        var first = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateMarketConditionExecute(marketCondition);
+        var duplicate = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateMarketConditionExecute(marketCondition);
+        var terminal = IntrinsicTimeStrategyWorkflowRealtimeActor.CreateMarketConditionExecute(marketCondition with
+        {
+            State = marketCondition.State with { Status = WorkflowStrategyMachineStatus.Completed }
+        });
+
+        first.Should().NotBeNull();
+        duplicate!.CommandId.Should().Be(first!.CommandId);
+        first.EntityId.WorkflowEntityId.Should().Be(marketCondition.EntityId);
+        first.EntityId.WorkflowId.Should().Be(marketCondition.WorkflowId);
+        first.ParameterSet.Should().BeEquivalentTo(marketCondition.State.MarketConditionParameterSet);
+        first.ParameterPayloadSha256.Should().Be(marketCondition.State.MarketConditionParameterPayloadSha256);
+        (first.ExpiresAtUtc <= marketCondition.State.ExpiresAtUtc).Should().BeTrue();
+        terminal.Should().BeNull();
     }
 
     /// <summary>Confirms the typed query contract survives the default MessagePack transport boundary.</summary>

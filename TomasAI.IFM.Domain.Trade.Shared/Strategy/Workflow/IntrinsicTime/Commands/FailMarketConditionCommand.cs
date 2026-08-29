@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -44,6 +45,8 @@ public sealed record FailMarketConditionCommand : ICommand<IntrinsicTimeStrategy
     [Key(11)] public Guid CausationId { get; init; }
     /// <summary>Gets the UTC pipeline failure timestamp.</summary>
     [Key(12)] public DateTime FailedAtUtc { get; init; }
+    /// <summary>Gets the typed Market Condition failure category.</summary>
+    [Key(13)] public MarketConditionFailureCategory FailureCategory { get; init; }
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(FailMarketConditionCommand);
@@ -92,7 +95,8 @@ public sealed record FailMarketConditionCommand : ICommand<IntrinsicTimeStrategy
         StrategyPipelineFailure failure,
         Guid correlationId,
         Guid causationId,
-        DateTime failedAtUtc)
+        DateTime failedAtUtc,
+        MarketConditionFailureCategory failureCategory = MarketConditionFailureCategory.Undefined)
     {
         CommandId = commandId;
         Subject = subject;
@@ -107,5 +111,6 @@ public sealed record FailMarketConditionCommand : ICommand<IntrinsicTimeStrategy
         CorrelationId = correlationId;
         CausationId = causationId;
         FailedAtUtc = failedAtUtc;
+        FailureCategory = failureCategory;
     }
 }

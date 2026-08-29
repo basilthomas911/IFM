@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -9,14 +10,13 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 
 /// <summary>Reports terminal failure of the Market Condition pipeline calculation.</summary>
 /// <remarks>
-/// The future pipeline Command actor persists this standard failure event and projects its ScyllaDB read model before
-/// publishing the same logical event realtime to the Workflow Strategy Realtime actor.
+/// This non-durable typed failure is returned directly by the Function to the Strategy Workflow caller.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record MarketConditionPipelineFailedEvent : IErrorEvent<IntrinsicTimeStrategyWorkflowEntityId>
 {
-    /// <summary>Future pipeline Realtime actor name.</summary>
-    [IgnoreMember] public const string Actor = "MarketConditionPipelineRealtime";
+    /// <summary>Function actor name.</summary>
+    [IgnoreMember] public const string Actor = "MarketConditionPipelineFunction";
     /// <summary>Stable pipeline failure verb.</summary>
     [IgnoreMember] public const string Verb = "MarketConditionPipelineFailed";
     /// <summary>Stable event error identifier.</summary>
@@ -64,6 +64,11 @@ public sealed record MarketConditionPipelineFailedEvent : IErrorEvent<IntrinsicT
     [Key(19)] public Guid CausationId { get; init; }
     /// <summary>Gets the pipeline workflow stage.</summary>
     [Key(20)] public StrategyWorkflowStage PipelineStage { get; init; }
+    [Key(21)] public DateTime ExpiresAtUtc { get; init; }
+    [Key(22)] public MarketConditionFailureCategory FailureCategory { get; init; }
+    [Key(23)] public Guid MarketConditionSnapshotId { get; init; }
+    [Key(24)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(25)] public DateTime ProcessingStarted { get; init; }
 
     /// <summary>Gets the concrete pipeline event contract name.</summary>
     [IgnoreMember] public string EventName => nameof(MarketConditionPipelineFailedEvent);
@@ -119,7 +124,12 @@ public sealed record MarketConditionPipelineFailedEvent : IErrorEvent<IntrinsicT
         long inputWorkflowRevision,
         Guid correlationId,
         Guid causationId,
-        StrategyWorkflowStage pipelineStage)
+        StrategyWorkflowStage pipelineStage,
+        DateTime expiresAtUtc = default,
+        MarketConditionFailureCategory failureCategory = MarketConditionFailureCategory.Undefined,
+        Guid marketConditionSnapshotId = default,
+        string parameterPayloadSha256 = "",
+        DateTime processingStarted = default)
     {
         Subject = subject;
         EntityId = entityId;
@@ -142,5 +152,10 @@ public sealed record MarketConditionPipelineFailedEvent : IErrorEvent<IntrinsicT
         CorrelationId = correlationId;
         CausationId = causationId;
         PipelineStage = pipelineStage;
+        ExpiresAtUtc = expiresAtUtc;
+        FailureCategory = failureCategory;
+        MarketConditionSnapshotId = marketConditionSnapshotId;
+        ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
+        ProcessingStarted = processingStarted;
     }
 }

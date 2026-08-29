@@ -45,3 +45,15 @@ internal readonly record struct ResolveConfiguration(
         Smallint(PublishedStatus), TimestampTz(EffectiveAtUtc), Smallint(TargetHorizon),
         TimestampTz(EffectiveAtUtc));
 }
+
+internal readonly record struct ResolveMarketConditionConfiguration(
+    short PublishedStatus,
+    DateTime EffectiveAtUtc,
+    int FundId,
+    string InstrumentRoot,
+    short TargetHorizon) : IBindValue
+{
+    public object Bind() => Values(
+        Smallint(PublishedStatus), TimestampTz(EffectiveAtUtc), Integer(FundId), Text(InstrumentRoot),
+        Smallint(TargetHorizon), TimestampTz(EffectiveAtUtc));
+}

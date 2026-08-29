@@ -97,6 +97,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Shared.Validation;
 using TomasAI.IFM.Domain.Reference;
 using TomasAI.IFM.Domain.Reference.Services;
@@ -407,6 +408,11 @@ public static class Startup
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
             services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
+            services.AddSingleton<MarketConditionSnapshotProvider>();
+            services.AddSingleton<IMarketConditionSnapshotProvider>(provider =>
+                provider.GetRequiredService<MarketConditionSnapshotProvider>());
+            services.AddSingleton<IMarketConditionSnapshotCache>(provider =>
+                provider.GetRequiredService<MarketConditionSnapshotProvider>());
             services.AddSingleton(_ =>
                    new StorageUrlSettings()
                         .Add("DomainData", config.GetValue<string>("AppSettings:DomainDataStorageBaseUri")!)

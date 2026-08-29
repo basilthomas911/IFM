@@ -31,4 +31,12 @@ CREATE INDEX IF NOT EXISTS ix_{tableName}_target_horizon_effective
 ON reference_configuration.{tableName}
 ((CAST(payload_json ->> 'TargetHorizon' AS smallint)), status, effective_from_utc DESC);
 """;
+
+    /// <summary>Creates the composite effective-selection index required by Market Condition.</summary>
+    public const string CreateMarketConditionEffectiveIndex = """
+CREATE INDEX IF NOT EXISTS ix_market_condition_parameter_set_effective
+ON reference_configuration.market_condition_parameter_set
+((CAST(payload_json ->> 'FundId' AS integer)), (payload_json ->> 'InstrumentRoot'),
+ (CAST(payload_json ->> 'TargetHorizon' AS smallint)), status, effective_from_utc DESC);
+""";
 }

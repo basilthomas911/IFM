@@ -591,7 +591,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             OrderComposition = CloneStage(source.OrderComposition),
             RiskManagement = CloneStage(source.RiskManagement),
             TriggerEvent = CloneTrigger(source.TriggerEvent),
-            RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet)
+            RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
+            MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet)
         };
 
     static IntrinsicTimeStrategyWorkflowState ToLegacyWorkflow(IntrinsicTimeStrategyWorkflowView source)
@@ -609,7 +610,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
                 WorkflowStrategyMachineStatus.Completed => StrategyWorkflowStatus.Completed,
                 _ => StrategyWorkflowStatus.Stopped
             },
-            Outcome = source.Status switch
+            Outcome = source.Outcome != StrategyWorkflowOutcome.None ? source.Outcome : source.Status switch
             {
                 WorkflowStrategyMachineStatus.Completed => StrategyWorkflowOutcome.Completed,
                 WorkflowStrategyMachineStatus.Failed => StrategyWorkflowOutcome.PipelineFailed,
@@ -628,7 +629,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             RiskManagement = CloneStage(source.RiskManagement),
             StopReasonCode = source.StopReasonCode,
             RegimeDiscoveryParameterSet = CloneParameterSet(source.RegimeDiscoveryParameterSet),
-            RegimeDiscoveryParameterPayloadSha256 = source.RegimeDiscoveryParameterPayloadSha256
+            RegimeDiscoveryParameterPayloadSha256 = source.RegimeDiscoveryParameterPayloadSha256,
+            FundId = source.FundId,
+            MarketConditionParameterSet = CloneMarketConditionParameterSet(source.MarketConditionParameterSet),
+            MarketConditionParameterPayloadSha256 = source.MarketConditionParameterPayloadSha256
         };
 
     static StrategyWorkflowStageState CloneStage(StrategyWorkflowStageState source)
@@ -647,6 +651,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandState
             Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet source)
         => MessagePackSerializer.Deserialize<
             Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery.RegimeDiscoveryParameterSet>(
+            MessagePackSerializer.Serialize(source));
+
+    static Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition.MarketConditionParameterSet
+        CloneMarketConditionParameterSet(
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition.MarketConditionParameterSet source)
+        => MessagePackSerializer.Deserialize<
+            Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition.MarketConditionParameterSet>(
             MessagePackSerializer.Serialize(source));
 
     static FuturesItiSignalGeneratedEvent CloneTrigger(FuturesItiSignalGeneratedEvent source)

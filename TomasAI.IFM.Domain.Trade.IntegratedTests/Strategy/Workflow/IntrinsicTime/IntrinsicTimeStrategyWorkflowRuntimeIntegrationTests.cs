@@ -24,8 +24,11 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
@@ -63,7 +66,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         StrategyWorkflowStage.OrderComposition,
         StrategyWorkflowStage.RiskManagement
     ];
-    static readonly StrategyWorkflowStage[] DummyStages = Stages[1..];
+    static readonly StrategyWorkflowStage[] DummyStages = Stages[2..];
 
     /// <summary>
     /// Confirms committed Started snapshots dispatch isolated Regime executions and only a projected public completion
@@ -104,6 +107,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             };
             await PrepareRegimeDiscoveryAsync(factory.Services, successEntities);
 
+            var tradeSelectionHolds = successEntities
+                .Select(entity => pipelines.HoldAt(entity, StrategyWorkflowStage.TradeSelection))
+                .ToArray();
+
             await Task.WhenAll(successEntities.Select(entity =>
                 PublishTriggerAsync(publisher, entity.ItiSignalEntityId).AsTask()));
 
@@ -116,17 +123,17 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             {
                 var history = started.Single(model => model.WorkflowEntityId == entity.Format());
                 await WaitForRegimeDiscoveryAsync(history.WorkflowId, "Completed");
-                await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.MarketCondition, 1);
-                var advanced = await WaitForStageAsync(entity, StrategyWorkflowStage.MarketCondition, 2);
+                var advanced = await WaitForStageAsync(factory.Services, entity, StrategyWorkflowStage.TradeSelection, 3);
+                await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.TradeSelection, 1);
                 await AssertPersistedAdvancedSnapshotAsync(factory.Services, entity, advanced);
                 var regime = await database.TradeDb.GetRegimeDiscoveryAsync(history.WorkflowId);
                 regime.Should().NotBeNull();
                 regime!.Status.Should().Be("Completed");
                 regime.ResultPayload.Should().NotBeEmpty();
-                pipelines.ProcessedStages(entity).Should().Equal(StrategyWorkflowStage.MarketCondition);
-                pipelines.StartCount(entity, StrategyWorkflowStage.MarketCondition).Should().Be(1);
-                DummyStages.Skip(1).Should().OnlyContain(stage => pipelines.StartCount(entity, stage) == 0);
+                pipelines.ProcessedStages(entity).Should().Contain(StrategyWorkflowStage.TradeSelection);
+                pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(1);
             }
+            foreach (var hold in tradeSelectionHolds) hold.Release();
         }
         finally
         {
@@ -155,10 +162,12 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             var runId = Guid.NewGuid().ToString("N")[..8];
             var entity = Entity($"ES-ITSW-{runId}-BUSY", TimeFrameType.Daily);
             await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+            using var hold = pipelines.HoldAt(entity, StrategyWorkflowStage.TradeSelection);
             await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
             var running = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
             await WaitForRegimeDiscoveryAsync(running.WorkflowId, "Completed");
-            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.MarketCondition, 1);
+            await WaitForStageAsync(factory.Services, entity, StrategyWorkflowStage.TradeSelection, 3);
+            await pipelines.WaitForStartCountAsync(entity, StrategyWorkflowStage.TradeSelection, 1);
 
             await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
             await Task.Delay(500);
@@ -166,11 +175,8 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             var replayed = await LoadStateAsync(factory.Services, entity);
             replayed.HasActiveWorkflow.Should().BeTrue();
             replayed.ActiveWorkflow!.WorkflowId.Should().Be(running.WorkflowId);
-            replayed.CurrentView!.WorkflowRevision.Should().Be(2);
-            replayed.CurrentView.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
-            pipelines.StartCount(entity, StrategyWorkflowStage.MarketCondition).Should().Be(1);
-            foreach (var stage in DummyStages.Skip(1))
-                pipelines.StartCount(entity, stage).Should().Be(0);
+            replayed.CurrentView!.WorkflowRevision.Should().BeGreaterThanOrEqualTo(3);
+            pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(1);
         }
         finally
         {
@@ -279,7 +285,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
 
         var projectedState = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload);
         projectedState.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
-        projectedState.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);
+        projectedState.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);
         projectedState.WorkflowRevision.Should().Be(history.WorkflowRevision);
 
         var replayed = await LoadStateAsync(services, entityId);
@@ -312,7 +318,8 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         }
 
         projectedState.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
-        projectedState.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
+        projectedState.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+        projectedState.TradeSelection.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Processing);
     }
 
     async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForTerminalAsync(
@@ -362,10 +369,27 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         StrategyWorkflowStatus status)
     {
         var deadline = DateTime.UtcNow + ScenarioTimeout;
+        var lastObserved = "no ScyllaDB workflow history row";
         do
         {
             var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
                 entityId.Format(), DateTime.MaxValue, 10);
+            if (rows.Count > 0)
+            {
+                lastObserved = $"{rows.First().Status}/{rows.First().Outcome} at " +
+                    $"{rows.First().CurrentStage} revision {rows.First().WorkflowRevision}";
+                if (rows.First().Outcome != StrategyWorkflowOutcome.None)
+                {
+                    var detail = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(rows.First().WorkflowId);
+                    if (detail is not null)
+                    {
+                        var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload);
+                        var failure = view.MarketCondition.Failure;
+                        if (failure is not null)
+                            lastObserved += $"; Market Condition failure: {failure.ErrorType}/{failure.ErrorData}: {failure.ErrorMessage}";
+                    }
+                }
+            }
             var match = rows.FirstOrDefault(row => row.Status == status);
             if (match is not null)
                 return match;
@@ -373,19 +397,46 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         } while (DateTime.UtcNow < deadline);
 
         throw new TimeoutException(
-            $"Workflow {entityId.Format()} did not reach {status} within {ScenarioTimeout}.");
+            $"Workflow {entityId.Format()} did not reach {status} within {ScenarioTimeout}; " +
+            $"last observed: {lastObserved}.");
     }
 
     async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForStageAsync(
+        IServiceProvider services,
         IntrinsicTimeStrategyWorkflowEntityId entityId,
         StrategyWorkflowStage stage,
         long minimumRevision)
     {
         var deadline = DateTime.UtcNow + ScenarioTimeout;
+        var lastObserved = "no ScyllaDB workflow history row";
         do
         {
             var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
                 entityId.Format(), DateTime.MaxValue, 10);
+            if (rows.Count > 0)
+            {
+                lastObserved = $"{rows.First().Status}/{rows.First().Outcome} at " +
+                    $"{rows.First().CurrentStage} revision {rows.First().WorkflowRevision}";
+                if (rows.First().Outcome != StrategyWorkflowOutcome.None)
+                {
+                    var detail = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowAsync(rows.First().WorkflowId);
+                    if (detail is not null)
+                    {
+                        var view = MessagePackSerializer.Deserialize<IntrinsicTimeStrategyWorkflowView>(detail.StatePayload);
+                        var failure = view.MarketCondition.Failure;
+                        if (failure is not null)
+                            lastObserved += $"; Market Condition failure: {failure.ErrorType}/{failure.ErrorData}: {failure.ErrorMessage}";
+                        var resolved = await services.GetRequiredService<IConfigurationDbContext>()
+                            .GetMarketConditionAsync(view.MarketConditionParameterSet.ParameterSetId,
+                                view.MarketConditionParameterSet.Version);
+                        if (resolved is not null && !string.Equals(resolved.PayloadSha256,
+                                MarketConditionParameterPayload.ComputeSha256(view.MarketConditionParameterSet),
+                                StringComparison.OrdinalIgnoreCase))
+                            lastObserved += $"; stored config: {resolved.PayloadJson}; frozen config: " +
+                                MarketConditionParameterPayload.Serialize(view.MarketConditionParameterSet);
+                    }
+                }
+            }
             var match = rows.FirstOrDefault(row =>
                 row.CurrentStage == stage && row.WorkflowRevision >= minimumRevision);
             if (match is not null)
@@ -394,7 +445,8 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         } while (DateTime.UtcNow < deadline);
 
         throw new TimeoutException(
-            $"Workflow {entityId.Format()} did not reach {stage} revision {minimumRevision} within {ScenarioTimeout}.");
+            $"Workflow {entityId.Format()} did not reach {stage} revision {minimumRevision} within {ScenarioTimeout}; " +
+            $"last observed: {lastObserved}.");
     }
 
     async Task<IntrinsicTimeStrategyWorkflowStartAttemptReadModel> WaitForRejectedStartAsync(
@@ -469,7 +521,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 TimeFrameStartValueDate = signalId.ValueDate,
                 TimePeriod = signalId.TimePeriod,
                 IntrinsicTime = now,
-                IntrinsicPrice = 6500d
+                IntrinsicPrice = 6500d,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending,
+                BandLevel = 1d,
+                ReversalLevel = 0d
             },
             CreatedOn = now,
             CreatedBy = "itsw-runtime-integration",
@@ -500,7 +556,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
     {
         var values = entities.ToArray();
         await services.GetRequiredService<ConfigurationSchemaDb>().CreateAllAsync();
-        await services.GetRequiredService<TradeSchemaDb>().CreateAsync(["regime_discovery"]);
+        await services.GetRequiredService<TradeSchemaDb>().CreateAllAsync();
         var configuration = services.GetRequiredService<IConfigurationDbContext>();
         var parameterSets = new Dictionary<TimeFrameType, RegimeDiscoveryParameterSet>();
         foreach (var horizon in values.Select(value => value.ItiSignalEntityId.TimePeriod).Distinct())
@@ -514,8 +570,23 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 parameterSet.ParameterSetId,
                 parameterSet.Version,
                 DateTime.UtcNow.AddMinutes(-1));
+            var marketCondition = MarketConditionParameterSet.CreateDefault(
+                Guid.CreateVersion7(), parameterSet.StrategyParameterSetId, 1, horizon,
+                strategyVersion: parameterSet.StrategyParameterSetVersion);
+            await configuration.InsertMarketConditionDraftAsync(
+                marketCondition, "MC integration qualification", "mc-integration");
+            await configuration.PublishAsync(
+                StrategyParameterSetKind.MarketCondition,
+                marketCondition.ParameterSetId,
+                marketCondition.Version,
+                DateTime.UtcNow.AddMinutes(-1));
             parameterSets.Add(horizon, parameterSet);
         }
+
+        var marketCache = services.GetRequiredService<IMarketConditionSnapshotCache>();
+        marketCache.Clear();
+        foreach (var horizon in values.Select(value => value.ItiSignalEntityId.TimePeriod).Distinct())
+            marketCache.Upsert(1, "ES", horizon, HealthyMarketConditionSource());
 
         var cache = services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>();
         cache.Clear();
@@ -552,6 +623,67 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             }
         }
     }
+
+    static MarketConditionSnapshot HealthyMarketConditionSource()
+    {
+        var now = DateTime.UtcNow;
+        var source = new MarketSourceObservation
+        {
+            SourceId = "source", SourceTimestampUtc = now, ReceivedAtUtc = now, SequenceId = 1,
+            Availability = MarketSourceAvailability.Available, Validity = MarketSourceValidity.Valid
+        };
+        return new MarketConditionSnapshot
+        {
+            MarketDataAsOfUtc = now,
+            FuturesQuote = new MarketConditionFuturesQuote
+            {
+                BidPrice = 6500m, AskPrice = 6500.25m, BidSize = 20m, AskSize = 20m, LastPrice = 6500m,
+                QuoteObservation = source with { SourceId = "futures-quote" },
+                TradeObservation = source with { SourceId = "futures-trade" }
+            },
+            OptionChainQuality = new MarketConditionOptionChainQuality
+            {
+                CandidateContractCount = 24, ValidQuoteCount = 23, EligibleExpirationCount = 2,
+                HasCalls = true, HasPuts = true, ValidQuoteCoverage = 0.96m,
+                MedianRelativeSpread = 0.05m, P90RelativeSpread = 0.10m,
+                MedianBidSize = 5m, MedianAskSize = 5m, UnderlyingMismatch = 0.0001m,
+                Observation = source with { SourceId = "option-chain" }
+            },
+            SessionState = new MarketConditionSessionState
+            {
+                Status = MarketSessionStatus.Open, IsEntryWindow = true,
+                ExchangeLocalTime = new TimeSpan(12, 0, 0), ExchangeLocalWeekday = DayOfWeek.Tuesday,
+                Observation = source with { SourceId = "session" }
+            },
+            EventRiskState = new MarketConditionEventRiskState
+            {
+                Status = MarketEventRiskStatus.Clear,
+                Observation = source with { SourceId = "event-risk" }
+            },
+            VolatilityShockState = new MarketConditionVolatilityShockState
+            {
+                Observation = source with { SourceId = "volatility" }
+            },
+            OperationalHealth =
+            [
+                Health("PrimaryFuturesFeed", source), Health("FuturesOptionFeed", source),
+                Health("LatestValueCache", source), Health("IbkrSession", source)
+            ],
+            WorkflowEligibility = new MarketConditionWorkflowEligibilityState
+            {
+                EntriesEnabled = true, RegimeProducedAtUtc = now, TriggerProducedAtUtc = now
+            },
+            DataQualityItems = [source with { SourceId = "quality" }]
+        };
+    }
+
+    static MarketConditionOperationalHealthItem Health(string id, MarketSourceObservation source)
+        => new()
+        {
+            SourceId = id,
+            Status = MarketOperationalStatus.Healthy,
+            Observation = source with { SourceId = id }
+        };
 
     static decimal SignalValue(RegimeDiscoverySignalMetric metric) => metric switch
     {
@@ -826,8 +958,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 throw new InvalidOperationException($"Unexpected dummy pipeline subject {message.Subject}.");
             return stage switch
             {
-                StrategyWorkflowStage.MarketCondition => PipelineStartInput.From(
-                    message.AsCommand<StartMarketConditionPipelineCommand>()!),
                 StrategyWorkflowStage.TradeSelection => PipelineStartInput.From(
                     message.AsCommand<StartTradeSelectionPipelineCommand>()!),
                 StrategyWorkflowStage.OrderComposition => PipelineStartInput.From(
@@ -842,8 +972,6 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         {
             switch (stage)
             {
-                case StrategyWorkflowStage.MarketCondition:
-                    await SendAsync(CreateProcessing<MarketConditionPipelineProcessingEvent>(input)); break;
                 case StrategyWorkflowStage.TradeSelection:
                     await SendAsync(CreateProcessing<TradeSelectionPipelineProcessingEvent>(input)); break;
                 case StrategyWorkflowStage.OrderComposition:
@@ -1043,8 +1171,9 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         public static PipelineStartInput From(ExecuteRegimeDiscoveryPipelineCommand command)
             => New(command.CommandId, command.WorkflowEntityId, command.WorkflowId,
                 command.InputWorkflowRevision, command.CorrelationId);
-        public static PipelineStartInput From(StartMarketConditionPipelineCommand command)
-            => New(command.CommandId, command.EntityId, command.WorkflowId, command.InputWorkflowRevision, command.CorrelationId);
+        public static PipelineStartInput From(ExecuteMarketConditionPipelineCommand command)
+            => New(command.CommandId, command.WorkflowEntityId, command.WorkflowId,
+                command.InputWorkflowRevision, command.CorrelationId);
         public static PipelineStartInput From(StartTradeSelectionPipelineCommand command)
             => New(command.CommandId, command.EntityId, command.WorkflowId, command.InputWorkflowRevision, command.CorrelationId);
         public static PipelineStartInput From(StartOrderCompositionPipelineCommand command)
@@ -1064,7 +1193,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
     static string CommandActorName(StrategyWorkflowStage stage) => stage switch
     {
         StrategyWorkflowStage.RegimeDiscovery => ExecuteRegimeDiscoveryPipelineCommand.Actor,
-        StrategyWorkflowStage.MarketCondition => StartMarketConditionPipelineCommand.Actor,
+        StrategyWorkflowStage.MarketCondition => ExecuteMarketConditionPipelineCommand.Actor,
         StrategyWorkflowStage.TradeSelection => StartTradeSelectionPipelineCommand.Actor,
         StrategyWorkflowStage.OrderComposition => StartOrderCompositionPipelineCommand.Actor,
         StrategyWorkflowStage.RiskManagement => StartRiskManagementPipelineCommand.Actor,

@@ -559,6 +559,23 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
                     command,
                     entityId);
 
+            public ValueTask<ServiceResult<TResult>> RequestFunctionAsync<
+                TCommand,
+                TEntityId,
+                TResult>(
+                ActorSubject subject,
+                TCommand command,
+                TEntityId entityId,
+                CancellationToken cancellationToken = default)
+                where TCommand : class, ICommand<TEntityId>
+                where TEntityId : IActorEntityId
+                where TResult : class =>
+                inner.RequestFunctionAsync<TCommand, TEntityId, TResult>(
+                    subject,
+                    command,
+                    entityId,
+                    cancellationToken);
+
             public ValueTask StartAsync(ActorMailboxId mailboxId) =>
                 ValueTask.CompletedTask;
 

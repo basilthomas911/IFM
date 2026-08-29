@@ -12,6 +12,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.C
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Extensions;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Function.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -79,10 +81,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         new Dictionary<StrategyWorkflowStage, PipelineExecutionHandler>
         {
             [StrategyWorkflowStage.RegimeDiscovery] = ExecuteRegimeDiscoveryAsync,
-            [StrategyWorkflowStage.MarketCondition] = static (context, snapshot) =>
-                ExecuteLaterPipelineAsync<StartMarketConditionPipelineCommand>(
-                    context, snapshot, StartMarketConditionPipelineCommand.Actor,
-                    StartMarketConditionPipelineCommand.Verb, StartMarketConditionPipelineCommand.ErrorId),
+            [StrategyWorkflowStage.MarketCondition] = ExecuteMarketConditionAsync,
             [StrategyWorkflowStage.TradeSelection] = static (context, snapshot) =>
                 ExecuteLaterPipelineAsync<StartTradeSelectionPipelineCommand>(
                     context, snapshot, StartTradeSelectionPipelineCommand.Actor,
@@ -162,6 +161,11 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             .ResolveEffectiveRegimeDiscoveryAsync(requestedAtUtc, trigger.EntityId.TimePeriod).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 "No published Regime Discovery parameter set is effective for the workflow trigger.");
+        var marketCondition = await ActorContext.ConfigurationDb
+            .ResolveEffectiveMarketConditionAsync(requestedAtUtc, ActorContext.Options.FundId, "ES",
+                trigger.EntityId.TimePeriod).ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                "No published Market Condition parameter set is effective for the workflow trigger.");
         if (ActorContext.Options.RequireWarmRegimeDiscoverySignals)
         {
             var readiness = await ActorContext.RegimeDiscoverySnapshotProvider.CaptureAsync(
@@ -195,7 +199,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             RequestedAtUtc = requestedAtUtc,
             WorkflowDefinitionVersion = 1,
             RegimeDiscoveryParameterSet = resolved.ParameterSet,
-            RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256
+            RegimeDiscoveryParameterPayloadSha256 = resolved.PayloadSha256,
+            FundId = marketCondition.ParameterSet.FundId,
+            MarketConditionParameterSet = marketCondition.ParameterSet,
+            MarketConditionParameterPayloadSha256 = marketCondition.PayloadSha256
         };
         await context.SendAsync<ExecuteIntrinsicTimeStrategyWorkflowCommand,
             IntrinsicTimeStrategyWorkflowEntityId>(command, entityId).ConfigureAwait(false);
@@ -278,6 +285,72 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         }
     }
 
+    static async ValueTask ExecuteMarketConditionAsync(
+        IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
+        WorkflowStrategyStateUpdatedEvent snapshot)
+    {
+        var timeProvider = RequireEventContext(context).TimeProvider;
+        var execute = CreateMarketConditionExecute(snapshot)
+            ?? throw new InvalidOperationException("Only a committed Started/MarketCondition snapshot can dispatch Execute.");
+        FunctionResult<MarketConditionPipelineCompletedEvent, MarketConditionPipelineFailedEvent>? terminal;
+        try
+        {
+            using var deadline = new CancellationTokenSource();
+            var remaining = execute.ExpiresAtUtc - timeProvider.GetUtcNow().UtcDateTime;
+            var replyGrace = TimeSpan.FromMilliseconds(
+                execute.ParameterSet.Execution.TransportReplyGraceMilliseconds);
+            deadline.CancelAfter((remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero) + replyGrace);
+            var result = await context.RequestFunctionAsync<
+                ExecuteMarketConditionPipelineCommand,
+                MarketConditionExecutionEntityId,
+                FunctionResult<MarketConditionPipelineCompletedEvent, MarketConditionPipelineFailedEvent>>(
+                execute,
+                deadline.Token).ConfigureAwait(false);
+            terminal = result.Value;
+            if (terminal is null || !terminal.IsTerminal)
+            {
+                terminal = FunctionResult<MarketConditionPipelineCompletedEvent,
+                    MarketConditionPipelineFailedEvent>.Fail(
+                    ExecuteMarketConditionPipeline.CreateFailedEvent(
+                        execute,
+                        Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model
+                            .MarketConditionFailureCategory.CalculationFailed,
+                        Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model
+                            .MarketConditionReasonCodes.Calculation,
+                        string.IsNullOrWhiteSpace(result.ErrorMessage)
+                            ? "Market Condition Function returned no terminal result."
+                            : result.ErrorMessage,
+                        timeProvider.GetUtcNow().UtcDateTime));
+            }
+        }
+        catch (Exception exception)
+        {
+            terminal = FunctionResult<MarketConditionPipelineCompletedEvent,
+                MarketConditionPipelineFailedEvent>.Fail(
+                ExecuteMarketConditionPipeline.CreateFailedEvent(
+                    execute,
+                    Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model
+                        .MarketConditionFailureCategory.CalculationFailed,
+                    Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model
+                        .MarketConditionReasonCodes.Calculation,
+                    $"Market Condition Function request failed: {exception.GetType().Name}.",
+                    timeProvider.GetUtcNow().UtcDateTime));
+        }
+
+        if (terminal.IsCompleted)
+        {
+            var complete = CreateMarketConditionCompleteCommand(terminal.Completed!);
+            await context.SendAsync<CompleteMarketConditionCommand,
+                IntrinsicTimeStrategyWorkflowEntityId>(complete, complete.EntityId).ConfigureAwait(false);
+        }
+        else
+        {
+            var fail = CreateMarketConditionFailCommand(terminal.Failed!);
+            await context.SendAsync<FailMarketConditionCommand,
+                IntrinsicTimeStrategyWorkflowEntityId>(fail, fail.EntityId).ConfigureAwait(false);
+        }
+    }
+
     static async ValueTask ExecuteLaterPipelineAsync<TCommand>(
         IEventActorContext<IntrinsicTimeStrategyWorkflowRealtimeActor> context,
         WorkflowStrategyStateUpdatedEvent snapshot,
@@ -287,7 +360,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         where TCommand : class, ICommand<IntrinsicTimeStrategyWorkflowEntityId>, new()
     {
         var view = snapshot.State;
-        var commandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
+        var commandId = DeterministicPipelineCommandId(
             view.WorkflowId,
             view.CurrentStage,
             view.WorkflowRevision);
@@ -311,7 +384,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         var executionId = RegimeDiscoveryExecutionEntityId.Create(view.EntityId, view.WorkflowId);
         return new ExecuteRegimeDiscoveryPipelineCommand
         {
-            CommandId = IntrinsicTimeStrategyWorkflowCommandActor.DeterministicPipelineCommandId(
+            CommandId = DeterministicPipelineCommandId(
                 view.WorkflowId,
                 view.CurrentStage,
                 view.WorkflowRevision),
@@ -330,6 +403,45 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             ParameterSet = view.RegimeDiscoveryParameterSet,
             ParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
             TargetHorizon = view.TriggerEvent.EntityId.TimePeriod
+        };
+    }
+
+    /// <summary>Builds the deterministic Market Condition Execute command from committed workflow state.</summary>
+    internal static ExecuteMarketConditionPipelineCommand? CreateMarketConditionExecute(
+        WorkflowStrategyStateUpdatedEvent snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var view = snapshot.State;
+        if (view.Status != WorkflowStrategyMachineStatus.Started ||
+            view.CurrentStage != StrategyWorkflowStage.MarketCondition)
+            return null;
+
+        var configuredDeadline = view.UpdatedAtUtc.AddMilliseconds(
+            view.MarketConditionParameterSet.Execution.MaximumExecutionMilliseconds);
+        var executionId = MarketConditionExecutionEntityId.Create(view.EntityId, view.WorkflowId);
+        return new ExecuteMarketConditionPipelineCommand
+        {
+            CommandId = DeterministicPipelineCommandId(
+                view.WorkflowId,
+                view.CurrentStage,
+                view.WorkflowRevision),
+            Subject = new ActorSubject(ActorType.Function,
+                ExecuteMarketConditionPipelineCommand.Actor,
+                ExecuteMarketConditionPipelineCommand.Verb,
+                executionId.Format()),
+            EntityId = executionId,
+            InputWorkflowRevision = view.WorkflowRevision,
+            WorkflowView = view,
+            TriggerEvent = view.TriggerEvent,
+            CorrelationId = view.CorrelationId,
+            CausationId = snapshot.Id,
+            RequestedAtUtc = view.UpdatedAtUtc,
+            ExpiresAtUtc = configuredDeadline <= view.ExpiresAtUtc ? configuredDeadline : view.ExpiresAtUtc,
+            ParameterSet = view.MarketConditionParameterSet,
+            ParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256,
+            TargetHorizon = view.TriggerEvent.EntityId.TimePeriod,
+            FundId = view.FundId,
+            InstrumentRoot = view.MarketConditionParameterSet.InstrumentRoot
         };
     }
 
@@ -364,7 +476,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         CorrelationId = view.CorrelationId,
         WorkflowDefinitionVersion = view.WorkflowDefinitionVersion,
         Status = StrategyWorkflowStatus.Running,
-        Outcome = StrategyWorkflowOutcome.None,
+        Outcome = view.Outcome,
         CurrentStage = view.CurrentStage,
         WorkflowRevision = view.WorkflowRevision,
         StartedAtUtc = view.StartedAtUtc,
@@ -374,7 +486,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
         OrderComposition = view.OrderComposition,
         RiskManagement = view.RiskManagement,
         RegimeDiscoveryParameterSet = view.RegimeDiscoveryParameterSet,
-        RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256
+        RegimeDiscoveryParameterPayloadSha256 = view.RegimeDiscoveryParameterPayloadSha256,
+        FundId = view.FundId,
+        MarketConditionParameterSet = view.MarketConditionParameterSet,
+        MarketConditionParameterPayloadSha256 = view.MarketConditionParameterPayloadSha256
     };
 
     static void Set(object target, string property, object? value)
@@ -436,6 +551,57 @@ public sealed class IntrinsicTimeStrategyWorkflowRealtimeActor(
             CausationId = failed.Id,
             FailedAtUtc = failed.ErrorDate
         };
+
+    internal static CompleteMarketConditionCommand CreateMarketConditionCompleteCommand(
+        MarketConditionPipelineCompletedEvent completed)
+        => new()
+        {
+            CommandId = DeterministicTerminalCommandId(completed.EntityId, completed.WorkflowId,
+                completed.InputWorkflowRevision, completed.Id, CompleteMarketConditionCommand.Verb),
+            Subject = WorkflowSubject(CompleteMarketConditionCommand.Verb, completed.EntityId),
+            EntityId = completed.EntityId,
+            WorkflowId = completed.WorkflowId,
+            InputWorkflowRevision = completed.InputWorkflowRevision,
+            SourceEventId = completed.Id,
+            Result = completed.Result,
+            CorrelationId = completed.CorrelationId,
+            CausationId = completed.Id,
+            CompletedAtUtc = completed.CompletedAtUtc
+        };
+
+    internal static FailMarketConditionCommand CreateMarketConditionFailCommand(
+        MarketConditionPipelineFailedEvent failed)
+        => new()
+        {
+            CommandId = DeterministicTerminalCommandId(failed.EntityId, failed.WorkflowId,
+                failed.InputWorkflowRevision, failed.Id, FailMarketConditionCommand.Verb),
+            Subject = WorkflowSubject(FailMarketConditionCommand.Verb, failed.EntityId),
+            EntityId = failed.EntityId,
+            WorkflowId = failed.WorkflowId,
+            InputWorkflowRevision = failed.InputWorkflowRevision,
+            SourceEventId = failed.Id,
+            Failure = new StrategyPipelineFailure
+            {
+                ErrorCode = failed.ErrorCode,
+                ErrorMessage = failed.ErrorMessage,
+                ErrorType = failed.FailureCategory.ToString(),
+                ErrorData = failed.ErrorData,
+                FailedAtUtc = failed.ErrorDate
+            },
+            FailureCategory = failed.FailureCategory,
+            CorrelationId = failed.CorrelationId,
+            CausationId = failed.Id,
+            FailedAtUtc = failed.ErrorDate
+        };
+
+    static Guid DeterministicPipelineCommandId(
+        StrategyWorkflowId workflowId,
+        StrategyWorkflowStage stage,
+        long revision)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{workflowId}|{stage}|{revision}"));
+        return new Guid(hash.AsSpan(0, 16));
+    }
 
     internal static Guid DeterministicTerminalCommandId(
         IntrinsicTimeStrategyWorkflowEntityId entityId,

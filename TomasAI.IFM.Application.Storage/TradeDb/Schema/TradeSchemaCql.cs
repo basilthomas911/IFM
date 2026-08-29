@@ -378,6 +378,37 @@ internal static class TradeSchemaCql
     );
     """;
 
+    public const string CreateMarketConditionTable = """
+    CREATE TABLE IF NOT EXISTS market_condition (
+        workflowId uuid PRIMARY KEY, workflowEntityId text, inputWorkflowRevision bigint,
+        commandId uuid, sourceEventId uuid, fundId int, instrumentRoot text, targetHorizon text,
+        parameterSetId uuid, parameterSetVersion int, parameterPayloadSha256 text,
+        snapshotId uuid, snapshotSha256 text, tradeability text, conditionType text,
+        direction text, phase text, strength decimal, confidence decimal, primaryReasonCode text,
+        resultPayload blob, resultPayloadSha256 text, evaluatedAtUtc timestamp, validUntilUtc timestamp,
+        marketDataAsOfUtc timestamp, completedAtUtc timestamp, updatedAtUtc timestamp,
+        volatilityBehavior text, liquidityQuality text, dataQuality text, upstreamAlignment text,
+        evidencePayload blob, conflictingEvidencePayload blob, blockingReasonsPayload blob,
+        reasonsPayload blob, summaryText text
+    );
+    """;
+
+    public const string CreateMarketConditionByFundTable = """
+    CREATE TABLE IF NOT EXISTS market_condition_by_fund (
+        fundId int, instrumentRoot text, targetHorizon text, evaluatedAtUtc timestamp, workflowId uuid,
+        workflowEntityId text, inputWorkflowRevision bigint, commandId uuid, sourceEventId uuid,
+        parameterSetId uuid, parameterSetVersion int, parameterPayloadSha256 text,
+        snapshotId uuid, snapshotSha256 text, tradeability text, conditionType text,
+        direction text, phase text, strength decimal, confidence decimal, primaryReasonCode text,
+        resultPayload blob, resultPayloadSha256 text, validUntilUtc timestamp,
+        marketDataAsOfUtc timestamp, completedAtUtc timestamp, updatedAtUtc timestamp,
+        volatilityBehavior text, liquidityQuality text, dataQuality text, upstreamAlignment text,
+        evidencePayload blob, conflictingEvidencePayload blob, blockingReasonsPayload blob,
+        reasonsPayload blob, summaryText text,
+        PRIMARY KEY ((fundId, instrumentRoot, targetHorizon), evaluatedAtUtc, workflowId)
+    ) WITH CLUSTERING ORDER BY (evaluatedAtUtc DESC, workflowId DESC);
+    """;
+
     public const string CreateIntrinsicTimeStrategyWorkflowActiveByEntityTable = """
     CREATE TABLE IF NOT EXISTS intrinsic_time_strategy_workflow_active (
         workflowEntityId text PRIMARY KEY,

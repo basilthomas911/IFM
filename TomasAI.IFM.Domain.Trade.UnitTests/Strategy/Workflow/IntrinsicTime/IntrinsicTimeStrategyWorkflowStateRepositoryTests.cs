@@ -9,8 +9,10 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -142,11 +144,14 @@ public sealed class IntrinsicTimeStrategyWorkflowStateRepositoryTests
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
         if (revisionSeed > 0)
             throw new ArgumentOutOfRangeException(nameof(revisionSeed));
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            state,
-            Command(),
-            new FixedTimeProvider(Now),
-            TimeSpan.FromMinutes(2));
+        var context = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
+        context.TimeProvider.Returns(new FixedTimeProvider(Now));
+        context.ExecutionOptions.Returns(new RegimeDiscoveryExecutionOptions
+        {
+            MaximumExecutionDuration = TimeSpan.FromMinutes(2)
+        });
+        context.Logger.Returns(Substitute.For<ILogger<IntrinsicTimeStrategyWorkflowCommandActor>>());
+        Command().Execute(context, state);
         return state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Single();
     }
 

@@ -8,6 +8,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -263,6 +265,14 @@ public sealed class IntrinsicTimeStrategyWorkflowMessageContractTests
                 Guid.Parse("0198E212-3C00-7000-8000-000000000016"),
                 Guid.Parse("0198E212-3C00-7000-8000-000000000017"),
                 TimeFrameType.Daily);
+        if (type == typeof(MarketConditionParameterSet))
+            return MarketConditionParameterSet.CreateDefault(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000018"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000017"),
+                1,
+                TimeFrameType.Daily);
+        if (type == typeof(MarketConditionFailureCategory))
+            return MarketConditionFailureCategory.RequiredInputInvalid;
         if (type == typeof(FuturesItiSignalGeneratedEvent))
             return CreateTriggerEvent();
         if (type == typeof(StrategyStageResultEnvelope))

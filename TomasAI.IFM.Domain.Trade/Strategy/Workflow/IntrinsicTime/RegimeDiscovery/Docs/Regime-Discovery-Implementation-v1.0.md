@@ -436,6 +436,14 @@ typed result. The Strategy Workflow Command actor loads its committed view,
 validates the result against WorkflowId, revision, stage, and deadline, and then
 commits the next complete workflow snapshot.
 
+`CompleteRegimeDiscoveryCommand` and `FailRegimeDiscoveryCommand` each have a
+separate command-named extension-handler file directly under the Strategy
+Workflow `Command` folder. The Workflow Command actor's exact-type
+`_receiveMap` invokes those extensions after state loading. Common snapshot and
+state-machine transition helpers are not used: each extension directly owns
+its complete correlation, deadline, state mutation, snapshot event, logging,
+and result flow. The actor contains no command-type switch.
+
 ### 6.4 Authoritative FNC FunctionActor sequence
 
 ```mermaid

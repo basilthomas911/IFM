@@ -577,6 +577,10 @@ The implemented ownership is:
    `CompleteRegimeDiscoveryCommand` or `FailRegimeDiscoveryCommand`.
 5. The Workflow Command actor remains the only authority that can advance or
    terminate workflow state.
+6. Every supported Workflow command has one command-named extension-handler
+   file directly under the Workflow `Command` folder. The exact-type
+   `_receiveMap` invokes it after loading state. Each extension contains its
+   complete transition flow; no shared Workflow transition helper exists.
 
 Projection, persistence, transport, or Workflow-command failure prevents
 progression. No Processing route, durable inbox, retry queue, redelivery store,

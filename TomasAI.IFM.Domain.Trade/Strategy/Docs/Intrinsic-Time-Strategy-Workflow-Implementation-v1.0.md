@@ -38,7 +38,13 @@ The implementation deliberately does not calculate regimes, market conditions, t
 > Workflow Command actor determines busy/free/expired state and commits only
 > `WorkflowStrategyStateUpdatedEvent`. Strategy Workflow Realtime executes the
 > committed `CurrentStage` through an explicit `StrategyWorkflowStage` handler
-> map. No additional pipeline-started event is authoritative or required.
+> map. Its exact-type `_receiveMap` forwards each supported command directly to
+> a typed workflow command extension. Each command has one command-named class
+> and source file directly under `Command`, matching the Fund Command pattern;
+> that extension directly owns its complete acceptance, transition, snapshot,
+> logging, and command-result flow. There is no shared workflow-transition
+> helper, and `ReceiveAsync` contains no transition switch or domain algorithm.
+> No additional pipeline-started event is authoritative or required.
 
 ---
 
@@ -52,7 +58,9 @@ FuturesItiSignalGeneratedEvent
     -> IntrinsicTimeStrategyWorkflowRealtimeActor
     -> ExecuteIntrinsicTimeStrategyWorkflowCommand
     -> IntrinsicTimeStrategyWorkflowCommandActor
-    -> load authoritative snapshot and decide duplicate/busy/expired/free
+    -> load authoritative snapshot
+    -> exact-type receive map invokes the typed command extension
+    -> decide duplicate/busy/expired/free
     -> commit WorkflowStrategyStateUpdatedEvent(Status=Started, CurrentStage=RegimeDiscovery)
     -> Workflow EventProjector updates ScyllaDB and sends StateUpdated realtime
     -> IntrinsicTimeStrategyWorkflowRealtimeActor
@@ -299,6 +307,24 @@ ViewModels/
 Create under `TomasAI.IFM.Domain.Trade/Strategy/Workflow/IntrinsicTime`:
 
 ```text
+Command/
+    ExecuteIntrinsicTimeStrategyWorkflow.cs
+    CompleteRegimeDiscovery.cs
+    CompleteMarketCondition.cs
+    CompleteTradeSelection.cs
+    CompleteOrderComposition.cs
+    CompleteRiskManagement.cs
+    FailRegimeDiscovery.cs
+    FailMarketCondition.cs
+    FailTradeSelection.cs
+    FailOrderComposition.cs
+    FailRiskManagement.cs
+    TimeoutMarketCondition.cs
+    TimeoutTradeSelection.cs
+    TimeoutOrderComposition.cs
+    TimeoutRiskManagement.cs
+    CancelIntrinsicTimeStrategyWorkflow.cs
+
 Command/Actor/
     IntrinsicTimeStrategyWorkflowCommandActor.cs
     IntrinsicTimeStrategyWorkflowCommandContext.cs

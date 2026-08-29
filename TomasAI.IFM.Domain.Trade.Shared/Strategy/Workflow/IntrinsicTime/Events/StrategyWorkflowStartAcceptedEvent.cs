@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -59,6 +60,9 @@ public sealed record StrategyWorkflowStartAcceptedEvent : IEvent<IntrinsicTimeSt
     [Key(17)] public RegimeDiscoveryParameterSet RegimeDiscoveryParameterSet { get; init; } = new();
     /// <summary>Gets the canonical selected parameter payload hash.</summary>
     [Key(18)] public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(19)] public int FundId { get; init; }
+    [Key(20)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
+    [Key(21)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the local event-source user for diagnostics.</summary>
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -108,7 +112,10 @@ public sealed record StrategyWorkflowStartAcceptedEvent : IEvent<IntrinsicTimeSt
         int workflowDefinitionVersion,
         DateTime startedAtUtc,
         RegimeDiscoveryParameterSet regimeDiscoveryParameterSet,
-        string regimeDiscoveryParameterPayloadSha256)
+        string regimeDiscoveryParameterPayloadSha256,
+        int fundId = 0,
+        MarketConditionParameterSet? marketConditionParameterSet = null,
+        string marketConditionParameterPayloadSha256 = "")
     {
         Subject = subject;
         Id = id;
@@ -129,5 +136,8 @@ public sealed record StrategyWorkflowStartAcceptedEvent : IEvent<IntrinsicTimeSt
         StartedAtUtc = startedAtUtc;
         RegimeDiscoveryParameterSet = regimeDiscoveryParameterSet;
         RegimeDiscoveryParameterPayloadSha256 = regimeDiscoveryParameterPayloadSha256 ?? string.Empty;
+        FundId = fundId;
+        MarketConditionParameterSet = marketConditionParameterSet ?? new();
+        MarketConditionParameterPayloadSha256 = marketConditionParameterPayloadSha256 ?? string.Empty;
     }
 }

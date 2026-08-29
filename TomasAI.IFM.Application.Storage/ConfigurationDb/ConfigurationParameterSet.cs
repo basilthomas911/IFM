@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 
@@ -48,6 +49,13 @@ public sealed record ConfigurationParameterSet(
 /// <summary>Represents a resolved, validated Regime Discovery parameter set.</summary>
 public sealed record ResolvedRegimeDiscoveryParameterSet(
     RegimeDiscoveryParameterSet ParameterSet,
+    string PayloadJson,
+    string PayloadSha256,
+    DateTime EffectiveFromUtc);
+
+/// <summary>Represents a resolved, validated Market Condition parameter set.</summary>
+public sealed record ResolvedMarketConditionParameterSet(
+    MarketConditionParameterSet ParameterSet,
     string PayloadJson,
     string PayloadSha256,
     DateTime EffectiveFromUtc);

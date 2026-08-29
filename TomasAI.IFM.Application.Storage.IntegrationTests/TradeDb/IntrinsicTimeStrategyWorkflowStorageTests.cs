@@ -121,7 +121,7 @@ public sealed class IntrinsicTimeStrategyWorkflowStorageTests(TradeDbFixture fix
             entityId,
             2,
             StrategyWorkflowStage.RegimeDiscovery,
-            "MarketConditionPipelineProcessingEvent",
+            "MarketConditionPipelineCompletedEvent",
             1,
             new byte[] { 4, 5, 6 },
             updatedAtUtc);

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -49,6 +50,9 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
     [Key(13)] public RegimeDiscoveryParameterSet RegimeDiscoveryParameterSet { get; init; } = new();
     /// <summary>Gets the canonical SHA-256 hash of the selected parameter payload.</summary>
     [Key(14)] public string RegimeDiscoveryParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(15)] public int FundId { get; init; }
+    [Key(16)] public MarketConditionParameterSet MarketConditionParameterSet { get; init; } = new();
+    [Key(17)] public string MarketConditionParameterPayloadSha256 { get; init; } = string.Empty;
 
     /// <summary>Gets the concrete command contract name.</summary>
     [IgnoreMember] public string CommandName => nameof(ExecuteIntrinsicTimeStrategyWorkflowCommand);
@@ -99,7 +103,10 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
         DateTime requestedAtUtc,
         int workflowDefinitionVersion,
         RegimeDiscoveryParameterSet regimeDiscoveryParameterSet,
-        string regimeDiscoveryParameterPayloadSha256)
+        string regimeDiscoveryParameterPayloadSha256,
+        int fundId = 0,
+        MarketConditionParameterSet? marketConditionParameterSet = null,
+        string marketConditionParameterPayloadSha256 = "")
     {
         CommandId = commandId;
         Subject = subject;
@@ -116,5 +123,8 @@ public sealed record ExecuteIntrinsicTimeStrategyWorkflowCommand : ICommand<Intr
         WorkflowDefinitionVersion = workflowDefinitionVersion;
         RegimeDiscoveryParameterSet = regimeDiscoveryParameterSet;
         RegimeDiscoveryParameterPayloadSha256 = regimeDiscoveryParameterPayloadSha256 ?? string.Empty;
+        FundId = fundId;
+        MarketConditionParameterSet = marketConditionParameterSet ?? new();
+        MarketConditionParameterPayloadSha256 = marketConditionParameterPayloadSha256 ?? string.Empty;
     }
 }

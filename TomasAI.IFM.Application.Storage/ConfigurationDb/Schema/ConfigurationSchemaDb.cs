@@ -26,6 +26,9 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
             table,
             ConfigurationSchemaSql.CreateTable(table),
             $"DROP TABLE IF EXISTS reference_configuration.{table};")))
+        .Append(new SchemaObjectDefinition("ix_market_condition_parameter_set_effective",
+            ConfigurationSchemaSql.CreateMarketConditionEffectiveIndex,
+            "DROP INDEX IF EXISTS reference_configuration.ix_market_condition_parameter_set_effective;"))
         .ToArray();
 
     /// <inheritdoc />

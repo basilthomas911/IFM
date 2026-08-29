@@ -22,5 +22,8 @@ public enum StrategyWorkflowOutcome
     Cancelled = 5,
 
     /// <summary>Conflicting duplicate data violated workflow consistency.</summary>
-    ConsistencyFault = 6
+    ConsistencyFault = 6,
+
+    /// <summary>Market Condition completed successfully but did not authorize a new trade.</summary>
+    NoTrade = 7
 }

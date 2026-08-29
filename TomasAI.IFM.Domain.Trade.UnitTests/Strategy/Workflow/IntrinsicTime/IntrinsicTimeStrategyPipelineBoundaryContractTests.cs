@@ -7,6 +7,8 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Routing;
@@ -30,8 +32,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
 
     static readonly string[] ExpectedCommandNames =
     [
+        nameof(ExecuteMarketConditionPipelineCommand),
         nameof(ExecuteRegimeDiscoveryPipelineCommand),
-        nameof(StartMarketConditionPipelineCommand),
         nameof(StartOrderCompositionPipelineCommand),
         nameof(StartRiskManagementPipelineCommand),
         nameof(StartTradeSelectionPipelineCommand)
@@ -41,7 +43,6 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     [
         nameof(MarketConditionPipelineCompletedEvent),
         nameof(MarketConditionPipelineFailedEvent),
-        nameof(MarketConditionPipelineProcessingEvent),
         nameof(OrderCompositionPipelineCompletedEvent),
         nameof(OrderCompositionPipelineFailedEvent),
         nameof(OrderCompositionPipelineProcessingEvent),
@@ -55,7 +56,7 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         nameof(TradeSelectionPipelineProcessingEvent)
     ];
 
-    /// <summary>Confirms the boundary contains one Regime Execute and four legacy Start pipeline commands.</summary>
+    /// <summary>Confirms the boundary contains two Function Execute and three legacy Start pipeline commands.</summary>
     [Fact]
     public void Pipeline_boundary_inventory_is_complete()
     {
@@ -122,7 +123,8 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
     {
         foreach (var type in CommandTypes)
         {
-            if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand))
+            if (type == typeof(ExecuteRegimeDiscoveryPipelineCommand) ||
+                type == typeof(ExecuteMarketConditionPipelineCommand))
             {
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.WorkflowView)).Should().NotBeNull();
                 type.GetProperty(nameof(ExecuteRegimeDiscoveryPipelineCommand.ExpiresAtUtc)).Should().NotBeNull();
@@ -158,6 +160,12 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
         regime.RealtimeActor.Should().Be(
             new ActorMailboxId(ActorType.Unknown, ExecuteRegimeDiscoveryPipelineCommand.Actor));
         regime.BoundedContext.Should().Be(BoundedContextName.RegimeDiscoveryPipelineBoundedContext);
+
+        var marketCondition = IntrinsicTimeStrategyPipelineRoutes.Get(StrategyWorkflowStage.MarketCondition);
+        marketCondition.CommandActor.Should().Be(
+            new ActorMailboxId(ActorType.Function, ExecuteMarketConditionPipelineCommand.Actor));
+        marketCondition.RealtimeActor.ActorType.Should().Be(ActorType.Unknown);
+        marketCondition.BoundedContext.Should().Be(BoundedContextName.MarketConditionPipelineBoundedContext);
 
         var action = () => IntrinsicTimeStrategyPipelineRoutes.Get(StrategyWorkflowStage.None);
         action.Should().Throw<ArgumentOutOfRangeException>();
@@ -225,6 +233,10 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
             return RegimeDiscoveryExecutionEntityId.Create(
                 CreateEntityId(),
                 new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000022")));
+        if (type == typeof(MarketConditionExecutionEntityId))
+            return MarketConditionExecutionEntityId.Create(
+                CreateEntityId(),
+                new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000022")));
         if (type == typeof(int))
             return parameterName == "errorCode" ? 24001 : 1;
         if (type == typeof(long))
@@ -249,6 +261,14 @@ public sealed class IntrinsicTimeStrategyPipelineBoundaryContractTests
                 Guid.Parse("0198E212-3C00-7000-8000-000000000026"),
                 Guid.Parse("0198E212-3C00-7000-8000-000000000027"),
                 TimeFrameType.Daily);
+        if (type == typeof(MarketConditionParameterSet))
+            return MarketConditionParameterSet.CreateDefault(
+                Guid.Parse("0198E212-3C00-7000-8000-000000000028"),
+                Guid.Parse("0198E212-3C00-7000-8000-000000000027"),
+                1,
+                TimeFrameType.Daily);
+        if (type == typeof(MarketConditionFailureCategory))
+            return MarketConditionFailureCategory.RequiredInputInvalid;
         if (type == typeof(ErrorType))
             return ErrorType.Command;
         if (type == typeof(IntrinsicTimeStrategyWorkflowState))

@@ -53,8 +53,8 @@ public static class IntrinsicTimeStrategyPipelineRoutes
             BoundedContextName.RegimeDiscoveryPipelineBoundedContext),
         new(
             StrategyWorkflowStage.MarketCondition,
-            new ActorMailboxId(ActorType.Command, StartMarketConditionPipelineCommand.Actor),
-            new ActorMailboxId(ActorType.Realtime, MarketConditionPipelineProcessingEvent.Actor),
+            new ActorMailboxId(ActorType.Function, ExecuteMarketConditionPipelineCommand.Actor),
+            new ActorMailboxId(ActorType.Unknown, ExecuteMarketConditionPipelineCommand.Actor),
             BoundedContextName.MarketConditionPipelineBoundedContext),
         new(
             StrategyWorkflowStage.TradeSelection,

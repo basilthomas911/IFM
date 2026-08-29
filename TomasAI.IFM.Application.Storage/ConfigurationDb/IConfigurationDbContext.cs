@@ -1,6 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 
 namespace TomasAI.IFM.Application.Storage.ConfigurationDb;
 
@@ -10,6 +11,13 @@ public interface IConfigurationDbContext : IObjectRepository<ConfigurationDbCont
     /// <summary>Inserts one immutable Draft Regime Discovery version after hash and contract validation.</summary>
     Task InsertRegimeDiscoveryDraftAsync(
         RegimeDiscoveryParameterSet parameterSet,
+        string description,
+        string createdBy,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Inserts one immutable Draft Market Condition version.</summary>
+    Task InsertMarketConditionDraftAsync(
+        MarketConditionParameterSet parameterSet,
         string description,
         string createdBy,
         CancellationToken cancellationToken = default);
@@ -36,9 +44,23 @@ public interface IConfigurationDbContext : IObjectRepository<ConfigurationDbCont
         int version,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Gets one exact immutable Market Condition version.</summary>
+    Task<ResolvedMarketConditionParameterSet?> GetMarketConditionAsync(
+        Guid parameterSetId,
+        int version,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Deterministically resolves the single effective published Regime Discovery version.</summary>
     Task<ResolvedRegimeDiscoveryParameterSet?> ResolveEffectiveRegimeDiscoveryAsync(
         DateTime effectiveAtUtc,
+        TimeFrameType targetHorizon,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Resolves the single effective Market Condition version.</summary>
+    Task<ResolvedMarketConditionParameterSet?> ResolveEffectiveMarketConditionAsync(
+        DateTime effectiveAtUtc,
+        int fundId,
+        string instrumentRoot,
         TimeFrameType targetHorizon,
         CancellationToken cancellationToken = default);
 }

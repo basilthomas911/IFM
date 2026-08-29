@@ -9,14 +9,13 @@ namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeli
 
 /// <summary>Reports that the Market Condition pipeline completed successfully.</summary>
 /// <remarks>
-/// The future pipeline Command actor persists this event and projects its ScyllaDB read model before publishing the
-/// same logical event realtime to the Workflow Strategy Realtime actor.
+/// The Function projects and stores completed-only state before returning this event directly. It is never published.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public sealed record MarketConditionPipelineCompletedEvent : ICompleteEvent<IntrinsicTimeStrategyWorkflowEntityId>
 {
-    /// <summary>Future pipeline Realtime actor name.</summary>
-    [IgnoreMember] public const string Actor = "MarketConditionPipelineRealtime";
+    /// <summary>Function actor name.</summary>
+    [IgnoreMember] public const string Actor = "MarketConditionPipelineFunction";
     /// <summary>Stable pipeline lifecycle verb.</summary>
     [IgnoreMember] public const string Verb = "MarketConditionPipelineCompleted";
     /// <summary>Stable event error identifier.</summary>
@@ -52,6 +51,11 @@ public sealed record MarketConditionPipelineCompletedEvent : ICompleteEvent<Intr
     [Key(13)] public StrategyStageResultEnvelope Result { get; init; } = new();
     /// <summary>Gets the UTC pipeline completion timestamp.</summary>
     [Key(14)] public DateTime CompletedAtUtc { get; init; }
+    [Key(15)] public DateTime ExpiresAtUtc { get; init; }
+    [Key(16)] public string ParameterPayloadSha256 { get; init; } = string.Empty;
+    [Key(17)] public Guid MarketConditionSnapshotId { get; init; }
+    [Key(18)] public DateTime EvaluatedAtUtc { get; init; }
+    [Key(19)] public DateTime ValidUntilUtc { get; init; }
 
     /// <summary>Gets the local pipeline event-source user for diagnostics.</summary>
     [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
@@ -95,7 +99,12 @@ public sealed record MarketConditionPipelineCompletedEvent : ICompleteEvent<Intr
         Guid causationId,
         StrategyWorkflowStage pipelineStage,
         StrategyStageResultEnvelope result,
-        DateTime completedAtUtc)
+        DateTime completedAtUtc,
+        DateTime expiresAtUtc = default,
+        string parameterPayloadSha256 = "",
+        Guid marketConditionSnapshotId = default,
+        DateTime evaluatedAtUtc = default,
+        DateTime validUntilUtc = default)
     {
         Subject = subject;
         Id = id;
@@ -112,5 +121,10 @@ public sealed record MarketConditionPipelineCompletedEvent : ICompleteEvent<Intr
         PipelineStage = pipelineStage;
         Result = result;
         CompletedAtUtc = completedAtUtc;
+        ExpiresAtUtc = expiresAtUtc;
+        ParameterPayloadSha256 = parameterPayloadSha256 ?? string.Empty;
+        MarketConditionSnapshotId = marketConditionSnapshotId;
+        EvaluatedAtUtc = evaluatedAtUtc;
+        ValidUntilUtc = validUntilUtc;
     }
 }

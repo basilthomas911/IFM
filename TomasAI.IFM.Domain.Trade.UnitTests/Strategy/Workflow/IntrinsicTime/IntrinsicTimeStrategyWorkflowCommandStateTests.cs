@@ -1,14 +1,19 @@
 using FluentAssertions;
 using MessagePack;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Shared.EventModelActor;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime;
@@ -28,8 +33,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     internal static WorkflowStrategyStateUpdatedEvent CreateStartedSnapshotForQualification()
     {
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            state, CreateExecute(WorkflowId, TriggerId(99)), Time(Now), MaximumDuration);
+        CreateExecute(WorkflowId, TriggerId(99)).Execute(Context(Now), state);
         return LatestSnapshot(state);
     }
 
@@ -40,8 +44,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
         var command = CreateExecute(WorkflowId, TriggerId(1));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            state, command, Time(Now), MaximumDuration);
+        command.Execute(Context(Now), state);
 
         state.Events.Should().ContainSingle();
         var snapshot = state.Events.Should().ContainSingle().Subject
@@ -67,14 +70,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     {
         var state = StartedState(Now.AddMinutes(-1));
         var failure = CreateFailureCommand(WorkflowId, 1, TriggerId(2), "ValidationFailure");
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(state, failure, Time(Now));
+        failure.Execute(Context(Now), state);
         var terminal = state.CurrentView!;
         terminal.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
         var loaded = FromSnapshot(LatestSnapshot(state));
         var replacementId = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000202"));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            loaded, CreateExecute(replacementId, TriggerId(3)), Time(Now.AddSeconds(1)), MaximumDuration);
+        CreateExecute(replacementId, TriggerId(3)).Execute(Context(Now.AddSeconds(1)), loaded);
 
         loaded.Events.Should().ContainSingle();
         loaded.CurrentView!.WorkflowId.Should().Be(replacementId);
@@ -88,8 +90,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now);
         var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000203"));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            state, CreateExecute(replacement, TriggerId(4)), Time(Now.AddSeconds(30)), MaximumDuration);
+        CreateExecute(replacement, TriggerId(4)).Execute(Context(Now.AddSeconds(30)), state);
 
         state.Events.Should().BeEmpty();
         state.CurrentView!.WorkflowId.Should().Be(WorkflowId);
@@ -102,8 +103,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now.AddMinutes(-3));
         var replacement = new StrategyWorkflowId(Guid.Parse("0198E212-3C00-7000-8000-000000000204"));
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            state, CreateExecute(replacement, TriggerId(5)), Time(Now), MaximumDuration);
+        CreateExecute(replacement, TriggerId(5)).Execute(Context(Now), state);
 
         state.Events.Cast<WorkflowStrategyStateUpdatedEvent>().Select(value => value.State.Status)
             .Should().Equal(WorkflowStrategyMachineStatus.TimedOut, WorkflowStrategyMachineStatus.Started);
@@ -120,8 +120,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var sourceId = TriggerId(6);
         var result = CreateResult(sourceId);
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            state, CreateCompletion(WorkflowId, 1, sourceId, result), Time(Now.AddSeconds(30)));
+        CreateCompletion(WorkflowId, 1, sourceId, result).Execute(Context(Now.AddSeconds(30)), state);
 
         state.Events.Should().ContainSingle();
         var view = state.CurrentView!;
@@ -140,9 +139,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now);
         var sourceId = TriggerId(7);
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            state, CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId)),
-            Time(Now.Add(MaximumDuration)));
+        CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId))
+            .Execute(Context(Now.Add(MaximumDuration)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
         state.CurrentView.RegimeDiscovery.Result.Should().BeNull();
@@ -156,9 +154,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now);
         var sourceId = TriggerId(8);
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(
-            state, CreateFailureCommand(WorkflowId, 1, sourceId, "DataUnavailable"),
-            Time(Now.AddSeconds(10)));
+        CreateFailureCommand(WorkflowId, 1, sourceId, "DataUnavailable")
+            .Execute(Context(Now.AddSeconds(10)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
         state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Failed);
@@ -172,9 +169,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now);
         var sourceId = TriggerId(9);
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(
-            state, CreateFailureCommand(WorkflowId, 1, sourceId, "RegimeDiscoveryTimedOut"),
-            Time(Now.AddSeconds(10)));
+        CreateFailureCommand(WorkflowId, 1, sourceId, "RegimeDiscoveryTimedOut")
+            .Execute(Context(Now.AddSeconds(10)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
         state.CurrentView.RegimeDiscovery.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.TimedOut);
@@ -186,9 +182,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     {
         var state = StartedState(Now);
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleFailureForTest(
-            state, CreateFailureCommand(WorkflowId, 1, TriggerId(10), "DataUnavailable"),
-            Time(Now.Add(MaximumDuration)));
+        CreateFailureCommand(WorkflowId, 1, TriggerId(10), "DataUnavailable")
+            .Execute(Context(Now.Add(MaximumDuration)), state);
 
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.TimedOut);
     }
@@ -200,19 +195,15 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         var state = StartedState(Now);
         var sourceId = TriggerId(11);
         var completion = CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId));
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            state, completion, Time(Now.AddSeconds(10)));
+        completion.Execute(Context(Now.AddSeconds(10)), state);
         var committed = LatestSnapshot(state);
         var loaded = FromSnapshot(committed);
 
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            loaded, completion, Time(Now.AddSeconds(11)));
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            loaded, CreateCompletion(new StrategyWorkflowId(Guid.NewGuid()), 2, TriggerId(12), CreateResult(TriggerId(12))),
-            Time(Now.AddSeconds(11)));
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            loaded, CreateCompletion(WorkflowId, 1, TriggerId(13), CreateResult(TriggerId(13))),
-            Time(Now.AddSeconds(11)));
+        completion.Execute(Context(Now.AddSeconds(11)), loaded);
+        CreateCompletion(new StrategyWorkflowId(Guid.NewGuid()), 2, TriggerId(12), CreateResult(TriggerId(12)))
+            .Execute(Context(Now.AddSeconds(11)), loaded);
+        CreateCompletion(WorkflowId, 1, TriggerId(13), CreateResult(TriggerId(13)))
+            .Execute(Context(Now.AddSeconds(11)), loaded);
 
         loaded.Events.Should().BeEmpty();
         MessagePackSerializer.Serialize(loaded.CurrentView).Should()
@@ -225,8 +216,8 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     {
         var state = StartedState(Now);
         var sourceId = TriggerId(14);
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleCompletionForTest(
-            state, CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId)), Time(Now.AddSeconds(5)));
+        CreateCompletion(WorkflowId, 1, sourceId, CreateResult(sourceId))
+            .Execute(Context(Now.AddSeconds(5)), state);
         var latest = LatestSnapshot(state);
 
         var replayed = FromSnapshot(latest);
@@ -253,8 +244,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     public void Snapshot_metadata_mismatch_is_rejected()
     {
         var producer = new IntrinsicTimeStrategyWorkflowCommandState();
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            producer, CreateExecute(WorkflowId, TriggerId(101)), Time(Now), MaximumDuration);
+        CreateExecute(WorkflowId, TriggerId(101)).Execute(Context(Now), producer);
         var valid = LatestSnapshot(producer);
         var state = new IntrinsicTimeStrategyWorkflowCommandState();
 
@@ -265,8 +255,7 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
     static IntrinsicTimeStrategyWorkflowCommandState StartedState(DateTime startedAt)
     {
         var producer = new IntrinsicTimeStrategyWorkflowCommandState();
-        IntrinsicTimeStrategyWorkflowCommandActor.HandleExecute(
-            producer, CreateExecute(WorkflowId, TriggerId(100)), Time(startedAt), MaximumDuration);
+        CreateExecute(WorkflowId, TriggerId(100)).Execute(Context(startedAt), producer);
         return FromSnapshot(LatestSnapshot(producer));
     }
 
@@ -289,6 +278,13 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             Guid.Parse("0198E212-3C00-7000-8000-000000000212"),
             TimeFrameType.Daily,
             version: 3);
+        var marketCondition = MarketConditionParameterSet.CreateDefault(
+            Guid.Parse("0198E212-3C00-7000-8000-000000000213"),
+            parameterSet.StrategyParameterSetId,
+            fundId: 1,
+            targetHorizon: TimeFrameType.Daily,
+            version: 2,
+            strategyVersion: parameterSet.StrategyParameterSetVersion);
         return new ExecuteIntrinsicTimeStrategyWorkflowCommand
         {
             CommandId = Guid.NewGuid(),
@@ -302,7 +298,10 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
             RequestedAtUtc = Now,
             WorkflowDefinitionVersion = IntrinsicTimeStrategyWorkflowDefinition.Version,
             RegimeDiscoveryParameterSet = parameterSet,
-            RegimeDiscoveryParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(parameterSet)
+            RegimeDiscoveryParameterPayloadSha256 = RegimeDiscoveryParameterPayload.ComputeSha256(parameterSet),
+            FundId = marketCondition.FundId,
+            MarketConditionParameterSet = marketCondition,
+            MarketConditionParameterPayloadSha256 = MarketConditionParameterPayload.ComputeSha256(marketCondition)
         };
     }
 
@@ -369,6 +368,18 @@ public sealed class IntrinsicTimeStrategyWorkflowCommandStateTests
         => Guid.Parse($"0198E212-3C00-7000-8000-{suffix:D12}");
 
     static FixedTimeProvider Time(DateTime value) => new(new DateTimeOffset(value, TimeSpan.Zero));
+
+    static IIntrinsicTimeStrategyWorkflowCommandContext Context(DateTime now)
+    {
+        var context = Substitute.For<IIntrinsicTimeStrategyWorkflowCommandContext>();
+        context.TimeProvider.Returns(Time(now));
+        context.ExecutionOptions.Returns(new RegimeDiscoveryExecutionOptions
+        {
+            MaximumExecutionDuration = MaximumDuration
+        });
+        context.Logger.Returns(Substitute.For<ILogger<IntrinsicTimeStrategyWorkflowCommandActor>>());
+        return context;
+    }
 
     sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
     {

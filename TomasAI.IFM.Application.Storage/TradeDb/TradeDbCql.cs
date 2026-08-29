@@ -1738,6 +1738,63 @@ FROM regime_discovery
 WHERE workflowId = :workflowId;
 """;
 
+    public const string GetMarketCondition = """
+SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
+       fundId, instrumentRoot, targetHorizon, parameterSetId, parameterSetVersion,
+       parameterPayloadSha256, snapshotId, snapshotSha256, tradeability, conditionType,
+       direction, phase, strength, confidence, primaryReasonCode, resultPayload,
+       resultPayloadSha256, evaluatedAtUtc, validUntilUtc, marketDataAsOfUtc, completedAtUtc, updatedAtUtc,
+       volatilityBehavior, liquidityQuality, dataQuality, upstreamAlignment, evidencePayload,
+       conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload, summaryText
+FROM market_condition WHERE workflowId = :workflowId;
+""";
+
+    public const string GetMarketConditionHistory = """
+SELECT workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
+       fundId, instrumentRoot, targetHorizon, parameterSetId, parameterSetVersion,
+       parameterPayloadSha256, snapshotId, snapshotSha256, tradeability, conditionType,
+       direction, phase, strength, confidence, primaryReasonCode, resultPayload,
+       resultPayloadSha256, evaluatedAtUtc, validUntilUtc, marketDataAsOfUtc, completedAtUtc, updatedAtUtc,
+       volatilityBehavior, liquidityQuality, dataQuality, upstreamAlignment, evidencePayload,
+       conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload, summaryText
+FROM market_condition_by_fund
+WHERE fundId = :fundId AND instrumentRoot = :instrumentRoot AND targetHorizon = :targetHorizon
+  AND evaluatedAtUtc < :beforeUtc
+LIMIT :pageSize;
+""";
+
+    public const string UpsertMarketCondition = """
+INSERT INTO market_condition (workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,
+    fundId, instrumentRoot, targetHorizon, parameterSetId, parameterSetVersion, parameterPayloadSha256,
+    snapshotId, snapshotSha256, tradeability, conditionType, direction, phase, strength, confidence,
+    primaryReasonCode, resultPayload, resultPayloadSha256, evaluatedAtUtc, validUntilUtc, marketDataAsOfUtc,
+    completedAtUtc, updatedAtUtc, volatilityBehavior, liquidityQuality, dataQuality, upstreamAlignment,
+    evidencePayload, conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload, summaryText)
+VALUES (:workflowId, :workflowEntityId, :inputWorkflowRevision, :commandId, :sourceEventId,
+    :fundId, :instrumentRoot, :targetHorizon, :parameterSetId, :parameterSetVersion, :parameterPayloadSha256,
+    :snapshotId, :snapshotSha256, :tradeability, :conditionType, :direction, :phase, :strength, :confidence,
+    :primaryReasonCode, :resultPayload, :resultPayloadSha256, :evaluatedAtUtc, :validUntilUtc, :marketDataAsOfUtc,
+    :completedAtUtc, :updatedAtUtc, :volatilityBehavior, :liquidityQuality, :dataQuality, :upstreamAlignment,
+    :evidencePayload, :conflictingEvidencePayload, :blockingReasonsPayload, :reasonsPayload, :summaryText);
+""";
+
+    public const string UpsertMarketConditionByFund = """
+INSERT INTO market_condition_by_fund (fundId, instrumentRoot, targetHorizon, evaluatedAtUtc, workflowId,
+    workflowEntityId, inputWorkflowRevision, commandId, sourceEventId, parameterSetId, parameterSetVersion,
+    parameterPayloadSha256, snapshotId, snapshotSha256, tradeability, conditionType, direction, phase,
+    strength, confidence, primaryReasonCode, resultPayload, resultPayloadSha256, validUntilUtc,
+    marketDataAsOfUtc, completedAtUtc, updatedAtUtc, volatilityBehavior, liquidityQuality, dataQuality,
+    upstreamAlignment, evidencePayload, conflictingEvidencePayload, blockingReasonsPayload, reasonsPayload,
+    summaryText)
+VALUES (:fundId, :instrumentRoot, :targetHorizon, :evaluatedAtUtc, :workflowId,
+    :workflowEntityId, :inputWorkflowRevision, :commandId, :sourceEventId, :parameterSetId,
+    :parameterSetVersion, :parameterPayloadSha256, :snapshotId, :snapshotSha256, :tradeability,
+    :conditionType, :direction, :phase, :strength, :confidence, :primaryReasonCode, :resultPayload,
+    :resultPayloadSha256, :validUntilUtc, :marketDataAsOfUtc, :completedAtUtc, :updatedAtUtc,
+    :volatilityBehavior, :liquidityQuality, :dataQuality, :upstreamAlignment, :evidencePayload,
+    :conflictingEvidencePayload, :blockingReasonsPayload, :reasonsPayload, :summaryText);
+""";
+
     public const string UpsertRegimeDiscovery = """
 INSERT INTO regime_discovery (
     workflowId, workflowEntityId, inputWorkflowRevision, commandId, sourceEventId,

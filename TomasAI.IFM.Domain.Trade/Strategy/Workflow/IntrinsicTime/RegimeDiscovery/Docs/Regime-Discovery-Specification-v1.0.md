@@ -64,6 +64,7 @@ FuturesItiSignalGeneratedEvent
  -> direct typed Function reply to Strategy Workflow Realtime
  -> CompleteRegimeDiscoveryCommand OR FailRegimeDiscoveryCommand
  -> Strategy Workflow Command actor
+ -> exact-type receive map -> command-named CompleteRegimeDiscovery OR FailRegimeDiscovery extension
  -> WorkflowStrategyStateUpdatedEvent
 ```
 
@@ -130,10 +131,14 @@ The detailed sequence is authoritative in section 6.4 of
     actor identities, mailboxes, command contracts, Realtime events, or
     independently persisted state.
 
-18. `ExecuteRegimeDiscoveryPipelineCommand` is dispatched by the Command
-    actor's explicit `_receiveMap` to an asynchronous command extension. The
-    extension returns `Task<ServiceResult<GuidResult>>`, creates the private
-    durable terminal event, and updates Command-actor state.
+18. `ExecuteRegimeDiscoveryPipelineCommand` is dispatched by the Function
+    actor's explicit `_receiveMap` to the asynchronous
+    `ExecuteRegimeDiscoveryPipeline.ExecuteAsync` Function extension. The
+    direct completed or failed reply is translated by Strategy Workflow
+    Realtime into `CompleteRegimeDiscoveryCommand` or
+    `FailRegimeDiscoveryCommand`. Each Workflow command is then handled by its
+    own command-named extension file; the Workflow Command actor contains no
+    command-type switch.
 
 19. The three independent component calculations may use ordinary .NET thread
     pool work and be awaited together only if an approved benchmark shows a
