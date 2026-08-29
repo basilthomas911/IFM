@@ -54,7 +54,7 @@ public sealed class MarketConditionBusinessVerificationTests
             {
                 Trend = input.RegimeResult.Trend with { Direction = RegimeDirection.Down },
                 MarketStructure = input.RegimeResult.MarketStructure with { Direction = RegimeDirection.Down },
-                Fusion = input.RegimeResult.Fusion with { Direction = RegimeDirection.Down }
+                Decision = input.RegimeResult.Decision with { Direction = RegimeDirection.Down }
             }
         };
 
@@ -87,7 +87,7 @@ public sealed class MarketConditionBusinessVerificationTests
                         : MarketStructureClassification.Ranging,
                     Direction = RegimeDirection.Neutral
                 },
-                Fusion = input.RegimeResult.Fusion with
+                Decision = input.RegimeResult.Decision with
                 {
                     Direction = RegimeDirection.Neutral,
                     Restrictions = transition ? [RegimeRestriction.Transition] : []
@@ -120,7 +120,7 @@ public sealed class MarketConditionBusinessVerificationTests
                 Volatility = regime.Volatility with { Change = VolatilityRegimeChange.Contracting },
                 MarketStructure = regime.MarketStructure with
                     { Classification = MarketStructureClassification.Compressing, Direction = RegimeDirection.Neutral },
-                Fusion = regime.Fusion with { Direction = RegimeDirection.Neutral }
+                Decision = regime.Decision with { Direction = RegimeDirection.Neutral }
             };
 
         var result = new MarketConditionCalculationModel().Calculate(input with { RegimeResult = regime });
@@ -284,7 +284,7 @@ static class MarketConditionVerificationScenario
                 IsComplete = true, Classification = MarketStructureClassification.Trending,
                 Direction = RegimeDirection.Up
             },
-            Fusion = new MarketRegimeFusionResult
+            Decision = new RegimeDiscoveryDecision
             {
                 IsComplete = true, Direction = RegimeDirection.Up,
                 Confidence = 0.90m, Quality = RegimeOverallQuality.High
@@ -351,7 +351,7 @@ static class MarketConditionVerificationScenario
             case "regime":
                 input = input with
                     { RegimeResult = input.RegimeResult with
-                        { Fusion = input.RegimeResult.Fusion with { Restrictions = [RegimeRestriction.NoNewTrade] } } };
+                        { Decision = input.RegimeResult.Decision with { Restrictions = [RegimeRestriction.NoNewTrade] } } };
                 break;
             case "strength":
                 input = WithScoring(input, input.ParameterSet.Scoring with { MinimumStrength = 100m });

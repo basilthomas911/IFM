@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 
 namespace TomasAI.IFM.Domain.Trade.UnitTests.Strategy.Workflow.IntrinsicTime.RegimeDiscovery;
@@ -51,6 +53,32 @@ public sealed class RegimeDiscoveryContractTests
             .Should().NotBeEmpty();
     }
 
+    /// <summary>Confirms semantic volatility inputs and optional confirmation inputs are requested explicitly.</summary>
+    [Theory]
+    [InlineData(TimeFrameType.Daily)]
+    [InlineData(TimeFrameType.Weekly)]
+    [InlineData(TimeFrameType.Monthly)]
+    public void Snapshot_factory_separates_vix_spot_vx_front_and_term_structure(TimeFrameType horizon)
+    {
+        var request = RegimeDiscoverySnapshotRequestFactory.Create(
+            MarketSeriesIdentity.ForContract("ES-202609"), CreateParameterSet(horizon));
+
+        request.Requirements.Should().Contain(requirement =>
+            requirement.Metric == RegimeDiscoverySignalMetric.VxFrontLevel &&
+            requirement.TimeFrame == horizon && requirement.IsRequired);
+        request.Requirements.Should().Contain(requirement =>
+            requirement.Metric == RegimeDiscoverySignalMetric.VxFrontSecondRatio &&
+            requirement.TimeFrame == TimeFrameType.Daily && requirement.IsRequired);
+        request.Requirements.Should().Contain(requirement =>
+            requirement.Metric == RegimeDiscoverySignalMetric.VixLevel &&
+            requirement.TimeFrame == TimeFrameType.Daily && !requirement.IsRequired);
+        var tdiRequirements = request.Requirements
+            .Where(requirement => requirement.Metric == RegimeDiscoverySignalMetric.Tdi).ToArray();
+        tdiRequirements.Should().OnlyContain(requirement => !requirement.IsRequired);
+        tdiRequirements.Select(requirement => requirement.TimeFrame).Should().BeEquivalentTo(
+            CreateParameterSet(horizon).Horizon.TimeFrames.Select(frame => frame.TimeFrame));
+    }
+
     /// <summary>Confirms all RD-1 object contracts retain sequential MessagePack keys.</summary>
     [Fact]
     public void Message_pack_keys_are_sequential()
@@ -75,6 +103,50 @@ public sealed class RegimeDiscoveryContractTests
         AssertRoundTrip(CreateParameterSet(TimeFrameType.Weekly));
         AssertRoundTrip(CreateSnapshot());
         AssertRoundTrip(CreateResult());
+    }
+
+    /// <summary>Confirms a V1-shaped decision remains readable through the stable result envelope.</summary>
+    [Fact]
+    public void V1_result_shape_deserializes_into_v2_decision_contract()
+    {
+        var current = CreateResult();
+        var source = new LegacyRegimeDiscoveryResult
+        {
+            SchemaVersion = 1,
+            ResultId = current.ResultId,
+            WorkflowId = current.WorkflowId,
+            StrategyParameterSetId = current.StrategyParameterSetId,
+            StrategyParameterSetVersion = current.StrategyParameterSetVersion,
+            RegimeDiscoveryParameterSetId = current.RegimeDiscoveryParameterSetId,
+            RegimeDiscoveryParameterSetVersion = current.RegimeDiscoveryParameterSetVersion,
+            SignalSnapshotId = current.SignalSnapshotId,
+            EntityId = current.EntityId,
+            TriggerEventId = current.TriggerEventId,
+            MarketDataAsOfUtc = current.MarketDataAsOfUtc,
+            ProducedAtUtc = current.ProducedAtUtc,
+            TargetHorizon = current.TargetHorizon,
+            Trend = current.Trend,
+            Volatility = current.Volatility,
+            MarketStructure = current.MarketStructure,
+            Fusion = new LegacyFusionResult
+            {
+                IsComplete = true,
+                Direction = RegimeDirection.Up,
+                DirectionalScore = 0.5m,
+                Confidence = 0.7m
+            },
+            OverallQuality = current.OverallQuality,
+            OverallConfidence = current.OverallConfidence,
+            SummaryText = current.SummaryText
+        };
+
+        var restored = MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(
+            MessagePackSerializer.Serialize(source));
+
+        restored.SchemaVersion.Should().Be(1);
+        restored.Decision.Direction.Should().Be(RegimeDirection.Up);
+        restored.Decision.TrendPhase.Should().Be(TrendRegimePhase.Unknown);
+        restored.Decision.StructureClassification.Should().Be(MarketStructureClassification.Unknown);
     }
 
     /// <summary>Confirms every stable reason code is unique and follows the approved namespace.</summary>
@@ -131,7 +203,7 @@ public sealed class RegimeDiscoveryContractTests
         typeof(TrendRegimeResult),
         typeof(VolatilityRegimeResult),
         typeof(MarketStructureRegimeResult),
-        typeof(MarketRegimeFusionResult),
+        typeof(RegimeDiscoveryDecision),
         typeof(RegimeDiscoveryResult)
     ];
 
@@ -238,7 +310,7 @@ public sealed class RegimeDiscoveryContractTests
             Confidence = 0.80m,
             ConfidenceBand = RegimeConfidenceBand.VeryHigh
         },
-        Fusion = new MarketRegimeFusionResult
+        Decision = new RegimeDiscoveryDecision
         {
             IsComplete = true,
             Direction = RegimeDirection.Up,
@@ -262,4 +334,45 @@ public sealed class RegimeDiscoveryContractTests
 
     static DateTime Utc(int hour, int minute) =>
         new(2026, 8, 26, hour, minute, 0, DateTimeKind.Utc);
+
+    [MessagePackObject(AllowPrivate = true)]
+    internal sealed record LegacyFusionResult
+    {
+        [Key(0)] public bool IsComplete { get; init; }
+        [Key(1)] public RegimeDirection Direction { get; init; }
+        [Key(2)] public decimal DirectionalScore { get; init; }
+        [Key(3)] public decimal RiskAdjustedConviction { get; init; }
+        [Key(4)] public decimal Confidence { get; init; }
+        [Key(5)] public RegimeConfidenceBand ConfidenceBand { get; init; }
+        [Key(6)] public RegimeOverallQuality Quality { get; init; }
+        [Key(7)] public RegimeRestriction[] Restrictions { get; init; } = [];
+        [Key(8)] public RegimeDiscoveryReason[] Reasons { get; init; } = [];
+    }
+
+    [MessagePackObject(AllowPrivate = true)]
+    internal sealed record LegacyRegimeDiscoveryResult
+    {
+        [Key(0)] public ushort SchemaVersion { get; init; }
+        [Key(1)] public Guid ResultId { get; init; }
+        [Key(2)] public StrategyWorkflowId WorkflowId { get; init; }
+        [Key(3)] public Guid StrategyParameterSetId { get; init; }
+        [Key(4)] public int StrategyParameterSetVersion { get; init; }
+        [Key(5)] public Guid RegimeDiscoveryParameterSetId { get; init; }
+        [Key(6)] public int RegimeDiscoveryParameterSetVersion { get; init; }
+        [Key(7)] public Guid SignalSnapshotId { get; init; }
+        [Key(8)] public IntrinsicTimeStrategyWorkflowEntityId EntityId { get; init; }
+        [Key(9)] public Guid TriggerEventId { get; init; }
+        [Key(10)] public DateTime MarketDataAsOfUtc { get; init; }
+        [Key(11)] public DateTime ProducedAtUtc { get; init; }
+        [Key(12)] public TimeFrameType TargetHorizon { get; init; }
+        [Key(13)] public TrendRegimeResult Trend { get; init; } = new();
+        [Key(14)] public VolatilityRegimeResult Volatility { get; init; } = new();
+        [Key(15)] public MarketStructureRegimeResult MarketStructure { get; init; } = new();
+        [Key(16)] public LegacyFusionResult Fusion { get; init; } = new();
+        [Key(17)] public RegimeDiscoveryEvidence[] SupportingEvidence { get; init; } = [];
+        [Key(18)] public RegimeOverallQuality OverallQuality { get; init; }
+        [Key(19)] public decimal OverallConfidence { get; init; }
+        [Key(20)] public RegimeDiscoveryReason[] Reasons { get; init; } = [];
+        [Key(21)] public string SummaryText { get; init; } = string.Empty;
+    }
 }

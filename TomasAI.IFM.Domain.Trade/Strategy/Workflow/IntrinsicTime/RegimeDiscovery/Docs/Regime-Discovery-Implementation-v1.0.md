@@ -4,12 +4,12 @@ Implementation Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | RD-0 through RD-19 and FNC-00 through FNC-12 implemented; FunctionActor flow authoritative |
-| Date | 2026-08-27 |
+| Status | RD-0 through RD-25 and FNC-00 through FNC-12 implemented; FunctionActor flow authoritative |
+| Date | 2026-08-29 |
 | Design authority | `Regime-Discovery-Specification-v1.0.md` |
 | Atomic revision plan | `Regime-Discovery-Atomic-Workflow-Implementation-Plan-v1.0.md` |
 | Workflow authority | `Intrinsic-Time-Strategy-Workflow-Implementation-v1.0.md` |
-| Target | Deterministic V1 / .NET 10 actor application |
+| Target | Deterministic RegimeDiscoveryResult schema V2 / .NET 10 actor application |
 
 ## 1. Approved decisions
 
@@ -44,6 +44,9 @@ Implementation Specification v1.0
 10. Trend, Volatility, and Market Structure may run on ordinary .NET thread
    pool work and be awaited together only if repeatable benchmarks show a
    material benefit over deterministic sequential execution.
+11. RD-20 through RD-25 maximize qualified trigger/snapshot input use, keep
+    downstream hints out of Regime Discovery, and expose the final value as a
+    stable nested `RegimeDiscoveryDecision`.
 
 ### 1.1 RD-0 baseline and compatibility decisions
 
@@ -289,7 +292,7 @@ Strategy/Workflow/IntrinsicTime/Pipeline/RegimeDiscovery/Model/
   TrendRegimeResult.cs
   VolatilityRegimeResult.cs
   MarketStructureRegimeResult.cs
-  MarketRegimeFusionResult.cs
+  RegimeDiscoveryDecision.cs (implemented in `RegimeDiscoveryResults.cs`)
   RegimeDiscoveryResult.cs
   RegimeDiscoveryEvidence.cs
   RegimeDiscoveryReason.cs
@@ -568,9 +571,49 @@ uses the approved skeleton-first order recorded in section 1.1.
 | RD-17 | Run full Trade, Reference, MarketData Analytics, Application Storage, actor BDD/unit/integration suites and full solution build |
 | RD-18 | Enable live Regime Discovery only after cache warm-up health and all required signals pass qualification |
 | RD-19 | Implement composite execution identity, hard deadline, single Workflow StateUpdated snapshot event, immutable view handoff, lazy expiry, and late-result fencing |
+| RD-20 | Audit actual trigger/snapshot/result use, freeze evidence-first ownership, and identify unused or conflated inputs |
+| RD-21 | Make the exact ITI trigger authoritative and add distinct `VxFrontLevel` plus optional TDI signal acquisition |
+| RD-22 | Consume optional TDI as weighted trend confirmation without weakening the required ITI fallback |
+| RD-23 | Separate spot VIX/front VX/term structure and derive Market Structure breakout from direct price/range/ATR inputs with supplied-signal agreement |
+| RD-24 | Introduce wire-compatible result schema V2 with nested `RegimeDiscoveryDecision`; use trend phase and volatility change in restrictions and conviction |
+| RD-25 | Qualify minimum reasonable decision combinations across unit, contract, BDD, integration, and verification layers and update all governing documents |
 | FNC-00..12 | Replace the Regime Command/projector-publication/Realtime chain with direct completed-only FunctionActor request/reply and qualify it |
 
-Implementation status as of 2026-08-28: RD-0 through RD-19 and FNC-00 through
+### 8.1 RD-20 through RD-25 implementation record
+
+The 2026-08-29 upgrade is implemented as a versioned result-contract change,
+not a replacement pipeline:
+
+- `RegimeDiscoveryCalculationInput.TriggerEvent` carries the immutable exact
+  event, and input-aware observation lookup overlays only the target-horizon
+  price/ITI/front-VX fields with its authoritative values and provenance;
+- snapshot requirements now request required front VX and Daily front/second
+  ratio, optional Daily spot VIX/raw Bollinger width, and optional TDI on every
+  configured observation frame;
+- both durable and realtime TDI projectors populate the common Regime
+  Discovery cache using signed Low/Medium/High strength;
+- Trend splits the configured ITI component 75/25 with TDI only when TDI is
+  available; otherwise ITI retains 100 percent of that component;
+- Volatility scores spot VIX when available and otherwise uses front VX, while
+  keeping Daily term structure independent;
+- Market Structure derives breakout distance from price/high/low/ATR and uses
+  the separately supplied breakout metric only as confidence agreement;
+- `MarketRegimeFusionModel` returns `RegimeDiscoveryDecision`, copies the
+  specialist market-language fields, reduces conviction for transition phase
+  and volatility expansion, and preserves all restrictions/reasons; and
+- `RegimeDiscoveryResult.CurrentSchemaVersion` is 2. MessagePack key 16 is
+  unchanged, so schema-V1 shaped payloads deserialize into the expanded
+  decision. The obsolete non-serialized `Fusion` alias supports source
+  migration while all production consumers use `Decision`. The containing
+  `StrategyStageResultEnvelope.SchemaVersion` is populated from the same
+  `CurrentSchemaVersion`, and the Scylla read-model row copies that envelope
+  version, so workflow, projection, and payload schema metadata cannot drift.
+
+Regime Discovery emits no output hints. This is deliberate: the decision is a
+market classification. Market Condition may later augment its own output with
+trade-type/timeframe hints without constraining this upstream result.
+
+Implementation status as of 2026-08-29: RD-0 through RD-25 and FNC-00 through
 FNC-12 are implemented.
 RD-13 selected sequential execution from the recorded BenchmarkDotNet results.
 RD-16 qualifies the real Regime Discovery worker inside the Strategy Workflow
@@ -630,6 +673,15 @@ lazy workflow-expiry backstop are mandatory parts of RD-19.
   duplicate completion, conflicting completion, and invalid terminal results.
 - Model unit tests prove deterministic Trend, Volatility, Market Structure,
   and Fusion output without actor infrastructure.
+- RD-20 through RD-25 unit/contract tests prove trigger authority, optional TDI
+  fallback and weighting, distinct spot-VIX/front-VX semantics, direct
+  breakout derivation/agreement, and schema-V1-shaped Decision compatibility.
+- Decision verification covers the 12 minimum reasonable pairwise market
+  languages documented in the verification specification; it does not attempt
+  a full Cartesian product of every continuous score and confidence value.
+- BDD tests express aligned, transition/expansion, extreme-volatility, and
+  specialist-conflict outcomes. Live integration deserializes schema V2 and
+  proves Decision field propagation plus real TDI evidence.
 - Benchmark/correctness tests compare sequential and thread-pool-parallel
   component execution for typical and maximum Daily, Weekly, and Monthly
   snapshots, including one and three concurrent workflows. Both modes must

@@ -12,7 +12,7 @@ public sealed class MarketRegimeFusionModel
     /// <param name="marketStructure">Complete Market Structure result.</param>
     /// <param name="configuration">Immutable Fusion configuration.</param>
     /// <returns>The complete fused result, or an incomplete result when a specialist is incomplete.</returns>
-    public MarketRegimeFusionResult Calculate(
+    public RegimeDiscoveryDecision Calculate(
         TrendRegimeResult trend,
         VolatilityRegimeResult volatility,
         MarketStructureRegimeResult marketStructure,
@@ -23,7 +23,7 @@ public sealed class MarketRegimeFusionModel
         ArgumentNullException.ThrowIfNull(marketStructure);
         ArgumentNullException.ThrowIfNull(configuration);
         if (!trend.IsComplete || !volatility.IsComplete || !marketStructure.IsComplete)
-            return new MarketRegimeFusionResult
+            return new RegimeDiscoveryDecision
             {
                 IsComplete = false,
                 Reasons = RegimeDiscoveryMath.OrderReasons([
@@ -39,14 +39,30 @@ public sealed class MarketRegimeFusionModel
             : directionalScore <= -configuration.DirectionThreshold
                 ? RegimeDirection.Down
                 : RegimeDirection.Neutral;
+        var phaseMultiplier = trend.Phase switch
+        {
+            TrendRegimePhase.Reversing => 0.50m,
+            TrendRegimePhase.Exhausting => 0.75m,
+            TrendRegimePhase.Emerging => 0.90m,
+            _ => 1m
+        };
+        var volatilityChangeMultiplier = volatility.Change == VolatilityRegimeChange.Expanding ? 0.85m : 1m;
         var conviction = RegimeDiscoveryMath.Round(Math.Abs(directionalScore) *
-            (1m - configuration.VolatilityConvictionPenalty * volatility.Score));
+            (1m - configuration.VolatilityConvictionPenalty * volatility.Score) *
+            phaseMultiplier * volatilityChangeMultiplier);
         var baseConfidence = RegimeDiscoveryMath.Round(
             configuration.TrendConfidenceWeight * trend.Confidence +
             configuration.VolatilityConfidenceWeight * volatility.Confidence +
             configuration.MarketStructureConfidenceWeight * marketStructure.Confidence);
         var alignment = RegimeDiscoveryMath.Clamp(1m - Math.Abs(trend.Score - marketStructure.Score) / 2m);
-        var confidence = RegimeDiscoveryMath.Clamp(baseConfidence * (0.75m + 0.25m * alignment));
+        var phaseConfidenceMultiplier = trend.Phase switch
+        {
+            TrendRegimePhase.Reversing => 0.85m,
+            TrendRegimePhase.Exhausting => 0.92m,
+            _ => 1m
+        };
+        var confidence = RegimeDiscoveryMath.Clamp(baseConfidence * (0.75m + 0.25m * alignment) *
+            phaseConfidenceMultiplier);
         var restrictions = new List<RegimeRestriction>();
         var reasons = new List<RegimeDiscoveryReason>();
         if (volatility.NoNewTrade || volatility.Level == VolatilityRegimeLevel.Extreme)
@@ -73,7 +89,8 @@ public sealed class MarketRegimeFusionModel
             reasons.Add(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.FusionLowConfidence,
                 RegimeReasonSeverity.Restriction, RegimeEvidenceArea.Fusion));
         }
-        if (marketStructure.Classification == MarketStructureClassification.Transitioning)
+        if (marketStructure.Classification == MarketStructureClassification.Transitioning ||
+            trend.Phase is TrendRegimePhase.Reversing or TrendRegimePhase.Exhausting)
         {
             restrictions.Add(RegimeRestriction.Transition);
             reasons.Add(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.FusionTransition,
@@ -87,7 +104,7 @@ public sealed class MarketRegimeFusionModel
                 ? RegimeOverallQuality.Acceptable
                 : confidence < 0.35m ? RegimeOverallQuality.Low : RegimeOverallQuality.Degraded;
 
-        return new MarketRegimeFusionResult
+        return new RegimeDiscoveryDecision
         {
             IsComplete = true,
             Direction = direction,
@@ -97,7 +114,15 @@ public sealed class MarketRegimeFusionModel
             ConfidenceBand = RegimeDiscoveryMath.ConfidenceBand(confidence),
             Quality = quality,
             Restrictions = restrictions.Distinct().Order().ToArray(),
-            Reasons = RegimeDiscoveryMath.OrderReasons(reasons)
+            Reasons = RegimeDiscoveryMath.OrderReasons(reasons),
+            TrendPhase = trend.Phase,
+            TrendStrength = trend.Strength,
+            TrendTimeFrameAgreement = trend.TimeFrameAgreement,
+            VolatilityLevel = volatility.Level,
+            VolatilityChange = volatility.Change,
+            TermStructure = volatility.TermStructure,
+            StructureClassification = marketStructure.Classification,
+            Breakout = marketStructure.Breakout
         };
     }
 

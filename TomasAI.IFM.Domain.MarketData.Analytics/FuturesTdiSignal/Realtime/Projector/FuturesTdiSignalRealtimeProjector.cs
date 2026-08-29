@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.EventProjector.Realtime;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 
@@ -18,9 +19,13 @@ public sealed class FuturesTdiSignalRealtimeProjector(
     [
         Describe<FuturesTdiSignalGeneratedEvent, FuturesTdiSignalGeneratedCompleteEvent,
             FuturesTdiSignalGeneratedFailEvent, FuturesTdiSignalEntityId>(
-            e => e.FuturesTdiSignal.SchemaVersion == FuturesTdiConfiguration.CurrentSchemaVersion
-                ? new ValueTask(dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal))
-                : ValueTask.CompletedTask)
+            (Func<FuturesTdiSignalGeneratedEvent, Task>)(async e =>
+            {
+                if (e.FuturesTdiSignal.SchemaVersion != FuturesTdiConfiguration.CurrentSchemaVersion)
+                    return;
+                await dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesTdiSignal);
+            }))
     ];
 
     public override string ActorName => FuturesTdiSignalRealtimeActor.ActorName;

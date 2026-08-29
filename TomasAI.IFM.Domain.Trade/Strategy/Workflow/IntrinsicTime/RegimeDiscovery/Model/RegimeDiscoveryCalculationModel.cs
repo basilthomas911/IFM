@@ -80,7 +80,7 @@ public sealed class RegimeDiscoveryCalculationModel(
             Trend = trendResult,
             Volatility = volatilityResult,
             MarketStructure = structureResult,
-            Fusion = fusionResult,
+            Decision = fusionResult,
             SupportingEvidence = evidence,
             OverallQuality = fusionResult.Quality,
             OverallConfidence = fusionResult.Confidence,
@@ -94,7 +94,7 @@ public sealed class RegimeDiscoveryCalculationModel(
         TrendRegimeResult trend,
         VolatilityRegimeResult volatility,
         MarketStructureRegimeResult structure,
-        MarketRegimeFusionResult fusion) =>
+        RegimeDiscoveryDecision fusion) =>
         fusion.IsComplete
             ? $"{input.ParameterSet.TargetHorizon}: {fusion.Direction}; Trend={trend.Direction}/{trend.Phase}; " +
               $"Volatility={volatility.Level}/{volatility.Change}; Structure={structure.Classification}; " +

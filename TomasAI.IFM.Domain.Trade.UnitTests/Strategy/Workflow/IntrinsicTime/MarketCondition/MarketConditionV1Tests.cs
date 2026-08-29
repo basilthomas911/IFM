@@ -142,7 +142,7 @@ public sealed class MarketConditionV1Tests
             "futures" => input with { Snapshot = Seal(s with { FuturesQuote = s.FuturesQuote with { BidSize = 4m } }) },
             "options" => input with { Snapshot = Seal(s with { OptionChainQuality = s.OptionChainQuality with { ValidQuoteCoverage = 0.79m } }) },
             "operations" => input with { Snapshot = Seal(s with { OperationalHealth = s.OperationalHealth.Select((x, i) => i == 0 ? x with { Status = MarketOperationalStatus.Unavailable } : x).ToArray() }) },
-            "regime" => input with { RegimeResult = input.RegimeResult with { Fusion = input.RegimeResult.Fusion with { Restrictions = [RegimeRestriction.NoNewTrade] } } },
+            "regime" => input with { RegimeResult = input.RegimeResult with { Decision = input.RegimeResult.Decision with { Restrictions = [RegimeRestriction.NoNewTrade] } } },
             "stale" => input with { Snapshot = Seal(s with { FuturesQuote = s.FuturesQuote with { QuoteObservation = s.FuturesQuote.QuoteObservation with { AgeSeconds = 3m } } }) },
             _ => input
         };
@@ -225,7 +225,7 @@ public sealed class MarketConditionV1Tests
             Volatility = new() { IsComplete = true, Change = VolatilityRegimeChange.Stable },
             MarketStructure = new() { IsComplete = true, Classification = MarketStructureClassification.Trending,
                 Direction = RegimeDirection.Up },
-            Fusion = new() { IsComplete = true, Direction = RegimeDirection.Up, Confidence = 0.90m,
+            Decision = new() { IsComplete = true, Direction = RegimeDirection.Up, Confidence = 0.90m,
                 Quality = RegimeOverallQuality.High }
         };
         return new()

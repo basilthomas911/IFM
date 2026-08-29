@@ -12,7 +12,7 @@ public static class RegimeDiscoveryScenarioCatalog
         TrendDirection = RegimeDirection.Up,
         TrendStrength = TrendRegimeStrength.Strong,
         TrendPhase = TrendRegimePhase.Established,
-        TrendScore = 0.796750m,
+        TrendScore = 0.799250m,
         VolatilityLevel = VolatilityRegimeLevel.Normal,
         VolatilityChange = VolatilityRegimeChange.Stable,
         TermStructure = VxTermStructureRegime.Contango,
@@ -22,8 +22,8 @@ public static class RegimeDiscoveryScenarioCatalog
         Breakout = MarketBreakoutState.None,
         StructureScore = 0.966667m,
         FusionDirection = RegimeDirection.Up,
-        FusionScore = 0.856221m,
-        Conviction = 0.705044m,
+        FusionScore = 0.857846m,
+        Conviction = 0.706383m,
         RequiredReasonCodes =
         [
             RegimeDiscoveryReasonCodes.TrendUp,
@@ -35,14 +35,15 @@ public static class RegimeDiscoveryScenarioCatalog
 
     public static RegimeDiscoveryScenario BullishBreakout { get; } = TrendingUp.With(
         nameof(BullishBreakout),
+        (RegimeDiscoverySignalMetric.CurrentPrice, 105.2m),
         (RegimeDiscoverySignalMetric.BreakoutDistanceAtr, 0.6m)) with
     {
         StructureClassification = MarketStructureClassification.BreakingOut,
         StructureDirection = RegimeDirection.Up,
         Breakout = MarketBreakoutState.Up,
         StructureScore = 0.300000m,
-        FusionScore = 0.622888m,
-        Conviction = 0.512909m,
+        FusionScore = 0.624512m,
+        Conviction = 0.514247m,
         RequiredReasonCodes =
         [
             RegimeDiscoveryReasonCodes.TrendUp,
@@ -54,7 +55,7 @@ public static class RegimeDiscoveryScenarioCatalog
 
     public static RegimeDiscoveryScenario TrendingDown { get; } = TrendingUp.With(
         nameof(TrendingDown),
-        (RegimeDiscoverySignalMetric.CurrentPrice, 95m),
+        (RegimeDiscoverySignalMetric.CurrentPrice, 96.2m),
         (RegimeDiscoverySignalMetric.Ema20, 97m),
         (RegimeDiscoverySignalMetric.Ema50, 99m),
         (RegimeDiscoverySignalMetric.Ema200, 101m),
@@ -69,15 +70,16 @@ public static class RegimeDiscoveryScenarioCatalog
         (RegimeDiscoverySignalMetric.BollingerPosition, -0.5m),
         (RegimeDiscoverySignalMetric.Ema20Interaction, -1m),
         (RegimeDiscoverySignalMetric.BreakoutDistanceAtr, -0.4m),
-        (RegimeDiscoverySignalMetric.ItiDirection, -1m)) with
+        (RegimeDiscoverySignalMetric.ItiDirection, -1m),
+        (RegimeDiscoverySignalMetric.Tdi, -1m)) with
     {
         TrendDirection = RegimeDirection.Down,
-        TrendScore = -0.796750m,
+        TrendScore = -0.799250m,
         StructureDirection = RegimeDirection.Down,
         StructureScore = -0.966667m,
         FusionDirection = RegimeDirection.Down,
-        FusionScore = -0.856221m,
-        Conviction = 0.705044m,
+        FusionScore = -0.857846m,
+        Conviction = 0.706383m,
         RequiredReasonCodes =
         [
             RegimeDiscoveryReasonCodes.TrendDown,
@@ -107,7 +109,8 @@ public static class RegimeDiscoveryScenarioCatalog
         (RegimeDiscoverySignalMetric.AtrNormalizedRange, 0.5m),
         (RegimeDiscoverySignalMetric.BreakoutDistanceAtr, 0m),
         (RegimeDiscoverySignalMetric.ItiDirection, 0m),
-        (RegimeDiscoverySignalMetric.ItiBandLevel, 0.5m)) with
+        (RegimeDiscoverySignalMetric.ItiBandLevel, 0.5m),
+        (RegimeDiscoverySignalMetric.Tdi, 0m)) with
     {
         TrendDirection = RegimeDirection.Neutral,
         TrendStrength = TrendRegimeStrength.None,
@@ -130,13 +133,14 @@ public static class RegimeDiscoveryScenarioCatalog
 
     public static RegimeDiscoveryScenario BearishBreakout { get; } = TrendingDown.With(
         nameof(BearishBreakout),
+        (RegimeDiscoverySignalMetric.CurrentPrice, 94.8m),
         (RegimeDiscoverySignalMetric.BreakoutDistanceAtr, -0.6m)) with
     {
         StructureClassification = MarketStructureClassification.BreakingOut,
         Breakout = MarketBreakoutState.Down,
         StructureScore = -0.300000m,
-        FusionScore = -0.622888m,
-        Conviction = 0.512909m,
+        FusionScore = -0.624512m,
+        Conviction = 0.514247m,
         RequiredReasonCodes =
         [
             RegimeDiscoveryReasonCodes.TrendDown,
@@ -169,8 +173,8 @@ public static class RegimeDiscoveryScenarioCatalog
         StructureClassification = MarketStructureClassification.Expanding,
         StructureDirection = RegimeDirection.Up,
         StructureScore = 1m,
-        FusionScore = 0.867888m,
-        Conviction = 0.714652m,
+        FusionScore = 0.869512m,
+        Conviction = 0.715989m,
         RequiredReasonCodes =
         [
             RegimeDiscoveryReasonCodes.TrendUp,
@@ -187,8 +191,8 @@ public static class RegimeDiscoveryScenarioCatalog
         StructureClassification = MarketStructureClassification.Transitioning,
         StructureDirection = RegimeDirection.Neutral,
         StructureScore = 0m,
-        FusionScore = 0.517888m,
-        Conviction = 0.426448m,
+        FusionScore = 0.519512m,
+        Conviction = 0.427786m,
         Restrictions = [RegimeRestriction.Transition],
         RequiredReasonCodes =
         [
@@ -212,8 +216,8 @@ public static class RegimeDiscoveryScenarioCatalog
         VolatilityScore = 0.792875m,
         StructureClassification = MarketStructureClassification.Expanding,
         StructureScore = 1m,
-        FusionScore = 0.867888m,
-        Conviction = 0.523825m,
+        FusionScore = 0.869512m,
+        Conviction = 0.446084m,
         Restrictions = [RegimeRestriction.NoNewTrade],
         RequiredReasonCodes =
         [
@@ -229,24 +233,26 @@ public static class RegimeDiscoveryScenarioCatalog
         (RegimeDiscoverySignalMetric.BollingerPosition, -0.5m),
         (RegimeDiscoverySignalMetric.Ema20Interaction, -1m),
         (RegimeDiscoverySignalMetric.BreakoutDistanceAtr, -0.4m),
-        (RegimeDiscoverySignalMetric.ItiDirection, -1m)) with
+        (RegimeDiscoverySignalMetric.ItiDirection, -1m),
+        (RegimeDiscoverySignalMetric.Tdi, -1m)) with
     {
         TrendStrength = TrendRegimeStrength.Moderate,
         TrendPhase = TrendRegimePhase.Exhausting,
-        TrendScore = 0.616750m,
+        TrendScore = 0.614250m,
         StructureClassification = MarketStructureClassification.Trending,
         StructureDirection = RegimeDirection.Down,
         StructureScore = -0.966667m,
         FusionDirection = RegimeDirection.Neutral,
-        FusionScore = 0.062554m,
-        Conviction = 0.051509m,
-        Restrictions = [RegimeRestriction.DirectionConflict],
+        FusionScore = 0.060929m,
+        Conviction = 0.037628m,
+        Restrictions = [RegimeRestriction.DirectionConflict, RegimeRestriction.Transition],
         RequiredReasonCodes =
         [
             RegimeDiscoveryReasonCodes.TrendUp,
             RegimeDiscoveryReasonCodes.VolatilityNormal,
             RegimeDiscoveryReasonCodes.StructureTrending,
-            RegimeDiscoveryReasonCodes.FusionDirectionConflict
+            RegimeDiscoveryReasonCodes.FusionDirectionConflict,
+            RegimeDiscoveryReasonCodes.FusionTransition
         ]
     };
 
@@ -271,7 +277,7 @@ public static class RegimeDiscoveryScenarioCatalog
 
     static Dictionary<RegimeDiscoverySignalMetric, decimal> BullishValues(decimal breakoutDistance) => new()
     {
-        [RegimeDiscoverySignalMetric.CurrentPrice] = 105m,
+        [RegimeDiscoverySignalMetric.CurrentPrice] = 104.8m,
         [RegimeDiscoverySignalMetric.Ema20] = 103m,
         [RegimeDiscoverySignalMetric.Ema50] = 101m,
         [RegimeDiscoverySignalMetric.Ema200] = 99m,
@@ -286,11 +292,13 @@ public static class RegimeDiscoveryScenarioCatalog
         [RegimeDiscoverySignalMetric.MacdHistogram] = 0.5m,
         [RegimeDiscoverySignalMetric.Atr14] = 2m,
         [RegimeDiscoverySignalMetric.VixLevel] = 18m,
+        [RegimeDiscoverySignalMetric.VxFrontLevel] = 18m,
         [RegimeDiscoverySignalMetric.AtrBaselineRatio] = 1m,
         [RegimeDiscoverySignalMetric.VxFrontSecondRatio] = 0.95m,
         [RegimeDiscoverySignalMetric.PriorVolatilityComposite] = 0.35m,
         [RegimeDiscoverySignalMetric.RealizedVolatilityPercentile] = 0.40m,
         [RegimeDiscoverySignalMetric.BollingerWidthRatio] = 1m,
+        [RegimeDiscoverySignalMetric.BollingerWidth] = 8m,
         [RegimeDiscoverySignalMetric.BollingerPosition] = 0.5m,
         [RegimeDiscoverySignalMetric.Ema20Interaction] = 1m,
         [RegimeDiscoverySignalMetric.AtrNormalizedRange] = 1m,
@@ -299,6 +307,7 @@ public static class RegimeDiscoveryScenarioCatalog
         [RegimeDiscoverySignalMetric.BreakoutDistanceAtr] = breakoutDistance,
         [RegimeDiscoverySignalMetric.ItiDirection] = 1m,
         [RegimeDiscoverySignalMetric.ItiBandLevel] = 1.2m,
-        [RegimeDiscoverySignalMetric.ItiReversalLevel] = 0.1m
+        [RegimeDiscoverySignalMetric.ItiReversalLevel] = 0.1m,
+        [RegimeDiscoverySignalMetric.Tdi] = 1m
     };
 }

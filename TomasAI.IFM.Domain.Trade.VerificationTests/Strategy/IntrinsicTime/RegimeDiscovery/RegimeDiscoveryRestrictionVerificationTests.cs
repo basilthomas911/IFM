@@ -18,7 +18,7 @@ public sealed class RegimeDiscoveryRestrictionVerificationTests
         result.Volatility.Change.Should().Be(VolatilityRegimeChange.Expanding);
         result.Volatility.TermStructure.Should().Be(VxTermStructureRegime.Backwardation);
         result.Volatility.NoNewTrade.Should().BeTrue();
-        result.Fusion.Restrictions.Should().ContainSingle().Which.Should().Be(RegimeRestriction.NoNewTrade);
+        result.Decision.Restrictions.Should().ContainSingle().Which.Should().Be(RegimeRestriction.NoNewTrade);
     }
 
     [Fact]

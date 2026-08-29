@@ -4,8 +4,8 @@ Design Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | Initial design specification |
-| Date | 2026-08-25 |
+| Status | Initial design plus RD-20 through RD-25 signal amendment implemented |
+| Date | 2026-08-29 |
 | Owner | Market Data Analytics bounded context |
 | Primary consumer | Intrinsic Time Strategy Workflow - Regime Discovery pipeline |
 | Companion design | `Regime-Discovery-Specification-v1.0.md` |
@@ -25,6 +25,22 @@ Market Data Analytics remains the only authority that calculates and validates
 market signals. Regime Discovery consumes completed signal values and performs
 regime classification; it does not calculate indicators from ticks, bars, or
 database rows.
+
+### 1.1 RD-20 through RD-25 signal amendment
+
+- The ITI event's `VixFuturesPrice` is front-VX futures evidence and is exposed
+  as `VxFrontLevel`; it is not spot `VixLevel`.
+- `VxFrontSecondRatio` remains Daily term-structure evidence. Optional Daily
+  spot VIX may be supplied independently by a later qualified source.
+- Both durable and realtime TDI projections publish `Tdi` into the common
+  Regime Discovery cache. The normalized value is signed direction multiplied
+  by strength (`High=1`, `Medium=0.66`, `Low=0.33`) for every configured
+  observation frame.
+- Raw Bollinger width remains optional corroborating structure evidence in
+  addition to the required width ratio.
+- The cache/snapshot key mapping explicitly recognizes `VxFrontLevel` and
+  `Tdi`, preserving their calculation configuration, timeframe, sequence,
+  timestamp, validity, warmth, and freshness.
 
 ## 2. Scope
 

@@ -6,9 +6,9 @@ Design Specification v1.0
 
 | --- \| --- \|
 
-| Status \| Approved deterministic V1 design; FNC FunctionActor topology implemented \|
+| Status \| Approved deterministic core plus RD-20 through RD-25 Decision V2 amendment; implemented \|
 
-| Date \| 2026-08-27 \|
+| Date \| 2026-08-29 \|
 
 | Purpose \| Authoritative business/architectural contract for Regime
   Discovery \|
@@ -19,7 +19,7 @@ Design Specification v1.0
 | Companion \| Intrinsic Time Strategy Workflow Implementation
   Specification v1.0 \|
 
-| Target \| Deterministic V1 / .NET 10 actor application \|
+| Target \| Deterministic RegimeDiscoveryResult schema V2 / .NET 10 actor application \|
 
 This document defines WHAT Regime Discovery must do. Repository-specific
 HOW belongs in `Regime-Discovery-Implementation-v1.0.md`. The approved
@@ -32,6 +32,52 @@ Discovery is a completed-only FunctionActor that directly returns a typed
 Completed/Failed result. References below to a Regime CommandActor, private
 terminal events, EventProjector publication, or Regime RealtimeActor describe
 the superseded RD-19 implementation, not the current execution path.
+
+## RD-20 through RD-25 authoritative decision amendment
+
+This amendment defines the input-maximizing behavior required before Market
+Condition consumes Regime Discovery. It supersedes any earlier wording that
+treated the trigger, a reduced subset of specialist fields, or a downstream
+trade preference as the decision itself.
+
+1. Regime Discovery is evidence-first. It uses every relevant, available,
+   qualified field already present in its immutable trigger and market-signal
+   snapshot. It emits no trade-type or timeframe hints. Downstream hints belong
+   to Market Condition and must not alter the Regime Discovery market decision.
+2. The exact target-horizon `FuturesItiSignalGeneratedEvent` is authoritative
+   for current price, ITI direction, band progress, reversal progress, source
+   sequence/time, and front-VX value. Supporting cache observations remain
+   authoritative for other horizons and indicator families.
+3. TDI is optional signed trend-confirmation evidence on configured
+   observation frames. When present, it receives 25 percent of the configured
+   ITI component weight; ITI retains the full component weight when TDI is
+   unavailable. Missing optional TDI is explicit quality evidence, never a
+   fabricated numeric default.
+4. Spot VIX and front VX are different signals. `VixLevel` is optional Daily
+   spot-volatility evidence. `VxFrontLevel` is the target-horizon futures value
+   carried by the ITI event. `VxFrontSecondRatio` is Daily term-structure
+   evidence. Front VX must never be stored or described as spot VIX.
+5. Market Structure derives breakout distance from current price, rolling
+   high/low, and ATR. The supplied breakout signal is retained as corroborating
+   evidence and affects confidence through agreement; it is not allowed to
+   override contradictory direct price/range inputs.
+6. The final public value is `RegimeDiscoveryDecision`, nested at
+   `RegimeDiscoveryResult.Decision`. Result schema V2 preserves the existing
+   MessagePack key for wire compatibility and adds the decision-driving trend
+   phase/strength/agreement, volatility level/change/term structure, and market
+   structure/breakout language. `Fusion` remains only an obsolete source alias.
+7. Trend phase and volatility change affect risk-adjusted conviction:
+   `Reversing`, `Exhausting`, and expanding volatility reduce conviction, and
+   reversing/exhausting states add `Transition`. Extreme volatility continues
+   to add `NoNewTrade`; disagreement and low confidence remain explicit.
+
+The minimum reasonable decision-language qualification matrix is pairwise,
+not a Cartesian explosion. It covers established bullish/bearish trends,
+quiet range contraction, emerging direction, exhausting and reversing trends
+under expansion, trend/structure conflict, breakout led direction, structural
+transition, extreme-volatility blocking, low-confidence mixed markets, and
+neutral compression. Boundary, missing-data, and three-horizon golden tests are
+orthogonal to that matrix.
 
 # 1. Purpose
 
@@ -493,10 +539,12 @@ front/second VIX-futures ratio score is piecewise linear through
 `(0.95,0.10)`, `(1.00,0.30)`, `(1.05,0.60)`, and `(1.10,0.90)`, clamped to
 `[0,1]`. Realized volatility uses its upstream percentile directly.
 
-Default volatility weights are VIX level 0.35, ATR ratio 0.35, term structure
+Default volatility weights are volatility level 0.35, ATR ratio 0.35, term structure
 0.20, and optional realized volatility 0.10. The common unsigned scoring and
 confidence formulas apply. Volatility is Low below 0.25, Normal from 0.25 to
 below 0.50, High from 0.50 to below 0.75, and Extreme at or above 0.75.
+The level component uses qualified Daily spot VIX when available and otherwise
+uses required target-horizon front VX; evidence states which source was used.
 Expansion means the composite score increased by at least 0.10 from its prior
 warm observation; contraction means it decreased by at least 0.10; otherwise
 it is stable. NoNewTrade evidence is set when VIX is at or above its Extreme
@@ -546,6 +594,12 @@ organization direction for directional Expanding, and zero for Compressing,
 Ranging, or non-directional Transitioning. Unknown is reserved for an
 incomplete diagnostic result and cannot produce pipeline Completed.
 
+The breakout distance is derived from direct current price, rolling high/low,
+and positive ATR. The upstream `BreakoutDistanceAtr` value remains separate.
+Absolute agreement between derived and supplied values multiplies structure
+confidence by `0.75 + 0.25 * agreement`; contradiction can reduce confidence
+but cannot replace direct data.
+
 # 12. Market Regime Fusion Model
 
 Combines complete Trend, Volatility, and Market Structure results into
@@ -573,17 +627,21 @@ Completed.
 Fusion calculates directional score as `0.65 * TrendScore + 0.35 *
 MarketStructureScore`; Volatility never changes its sign. Direction uses the
 Trend thresholds. Risk-adjusted conviction is
-`abs(DirectionalScore) * (1 - 0.50 * VolatilityScore)`.
+`abs(DirectionalScore) * (1 - 0.50 * VolatilityScore)`, then multiplied by
+trend-phase conviction (`Reversing=0.50`, `Exhausting=0.75`, `Emerging=0.90`,
+otherwise `1.00`) and by `0.85` when volatility is expanding.
 
 Base fusion confidence is `0.40 * TrendConfidence + 0.30 *
 VolatilityConfidence + 0.30 * MarketStructureConfidence`. Trend/Structure
 alignment is `1 - abs(TrendScore-MarketStructureScore)/2`. Final fusion
-confidence is `clamp(BaseConfidence * (0.75 + 0.25 * Alignment),0,1)`.
+confidence is `clamp(BaseConfidence * (0.75 + 0.25 * Alignment),0,1)` and is
+then multiplied by `0.85` for Reversing or `0.92` for Exhausting.
 
 Fusion emits deterministic restrictions: NoNewTrade for specialist Extreme
 volatility evidence; DirectionConflict when Trend and Market Structure are
 both directional and have opposite signs; LowConfidence below 0.55; and
-Transition when Market Structure is Transitioning. Restrictions are evidence
+Transition when Market Structure is Transitioning or Trend is Reversing or
+Exhausting. Restrictions are evidence
 for later pipelines and do not themselves fail Regime Discovery.
 
 Overall quality is High when confidence is at least 0.80 with no missing
@@ -631,7 +689,7 @@ and orders codes by area ordinal, reason ordinal, timeframe ordinal, and
 signal identity so state reconstruction and summary text are byte-for-byte
 deterministic.
 
-# 13. RegimeDiscoveryResult v1
+# 13. RegimeDiscoveryResult schema V2
 
 ``` text
 
@@ -643,7 +701,13 @@ RegimeDiscoveryResult
  Trigger / Instrument identity
  MarketDataAsOfUtc / ProducedAtUtc
  TargetHorizon
- TargetHorizonResult: Trend + Volatility + Structure + FusedRegime
+ Trend
+ Volatility
+ MarketStructure
+ Decision: direction/score/confidence/conviction/restrictions
+           + trend phase/strength/timeframe agreement
+           + volatility level/change/term structure
+           + structure classification/breakout
  SupportingObservationEvidence[]
  OverallQuality / OverallConfidence
  ReasonCodes[]
@@ -654,6 +718,14 @@ Structured fields are authoritative. SummaryText is a deterministic
 human-readable explanation derived from those fields for operations,
 paper-trading review, diagnostics, and later advisory use. It is never
 the only record of why a regime was produced.
+
+`Decision` occupies the same MessagePack key previously used by the smaller
+fusion object. Its appended fields preserve old positional payload
+compatibility. `Fusion` is a non-serialized obsolete source alias only; new
+producers, consumers, tests, and documentation use `Decision`. The workflow
+result envelope advertises `RegimeDiscoveryResult.CurrentSchemaVersion`; it is
+therefore schema V2 whenever it contains a schema-V2 Regime Discovery result.
+The projected Regime Discovery read model stores that same envelope version.
 
 # 14. Function Results and Workflow Handoff
 
@@ -666,7 +738,7 @@ direct Function result into a Strategy Workflow Complete or Fail command.
 ``` text
 
 Internal failure/timeout -> Function failed reply -> FailRegimeDiscoveryCommand
-Final Fusion success -> completed candidate -> Scylla projection -> PostgreSQL completion -> Function completed reply -> CompleteRegimeDiscoveryCommand
+Final Decision success -> completed candidate -> Scylla projection -> PostgreSQL completion -> Function completed reply -> CompleteRegimeDiscoveryCommand
 Projection/persistence failure -> Function failed reply -> FailRegimeDiscoveryCommand
 ```
 

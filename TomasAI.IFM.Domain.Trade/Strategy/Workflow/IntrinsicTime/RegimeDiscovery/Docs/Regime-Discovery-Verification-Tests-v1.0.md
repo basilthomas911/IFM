@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Implemented and qualified; RDV-00 through RDV-09 complete |
+| Status | Implemented and qualified; RDV-00 through RDV-10 / RD-20 through RD-25 complete |
 | Created | 2026-08-28 |
 | Scope | Deterministic Regime Discovery calculations and their Strategy Workflow continuation boundary |
 | Test project | `TomasAI.IFM.Domain.Trade.VerificationTests` |
@@ -19,7 +19,7 @@ Companion documents:
 
 This document defines the executable business verification for Regime Discovery. The verification suite proves both that the production calculation produces the intended economic classifications and that a valid completed result advances the Intrinsic Time Strategy Workflow to the correct next pipeline exactly once.
 
-The suite is intentionally stronger than a transport smoke test. A non-empty result payload is insufficient. A successful verification must deserialize the real `RegimeDiscoveryResult` and validate Trend, Volatility, Market Structure, Fusion, evidence, restrictions, persistence, and workflow continuation.
+The suite is intentionally stronger than a transport smoke test. A non-empty result payload is insufficient. A successful verification must deserialize the real schema-V2 `RegimeDiscoveryResult` and validate Trend, Volatility, Market Structure, `Decision`, evidence, restrictions, persistence, and workflow continuation.
 
 Verification tests complement rather than replace the existing test layers:
 
@@ -92,6 +92,7 @@ TomasAI.IFM.Domain.Trade.VerificationTests/
         RegimeDiscoveryScenarioDataBuilder.cs
         RegimeDiscoveryVerificationAssertions.cs
         RegimeDiscoveryGoldenVectorVerificationTests.cs
+        RegimeDiscoveryDecisionCombinationVerificationTests.cs
         RegimeDiscoveryWorkflowVerificationTests.cs
         RegimeDiscoveryRestrictionVerificationTests.cs
         RegimeDiscoveryFailureVerificationTests.cs
@@ -115,7 +116,7 @@ Each scenario owns:
 - a target horizon;
 - a complete map of metric values or explicit overrides from a named baseline;
 - expected specialist classifications and exact deterministic scores where applicable;
-- expected Fusion direction, score, restrictions, confidence band, and quality;
+- expected Decision direction, score, restrictions, confidence band, and quality;
 - expected reason codes;
 - whether a completed projection must exist; and
 - whether the workflow may dispatch Market Condition.
@@ -136,7 +137,7 @@ Apply the values to every observation timeframe configured for the target horizo
 
 | Metric | Value |
 |---|---:|
-| CurrentPrice | 105 |
+| CurrentPrice | 104.8 |
 | Ema20 | 103 |
 | Ema50 | 101 |
 | Ema200 | 99 |
@@ -153,16 +154,20 @@ Apply the values to every observation timeframe configured for the target horizo
 
 ### 6.2 Volatility and structure evidence
 
-Apply these values to the target horizon:
+Apply these values to the requirement timeframe returned by the production
+snapshot factory. In particular, term structure and spot VIX are Daily, front
+VX is target-horizon, and TDI is present on every configured trend frame.
 
 | Metric | Value |
 |---|---:|
 | VixLevel | 18 |
+| VxFrontLevel | 18 |
 | AtrBaselineRatio | 1.0 |
 | VxFrontSecondRatio | 0.95 |
 | PriorVolatilityComposite | 0.35 |
 | RealizedVolatilityPercentile | 0.40 |
 | BollingerWidthRatio | 1.0 |
+| BollingerWidth | 8.0 |
 | BollingerPosition | 0.5 |
 | Ema20Interaction | 1.0 |
 | AtrNormalizedRange | 1.0 |
@@ -172,12 +177,15 @@ Apply these values to the target horizon:
 | ItiDirection | 1.0 |
 | ItiBandLevel | 1.2 |
 | ItiReversalLevel | 0.1 |
+| Tdi | 1.0 |
 
-`BreakoutDistanceAtr` is deliberately `0.4`. A value of `0.5` or greater is a breakout, and breakout classification has precedence over Trending.
+The direct breakout is `(104.8 - 104) / 2 = 0.4`. The separately supplied
+`BreakoutDistanceAtr = 0.4` agrees. A derived absolute value of `0.5` or greater
+is a breakout, and breakout classification has precedence over Trending.
 
 ### 6.3 Exact expected result
 
-With default V1 parameters and equal values on all contributing observation timeframes:
+With the default parameter set, schema-V2 result, and Daily target horizon:
 
 | Result | Expected value |
 |---|---|
@@ -185,7 +193,7 @@ With default V1 parameters and equal values on all contributing observation time
 | Trend direction | `Up` |
 | Trend strength | `Strong` |
 | Trend phase | `Established` |
-| Trend score | `0.796750` |
+| Trend score | `0.799250` |
 | Volatility complete | `true` |
 | Volatility level | `Normal` |
 | Volatility change | `Stable` |
@@ -197,15 +205,24 @@ With default V1 parameters and equal values on all contributing observation time
 | Market Structure direction | `Up` |
 | Breakout | `None` |
 | Market Structure score | `0.966667` |
-| Fusion complete | `true` |
-| Fusion direction | `Up` |
-| Fusion directional score | `0.856221` |
-| Risk-adjusted conviction | `0.705044` |
+| Decision complete | `true` |
+| Decision direction | `Up` |
+| Decision directional score | `0.857846` |
+| Risk-adjusted conviction | `0.706383` |
+| Decision phase/strength | `Established / Strong` |
+| Decision volatility language | `Normal / Stable / Contango` |
+| Decision structure language | `Trending / None` |
 | Restrictions | Empty |
 | Confidence band | `VeryHigh` |
 | Overall quality | `High` |
 
-The exact scores are independent of wall-clock freshness for this vector. Exact confidence decimals are not stable in a runtime test because the production snapshot provider computes freshness from capture time. Runtime tests assert the confidence band, quality, and a safe minimum confidence. A model-level golden verification uses a fixed freshness factor and asserts exact confidence decimals.
+The exact scores are independent of wall-clock freshness for this uniform
+vector. TDI is supplied on every configured frame, so the normalized evidence
+mix is equivalent across horizons. Exact confidence decimals are not stable in a runtime test
+because the production snapshot provider computes freshness from capture time.
+Runtime tests assert language, restrictions, confidence band/quality, and a
+safe minimum confidence. Fixed-freshness golden verification asserts the exact
+per-horizon numbers.
 
 ## 7. Horizon verification
 
@@ -213,9 +230,9 @@ The Trending Up vector must be verified for all supported workflow horizons:
 
 | Target horizon | Contributing Trend timeframes | Expected business result |
 |---|---|---|
-| Daily | 5m, 15m, 1h, 4h | Exact Trending Up result in section 6.3 |
-| Weekly | 15m, 1h, 4h, Daily | Exact Trending Up result in section 6.3 |
-| Monthly | 1h, 4h, Daily | Exact Trending Up result in section 6.3 |
+| Daily | 5m, 15m, 1h, 4h | `Up/Strong/Established`; trend `0.799250`; decision `0.857846`; conviction `0.706383` |
+| Weekly | 15m, 1h, 4h, Daily | `Up/Strong/Established`; trend `0.799250`; decision `0.857846`; conviction `0.706383` |
+| Monthly | 1h, 4h, Daily | `Up/Strong/Established`; trend `0.799250`; decision `0.857846`; conviction `0.706383` |
 
 Each horizon verification must additionally prove:
 
@@ -238,14 +255,14 @@ Its authoritative expected result is:
 | Result | Expected value |
 |---|---|
 | Trend | `Up / Strong / Established` |
-| Trend score | `0.796750` |
+| Trend score | `0.799250` |
 | Volatility | `Normal / Stable / Contango` |
 | Volatility score | `0.353125` |
 | Market Structure | `BreakingOut / Up` |
 | Market Structure score | `0.300000` |
-| Fusion direction | `Up` |
-| Fusion directional score | `0.622888` |
-| Risk-adjusted conviction | `0.512909` |
+| Decision direction | `Up` |
+| Decision directional score | `0.624512` |
+| Risk-adjusted conviction | `0.514247` |
 | Restrictions | Empty |
 
 This scenario must remain as an explicit `BullishBreakout` verification. It must not be described or asserted as Market Structure Trending.
@@ -277,6 +294,34 @@ All completed scenarios must persist a completed Regime read model and may advan
 | LowConfidence | Deliberately conflicting but complete evidence | Fusion contains `LowConfidence`; quality is `Low` or `Degraded` as formula dictates |
 
 Each restricted completed result must still prove result projection, workflow revision 2, `CurrentStage = MarketCondition`, and exactly one Market Condition command. Later pipeline logic is responsible for honoring the restrictions.
+
+### 10.1 RD-20 through RD-25 minimum reasonable Decision matrix
+
+`RegimeDiscoveryDecisionCombinationVerificationTests` covers the following
+pairwise market-language combinations without generating thousands of
+low-value Cartesian cases:
+
+| Case | Trend | Volatility | Structure | Required Decision behavior |
+|---|---|---|---|---|
+| Established bullish | `Up/Established/Strong` | `Normal/Stable/Contango` | `Trending/Up` | `Up`, complete, unrestricted |
+| Established bearish | `Down/Established/Strong` | `Normal/Stable/Contango` | `Trending/Down` | `Down`, complete, unrestricted |
+| Quiet range contraction | `Neutral/RangeBound` | `Low/Contracting/Contango` | `Ranging/Neutral` | Neutral, complete |
+| Emerging bullish | `Up/Emerging` | `Low/Stable/Flat` | `Trending/Up` | Up with emerging phase retained |
+| Exhausting expansion | `Up/Exhausting` | `High/Expanding/Backwardation` | `Expanding/Up` | Up plus `Transition`, reduced conviction |
+| Bearish reversal expansion | `Down/Reversing` | `High/Expanding/Backwardation` | `Trending/Down` | Down plus `Transition`, reduced conviction |
+| Direction conflict | `Up/Established` | `Normal/Stable/Flat` | `Trending/Down` | Explicit `DirectionConflict` |
+| Structure-led breakout | `Neutral/RangeBound` | `Normal/Stable/Contango` | `BreakingOut/Up` | Up with breakout language retained |
+| Structural transition | `Up/Established` | `Normal/Stable/Flat` | `Transitioning/Neutral` | Up plus `Transition` |
+| Extreme-volatility blocker | `Up/Established` | `Extreme/Expanding/Backwardation` | `Expanding/Up` | Direction retained plus `NoNewTrade` |
+| Low-confidence mixed | `Up/Emerging` with low confidence | `Normal/Stable/Flat` | `Ranging/Neutral` | Explicit `LowConfidence` |
+| Neutral compression | `Neutral/RangeBound` | `Low/Contracting/Contango` | `Compressing/Neutral` | Neutral compression retained |
+
+For every case the test also verifies completeness, mirrored specialist
+language, bounded confidence, bounded conviction, and the exact required
+restrictions. Separate tests cover direct-input breakout derivation, supplied
+breakout disagreement, authoritative trigger overlay, optional TDI weighting,
+spot-VIX/front-VX separation, schema-V1-shaped deserialization, all three
+horizons, deterministic bytes, missing data, timeout, and runtime persistence.
 
 ## 11. Failure and fail-closed matrix
 
@@ -316,7 +361,13 @@ Every successful runtime scenario must assert all of the following:
 
 Golden-vector tests must use fixed GUIDs, fixed timestamps, a fixed `FreshnessFactor`, default versioned parameters, and production calculation classes. They assert exact six-decimal scores, exact confidence, deterministic evidence ordering, deterministic reason ordering, and byte-equivalence between sequential and thread-pool-parallel execution.
 
-Runtime tests use real current timestamps and the production snapshot provider. They assert exact classifications and scores, but confidence by band/range. They must never use arbitrary sleeps as the primary synchronization mechanism; they poll or await explicit persisted/probe conditions with bounded deadlines and report the last observed state on timeout.
+Runtime tests use real current timestamps, the exact trigger event, and the
+production snapshot provider. They assert exact classifications, Decision
+language, and restrictions. Fixed-input model tests own exact score decimals;
+runtime confidence is asserted by band/range because capture freshness changes
+with wall time. Runtime tests must never use arbitrary sleeps as the primary
+synchronization mechanism; they poll or await explicit persisted/probe
+conditions with bounded deadlines and report the last observed state on timeout.
 
 ## 14. Definition of done
 
@@ -332,3 +383,8 @@ The Regime Discovery verification suite is complete when:
 - verification tests are non-parallel where shared infrastructure requires it;
 - the Verification category can be run independently from Unit, BDD, and Integrated suites; and
 - the full solution, Trade Unit, Trade BDD, Trade Integrated, and Trade Verification suites pass without skipped verification placeholders.
+
+RD-25 qualification on 2026-08-29 passed the serialized full solution build
+with zero warnings/errors, Trade Unit 323/323, Market Data Analytics Unit
+946/946, Trade BDD 18/18, Trade Integrated 46/48 with the same two explicit
+legacy skips, and Trade Verification 67/67 with no skips.

@@ -71,7 +71,9 @@ public enum RegimeDiscoverySignalMetric : byte
     /// <summary>ITI reversal progress.</summary>
     ItiReversalLevel = 30,
     /// <summary>Optional TDI value.</summary>
-    Tdi = 31
+    Tdi = 31,
+    /// <summary>Current front VX futures level.</summary>
+    VxFrontLevel = 32
 }
 
 /// <summary>Identifies why a requested signal metric cannot be consumed.</summary>

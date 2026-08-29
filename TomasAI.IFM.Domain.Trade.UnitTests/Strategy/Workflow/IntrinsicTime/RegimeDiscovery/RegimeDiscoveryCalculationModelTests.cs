@@ -2,7 +2,9 @@ using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
@@ -76,7 +78,75 @@ public sealed class RegimeDiscoveryCalculationModelTests
 
         result.Classification.Should().Be(MarketStructureClassification.BreakingOut);
         result.Breakout.Should().Be(MarketBreakoutState.Up);
-        result.Score.Should().Be(0.300000m);
+        result.Score.Should().Be(0.250000m);
+    }
+
+    /// <summary>Confirms price/high/low/ATR are active decision inputs rather than presence-only gates.</summary>
+    [Fact]
+    public void Market_structure_uses_direct_price_and_range_inputs()
+    {
+        var input = Replace(CreateInput(), RegimeDiscoverySignalMetric.CurrentPrice,
+            TimeFrameType.Daily, 103m);
+
+        var result = new MarketStructureRegimeCalculationModel().Calculate(input);
+
+        result.Classification.Should().NotBe(MarketStructureClassification.BreakingOut);
+        result.Breakout.Should().Be(MarketBreakoutState.None);
+        result.Evidence.Should().Contain(item => item.EvidenceId == "BREAKOUT_DERIVED" && item.Value == 0m);
+    }
+
+    /// <summary>Confirms the immutable trigger overrides a newer or inconsistent target-horizon cache value.</summary>
+    [Fact]
+    public void Trigger_event_is_authoritative_for_target_horizon_iti_and_price()
+    {
+        var input = CreateInput();
+        var trigger = new FuturesItiSignalGeneratedEvent
+        {
+            Id = input.TriggerEventId,
+            EntityId = input.EntityId.ItiSignalEntityId,
+            CreatedOn = Utc(15, 59),
+            VixFuturesPrice = 18d,
+            FuturesItiSignal = new FuturesItiSignalV2ReadModel
+            {
+                ContractId = input.EntityId.ItiSignalEntityId.ContractId,
+                ValueDate = input.EntityId.ItiSignalEntityId.ValueDate,
+                TimeFrameStartValueDate = input.EntityId.ItiSignalEntityId.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                SequenceId = 99,
+                IntrinsicTime = Utc(15, 59),
+                IntrinsicPrice = 110d,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.DownTrend,
+                BandLevel = 0.8d,
+                ReversalLevel = 0.2d
+            }
+        };
+
+        var structure = new MarketStructureRegimeCalculationModel().Calculate(input with { TriggerEvent = trigger });
+        var trend = new TrendRegimeCalculationModel().Calculate(input with { TriggerEvent = trigger });
+
+        structure.Breakout.Should().Be(MarketBreakoutState.Up);
+        structure.Evidence.Should().Contain(item => item.EvidenceId == "BREAKOUT_DERIVED" && item.Value == 1m);
+        trend.Evidence.Where(item => item.EvidenceId == "ITI").Should()
+            .OnlyContain(item => item.SignalIdentity.Contains(input.TriggerEventId.ToString(), StringComparison.Ordinal));
+    }
+
+    /// <summary>Confirms optional TDI changes trend evidence and score without becoming required.</summary>
+    [Fact]
+    public void Available_tdi_is_weighted_as_optional_trend_confirmation()
+    {
+        var baselineInput = CreateInput();
+        var observations = baselineInput.Snapshot.Observations.ToList();
+        Add(observations, TimeFrameType.FifteenMinutes, RegimeDiscoverySignalMetric.Tdi, -1m);
+        var withTdi = baselineInput with
+        {
+            Snapshot = baselineInput.Snapshot with { Observations = observations.ToArray() }
+        };
+
+        var baseline = new TrendRegimeCalculationModel().Calculate(baselineInput);
+        var confirmed = new TrendRegimeCalculationModel().Calculate(withTdi);
+
+        confirmed.Score.Should().BeLessThan(baseline.Score);
+        confirmed.Evidence.Should().Contain(item => item.EvidenceId == "TDI_CONFIRMATION" && item.IsAvailable);
     }
 
     /// <summary>Confirms the exact Fusion formula and deterministic restrictions.</summary>
@@ -115,6 +185,40 @@ public sealed class RegimeDiscoveryCalculationModelTests
         result.Restrictions.Should().BeEmpty();
     }
 
+    /// <summary>Confirms phase and volatility change materially qualify the final decision.</summary>
+    [Fact]
+    public void Decision_uses_phase_and_volatility_change()
+    {
+        var model = new MarketRegimeFusionModel();
+        var established = model.Calculate(
+            new TrendRegimeResult { IsComplete = true, Direction = RegimeDirection.Up,
+                Phase = TrendRegimePhase.Established, Strength = TrendRegimeStrength.Strong,
+                Score = 0.8m, Confidence = 0.8m, TimeFrameAgreement = 0.9m },
+            new VolatilityRegimeResult { IsComplete = true, Level = VolatilityRegimeLevel.Normal,
+                Change = VolatilityRegimeChange.Stable, TermStructure = VxTermStructureRegime.Contango,
+                Score = 0.5m, Confidence = 0.8m },
+            new MarketStructureRegimeResult { IsComplete = true,
+                Classification = MarketStructureClassification.Trending, Direction = RegimeDirection.Up,
+                Score = 0.4m, Confidence = 0.8m }, new MarketRegimeFusionConfiguration());
+        var reversing = model.Calculate(
+            new TrendRegimeResult { IsComplete = true, Direction = RegimeDirection.Up,
+                Phase = TrendRegimePhase.Reversing, Strength = TrendRegimeStrength.Strong,
+                Score = 0.8m, Confidence = 0.8m, TimeFrameAgreement = 0.9m },
+            new VolatilityRegimeResult { IsComplete = true, Level = VolatilityRegimeLevel.Normal,
+                Change = VolatilityRegimeChange.Expanding, TermStructure = VxTermStructureRegime.Backwardation,
+                Score = 0.5m, Confidence = 0.8m },
+            new MarketStructureRegimeResult { IsComplete = true,
+                Classification = MarketStructureClassification.Trending, Direction = RegimeDirection.Up,
+                Score = 0.4m, Confidence = 0.8m }, new MarketRegimeFusionConfiguration());
+
+        reversing.RiskAdjustedConviction.Should().BeLessThan(established.RiskAdjustedConviction);
+        reversing.Confidence.Should().BeLessThan(established.Confidence);
+        reversing.Restrictions.Should().Contain(RegimeRestriction.Transition);
+        reversing.TrendPhase.Should().Be(TrendRegimePhase.Reversing);
+        reversing.VolatilityChange.Should().Be(VolatilityRegimeChange.Expanding);
+        reversing.TermStructure.Should().Be(VxTermStructureRegime.Backwardation);
+    }
+
     /// <summary>Confirms sequential and thread-pool-parallel coordination serialize identically.</summary>
     [Fact]
     public async Task Sequential_and_parallel_results_are_byte_equivalent()
@@ -126,8 +230,8 @@ public sealed class RegimeDiscoveryCalculationModelTests
         var parallel = await model.CalculateAsync(input, RegimeDiscoveryExecutionMode.ThreadPoolParallel);
 
         MessagePackSerializer.Serialize(parallel).Should().Equal(MessagePackSerializer.Serialize(sequential));
-        sequential.Fusion.IsComplete.Should().BeTrue();
-        sequential.Fusion.DirectionalScore.Should().Be(0.622888m);
+        sequential.Decision.IsComplete.Should().BeTrue();
+        sequential.Decision.DirectionalScore.Should().Be(0.605388m);
     }
 
     internal static RegimeDiscoveryCalculationInput CreateInput()
@@ -244,11 +348,13 @@ public sealed class RegimeDiscoveryCalculationModelTests
             RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
         RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
             RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel =>
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel or
+            RegimeDiscoverySignalMetric.VxFrontLevel =>
             MarketAnalyticsSignalKind.VxTermStructure,
         RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
             RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice =>
             MarketAnalyticsSignalKind.Iti,
+        RegimeDiscoverySignalMetric.Tdi => MarketAnalyticsSignalKind.Tdi,
         _ => MarketAnalyticsSignalKind.MarketStructure
     };
 

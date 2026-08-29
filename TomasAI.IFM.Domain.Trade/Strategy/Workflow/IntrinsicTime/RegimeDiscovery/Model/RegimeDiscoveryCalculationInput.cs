@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 
@@ -15,6 +16,8 @@ public sealed record RegimeDiscoveryCalculationInput
     public IntrinsicTimeStrategyWorkflowEntityId EntityId { get; init; }
     /// <summary>Gets the triggering ITI event identity.</summary>
     public Guid TriggerEventId { get; init; }
+    /// <summary>Gets the immutable triggering ITI event used as the authoritative target-horizon ITI input.</summary>
+    public FuturesItiSignalGeneratedEvent? TriggerEvent { get; init; }
     /// <summary>Gets the complete frozen parameter set.</summary>
     public RegimeDiscoveryParameterSet ParameterSet { get; init; } = new();
     /// <summary>Gets one revision-stable market-signal snapshot.</summary>

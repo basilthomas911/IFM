@@ -27,6 +27,7 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
         result.Completed!.Subject.ActorType.Should().Be(ActorType.Function);
         result.Completed.ParameterPayloadSha256.Should().Be(command.ParameterPayloadSha256);
         result.Completed.SignalSnapshotId.Should().NotBeEmpty();
+        result.Completed.Result.SchemaVersion.Should().Be(RegimeDiscoveryResult.CurrentSchemaVersion);
     }
 
     [Fact]
@@ -113,7 +114,7 @@ public sealed class RegimeDiscoveryFunctionExecutionTests
             EntityId = command.WorkflowEntityId,
             ProducedAtUtc = Now.AddSeconds(1),
             MarketDataAsOfUtc = Now,
-            Fusion = new MarketRegimeFusionResult { IsComplete = true }
+            Decision = new RegimeDiscoveryDecision { IsComplete = true }
         }, Guid.Parse("0198E212-3C00-7000-8000-000000000511"), 9);
 
     internal static ExecuteRegimeDiscoveryPipelineCommand Command(DateTime expiresAtUtc)

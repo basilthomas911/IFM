@@ -48,7 +48,7 @@ public sealed class MarketConditionCalculationModel
             IntrinsicTimeTrendType.DownTrend => MarketConditionDirection.Bearish,
             _ => throw Invalid("The ITI trigger trend is not directional.")
         };
-        var alignment = Alignment(direction, input.RegimeResult.Fusion.Direction);
+        var alignment = Alignment(direction, input.RegimeResult.Decision.Direction);
         if (alignment == MarketConditionUpstreamAlignment.Unknown)
             throw Invalid("The upstream Regime direction is unknown.");
 
@@ -87,7 +87,7 @@ public sealed class MarketConditionCalculationModel
             var penalties = Math.Min(p.Scoring.MaximumTotalPenalty,
                 Math.Min(p.Scoring.OptionalMissingMaximumPenalty,
                     input.OptionalMissingCategoryCount * p.Scoring.OptionalMissingPenalty) +
-                (input.RegimeResult.Fusion.Restrictions.Contains(RegimeRestriction.LowConfidence)
+                (input.RegimeResult.Decision.Restrictions.Contains(RegimeRestriction.LowConfidence)
                     ? p.Scoring.LowConfidencePenalty : 0m) +
                 (condition == MarketConditionType.Transition ? p.Scoring.TransitionPenalty : 0m) +
                 Math.Min(p.Scoring.ConflictingEvidenceMaximumPenalty,
@@ -265,7 +265,7 @@ public sealed class MarketConditionCalculationModel
         var s = x.Snapshot.WorkflowEligibility; var p = x.ParameterSet.WorkflowEligibility;
         if (!s.EntriesEnabled && p.RequireEntriesEnabled)
             Add(b, MarketConditionEvidenceArea.Workflow, MarketConditionReasonCodes.WorkflowIneligible);
-        if (x.RegimeResult.Fusion.Restrictions.Intersect(p.BlockingRegimeRestrictions).Any())
+        if (x.RegimeResult.Decision.Restrictions.Intersect(p.BlockingRegimeRestrictions).Any())
             Add(b, MarketConditionEvidenceArea.Workflow, MarketConditionReasonCodes.RegimeNoNewTrade);
         if ((x.Snapshot.EvaluationTimestampUtc - s.RegimeProducedAtUtc).TotalSeconds > p.MaximumRegimeAgeSeconds ||
             (x.Snapshot.EvaluationTimestampUtc - s.TriggerProducedAtUtc).TotalSeconds > p.MaximumTriggerAgeSeconds)
@@ -389,16 +389,16 @@ public sealed class MarketConditionCalculationModel
     {
         if (b.Any(x => x.Area == MarketConditionEvidenceArea.MarketIntegrity)) return MarketConditionType.Dislocated;
         if (a == MarketConditionUpstreamAlignment.Conflict) return MarketConditionType.NoOpportunity;
-        if (r.Fusion.Restrictions.Contains(RegimeRestriction.Transition) ||
+        if (r.Decision.Restrictions.Contains(RegimeRestriction.Transition) ||
             r.MarketStructure.Classification == MarketStructureClassification.Transitioning) return MarketConditionType.Transition;
-        if (v == MarketConditionVolatilityBehavior.Expanding && !r.Fusion.Restrictions.Contains(RegimeRestriction.NoNewTrade))
+        if (v == MarketConditionVolatilityBehavior.Expanding && !r.Decision.Restrictions.Contains(RegimeRestriction.NoNewTrade))
             return MarketConditionType.VolatilityExpansion;
         if (v == MarketConditionVolatilityBehavior.Contracting &&
             r.MarketStructure.Classification is MarketStructureClassification.Ranging or MarketStructureClassification.Compressing &&
-            r.Fusion.Direction == RegimeDirection.Neutral) return MarketConditionType.VolatilityContraction;
-        if (r.MarketStructure.Classification == MarketStructureClassification.Ranging && r.Fusion.Direction == RegimeDirection.Neutral)
+            r.Decision.Direction == RegimeDirection.Neutral) return MarketConditionType.VolatilityContraction;
+        if (r.MarketStructure.Classification == MarketStructureClassification.Ranging && r.Decision.Direction == RegimeDirection.Neutral)
             return MarketConditionType.RangeBound;
-        if (r.Fusion.Direction is RegimeDirection.Up or RegimeDirection.Down && a == MarketConditionUpstreamAlignment.Aligned)
+        if (r.Decision.Direction is RegimeDirection.Up or RegimeDirection.Down && a == MarketConditionUpstreamAlignment.Aligned)
             return MarketConditionType.Directional;
         return MarketConditionType.NoOpportunity;
     }

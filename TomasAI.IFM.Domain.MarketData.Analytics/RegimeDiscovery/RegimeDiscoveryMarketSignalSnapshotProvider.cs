@@ -100,7 +100,8 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
             requirement.TimeFrame, requirement.CalculationConfigurationId);
         if (!Observations.TryGetValue(key, out var source) &&
             !(requirement.Metric is RegimeDiscoverySignalMetric.VxFrontSecondRatio or
-                RegimeDiscoverySignalMetric.VixLevel && TryGetExternal(requirement, out source)))
+                RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel &&
+              TryGetExternal(requirement, out source)))
             return Missing(request, requirement, RegimeDiscoverySignalAvailability.Missing);
         var availability = source.Availability != RegimeDiscoverySignalAvailability.Available
             ? source.Availability
@@ -166,11 +167,13 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProvider
             RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
         RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
             RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel =>
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel or
+            RegimeDiscoverySignalMetric.VxFrontLevel =>
             MarketAnalyticsSignalKind.VxTermStructure,
         RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
             RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice =>
             MarketAnalyticsSignalKind.Iti,
+        RegimeDiscoverySignalMetric.Tdi => MarketAnalyticsSignalKind.Tdi,
         _ => MarketAnalyticsSignalKind.MarketStructure
     };
 }

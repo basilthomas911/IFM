@@ -125,7 +125,8 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
                 MarketSeriesIdentity.ForContract(signalId.ContractId),
                 parameterSets[signalId.TimePeriod]);
             foreach (var requirement in request.Requirements.Where(requirement =>
-                         !execution.Scenario.OmittedMetrics.Contains(requirement.Metric)))
+                         !execution.Scenario.OmittedMetrics.Contains(requirement.Metric) &&
+                         (requirement.IsRequired || execution.Scenario.Values.ContainsKey(requirement.Metric))))
             {
                 var now = DateTime.UtcNow;
                 cache.Upsert(new RegimeDiscoverySignalObservation
@@ -191,7 +192,8 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
     }
 
     public async ValueTask<FuturesItiSignalGeneratedEvent> PublishAsync(
-        IntrinsicTimeStrategyWorkflowEntityId entityId)
+        IntrinsicTimeStrategyWorkflowEntityId entityId,
+        RegimeDiscoveryScenario? scenario = null)
     {
         var signalId = entityId.ItiSignalEntityId;
         var now = DateTime.UtcNow;
@@ -215,11 +217,19 @@ public sealed class RegimeDiscoveryVerificationFixture : IAsyncDisposable
                 TimeFrameStartValueDate = signalId.ValueDate,
                 TimePeriod = signalId.TimePeriod,
                 IntrinsicTime = now,
-                IntrinsicPrice = 6500d
+                IntrinsicPrice = (double)(scenario?.Value(RegimeDiscoverySignalMetric.CurrentPrice) ?? 6500m),
+                IntrinsicTimeTrend = (scenario?.Value(RegimeDiscoverySignalMetric.ItiDirection) ?? 0m) switch
+                {
+                    > 0m => IntrinsicTimeTrendType.UpTrend,
+                    < 0m => IntrinsicTimeTrendType.DownTrend,
+                    _ => default
+                },
+                BandLevel = (double)(scenario?.Value(RegimeDiscoverySignalMetric.ItiBandLevel) ?? 0m),
+                ReversalLevel = (double)(scenario?.Value(RegimeDiscoverySignalMetric.ItiReversalLevel) ?? 0m)
             },
             CreatedOn = now,
             CreatedBy = "regime-discovery-verification",
-            VixFuturesPrice = 18d
+            VixFuturesPrice = (double)(scenario?.Value(RegimeDiscoverySignalMetric.VxFrontLevel) ?? 18m)
         };
         await publisher.SendAsync<FuturesItiSignalGeneratedEvent, FuturesItiSignalEntityId>(
             trigger.Subject,

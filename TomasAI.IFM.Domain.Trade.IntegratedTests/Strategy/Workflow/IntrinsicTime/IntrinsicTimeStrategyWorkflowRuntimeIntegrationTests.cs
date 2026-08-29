@@ -27,6 +27,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.E
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
@@ -137,6 +138,19 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 regime.Should().NotBeNull();
                 regime!.Status.Should().Be("Completed");
                 regime.ResultPayload.Should().NotBeEmpty();
+                regime.SchemaVersion.Should().Be(RegimeDiscoveryResult.CurrentSchemaVersion);
+                var result = MessagePackSerializer.Deserialize<RegimeDiscoveryResult>(regime.ResultPayload);
+                result.SchemaVersion.Should().Be(RegimeDiscoveryResult.CurrentSchemaVersion);
+                result.SchemaVersion.Should().Be(2);
+                result.Decision.IsComplete.Should().BeTrue();
+                result.Decision.TrendPhase.Should().Be(result.Trend.Phase);
+                result.Decision.TrendStrength.Should().Be(result.Trend.Strength);
+                result.Decision.VolatilityLevel.Should().Be(result.Volatility.Level);
+                result.Decision.VolatilityChange.Should().Be(result.Volatility.Change);
+                result.Decision.TermStructure.Should().Be(result.Volatility.TermStructure);
+                result.Decision.StructureClassification.Should().Be(result.MarketStructure.Classification);
+                result.Decision.Breakout.Should().Be(result.MarketStructure.Breakout);
+                result.SupportingEvidence.Should().Contain(value => value.EvidenceId == "TDI_CONFIRMATION");
                 pipelines.ProcessedStages(entity).Should().Contain(StrategyWorkflowStage.TradeSelection);
                 pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(1);
             }
@@ -814,7 +828,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 TimeFrameStartValueDate = signalId.ValueDate,
                 TimePeriod = signalId.TimePeriod,
                 IntrinsicTime = now,
-                IntrinsicPrice = 6500d,
+                IntrinsicPrice = 105d,
                 IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
                 IntrinsicTimeMode = IntrinsicTimeModeType.Trending,
                 BandLevel = 1d,
@@ -1127,7 +1141,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         RegimeDiscoverySignalMetric.MacdHistogram => 0.5m,
         RegimeDiscoverySignalMetric.Atr14 => 2m,
         RegimeDiscoverySignalMetric.AtrBaselineRatio => 1m,
-        RegimeDiscoverySignalMetric.VixLevel => 18m,
+        RegimeDiscoverySignalMetric.VixLevel or RegimeDiscoverySignalMetric.VxFrontLevel => 18m,
         RegimeDiscoverySignalMetric.VxFrontSecondRatio => 0.95m,
         RegimeDiscoverySignalMetric.PriorVolatilityComposite => 0.35m,
         RegimeDiscoverySignalMetric.RealizedVolatilityPercentile => 0.40m,
@@ -1141,6 +1155,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         RegimeDiscoverySignalMetric.ItiDirection => 1m,
         RegimeDiscoverySignalMetric.ItiBandLevel => 1.2m,
         RegimeDiscoverySignalMetric.ItiReversalLevel => 0.1m,
+        RegimeDiscoverySignalMetric.Tdi => 1m,
         _ => 1m
     };
 
@@ -1158,11 +1173,13 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
         RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
             RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel =>
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel or
+            RegimeDiscoverySignalMetric.VxFrontLevel =>
             MarketAnalyticsSignalKind.VxTermStructure,
         RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
             RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice =>
             MarketAnalyticsSignalKind.Iti,
+        RegimeDiscoverySignalMetric.Tdi => MarketAnalyticsSignalKind.Tdi,
         _ => MarketAnalyticsSignalKind.MarketStructure
     };
 

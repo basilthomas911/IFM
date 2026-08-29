@@ -77,12 +77,63 @@ internal static class RegimeDiscoveryMath
         TimeFrameType timeFrame) => snapshot.Observations.FirstOrDefault(observation =>
             observation.Metric == metric && observation.SignalKey.TimeFrame == timeFrame);
 
+    internal static RegimeDiscoverySignalObservation? Find(
+        RegimeDiscoveryCalculationInput input,
+        RegimeDiscoverySignalMetric metric,
+        TimeFrameType timeFrame)
+    {
+        var observation = Find(input.Snapshot, metric, timeFrame);
+        if (timeFrame != input.ParameterSet.TargetHorizon ||
+            input.TriggerEvent?.FuturesItiSignal is not { } trigger)
+            return observation;
+
+        decimal? authoritativeValue = metric switch
+        {
+            RegimeDiscoverySignalMetric.CurrentPrice => (decimal)trigger.IntrinsicPrice,
+            RegimeDiscoverySignalMetric.ItiDirection => trigger.IntrinsicTimeTrend switch
+            {
+                IntrinsicTimeTrendType.UpTrend => 1m,
+                IntrinsicTimeTrendType.DownTrend => -1m,
+                _ => 0m
+            },
+            RegimeDiscoverySignalMetric.ItiBandLevel => (decimal)trigger.BandLevel,
+            RegimeDiscoverySignalMetric.ItiReversalLevel => (decimal)trigger.ReversalLevel,
+            RegimeDiscoverySignalMetric.VxFrontLevel when input.TriggerEvent.VixFuturesPrice > 0 =>
+                (decimal)input.TriggerEvent.VixFuturesPrice,
+            _ => null
+        };
+        if (authoritativeValue is null)
+            return observation;
+        if (observation is null)
+            return null;
+
+        var marketDataAsOfUtc = DateTime.SpecifyKind(trigger.IntrinsicTime, DateTimeKind.Utc);
+        var calculatedAtUtc = input.TriggerEvent.CreatedOn == default
+            ? input.TriggerEvent.ReceivedOn
+            : input.TriggerEvent.CreatedOn;
+        return observation with
+        {
+            Value = authoritativeValue.Value,
+            MarketDataAsOfUtc = marketDataAsOfUtc,
+            CalculatedAtUtc = calculatedAtUtc,
+            SourceSequence = trigger.SequenceId,
+            SignalIdentity = $"Trigger.{input.TriggerEventId}.{metric}.{timeFrame}"
+        };
+    }
+
     internal static RegimeDiscoverySignalObservation? FindAny(
         RegimeDiscoveryMarketSignalSnapshot snapshot,
         RegimeDiscoverySignalMetric metric,
         TimeFrameType preferredTimeFrame) =>
         Find(snapshot, metric, preferredTimeFrame) ??
         snapshot.Observations.FirstOrDefault(observation => observation.Metric == metric);
+
+    internal static RegimeDiscoverySignalObservation? FindAny(
+        RegimeDiscoveryCalculationInput input,
+        RegimeDiscoverySignalMetric metric,
+        TimeFrameType preferredTimeFrame) =>
+        Find(input, metric, preferredTimeFrame) ??
+        input.Snapshot.Observations.FirstOrDefault(observation => observation.Metric == metric);
 
     internal static bool IsAvailable(RegimeDiscoverySignalObservation? observation) =>
         observation is

@@ -16,8 +16,6 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 /// <summary>Produces one completed candidate or one non-durable failed Function response before the deadline.</summary>
 public static class ExecuteRegimeDiscoveryPipeline
 {
-    const int SchemaVersion = 1;
-
     public static async ValueTask<FunctionResult<
         RegimeDiscoveryPipelineCompletedEvent,
         RegimeDiscoveryPipelineFailedEvent>> ExecuteAsync(
@@ -106,19 +104,20 @@ public static class ExecuteRegimeDiscoveryPipeline
                 WorkflowId = command.WorkflowId,
                 EntityId = command.WorkflowEntityId,
                 TriggerEventId = command.TriggerEvent.Id,
+                TriggerEvent = command.TriggerEvent,
                 ParameterSet = command.ParameterSet,
                 Snapshot = snapshotResult.Snapshot,
                 ProducedAtUtc = UtcNow(context.TimeProvider)
             }, context.ExecutionMode, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return calculated.Fusion.IsComplete
+        return calculated.Decision.IsComplete
             ? new RegimeDiscoveryExecutionCompleted(
                 calculated,
                 snapshotResult.Snapshot.SnapshotId,
                 snapshotResult.Snapshot.CacheRevision)
             : new RegimeDiscoveryExecutionFailed(
                 calculated.ProducedAtUtc,
-                "Regime Discovery specialist or Fusion calculation did not complete.",
+                "Regime Discovery specialist or decision calculation did not complete.",
                 "RegimeDiscoveryCalculation",
                 23102,
                 calculated.Reasons,
@@ -147,7 +146,7 @@ public static class ExecuteRegimeDiscoveryPipeline
             Result = StrategyStageResultEnvelope.Create(
                 outcome.Result.ResultId,
                 nameof(RegimeDiscoveryResult),
-                SchemaVersion,
+                RegimeDiscoveryResult.CurrentSchemaVersion,
                 payload,
                 outcome.Result.MarketDataAsOfUtc,
                 outcome.Result.ProducedAtUtc),

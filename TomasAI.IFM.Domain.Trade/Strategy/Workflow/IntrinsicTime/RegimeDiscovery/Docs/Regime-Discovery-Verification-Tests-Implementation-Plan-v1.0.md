@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Complete; RDV-00 through RDV-09 qualified |
+| Status | Complete; RDV-00 through RDV-10 and RD-20 through RD-25 qualified |
 | Created | 2026-08-28 |
 | Source specification | `Regime-Discovery-Verification-Tests-v1.0.md` |
 | Target project | `TomasAI.IFM.Domain.Trade.VerificationTests` |
@@ -27,6 +27,7 @@ RDV-00 Baseline and specification freeze
   -> RDV-07 Volatility, Fusion, and optional-data scenarios
   -> RDV-08 Failure, timeout, and projection atomicity
   -> RDV-09 Persistence, exactly-once continuation, and final qualification
+  -> RDV-10 Decision V2 input-maximization and combination qualification
 ```
 
 No later gate is complete until its own targeted tests and all earlier verification tests are green.
@@ -103,11 +104,11 @@ Exit gate:
 Steps:
 
 1. Execute production Trend, Volatility, Market Structure, and Fusion models with fixed timestamps and freshness.
-2. Verify exact Trending Up scores: `0.796750`, `0.353125`, `0.966667`, `0.856221`, and `0.705044`.
-3. Verify exact Bullish Breakout scores: structure `0.300000`, Fusion `0.622888`, and conviction `0.512909`.
+2. Verify the current Trending Up scores for every horizon: `0.799250`, `0.353125`, `0.966667`, `0.857846`, and `0.706383`.
+3. Verify exact Bullish Breakout scores: structure `0.300000`, Decision `0.624512`, and conviction `0.514247`.
 4. Verify deterministic evidence/reason ordering and expected reason codes.
 5. Verify sequential and parallel calculations serialize byte-identically.
-6. Verify the same uniform market vector produces identical scores for Daily, Weekly, and Monthly while using the correct configured evidence timeframes.
+6. Verify the same uniform market vector produces identical scores for Daily, Weekly, and Monthly while using TDI on every correct configured evidence timeframe.
 
 Exit gate:
 
@@ -194,6 +195,33 @@ Exit gate:
 - verification can be run independently with a documented command;
 - no failure path can select a later pipeline.
 
+### RDV-10 — Decision V2 input-maximization and combination qualification
+
+Steps:
+
+1. Verify exact trigger-event authority for target-horizon price, ITI direction,
+   band, reversal, provenance, and front VX.
+2. Verify TDI cache publication and optional 75/25 ITI/TDI weighting with a
+   full-ITI fallback when TDI is absent.
+3. Verify spot VIX, front VX, and Daily term structure remain distinct.
+4. Verify direct price/high/low/ATR breakout derivation and confidence reduction
+   when the supplied breakout signal disagrees.
+5. Verify schema-V1-shaped result deserialization into the wire-compatible
+   schema-V2 nested `RegimeDiscoveryDecision`.
+6. Execute the 12-case minimum reasonable pairwise Decision matrix and assert
+   mirrored language, restrictions, confidence, and conviction bounds.
+7. Add BDD scenarios for aligned direction, transition/expansion, extreme
+   volatility, and specialist direction conflict.
+8. Strengthen live integration to deserialize schema V2, validate Decision
+   specialist fields, and require real TDI supporting evidence.
+
+Exit gate:
+
+- all RD-20 through RD-25 inputs have executable positive and fallback tests;
+- no Decision field is inferred from a downstream trade hint;
+- the combination matrix is broad enough to cover common market language but
+  intentionally avoids a low-value full Cartesian product.
+
 ## 4. Planned test commands
 
 Focused project:
@@ -232,7 +260,8 @@ This plan does not:
 
 ## 6. Implementation record
 
-All gates were completed on 2026-08-28.
+RDV-00 through RDV-09 were completed on 2026-08-28. RDV-10 and RD-20 through
+RD-25 were completed on 2026-08-29.
 
 | Gate | Status | Qualification evidence |
 |---|---|---|
@@ -246,17 +275,19 @@ All gates were completed on 2026-08-28.
 | RDV-07 | Complete | Extreme volatility, backwardation, contraction, directional conflict, low confidence, and optional-evidence degradation/restriction behavior are verified. |
 | RDV-08 | Complete | Required-data availability failures, fixed timeout with late-completion fencing, and Function-projector failure all terminate fail-closed with no successful projection or downstream command. |
 | RDV-09 | Complete | PostgreSQL Function state, Scylla projection, workflow state/read model, Query API, duplicate-trigger idempotency, and concurrent-horizon isolation are cross-checked; all regression commands below are green. |
+| RDV-10 | Complete | Exact trigger authority, TDI acquisition/weighting, VIX/VX separation, direct breakout derivation, Decision schema compatibility, 12 pairwise combinations, four BDD scenarios, and live schema-V2/TDI integration assertions are executable and green. |
 
 ### Final qualification results
 
 | Qualification | Result |
 |---|---|
-| Serialized full solution build | Passed; 0 warnings, 0 errors; 36.41 seconds |
+| Serialized full solution build | Passed; 0 warnings, 0 errors; 1 minute 30.92 seconds (2026-08-29 RD-25 rerun) |
 | Verification project format check | Passed; no changes required |
-| Trade Unit | Passed 156/156; 0 skipped |
-| Trade BDD | Passed 8/8; 0 skipped |
-| Trade Integrated | Passed 41/43; 2 pre-existing explicit skips |
-| Regime Discovery Verification | Passed 33/33; 0 skipped; 22 seconds |
+| Trade Unit | Passed 323/323; 0 skipped |
+| Market Data Analytics Unit | Passed 946/946; 0 skipped |
+| Trade BDD | Passed 18/18; 0 skipped |
+| Trade Integrated | Passed 46/48; 2 pre-existing explicit skips |
+| Trade Verification | Passed 67/67; 0 skipped; 59 seconds |
 
 The solution build uses `-m:1` because two DataBento projects invoke the same native build output. A normal parallel build can race on `databento_feed_native.lastbuildstate`; this is a build-output lock, not an RDV failure.
 

@@ -14,12 +14,16 @@ public sealed class VolatilityRegimeCalculationModel
         ArgumentNullException.ThrowIfNull(input);
         var config = input.ParameterSet.Volatility;
         var horizon = input.ParameterSet.TargetHorizon;
-        var vix = Find(input, RegimeDiscoverySignalMetric.VixLevel, horizon);
+        var vixSpot = Find(input, RegimeDiscoverySignalMetric.VixLevel,
+            TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
+        var vxFront = Find(input, RegimeDiscoverySignalMetric.VxFrontLevel, horizon);
+        var levelInput = RegimeDiscoveryMath.IsAvailable(vixSpot) ? vixSpot : vxFront;
         var atrRatio = Find(input, RegimeDiscoverySignalMetric.AtrBaselineRatio, horizon);
-        var vxRatio = Find(input, RegimeDiscoverySignalMetric.VxFrontSecondRatio, horizon);
+        var vxRatio = Find(input, RegimeDiscoverySignalMetric.VxFrontSecondRatio,
+            TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType.Daily);
         var realized = Find(input, RegimeDiscoverySignalMetric.RealizedVolatilityPercentile, horizon);
         var priorComposite = Find(input, RegimeDiscoverySignalMetric.PriorVolatilityComposite, horizon);
-        var required = new[] { vix, atrRatio, vxRatio };
+        var required = new[] { levelInput, atrRatio, vxRatio };
         if (required.Any(observation => !RegimeDiscoveryMath.IsAvailable(observation)))
         {
             var failedReasons = required.Where(observation => !RegimeDiscoveryMath.IsAvailable(observation))
@@ -34,7 +38,7 @@ public sealed class VolatilityRegimeCalculationModel
             };
         }
 
-        var vixScore = VixScore(vix!.Value, config.VixNormalBoundary, config.VixHighBoundary,
+        var vixScore = VixScore(levelInput!.Value, config.VixNormalBoundary, config.VixHighBoundary,
             config.VixExtremeBoundary, config.VixMaximum);
         var atrScore = RegimeDiscoveryMath.Piecewise(atrRatio!.Value,
             (0.75m, 0m), (1m, 0.40m), (1.50m, 0.75m), (2m, 1m));
@@ -43,7 +47,7 @@ public sealed class VolatilityRegimeCalculationModel
         var realizedAvailable = RegimeDiscoveryMath.IsAvailable(realized);
         var values = new[]
         {
-            new WeightedValue(vixScore, config.VixWeight, vix.FreshnessFactor),
+            new WeightedValue(vixScore, config.VixWeight, levelInput.FreshnessFactor),
             new WeightedValue(atrScore, config.AtrRatioWeight, atrRatio.FreshnessFactor),
             new WeightedValue(vxScore, config.TermStructureWeight, vxRatio.FreshnessFactor),
             new WeightedValue(realizedAvailable ? RegimeDiscoveryMath.Clamp(realized!.Value) : 0m,
@@ -68,11 +72,13 @@ public sealed class VolatilityRegimeCalculationModel
         var termStructure = vxRatio.Value < 1m
             ? VxTermStructureRegime.Contango
             : vxRatio.Value > 1m ? VxTermStructureRegime.Backwardation : VxTermStructureRegime.Flat;
-        var noNewTrade = vix.Value >= config.VixExtremeBoundary || score >= 0.75m ||
+        var noNewTrade = levelInput.Value >= config.VixExtremeBoundary || score >= 0.75m ||
                          vxRatio.Value >= config.SevereBackwardationRatio;
         var evidence = new[]
         {
-            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "VIX", vix, vixScore,
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility,
+                RegimeDiscoveryMath.IsAvailable(vixSpot) ? "VIX_SPOT" : "VX_FRONT_LEVEL",
+                levelInput, vixScore,
                 config.VixWeight, true),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Volatility, "ATR_RATIO", atrRatio, atrScore,
                 config.AtrRatioWeight, true),
@@ -97,9 +103,9 @@ public sealed class VolatilityRegimeCalculationModel
                 termStructure == VxTermStructureRegime.Backwardation ? RegimeReasonSeverity.Warning :
                     RegimeReasonSeverity.Information, RegimeEvidenceArea.Volatility)
         };
-        if (vix.Value >= config.VixExtremeBoundary && level != VolatilityRegimeLevel.Extreme)
+        if (levelInput.Value >= config.VixExtremeBoundary && level != VolatilityRegimeLevel.Extreme)
             reasons.Add(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.VolatilityExtreme,
-                RegimeReasonSeverity.Restriction, RegimeEvidenceArea.Volatility, vix));
+                RegimeReasonSeverity.Restriction, RegimeEvidenceArea.Volatility, levelInput));
         if (change == VolatilityRegimeChange.Expanding)
             reasons.Add(RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.VolatilityExpanding,
                 RegimeReasonSeverity.Warning, RegimeEvidenceArea.Volatility));
@@ -128,7 +134,7 @@ public sealed class VolatilityRegimeCalculationModel
         RegimeDiscoveryCalculationInput input,
         RegimeDiscoverySignalMetric metric,
         TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType horizon) =>
-        RegimeDiscoveryMath.FindAny(input.Snapshot, metric, horizon);
+        RegimeDiscoveryMath.FindAny(input, metric, horizon);
 
     static decimal VixScore(decimal value, decimal normal, decimal high, decimal extreme, decimal maximum)
     {

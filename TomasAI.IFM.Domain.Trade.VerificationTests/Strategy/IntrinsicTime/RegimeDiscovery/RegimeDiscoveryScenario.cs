@@ -28,7 +28,13 @@ public sealed record RegimeDiscoveryScenario
     public RegimeRestriction[] Restrictions { get; init; } = [];
     public string[] RequiredReasonCodes { get; init; } = [];
 
-    public decimal Value(RegimeDiscoverySignalMetric metric) => Values[metric];
+    public decimal Value(RegimeDiscoverySignalMetric metric) => metric switch
+    {
+        RegimeDiscoverySignalMetric.VxFrontLevel => Values.TryGetValue(metric, out var frontVx)
+            ? frontVx
+            : Values[RegimeDiscoverySignalMetric.VixLevel],
+        _ => Values[metric]
+    };
 
     public RegimeDiscoveryScenario With(
         string name,

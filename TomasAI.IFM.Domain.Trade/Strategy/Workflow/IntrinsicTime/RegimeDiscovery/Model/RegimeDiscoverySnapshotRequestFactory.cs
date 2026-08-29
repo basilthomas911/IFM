@@ -29,9 +29,9 @@ public static class RegimeDiscoverySnapshotRequestFactory
     static readonly RegimeDiscoverySignalMetric[] TargetRequiredMetrics =
     [
         RegimeDiscoverySignalMetric.CurrentPrice,
+        RegimeDiscoverySignalMetric.Atr14,
         RegimeDiscoverySignalMetric.AtrBaselineRatio,
-        RegimeDiscoverySignalMetric.VixLevel,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio,
+        RegimeDiscoverySignalMetric.VxFrontLevel,
         RegimeDiscoverySignalMetric.BollingerWidthRatio,
         RegimeDiscoverySignalMetric.BollingerPosition,
         RegimeDiscoverySignalMetric.Ema20Interaction,
@@ -59,6 +59,17 @@ public static class RegimeDiscoverySnapshotRequestFactory
                 metric, frame.TimeFrame, frame.IsRequired, frame.MaximumAgeSeconds, frame.Weight)));
         requirements.AddRange(TargetRequiredMetrics.Select(metric => Requirement(
             metric, parameterSet.TargetHorizon, true, TargetMaximumAge(parameterSet.TargetHorizon), 1m)));
+        requirements.Add(Requirement(RegimeDiscoverySignalMetric.VxFrontSecondRatio,
+            TimeFrameType.Daily, true, TargetMaximumAge(TimeFrameType.Daily),
+            parameterSet.Volatility.TermStructureWeight));
+        requirements.Add(Requirement(RegimeDiscoverySignalMetric.VixLevel,
+            TimeFrameType.Daily, false, TargetMaximumAge(TimeFrameType.Daily),
+            parameterSet.Volatility.VixWeight));
+        requirements.Add(Requirement(RegimeDiscoverySignalMetric.BollingerWidth,
+            parameterSet.TargetHorizon, false, TargetMaximumAge(parameterSet.TargetHorizon), 0m));
+        foreach (var frame in parameterSet.Horizon.TimeFrames)
+            requirements.Add(Requirement(RegimeDiscoverySignalMetric.Tdi,
+                frame.TimeFrame, false, frame.MaximumAgeSeconds, frame.Weight));
         requirements.Add(Requirement(RegimeDiscoverySignalMetric.RealizedVolatilityPercentile,
             parameterSet.TargetHorizon, false, TargetMaximumAge(parameterSet.TargetHorizon),
             parameterSet.Volatility.RealizedVolatilityWeight));

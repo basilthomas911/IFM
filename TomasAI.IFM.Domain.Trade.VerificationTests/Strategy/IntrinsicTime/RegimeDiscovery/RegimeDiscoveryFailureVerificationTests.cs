@@ -68,7 +68,7 @@ public sealed class RegimeDiscoveryFailureVerificationTests(WebApplicationFactor
         var result = await new RegimeDiscoveryCalculationModel().CalculateAsync(input);
 
         result.Trend.IsComplete.Should().BeFalse();
-        result.Fusion.IsComplete.Should().BeFalse();
+        result.Decision.IsComplete.Should().BeFalse();
         result.Reasons.Should().Contain(reason =>
             reason.Code == RegimeDiscoveryReasonCodes.RequiredDataMissing &&
             reason.Severity == RegimeReasonSeverity.Failure);

@@ -101,7 +101,7 @@ public sealed class TrendRegimeCalculationModel
         };
         var observations = requiredMetrics.ToDictionary(
             metric => metric,
-            metric => RegimeDiscoveryMath.Find(input.Snapshot, metric, frame.TimeFrame));
+            metric => RegimeDiscoveryMath.Find(input, metric, frame.TimeFrame));
         if (observations.Values.Any(observation => !RegimeDiscoveryMath.IsAvailable(observation)))
         {
             foreach (var observation in observations.Values.Where(value => !RegimeDiscoveryMath.IsAvailable(value)))
@@ -138,6 +138,7 @@ public sealed class TrendRegimeCalculationModel
         var itiDirection = Observation(input, RegimeDiscoverySignalMetric.ItiDirection);
         var itiBand = Observation(input, RegimeDiscoverySignalMetric.ItiBandLevel);
         var itiReversal = Observation(input, RegimeDiscoverySignalMetric.ItiReversalLevel);
+        var tdi = RegimeDiscoveryMath.Find(input, RegimeDiscoverySignalMetric.Tdi, frame.TimeFrame);
         if (!RegimeDiscoveryMath.IsAvailable(itiDirection) || !RegimeDiscoveryMath.IsAvailable(itiBand) ||
             !RegimeDiscoveryMath.IsAvailable(itiReversal))
         {
@@ -146,6 +147,9 @@ public sealed class TrendRegimeCalculationModel
         }
         var itiScore = RegimeDiscoveryMath.Round(RegimeDiscoveryMath.Sign(itiDirection!.Value) *
             RegimeDiscoveryMath.Clamp(itiBand!.Value) * (1m - RegimeDiscoveryMath.Clamp(itiReversal!.Value)));
+        var tdiWeight = !RegimeDiscoveryMath.IsAvailable(tdi)
+            ? 0m : configuration.ItiWeight * 0.25m;
+        var itiWeight = configuration.ItiWeight - tdiWeight;
         var components = new[]
         {
             new WeightedValue(alignment, configuration.EmaAlignmentWeight, MinimumFreshness(observations.Values)),
@@ -153,7 +157,9 @@ public sealed class TrendRegimeCalculationModel
             new WeightedValue(rsiScore, configuration.RsiWeight, MinimumFreshness(observations.Values)),
             new WeightedValue(adxScore, configuration.AdxWeight, MinimumFreshness(observations.Values)),
             new WeightedValue(macdScore, configuration.MacdWeight, MinimumFreshness(observations.Values)),
-            new WeightedValue(itiScore, configuration.ItiWeight, itiDirection.FreshnessFactor)
+            new WeightedValue(itiScore, itiWeight, itiDirection.FreshnessFactor),
+            new WeightedValue(tdi?.Value ?? 0m, tdiWeight, tdi?.FreshnessFactor ?? 0m,
+                RegimeDiscoveryMath.IsAvailable(tdi))
         };
         evidence.Add(RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Trend, "EMA_ALIGNMENT",
             observations[RegimeDiscoverySignalMetric.Ema20], alignment, configuration.EmaAlignmentWeight, frame.IsRequired));
@@ -166,14 +172,21 @@ public sealed class TrendRegimeCalculationModel
         evidence.Add(RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Trend, "MACD",
             observations[RegimeDiscoverySignalMetric.MacdHistogram], macdScore, configuration.MacdWeight, frame.IsRequired));
         evidence.Add(RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Trend, "ITI",
-            itiDirection, itiScore, configuration.ItiWeight, true));
+            itiDirection, itiScore, itiWeight, true));
+        evidence.Add(RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.Trend, "TDI_CONFIRMATION",
+            tdi, tdi?.Value ?? 0m, configuration.ItiWeight * 0.25m, false));
+        if (!RegimeDiscoveryMath.IsAvailable(tdi))
+        {
+            reasons.Add(RegimeDiscoveryMath.MissingReason(RegimeEvidenceArea.Trend, tdi, false));
+        }
         return new(true, RegimeDiscoveryMath.WeightedScore(components),
-            components.Min(component => component.FreshnessFactor), [rsiScore, adxScore, macdScore]);
+            components.Where(component => component.Weight > 0m && component.IsAvailable)
+                .Min(component => component.FreshnessFactor), [rsiScore, adxScore, macdScore]);
     }
 
     static RegimeDiscoverySignalObservation? Observation(
         RegimeDiscoveryCalculationInput input, RegimeDiscoverySignalMetric metric) =>
-        RegimeDiscoveryMath.FindAny(input.Snapshot, metric, input.ParameterSet.TargetHorizon);
+        RegimeDiscoveryMath.FindAny(input, metric, input.ParameterSet.TargetHorizon);
 
     static decimal MinimumFreshness(IEnumerable<RegimeDiscoverySignalObservation?> observations) =>
         observations.Where(observation => observation is not null).Min(observation => observation!.FreshnessFactor);

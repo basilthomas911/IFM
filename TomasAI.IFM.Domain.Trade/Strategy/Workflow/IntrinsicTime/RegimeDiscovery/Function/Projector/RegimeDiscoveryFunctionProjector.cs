@@ -14,7 +14,6 @@ namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscove
 public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory)
     : IFunctionProjector<RegimeDiscoveryPipelineCompletedEvent>
 {
-    const int SchemaVersion = 1;
     readonly IDbContextFactory _dbFactory = dbFactory ?? throw new ArgumentNullException(nameof(dbFactory));
 
     public async ValueTask ProjectAsync(
@@ -39,7 +38,7 @@ public sealed class RegimeDiscoveryFunctionProjector(IDbContextFactory dbFactory
             ResultPayload = payload,
             ResultPayloadSha256 = completed.Result.PayloadSha256,
             ReasonsPayload = MessagePackSerializer.Serialize(result.Reasons),
-            SchemaVersion = SchemaVersion,
+            SchemaVersion = completed.Result.SchemaVersion,
             TerminalAtUtc = completed.CompletedAtUtc,
             UpdatedAtUtc = completed.CompletedAtUtc
         }, cancellationToken).ConfigureAwait(false);

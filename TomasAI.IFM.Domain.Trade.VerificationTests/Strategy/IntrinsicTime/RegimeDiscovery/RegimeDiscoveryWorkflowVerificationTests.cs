@@ -29,7 +29,7 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFacto
         await fixture.PrepareAsync(executions);
 
         var triggers = await Task.WhenAll(executions.Select(async execution =>
-            (execution, trigger: await fixture.PublishAsync(execution.EntityId))));
+            (execution, trigger: await fixture.PublishAsync(execution.EntityId, execution.Scenario))));
         foreach (var (execution, trigger) in triggers)
         {
             await AssertSuccessfulExecutionAsync(fixture, execution, trigger.Id);
@@ -37,7 +37,7 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFacto
 
         var daily = executions.Single(value =>
             value.EntityId.ItiSignalEntityId.TimePeriod == TimeFrameType.Daily);
-        await fixture.PublishAsync(daily.EntityId);
+        await fixture.PublishAsync(daily.EntityId, daily.Scenario);
         await Task.Delay(250);
         fixture.Probe.Count(daily.EntityId).Should().Be(1,
             "an active workflow must not redispatch Market Condition for a duplicate trigger");
@@ -66,7 +66,7 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFacto
 
         foreach (var execution in executions)
         {
-            var trigger = await fixture.PublishAsync(execution.EntityId);
+            var trigger = await fixture.PublishAsync(execution.EntityId, execution.Scenario);
             await AssertSuccessfulExecutionAsync(fixture, execution, trigger.Id);
         }
     }
@@ -93,7 +93,7 @@ public sealed class RegimeDiscoveryWorkflowVerificationTests(WebApplicationFacto
         result.WorkflowId.Should().Be(advanced.WorkflowId);
         result.EntityId.Should().Be(execution.EntityId);
         result.TriggerEventId.Should().Be(triggerEventId);
-        result.MatchScenario(execution.Scenario, assertRuntimeConfidence: true);
+        result.MatchScenario(execution.Scenario, assertRuntimeConfidence: true, assertGoldenScores: false);
 
         advanced.WorkflowRevision.Should().Be(2);
         advanced.CurrentStage.Should().Be(StrategyWorkflowStage.MarketCondition);

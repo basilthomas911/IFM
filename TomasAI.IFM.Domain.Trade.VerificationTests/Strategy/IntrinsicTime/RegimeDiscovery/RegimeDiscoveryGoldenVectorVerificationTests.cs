@@ -28,7 +28,7 @@ public sealed class RegimeDiscoveryGoldenVectorVerificationTests
         result.Trend.Confidence.Should().Be(0.982500m);
         result.Volatility.Confidence.Should().Be(0.959719m);
         result.MarketStructure.Confidence.Should().Be(0.924900m);
-        result.Fusion.Confidence.Should().Be(0.938030m);
+        result.Decision.Confidence.Should().Be(0.938330m);
         result.OverallQuality.Should().Be(RegimeOverallQuality.High);
         result.SupportingEvidence.Select(value => value.TimeFrame).Distinct().Should()
             .BeSubsetOf(RegimeDiscoveryScenarioDataBuilder.CreateParameterSet(horizon)

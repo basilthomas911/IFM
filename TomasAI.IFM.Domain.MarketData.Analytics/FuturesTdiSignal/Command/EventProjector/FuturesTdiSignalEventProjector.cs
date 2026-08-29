@@ -5,6 +5,7 @@ using TomasAI.IFM.Application.EventProjector;
 using TomasAI.IFM.Application.EventProjector.Contracts;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Framework.Messaging.Nats;
@@ -21,9 +22,13 @@ public sealed class FuturesTdiSignalEventProjector(
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
         Describe<FuturesTdiSignalGeneratedEvent, FuturesTdiSignalGeneratedCompleteEvent, FuturesTdiSignalGeneratedFailEvent, FuturesTdiSignalEntityId>(
-            e => e.FuturesTdiSignal.SchemaVersion == FuturesTdiConfiguration.CurrentSchemaVersion
-                ? dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal)
-                : Task.CompletedTask)
+            (Func<FuturesTdiSignalGeneratedEvent, Task>)(async e =>
+            {
+                if (e.FuturesTdiSignal.SchemaVersion != FuturesTdiConfiguration.CurrentSchemaVersion)
+                    return;
+                await dbFactory.MarketDataDb.InsertFuturesTdiSignalAsync(e.FuturesTdiSignal).ConfigureAwait(false);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.FuturesTdiSignal);
+            }))
     ];
 
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

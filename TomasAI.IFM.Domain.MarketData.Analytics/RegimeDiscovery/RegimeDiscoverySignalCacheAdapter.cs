@@ -87,11 +87,37 @@ public static class RegimeDiscoverySignalCacheAdapter
             signal.IntrinsicTime, calculatedAtUtc, sourceSequence, MarketAnalyticsSignalKind.Iti, "iti-v1");
         Publish(metadata, RegimeDiscoverySignalMetric.CurrentPrice, (decimal)signal.IntrinsicPrice, true);
         if (vixLevel > 0)
-            Publish(metadata, RegimeDiscoverySignalMetric.VixLevel, vixLevel, true);
+            Publish(metadata, RegimeDiscoverySignalMetric.VxFrontLevel, vixLevel, true);
         Publish(metadata, RegimeDiscoverySignalMetric.ItiDirection,
             signal.IntrinsicTimeTrend.ToString().Contains("Up", StringComparison.OrdinalIgnoreCase) ? 1m : -1m, true);
         Publish(metadata, RegimeDiscoverySignalMetric.ItiBandLevel, (decimal)signal.BandLevel, true);
         Publish(metadata, RegimeDiscoverySignalMetric.ItiReversalLevel, (decimal)signal.ReversalLevel, true);
+    }
+
+    /// <summary>Publishes optional signed TDI confirmation evidence.</summary>
+    public static void Publish(FuturesTdiSignalReadModel signal)
+    {
+        var direction = signal.TDI switch
+        {
+            FuturesTrendDirectionType.UpTrending => 1m,
+            FuturesTrendDirectionType.DownTrending => -1m,
+            _ => 0m
+        };
+        var strength = signal.TDIStrength switch
+        {
+            FuturesTrendDirectionStrengthType.High => 1m,
+            FuturesTrendDirectionStrengthType.Medium => 0.66m,
+            _ => 0.33m
+        };
+        var metadata = Synthetic(signal.ContractId, signal.TimePeriod, signal.ValueDate,
+            signal.SourceEventTimestamp == default
+                ? signal.ValueDate.ToDateTime(signal.Timestamp, DateTimeKind.Utc)
+                : DateTime.SpecifyKind(signal.SourceEventTimestamp, DateTimeKind.Utc),
+            signal.SourceEventTimestamp == default
+                ? signal.ValueDate.ToDateTime(signal.Timestamp, DateTimeKind.Utc)
+                : DateTime.SpecifyKind(signal.SourceEventTimestamp, DateTimeKind.Utc),
+            signal.SourceSequence, MarketAnalyticsSignalKind.Tdi, $"{RegimeDiscoverySignalMetric.Tdi}.v1");
+        Publish(metadata, RegimeDiscoverySignalMetric.Tdi, direction * strength, true);
     }
 
     /// <summary>Publishes rolling range, high/low, breakout distance, and EMA interaction from a closed OHLCV bar.</summary>
@@ -202,9 +228,11 @@ public static class RegimeDiscoverySignalCacheAdapter
             RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
         RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
             RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel => MarketAnalyticsSignalKind.VxTermStructure,
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel or
+            RegimeDiscoverySignalMetric.VxFrontLevel => MarketAnalyticsSignalKind.VxTermStructure,
         RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
             RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice => MarketAnalyticsSignalKind.Iti,
+        RegimeDiscoverySignalMetric.Tdi => MarketAnalyticsSignalKind.Tdi,
         _ => MarketAnalyticsSignalKind.MarketStructure
     };
 }

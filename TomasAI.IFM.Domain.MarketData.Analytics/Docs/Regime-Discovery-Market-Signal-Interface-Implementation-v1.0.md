@@ -4,8 +4,8 @@ Implementation Specification v1.0
 
 | Item | Value |
 | --- | --- |
-| Status | MDSI-0 through MDSI-10, MDSI-12 baseline, and MDSI-13 baseline implemented; remaining gates are planned |
-| Date | 2026-08-25 |
+| Status | MDSI baseline plus RD-20 through RD-25 signal-consumption upgrade implemented; remaining MDSI gates are planned |
+| Date | 2026-08-29 |
 | Design authority | `Regime-Discovery-Market-Signal-Interface-Design-v1.0.md` |
 | Primary consumer | Intrinsic Time Strategy Workflow - Regime Discovery pipeline |
 | Actor conventions | `Documents/system/Actor-Implementation-Conventions.md` |
@@ -23,6 +23,21 @@ runtime registration, migration order, tests, and gate exit criteria.
 The implementation supplies one coherent signal interface for Regime
 Discovery without allowing the Trade domain to calculate indicators or read
 ticks, ScyllaDB, Redis, or provider APIs directly.
+
+### 1.1 RD-20 through RD-25 implementation amendment
+
+The common metric contract now includes `VxFrontLevel`. ITI projectors publish
+`VixFuturesPrice` under that metric, while `VixLevel` remains an independent
+optional spot signal. The snapshot provider accepts front VX through the same
+external-series lookup used for term structure without conflating the metrics.
+
+`FuturesTdiSignalEventProjector` and `FuturesTdiSignalRealtimeProjector` publish
+accepted schema-V2 `FuturesTdiSignalReadModel` values through
+`RegimeDiscoverySignalCacheAdapter`. TDI is keyed as
+`MarketAnalyticsSignalKind.Tdi` / `Tdi.v1`; direction and strength are
+normalized to signed values for optional Trend confirmation. Unit tests verify
+signed Medium-strength publication and prove that ITI futures volatility is
+captured as front VX while spot VIX remains missing unless separately supplied.
 
 ## 2. Binding implementation decisions
 

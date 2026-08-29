@@ -146,7 +146,7 @@ public sealed class MarketConditionGoldenVectorTests
             {
                 Trend = regime.Trend with { Direction = RegimeDirection.Down },
                 MarketStructure = regime.MarketStructure with { Direction = RegimeDirection.Down },
-                Fusion = regime.Fusion with { Direction = RegimeDirection.Down }
+                Decision = regime.Decision with { Direction = RegimeDirection.Down }
             };
         }
         if (scenario is "Range" or "Transition" or "Contraction")
@@ -159,7 +159,7 @@ public sealed class MarketConditionGoldenVectorTests
                         scenario == "Contraction" ? MarketStructureClassification.Compressing :
                         MarketStructureClassification.Ranging
                 },
-                Fusion = regime.Fusion with
+                Decision = regime.Decision with
                 {
                     Direction = RegimeDirection.Neutral,
                     Restrictions = scenario == "Transition" ? [RegimeRestriction.Transition] : []

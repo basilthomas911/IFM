@@ -20,6 +20,7 @@ public sealed class MarketStructureRegimeCalculationModel
         var emaInteraction = Find(input, RegimeDiscoverySignalMetric.Ema20Interaction, horizon);
         var range = Find(input, RegimeDiscoverySignalMetric.AtrNormalizedRange, horizon);
         var atrRatio = Find(input, RegimeDiscoverySignalMetric.AtrBaselineRatio, horizon);
+        var atr = Find(input, RegimeDiscoverySignalMetric.Atr14, horizon);
         var rollingHigh = Find(input, RegimeDiscoverySignalMetric.RollingHigh20, horizon);
         var rollingLow = Find(input, RegimeDiscoverySignalMetric.RollingLow20, horizon);
         var breakoutDistance = Find(input, RegimeDiscoverySignalMetric.BreakoutDistanceAtr, horizon);
@@ -28,7 +29,7 @@ public sealed class MarketStructureRegimeCalculationModel
         var itiReversal = Find(input, RegimeDiscoverySignalMetric.ItiReversalLevel, horizon);
         var required = new[]
         {
-            price, widthRatio, position, emaInteraction, range, atrRatio, rollingHigh, rollingLow,
+            price, widthRatio, position, emaInteraction, range, atrRatio, atr, rollingHigh, rollingLow,
             breakoutDistance, itiDirection, itiBand, itiReversal
         };
         if (required.Any(observation => !RegimeDiscoveryMath.IsAvailable(observation)))
@@ -46,6 +47,16 @@ public sealed class MarketStructureRegimeCalculationModel
                 Reasons = RegimeDiscoveryMath.OrderReasons(failedReasons)
             };
         }
+        if (atr!.Value <= 0m)
+            return new MarketStructureRegimeResult
+            {
+                IsComplete = false,
+                Classification = MarketStructureClassification.Unknown,
+                Direction = RegimeDirection.Unknown,
+                Reasons = RegimeDiscoveryMath.OrderReasons([
+                    RegimeDiscoveryMath.Reason(RegimeDiscoveryReasonCodes.SpecialistFailed,
+                        RegimeReasonSeverity.Failure, RegimeEvidenceArea.MarketStructure, atr)])
+            };
 
         var persistence = RegimeDiscoveryMath.Clamp(itiBand!.Value) *
                           (1m - RegimeDiscoveryMath.Clamp(itiReversal!.Value));
@@ -53,9 +64,18 @@ public sealed class MarketStructureRegimeCalculationModel
             RegimeDiscoveryMath.Sign(emaInteraction!.Value) +
             RegimeDiscoveryMath.Sign(position!.Value) +
             RegimeDiscoveryMath.Sign(itiDirection!.Value) * persistence) / 3m);
-        var breakout = breakoutDistance!.Value >= config.BreakoutAtrThreshold
+        var derivedBreakoutDistance = price!.Value > rollingHigh!.Value
+            ? (price.Value - rollingHigh.Value) / atr!.Value
+            : price.Value < rollingLow!.Value
+                ? (price.Value - rollingLow.Value) / atr.Value
+                : 0m;
+        derivedBreakoutDistance = RegimeDiscoveryMath.Round(derivedBreakoutDistance);
+        var breakoutAgreement = RegimeDiscoveryMath.Clamp(
+            1m - Math.Abs(RegimeDiscoveryMath.SignedClamp(derivedBreakoutDistance) -
+                          RegimeDiscoveryMath.SignedClamp(breakoutDistance!.Value)) / 2m);
+        var breakout = derivedBreakoutDistance >= config.BreakoutAtrThreshold
             ? MarketBreakoutState.Up
-            : breakoutDistance.Value <= -config.BreakoutAtrThreshold
+            : derivedBreakoutDistance <= -config.BreakoutAtrThreshold
                 ? MarketBreakoutState.Down
                 : MarketBreakoutState.None;
         var classification = breakout != MarketBreakoutState.None
@@ -75,7 +95,7 @@ public sealed class MarketStructureRegimeCalculationModel
         var score = classification switch
         {
             MarketStructureClassification.BreakingOut => RegimeDiscoveryMath.SignedClamp(
-                breakoutDistance.Value / 2m),
+                derivedBreakoutDistance / 2m),
             MarketStructureClassification.Trending => organization,
             MarketStructureClassification.Expanding => RegimeDiscoveryMath.Sign(organization),
             _ => 0m
@@ -89,14 +109,22 @@ public sealed class MarketStructureRegimeCalculationModel
                 config.EmaInteractionWeight, emaInteraction.FreshnessFactor),
             new WeightedValue(RegimeDiscoveryMath.SignedClamp(range!.Value * RegimeDiscoveryMath.Sign(organization)),
                 config.AtrRangeWeight, range.FreshnessFactor),
-            new WeightedValue(RegimeDiscoveryMath.SignedClamp(breakoutDistance.Value), config.BreakoutWeight,
-                breakoutDistance.FreshnessFactor),
+            new WeightedValue(RegimeDiscoveryMath.SignedClamp(derivedBreakoutDistance), config.BreakoutWeight,
+                new[] { price, rollingHigh, rollingLow, atr, breakoutDistance }
+                    .Min(value => value!.FreshnessFactor)),
             new WeightedValue(RegimeDiscoveryMath.Sign(itiDirection.Value) * persistence, config.ItiWeight,
                 itiDirection.FreshnessFactor)
         };
-        var confidence = RegimeDiscoveryMath.Confidence(values);
+        var rawConfidence = RegimeDiscoveryMath.Confidence(values);
+        var confidence = rawConfidence with
+        {
+            Confidence = RegimeDiscoveryMath.Clamp(rawConfidence.Confidence * (0.75m + 0.25m * breakoutAgreement))
+        };
+        var rawWidth = Find(input, RegimeDiscoverySignalMetric.BollingerWidth, horizon);
         var evidence = new[]
         {
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BOLLINGER_WIDTH_RAW",
+                rawWidth, rawWidth?.Value ?? 0m, 0m, false),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BOLLINGER", widthRatio,
                 RegimeDiscoveryMath.SignedClamp(position.Value), config.BollingerWeight, true),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "EMA20_INTERACTION", emaInteraction,
@@ -104,8 +132,12 @@ public sealed class MarketStructureRegimeCalculationModel
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "ATR_RANGE", range,
                 RegimeDiscoveryMath.SignedClamp(range.Value * RegimeDiscoveryMath.Sign(organization)),
                 config.AtrRangeWeight, true),
-            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BREAKOUT", breakoutDistance,
-                RegimeDiscoveryMath.SignedClamp(breakoutDistance.Value), config.BreakoutWeight, true),
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BREAKOUT_DERIVED", price,
+                RegimeDiscoveryMath.SignedClamp(derivedBreakoutDistance), config.BreakoutWeight, true),
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BREAKOUT_SIGNAL", breakoutDistance,
+                RegimeDiscoveryMath.SignedClamp(breakoutDistance.Value), 0m, true),
+            RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "BREAKOUT_AGREEMENT", breakoutDistance,
+                breakoutAgreement, 0m, true),
             RegimeDiscoveryMath.Evidence(RegimeEvidenceArea.MarketStructure, "ITI_PERSISTENCE", itiDirection,
                 RegimeDiscoveryMath.Sign(itiDirection.Value) * persistence, config.ItiWeight, true)
         };
@@ -142,5 +174,5 @@ public sealed class MarketStructureRegimeCalculationModel
         RegimeDiscoveryCalculationInput input,
         RegimeDiscoverySignalMetric metric,
         TomasAI.IFM.Domain.MarketData.Analytics.Shared.TimeFrameType horizon) =>
-        RegimeDiscoveryMath.FindAny(input.Snapshot, metric, horizon);
+        RegimeDiscoveryMath.FindAny(input, metric, horizon);
 }

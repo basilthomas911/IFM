@@ -3,12 +3,72 @@ using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.RegimeDiscovery;
 
 /// <summary>Qualifies RD-5 atomic snapshot capture and explicit data availability outcomes.</summary>
 public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
 {
+    [Fact]
+    public async Task Tdi_adapter_publishes_signed_strength_as_optional_regime_evidence()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var now = DateTime.UtcNow.AddSeconds(-1);
+        RegimeDiscoverySignalCacheAdapter.Publish(new FuturesTdiSignalReadModel
+        {
+            ContractId = contract,
+            ValueDate = DateOnly.FromDateTime(now),
+            TimePeriod = TimeFrameType.OneHour,
+            Timestamp = TimeOnly.FromDateTime(now),
+            TDI = FuturesTrendDirectionType.DownTrending,
+            TDIStrength = FuturesTrendDirectionStrengthType.Medium,
+            SchemaVersion = FuturesTdiConfiguration.CurrentSchemaVersion,
+            SourceSequence = 42,
+            SourceEventTimestamp = now
+        });
+
+        var result = await provider.CaptureAsync(SingleMetricRequest(
+            contract, RegimeDiscoverySignalMetric.Tdi,
+            TimeFrameType.OneHour, isRequired: false));
+
+        result.IsSuccess.Should().BeTrue();
+        result.Snapshot!.Observations.Should().ContainSingle().Which.Should().Match<RegimeDiscoverySignalObservation>(
+            value => value.Value == -0.66m && value.SourceSequence == 42 &&
+                     value.Availability == RegimeDiscoverySignalAvailability.Available);
+    }
+
+    [Fact]
+    public async Task Iti_vix_futures_input_is_published_as_front_vx_not_spot_vix()
+    {
+        var provider = new RegimeDiscoveryMarketSignalSnapshotProvider();
+        var contract = $"ES-{Guid.NewGuid():N}";
+        var now = DateTime.UtcNow.AddSeconds(-1);
+        RegimeDiscoverySignalCacheAdapter.Publish(new FuturesItiSignalV2ReadModel
+        {
+            ContractId = contract,
+            ValueDate = DateOnly.FromDateTime(now),
+            TimeFrameStartValueDate = DateOnly.FromDateTime(now),
+            TimePeriod = TimeFrameType.Daily,
+            IntrinsicTime = now,
+            IntrinsicPrice = 100,
+            IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend
+        }, 11, now, 21m);
+
+        var frontVx = await provider.CaptureAsync(SingleMetricRequest(
+            contract, RegimeDiscoverySignalMetric.VxFrontLevel,
+            TimeFrameType.Daily));
+        var spotVix = await provider.CaptureAsync(SingleMetricRequest(
+            contract, RegimeDiscoverySignalMetric.VixLevel,
+            TimeFrameType.Daily, isRequired: false));
+
+        frontVx.IsSuccess.Should().BeTrue();
+        frontVx.Snapshot!.Observations.Should().ContainSingle(value => value.Value == 21m);
+        spotVix.Snapshot!.Observations.Should().ContainSingle(value =>
+            value.Availability == RegimeDiscoverySignalAvailability.Missing);
+    }
+
     /// <summary>Confirms an exact warm compatible observation produces a revision-stable snapshot.</summary>
     [Fact]
     public async Task Exact_available_observation_produces_snapshot()
@@ -94,6 +154,32 @@ public sealed class RegimeDiscoveryMarketSignalSnapshotProviderTests
                 TimeFrame = TimeFrameType.Daily,
                 IsRequired = true,
                 CalculationConfigurationId = "Ema20.v1",
+                MaximumAgeSeconds = 3600,
+                Weight = 1m
+            }
+        ],
+        FutureClockSkewSeconds = 1,
+        SupportedSchemaVersions = [1],
+        ApprovedCalculationVersions = ["1"],
+        CaptureAttempts = 3
+    };
+
+    static RegimeDiscoveryMarketSignalSnapshotRequest SingleMetricRequest(
+        string contract,
+        RegimeDiscoverySignalMetric metric,
+        TimeFrameType timeFrame,
+        bool isRequired = true) => new()
+    {
+        MarketSeriesIdentity = MarketSeriesIdentity.ForContract(contract),
+        TargetHorizon = TimeFrameType.Daily,
+        Requirements =
+        [
+            new RegimeDiscoverySignalRequirement
+            {
+                Metric = metric,
+                TimeFrame = timeFrame,
+                IsRequired = isRequired,
+                CalculationConfigurationId = $"{metric}.v1",
                 MaximumAgeSeconds = 3600,
                 Weight = 1m
             }

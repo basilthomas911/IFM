@@ -22,7 +22,8 @@ public static class RegimeDiscoveryScenarioDataBuilder
         var marketSeries = MarketSeriesIdentity.ForContract(contractId);
         var request = RegimeDiscoverySnapshotRequestFactory.Create(marketSeries, parameterSet);
         var observations = request.Requirements
-            .Where(requirement => !scenario.OmittedMetrics.Contains(requirement.Metric))
+            .Where(requirement => !scenario.OmittedMetrics.Contains(requirement.Metric) &&
+                                  (requirement.IsRequired || scenario.Values.ContainsKey(requirement.Metric)))
             .Select((requirement, index) => new RegimeDiscoverySignalObservation
             {
                 Metric = requirement.Metric,
@@ -96,11 +97,13 @@ public static class RegimeDiscoveryScenarioDataBuilder
             RegimeDiscoverySignalMetric.AtrNormalizedRange => MarketAnalyticsSignalKind.Atr,
         RegimeDiscoverySignalMetric.BollingerWidth or RegimeDiscoverySignalMetric.BollingerWidthRatio or
             RegimeDiscoverySignalMetric.BollingerPosition => MarketAnalyticsSignalKind.BollingerBand,
-        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel =>
+        RegimeDiscoverySignalMetric.VxFrontSecondRatio or RegimeDiscoverySignalMetric.VixLevel or
+            RegimeDiscoverySignalMetric.VxFrontLevel =>
             MarketAnalyticsSignalKind.VxTermStructure,
         RegimeDiscoverySignalMetric.ItiDirection or RegimeDiscoverySignalMetric.ItiBandLevel or
             RegimeDiscoverySignalMetric.ItiReversalLevel or RegimeDiscoverySignalMetric.CurrentPrice =>
             MarketAnalyticsSignalKind.Iti,
+        RegimeDiscoverySignalMetric.Tdi => MarketAnalyticsSignalKind.Tdi,
         _ => MarketAnalyticsSignalKind.MarketStructure
     };
 }

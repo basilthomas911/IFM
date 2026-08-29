@@ -80,9 +80,9 @@ public sealed record MarketStructureRegimeResult
     [Key(8)] public RegimeDiscoveryReason[] Reasons { get; init; } = [];
 }
 
-/// <summary>Contains the deterministic fused market-regime result.</summary>
+/// <summary>Contains the deterministic, evidence-derived Regime Discovery decision.</summary>
 [MessagePackObject]
-public sealed record MarketRegimeFusionResult
+public sealed record RegimeDiscoveryDecision
 {
     /// <summary>Gets whether Fusion completed successfully.</summary>
     [Key(0)] public bool IsComplete { get; init; }
@@ -102,14 +102,32 @@ public sealed record MarketRegimeFusionResult
     [Key(7)] public RegimeRestriction[] Restrictions { get; init; } = [];
     /// <summary>Gets stable Fusion reasons in deterministic order.</summary>
     [Key(8)] public RegimeDiscoveryReason[] Reasons { get; init; } = [];
+    /// <summary>Gets the trend phase incorporated into final conviction and restrictions.</summary>
+    [Key(9)] public TrendRegimePhase TrendPhase { get; init; }
+    /// <summary>Gets the trend strength represented by the decision.</summary>
+    [Key(10)] public TrendRegimeStrength TrendStrength { get; init; }
+    /// <summary>Gets cross-timeframe trend agreement.</summary>
+    [Key(11)] public decimal TrendTimeFrameAgreement { get; init; }
+    /// <summary>Gets the volatility level incorporated into the decision.</summary>
+    [Key(12)] public VolatilityRegimeLevel VolatilityLevel { get; init; }
+    /// <summary>Gets the volatility change incorporated into the decision.</summary>
+    [Key(13)] public VolatilityRegimeChange VolatilityChange { get; init; }
+    /// <summary>Gets the VX term-structure state incorporated into the decision.</summary>
+    [Key(14)] public VxTermStructureRegime TermStructure { get; init; }
+    /// <summary>Gets the market-structure classification incorporated into the decision.</summary>
+    [Key(15)] public MarketStructureClassification StructureClassification { get; init; }
+    /// <summary>Gets the market-structure breakout state incorporated into the decision.</summary>
+    [Key(16)] public MarketBreakoutState Breakout { get; init; }
 }
 
-/// <summary>Contains the complete typed V1 output of one Regime Discovery execution.</summary>
+/// <summary>Contains the complete versioned typed output of one Regime Discovery execution.</summary>
 [MessagePackObject]
 public sealed record RegimeDiscoveryResult
 {
+    RegimeDiscoveryDecision _decision = new();
+
     /// <summary>Gets the current serialized result schema version.</summary>
-    public const ushort CurrentSchemaVersion = 1;
+    public const ushort CurrentSchemaVersion = 2;
     /// <summary>Gets the serialized result schema version.</summary>
     [Key(0)] public ushort SchemaVersion { get; init; } = CurrentSchemaVersion;
     /// <summary>Gets the unique deterministic result identity.</summary>
@@ -142,13 +160,25 @@ public sealed record RegimeDiscoveryResult
     [Key(14)] public VolatilityRegimeResult Volatility { get; init; } = new();
     /// <summary>Gets the Market Structure specialist result.</summary>
     [Key(15)] public MarketStructureRegimeResult MarketStructure { get; init; } = new();
-    /// <summary>Gets the fused market-regime result.</summary>
-    [Key(16)] public MarketRegimeFusionResult Fusion { get; init; } = new();
+    /// <summary>Gets the final evidence-derived Regime Discovery decision.</summary>
+    [Key(16)] public RegimeDiscoveryDecision Decision
+    {
+        get => _decision;
+        init => _decision = value ?? new();
+    }
+    /// <summary>Gets the compatibility alias for the final decision.</summary>
+    [IgnoreMember]
+    [Obsolete("Use Decision. Fusion is retained as a source-compatibility alias.")]
+    public RegimeDiscoveryDecision Fusion
+    {
+        get => _decision;
+        init => _decision = value ?? new();
+    }
     /// <summary>Gets supporting observation evidence in deterministic order.</summary>
     [Key(17)] public RegimeDiscoveryEvidence[] SupportingEvidence { get; init; } = [];
-    /// <summary>Gets the overall quality copied from Fusion.</summary>
+    /// <summary>Gets the overall quality copied from the final decision.</summary>
     [Key(18)] public RegimeOverallQuality OverallQuality { get; init; }
-    /// <summary>Gets the overall confidence copied from Fusion.</summary>
+    /// <summary>Gets the overall confidence copied from the final decision.</summary>
     [Key(19)] public decimal OverallConfidence { get; init; }
     /// <summary>Gets all stable reasons in deterministic order.</summary>
     [Key(20)] public RegimeDiscoveryReason[] Reasons { get; init; } = [];
