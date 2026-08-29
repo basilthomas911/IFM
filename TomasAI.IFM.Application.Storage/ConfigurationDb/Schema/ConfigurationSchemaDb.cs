@@ -29,6 +29,20 @@ public sealed class ConfigurationSchemaDb(IDbConnectionSettings connectionSettin
         .Append(new SchemaObjectDefinition("ix_market_condition_parameter_set_effective",
             ConfigurationSchemaSql.CreateMarketConditionEffectiveIndex,
             "DROP INDEX IF EXISTS reference_configuration.ix_market_condition_parameter_set_effective;"))
+        .Append(new SchemaObjectDefinition("market_condition_parameter_set_lifecycle_constraints",
+            ConfigurationSchemaSql.EnsureMarketConditionLifecycleConstraints,
+            """
+            ALTER TABLE IF EXISTS reference_configuration.market_condition_parameter_set
+            DROP CONSTRAINT IF EXISTS ck_market_condition_parameter_set_lifecycle,
+            DROP CONSTRAINT IF EXISTS ck_market_condition_parameter_set_status;
+            """))
+        .Append(new SchemaObjectDefinition("market_condition_parameter_set_lifecycle_guard",
+            ConfigurationSchemaSql.CreateMarketConditionLifecycleGuard,
+            """
+            DROP TRIGGER IF EXISTS trg_guard_market_condition_parameter_set
+            ON reference_configuration.market_condition_parameter_set;
+            DROP FUNCTION IF EXISTS reference_configuration.guard_market_condition_parameter_set();
+            """))
         .ToArray();
 
     /// <inheritdoc />

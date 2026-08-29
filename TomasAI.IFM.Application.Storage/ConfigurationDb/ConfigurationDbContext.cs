@@ -83,13 +83,15 @@ public sealed class ConfigurationDbContext(
         DateTime effectiveFromUtc,
         CancellationToken cancellationToken = default)
     {
-        _ = ConfigurationDbSql.PublishFor(kind);
-        await dbFactory.ConfigurationDb
-            .Use($"{nameof(ConfigurationDbSql)}.Publish.{kind}", ConfigurationDbSql.PublishFor(kind))
+        ValidateLifecycleArguments(parameterSetId, version, effectiveFromUtc, nameof(effectiveFromUtc));
+        var sql = ConfigurationDbSql.PublishFor(kind);
+        var affected = await dbFactory.ConfigurationDb
+            .Use($"{nameof(ConfigurationDbSql)}.Publish.{kind}", sql)
             .SetParameters(new PublishConfiguration(
                 (short)ConfigurationParameterSetStatus.Published, effectiveFromUtc,
                 parameterSetId, version, (short)ConfigurationParameterSetStatus.Draft))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        EnsureSingleLifecycleTransition(affected, kind, parameterSetId, version, "publish", "Draft");
     }
 
     /// <inheritdoc />
@@ -100,13 +102,15 @@ public sealed class ConfigurationDbContext(
         DateTime retiredAtUtc,
         CancellationToken cancellationToken = default)
     {
-        _ = ConfigurationDbSql.RetireFor(kind);
-        await dbFactory.ConfigurationDb
-            .Use($"{nameof(ConfigurationDbSql)}.Retire.{kind}", ConfigurationDbSql.RetireFor(kind))
+        ValidateLifecycleArguments(parameterSetId, version, retiredAtUtc, nameof(retiredAtUtc));
+        var sql = ConfigurationDbSql.RetireFor(kind);
+        var affected = await dbFactory.ConfigurationDb
+            .Use($"{nameof(ConfigurationDbSql)}.Retire.{kind}", sql)
             .SetParameters(new RetireConfiguration(
                 (short)ConfigurationParameterSetStatus.Retired, retiredAtUtc,
                 parameterSetId, version, (short)ConfigurationParameterSetStatus.Published))
             .ExecuteCommandAsync(cancellationToken).ConfigureAwait(false);
+        EnsureSingleLifecycleTransition(affected, kind, parameterSetId, version, "retire", "Published");
     }
 
     /// <inheritdoc />
@@ -128,6 +132,8 @@ public sealed class ConfigurationDbContext(
         int version,
         CancellationToken cancellationToken = default)
     {
+        if (parameterSetId == Guid.Empty) throw new ArgumentException("Parameter-set identity is required.", nameof(parameterSetId));
+        if (version <= 0) throw new ArgumentOutOfRangeException(nameof(version));
         var row = await dbFactory.ConfigurationDb
             .Use($"{nameof(ConfigurationDbSql)}.{nameof(ConfigurationDbSql.GetExactMarketCondition)}",
                 ConfigurationDbSql.GetExactMarketCondition)
@@ -164,6 +170,8 @@ public sealed class ConfigurationDbContext(
         TimeFrameType targetHorizon,
         CancellationToken cancellationToken = default)
     {
+        if (effectiveAtUtc == default || effectiveAtUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Effective resolution timestamp must be a non-default UTC value.", nameof(effectiveAtUtc));
         if (fundId <= 0) throw new ArgumentOutOfRangeException(nameof(fundId));
         if (!string.Equals(instrumentRoot, "ES", StringComparison.Ordinal))
             throw new ArgumentOutOfRangeException(nameof(instrumentRoot));
@@ -175,7 +183,7 @@ public sealed class ConfigurationDbContext(
             .SetParameters(new ResolveMarketConditionConfiguration((short)ConfigurationParameterSetStatus.Published,
                 effectiveAtUtc, fundId, instrumentRoot, (short)targetHorizon))
             .ExecuteQueryAsync(MapMarketCondition, cancellationToken).ConfigureAwait(false);
-        if (rows.Count > 1 && rows.ElementAt(0).EffectiveFromUtc == rows.ElementAt(1).EffectiveFromUtc)
+        if (rows.Count > 1)
             throw new InvalidOperationException("Effective Market Condition parameter selection is ambiguous.");
         return rows.Count == 0 ? null : ResolveMarketCondition(rows.First());
     }
@@ -212,15 +220,43 @@ public sealed class ConfigurationDbContext(
             ?? throw new InvalidOperationException("Stored Market Condition configuration cannot be deserialized.");
         var canonicalPayload = MarketConditionParameterPayload.Serialize(typed);
         var canonicalHash = MarketConditionParameterPayload.ComputeSha256(canonicalPayload);
-        var legacyHash = MarketConditionParameterPayload.ComputeSha256(JsonSerializer.Serialize(typed));
-        if (!string.Equals(row.PayloadSha256, canonicalHash, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(row.PayloadSha256, legacyHash, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(row.PayloadSha256, canonicalHash, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Stored Market Condition configuration hash is invalid.");
+        if (row.ParameterSetId != typed.ParameterSetId || row.Version != typed.Version ||
+            row.SchemaVersion != typed.SchemaVersion)
+            throw new InvalidOperationException("Stored Market Condition configuration identity or schema metadata is invalid.");
         var errors = new MarketConditionParameterSetValidationRules().Execute(typed);
         if (errors.Length != 0)
             throw new InvalidOperationException(string.Join("; ", errors.Select(value => value.ErrorMessage)));
         return new(typed, canonicalPayload, canonicalHash,
             row.EffectiveFromUtc ?? DateTime.MinValue);
+    }
+
+    static void ValidateLifecycleArguments(
+        Guid parameterSetId,
+        int version,
+        DateTime timestampUtc,
+        string timestampParameterName)
+    {
+        if (parameterSetId == Guid.Empty) throw new ArgumentException("Parameter-set identity is required.", nameof(parameterSetId));
+        if (version <= 0) throw new ArgumentOutOfRangeException(nameof(version));
+        if (timestampUtc == default || timestampUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Lifecycle timestamps must be non-default UTC values.", timestampParameterName);
+    }
+
+    static void EnsureSingleLifecycleTransition(
+        IReadOnlyCollection<long> affectedRows,
+        StrategyParameterSetKind kind,
+        Guid parameterSetId,
+        int version,
+        string operation,
+        string requiredState)
+    {
+        if (affectedRows.Count == 1 && affectedRows.Single() == 1)
+            return;
+        throw new InvalidOperationException(
+            $"Cannot {operation} {kind} parameter set {parameterSetId:D} version {version}; " +
+            $"exactly one {requiredState} version must exist.");
     }
 
 }

@@ -617,7 +617,7 @@ production-enabled while any gate is Partial or Blocked.
 |---|---|---|
 | MC-00 | Complete | Dirty-tree isolation and legacy boundary inventory recorded. Baseline: solution build green; Trade Unit 156 passed; BDD 8 passed; Integrated 40 passed, 1 failed, 2 skipped; Verification 33 passed. |
 | MC-01 | Complete | Execute Function identity/contracts added; legacy Start command and Processing event removed; C# legacy-reference scan is empty. |
-| MC-02 | Partial | Versioned Market Condition ConfigurationDb table, draft/read/effective/publish/retire paths, validation, and scale-independent canonical hashing are executable. The runtime PostgreSQL path passes, but the plan's exhaustive lifecycle/ambiguity/immutability/no-delete integration matrix is not present. |
+| MC-02 | Complete | All nested V1 parameter records/defaults, defensive array copies, bounded validation, scale-independent canonical hashing, typed metadata/hash checks, and closed lifecycle table mapping are implemented. PostgreSQL enforces append-only content, no-delete, legal Draft-to-Published-to-Retired transitions, effective/future/retired selection, and ambiguity failure. The focused MC-02 matrix passes 18 unit and 8 PostgreSQL integration tests. |
 | MC-03 | Complete | Fund/config/hash are frozen in workflow state and `NoTrade` is an explicit append-only outcome. |
 | MC-04 | Partial | Immutable revision-stable bounded snapshot provider/cache, source metadata, sealing, and hash are implemented. Production feed, Securities option-universe aggregation, calendar/event, health, and IBKR adapter wiring—and aggregate/filter boundary tests—remain. |
 | MC-05 | Partial | Ordered hard gates and stable blocker reasons are implemented and representative blockers pass. The required below/equal/above test for every threshold is not complete. |
@@ -627,22 +627,24 @@ production-enabled while any gate is Partial or Blocked.
 | MC-09 | Complete | Workflow Realtime invokes the Function directly over request/reply and translates typed terminal replies. |
 | MC-10 | Complete | Tradeable advances once; NotTradeable commits `NoTrade`; failure, timeout, expiry, duplicate, and late terminal commands fail closed in unit/BDD/runtime coverage. |
 | MC-11 | Partial | Scylla exact/latest/history projection and query actor are implemented with bounded evidence payloads. Market Condition-specific spans, counters, histograms, and operational observation/UI exposure remain. |
-| MC-12 | Partial | Trade Unit is green at 188/188 with Market Condition contract/model/function/workflow/query tests. Exhaustive MC-02/04/05/06/08 matrices above remain. |
+| MC-12 | Partial | Trade Unit is green at 190/190 with Market Condition contract/model/function/workflow/query tests. Exhaustive MC-04/05/06/08 matrices above remain. |
 | MC-13 | Complete | Trade BDD is green at 11/11, including Tradeable, NoTrade, and typed timeout flows. |
-| MC-14 | Partial | Real Function runtime cutover and Scylla storage tests pass; Trade Integrated is green at 41 passed with 2 unrelated pre-existing skips. Production provider adapters and exhaustive PostgreSQL coverage remain. |
-| MC-15 | Partial | Dedicated `Strategy.IntrinsicTime.MarketCondition` verification filter is green at 17/17; full Verification is green at 50/50. The dedicated suite covers all horizons, bullish/bearish, range/transition, nine blockers, corrupt metadata, and determinism, but does not yet perform every specified PostgreSQL/Scylla/Function-state/query/restart infrastructure cross-check. |
-| MC-16 | Blocked | Serialized solution build passes with 0 warnings and 0 errors in 56.74 s; Unit, BDD, Integrated, Verification, repeated focused verification, focused Market Condition storage, legacy scan, and `git diff --check` are green. The broad Application.Storage integration project produced no result for several minutes and was terminated; Partial gates above prevent controlled enablement and documentation closure. |
+| MC-14 | Partial | Real Function runtime cutover, MC-02 PostgreSQL lifecycle, and Scylla storage tests pass; Trade Integrated is green at 41 passed with 2 unrelated pre-existing skips. Production provider adapters remain. |
+| MC-15 | Partial | Dedicated `Strategy.IntrinsicTime.MarketCondition` verification is green at 17/17; full Verification is green at 50/50, and MC-02 ConfigurationDb verification is green at 8/8. The suites cover all horizons, bullish/bearish, range/transition, nine blockers, corrupt metadata, deterministic configuration selection, and ambiguity failure, but do not yet perform every specified Scylla/Function-state/query/restart infrastructure cross-check. |
+| MC-16 | Blocked | Serialized solution build passes with 0 warnings and 0 errors in 68.45 s; Unit, BDD, Integrated, Verification, focused MC-02 PostgreSQL, focused Market Condition storage, legacy scan, and `git diff --check` are green. The broad Application.Storage integration project produced no result for several minutes and was terminated; Partial gates above prevent controlled enablement and documentation closure. |
 
 ### Qualification evidence
 
 | Command/suite | Result |
 |---|---|
-| `dotnet build TomasAI.IFM.sln --no-restore -m:1` | Passed; 0 warnings, 0 errors; 56.74 s |
-| Trade Unit | 188 passed; 0 failed; 0 skipped |
+| `dotnet build TomasAI.IFM.sln --no-restore -m:1` | Passed; 0 warnings, 0 errors; 68.45 s after MC-02 closure |
+| Trade Unit | 190 passed; 0 failed; 0 skipped |
 | Trade BDD | 11 passed; 0 failed; 0 skipped |
 | Trade Integrated | 41 passed; 0 failed; 2 unrelated pre-existing skips |
 | Trade Verification | 50 passed; 0 failed; 0 skipped |
 | Focused Market Condition Verification | 17 passed; repeated successfully after the full verification suite |
+| Focused MC-02 Unit | 18 passed; defaults, canonical scale-independent hash, defensive arrays, and complete nested validation boundaries |
+| Focused MC-02 ConfigurationDb PostgreSQL Integration | 8 passed; insert/exact round trip, publish, effective boundary, future exclusion, retire, ambiguity, invalid transitions, immutable payload, no-delete, corrupt hash/schema/identity, and closed table map |
 | Focused Market Condition Storage Integration | 1 passed; exact/latest/history, duplicate upsert, payload/hash preservation |
 | Broad Application.Storage Integration | No terminal result after several minutes; manually terminated and remains an MC-16 observation |
 | Legacy C# boundary scan | No `StartMarketConditionPipelineCommand` or `MarketConditionPipelineProcessingEvent` references |
@@ -651,5 +653,5 @@ production-enabled while any gate is Partial or Blocked.
 ### Readiness decision
 
 The code is ready for continued implementation and controlled test-environment execution. It is not ready for
-production enablement or for MC-00 through MC-16 to be marked Complete. Close MC-02, MC-04 through MC-06,
+production enablement or for MC-00 through MC-16 to be marked Complete. Close MC-04 through MC-06,
 MC-08, MC-11, MC-12, MC-14, and MC-15, then rerun MC-16 without a stalled affected suite.

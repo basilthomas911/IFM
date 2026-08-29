@@ -45,12 +45,59 @@ public sealed class MarketConditionV1Tests
             }
         };
         MarketConditionParameterPayload.ComputeSha256(value)
-            .Should().Be(MarketConditionParameterPayload.ComputeSha256(value));
+            .Should().Be(MarketConditionParameterPayload.ComputeSha256(baseline),
+                "canonical decimal formatting must be independent of decimal scale");
         var roundTripped = MessagePackSerializer.Deserialize<MarketConditionParameterSet>(
             MessagePackSerializer.Serialize(value));
         roundTripped.Should().BeEquivalentTo(value);
         MarketConditionParameterPayload.ComputeSha256(roundTripped)
             .Should().Be(MarketConditionParameterPayload.ComputeSha256(value));
+    }
+
+    [Fact]
+    public void Required_arrays_are_defensively_copied_and_canonically_ordered()
+    {
+        var categories = new[] { "RateDecision", "HighImpact" };
+        var configuration = new MarketConditionEventRiskConfiguration
+            { RequiredEventCategories = categories };
+
+        categories[0] = "ChangedAfterConstruction";
+        var returned = configuration.RequiredEventCategories;
+        returned[0] = "ChangedThroughGetter";
+
+        configuration.RequiredEventCategories.Should().Equal("HighImpact", "RateDecision");
+    }
+
+    [Fact]
+    public void Validation_rejects_every_nested_configuration_boundary()
+    {
+        var baseline = Parameters(TimeFrameType.Daily);
+        MarketConditionParameterSet[] invalid =
+        [
+            baseline with { Snapshot = baseline.Snapshot with { FuturesQuoteMaximumAgeSeconds = 0 } },
+            baseline with { Session = baseline.Session with { EntryWindowEnd = baseline.Session.EntryWindowStart } },
+            baseline with { Session = baseline.Session with { EligibleWeekdays = [] } },
+            baseline with { EventRisk = baseline.EventRisk with { RateDecisionAfterMinutes = 0 } },
+            baseline with { EventRisk = baseline.EventRisk with { RequiredEventCategories = ["HighImpact", "HighImpact"] } },
+            baseline with { MarketIntegrity = baseline.MarketIntegrity with { MaximumOneMinuteMoveAtr = 0m } },
+            baseline with { FuturesLiquidity = baseline.FuturesLiquidity with { TickSize = 0m } },
+            baseline with { FuturesLiquidity = baseline.FuturesLiquidity with { HealthySpreadTicks = 3m } },
+            baseline with { OptionLiquidity = baseline.OptionLiquidity with { MinimumDte = 15, MaximumDte = 14 } },
+            baseline with { OptionLiquidity = baseline.OptionLiquidity with { MinimumValidQuoteCoverage = 1.01m } },
+            baseline with { OptionLiquidity = baseline.OptionLiquidity with { MaximumMedianRelativeSpread = 0.5m, MaximumP90RelativeSpread = 0.4m } },
+            baseline with { OperationalReadiness = baseline.OperationalReadiness with { RequiredHealthSources = [""] } },
+            baseline with { WorkflowEligibility = baseline.WorkflowEligibility with { MaximumTriggerAgeSeconds = 0 } },
+            baseline with { WorkflowEligibility = baseline.WorkflowEligibility with { BlockingRegimeRestrictions = [] } },
+            baseline with { Classification = baseline.Classification with { WeakeningReversalLevel = 0.8m, ExhaustingReversalLevel = 0.7m } },
+            baseline with { Scoring = baseline.Scoring with { RegimeAlignmentWeight = 0.31m } },
+            baseline with { Scoring = baseline.Scoring with { MinimumConfidence = 1.01m } },
+            baseline with { Scoring = baseline.Scoring with { OptionalMissingPenalty = 0.2m, OptionalMissingMaximumPenalty = 0.15m } },
+            baseline with { Execution = baseline.Execution with { MaximumExecutionMilliseconds = 0 } },
+            baseline with { Snapshot = null! }
+        ];
+
+        var rules = new MarketConditionParameterSetValidationRules();
+        invalid.Should().OnlyContain(value => rules.Execute(value).Length > 0);
     }
 
     [Fact]

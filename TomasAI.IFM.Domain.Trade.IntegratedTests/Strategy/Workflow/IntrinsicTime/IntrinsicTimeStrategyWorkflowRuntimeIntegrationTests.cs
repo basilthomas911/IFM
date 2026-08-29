@@ -35,6 +35,8 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Framework.Storage;
+using static TomasAI.IFM.Framework.Storage.Postgres.PostgresParameter;
 
 namespace TomasAI.IFM.Domain.Trade.IntegratedTests.Strategy.Workflow.IntrinsicTime;
 
@@ -561,6 +563,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         var parameterSets = new Dictionary<TimeFrameType, RegimeDiscoveryParameterSet>();
         foreach (var horizon in values.Select(value => value.ItiSignalEntityId.TimePeriod).Distinct())
         {
+            await RetirePublishedMarketConditionFixturesAsync(configuration, horizon);
             var parameterSet = RegimeDiscoveryParameterSet.CreateDefault(
                 Guid.CreateVersion7(), Guid.CreateVersion7(), horizon);
             await configuration.InsertRegimeDiscoveryDraftAsync(
@@ -622,6 +625,43 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 });
             }
         }
+    }
+
+    static async Task RetirePublishedMarketConditionFixturesAsync(
+        IConfigurationDbContext configuration,
+        TimeFrameType horizon)
+    {
+        await configuration.Use(
+                $"{nameof(IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests)}.{nameof(RetirePublishedMarketConditionFixturesAsync)}",
+                """
+                UPDATE reference_configuration.market_condition_parameter_set
+                SET status = $1, retired_at_utc = $2
+                WHERE status = $3
+                  AND CAST(payload_json ->> 'FundId' AS integer) = $4
+                  AND payload_json ->> 'InstrumentRoot' = $5
+                  AND CAST(payload_json ->> 'TargetHorizon' AS smallint) = $6;
+                """)
+            .SetParameters(new RetirePublishedMarketConditionFixtures(
+                (short)ConfigurationParameterSetStatus.Retired,
+                DateTime.UtcNow,
+                (short)ConfigurationParameterSetStatus.Published,
+                1,
+                "ES",
+                (short)horizon))
+            .ExecuteCommandAsync();
+    }
+
+    readonly record struct RetirePublishedMarketConditionFixtures(
+        short RetiredStatus,
+        DateTime RetiredAtUtc,
+        short PublishedStatus,
+        int FundId,
+        string InstrumentRoot,
+        short TargetHorizon) : IBindValue
+    {
+        public object Bind() => Values(
+            Smallint(RetiredStatus), TimestampTz(RetiredAtUtc), Smallint(PublishedStatus),
+            Integer(FundId), Text(InstrumentRoot), Smallint(TargetHorizon));
     }
 
     static MarketConditionSnapshot HealthyMarketConditionSource()
