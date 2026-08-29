@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -16,7 +18,10 @@ public sealed class RegimeDiscoveryQueryActor(
         new Dictionary<string, Func<IActorMessage, IQuery>>(StringComparer.Ordinal)
         {
             [GetRegimeDiscoveryQuery.Verb] = message =>
-                message.AsQuery<GetRegimeDiscoveryQuery, RegimeDiscoveryReadModel>()!
+                message.AsQuery<GetRegimeDiscoveryQuery, RegimeDiscoveryReadModel>()!,
+            [GetRegimeDiscoveryDecisionReferenceQuery.Verb] = message =>
+                message.AsQuery<GetRegimeDiscoveryDecisionReferenceQuery,
+                    RegimeDiscoveryDecisionReferenceDto[]>()!
         };
 
     /// <summary>Gets the Query actor name.</summary>
@@ -58,6 +63,13 @@ public sealed class RegimeDiscoveryQueryActor(
                 throw new KeyNotFoundException($"Regime Discovery result for workflow {get.WorkflowId} was not found.");
             await context.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
                 new ServiceResult<RegimeDiscoveryReadModel>(result)).ConfigureAwait(false);
+        },
+        [typeof(GetRegimeDiscoveryDecisionReferenceQuery)] = static async (_, context, query, _) =>
+        {
+            var get = (GetRegimeDiscoveryDecisionReferenceQuery)query;
+            var result = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
+            await context.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
+                new ServiceResult<RegimeDiscoveryDecisionReferenceDto[]>(result)).ConfigureAwait(false);
         }
     };
 

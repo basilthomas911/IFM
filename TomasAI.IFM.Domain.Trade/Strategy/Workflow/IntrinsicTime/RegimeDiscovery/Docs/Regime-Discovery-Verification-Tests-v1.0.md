@@ -388,3 +388,10 @@ RD-25 qualification on 2026-08-29 passed the serialized full solution build
 with zero warnings/errors, Trade Unit 323/323, Market Data Analytics Unit
 946/946, Trade BDD 18/18, Trade Integrated 46/48 with the same two explicit
 legacy skips, and Trade Verification 67/67 with no skips.
+## PDR reference-query qualification amendment
+
+The minimum Decision matrix additionally verifies that the production reference generator preserves all twelve named
+anchors, stable order and codes, representative/non-authoritative metadata, restrictions, and reasons. Contract tests
+cover MessagePack arrays and deterministic regeneration; runtime integration sends the new query through NATS to the
+real Query actor; CSV tests cover Excel encoding, invariant values, quoting, overwrite, create-new, cancellation, and
+invalid directories.

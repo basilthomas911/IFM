@@ -1104,3 +1104,10 @@ workflow continuation, and returns one typed completed or failed result
 directly to Strategy Workflow Realtime. Its internal component models are
 implementation details and own no actor state or message contracts. The
 implementation must preserve those established boundaries.
+## Non-authoritative Decision reference query amendment
+
+`GetRegimeDiscoveryDecisionReferenceQuery` is a Core NATS request/reply query owned by
+`RegimeDiscoveryPipelineQuery`. It returns the stable representative pairwise Decision DTO rows generated in memory
+through `MarketRegimeFusionModel`. The query performs no storage access, live specialist request, event publication,
+or workflow continuation. Its output is a design and verification reference only, never a whitelist or calculation
+input. See `../../Docs/Pipeline-Decision-Reference-Queries-v1.0.md` for the shared PDR contract.

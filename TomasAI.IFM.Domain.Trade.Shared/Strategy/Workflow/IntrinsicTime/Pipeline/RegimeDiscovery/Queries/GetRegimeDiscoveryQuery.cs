@@ -1,6 +1,7 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -26,5 +27,18 @@ public sealed record GetRegimeDiscoveryQuery : IQuery<RegimeDiscoveryReadModel>
     /// <inheritdoc />
     [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     /// <inheritdoc />
+    [IgnoreMember] public string? QueryParams { get; init; }
+}
+
+/// <summary>Generates the current representative Regime Discovery decision reference without persistence.</summary>
+[MessagePackObject]
+public sealed record GetRegimeDiscoveryDecisionReferenceQuery : IQuery<RegimeDiscoveryDecisionReferenceDto[]>
+{
+    [IgnoreMember] public const string Actor = GetRegimeDiscoveryQuery.Actor;
+    [IgnoreMember] public const string Verb = "GetDecisionReference";
+    [IgnoreMember] public const int ErrorId = 23205;
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public IActorEntityId EntityId { get; init; } = ActorEntityId.Default;
+    [IgnoreMember] public int ErrorCode { get; init; } = ErrorId;
     [IgnoreMember] public string? QueryParams { get; init; }
 }

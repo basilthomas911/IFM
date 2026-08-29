@@ -9,6 +9,18 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.Regi
 [Trait("Category", "Verification")]
 public sealed class RegimeDiscoveryDecisionCombinationVerificationTests
 {
+    [Fact]
+    public void Generated_reference_catalog_preserves_all_minimum_reasonable_combinations()
+    {
+        var generated = new RegimeDiscoveryDecisionReferenceGenerator().Generate();
+
+        generated.Should().HaveCount(12);
+        generated.Select(value => value.Name).Should().Equal(
+            MinimumDecisionCombinations.Cast<DecisionCase>().Select(value => value.Name));
+        generated.Should().OnlyContain(value => !value.IsAuthoritative && !value.IsCompleteEnumeration &&
+            value.CoverageKind == "RepresentativePairwise" && value.Reasons.Length > 0);
+    }
+
     public static TheoryData<DecisionCase> MinimumDecisionCombinations => new()
     {
         Case("Established bullish trend", RegimeDirection.Up, TrendRegimePhase.Established,

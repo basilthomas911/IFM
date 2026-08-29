@@ -1257,3 +1257,10 @@ This specification is sufficient for an implementation plan when:
 ## Appendix B: source alignment
 
 This document specializes `MarketCondition-High-Level-Design-v0.1.md` and adopts the completed Regime Discovery V1 implementation conventions as the authoritative technical pattern. Where the high-level document referred to `MarketConditionActor`, Start commands, private publication, or event replay, this specification replaces those mechanics with the generic completed-only FunctionActor lifecycle while preserving the accepted Market Condition business responsibilities.
+## Non-authoritative Decision reference query amendment
+
+`GetMarketConditionDecisionReferenceQuery` is owned by `MarketConditionPipelineQuery` and transported exclusively by
+Core NATS request/reply. It constructs deterministic representative inputs, evaluates them with the production
+`MarketConditionCalculationModel`, and returns typed rows including the decision, restrictions, evidence features,
+and advisory hint. It reads and writes no external state and cannot continue a workflow. The catalog is a reference,
+not a whitelist, policy table, or complete enumeration.

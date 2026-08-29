@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Collections;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using FluentAssertions;
@@ -19,6 +21,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
+using TomasAI.IFM.Domain.Trade.Shared.DataExport;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
@@ -27,7 +30,9 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.E
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.RegimeDiscovery;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Reference;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Reference;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
@@ -72,6 +77,139 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         StrategyWorkflowStage.RiskManagement
     ];
     static readonly StrategyWorkflowStage[] DummyStages = Stages[2..];
+
+    [Fact]
+    public async Task Generated_decision_references_round_trip_over_nats_and_export_to_csv()
+    {
+        var regimeFile = Path.Combine(Path.GetTempPath(),
+            $"ifm-regime-reference-{Guid.NewGuid():N}.csv");
+        var conditionFile = Path.Combine(Path.GetTempPath(),
+            $"ifm-market-condition-reference-{Guid.NewGuid():N}.csv");
+        await using var factory = sourceFactory.WithWebHostBuilder(_ => { });
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        supervisor.IsReady.Should().BeTrue();
+        var producer = factory.Services.GetRequiredService<IActorProducer>();
+        await producer.StartAsync(new ActorMailboxId(ActorType.Query, "ItswDecisionReferenceQueryProbe"));
+        try
+        {
+            var api = new IntrinsicTimePipelineDecisionReferenceQueryApi(producer);
+            var regimes = await api.GetRegimeDiscoveryAsync();
+            var conditions = await api.GetMarketConditionAsync();
+
+            regimes.Success.Should().BeTrue(regimes.ErrorMessage);
+            conditions.Success.Should().BeTrue(conditions.ErrorMessage);
+            regimes.Value.Should().HaveCount(12).And.OnlyContain(value =>
+                value.PipelineStage == "RegimeDiscovery" && !value.IsAuthoritative);
+            conditions.Value.Should().HaveCount(12).And.OnlyContain(value =>
+                value.PipelineStage == "MarketCondition" && !value.IsAuthoritative);
+            regimes.Value.Select(value => value.CaseCode).Should().OnlyHaveUniqueItems();
+            conditions.Value.Select(value => value.CaseCode).Should().OnlyHaveUniqueItems();
+
+            await new RegimeDiscoveryDecisionReferenceCsvAdapter()
+                .ExportAsync(regimes.Value, regimeFile);
+            await new MarketConditionDecisionReferenceCsvAdapter()
+                .ExportAsync(conditions.Value, conditionFile);
+
+            AssertCsvMatches(regimeFile, regimes.Value);
+            AssertCsvMatches(conditionFile, conditions.Value);
+        }
+        finally
+        {
+            try
+            {
+                await producer.StopAsync();
+            }
+            finally
+            {
+                if (File.Exists(regimeFile))
+                    File.Delete(regimeFile);
+                if (File.Exists(conditionFile))
+                    File.Delete(conditionFile);
+            }
+        }
+    }
+
+    static void AssertCsvMatches<T>(string fileName, IReadOnlyList<T> expected)
+    {
+        var bytes = File.ReadAllBytes(fileName);
+        bytes.Take(3).Should().Equal(Encoding.UTF8.GetPreamble());
+        var rows = ParseCsv(File.ReadAllText(fileName, Encoding.UTF8));
+        rows.Should().HaveCount(expected.Count + 1);
+        var header = rows[0];
+        header.Should().OnlyHaveUniqueItems();
+        for (var rowIndex = 0; rowIndex < expected.Count; rowIndex++)
+        {
+            var actual = rows[rowIndex + 1];
+            actual.Should().HaveCount(header.Length);
+            for (var columnIndex = 0; columnIndex < header.Length; columnIndex++)
+            {
+                var property = typeof(T).GetProperty(header[columnIndex],
+                    BindingFlags.Instance | BindingFlags.Public);
+                property.Should().NotBeNull($"CSV column {header[columnIndex]} must map to {typeof(T).Name}");
+                actual[columnIndex].Should().Be(CsvValue(property!.GetValue(expected[rowIndex])),
+                    $"row {rowIndex + 1}, column {header[columnIndex]} must preserve the NATS DTO value");
+            }
+        }
+    }
+
+    static string CsvValue(object? value) => value switch
+    {
+        null => string.Empty,
+        string text => text,
+        bool flag => flag ? "true" : "false",
+        decimal number => number.ToString(CultureInfo.InvariantCulture),
+        ushort number => number.ToString(CultureInfo.InvariantCulture),
+        IEnumerable values => string.Join('|', values.Cast<object?>()),
+        _ => value.ToString() ?? string.Empty
+    };
+
+    static string[][] ParseCsv(string text)
+    {
+        if (text.Length > 0 && text[0] == '\uFEFF')
+            text = text[1..];
+        var rows = new List<string[]>();
+        var columns = new List<string>();
+        var value = new StringBuilder();
+        var quoted = false;
+        for (var index = 0; index < text.Length; index++)
+        {
+            var current = text[index];
+            if (current == '"')
+            {
+                if (quoted && index + 1 < text.Length && text[index + 1] == '"')
+                {
+                    value.Append('"');
+                    index++;
+                }
+                else
+                    quoted = !quoted;
+            }
+            else if (current == ',' && !quoted)
+            {
+                columns.Add(value.ToString());
+                value.Clear();
+            }
+            else if ((current == '\r' || current == '\n') && !quoted)
+            {
+                if (current == '\r' && index + 1 < text.Length && text[index + 1] == '\n')
+                    index++;
+                columns.Add(value.ToString());
+                value.Clear();
+                rows.Add(columns.ToArray());
+                columns.Clear();
+            }
+            else
+                value.Append(current);
+        }
+        if (value.Length > 0 || columns.Count > 0)
+        {
+            columns.Add(value.ToString());
+            rows.Add(columns.ToArray());
+        }
+        quoted.Should().BeFalse("the exported CSV must have balanced quotes");
+        return rows.ToArray();
+    }
 
     /// <summary>
     /// Confirms committed Started snapshots dispatch isolated Regime executions and only a projected public completion

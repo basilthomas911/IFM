@@ -695,3 +695,11 @@ MC-00 through MC-22 are closed. `TomasAI.IFM.Application.Api.Server` enables the
 while test hosts remain disabled unless a scenario opts in. This is controlled workflow enablement, not trading
 authority: the registered IBKR readiness source deliberately remains fail-closed until a real broker connection
 authority replaces it, and later trade-selection/order stages retain their own independent safety boundaries.
+## PDR-01 through PDR-08 decision-reference amendment
+
+Market Condition now supports the shared Pipeline Decision Reference design. Its Query actor handles
+`GetMarketConditionDecisionReferenceQuery`; the deterministic generator preserves the twelve MC-22 pairwise anchors
+and calculates every row with `MarketConditionCalculationModel`; the NATS client returns typed DTO arrays; and the
+typed `MarketConditionDecisionReferenceCsvAdapter` exports those rows in the caller process with overwrite enabled by
+default. Unit/contract, BDD, live-NATS integration, verification, CSV, and documentation gates are executable. The
+shared authoritative record is `../../Docs/Pipeline-Decision-Reference-Queries-v1.0.md`.

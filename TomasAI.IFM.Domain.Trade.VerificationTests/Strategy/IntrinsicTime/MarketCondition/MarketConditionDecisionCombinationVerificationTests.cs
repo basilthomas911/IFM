@@ -11,6 +11,19 @@ namespace TomasAI.IFM.Domain.Trade.VerificationTests.Strategy.IntrinsicTime.Mark
 [Trait("Category", "Verification")]
 public sealed class MarketConditionDecisionCombinationVerificationTests
 {
+    [Fact]
+    public void Generated_reference_catalog_preserves_all_minimum_reasonable_decision_and_hint_combinations()
+    {
+        var generated = new MarketConditionDecisionReferenceGenerator().Generate();
+
+        generated.Should().HaveCount(12);
+        generated.Select(value => value.Name).Should().Equal(
+            MinimumDecisionCombinations.Cast<DecisionCase>().Select(value => value.Name));
+        generated.Should().OnlyContain(value => !value.IsAuthoritative && !value.IsCompleteEnumeration &&
+            value.CoverageKind == "RepresentativePairwise" && value.HintIsAdvisory &&
+            value.HintSuitability != MarketConditionHintSuitability.Unknown);
+    }
+
     public static TheoryData<DecisionCase> MinimumDecisionCombinations => new()
     {
         Case("Daily established bullish", TimeFrameType.Daily, RegimeDirection.Up,

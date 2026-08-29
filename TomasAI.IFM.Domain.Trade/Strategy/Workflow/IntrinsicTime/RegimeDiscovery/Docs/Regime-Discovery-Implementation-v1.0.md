@@ -714,3 +714,10 @@ actor, durable message replay consumer, raw tick/bar recalculation inside
 Regime Discovery, cross-pipeline addressing, or pipeline-specific TraceId field
 is introduced by this plan. Strategy Workflow Realtime owns the direct Function
 call and terminal-result-to-workflow-command translation.
+## PDR implementation amendment
+
+The Regime Discovery Query actor now handles `GetDecisionReference` in addition to persisted-result lookup. The new
+handler invokes `RegimeDiscoveryDecisionReferenceGenerator`, which constructs the twelve stable specialist-result
+anchors and delegates every calculated Decision to `MarketRegimeFusionModel`. It replies with typed MessagePack DTOs
+and does not call `DbFactory`. `IntrinsicTimePipelineDecisionReferenceQueryApi` supplies the NATS client boundary;
+`RegimeDiscoveryDecisionReferenceCsvAdapter` performs optional caller-side file export.

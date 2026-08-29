@@ -43,12 +43,14 @@ public sealed class MarketConditionArchitectureAndQueryTests
         parse.Keys.Cast<string>().Should().BeEquivalentTo(
             GetMarketConditionQuery.Verb,
             GetLatestMarketConditionQuery.Verb,
-            GetMarketConditionHistoryQuery.Verb);
+            GetMarketConditionHistoryQuery.Verb,
+            GetMarketConditionDecisionReferenceQuery.Verb);
         receive.Keys.Cast<Type>().Should().BeEquivalentTo(new[]
         {
             typeof(GetMarketConditionQuery),
             typeof(GetLatestMarketConditionQuery),
-            typeof(GetMarketConditionHistoryQuery)
+            typeof(GetMarketConditionHistoryQuery),
+            typeof(GetMarketConditionDecisionReferenceQuery)
         });
     }
 

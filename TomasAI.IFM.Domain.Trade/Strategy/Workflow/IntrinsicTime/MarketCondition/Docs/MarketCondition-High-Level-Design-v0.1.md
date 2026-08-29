@@ -644,3 +644,9 @@ MarketCondition is a deterministic, time-sensitive opportunity and tradeability 
 - why processing stopped when the result is NotTradeable.
 
 The actor always reports Completed or Failed, never selects a trade, never authorizes risk, and never retries itself. The Strategy Workflow remains the sole authority for accepting the result and deciding whether the workflow proceeds to TradeSelection.
+## Generated decision reference
+
+Market Condition owns an on-demand, storage-free `GetDecisionReference` Query-actor route over Core NATS. It generates
+the twelve representative market-language and advisory-hint anchors through `MarketConditionCalculationModel` and
+returns typed DTO rows. The result is explicitly non-authoritative and non-exhaustive. It does not constrain the
+primary classification language or Trade Selection, and optional CSV conversion occurs only in the caller process.

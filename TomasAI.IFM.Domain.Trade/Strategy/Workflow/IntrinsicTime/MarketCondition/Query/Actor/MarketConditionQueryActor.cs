@@ -1,5 +1,7 @@
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Queries;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Reference;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -19,7 +21,9 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
             [GetLatestMarketConditionQuery.Verb] = x => x.AsQuery<GetLatestMarketConditionQuery,
                 MarketConditionReadModel>()!,
             [GetMarketConditionHistoryQuery.Verb] = x => x.AsQuery<GetMarketConditionHistoryQuery,
-                ICollection<MarketConditionReadModel>>()!
+                ICollection<MarketConditionReadModel>>()!,
+            [GetMarketConditionDecisionReferenceQuery.Verb] = x =>
+                x.AsQuery<GetMarketConditionDecisionReferenceQuery, MarketConditionDecisionReferenceDto[]>()!
         };
     static readonly Dictionary<Type, Func<MarketConditionQueryActor, IQueryActorContext<MarketConditionQueryActor>,
         IQuery, CancellationToken, ValueTask>> _receiveMap = new()
@@ -52,6 +56,13 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
                 .ConfigureAwait(false);
             await c.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
                 new ServiceResult<ICollection<MarketConditionReadModel>>(values)).ConfigureAwait(false);
+        },
+        [typeof(GetMarketConditionDecisionReferenceQuery)] = static async (_, c, query, _) =>
+        {
+            var get = (GetMarketConditionDecisionReferenceQuery)query;
+            var values = new MarketConditionDecisionReferenceGenerator().Generate();
+            await c.ReplyAsync(query.Subject.ThreadId, get.Subject.Verb,
+                new ServiceResult<MarketConditionDecisionReferenceDto[]>(values)).ConfigureAwait(false);
         }
     };
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
