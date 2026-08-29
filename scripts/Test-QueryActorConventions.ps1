@@ -76,8 +76,8 @@ foreach ($actorFile in $actorFiles) {
     }
 }
 
-if ($domainActorCount -ne 32) {
-    $violations.Add("Expected 32 domain QueryActors but discovered $domainActorCount.")
+if ($domainActorCount -ne 33) {
+    $violations.Add("Expected 33 domain QueryActors but discovered $domainActorCount.")
 }
 
 if ($violations.Count -gt 0) {

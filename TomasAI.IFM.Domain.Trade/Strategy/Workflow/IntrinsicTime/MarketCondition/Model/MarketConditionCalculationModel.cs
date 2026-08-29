@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Configuration.MarketCondition;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 
@@ -18,6 +20,7 @@ public sealed record MarketConditionCalculationInput
     public MarketConditionSnapshot Snapshot { get; init; } = new();
     public int OptionalMissingCategoryCount { get; init; }
     public int ConflictingEvidenceCount { get; init; }
+    public MarketConditionEvidenceItem[] ConflictingEvidenceItems { get; init; } = [];
 }
 
 /// <summary>Evaluates all V1 gates and opportunity formulas without reading external state.</summary>
@@ -25,6 +28,8 @@ public sealed class MarketConditionCalculationModel
 {
     public MarketConditionResult Calculate(MarketConditionCalculationInput input)
     {
+        var started = Stopwatch.GetTimestamp();
+        using var activity = MarketConditionTelemetry.Start("market-condition.classify-and-score");
         ArgumentNullException.ThrowIfNull(input);
         var p = input.ParameterSet;
         var s = input.Snapshot;
@@ -34,9 +39,24 @@ public sealed class MarketConditionCalculationModel
         ValidateIdentity(input);
         ValidateSources(s, p);
 
+        if (!double.IsFinite(signal.BandLevel) || !double.IsFinite(signal.ReversalLevel))
+            throw Invalid("The ITI trigger contains a non-finite numeric value.");
+
+        var direction = signal.IntrinsicTimeTrend switch
+        {
+            IntrinsicTimeTrendType.UpTrend => MarketConditionDirection.Bullish,
+            IntrinsicTimeTrendType.DownTrend => MarketConditionDirection.Bearish,
+            _ => throw Invalid("The ITI trigger trend is not directional.")
+        };
+        var alignment = Alignment(direction, input.RegimeResult.Fusion.Direction);
+        if (alignment == MarketConditionUpstreamAlignment.Unknown)
+            throw Invalid("The upstream Regime direction is unknown.");
+
         var evidence = new List<MarketConditionEvidenceItem>();
         var blockers = new List<MarketConditionBlockingReason>();
         GateWorkflow(input, blockers);
+        if (alignment == MarketConditionUpstreamAlignment.Conflict)
+            Add(blockers, MarketConditionEvidenceArea.Workflow, MarketConditionReasonCodes.RegimeTriggerConflict);
         GateData(s, p, blockers, evidence);
         GateSession(s, p, blockers);
         GateEventRisk(s, blockers);
@@ -45,37 +65,61 @@ public sealed class MarketConditionCalculationModel
         var optionScore = GateOptions(s, p, blockers, evidence);
         GateOperations(s, p, blockers);
 
-        var direction = signal.IntrinsicTimeTrend == IntrinsicTimeTrendType.UpTrend
-            ? MarketConditionDirection.Bullish : MarketConditionDirection.Bearish;
-        var alignment = Alignment(direction, input.RegimeResult.Fusion.Direction);
-        if (alignment == MarketConditionUpstreamAlignment.Conflict)
-            Add(blockers, MarketConditionEvidenceArea.Workflow, MarketConditionReasonCodes.RegimeTriggerConflict);
-
         var phase = Phase(signal, p.Classification);
         var volatility = Volatility(input.RegimeResult, s, p);
         var condition = Classify(input.RegimeResult, direction, alignment, volatility, blockers);
         var dataScore = DataQualityScore(s, p);
-        var triggerQuality = TriggerQuality(signal);
-        var regimeAlignment = Clamp(0.70m * AlignmentScore(alignment) + 0.30m * input.RegimeResult.OverallConfidence);
-        var entryTiming = EntryTiming(s.SessionState.ExchangeLocalTime, p.Session);
-        var strength = Math.Round(100m * Clamp(
-            p.Scoring.RegimeAlignmentWeight * regimeAlignment +
-            p.Scoring.TriggerQualityWeight * triggerQuality +
-            p.Scoring.FuturesLiquidityWeight * futuresScore +
-            p.Scoring.OptionLiquidityWeight * optionScore +
-            p.Scoring.DataQualityWeight * dataScore +
-            p.Scoring.EntryTimingWeight * entryTiming), 0, MidpointRounding.AwayFromZero);
-        var penalties = Math.Min(p.Scoring.MaximumTotalPenalty,
-            Math.Min(p.Scoring.OptionalMissingMaximumPenalty,
-                input.OptionalMissingCategoryCount * p.Scoring.OptionalMissingPenalty) +
-            (input.RegimeResult.Fusion.Restrictions.Contains(RegimeRestriction.LowConfidence)
-                ? p.Scoring.LowConfidencePenalty : 0m) +
-            (condition == MarketConditionType.Transition ? p.Scoring.TransitionPenalty : 0m) +
-            Math.Min(p.Scoring.ConflictingEvidenceMaximumPenalty,
-                input.ConflictingEvidenceCount * p.Scoring.ConflictingEvidencePenalty));
-        var confidence = Round(Clamp(0.40m * input.RegimeResult.OverallConfidence +
-            0.20m * triggerQuality + 0.15m * dataScore + 0.125m * futuresScore +
-            0.125m * optionScore - penalties));
+        decimal strength = 0m;
+        decimal confidence = 0m;
+        if (blockers.Count == 0)
+        {
+            var triggerQuality = TriggerQuality(signal);
+            var regimeAlignment = Clamp(0.70m * AlignmentScore(alignment) +
+                                        0.30m * input.RegimeResult.OverallConfidence);
+            var entryTiming = EntryTiming(s.SessionState.ExchangeLocalTime, p.Session);
+            strength = Math.Round(100m * Clamp(
+                p.Scoring.RegimeAlignmentWeight * regimeAlignment +
+                p.Scoring.TriggerQualityWeight * triggerQuality +
+                p.Scoring.FuturesLiquidityWeight * futuresScore +
+                p.Scoring.OptionLiquidityWeight * optionScore +
+                p.Scoring.DataQualityWeight * dataScore +
+                p.Scoring.EntryTimingWeight * entryTiming), 0, MidpointRounding.AwayFromZero);
+            var penalties = Math.Min(p.Scoring.MaximumTotalPenalty,
+                Math.Min(p.Scoring.OptionalMissingMaximumPenalty,
+                    input.OptionalMissingCategoryCount * p.Scoring.OptionalMissingPenalty) +
+                (input.RegimeResult.Fusion.Restrictions.Contains(RegimeRestriction.LowConfidence)
+                    ? p.Scoring.LowConfidencePenalty : 0m) +
+                (condition == MarketConditionType.Transition ? p.Scoring.TransitionPenalty : 0m) +
+                Math.Min(p.Scoring.ConflictingEvidenceMaximumPenalty,
+                    Math.Max(input.ConflictingEvidenceCount, input.ConflictingEvidenceItems.Length) *
+                    p.Scoring.ConflictingEvidencePenalty));
+            confidence = Round(Clamp(0.40m * input.RegimeResult.OverallConfidence +
+                0.20m * triggerQuality + 0.15m * dataScore + 0.125m * futuresScore +
+                0.125m * optionScore - penalties));
+            evidence.Add(ScoreEvidence("RegimeAlignment", regimeAlignment,
+                p.Scoring.RegimeAlignmentWeight, "Regime", input.RegimeResult.ProducedAtUtc));
+            evidence.Add(ScoreEvidence("TriggerQuality", triggerQuality,
+                p.Scoring.TriggerQualityWeight, "ITI", input.TriggerEvent.CreatedOn));
+            evidence.Add(ScoreEvidence("FuturesLiquidity", futuresScore,
+                p.Scoring.FuturesLiquidityWeight, s.FuturesQuote.QuoteObservation.SourceId,
+                s.FuturesQuote.QuoteObservation.SourceTimestampUtc));
+            evidence.Add(ScoreEvidence("OptionLiquidity", optionScore,
+                p.Scoring.OptionLiquidityWeight, s.OptionChainQuality.Observation.SourceId,
+                s.OptionChainQuality.Observation.SourceTimestampUtc));
+            evidence.Add(ScoreEvidence("DataQuality", dataScore,
+                p.Scoring.DataQualityWeight, "Snapshot", s.MarketDataAsOfUtc));
+            evidence.Add(ScoreEvidence("EntryTiming", entryTiming,
+                p.Scoring.EntryTimingWeight, s.SessionState.Observation.SourceId,
+                s.SessionState.Observation.SourceTimestampUtc));
+            for (var index = 0; index < input.OptionalMissingCategoryCount; index++)
+                evidence.Add(new MarketConditionEvidenceItem
+                {
+                    Area = MarketConditionEvidenceArea.Data,
+                    FeatureCode = $"OptionalInput.{index + 1:D3}",
+                    Availability = MarketSourceAvailability.Unavailable,
+                    ReasonCode = MarketConditionReasonCodes.OptionalMissing
+                });
+        }
 
         if (blockers.Count == 0 && strength < p.Scoring.MinimumStrength)
             Add(blockers, MarketConditionEvidenceArea.Scoring, MarketConditionReasonCodes.Strength);
@@ -128,17 +172,53 @@ public sealed class MarketConditionCalculationModel
             DataQuality = dataQuality,
             UpstreamAlignment = alignment,
             EvidenceItems = evidence.OrderBy(x => x.Area).ThenBy(x => x.FeatureCode, StringComparer.Ordinal).ToArray(),
-            ConflictingEvidenceItems = [],
+            ConflictingEvidenceItems = input.ConflictingEvidenceItems
+                .OrderBy(x => x.Area).ThenBy(x => x.FeatureCode, StringComparer.Ordinal)
+                .ThenBy(x => x.SourceTimestampUtc).ThenBy(x => x.SourceId, StringComparer.Ordinal).ToArray(),
             BlockingReasons = blockers.ToArray(),
             PrimaryReasonCode = reason,
-            Reasons = blockers.Select(x => x.ReasonCode).Distinct(StringComparer.Ordinal).ToArray()
+            Reasons = blockers.Count == 0 ? [reason] :
+                blockers.Select(x => x.ReasonCode).Distinct(StringComparer.Ordinal).ToArray()
         };
-        return result with { SummaryText = Summary(result, reason) };
+        var completed = result with { SummaryText = Summary(result, reason) };
+        ValidateResult(completed, p);
+        MarketConditionTelemetry.RecordResult(completed, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        return completed;
+    }
+
+    internal static void ValidateResult(MarketConditionResult result, MarketConditionParameterSet parameters)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(parameters);
+        var invalid = result.SchemaVersion != MarketConditionResult.CurrentSchemaVersion ||
+                      result.ResultId == Guid.Empty || result.SnapshotId == Guid.Empty ||
+                      result.SnapshotSha256.Length != 64 || !result.SnapshotSha256.All(Uri.IsHexDigit) ||
+                      result.EvaluatedAtUtc == default || result.ValidUntilUtc <= result.EvaluatedAtUtc ||
+                      result.MarketDataAsOfUtc == default || result.MarketDataAsOfUtc > result.EvaluatedAtUtc ||
+                      result.Strength is < 0m or > 100m || result.Confidence is < 0m or > 1m ||
+                      result.Tradeability == MarketTradeability.Undefined ||
+                      string.IsNullOrWhiteSpace(result.PrimaryReasonCode) ||
+                      string.IsNullOrWhiteSpace(result.SummaryText) || result.Reasons.Length == 0;
+        if (result.Tradeability == MarketTradeability.Tradeable)
+            invalid |= result.BlockingReasons.Length != 0 ||
+                       result.ConditionType is MarketConditionType.Dislocated or MarketConditionType.NoOpportunity or
+                           MarketConditionType.Undefined ||
+                       result.Phase is MarketConditionPhase.Exhausting or MarketConditionPhase.Undefined ||
+                       result.Strength < parameters.Scoring.MinimumStrength ||
+                       result.Confidence < parameters.Scoring.MinimumConfidence;
+        else
+            invalid |= result.BlockingReasons.Length == 0;
+        if (invalid)
+            throw new MarketConditionCalculationException(MarketConditionFailureCategory.InvariantViolation,
+                MarketConditionReasonCodes.Invariant, "The completed Market Condition result violates a V1 invariant.");
     }
 
     static void ValidateIdentity(MarketConditionCalculationInput x)
     {
         if (x.ResultId == Guid.Empty || x.Snapshot.SnapshotId == Guid.Empty ||
+            x.WorkflowView.Status != WorkflowStrategyMachineStatus.Started ||
+            x.WorkflowView.CurrentStage != StrategyWorkflowStage.MarketCondition ||
+            x.WorkflowView.WorkflowRevision != x.InputWorkflowRevision ||
             x.WorkflowView.WorkflowId != x.RegimeResult.WorkflowId ||
             x.WorkflowView.EntityId != x.RegimeResult.EntityId ||
             x.WorkflowView.WorkflowId != x.Snapshot.WorkflowId ||
@@ -162,8 +242,15 @@ public sealed class MarketConditionCalculationModel
         foreach (var o in Required(s))
             if (string.IsNullOrWhiteSpace(o.SourceId) || o.SourceTimestampUtc == default || o.SequenceId < 0 ||
                 o.Validity != MarketSourceValidity.Valid || o.Availability == MarketSourceAvailability.Unknown ||
-                o.AgeSeconds < 0)
+                o.AgeSeconds < 0 ||
+                o.SourceTimestampUtc > s.EvaluationTimestampUtc.AddSeconds(p.Snapshot.FutureClockSkewSeconds) ||
+                (o.ReceivedAtUtc != default &&
+                 o.ReceivedAtUtc < o.SourceTimestampUtc.AddSeconds(-p.Snapshot.FutureClockSkewSeconds)))
                 throw Invalid("Required source metadata is missing or invalid.");
+        if (s.SessionState.Status == MarketSessionStatus.Unknown ||
+            s.EventRiskState.Status == MarketEventRiskStatus.Unknown ||
+            s.OperationalHealth.GroupBy(x => x.SourceId, StringComparer.Ordinal).Any(x => x.Count() != 1))
+            throw Invalid("Required provider state is unknown or contradictory.");
         static MarketConditionCalculationException Invalid(string message) => new(
             MarketConditionFailureCategory.RequiredInputInvalid, MarketConditionReasonCodes.RequiredInput, message);
     }
@@ -201,7 +288,9 @@ public sealed class MarketConditionCalculationModel
         {
             var max = limits.GetValueOrDefault(o.SourceId, p.Snapshot.HealthMaximumAgeSeconds);
             var stale = o.AgeSeconds > max;
-            if (stale) Add(b, MarketConditionEvidenceArea.Data, MarketConditionReasonCodes.DataUnfit, o.SourceId);
+            var unavailable = o.Availability == MarketSourceAvailability.Unavailable;
+            if (stale || unavailable)
+                Add(b, MarketConditionEvidenceArea.Data, MarketConditionReasonCodes.DataUnfit, o.SourceId);
             e.Add(Evidence(MarketConditionEvidenceArea.Data, o.SourceId, o.AgeSeconds, "seconds",
                 Clamp(1m - o.AgeSeconds / max), stale ? MarketConditionReasonCodes.DataStale : MarketConditionReasonCodes.DataFit, o));
         }
@@ -368,6 +457,19 @@ public sealed class MarketConditionCalculationModel
           SourceId = o.SourceId, SourceTimestampUtc = o.SourceTimestampUtc, SequenceId = o.SequenceId,
           Availability = o.Availability, Freshness = reason == MarketConditionReasonCodes.DataStale
               ? MarketFreshnessState.Stale : MarketFreshnessState.Fresh, ReasonCode = reason };
+    static MarketConditionEvidenceItem ScoreEvidence(string feature, decimal normalized, decimal weight,
+        string source, DateTime timestamp) => new()
+    {
+        Area = MarketConditionEvidenceArea.Scoring,
+        FeatureCode = feature,
+        NormalizedValue = normalized,
+        WeightedContribution = Round(normalized * weight),
+        SourceId = source,
+        SourceTimestampUtc = timestamp,
+        Availability = MarketSourceAvailability.Available,
+        Freshness = MarketFreshnessState.Fresh,
+        ReasonCode = MarketConditionReasonCodes.DataFit
+    };
     static void Add(List<MarketConditionBlockingReason> b, MarketConditionEvidenceArea a, string reason, string source = "")
     { if (!b.Any(x => x.ReasonCode == reason && x.SourceId == source)) b.Add(new() { Area = a, ReasonCode = reason, SourceId = source }); }
     static decimal Clamp(decimal value) => Math.Clamp(value, 0m, 1m);

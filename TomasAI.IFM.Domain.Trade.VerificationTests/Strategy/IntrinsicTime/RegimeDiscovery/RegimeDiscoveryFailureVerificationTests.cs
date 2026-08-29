@@ -96,11 +96,10 @@ public sealed class RegimeDiscoveryFailureVerificationTests(WebApplicationFactor
         await fixture.PrepareAsync([execution]);
 
         await fixture.PublishAsync(execution.EntityId);
-        var started = await fixture.WaitForRevisionAsync(
-            execution.EntityId, 1, StrategyWorkflowStage.RegimeDiscovery);
-        await fixture.WaitForTerminalAsync(execution.EntityId, StrategyWorkflowOutcome.PipelineFailed);
+        var terminal = await fixture.WaitForTerminalAsync(
+            execution.EntityId, StrategyWorkflowOutcome.PipelineFailed);
 
-        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(started.WorkflowId)).Should().BeNull();
+        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(terminal.WorkflowId)).Should().BeNull();
         fixture.Probe.Count(execution.EntityId).Should().Be(0);
         var state = await fixture.LoadStateAsync(execution.EntityId);
         state.CurrentView!.Status.Should().Be(WorkflowStrategyMachineStatus.Failed);
@@ -130,12 +129,11 @@ public sealed class RegimeDiscoveryFailureVerificationTests(WebApplicationFactor
         await fixture.PrepareAsync([execution]);
 
         await fixture.PublishAsync(execution.EntityId);
-        var started = await fixture.WaitForRevisionAsync(
-            execution.EntityId, 1, StrategyWorkflowStage.RegimeDiscovery);
-        await fixture.WaitForTerminalAsync(execution.EntityId, StrategyWorkflowOutcome.TimedOut);
+        var terminal = await fixture.WaitForTerminalAsync(
+            execution.EntityId, StrategyWorkflowOutcome.TimedOut);
         await Task.Delay(250);
 
-        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(started.WorkflowId)).Should().BeNull();
+        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(terminal.WorkflowId)).Should().BeNull();
         fixture.Probe.Count(execution.EntityId).Should().Be(0);
     }
 
@@ -157,11 +155,10 @@ public sealed class RegimeDiscoveryFailureVerificationTests(WebApplicationFactor
         await fixture.PrepareAsync([execution]);
 
         await fixture.PublishAsync(execution.EntityId);
-        var started = await fixture.WaitForRevisionAsync(
-            execution.EntityId, 1, StrategyWorkflowStage.RegimeDiscovery);
-        await fixture.WaitForTerminalAsync(execution.EntityId, StrategyWorkflowOutcome.PipelineFailed);
+        var terminal = await fixture.WaitForTerminalAsync(
+            execution.EntityId, StrategyWorkflowOutcome.PipelineFailed);
 
-        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(started.WorkflowId)).Should().BeNull();
+        (await fixture.Database.TradeDb.GetRegimeDiscoveryAsync(terminal.WorkflowId)).Should().BeNull();
         fixture.Probe.Count(execution.EntityId).Should().Be(0);
     }
 

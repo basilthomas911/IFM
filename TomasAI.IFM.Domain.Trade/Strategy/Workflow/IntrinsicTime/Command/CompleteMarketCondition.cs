@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.Extensions;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -24,6 +25,7 @@ public static class CompleteMarketCondition
     {
         ArgumentNullException.ThrowIfNull(command); ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(state);
+        using var activity = MarketConditionTelemetry.Start("market-condition.workflow-continuation");
         var current = state.CurrentView;
         if (current is not { Status: WorkflowStrategyMachineStatus.Started } ||
             current.WorkflowId != command.WorkflowId || current.WorkflowRevision != command.InputWorkflowRevision ||
@@ -67,6 +69,7 @@ public static class CompleteMarketCondition
         }
         if (now >= current.ExpiresAtUtc || now >= result.ValidUntilUtc)
         {
+            MarketConditionTelemetry.RecordExpired(result.TargetHorizon);
             var failure = TimeoutFailure(now);
             var timedOut = current with
             {

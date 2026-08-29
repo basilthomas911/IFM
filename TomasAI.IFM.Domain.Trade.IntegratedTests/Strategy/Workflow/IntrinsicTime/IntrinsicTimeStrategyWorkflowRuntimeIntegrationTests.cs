@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text;
 using FluentAssertions;
 using MessagePack;
@@ -29,6 +30,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Command.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.State;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.RegimeDiscovery.Options;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
@@ -119,7 +121,10 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             var started = await Task.WhenAll(successEntities.Select(entity =>
                 WaitForStatusAsync(entity, StrategyWorkflowStatus.Running)));
             started.Should().OnlyContain(model =>
-                model.WorkflowRevision == 1 && model.CurrentStage == StrategyWorkflowStage.RegimeDiscovery);
+                model.WorkflowRevision >= 1
+                && (model.CurrentStage == StrategyWorkflowStage.RegimeDiscovery
+                    || model.CurrentStage == StrategyWorkflowStage.MarketCondition),
+                "the real Regime and Market Condition workers may advance before the observation query completes");
 
             foreach (var entity in successEntities)
             {
@@ -208,7 +213,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             factory.Services.GetRequiredService<IRegimeDiscoveryMarketSignalCache>().Clear();
 
             await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
-            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            var started = await WaitForFirstWorkflowAsync(entity);
             await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
                 StrategyWorkflowOutcome.PipelineFailed);
 
@@ -275,6 +280,253 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         }
     }
 
+    [Fact]
+    public async Task Market_condition_projector_exception_fails_workflow_without_projection_state_or_continuation()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                OverrideSimpleInjector<IFunctionProjector<MarketConditionPipelineCompletedEvent>>(
+                    services, new ThrowingMarketConditionProjector());
+            }));
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswMcProjectionFailurePublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-MCPROJ", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
+                StrategyWorkflowOutcome.PipelineFailed);
+
+            (await database.TradeDb.GetMarketConditionAsync(started.WorkflowId)).Should().BeNull();
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.MarketCondition.Failure!.ErrorData.Should().Be(MarketConditionReasonCodes.Projection);
+            pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(0);
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Market_condition_persistence_exception_leaves_observable_orphan_and_never_continues()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                var repository = DispatchProxy.Create<
+                    IEventSourceFunctionStateRepository<MarketConditionFunctionState,
+                        ExecuteMarketConditionPipelineCommand>,
+                    ThrowingMarketConditionStateRepositoryProxy>();
+                OverrideSimpleInjector(services, repository);
+            }));
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswMcPersistenceFailurePublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-MCPERSIST", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped,
+                StrategyWorkflowOutcome.PipelineFailed);
+
+            (await database.TradeDb.GetMarketConditionAsync(started.WorkflowId)).Should().NotBeNull(
+                "projection precedes Function-state persistence and is intentionally detectable as an orphan");
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.MarketCondition.Failure!.ErrorData.Should().Be(MarketConditionReasonCodes.Persistence);
+            pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(0);
+
+            var queryProducer = factory.Services.GetRequiredService<IActorProducer>();
+            await queryProducer.StartAsync(new ActorMailboxId(ActorType.Query, "ItswMcOrphanQueryProbe"));
+            try
+            {
+                var observation = await new IntrinsicTimeStrategyWorkflowQueryApi(queryProducer)
+                    .GetObservationAsync(entity);
+                observation.Success.Should().BeTrue();
+                observation.Value!.MarketConditionTerminal.Should().NotBeNull();
+                observation.Value.WorkflowAcceptedMarketConditionTerminal.Should().BeFalse();
+                observation.Value.MarketConditionNotificationLossSuspected.Should().BeTrue();
+                observation.Value.IsOperationalIssue.Should().BeTrue();
+            }
+            finally
+            {
+                await queryProducer.StopAsync();
+            }
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Market_condition_no_trade_is_projected_terminal_and_never_dispatches_trade_selection()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true })));
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswMcNoTradePublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-MCNOTRADE", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+            var cache = factory.Services.GetRequiredService<IMarketConditionSnapshotCache>();
+            cache.Clear();
+            var blocked = HealthyMarketConditionSource();
+            cache.Upsert(1, "ES", TimeFrameType.Daily, blocked with
+            {
+                SessionState = blocked.SessionState with { Status = MarketSessionStatus.Closed, IsEntryWindow = false }
+            });
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Completed, StrategyWorkflowOutcome.NoTrade);
+
+            var projected = await database.TradeDb.GetMarketConditionAsync(started.WorkflowId);
+            projected.Should().NotBeNull();
+            MessagePackSerializer.Deserialize<MarketConditionResult>(projected!.ResultPayload)
+                .Tradeability.Should().Be(MarketTradeability.NotTradeable);
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.Completed);
+            state.CurrentView.MarketCondition.ContinuationDecision.Should()
+                .Be(StrategyWorkflowContinuationDecision.Stop);
+            pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(0);
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Market_condition_timeout_is_terminal_unprojected_and_never_dispatches_trade_selection()
+    {
+        await using var factory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                services.RemoveAll<IMarketConditionSnapshotProvider>();
+                services.AddSingleton<IMarketConditionSnapshotProvider>(new BlockingMarketConditionSnapshotProvider());
+            }));
+        _ = factory.CreateClient();
+        var supervisor = factory.Services.GetRequiredService<IActorSupervisor>();
+        await using var pipelines = await DummyPipelineHarness.StartAsync(factory.Services, supervisor);
+        var publisher = factory.Services.GetRequiredService<IActorProducer>();
+        await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswMcTimeoutPublisher"));
+        try
+        {
+            var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-MCTIMEOUT", TimeFrameType.Daily);
+            await PrepareRegimeDiscoveryAsync(factory.Services, [entity]);
+
+            await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+            var started = await WaitForStatusAsync(entity, StrategyWorkflowStatus.Running);
+            await WaitForTerminalAsync(entity, StrategyWorkflowStatus.Stopped, StrategyWorkflowOutcome.TimedOut);
+
+            (await database.TradeDb.GetMarketConditionAsync(started.WorkflowId)).Should().BeNull();
+            var state = await LoadStateAsync(factory.Services, entity);
+            state.CurrentView!.MarketCondition.ProcessingStatus.Should().Be(StrategyActorProcessingStatus.TimedOut);
+            state.CurrentView.MarketCondition.Failure!.ErrorData.Should().Be(MarketConditionReasonCodes.Timeout);
+            pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(0);
+        }
+        finally
+        {
+            await publisher.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Market_condition_matching_retry_survives_host_restart_without_recapture_or_redispatch()
+    {
+        var firstProvider = new RecordingMarketConditionSnapshotProvider();
+        ExecuteMarketConditionPipelineCommand command;
+        Guid completedId;
+        var entity = Entity($"ES-ITSW-{Guid.NewGuid():N}-MCRETRY", TimeFrameType.Daily);
+        await using (var firstFactory = sourceFactory.WithWebHostBuilder(builder =>
+                         builder.ConfigureServices(services =>
+                         {
+                             services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                             services.RemoveAll<IMarketConditionSnapshotProvider>();
+                             services.AddSingleton<IMarketConditionSnapshotProvider>(firstProvider);
+                         })))
+        {
+            _ = firstFactory.CreateClient();
+            var supervisor = firstFactory.Services.GetRequiredService<IActorSupervisor>();
+            await using var pipelines = await DummyPipelineHarness.StartAsync(firstFactory.Services, supervisor);
+            var publisher = firstFactory.Services.GetRequiredService<IActorProducer>();
+            await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswMcRetryPublisher"));
+            try
+            {
+                await PrepareRegimeDiscoveryAsync(firstFactory.Services, [entity]);
+                using var hold = pipelines.HoldAt(entity, StrategyWorkflowStage.TradeSelection);
+                await PublishTriggerAsync(publisher, entity.ItiSignalEntityId);
+                await WaitForStageAsync(firstFactory.Services, entity, StrategyWorkflowStage.TradeSelection, 3);
+                command = await firstProvider.Command.Task.WaitAsync(ScenarioTimeout);
+
+                var retry = await publisher.RequestFunctionAsync<ExecuteMarketConditionPipelineCommand,
+                    MarketConditionExecutionEntityId,
+                    FunctionResult<MarketConditionPipelineCompletedEvent, MarketConditionPipelineFailedEvent>>(
+                    command.Subject, command, command.EntityId);
+                retry.Success.Should().BeTrue();
+                retry.Value!.IsCompleted.Should().BeTrue();
+                completedId = retry.Value.Completed!.Id;
+                firstProvider.Calls.Should().Be(1);
+                pipelines.StartCount(entity, StrategyWorkflowStage.TradeSelection).Should().Be(1);
+            }
+            finally
+            {
+                await publisher.StopAsync();
+            }
+        }
+
+        var restartedProvider = new RecordingMarketConditionSnapshotProvider();
+        await using var restartedFactory = sourceFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton(new IntrinsicTimeStrategyWorkflowOptions { Enabled = true });
+                services.RemoveAll<IMarketConditionSnapshotProvider>();
+                services.AddSingleton<IMarketConditionSnapshotProvider>(restartedProvider);
+            }));
+        _ = restartedFactory.CreateClient();
+        var restartedPublisher = restartedFactory.Services.GetRequiredService<IActorProducer>();
+        await restartedPublisher.StartAsync(new ActorMailboxId(ActorType.Function, "ItswMcRestartRetryPublisher"));
+        try
+        {
+            var retry = await restartedPublisher.RequestFunctionAsync<ExecuteMarketConditionPipelineCommand,
+                MarketConditionExecutionEntityId,
+                FunctionResult<MarketConditionPipelineCompletedEvent, MarketConditionPipelineFailedEvent>>(
+                command.Subject, command, command.EntityId);
+            retry.Success.Should().BeTrue();
+            retry.Value!.Completed!.Id.Should().Be(completedId);
+            restartedProvider.Calls.Should().Be(0,
+                "completed Function state must be reconstructed before any source capture after restart");
+            var state = await LoadStateAsync(restartedFactory.Services, entity);
+            state.CurrentView!.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);
+            state.CurrentView.WorkflowRevision.Should().Be(3);
+        }
+        finally
+        {
+            await restartedPublisher.StopAsync();
+        }
+    }
+
     async Task AssertPersistedAdvancedSnapshotAsync(
         IServiceProvider services,
         IntrinsicTimeStrategyWorkflowEntityId entityId,
@@ -289,6 +541,18 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         projectedState.Status.Should().Be(WorkflowStrategyMachineStatus.Started);
         projectedState.CurrentStage.Should().Be(StrategyWorkflowStage.TradeSelection);
         projectedState.WorkflowRevision.Should().Be(history.WorkflowRevision);
+
+        var marketCondition = await database.TradeDb.GetMarketConditionAsync(history.WorkflowId);
+        marketCondition.Should().NotBeNull("the real Market Condition Function projects its completed result");
+        marketCondition!.WorkflowEntityId.Should().Be(entityId.Format());
+        marketCondition.InputWorkflowRevision.Should().Be(projectedState.MarketCondition.InputWorkflowRevision);
+        marketCondition.SourceEventId.Should().Be(projectedState.MarketCondition.SourceEventId);
+        marketCondition.ResultPayload.Should().NotBeEmpty();
+        var marketConditionResult = MessagePackSerializer.Deserialize<MarketConditionResult>(
+            marketCondition.ResultPayload);
+        marketConditionResult.ResultId.Should().Be(marketCondition.SourceEventId);
+        marketConditionResult.SnapshotSha256.Should().Be(marketCondition.SnapshotSha256);
+        marketConditionResult.Tradeability.Should().Be(MarketTradeability.Tradeable);
 
         var replayed = await LoadStateAsync(services, entityId);
         replayed.CurrentView.Should().NotBeNull();
@@ -313,6 +577,16 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             observation.Value.WorkflowRevision.Should().Be(history.WorkflowRevision);
             observation.Value.WorkflowAcceptedRegimeTerminal.Should().BeTrue();
             observation.Value.RegimeTerminal.Should().NotBeNull();
+            observation.Value.WorkflowAcceptedMarketConditionTerminal.Should().BeTrue();
+            observation.Value.MarketConditionTerminal.Should().NotBeNull();
+            observation.Value.MarketConditionTerminal!.WorkflowId.Should().Be(marketCondition.WorkflowId);
+            observation.Value.MarketConditionTerminal.WorkflowEntityId.Should().Be(marketCondition.WorkflowEntityId);
+            observation.Value.MarketConditionTerminal.InputWorkflowRevision
+                .Should().Be(marketCondition.InputWorkflowRevision);
+            observation.Value.MarketConditionTerminal.SourceEventId.Should().Be(marketCondition.SourceEventId);
+            observation.Value.MarketConditionTerminal.SnapshotSha256.Should().Be(marketCondition.SnapshotSha256);
+            observation.Value.MarketConditionTerminal.ResultPayload.Span
+                .SequenceEqual(marketCondition.ResultPayload.Span).Should().BeTrue();
         }
         finally
         {
@@ -401,6 +675,23 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
         throw new TimeoutException(
             $"Workflow {entityId.Format()} did not reach {status} within {ScenarioTimeout}; " +
             $"last observed: {lastObserved}.");
+    }
+
+    async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForFirstWorkflowAsync(
+        IntrinsicTimeStrategyWorkflowEntityId entityId)
+    {
+        var deadline = DateTime.UtcNow + ScenarioTimeout;
+        do
+        {
+            var rows = await database.TradeDb.GetIntrinsicTimeStrategyWorkflowsByEntityAsync(
+                entityId.Format(), DateTime.MaxValue, 10);
+            if (rows.Count > 0)
+                return rows.First();
+            await Task.Delay(100);
+        } while (DateTime.UtcNow < deadline);
+
+        throw new TimeoutException(
+            $"Workflow {entityId.Format()} did not project its first durable history row within {ScenarioTimeout}.");
     }
 
     async Task<IntrinsicTimeStrategyWorkflowHistoryReadModel> WaitForStageAsync(
@@ -724,6 +1015,100 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
             Status = MarketOperationalStatus.Healthy,
             Observation = source with { SourceId = id }
         };
+
+    sealed class ThrowingMarketConditionProjector : IFunctionProjector<MarketConditionPipelineCompletedEvent>
+    {
+        public ValueTask ProjectAsync(MarketConditionPipelineCompletedEvent completedEvent,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException(new InvalidOperationException("Injected Market Condition projection failure."));
+    }
+
+    sealed class BlockingMarketConditionSnapshotProvider : IMarketConditionSnapshotProvider
+    {
+        public async Task<MarketConditionSnapshotCaptureResult> CaptureAsync(
+            ExecuteMarketConditionPipelineCommand command, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The cancellation-bound delay unexpectedly completed.");
+        }
+    }
+
+    sealed class RecordingMarketConditionSnapshotProvider : IMarketConditionSnapshotProvider
+    {
+        public TaskCompletionSource<ExecuteMarketConditionPipelineCommand> Command { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Calls { get; private set; }
+
+        public Task<MarketConditionSnapshotCaptureResult> CaptureAsync(
+            ExecuteMarketConditionPipelineCommand command, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            Command.TrySetResult(command);
+            var source = HealthyMarketConditionSource();
+            var at = DateTime.UtcNow;
+            MarketSourceObservation At(MarketSourceObservation value) => value with
+            {
+                SourceTimestampUtc = at, ReceivedAtUtc = at, AgeSeconds = 0m
+            };
+            var snapshot = MarketConditionSnapshotHash.Seal(source with
+            {
+                SnapshotId = Guid.CreateVersion7(), WorkflowId = command.WorkflowId,
+                EntityId = command.WorkflowEntityId, FundId = command.FundId,
+                InstrumentRoot = command.InstrumentRoot, TargetHorizon = command.TargetHorizon,
+                EvaluationTimestampUtc = at, MarketDataAsOfUtc = at,
+                FuturesQuote = source.FuturesQuote with
+                {
+                    QuoteObservation = At(source.FuturesQuote.QuoteObservation),
+                    TradeObservation = At(source.FuturesQuote.TradeObservation)
+                },
+                OptionChainQuality = source.OptionChainQuality with
+                    { Observation = At(source.OptionChainQuality.Observation) },
+                SessionState = source.SessionState with { Observation = At(source.SessionState.Observation) },
+                EventRiskState = source.EventRiskState with { Observation = At(source.EventRiskState.Observation) },
+                VolatilityShockState = source.VolatilityShockState with
+                    { Observation = At(source.VolatilityShockState.Observation) },
+                OperationalHealth = source.OperationalHealth.Select(x => x with
+                    { Observation = At(x.Observation) }).ToArray(),
+                WorkflowEligibility = new MarketConditionWorkflowEligibilityState
+                {
+                    EntriesEnabled = true,
+                    RegimeProducedAtUtc = command.WorkflowView.RegimeDiscovery.CompletedAtUtc ?? at,
+                    TriggerProducedAtUtc = command.TriggerEvent.CreatedOn
+                },
+                DataQualityItems = source.DataQualityItems.Select(At).ToArray()
+            });
+            return Task.FromResult(new MarketConditionSnapshotCaptureResult
+            {
+                Outcome = MarketConditionCaptureOutcome.Success, Snapshot = snapshot
+            });
+        }
+    }
+
+    class ThrowingMarketConditionStateRepositoryProxy : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod?.Name switch
+        {
+            nameof(IEventSourceFunctionStateRepository<MarketConditionFunctionState,
+                ExecuteMarketConditionPipelineCommand>.LoadStateAsync) =>
+                ValueTask.FromResult(new MarketConditionFunctionState()),
+            nameof(IEventSourceFunctionStateRepository<MarketConditionFunctionState,
+                ExecuteMarketConditionPipelineCommand>.SaveCompletedStateAsync) =>
+                ValueTask.FromException(new InvalidOperationException(
+                    "Injected Market Condition persistence failure.")),
+            _ => throw new NotSupportedException(targetMethod?.Name)
+        };
+    }
+
+    static void OverrideSimpleInjector<TService>(IServiceCollection services, TService instance)
+        where TService : class
+    {
+        var container = services
+            .Single(descriptor => descriptor.ServiceType == typeof(SimpleInjector.Container))
+            .ImplementationInstance.Should().BeOfType<SimpleInjector.Container>().Subject;
+        container.Options.AllowOverridingRegistrations = true;
+        container.RegisterInstance(instance);
+        container.Options.AllowOverridingRegistrations = false;
+    }
 
     static decimal SignalValue(RegimeDiscoverySignalMetric metric) => metric switch
     {

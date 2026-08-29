@@ -55,15 +55,27 @@ public sealed class MarketConditionQueryActor(IQueryActorContext<MarketCondition
         }
     };
     static readonly IReadOnlyDictionary<Type, QueryExceptionHandler> _exceptionMap = CreateQueryExceptionMap(_receiveMap.Keys);
-    protected override IQuery ParseMessage(IQueryActorContext<MarketConditionQueryActor> c, IActorMessage m)
-        => ParseMappedQuery(c, m, _parseMap);
-    protected override ValueTask ReceiveAsync(IQueryActorContext<MarketConditionQueryActor> c, IQuery q)
-        => ReceiveAsync(c, q, CancellationToken.None);
-    protected override async ValueTask ReceiveAsync(IQueryActorContext<MarketConditionQueryActor> c, IQuery q,
-        CancellationToken token) => await ResolveMappedQueryHandler(q, _receiveMap)(this, c, q, token).ConfigureAwait(false);
-    protected override ValueTask OnExceptionAsync(IQueryActorContext<MarketConditionQueryActor> c,
-        ActorThreadId thread, IQuery query, string verb, Exception ex)
-        => ExceptionMappedQueryAsync(c, thread, query, verb, ex, _exceptionMap);
+    protected override IQuery ParseMessage(
+        IQueryActorContext<MarketConditionQueryActor> context,
+        IActorMessage message)
+        => ParseMappedQuery(context, message, _parseMap);
+    protected override ValueTask ReceiveAsync(
+        IQueryActorContext<MarketConditionQueryActor> context,
+        IQuery query)
+        => ReceiveAsync(context, query, CancellationToken.None);
+    protected override async ValueTask ReceiveAsync(
+        IQueryActorContext<MarketConditionQueryActor> context,
+        IQuery query,
+        CancellationToken cancellationToken)
+        => await ResolveMappedQueryHandler(query, _receiveMap)(
+            this, context, query, cancellationToken).ConfigureAwait(false);
+    protected override ValueTask OnExceptionAsync(
+        IQueryActorContext<MarketConditionQueryActor> context,
+        ActorThreadId threadId,
+        IQuery query,
+        string verb,
+        Exception exception)
+        => ExceptionMappedQueryAsync(context, threadId, query, verb, exception, _exceptionMap);
     static IMarketConditionQueryContext Typed(IQueryActorContext<MarketConditionQueryActor> c)
         => c as IMarketConditionQueryContext ?? throw new ArgumentException(
             $"{nameof(c)} must implement {nameof(IMarketConditionQueryContext)}.", nameof(c));

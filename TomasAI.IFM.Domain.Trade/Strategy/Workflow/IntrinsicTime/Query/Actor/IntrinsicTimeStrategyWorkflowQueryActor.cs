@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Queries;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -250,7 +251,9 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
 
         var regime = await ActorContext.DbFactory.TradeDb
             .GetRegimeDiscoveryAsync(view.WorkflowId, cancellationToken).ConfigureAwait(false);
-        var result = CreateObservation(entityText, view, regime, now);
+        var marketCondition = await ActorContext.DbFactory.TradeDb
+            .GetMarketConditionAsync(view.WorkflowId, cancellationToken).ConfigureAwait(false);
+        var result = CreateObservation(entityText, view, regime, now, marketCondition);
 
         if (result.OperationalStatus == IntrinsicTimeStrategyWorkflowOperationalStatus.ExpiredNotClosed)
             ActorContext.Logger.LogWarning(
@@ -260,6 +263,10 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
             ActorContext.Logger.LogWarning(
                 "Regime terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",
                 entityText, view.WorkflowId, regime!.SourceEventId);
+        if (result.MarketConditionNotificationLossSuspected)
+            ActorContext.Logger.LogWarning(
+                "Market Condition terminal notification was not accepted by workflow {WorkflowEntityId} {WorkflowId} source {SourceEventId}",
+                entityText, view.WorkflowId, marketCondition!.SourceEventId);
 
         return result;
     }
@@ -268,14 +275,21 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
         string entityText,
         IntrinsicTimeStrategyWorkflowView view,
         RegimeDiscoveryReadModel? regime,
-        DateTime now)
+        DateTime now,
+        MarketConditionReadModel? marketCondition = null)
     {
         var accepted = regime is not null &&
                        regime.WorkflowId == view.WorkflowId &&
                        regime.InputWorkflowRevision == view.RegimeDiscovery.InputWorkflowRevision &&
                        regime.SourceEventId == view.RegimeDiscovery.SourceEventId;
         var expired = view.Status == WorkflowStrategyMachineStatus.Started && now >= view.ExpiresAtUtc;
-        var notificationLoss = expired && regime is not null && !accepted;
+        var marketConditionAccepted = marketCondition is not null &&
+                                      marketCondition.WorkflowId == view.WorkflowId &&
+                                      marketCondition.InputWorkflowRevision == view.MarketCondition.InputWorkflowRevision &&
+                                      marketCondition.SourceEventId == view.MarketCondition.SourceEventId;
+        var regimeNotificationLoss = expired && regime is not null && !accepted;
+        var marketConditionNotificationLoss = marketCondition is not null && !marketConditionAccepted;
+        var notificationLoss = regimeNotificationLoss || marketConditionNotificationLoss;
         var operationalStatus = Classify(view.Status, expired);
         return new IntrinsicTimeStrategyWorkflowObservationReadModel
         {
@@ -296,8 +310,12 @@ public sealed class IntrinsicTimeStrategyWorkflowQueryActor(
             RegimeTerminal = regime,
             WorkflowAcceptedRegimeTerminal = accepted,
             NotificationLossSuspected = notificationLoss,
+            MarketConditionTerminal = marketCondition,
+            WorkflowAcceptedMarketConditionTerminal = marketConditionAccepted,
+            MarketConditionNotificationLossSuspected = marketConditionNotificationLoss,
             ObservedAtUtc = now,
-            Diagnostic = notificationLoss ? "RegimeTerminalNotAccepted" :
+            Diagnostic = marketConditionNotificationLoss ? "MarketConditionTerminalNotAccepted" :
+                regimeNotificationLoss ? "RegimeTerminalNotAccepted" :
                 expired ? "WorkflowExpiredNotClosed" : string.Empty
         };
     }

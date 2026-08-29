@@ -3,7 +3,7 @@
 **Document type:** System-wide implementation guide for all actor types  
 **Status:** Evolving design convention; EventActor, RealtimeActor, CommandActor, QueryActor, and FunctionActor conventions documented
 **Created:** 2026-08-14  
-**Last updated:** 2026-08-28
+**Last updated:** 2026-08-29
 **Applies to:** Actor base classes, derived actors, actor message contracts, mapped handlers, and actor unit and integration tests
 
 ## 1. Purpose
@@ -22,7 +22,7 @@ Across all actor types, this document will be expanded as decisions are made abo
 | RealtimeActor | Implemented and repository-enforced | Uses standardized `_parseMap` and exact-type `_receiveMap` dispatch with `ActorType.Realtime`, Core NATS delivery, a required primary actor, optional realtime routes, and parse/receive parity checks. |
 | CommandActor | Initial convention documented | Parse, validation, receive maps, command extensions, event-sourced state, repositories, and projector boundaries are defined below. |
 | QueryActor | Initial convention documented | Verb parsing, exact-type receive and exception mapping, typed failures, and malformed-ingress handling are defined below. |
-| FunctionActor | Implemented for Regime Discovery | Command-shaped request/reply, typed complete/fail result, optional synchronous projection, completed-only state, and no event publication are defined below. |
+| FunctionActor | Implemented for Regime Discovery and Market Condition | Command-shaped request/reply, typed complete/fail result, optional synchronous projection, completed-only state, and no event publication are defined below. |
 | Additional actor roles | Not yet defined | Add only after the role and its implementation convention are explicitly approved. |
 
 ## 1.2 Current EventActor objective
@@ -1135,6 +1135,11 @@ the original completion without executing or projecting again; a conflicting ret
 The initial completed append uses expected stream version zero to prevent two committed
 completions for one Function execution stream.
 
+The effective Function deadline is the earliest of the request deadline, owning workflow deadline,
+and any frozen execution deadline. Exact-boundary timeout wins over completion. Caller cancellation
+remains distinguishable from a Function timeout, and late workers must be cancelled and observed so
+they cannot project, persist, or leak an unobserved exception after the request has terminated.
+
 The projector is optional at the generic base boundary. When it is absent, a completed result goes
 directly to completed-state persistence. When present, projection must finish before persistence.
 Because the projection store and PostgreSQL event store are different databases, this ordering is
@@ -1206,3 +1211,4 @@ For each approved conversion, validation must cover compilation, equality and ha
 | 2026-08-28 | Defined and migrated the QueryActor three-map convention: base verb parsing, exact-type receive and typed exception maps, distinct malformed-ingress handling, map-parity enforcement, and repository conformance tests for all domain QueryActors. |
 | 2026-08-28 | Standardized all domain RealtimeActors on base `_parseMap` and exact concrete-type `_receiveMap` dispatch, made pre-event parse failures null-safe, preserved empty-command-ID private realtime barriers, added a reusable template, and enforced parse/receive parity for all 17 actors. |
 | 2026-08-28 | Added the FunctionActor convention and its Regime Discovery implementation: Core NATS request/reply, exact mapped dispatch, optional synchronous completed-only projection, completed-only event-sourced state with optimistic initial append, direct typed complete/fail return, and Strategy Workflow command ownership of durable terminal state. |
+| 2026-08-29 | Qualified Market Condition as the second FunctionActor implementation; documented minimum-deadline selection, exact-boundary timeout precedence, caller-cancellation separation, late-worker observation, completed-only retry/restart behavior, and direct Workflow Realtime translation to terminal workflow commands. |

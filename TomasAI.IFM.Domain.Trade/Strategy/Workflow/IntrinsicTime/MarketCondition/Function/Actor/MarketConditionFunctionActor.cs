@@ -99,7 +99,9 @@ public sealed class MarketConditionFunctionActor(IFunctionActorContext<MarketCon
         if (c.WorkflowView.EntityId != c.WorkflowEntityId || c.WorkflowView.WorkflowId != c.WorkflowId ||
             c.WorkflowView.WorkflowRevision != c.InputWorkflowRevision || c.WorkflowView.Status != WorkflowStrategyMachineStatus.Started ||
             c.WorkflowView.CurrentStage != StrategyWorkflowStage.MarketCondition) errors.Add("Workflow view is not the selected Market Condition revision.");
-        if (c.RequestedAtUtc >= c.ExpiresAtUtc || c.ExpiresAtUtc > c.WorkflowView.ExpiresAtUtc) errors.Add("Function deadline is invalid.");
+        if (c.RequestedAtUtc >= c.ExpiresAtUtc || c.ExpiresAtUtc > c.WorkflowView.ExpiresAtUtc ||
+            c.ExpiresAtUtc > c.RequestedAtUtc.AddMilliseconds(c.ParameterSet.Execution.MaximumExecutionMilliseconds))
+            errors.Add("Function deadline is invalid.");
         errors.AddRange(new MarketConditionParameterSetValidationRules().Execute(c.ParameterSet).Select(x => x.ErrorMessage));
         if (c.FundId != c.ParameterSet.FundId || c.FundId != c.WorkflowView.FundId || c.InstrumentRoot != "ES" ||
             c.TargetHorizon != c.ParameterSet.TargetHorizon || c.TargetHorizon != c.TriggerEvent.EntityId.TimePeriod)

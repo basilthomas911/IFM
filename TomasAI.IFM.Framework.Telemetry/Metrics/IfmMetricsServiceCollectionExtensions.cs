@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace TomasAI.IFM.Framework.Telemetry.Metrics;
 
@@ -14,6 +15,7 @@ public static class IfmMetricsServiceCollectionExtensions
     const string EventProjectorMeterName = "TomasAI.IFM.Application.EventProjector";
     const string FmpProviderMeterName = "TomasAI.IFM.Framework.MarketData.FMP";
     const string FmpImportMeterName = "TomasAI.IFM.Application.MarketData.FMP";
+    const string MarketConditionInstrumentationName = "TomasAI.IFM.Domain.Trade.MarketCondition";
 
     /// <summary>
     /// Adds IFM, .NET runtime, ASP.NET Core, Kestrel, and HTTP client metrics when
@@ -50,6 +52,7 @@ public static class IfmMetricsServiceCollectionExtensions
                     .AddMeter(EventProjectorMeterName)
                     .AddMeter(FmpProviderMeterName)
                     .AddMeter(FmpImportMeterName)
+                    .AddMeter(MarketConditionInstrumentationName)
                     .AddMeter("System.Runtime")
                     .AddMeter("Microsoft.AspNetCore.Hosting")
                     .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
@@ -74,6 +77,23 @@ public static class IfmMetricsServiceCollectionExtensions
                             StringComparison.OrdinalIgnoreCase)
                             ? OtlpExportProtocol.HttpProtobuf
                             : OtlpExportProtocol.Grpc;
+                    });
+            })
+            .WithTracing(tracing =>
+            {
+                tracing.AddSource(MarketConditionInstrumentationName)
+                    .AddOtlpExporter(options =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(endpointText))
+                        {
+                            if (!Uri.TryCreate(endpointText, UriKind.Absolute, out var endpoint))
+                                throw new InvalidOperationException(
+                                    $"Telemetry:Metrics:OtlpEndpoint '{endpointText}' is not an absolute URI.");
+                            options.Endpoint = endpoint;
+                        }
+                        options.Protocol = string.Equals(protocolText, "http/protobuf",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? OtlpExportProtocol.HttpProtobuf : OtlpExportProtocol.Grpc;
                     });
             });
 

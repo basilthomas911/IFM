@@ -167,6 +167,59 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
         });
     }
 
+    /// <summary>Given invalid mandatory input, Market Condition fails and never maps it to NoTrade.</summary>
+    [Fact]
+    public void Invalid_market_condition_input_is_an_operational_failure()
+    {
+        var scenario = new Scenario(TimeFrameType.Daily);
+        scenario.AdvanceToMarketCondition(StartedAt);
+
+        scenario.FailMarketCondition(StartedAt.AddSeconds(20),
+            MarketConditionFailureCategory.RequiredInputInvalid);
+
+        scenario.State.CurrentView.Should().BeEquivalentTo(new
+        {
+            Status = WorkflowStrategyMachineStatus.Failed,
+            Outcome = StrategyWorkflowOutcome.PipelineFailed,
+            CurrentStage = StrategyWorkflowStage.MarketCondition
+        });
+    }
+
+    /// <summary>Given a result already expired at acceptance, the workflow times out and does not rerun it.</summary>
+    [Fact]
+    public void Expired_market_condition_completion_times_out_without_trade_selection()
+    {
+        var scenario = new Scenario(TimeFrameType.Daily);
+        scenario.AdvanceToMarketCondition(StartedAt);
+
+        scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), MarketTradeability.Tradeable,
+            validForSeconds: -1);
+
+        scenario.State.CurrentView.Should().BeEquivalentTo(new
+        {
+            Status = WorkflowStrategyMachineStatus.TimedOut,
+            Outcome = StrategyWorkflowOutcome.TimedOut,
+            CurrentStage = StrategyWorkflowStage.MarketCondition,
+            StopReasonCode = MarketConditionReasonCodes.ResultExpired
+        });
+    }
+
+    /// <summary>Given duplicate terminal data, the authoritative workflow revision changes at most once.</summary>
+    [Fact]
+    public void Duplicate_market_condition_terminal_changes_revision_once()
+    {
+        var scenario = new Scenario(TimeFrameType.Daily);
+        scenario.AdvanceToMarketCondition(StartedAt);
+        var command = scenario.CompleteMarketCondition(StartedAt.AddSeconds(20), MarketTradeability.Tradeable);
+        var revision = scenario.State.CurrentView!.WorkflowRevision;
+        var eventCount = scenario.State.Events.Count;
+
+        command.Execute(Context(StartedAt.AddSeconds(21)), scenario.State);
+
+        scenario.State.CurrentView.WorkflowRevision.Should().Be(revision);
+        scenario.State.Events.Should().HaveCount(eventCount);
+    }
+
     sealed class Scenario
     {
         readonly IntrinsicTimeStrategyWorkflowEntityId _entityId;
@@ -211,10 +264,14 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
             State.Apply(snapshot, addEvent: false).Should().BeTrue();
         }
 
-        public void CompleteMarketCondition(DateTime now, MarketTradeability tradeability)
+        public CompleteMarketConditionCommand CompleteMarketCondition(DateTime now,
+            MarketTradeability tradeability, int validForSeconds = 30)
         {
             var view = State.CurrentView!;
             var source = NextGuid();
+            var evaluatedAt = validForSeconds < 0
+                ? now.AddSeconds(validForSeconds - 1)
+                : now;
             var result = new MarketConditionResult
             {
                 ResultId = source,
@@ -229,9 +286,9 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 MarketConditionParameterSetVersion = view.MarketConditionParameterSet.Version,
                 SnapshotId = NextGuid(),
                 SnapshotSha256 = new string('A', 64),
-                EvaluatedAtUtc = now,
-                ValidUntilUtc = now.AddSeconds(30),
-                MarketDataAsOfUtc = now,
+                EvaluatedAtUtc = evaluatedAt,
+                ValidUntilUtc = now.AddSeconds(validForSeconds),
+                MarketDataAsOfUtc = evaluatedAt,
                 Tradeability = tradeability,
                 ConditionType = tradeability == MarketTradeability.Tradeable
                     ? MarketConditionType.Directional : MarketConditionType.NoOpportunity,
@@ -249,7 +306,7 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                 SummaryText = "BDD result"
             };
             var payload = MessagePackSerializer.Serialize(result);
-            new CompleteMarketConditionCommand
+            var command = new CompleteMarketConditionCommand
             {
                 CommandId = NextGuid(),
                 Subject = Subject(CompleteMarketConditionCommand.Verb),
@@ -261,7 +318,9 @@ public sealed class IntrinsicTimeStrategyWorkflowAtomicScenarios
                     MarketConditionResult.CurrentSchemaVersion, payload, now, now),
                 CausationId = source,
                 CompletedAtUtc = now
-            }.Execute(Context(now), State);
+            };
+            command.Execute(Context(now), State);
+            return command;
         }
 
         public void FailMarketCondition(DateTime now, MarketConditionFailureCategory category)

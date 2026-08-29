@@ -317,7 +317,7 @@ public sealed class MarketConditionParameterSetValidationRules
         {
             RuleFor(x => x.TickSize).GreaterThan(0m);
             RuleFor(x => x.HealthySpreadTicks).GreaterThan(0m);
-            RuleFor(x => x.MaximumTradeableSpreadTicks).GreaterThan(0m);
+            RuleFor(x => x.MaximumTradeableSpreadTicks).GreaterThan(1m);
             RuleFor(x => x).Must(x => x.HealthySpreadTicks <= x.MaximumTradeableSpreadTicks)
                 .WithMessage("Healthy futures spread must not exceed the maximum tradeable spread.");
             RuleFor(x => x.MinimumBidSize).GreaterThan(0m);
@@ -338,10 +338,10 @@ public sealed class MarketConditionParameterSetValidationRules
             RuleFor(x => x.MinimumEligibleExpirations).GreaterThan(0);
             RuleFor(x => x.MinimumCandidateContracts).GreaterThan(0);
             RuleFor(x => x.MinimumValidQuoteCoverage).InclusiveBetween(0m, 1m);
-            RuleFor(x => x.HealthyValidQuoteCoverage).InclusiveBetween(0m, 1m);
+            RuleFor(x => x.HealthyValidQuoteCoverage).ExclusiveBetween(0m, 1.000001m);
             RuleFor(x => x).Must(x => x.MinimumValidQuoteCoverage <= x.HealthyValidQuoteCoverage)
                 .WithMessage("Minimum quote coverage must not exceed healthy quote coverage.");
-            RuleFor(x => x.MaximumMedianRelativeSpread).InclusiveBetween(0m, 1m);
+            RuleFor(x => x.MaximumMedianRelativeSpread).ExclusiveBetween(0m, 1.000001m);
             RuleFor(x => x.MaximumP90RelativeSpread).InclusiveBetween(0m, 1m);
             RuleFor(x => x).Must(x => x.MaximumMedianRelativeSpread <= x.MaximumP90RelativeSpread)
                 .WithMessage("Median relative spread must not exceed P90 relative spread.");

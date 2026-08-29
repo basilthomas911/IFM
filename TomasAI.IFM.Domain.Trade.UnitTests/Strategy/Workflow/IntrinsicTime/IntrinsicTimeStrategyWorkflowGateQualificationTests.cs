@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Projection;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Realtime.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.Query.Actor;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -290,6 +291,49 @@ public sealed class IntrinsicTimeStrategyWorkflowGateQualificationTests
         accepted.WorkflowAcceptedRegimeTerminal.Should().BeTrue();
         lost.WorkflowAcceptedRegimeTerminal.Should().BeFalse();
         lost.NotificationLossSuspected.Should().BeTrue();
+    }
+
+    /// <summary>Confirms the observation contract exposes and correlates the complete Market Condition projection.</summary>
+    [Fact]
+    public void Operational_view_exposes_market_condition_terminal_and_detects_orphans()
+    {
+        var snapshot = IntrinsicTimeStrategyWorkflowCommandStateTests.CreateStartedSnapshotForQualification().State;
+        var source = Guid.NewGuid();
+        snapshot = snapshot with
+        {
+            MarketCondition = snapshot.MarketCondition with
+            {
+                InputWorkflowRevision = snapshot.WorkflowRevision,
+                SourceEventId = source
+            }
+        };
+        var marketCondition = new MarketConditionReadModel
+        {
+            WorkflowId = snapshot.WorkflowId,
+            WorkflowEntityId = snapshot.EntityId.Format(),
+            InputWorkflowRevision = snapshot.WorkflowRevision,
+            SourceEventId = source,
+            Tradeability = MarketTradeability.NotTradeable,
+            ConditionType = MarketConditionType.NoOpportunity,
+            Direction = MarketConditionDirection.Bullish,
+            Phase = MarketConditionPhase.Confirmed,
+            Strength = 54m,
+            Confidence = 0.64m,
+            PrimaryReasonCode = MarketConditionReasonCodes.Strength,
+            SummaryText = "Daily ES condition is NotTradeable"
+        };
+
+        var accepted = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+            snapshot.EntityId.Format(), snapshot, null, snapshot.StartedAtUtc, marketCondition);
+        var orphan = IntrinsicTimeStrategyWorkflowQueryActor.CreateObservation(
+            snapshot.EntityId.Format(), snapshot, null, snapshot.ExpiresAtUtc,
+            marketCondition with { SourceEventId = Guid.NewGuid() });
+
+        accepted.MarketConditionTerminal.Should().BeEquivalentTo(marketCondition);
+        accepted.WorkflowAcceptedMarketConditionTerminal.Should().BeTrue();
+        orphan.WorkflowAcceptedMarketConditionTerminal.Should().BeFalse();
+        orphan.MarketConditionNotificationLossSuspected.Should().BeTrue();
+        orphan.Diagnostic.Should().Be("MarketConditionTerminalNotAccepted");
     }
 
     /// <summary>Confirms migration-blocked streams have a distinct operational issue status.</summary>

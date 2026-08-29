@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Implemented candidate; production qualification incomplete (see implementation plan gate record) |
+| Status | Implemented and qualified; MC-00 through MC-16 complete |
 | Created | 2026-08-28 |
 | Source design | `MarketCondition-High-Level-Design-v0.1.md` |
 | Workflow stage | `StrategyWorkflowStage.MarketCondition` |

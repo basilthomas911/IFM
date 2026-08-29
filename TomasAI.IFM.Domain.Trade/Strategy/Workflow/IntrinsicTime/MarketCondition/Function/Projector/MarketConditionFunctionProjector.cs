@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Events;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Projector;
@@ -12,6 +13,7 @@ public sealed class MarketConditionFunctionProjector(IDbContextFactory dbFactory
     public async ValueTask ProjectAsync(MarketConditionPipelineCompletedEvent completed,
         CancellationToken token = default)
     {
+        using var activity = MarketConditionTelemetry.Start("market-condition.completed-projection");
         ArgumentNullException.ThrowIfNull(completed);
         var result = MessagePackSerializer.Deserialize<MarketConditionResult>(completed.Result.Payload);
         await dbFactory.TradeDb.UpsertMarketConditionAsync(new MarketConditionReadModel

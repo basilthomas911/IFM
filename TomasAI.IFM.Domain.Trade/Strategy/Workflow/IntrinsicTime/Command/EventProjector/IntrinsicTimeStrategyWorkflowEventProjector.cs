@@ -119,7 +119,8 @@ public sealed class IntrinsicTimeStrategyWorkflowEventProjector
         var entity = workflow.EntityId;
         var iti = entity.ItiSignalEntityId;
         var status = ToLegacyStatus(workflow.Status);
-        var outcome = ToLegacyOutcome(workflow.Status);
+        var outcome = workflow.Outcome != StrategyWorkflowOutcome.None
+            ? workflow.Outcome : ToLegacyOutcome(workflow.Status);
         var detail = new IntrinsicTimeStrategyWorkflowReadModel(
             workflow.WorkflowId,
             entity.Format(),

@@ -88,6 +88,80 @@ public sealed class MarketConditionFunctionExecutionTests
     }
 
     [Fact]
+    public async Task Configured_execution_duration_cannot_be_extended_by_caller_deadline()
+    {
+        var command = Command(Now.AddMinutes(1));
+        TimeSpan? delay = null;
+        var timer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var execution = ExecuteMarketConditionPipeline.ExecuteAtomicAsync(command,
+            new FixedTimeProvider(Now), _ => new TaskCompletionSource<MarketConditionExecutionOutcome>().Task,
+            (value, _) => { delay = value; return timer.Task; });
+        timer.SetResult();
+        var terminal = await execution;
+
+        delay.Should().Be(TimeSpan.FromSeconds(4),
+            "RequestedAtUtc plus the frozen five-second duration is the effective deadline");
+        terminal.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.Timeout);
+    }
+
+    [Fact]
+    public async Task Completion_at_the_exact_effective_deadline_is_timed_out()
+    {
+        var command = Command(Now.AddSeconds(5));
+        var clock = new MutableTimeProvider(Now);
+
+        var terminal = await ExecuteMarketConditionPipeline.ExecuteAtomicAsync(command, clock, _ =>
+        {
+            clock.Value = command.RequestedAtUtc.AddMilliseconds(
+                command.ParameterSet.Execution.MaximumExecutionMilliseconds);
+            return Task.FromResult<MarketConditionExecutionOutcome>(
+                new MarketConditionExecutionCompleted(Result(command)));
+        }, (_, token) => Task.Delay(Timeout.InfiniteTimeSpan, token));
+
+        terminal.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.Timeout);
+    }
+
+    [Fact]
+    public async Task Timeout_cancels_worker_and_observes_late_exception_without_changing_terminal()
+    {
+        var command = Command(Now.AddSeconds(5));
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker = new TaskCompletionSource<MarketConditionExecutionOutcome>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var timer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var execution = ExecuteMarketConditionPipeline.ExecuteAtomicAsync(command,
+            new FixedTimeProvider(Now), token =>
+            {
+                token.Register(() => cancelled.TrySetResult());
+                return worker.Task;
+            }, (_, _) => timer.Task);
+        timer.SetResult();
+        var terminal = await execution;
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        worker.SetException(new InvalidOperationException("late worker failure"));
+        await Task.Yield();
+
+        terminal.Failed!.FailureCategory.Should().Be(MarketConditionFailureCategory.Timeout);
+        terminal.Completed.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_is_not_reclassified_as_timeout()
+    {
+        var command = Command(Now.AddSeconds(5));
+        using var cancellation = new CancellationTokenSource();
+        var execution = ExecuteMarketConditionPipeline.ExecuteAtomicAsync(command,
+            new FixedTimeProvider(Now), _ => new TaskCompletionSource<MarketConditionExecutionOutcome>().Task,
+            (_, token) => Task.Delay(Timeout.InfiniteTimeSpan, token), cancellation.Token);
+
+        cancellation.Cancel();
+
+        await FluentActions.Awaiting(() => execution).Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
     public async Task Completed_state_replays_matching_request_and_rejects_conflicting_fingerprint()
     {
         var command = Command(Now.AddSeconds(5));
@@ -146,7 +220,7 @@ public sealed class MarketConditionFunctionExecutionTests
         => ExecuteMarketConditionPipeline.ExecuteAtomicAsync(command, new FixedTimeProvider(Now), worker,
             (_, token) => Task.Delay(Timeout.InfiniteTimeSpan, token));
 
-    static ExecuteMarketConditionPipelineCommand Command(DateTime expiresAtUtc)
+    internal static ExecuteMarketConditionPipelineCommand Command(DateTime expiresAtUtc)
     {
         var workflowEntity = IntrinsicTimeStrategyWorkflowEntityId.Create(new FuturesItiSignalEntityId(
             "ES-202612", new DateOnly(2026, 8, 27), TimeFrameType.Daily));
@@ -274,5 +348,11 @@ public sealed class MarketConditionFunctionExecutionTests
     {
         readonly DateTimeOffset _now = new(value);
         public override DateTimeOffset GetUtcNow() => _now;
+    }
+
+    sealed class MutableTimeProvider(DateTime value) : TimeProvider
+    {
+        public DateTime Value { get; set; } = value;
+        public override DateTimeOffset GetUtcNow() => new(Value);
     }
 }

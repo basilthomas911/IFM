@@ -31,8 +31,8 @@ public sealed class MarketConditionBusinessVerificationTests
         result.ConditionType.Should().Be(MarketConditionType.Directional);
         result.Direction.Should().Be(MarketConditionDirection.Bullish);
         result.Phase.Should().Be(MarketConditionPhase.Initiating);
-        result.Strength.Should().BeGreaterThanOrEqualTo(input.ParameterSet.Scoring.MinimumStrength);
-        result.Confidence.Should().BeGreaterThanOrEqualTo(input.ParameterSet.Scoring.MinimumConfidence);
+        result.Strength.Should().Be(96m);
+        result.Confidence.Should().Be(0.931546m);
         result.TargetHorizon.Should().Be(horizon);
         result.MarketConditionParameterSetId.Should().Be(input.ParameterSet.ParameterSetId);
         result.SnapshotSha256.Should().Be(input.Snapshot.SnapshotSha256);
@@ -64,6 +64,8 @@ public sealed class MarketConditionBusinessVerificationTests
         result.Direction.Should().Be(MarketConditionDirection.Bearish);
         result.ConditionType.Should().Be(MarketConditionType.Directional);
         result.UpstreamAlignment.Should().Be(MarketConditionUpstreamAlignment.Aligned);
+        result.Strength.Should().Be(96m);
+        result.Confidence.Should().Be(0.931546m);
     }
 
     [Theory]
@@ -97,6 +99,36 @@ public sealed class MarketConditionBusinessVerificationTests
 
         result.Tradeability.Should().Be(MarketTradeability.Tradeable);
         result.ConditionType.Should().Be(expected);
+        result.Strength.Should().Be(85m);
+        result.Confidence.Should().Be(transition ? 0.831546m : 0.931546m);
+    }
+
+    [Theory]
+    [InlineData(true, MarketConditionType.VolatilityExpansion, 96)]
+    [InlineData(false, MarketConditionType.VolatilityContraction, 85)]
+    public void Volatility_expansion_and_contraction_match_exact_golden_vectors(
+        bool expanding, MarketConditionType expected, int strength)
+    {
+        var input = MarketConditionVerificationScenario.Healthy();
+        var regime = input.RegimeResult;
+        if (expanding)
+            regime = regime with
+                { Volatility = regime.Volatility with { Change = VolatilityRegimeChange.Expanding } };
+        else
+            regime = regime with
+            {
+                Volatility = regime.Volatility with { Change = VolatilityRegimeChange.Contracting },
+                MarketStructure = regime.MarketStructure with
+                    { Classification = MarketStructureClassification.Compressing, Direction = RegimeDirection.Neutral },
+                Fusion = regime.Fusion with { Direction = RegimeDirection.Neutral }
+            };
+
+        var result = new MarketConditionCalculationModel().Calculate(input with { RegimeResult = regime });
+
+        result.Tradeability.Should().Be(MarketTradeability.Tradeable);
+        result.ConditionType.Should().Be(expected);
+        result.Strength.Should().Be(strength);
+        result.Confidence.Should().Be(0.931546m);
     }
 
     [Theory]

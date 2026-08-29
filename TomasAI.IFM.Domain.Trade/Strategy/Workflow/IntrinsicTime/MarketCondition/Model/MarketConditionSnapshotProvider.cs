@@ -5,6 +5,7 @@ using System.Text.Json;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition;
 
 namespace TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
 
@@ -33,6 +34,16 @@ public sealed class MarketConditionSnapshotProvider : IMarketConditionSnapshotPr
 {
     static readonly ConcurrentDictionary<SnapshotKey, MarketConditionSnapshot> Latest = new();
     static long _revision;
+    readonly IMarketConditionSnapshotAdapterCoordinator? _coordinator;
+    readonly TimeProvider _timeProvider;
+
+    public MarketConditionSnapshotProvider(
+        IMarketConditionSnapshotAdapterCoordinator? coordinator = null,
+        TimeProvider? timeProvider = null)
+    {
+        _coordinator = coordinator;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public long Revision => Interlocked.Read(ref _revision);
 
@@ -58,13 +69,14 @@ public sealed class MarketConditionSnapshotProvider : IMarketConditionSnapshotPr
     public Task<MarketConditionSnapshotCaptureResult> CaptureAsync(
         ExecuteMarketConditionPipelineCommand command,
         CancellationToken cancellationToken = default)
-        => CaptureAtAsync(command, DateTime.UtcNow, cancellationToken);
+        => CaptureAtAsync(command, _timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
 
-    internal Task<MarketConditionSnapshotCaptureResult> CaptureAtAsync(
+    internal async Task<MarketConditionSnapshotCaptureResult> CaptureAtAsync(
         ExecuteMarketConditionPipelineCommand command,
         DateTime evaluationTimestampUtc,
         CancellationToken cancellationToken = default)
     {
+        using var activity = MarketConditionTelemetry.Start("market-condition.snapshot-capture");
         ArgumentNullException.ThrowIfNull(command);
         var key = new SnapshotKey(command.FundId, command.InstrumentRoot, command.TargetHorizon);
         var attempts = Math.Max(1, command.ParameterSet.Snapshot.SnapshotCaptureAttempts);
@@ -73,23 +85,57 @@ public sealed class MarketConditionSnapshotProvider : IMarketConditionSnapshotPr
             cancellationToken.ThrowIfCancellationRequested();
             var before = Revision;
             if (!Latest.TryGetValue(key, out var candidate))
-                return Task.FromResult(Failed(command, evaluationTimestampUtc,
-                    "No bounded Market Condition source snapshot is available."));
+            {
+                if (_coordinator is null)
+                    return Failed(command, evaluationTimestampUtc,
+                        "No bounded Market Condition source snapshot is available.");
+                try
+                {
+                    candidate = await _coordinator.PublishAsync(command, Eligibility(command),
+                        evaluationTimestampUtc, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (MarketConditionCalculationException error)
+                {
+                    return Failed(command, evaluationTimestampUtc, error.Message,
+                        error.Category, error.ReasonCode);
+                }
+                catch (Exception)
+                {
+                    return Failed(command, evaluationTimestampUtc,
+                        "An authoritative Market Condition source could not be captured.");
+                }
+            }
             var captured = Rebind(candidate, command, evaluationTimestampUtc, before);
             if (before != Revision) continue;
-            var invalid = FirstInvalidObservation(captured);
+            var invalid = FirstInvalidObservation(captured, command.ParameterSet.Snapshot.FutureClockSkewSeconds);
             if (invalid is not null)
-                return Task.FromResult(Failed(command, evaluationTimestampUtc,
-                    $"Required source metadata is invalid for {invalid.SourceId}."));
-            return Task.FromResult(new MarketConditionSnapshotCaptureResult
+                return Failed(command, evaluationTimestampUtc,
+                    $"Required source metadata is invalid for {invalid.SourceId}.");
+            foreach (var observation in Observations(captured))
+                MarketConditionTelemetry.RecordSourceAge(SourceCategory(observation.SourceId),
+                    observation.AgeSeconds, command.TargetHorizon);
+            return new MarketConditionSnapshotCaptureResult
             {
                 Outcome = MarketConditionCaptureOutcome.Success,
                 Snapshot = MarketConditionSnapshotHash.Seal(captured)
-            });
+            };
         }
-        return Task.FromResult(Failed(command, evaluationTimestampUtc,
-            "Market Condition source revisions changed during every bounded capture attempt."));
+        return Failed(command, evaluationTimestampUtc,
+            "Market Condition source revisions changed during every bounded capture attempt.");
     }
+
+    static MarketConditionWorkflowEligibilityState Eligibility(ExecuteMarketConditionPipelineCommand command)
+        => new()
+        {
+            EntriesEnabled = true,
+            RegimeProducedAtUtc = command.WorkflowView.RegimeDiscovery.CompletedAtUtc ?? default,
+            TriggerProducedAtUtc = command.TriggerEvent.CreatedOn != default
+                ? command.TriggerEvent.CreatedOn : command.TriggerEvent.ReceivedOn
+        };
 
     static MarketConditionSnapshot Rebind(MarketConditionSnapshot source,
         ExecuteMarketConditionPipelineCommand command, DateTime at, long revision)
@@ -128,12 +174,16 @@ public sealed class MarketConditionSnapshotProvider : IMarketConditionSnapshotPr
             : Math.Max(0m, (decimal)(at - source.SourceTimestampUtc).TotalSeconds)
     };
 
-    static MarketSourceObservation? FirstInvalidObservation(MarketConditionSnapshot snapshot)
+    static MarketSourceObservation? FirstInvalidObservation(MarketConditionSnapshot snapshot, int futureClockSkewSeconds)
         => Observations(snapshot).FirstOrDefault(x =>
             string.IsNullOrWhiteSpace(x.SourceId) ||
             x.Availability == MarketSourceAvailability.Unknown ||
             x.Validity == MarketSourceValidity.Unknown ||
-            (x.Availability == MarketSourceAvailability.Available && x.SourceTimestampUtc == default));
+            x.Validity == MarketSourceValidity.Invalid ||
+            x.SequenceId < 0 ||
+            (x.Availability != MarketSourceAvailability.Unavailable && x.SourceTimestampUtc == default) ||
+            (x.SourceTimestampUtc != default &&
+             x.SourceTimestampUtc > snapshot.EvaluationTimestampUtc.AddSeconds(futureClockSkewSeconds)));
 
     static IEnumerable<MarketSourceObservation> Observations(MarketConditionSnapshot snapshot)
     {
@@ -147,13 +197,28 @@ public sealed class MarketConditionSnapshotProvider : IMarketConditionSnapshotPr
         foreach (var item in snapshot.DataQualityItems) yield return item;
     }
 
+    static string SourceCategory(string sourceId)
+    {
+        if (sourceId.Contains("Option", StringComparison.OrdinalIgnoreCase)) return "option";
+        if (sourceId.Contains("Session", StringComparison.OrdinalIgnoreCase)) return "session";
+        if (sourceId.Contains("Event", StringComparison.OrdinalIgnoreCase)) return "event";
+        if (sourceId.Contains("Volatility", StringComparison.OrdinalIgnoreCase)) return "volatility";
+        if (sourceId.Contains("Health", StringComparison.OrdinalIgnoreCase) ||
+            sourceId.Contains("Feed", StringComparison.OrdinalIgnoreCase) ||
+            sourceId.Contains("Ibkr", StringComparison.OrdinalIgnoreCase) ||
+            sourceId.Contains("Cache", StringComparison.OrdinalIgnoreCase)) return "health";
+        return "futures";
+    }
+
     static MarketConditionSnapshotCaptureResult Failed(
-        ExecuteMarketConditionPipelineCommand command, DateTime at, string message)
+        ExecuteMarketConditionPipelineCommand command, DateTime at, string message,
+        MarketConditionFailureCategory category = MarketConditionFailureCategory.RequiredInputInvalid,
+        string reasonCode = MarketConditionReasonCodes.RequiredInput)
         => new()
         {
             Outcome = MarketConditionCaptureOutcome.Failed,
-            FailureCategory = MarketConditionFailureCategory.RequiredInputInvalid,
-            ReasonCode = MarketConditionReasonCodes.RequiredInput,
+            FailureCategory = category,
+            ReasonCode = reasonCode,
             SafeMessage = message,
             Snapshot = new MarketConditionSnapshot
             {

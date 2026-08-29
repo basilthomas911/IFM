@@ -111,8 +111,8 @@ foreach ($actorFile in $actorFiles) {
     }
 }
 
-if ($domainActorCount -ne 37) {
-    $violations.Add("Expected 37 domain CommandActors but discovered $domainActorCount.")
+if ($domainActorCount -ne 36) {
+    $violations.Add("Expected 36 domain CommandActors but discovered $domainActorCount.")
 }
 
 if ($violations.Count -gt 0) {

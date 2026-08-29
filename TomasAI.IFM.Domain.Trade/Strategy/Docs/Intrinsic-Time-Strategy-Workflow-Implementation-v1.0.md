@@ -2,7 +2,7 @@
 
 ## Implementation Specification v1.0
 
-- **Status:** Implemented skeleton with Regime Discovery FunctionActor amendment
+- **Status:** Implemented workflow with qualified Regime Discovery and Market Condition FunctionActor stages
 - **Date:** 2026-08-25
 - **Companion design:** [Intrinsic-Time-Strategy-Workflow-Design-v0.2.md](./Intrinsic-Time-Strategy-Workflow-Design-v0.2.md)
 - **Implementation target:** .NET 10, MessagePack, NATS Core/JetStream, PostgreSQL EventSourceDb, and ScyllaDB
@@ -14,7 +14,7 @@
 
 This document converts the Intrinsic Time Strategy Workflow design into a repository-specific implementation plan.
 
-The first implementation creates the workflow skeleton only. It provides:
+The implementation began as a workflow skeleton and now provides:
 
 - workflow Command, Realtime, and Query actors, with no workflow or pipeline Event actors in this version;
 - a `FuturesItiSignalGeneratedEvent` trigger routed through the existing realtime router;
@@ -26,12 +26,18 @@ The first implementation creates the workflow skeleton only. It provides:
 - unversioned ScyllaDB operational projections;
 - workflow queries, startup registration, recovery, idempotency, observability, and tests.
 
-The implementation deliberately does not calculate regimes, market conditions, trade selections, order compositions, or risk decisions. Those capabilities will be added one pipeline actor at a time.
+The implementation now calculates Regime Discovery and Market Condition through completed-only FunctionActors. Trade Selection, Order Composition, and Risk Management retain their skeleton boundaries and are delivered separately.
 
 > **Regime Discovery amendment (2026-08-28):** Regime Discovery now calculates
 > through `ActorType.Function` request/reply. Its old Start/Processing/public
 > terminal publication/Regime Realtime chain is removed. Later pipeline stages
 > retain their existing skeleton contracts until separately refactored.
+>
+> **Market Condition amendment (2026-08-29):** Market Condition now uses
+> `ExecuteMarketConditionPipelineCommand` over Core NATS request/reply to a completed-only
+> FunctionActor. Its old Start command, Processing event, and realtime terminal routes are removed.
+> A Tradeable completion advances exactly once; NotTradeable commits `NoTrade`; failure, timeout,
+> expiry, duplicate conflict, and late completion remain fail-closed.
 >
 > **Workflow Execute amendment (2026-08-28):** The ITI trigger now creates
 > `ExecuteIntrinsicTimeStrategyWorkflowCommand`, not a Start command. The
@@ -249,7 +255,7 @@ Commands/
 
 Pipeline/Commands/
     ExecuteRegimeDiscoveryPipelineCommand.cs
-    StartMarketConditionPipelineCommand.cs
+    ExecuteMarketConditionPipelineCommand.cs
     StartTradeSelectionPipelineCommand.cs
     StartOrderCompositionPipelineCommand.cs
     StartRiskManagementPipelineCommand.cs
@@ -257,7 +263,6 @@ Pipeline/Commands/
 Pipeline/Events/
     RegimeDiscoveryPipelineCompletedEvent.cs
     RegimeDiscoveryPipelineFailedEvent.cs
-    MarketConditionPipelineProcessingEvent.cs
     MarketConditionPipelineCompletedEvent.cs
     MarketConditionPipelineFailedEvent.cs
     TradeSelectionPipelineProcessingEvent.cs
@@ -620,9 +625,10 @@ A rejected start does not change `WorkflowRevision`.
 ## 9. Historical skeleton Trigger and Realtime Router Lifecycle
 
 > The route inventory in this section records the original ITSW skeleton. The
-> implemented RD-19/FNC workflow actor now parses only the ITI trigger and
-> `WorkflowStrategyStateUpdatedEvent`. Regime completion/failure is returned by
-> Function request/reply and is never a realtime route.
+> implemented RD/Market Condition Function workflow actor now parses only the ITI trigger and
+> `WorkflowStrategyStateUpdatedEvent`. Regime Discovery and Market Condition completion/failure
+> are returned by Function request/reply and are never realtime routes. The inventory below is
+> retained only as the original skeleton record.
 
 ### 9.1 Required route set
 
@@ -888,9 +894,9 @@ The Workflow Command actor accepts this command only for the currently Running s
 
 ---
 
-## 12. Pipeline Start Commands
+## 12. Pipeline execution requests
 
-Each stage has a separate command type so actor-specific parameters can be appended later without changing unrelated contracts.
+Each stage has a separate request type so actor-specific parameters can evolve without changing unrelated contracts. Regime Discovery and Market Condition use command-shaped Function requests; later skeleton stages retain Start commands.
 
 The common v1 payload is:
 
@@ -905,23 +911,15 @@ RequestedAtUtc
 ExpectedCompletionAtUtc
 ```
 
-Example:
+Current Market Condition request:
 
 ```csharp
 [MessagePackObject(AllowPrivate = true)]
-public sealed record StartMarketConditionPipelineCommand
-    : ICommand<IntrinsicTimeStrategyWorkflowEntityId>
+public sealed record ExecuteMarketConditionPipelineCommand
+    : ICommand<MarketConditionExecutionEntityId>
 {
-    // Base command keys 0..5.
-
-    [Key(6)] public StrategyWorkflowId WorkflowId { get; init; }
-    [Key(7)] public long InputWorkflowRevision { get; init; }
-    [Key(8)] public IntrinsicTimeStrategyWorkflowState WorkflowState { get; init; } = new();
-    [Key(9)] public FuturesItiSignalGeneratedEvent TriggerEvent { get; init; } = new();
-    [Key(10)] public Guid CorrelationId { get; init; }
-    [Key(11)] public Guid CausationId { get; init; }
-    [Key(12)] public DateTime RequestedAtUtc { get; init; }
-    [Key(13)] public DateTime? ExpectedCompletionAtUtc { get; init; }
+    // Base command fields plus execution identity, frozen workflow revision,
+    // parameter payload/hash, fund/instrument/horizon, and absolute deadline.
 }
 ```
 
@@ -1073,7 +1071,7 @@ Every event carries:
 - stage;
 - event-specific payload and timestamp.
 
-There is no stage-specific Started event. The workflow-level Started or Continued event is the authoritative event-log instruction for pipeline selection and dispatch. Pipeline lifecycle names always include `Pipeline`: `XXXPipelineProcessingEvent`, `XXXPipelineCompletedEvent`, and `XXXPipelineFailedEvent`.
+There is no stage-specific Started event. The workflow-level Started or Continued event is the authoritative event-log instruction for pipeline selection and dispatch. Regime Discovery and Market Condition return typed Completed/Failed Function results directly; only the later skeleton stages retain Processing/Completed/Failed realtime lifecycle contracts.
 
 ### 14.4 Terminal events
 
@@ -1375,21 +1373,10 @@ The command actor does not query pipeline actors to recover data required for co
 ```csharp
 public static class IntrinsicTimeStrategyPipelineRoutes
 {
-    public static ActorMailboxId CommandActor(StrategyWorkflowStage stage) =>
-        stage switch
-        {
-            StrategyWorkflowStage.RegimeDiscovery =>
-                new(ActorType.Command, StartRegimeDiscoveryPipelineCommand.Actor),
-            StrategyWorkflowStage.MarketCondition =>
-                new(ActorType.Command, StartMarketConditionPipelineCommand.Actor),
-            StrategyWorkflowStage.TradeSelection =>
-                new(ActorType.Command, StartTradeSelectionPipelineCommand.Actor),
-            StrategyWorkflowStage.OrderComposition =>
-                new(ActorType.Command, StartOrderCompositionPipelineCommand.Actor),
-            StrategyWorkflowStage.RiskManagement =>
-                new(ActorType.Command, StartRiskManagementPipelineCommand.Actor),
-            _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, null)
-        };
+    // RegisteredRoutes maps Regime Discovery and Market Condition to ActorType.Function
+    // Execute requests with no realtime result source. Later skeleton stages map to their
+    // Command Start request and Realtime lifecycle source.
+    public static IntrinsicTimeStrategyPipelineRoute Get(StrategyWorkflowStage stage);
 }
 ```
 
@@ -1696,16 +1683,14 @@ Each future stage implementation replaces only its own continuation evaluator. R
 
 ---
 
-## 26. Feature Availability During Skeleton Development
+## 26. Controlled workflow availability
 
-Until a real Regime Discovery pipeline actor is registered, automatic live workflow creation must be disabled by configuration to avoid creating permanently Running workflows. Route lifecycle remains active independently of this execution switch.
+Regime Discovery and Market Condition are qualified FunctionActor stages. After MC-16, the production API host enables automatic ITI-trigger routing; test and integration hosts remain disabled unless a scenario explicitly opts in.
 
 ```json
 {
   "IntrinsicTimeStrategyWorkflow": {
-    "Enabled": false,
-    "SkeletonContinuationRuleEnabled": true,
-    "MaximumOpaqueResultBytes": 65536
+    "Enabled": true
   }
 }
 ```
@@ -1713,15 +1698,12 @@ Until a real Regime Discovery pipeline actor is registered, automatic live workf
 When `Enabled` is false:
 
 - the workflow actors may start for queries and recovery;
-- the workflow Realtime actor still registers the ITI trigger route and all pipeline result routes during startup;
-- the workflow Realtime actor still releases those routes during shutdown;
-- routed pipeline results remain available for recovery of workflows that were already in flight;
-- a routed `FuturesItiSignalGeneratedEvent` is intentionally ignored before command creation, with no reply;
+- the workflow Realtime actor does not register the ITI trigger route;
 - no new workflow starts automatically.
 
-BDD and integration tests enable the feature and use scripted test pipeline responders. Do not add production fake strategy actors.
+BDD and integration tests opt in explicitly. Production DI registers real Regime Discovery and Market Condition providers; no production fake strategy actors are permitted.
 
-Before enabling the feature in a development runtime, at least the Regime Discovery pipeline actor or a deliberate development harness must be available.
+Controlled enablement does not grant order authority. The registered Market Condition broker-readiness source remains reliably unavailable until a real IBKR connection authority is supplied, so the workflow fails closed before any later stage can authorize an order.
 
 ---
 
@@ -2219,13 +2201,13 @@ ITSW-9 therefore introduces no Event actor, Event-actor context, Event extension
 
 ### ITSW-10 - Workflow Realtime actor
 
-**Status:** Completed on 2026-08-25, disabled by default.
+**Status:** Completed; production ITI-trigger routing enabled after Market Condition MC-16 qualification on 2026-08-29.
 
 - implement sixteen external source routes plus direct Started/Continued mailbox handling;
 - translate ITI triggers and pipeline Completed/Failed results into workflow commands, observe Processing events, and send pipeline commands from projector-published Started/Continued instructions;
 - verify startup rollback, shutdown release, stateless handling, and no replies.
 
-The sixteen external registrations are one ITI trigger and Processing/Completed/Failed for each of the five future pipeline families. Started and Continued are not global router subscriptions: the projector addresses those two committed lifecycle instructions directly to this actor's mailbox. The actor converts Started/Continued into the appropriate deterministic pipeline Start command, translates Completed/Failed into workflow commands, observes Processing one-way, and never replies to realtime sources. `AppSettings:IntrinsicTimeStrategyWorkflow:Enabled` is explicitly `false` until Regime Discovery exists.
+The current actor registers only the ITI trigger route. The projector addresses committed state-update instructions directly to its mailbox. For Regime Discovery and Market Condition, the actor executes a typed Function request/reply and translates the terminal result directly into workflow commands; no Processing or terminal realtime route exists. Later skeleton stages retain their Start/realtime lifecycle handling. `AppSettings:IntrinsicTimeStrategyWorkflow:Enabled` is `true` only in the production API host after MC-16 qualification.
 
 ### ITSW-11 - Workflow Query actor and APIs
 
@@ -2238,7 +2220,7 @@ Implemented eight MessagePack query contracts, the closed-generic Query context/
 
 ### ITSW-12 - End-to-end skeleton qualification
 
-**Status:** Completed on 2026-08-25 for the workflow skeleton; live execution remains disabled.
+**Status:** Completed for the skeleton and requalified through Market Condition MC-16 on 2026-08-29.
 
 - add scripted test pipeline responders;
 - execute Daily, Weekly, and Monthly concurrent scenarios;
@@ -2311,7 +2293,7 @@ The skeleton is complete when:
 16. Active, history, start-attempt, stage, and timeline queries pass.
 17. Completed, Failed, timeout, cancellation, stale, duplicate, and consistency-fault paths pass.
 18. All public contracts have XML documentation and MessagePack compatibility tests.
-19. Live automatic triggering remains disabled until a real Regime Discovery pipeline implementation is available.
+19. Live automatic triggering is enabled only in the production API host after Regime Discovery and Market Condition qualification; test hosts opt in explicitly.
 
 ---
 
@@ -2319,18 +2301,16 @@ The skeleton is complete when:
 
 The following are append-only extensions and do not block the skeleton:
 
-1. Regime Discovery typed parameters, typed result schema, continuation rules, and timeout.
-2. Market Condition typed parameters, typed result schema, continuation rules, and timeout.
-3. Trade Selection typed parameters, typed result schema, continuation rules, and timeout.
-4. Order Composition typed parameters, typed result schema, continuation rules, and timeout.
-5. Risk Management typed parameters, typed result schema, continuation rules, and timeout.
-6. Final Order Execution command and durable handoff of the committed Risk Manager approval after workflow completion.
-7. Production expected-revision/CAS event-store append support.
-8. Production projection retention and status/day bucket retention.
-9. Production payload-size tuning and compression policy.
-10. Portfolio Manager observation and versioned workflow parameter or progression commands.
-11. Advisor recommendations, constraints, approval authority, and their relationship to Portfolio Manager decisions.
-12. System-wide TraceId architecture and migration, held until Strategy Workflow, all pipeline actors, Order Execution, and IBKR trader-broker emulation support an observable end-to-end strategy path.
+1. Trade Selection typed parameters, typed result schema, continuation rules, and timeout.
+2. Order Composition typed parameters, typed result schema, continuation rules, and timeout.
+3. Risk Management typed parameters, typed result schema, continuation rules, and timeout.
+4. Final Order Execution command and durable handoff of the committed Risk Manager approval after workflow completion.
+5. Production expected-revision/CAS event-store append support.
+6. Production projection retention and status/day bucket retention.
+7. Production payload-size tuning and compression policy.
+8. Portfolio Manager observation and versioned workflow parameter or progression commands.
+9. Advisor recommendations, constraints, approval authority, and their relationship to Portfolio Manager decisions.
+10. System-wide TraceId architecture and migration, held until Strategy Workflow, all pipeline actors, Order Execution, and IBKR trader-broker emulation support an observable end-to-end strategy path.
 
 No implementation agent may infer business properties or continuation behavior for these items without an approved stage specification.
 

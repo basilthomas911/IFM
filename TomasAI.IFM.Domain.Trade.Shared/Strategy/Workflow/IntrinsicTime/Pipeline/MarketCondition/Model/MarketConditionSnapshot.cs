@@ -91,6 +91,9 @@ public sealed record MarketConditionWorkflowEligibilityState
 [MessagePackObject]
 public sealed record MarketConditionSnapshot
 {
+    MarketConditionOperationalHealthItem[]? _operationalHealth = [];
+    MarketSourceObservation[]? _dataQualityItems = [];
+
     public const ushort CurrentSchemaVersion = 1;
     [Key(0)] public Guid SnapshotId { get; init; }
     [Key(1)] public ushort SchemaVersion { get; init; } = CurrentSchemaVersion;
@@ -107,9 +110,17 @@ public sealed record MarketConditionSnapshot
     [Key(12)] public MarketConditionSessionState SessionState { get; init; } = new();
     [Key(13)] public MarketConditionEventRiskState EventRiskState { get; init; } = new();
     [Key(14)] public MarketConditionVolatilityShockState VolatilityShockState { get; init; } = new();
-    [Key(15)] public MarketConditionOperationalHealthItem[] OperationalHealth { get; init; } = [];
+    [Key(15)] public MarketConditionOperationalHealthItem[] OperationalHealth
+    {
+        get => _operationalHealth is null ? null! : [.. _operationalHealth];
+        init => _operationalHealth = value is null ? null : [.. value];
+    }
     [Key(16)] public MarketConditionWorkflowEligibilityState WorkflowEligibility { get; init; } = new();
-    [Key(17)] public MarketSourceObservation[] DataQualityItems { get; init; } = [];
+    [Key(17)] public MarketSourceObservation[] DataQualityItems
+    {
+        get => _dataQualityItems is null ? null! : [.. _dataQualityItems];
+        init => _dataQualityItems = value is null ? null : [.. value];
+    }
     [Key(18)] public string SnapshotSha256 { get; init; } = string.Empty;
 }
 

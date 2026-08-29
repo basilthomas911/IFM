@@ -408,6 +408,14 @@ public static class Startup
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
             services.AddSingleton<IRegimeDiscoveryMarketSignalCache>(provider =>
                 provider.GetRequiredService<RegimeDiscoveryMarketSignalSnapshotProvider>());
+            services.AddSingleton<IMarketConditionFuturesQuoteAdapter, MarketConditionFuturesQuoteAdapter>();
+            services.AddSingleton<IMarketConditionOptionUniverseAdapter, MarketConditionOptionUniverseAdapter>();
+            services.AddSingleton<IMarketConditionSessionAdapter, MarketConditionSessionAdapter>();
+            services.AddSingleton<IMarketConditionEventRiskAdapter, MarketConditionEventRiskAdapter>();
+            services.AddSingleton<IMarketConditionVolatilityAdapter, MarketConditionVolatilityAdapter>();
+            services.AddSingleton<IMarketConditionBrokerReadiness, UnavailableMarketConditionBrokerReadiness>();
+            services.AddSingleton<IMarketConditionOperationalHealthAdapter, MarketConditionOperationalHealthAdapter>();
+            services.AddSingleton<IMarketConditionSnapshotAdapterCoordinator, MarketConditionSnapshotAdapterCoordinator>();
             services.AddSingleton<MarketConditionSnapshotProvider>();
             services.AddSingleton<IMarketConditionSnapshotProvider>(provider =>
                 provider.GetRequiredService<MarketConditionSnapshotProvider>());

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
@@ -6,6 +7,7 @@ using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.M
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.Model;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Function.Actor;
 using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition.Model;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -31,22 +33,32 @@ public static class ExecuteMarketConditionPipeline
         Func<CancellationToken, Task<MarketConditionExecutionOutcome>> worker,
         Func<TimeSpan, CancellationToken, Task> delay, CancellationToken token = default)
     {
+        var started = Stopwatch.GetTimestamp();
+        using var activity = MarketConditionTelemetry.Start("market-condition.function-request");
         var now = UtcNow(clock);
-        if (now >= command.ExpiresAtUtc) return Failed(command, Timeout(now));
+        var configuredDeadline = command.RequestedAtUtc.AddMilliseconds(
+            command.ParameterSet.Execution.MaximumExecutionMilliseconds);
+        var deadline = new[] { command.ExpiresAtUtc, command.WorkflowView.ExpiresAtUtc, configuredDeadline }.Min();
+        if (now >= deadline) return FailedWithTelemetry(command, Timeout(now), started);
         using var workerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         using var timerCts = CancellationTokenSource.CreateLinkedTokenSource(token);
         var workerTask = worker(workerCts.Token);
-        var timer = delay(command.ExpiresAtUtc - now, timerCts.Token);
-        if (await Task.WhenAny(workerTask, timer).ConfigureAwait(false) == timer)
+        var timer = delay(deadline - now, timerCts.Token);
+        var winner = await Task.WhenAny(workerTask, timer).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (winner == timer)
         {
-            workerCts.Cancel(); _ = ObserveAsync(workerTask); return Failed(command, Timeout(UtcNow(clock)));
+            workerCts.Cancel(); _ = ObserveAsync(workerTask);
+            return FailedWithTelemetry(command, Timeout(UtcNow(clock)), started);
         }
         timerCts.Cancel(); var result = await workerTask.ConfigureAwait(false);
-        if (UtcNow(clock) >= command.ExpiresAtUtc) return Failed(command, Timeout(UtcNow(clock)));
+        token.ThrowIfCancellationRequested();
+        if (UtcNow(clock) >= deadline)
+            return FailedWithTelemetry(command, Timeout(UtcNow(clock)), started);
         return result switch
         {
             MarketConditionExecutionCompleted completed => Completed(command, completed.Result),
-            MarketConditionExecutionFailed failed => Failed(command, failed),
+            MarketConditionExecutionFailed failed => FailedWithTelemetry(command, failed, started),
             _ => throw new InvalidOperationException("Unknown Market Condition execution outcome.")
         };
     }
@@ -111,6 +123,13 @@ public static class ExecuteMarketConditionPipeline
         ExecuteMarketConditionPipelineCommand c, MarketConditionExecutionFailed f)
         => FunctionResult<MarketConditionPipelineCompletedEvent, MarketConditionPipelineFailedEvent>.Fail(
             CreateFailedEvent(c, f.Category, f.ReasonCode, f.Message, f.FailedAtUtc, f.SnapshotId));
+    static FunctionResult<MarketConditionPipelineCompletedEvent, MarketConditionPipelineFailedEvent> FailedWithTelemetry(
+        ExecuteMarketConditionPipelineCommand command, MarketConditionExecutionFailed failure, long started)
+    {
+        MarketConditionTelemetry.RecordFailure(failure.Category, failure.ReasonCode, command.TargetHorizon,
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        return Failed(command, failure);
+    }
     internal static MarketConditionPipelineFailedEvent CreateFailedEvent(
         ExecuteMarketConditionPipelineCommand c, MarketConditionFailureCategory category, string reason,
         string message, DateTime at, Guid snapshotId = default) => new()

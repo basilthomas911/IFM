@@ -2,6 +2,7 @@ using MessagePack;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Identity;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Model;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.RegimeDiscovery.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.MarketCondition.Model;
 
 namespace TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.ViewModels;
 
@@ -49,4 +50,8 @@ public sealed record IntrinsicTimeStrategyWorkflowObservationReadModel
     [Key(14)] public bool NotificationLossSuspected { get; init; }
     [Key(15)] public DateTime ObservedAtUtc { get; init; }
     [Key(16)] public string Diagnostic { get; init; } = string.Empty;
+    /// <summary>Gets the projected Market Condition terminal, including operational/UI evidence.</summary>
+    [Key(17)] public MarketConditionReadModel? MarketConditionTerminal { get; init; }
+    [Key(18)] public bool WorkflowAcceptedMarketConditionTerminal { get; init; }
+    [Key(19)] public bool MarketConditionNotificationLossSuspected { get; init; }
 }

@@ -63,8 +63,8 @@ foreach ($actorFile in $actorFiles) {
     }
 }
 
-if ($domainActorCount -ne 17) {
-    $violations.Add("Expected 17 domain RealtimeActors but discovered $domainActorCount.")
+if ($domainActorCount -ne 16) {
+    $violations.Add("Expected 16 domain RealtimeActors but discovered $domainActorCount.")
 }
 
 if ($violations.Count -gt 0) {

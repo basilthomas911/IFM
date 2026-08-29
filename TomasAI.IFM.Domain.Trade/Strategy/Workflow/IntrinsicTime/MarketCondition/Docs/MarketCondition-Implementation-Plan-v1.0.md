@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Status | Implemented candidate; gate audit processed, qualification gaps remain |
+| Status | Implemented and qualified; MC-00 through MC-16 complete |
 | Created | 2026-08-28 |
 | Source design | `MarketCondition-High-Level-Design-v0.1.md` |
 | Authoritative specification | `MarketCondition-Specification-v1.0.md` |
@@ -619,39 +619,48 @@ production-enabled while any gate is Partial or Blocked.
 | MC-01 | Complete | Execute Function identity/contracts added; legacy Start command and Processing event removed; C# legacy-reference scan is empty. |
 | MC-02 | Complete | All nested V1 parameter records/defaults, defensive array copies, bounded validation, scale-independent canonical hashing, typed metadata/hash checks, and closed lifecycle table mapping are implemented. PostgreSQL enforces append-only content, no-delete, legal Draft-to-Published-to-Retired transitions, effective/future/retired selection, and ambiguity failure. The focused MC-02 matrix passes 18 unit and 8 PostgreSQL integration tests. |
 | MC-03 | Complete | Fund/config/hash are frozen in workflow state and `NoTrade` is an explicit append-only outcome. |
-| MC-04 | Partial | Immutable revision-stable bounded snapshot provider/cache, source metadata, sealing, and hash are implemented. Production feed, Securities option-universe aggregation, calendar/event, health, and IBKR adapter wiring—and aggregate/filter boundary tests—remain. |
-| MC-05 | Partial | Ordered hard gates and stable blocker reasons are implemented and representative blockers pass. The required below/equal/above test for every threshold is not complete. |
-| MC-06 | Partial | Deterministic classification, scoring, evidence, result, and summary are implemented. Daily/Weekly/Monthly, bullish/bearish, range, transition, and determinism verification pass; the full exact numeric golden-vector matrix remains incomplete. |
+| MC-04 | Complete | Live capture now falls back from deterministic seeded snapshots to a one-read production coordinator. Concrete adapters consume the registered current ES/VX contracts and hot quote/trade caches, exact one-minute ATR lineage, Securities option metadata joined to eligible hot quotes, the CME holiday/DST/early-close calendar, US economic-calendar rows, persisted five-minute VX history, Databento feed/cache health, and a typed IBKR readiness boundary. Because no IBKR connection authority exists in this repository, its registered default reports reliable `Unavailable` and therefore blocks trading without misclassifying missing authority as healthy. Startup wiring is present in both hosts; finite normalization, partial quote coverage, canonical aggregation/sealing/hash, direct-provider fallback, holiday/early-close, event classification, unknown-source failure, and fail-closed broker tests are green. |
+| MC-05 | Complete | All eight hard gates execute in specification order; invalid provider contracts fail separately from reliable blockers; hard blockers prevent opportunity scoring; and below/equal/above tests cover every numeric threshold plus categorical blockers and reason ordering. |
+| MC-06 | Complete | Classification, phase/volatility precedence, exact normalized features and contributions, penalties, six-decimal rounding, result invariants, stable evidence/reasons, exact bullish/bearish/range/transition/expansion/contraction vectors, threshold boundaries, and sequential/parallel byte equality are executable and tested. |
 | MC-07 | Complete | Completed-only Function actor/state/repository/projector and exact/latest/history query foundation are implemented. |
-| MC-08 | Partial | Atomic execution, fixed timeout, matching duplicate, conflicting duplicate, and completed-only behavior have unit coverage. Projection/persistence exception behavior is not yet qualified through the full actor lifecycle. |
+| MC-08 | Complete | Effective deadline is the minimum of command, workflow, and frozen execution deadlines; exact-boundary timeout wins; caller cancellation remains distinct; late workers are cancelled and observed; and matching/conflicting duplicate, projection exception, persistence exception, and completed-only ordering are covered through unit and real actor lifecycle tests. |
 | MC-09 | Complete | Workflow Realtime invokes the Function directly over request/reply and translates typed terminal replies. |
 | MC-10 | Complete | Tradeable advances once; NotTradeable commits `NoTrade`; failure, timeout, expiry, duplicate, and late terminal commands fail closed in unit/BDD/runtime coverage. |
-| MC-11 | Partial | Scylla exact/latest/history projection and query actor are implemented with bounded evidence payloads. Market Condition-specific spans, counters, histograms, and operational observation/UI exposure remain. |
-| MC-12 | Partial | Trade Unit is green at 190/190 with Market Condition contract/model/function/workflow/query tests. Exhaustive MC-04/05/06/08 matrices above remain. |
-| MC-13 | Complete | Trade BDD is green at 11/11, including Tradeable, NoTrade, and typed timeout flows. |
-| MC-14 | Partial | Real Function runtime cutover, MC-02 PostgreSQL lifecycle, and Scylla storage tests pass; Trade Integrated is green at 41 passed with 2 unrelated pre-existing skips. Production provider adapters remain. |
-| MC-15 | Partial | Dedicated `Strategy.IntrinsicTime.MarketCondition` verification is green at 17/17; full Verification is green at 50/50, and MC-02 ConfigurationDb verification is green at 8/8. The suites cover all horizons, bullish/bearish, range/transition, nine blockers, corrupt metadata, deterministic configuration selection, and ambiguity failure, but do not yet perform every specified Scylla/Function-state/query/restart infrastructure cross-check. |
-| MC-16 | Blocked | Serialized solution build passes with 0 warnings and 0 errors in 68.45 s; Unit, BDD, Integrated, Verification, focused MC-02 PostgreSQL, focused Market Condition storage, legacy scan, and `git diff --check` are green. The broad Application.Storage integration project produced no result for several minutes and was terminated; Partial gates above prevent controlled enablement and documentation closure. |
+| MC-11 | Complete | Scylla exact/latest/history projection and bounded result payloads are exposed through read-only queries. Workflow observation correlates the accepted Market Condition terminal, flags projection/state notification orphans, and preserves NoTrade/failure/timeout detail. Function, snapshot, gate/calculation, projection, persistence, and continuation spans plus bounded outcome/reason/latency/source-age/expiry/strength/confidence/timeout metrics are registered for OTLP; identity values are excluded from metric labels. |
+| MC-12 | Complete | Trade Unit is green at 315/315 with exhaustive snapshot aggregate, production-adapter boundaries, every hard-threshold boundary, exact golden vectors, result invariants, Function deadline/lifecycle, telemetry, query observation, architecture, serialization, and workflow regression coverage. No Market Condition test is skipped. |
+| MC-13 | Complete | Trade BDD is green at 14/14, including Tradeable, NoTrade, and typed timeout flows. |
+| MC-14 | Complete | The registered Workflow Realtime -> Market Condition Function -> Workflow Command topology passes through NATS, PostgreSQL event sourcing, ConfigurationDb, and Scylla. Daily/Weekly/Monthly success cross-checks payload/hash, Function result identity, workflow revision, reconstructed state, query observation, and exactly-once continuation. NoTrade is projected as explicit `NoTrade` and never dispatches Trade Selection; timeout is unprojected and terminal; injected projector and Function-state persistence failures prove both storage/dispatch barriers and observable notification-orphan detection. A matching retry returns the same completion without recapture, and a new host reconstructs that Function completion from PostgreSQL without capture or redispatch. The generic pipeline simulator remains on typed Execute requests and the collection is non-parallel. |
+| MC-15 | Complete | `Strategy/IntrinsicTime/MarketCondition` now contains 19 deterministic business cases plus three `Verification`-tagged qualification cases: production snapshot aggregation/sealing, infrastructure-backed Daily/Weekly/Monthly success, and the combined NoTrade/timeout/projection/persistence/lost-notification/retry/restart matrix. The Verification assembly reuses the Integration scenario implementation so NATS, PostgreSQL Function state, ConfigurationDb, Scylla projection, workflow reconstruction, query payload/hash, and exactly-once assertions cannot drift. Full Verification is green at 55/55 with no skips. |
+| MC-16 | Complete | Full build, core regressions, repeated focused verification, affected Storage/actor/serialization/MarketData suites, legacy-route scans, and actor-convention gates are complete. Changed-file formatting and `git diff --check` pass. The production API host's controlled live-trigger setting is enabled; the registered unavailable broker-readiness authority remains fail-closed and cannot authorize continuation. |
 
 ### Qualification evidence
 
 | Command/suite | Result |
 |---|---|
-| `dotnet build TomasAI.IFM.sln --no-restore -m:1` | Passed; 0 warnings, 0 errors; 68.45 s after MC-02 closure |
-| Trade Unit | 190 passed; 0 failed; 0 skipped |
-| Trade BDD | 11 passed; 0 failed; 0 skipped |
-| Trade Integrated | 41 passed; 0 failed; 2 unrelated pre-existing skips |
-| Trade Verification | 50 passed; 0 failed; 0 skipped |
-| Focused Market Condition Verification | 17 passed; repeated successfully after the full verification suite |
+| `dotnet build TomasAI.IFM.sln --no-restore -m:1` | Passed on the final post-edit rerun; 0 warnings, 0 errors; 34.86 s |
+| Trade Unit | 315 passed; 0 failed; 0 skipped |
+| Trade BDD | 14 passed; 0 failed; 0 skipped |
+| Trade Integrated | 46 passed; 0 failed; 2 unrelated pre-existing TradePlan skips; infrastructure actor suites run sequentially |
+| Trade Verification | 55 passed; 0 failed; 0 skipped |
+| Focused Market Condition Verification | 19 deterministic business cases plus 3 production/infrastructure qualification cases; 0 failed; 0 skipped |
+| Repeated Focused Market Condition Verification | Two consecutive runs of 22 passed; 0 failed; 0 skipped; no fixed-address teardown or state leakage detected |
 | Focused MC-02 Unit | 18 passed; defaults, canonical scale-independent hash, defensive arrays, and complete nested validation boundaries |
 | Focused MC-02 ConfigurationDb PostgreSQL Integration | 8 passed; insert/exact round trip, publish, effective boundary, future exclusion, retire, ambiguity, invalid transitions, immutable payload, no-delete, corrupt hash/schema/identity, and closed table map |
 | Focused Market Condition Storage Integration | 1 passed; exact/latest/history, duplicate upsert, payload/hash preservation |
-| Broad Application.Storage Integration | No terminal result after several minutes; manually terminated and remains an MC-16 observation |
+| Broad Application.Storage Integration | 385 passed; 0 failed; 0 skipped; 7 m 48 s |
+| Serialization | Framework Serialization Unit 11 passed; 0 failed; 0 skipped |
+| MarketData Feed | Unit 489 and BDD 314 passed. Integration: 44 passed; two reproducible legacy Futures EOD notification timeouts and four existing skips are outside the Market Condition adapter path and recorded as baseline observations. |
+| MarketData Analytics | Unit 944, BDD 464, Integration 48 passed; 0 failed; 0 skipped |
+| MarketData/Securities dependencies | Securities Unit 11, BDD 2, Integration 14; MarketData Unit 102 and Integration 21; Framework MarketData Unit 46; DataBento Unit 123; Application MarketData Unit 82 all passed |
+| Actor/transport dependencies | Domain Application Actor Unit 5, BDD 1, Integrated 1 and NATS Unit 78 passed. NATS Integrated passed 52 with one reproducible pre-existing SPSC ten-second stress timeout outside the Market Condition path. The Application Actor project is a host assembly with no discoverable tests. |
+| Actor convention gates | Realtime 16, Command 36, Query 33, and Event 31 domain actors passed; stale expected inventories and Market Condition query helper parameter names were corrected |
 | Legacy C# boundary scan | No `StartMarketConditionPipelineCommand` or `MarketConditionPipelineProcessingEvent` references |
 | `git diff --check` | Passed; only existing LF-to-CRLF notices |
+| Formatting verification | Changed-file `dotnet format --verify-no-changes` passed. Repository-wide verification reproduced extensive pre-existing whitespace/end-of-line findings in untouched files; no unrelated files were modified. |
 
 ### Readiness decision
 
-The code is ready for continued implementation and controlled test-environment execution. It is not ready for
-production enablement or for MC-00 through MC-16 to be marked Complete. Close MC-04 through MC-06,
-MC-08, MC-11, MC-12, MC-14, and MC-15, then rerun MC-16 without a stalled affected suite.
+MC-00 through MC-16 are closed. `TomasAI.IFM.Application.Api.Server` enables the qualified live ITI-trigger route,
+while test hosts remain disabled unless a scenario opts in. This is controlled workflow enablement, not trading
+authority: the registered IBKR readiness source deliberately remains fail-closed until a real broker connection
+authority replaces it, and later trade-selection/order stages retain their own independent safety boundaries.

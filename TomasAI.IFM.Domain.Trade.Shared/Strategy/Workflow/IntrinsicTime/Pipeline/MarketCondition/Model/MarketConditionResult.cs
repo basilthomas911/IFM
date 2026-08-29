@@ -33,6 +33,11 @@ public sealed record MarketConditionBlockingReason
 [MessagePackObject]
 public sealed record MarketConditionResult
 {
+    MarketConditionEvidenceItem[]? _evidenceItems = [];
+    MarketConditionEvidenceItem[]? _conflictingEvidenceItems = [];
+    MarketConditionBlockingReason[]? _blockingReasons = [];
+    string[]? _reasons = [];
+
     public const ushort CurrentSchemaVersion = 1;
     [Key(0)] public ushort SchemaVersion { get; init; } = CurrentSchemaVersion;
     [Key(1)] public Guid ResultId { get; init; }
@@ -62,10 +67,26 @@ public sealed record MarketConditionResult
     [Key(25)] public MarketConditionLiquidityQuality LiquidityQuality { get; init; }
     [Key(26)] public MarketConditionDataQuality DataQuality { get; init; }
     [Key(27)] public MarketConditionUpstreamAlignment UpstreamAlignment { get; init; }
-    [Key(28)] public MarketConditionEvidenceItem[] EvidenceItems { get; init; } = [];
-    [Key(29)] public MarketConditionEvidenceItem[] ConflictingEvidenceItems { get; init; } = [];
-    [Key(30)] public MarketConditionBlockingReason[] BlockingReasons { get; init; } = [];
+    [Key(28)] public MarketConditionEvidenceItem[] EvidenceItems
+    {
+        get => _evidenceItems is null ? null! : [.. _evidenceItems];
+        init => _evidenceItems = value is null ? null : [.. value];
+    }
+    [Key(29)] public MarketConditionEvidenceItem[] ConflictingEvidenceItems
+    {
+        get => _conflictingEvidenceItems is null ? null! : [.. _conflictingEvidenceItems];
+        init => _conflictingEvidenceItems = value is null ? null : [.. value];
+    }
+    [Key(30)] public MarketConditionBlockingReason[] BlockingReasons
+    {
+        get => _blockingReasons is null ? null! : [.. _blockingReasons];
+        init => _blockingReasons = value is null ? null : [.. value];
+    }
     [Key(31)] public string PrimaryReasonCode { get; init; } = string.Empty;
-    [Key(32)] public string[] Reasons { get; init; } = [];
+    [Key(32)] public string[] Reasons
+    {
+        get => _reasons is null ? null! : [.. _reasons];
+        init => _reasons = value is null ? null : [.. value];
+    }
     [Key(33)] public string SummaryText { get; init; } = string.Empty;
 }

@@ -1,7 +1,7 @@
 # MarketCondition High-Level Design
 
 **Document version:** 0.1<br>
-**Status:** High-level design<br>
+**Status:** Implemented V1; qualified through MC-16 on 2026-08-29<br>
 **System:** Intrinsic Time Trade Strategy Workflow<br>
 **Stage:** MarketCondition<br>
 **Primary implementation target:** .NET 10 / C# actor-based trading system
@@ -41,8 +41,8 @@ The stages cannot be skipped, repeated, or reordered within one workflow executi
 ```mermaid
 flowchart TD
     A["RegimeDiscovery completed"] --> B["Workflow validates and records result"]
-    B --> C["StartMarketConditionPipelineCommand"]
-    C --> D["MarketConditionActor evaluates frozen inputs"]
+    B --> C["ExecuteMarketConditionPipelineCommand"]
+    C --> D["MarketConditionFunctionActor evaluates frozen inputs"]
     D --> E{"Terminal result"}
     E -->|"Completed: Tradeable"| F["Workflow applies continuation rule"]
     E -->|"Completed: NotTradeable"| G["Workflow stops normally"]
@@ -109,42 +109,35 @@ The actor does not:
 
 ## 6. Invocation Contract
 
-### 6.1 Start command
+### 6.1 Function execution request
 
-`StartMarketConditionPipelineCommand`
+`ExecuteMarketConditionPipelineCommand`
 
 | Field | Purpose |
 | --- | --- |
-| `WorkflowId` | GUID v7 identity shared by the full strategy workflow and mapped to the OTEL trace identity |
-| `StageInvocationId` | Unique identity for this logical MarketCondition invocation |
-| `EntityId` | Workflow concurrency entity, such as fund-strategy-instrument identity |
+| `EntityId` | Market Condition execution identity containing the workflow entity and workflow ID |
 | `FundId` | Fund for which the opportunity is being evaluated |
-| `InstrumentId` | Primary market instrument, initially ES |
-| `DecisionHorizon` | Daily, Weekly, or Monthly |
-| `WorkflowRevision` | Expected workflow revision for ordered stage acceptance |
-| `TriggeredAtUtc` | Time of the original workflow trigger |
-| `StageStartedAtUtc` | Time MarketCondition was invoked |
-| `TriggerContext` | Immutable intrinsic-time DC/TE/TR trigger details and source sequence identifiers |
-| `RegimeDiscoveryResult` | Previously accepted, immutable typed result |
-| `WorkflowSnapshot` | Read-only context accepted by the workflow through the prior stage |
-| `ParameterSetId` | Selected MarketCondition parameter-set identity |
-| `ParameterSetVersion` | Immutable parameter version frozen at workflow start |
-| `TraceContext` | W3C trace propagation information when not derivable from `WorkflowId` |
+| `InstrumentRoot` | Primary market root, initially ES |
+| `TargetHorizon` | Daily, Weekly, or Monthly |
+| `InputWorkflowRevision` | Expected workflow revision for ordered stage acceptance |
+| `WorkflowView` | Frozen read-only workflow view containing the accepted Regime Discovery result |
+| `TriggerEvent` | Immutable intrinsic-time trigger details and source identifiers |
+| `RequestedAtUtc` / `ExpiresAtUtc` | Invocation and absolute deadline boundaries |
+| `ParameterSet` / `ParameterPayloadSha256` | Immutable selected V1 parameters and canonical payload hash |
+| `CorrelationId` / `CausationId` | Workflow trace and causal linkage |
 
-The command contains a result envelope, not a mutable workflow object. MarketCondition returns its own result envelope and never edits the input snapshot.
+The request carries a frozen workflow view, not a mutable workflow object. Market Condition returns a typed Function result and never edits the input snapshot.
 
-### 6.2 Optional cancel command
+### 6.2 Cancellation boundary
 
-`CancelMarketConditionPipelineCommand` is optional for the first implementation.
-
-If implemented, a successfully applied cancellation emits the normal failed terminal event with `FailureCategory = Cancelled`. This preserves the invariant that every invocation ends in exactly one `Completed` or `Failed` event. A third terminal event type should not be introduced without changing the workflow-wide contract.
+V1 does not expose a business cancellation command. Caller cancellation remains distinct from the effective Function timeout, and a late worker cannot project or persist after termination.
 
 ### 6.3 Queries
 
 Queries are read-only and are not part of the calculation path:
 
-- `GetMarketConditionInvocationStateQuery`
-- `GetLatestMarketConditionResultQuery`
+- `GetMarketConditionQuery`
+- `GetLatestMarketConditionQuery`
 - `GetMarketConditionHistoryQuery`
 
 Query projections may be eventually consistent. The Strategy Workflow's accepted stage state remains authoritative for the executing workflow.
@@ -568,9 +561,9 @@ Although the production workflow is realtime and does not provide a business rep
 
 V1 should implement:
 
-- one `MarketConditionActor`;
-- one versioned `StartMarketConditionPipelineCommand`;
-- Started, Completed, and Failed events;
+- one `MarketConditionFunctionActor`;
+- one versioned `ExecuteMarketConditionPipelineCommand`;
+- direct typed Completed or Failed Function replies with no Started/Processing publication route;
 - immutable input-snapshot assembly;
 - data, session, event-risk, market-integrity, liquidity, operational, and workflow gates;
 - deterministic direction, phase, condition, strength, and confidence results;

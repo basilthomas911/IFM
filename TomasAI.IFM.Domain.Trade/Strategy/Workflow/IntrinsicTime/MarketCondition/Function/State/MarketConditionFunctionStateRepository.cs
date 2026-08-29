@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Domain.Trade.Shared.Strategy.Workflow.IntrinsicTime.Pipeline.Commands;
+using TomasAI.IFM.Domain.Trade.Strategy.Workflow.IntrinsicTime.MarketCondition;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -19,7 +20,10 @@ public sealed class MarketConditionFunctionStateRepository(
     public async ValueTask SaveCompletedStateAsync(IFunctionActorContext context,
         MarketConditionFunctionState state, ExecuteMarketConditionPipelineCommand request,
         CancellationToken token = default)
-        => await SaveStateEventsAsync(state, request, expectedStreamVersion: 0, token).ConfigureAwait(false);
+    {
+        using var activity = MarketConditionTelemetry.Start("market-condition.completed-state-append");
+        await SaveStateEventsAsync(state, request, expectedStreamVersion: 0, token).ConfigureAwait(false);
+    }
     protected override ValueTask DenormalizeEventsAsync(ICommandActorContext context, DomainEventCollection events)
         => ValueTask.CompletedTask;
 }
