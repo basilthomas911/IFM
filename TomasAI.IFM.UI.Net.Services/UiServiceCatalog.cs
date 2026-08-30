@@ -5,11 +5,16 @@ using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
 using TomasAI.IFM.UI.Net.Services.Trade;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 
 namespace TomasAI.IFM.UI.Net.Services;
 
 /// <summary>Provides immutable, typed access to the registered UI domain services.</summary>
 public sealed class UiServiceCatalog(
+    IPortfolioCommandApi portfolioCommands,
+    IPortfolioFundCommandApi portfolioFundCommands,
+    IPortfolioQueryApi portfolioQueries,
+    IPortfolioIdentityApi portfolioIdentities,
     CommandResponseEventService commandResponses,
     ApplicationEventService applicationEvents,
     StatusConsoleService statusConsole,
@@ -39,6 +44,10 @@ public sealed class UiServiceCatalog(
     TradePositionFeedEventService tradePositionEvents,
     EndOfDayProcessEventService endOfDayEvents) : IUiServiceCatalog
 {
+    public IPortfolioCommandApi PortfolioCommands { get; } = portfolioCommands;
+    public IPortfolioFundCommandApi PortfolioFundCommands { get; } = portfolioFundCommands;
+    public IPortfolioQueryApi PortfolioQueries { get; } = portfolioQueries;
+    public IPortfolioIdentityApi PortfolioIdentities { get; } = portfolioIdentities;
     /// <inheritdoc />
     public CommandResponseEventService CommandResponses { get; } = commandResponses;
     /// <inheritdoc />

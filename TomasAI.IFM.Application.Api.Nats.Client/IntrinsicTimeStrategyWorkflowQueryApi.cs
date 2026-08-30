@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 /// <summary>Implements the workflow query API over the standard NATS actor request transport.</summary>
 public sealed class IntrinsicTimeStrategyWorkflowQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IIntrinsicTimeStrategyWorkflowQueryApi
+    : NatsClientApi(actorProducer), IIntrinsicTimeStrategyWorkflowQueryApi
 {
     /// <inheritdoc />
     public Task<ServiceResult<IntrinsicTimeStrategyWorkflowReadModel>> GetByIdAsync(

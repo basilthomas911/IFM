@@ -22,6 +22,8 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -35,6 +37,7 @@ public interface IDbContextFactory
     IObjectRepository<SequenceIdDbContext> SequenceIdDb { get; }
 
     IFundDbContext FundDb { get; }
+    IFundLegacyDbContext FundLegacyDb { get; }
 
     //IObjectRepository<MarketDataDbContext> MarketDataDb { get; }
     IMarketDataDbContext MarketDataDb { get; }
@@ -45,6 +48,7 @@ public interface IDbContextFactory
     ITradeDbContext TradeDb { get; }
     ISystemAdminDbContext SystemAdminDb { get; }
     IConfigurationDbContext ConfigurationDb { get; }
+    IPortfolioDbContext PortfolioDb { get; }
 
     EventSourceSchemaDb EventSourceSchema { get; }
     LogSchemaDb LogSchema { get; }
@@ -58,5 +62,6 @@ public interface IDbContextFactory
     TradeSchemaDb TradeSchema { get; }
     SystemAdminSchemaDb SystemAdminSchema { get; }
     ConfigurationSchemaDb ConfigurationSchema { get; }
+    PortfolioSchemaDb PortfolioSchema { get; }
 
 }

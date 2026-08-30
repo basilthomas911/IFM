@@ -31,6 +31,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 using TomasAI.IFM.UI.Net.Views.Presentation;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.Services.SystemAdmin;
@@ -133,6 +134,8 @@ namespace TomasAI.IFM.UI.Net
         static void RegisterQueryServices()
         {
             _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
+            _container!.RegisterSingleton<IPortfolioQueryApi, PortfolioQueryApi>();
+            _container!.RegisterSingleton<IPortfolioIdentityApi, PortfolioIdentityApi>();
             _container!.RegisterSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             _container!.RegisterSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
             _container!.RegisterSingleton<IMarketDataQueryApi, MarketDataQueryApi>();
@@ -146,6 +149,8 @@ namespace TomasAI.IFM.UI.Net
         static void RegisterCommandServices()
         {
             _container!.RegisterSingleton<IApplicationCommandApi, ApplicationCommandApi>();
+            _container!.RegisterSingleton<IPortfolioCommandApi, PortfolioCommandApi>();
+            _container!.RegisterSingleton<IPortfolioFundCommandApi, PortfolioFundCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
             _container!.RegisterSingleton<ITradeCommandApi, OptionTradeCommandApi>();
             _container!.RegisterSingleton<ITradePlacementCommandApi, TradePlacementCommandApi>();

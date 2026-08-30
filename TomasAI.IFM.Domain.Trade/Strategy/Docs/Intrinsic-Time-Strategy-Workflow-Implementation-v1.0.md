@@ -5,6 +5,7 @@
 - **Status:** Implemented workflow with qualified Regime Discovery and Market Condition FunctionActor stages
 - **Date:** 2026-08-25
 - **Companion design:** [Intrinsic-Time-Strategy-Workflow-Design-v0.2.md](./Intrinsic-Time-Strategy-Workflow-Design-v0.2.md)
+- **Portfolio/Fund prerequisite:** [Portfolio-Fund-High-Level-Design-v0.1.md](../../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md)
 - **Implementation target:** .NET 10, MessagePack, NATS Core/JetStream, PostgreSQL EventSourceDb, and ScyllaDB
 - **Root domain:** `TomasAI.IFM.Domain.Trade`
 
@@ -26,7 +27,9 @@ The implementation began as a workflow skeleton and now provides:
 - unversioned ScyllaDB operational projections;
 - workflow queries, startup registration, recovery, idempotency, observability, and tests.
 
-The implementation now calculates Regime Discovery and Market Condition through completed-only FunctionActors. Trade Selection, Order Composition, and Risk Management retain their skeleton boundaries and are delivered separately.
+The implementation now calculates Regime Discovery and Market Condition through completed-only FunctionActors. Trade Selection, Order Composition, and Risk Management retain their skeleton boundaries and are delivered separately. TradeSelection and OrderComposition must be implemented against the new Portfolio/Fund contracts; the existing Fund actors and manual FundOrder/FundOrderTrade UI remain legacy inputs until that cutover is complete.
+
+> **Portfolio/Fund amendment (2026-08-29):** Portfolio/Fund is now a prerequisite rather than a post-paper-trading refactor. Portfolio owns capital and financial risk; Fund owns mandate, template assignments, and FundOrder/FundOrderTrade composition identities. The Fund composition authority reserves PostgreSQL-generated integer OrderId and TradeId values after an accepted TradeSelection result. OrderComposition retains those identities when producing an exact non-executable candidate. Broker OrderExecution, fills, live positions, and the execution-facing TradeDb redesign remain deferred.
 
 > **Regime Discovery amendment (2026-08-28):** Regime Discovery now calculates
 > through `ActorType.Function` request/reply. Its old Start/Processing/public

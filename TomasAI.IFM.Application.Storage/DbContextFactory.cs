@@ -22,6 +22,8 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 
 namespace TomasAI.IFM.Application.Storage;
 
@@ -33,12 +35,14 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
 {
     readonly IDbContextResolver _dbContextResolver = dbContextResolver;
     readonly Dictionary<Type, object> _dbContextPoolMap = [];
+    IFundLegacyDbContext? _fundLegacyDb;
 
     // DbContext properties
     public IObjectRepository<EventSourceActorDbContext> ActorEventSourceDb => _dbContextResolver.Resolve<EventSourceActorDbContext>();
     public IObjectRepository<LogDbContext> LogDb => _dbContextResolver.Resolve<LogDbContext>();
     public IObjectRepository<SequenceIdDbContext> SequenceIdDb => _dbContextResolver.Resolve<SequenceIdDbContext>();
     public IFundDbContext FundDb => _dbContextResolver.Resolve<FundDbContext>() as IFundDbContext;
+    public IFundLegacyDbContext FundLegacyDb => _fundLegacyDb ??= new FundLegacyDbContext(FundDb);
     public IMarketDataDbContext MarketDataDb => _dbContextResolver.Resolve<MarketDataDbContext>() as IMarketDataDbContext;
     public IOptionPricerDbContext OptionPricerDb => _dbContextResolver.Resolve<OptionPricerDbContext>() as IOptionPricerDbContext;
     public IObjectRepository<PredictiveModelDbContext> PredictiveModelDb => _dbContextResolver.Resolve<PredictiveModelDbContext>();
@@ -47,6 +51,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public ITradeDbContext TradeDb => _dbContextResolver.Resolve<TradeDbContext>() as ITradeDbContext;
     public ISystemAdminDbContext SystemAdminDb => _dbContextResolver.Resolve<SystemAdminDbContext>() as ISystemAdminDbContext;
     public IConfigurationDbContext ConfigurationDb => _dbContextResolver.Resolve<ConfigurationDbContext>() as IConfigurationDbContext;
+    public IPortfolioDbContext PortfolioDb => _dbContextResolver.Resolve<PortfolioDbContext>() as IPortfolioDbContext;
 
     public EventSourceSchemaDb EventSourceSchema => (_dbContextResolver.Resolve<EventSourceSchemaDb>() as EventSourceSchemaDb)!;
     public LogSchemaDb LogSchema => (_dbContextResolver.Resolve<LogSchemaDb>() as LogSchemaDb)!;
@@ -60,6 +65,7 @@ public class DbContextFactory(IDbContextResolver dbContextResolver) : IDbContext
     public TradeSchemaDb TradeSchema => (_dbContextResolver.Resolve<TradeSchemaDb>() as TradeSchemaDb)!;
     public SystemAdminSchemaDb SystemAdminSchema => (_dbContextResolver.Resolve<SystemAdminSchemaDb>() as SystemAdminSchemaDb)!;
     public ConfigurationSchemaDb ConfigurationSchema => (_dbContextResolver.Resolve<ConfigurationSchemaDb>() as ConfigurationSchemaDb)!;
+    public PortfolioSchemaDb PortfolioSchema => (_dbContextResolver.Resolve<PortfolioSchemaDb>() as PortfolioSchemaDb)!;
 
     public IDbContextPool<ReferenceDbContext> ReferencePool => GetPool<ReferenceDbContext>();
 

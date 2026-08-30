@@ -15,6 +15,7 @@ public class PostgresSequenceIdGeneratorTests
 {
     [Theory]
     [InlineData("FundId", SequenceName.Fund_FundId)]
+    [InlineData("PortfolioId", SequenceName.Portfolio_PortfolioId)]
     [InlineData("OrderId", SequenceName.Trade_OrderId)]
     [InlineData("TradeId", SequenceName.Trade_TradeId)]
     [InlineData("ScheduledJobId", SequenceName.ScheduledJob_JobId)]

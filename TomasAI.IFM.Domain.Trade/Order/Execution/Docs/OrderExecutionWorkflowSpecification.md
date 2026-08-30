@@ -1,5 +1,7 @@
 # Order Execution Workflow Specification
 
+> **Implementation timing:** This remains the future final workflow after the Portfolio/Fund prerequisite, TradeSelection, OrderComposition, and RiskManagement are implemented and verified. The immediate Portfolio/Fund work does not implement broker submission, fills, live positions, or the execution-facing TradeDb redesign. Future execution must consume the approved PortfolioId, FundId, integer OrderId, integer TradeId, and frozen version chain without renumbering them.
+
 **Document version:** 1.0  
 **Status:** Implementation specification  
 **Target runtime:** .NET 10 or later  
@@ -1990,4 +1992,3 @@ The complete subsystem is done when:
 The governing design principle is:
 
 > The policy may decide which safe action to take next; deterministic code decides whether that action is permitted, calculates its exact parameters, reconciles actual exposure, and retains final control of execution risk.
-

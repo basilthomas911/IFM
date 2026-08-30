@@ -1,5 +1,6 @@
 using Serilog;
 using TomasAI.IFM.Application.Api.Server;
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 try
@@ -11,6 +12,9 @@ try
     app.ConfigureRequestPipeline(logger);
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
+    // Portfolio projections are rebuildable, but their idempotent schema must exist
+    // before command actors can start durable projector workers.
+    await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
     await app.MapEventModelActorsAsync(logger);
     app.EnableServerManagerStandardInputShutdown(args, logger);
     var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();

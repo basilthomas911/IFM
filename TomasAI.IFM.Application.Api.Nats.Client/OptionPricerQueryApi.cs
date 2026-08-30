@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// the URI paths defined in <see cref="OptionPricerQueryUriPath"/>.
 /// </summary>
 public class OptionPricerQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IOptionPricerQueryApi
+    : NatsClientApi(actorProducer), IOptionPricerQueryApi
 {
     /// <summary>
     /// Retrieves configured option pricer devices.

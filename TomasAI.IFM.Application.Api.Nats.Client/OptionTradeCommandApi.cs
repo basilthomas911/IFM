@@ -11,7 +11,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class OptionTradeCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), ITradeCommandApi
+    : NatsClientApi(actorProducer), ITradeCommandApi
 {
     public Task<ServiceResult<Guid>> SnapshotAsync(int orderId, int tradeId)
         => SendAsync(

@@ -10,6 +10,12 @@ may contain gaps, and are not globally ordered by request completion time.
 caller. Business workflows must retain the ID returned by `GetSequenceIdAsync` rather than querying a "current"
 ID later.
 
+## Portfolio/Fund business identifiers
+
+The new Portfolio/Fund design retains positive integer PortfolioId, FundId, OrderId, and TradeId values. `Portfolio_PortfolioId` is registered for the new Portfolio aggregate; the existing `Fund_FundId`, `Trade_OrderId`, and `Trade_TradeId` sequences remain authoritative. `PortfolioBusinessIdAllocator` performs positive, checked Int32 conversion over `ISequenceIdGenerator`. The Fund composition authority requests and commits OrderId and TradeId through that allocator; TradeSelection, OrderComposition, RiskManagement, future OrderExecution, and TradeDb preserve those values unchanged. Gaps are valid and reserved IDs are never reused.
+
+This approval applies to low-volume operator-facing business identities. It does not automatically approve PostgreSQL sequence allocation for performance-sensitive ScyllaDB tick, market-data, fill-stream, or append-heavy projection rows. Those tables require a later per-identifier review of uniqueness, ordering, replay, pagination, source-sequence, partition-key, and throughput requirements. That review is explicitly outside the immediate Portfolio/Fund design.
+
 ## Values to inventory
 
 Before cutover, record the greatest value for every affected named sequence from all applicable sources:
@@ -49,6 +55,7 @@ CREATE TEMP TABLE sequence_cutover_maximum
 -- ('StreamingRequest_RequestId', <audited maximum>),
 -- ('OptionQuote_QuoteId', <audited maximum>),
 -- ('FuturesTradeSignal_SequenceId', <audited maximum>),
+-- ('Portfolio_PortfolioId', <audited maximum or 0 for the new sequence>),
 -- ('Fund_FundId', <audited maximum>),
 -- ('Trade_OrderId', <audited maximum>),
 -- ('Trade_TradeId', <audited maximum>),

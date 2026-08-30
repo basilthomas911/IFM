@@ -1,5 +1,7 @@
 # Fund Domain Actor Implementation
 
+> **Legacy status:** This document inventories the current Fund domain. Under [Portfolio-Fund-High-Level-Design-v0.1.md](../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md), the current Fund data, actors, FundOrder/FundOrderTrade contracts, and Funds UI are legacy. They remain available during transition and are not migrated, dual-read, or dual-written into the new Portfolio domain unless a later requirement explicitly authorizes it. New Portfolio/Fund implementation uses `PortfolioDbContext`; retained history is isolated behind `FundLegacyDbContext`.
+
 ## Purpose
 
 `TomasAI.IFM.Domain.Fund` implements command, event, and query actors for funds and fund transactions. It uses event-source storage for command state, EventProjector for projections, and shared Fund, Analytics, and Trade contracts.

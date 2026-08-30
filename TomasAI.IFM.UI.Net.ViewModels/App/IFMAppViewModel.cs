@@ -121,7 +121,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
     StatusConsoleLogReadModel? _latestStatusLog;
     string _statusLine = string.Empty;
-    bool _isMenuEnabled;
+    // Primary navigation belongs to the desktop shell, not to the live market session.
+    // Market-session availability is enforced by the individual market-data operations.
+    bool _isMenuEnabled = true;
     bool _isMarketDataFeedActive;
     bool _isMarketDataFeedOperationInProgress;
     bool _isCloseRequested;
@@ -237,7 +239,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         private set => SetProperty(ref _statusLine, value);
     }
 
-    /// <summary>Gets whether primary navigation is enabled.</summary>
+    /// <summary>Gets whether primary shell navigation is enabled. This is independent of market hours.</summary>
     public bool IsMenuEnabled
     {
         get => _isMenuEnabled;
@@ -290,7 +292,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     /// <summary>Gets whether the operator can start or stop the current market-data feed.</summary>
     public bool CanToggleMarketDataFeed
-        => IsMenuEnabled && ValueDate.HasValue && !IsMarketDataFeedOperationInProgress;
+        => ValueDate.HasValue && !IsMarketDataFeedOperationInProgress;
 
     /// <summary>Gets the operator action that will be performed by the shell feed control.</summary>
     public string MarketDataFeedActionText
@@ -539,7 +541,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await StopMarketDataFeedStatusListener();
         await _appRoot.Services.ApplicationEvents.StopApplicationEventConsumerAsync();
         await StopStatusConsoleListener();
-        IsMenuEnabled = false;
         StartupOperation.NotifyCanExecuteChanged();
         ShutdownOperation.NotifyCanExecuteChanged();
     }
@@ -571,10 +572,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await model.GetValueDateAsync(value => valueDate = value);
             if (!valueDate.HasValue)
             {
-                PublishError(
-                    0,
-                    "Market Data Live Feed unavailable outside of valid Trading Hours",
-                    "Market Data Feed Error");
+                await WriteStatusConsoleAsync(
+                    $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
+                    + "Live market-data APIs are unavailable outside valid trading hours; application menus remain available.");
                 return;
             }
 
@@ -603,7 +603,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await StartFuturesIntradaySignalServices(cancellationToken);
             await WriteStatusConsoleAsync(
                 $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete");
-            IsMenuEnabled = true;
             StartupOperation.NotifyCanExecuteChanged();
             ShutdownOperation.NotifyCanExecuteChanged();
         });

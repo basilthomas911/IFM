@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="actorProducer"></param>
 public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IMarketDataAnalyticsCommandApi
+    : NatsClientApi(actorProducer), IMarketDataAnalyticsCommandApi
 {
     /// <summary>
     /// start futures rsi signal service

@@ -26,6 +26,8 @@ using TomasAI.IFM.Application.Storage.EventSourceDb;
 using TomasAI.IFM.Application.Storage.LogDb;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.FundDb;
+using TomasAI.IFM.Application.Storage.PortfolioDb;
+using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.OptionPricerDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
@@ -46,6 +48,10 @@ using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.Fund;
+using TomasAI.IFM.Domain.Portfolio;
+using TomasAI.IFM.Domain.Portfolio.Identity;
+using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Projection;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
@@ -414,6 +420,8 @@ public static class Startup
                 .Add("LogDbConnection", config.GetConnectionString("LogDbConnection")!, "System.Data.Postgres")
                 .Add("SequenceIdDbConnection", config.GetConnectionString("SequenceIdDbConnection")!, "System.Data.Postgres")
                 .Add("FundDbConnection", config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
+                .Add("PortfolioDbConnection", config.GetConnectionString("PortfolioDbConnection")
+                    ?? config.GetConnectionString("FundDbConnection")!, "System.Data.ScyllaDb")
                 .Add("MarketDataDbConnection", config.GetConnectionString("MarketDataDbConnection")!, "System.Data.ScyllaDb")
                 .Add("OptionPricerDbConnection", config.GetConnectionString("OptionPricerDbConnection")!, "System.Data.ScyllaDb")
                 .Add("ReferenceDbConnection", config.GetConnectionString("ReferenceDbConnection")!, "System.Data.ScyllaDb")
@@ -425,12 +433,19 @@ public static class Startup
             services.AddSingleton<IDbContextFactory, DbContextFactory>();
             services.AddSingleton<ISequenceIdDbContext, SequenceIdDbContext>();
             services.AddSingleton<ISequenceIdGenerator, PostgresSequenceIdGenerator>();
+            services.AddSingleton<IPortfolioBusinessIdAllocator, PortfolioBusinessIdAllocator>();
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<EventSourceActorDbContext>() as IEventSourceActorDbContext)!);
+            services.AddSingleton<IPortfolioEventStore>(provider => new PortfolioEventStore(provider.GetRequiredService<IEventSourceActorDbContext>()));
+            services.AddSingleton<IPortfolioProjectionRebuilder>(provider =>
+                new PortfolioProjectionRebuilder(
+                    provider.GetRequiredService<IPortfolioEventStore>(),
+                    provider.GetRequiredService<IPortfolioDbContext>()));
             services.AddSingleton<ICommandAuditLogger>(provider =>
                 (ICommandAuditLogger)provider.GetRequiredService<IEventSourceActorDbContext>());
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<LogDbContext>() as ILogDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<SequenceIdDbContext>() as ISequenceIdDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<FundDbContext>() as IFundDbContext)!);
+            services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<PortfolioDbContext>() as IPortfolioDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<MarketDataDbContext>() as IMarketDataDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<OptionPricerDbContext>() as IOptionPricerDbContext)!);
             services.AddSingleton(_ => (new DbContextResolver(type => GetContainerInstance(type)!).Resolve<ReferenceDbContext>() as IReferenceDbContext)!);
@@ -445,6 +460,7 @@ public static class Startup
             services.AddSingleton<LogSchemaDb>();
             services.AddSingleton<SequenceIdSchemaDb>();
             services.AddSingleton<FundSchemaDb>();
+            services.AddSingleton<PortfolioSchemaDb>();
             services.AddSingleton<MarketDataSchemaDb>();
             services.AddSingleton<OptionPricerSchemaDb>();
             services.AddSingleton<ReferenceSchemaDb>();
@@ -619,6 +635,7 @@ public static class Startup
             ApplicationActorAssembly.Current,
             DomainApplicationActorAssembly.Current,
             FundActorAssembly.Current,
+            PortfolioActorAssembly.Current,
             MarketDataActorAssembly.Current,
             MarketDataAnalyticsActorAssembly.Current,
             MarketDataFeedActorAssembly.Current,

@@ -13,7 +13,7 @@ using TomasAI.IFM.Domain.Trade.Shared;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class MarketDataFeedQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IMarketDataFeedQueryApi
+    : NatsClientApi(actorProducer), IMarketDataFeedQueryApi
 {
     /// <summary>
     /// Return last futures tick data for a contract on a specific value date.

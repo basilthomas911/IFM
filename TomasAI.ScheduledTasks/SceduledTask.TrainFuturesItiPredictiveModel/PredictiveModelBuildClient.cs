@@ -7,7 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.ScheduledTasks.SceduledTask.TrainFuturesItiPredictiveModel;
 
-public sealed class PredictiveModelBuildClient(IActorProducer producer) : NatsCommandApi(producer)
+public sealed class PredictiveModelBuildClient(IActorProducer producer) : NatsClientApi(producer)
 {
     public async Task<ServiceResult<Guid>> BuildAsync(
         string symbol,

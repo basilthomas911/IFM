@@ -13,7 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public partial class MarketDataQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IMarketDataQueryApi
+    : NatsClientApi(actorProducer), IMarketDataQueryApi
 {
     /// <inheritdoc />
     public async Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol)

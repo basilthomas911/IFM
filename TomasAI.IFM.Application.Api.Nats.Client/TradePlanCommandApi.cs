@@ -23,7 +23,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="commandService"></param>
 public class TradePlanCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), ITradePlanCommandApi
+    : NatsClientApi(actorProducer), ITradePlanCommandApi
 {
     /// <summary>
     /// update trade plan

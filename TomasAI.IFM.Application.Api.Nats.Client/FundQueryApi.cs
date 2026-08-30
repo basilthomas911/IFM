@@ -9,7 +9,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class FundQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IFundQueryApi
+    : NatsClientApi(actorProducer), IFundQueryApi
 {
     /// <summary>
     /// Gets the closing fund balance for a specific fund and value date.

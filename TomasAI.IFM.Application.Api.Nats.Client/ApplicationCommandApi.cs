@@ -15,8 +15,8 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="actorProducer"></param>
 /// <exception cref="ArgumentNullException"></exception>
-public class ApplicationCommandApi(IActorProducer actorProducer) 
-    : NatsCommandApi(actorProducer), IApplicationCommandApi   
+public class ApplicationCommandApi(IActorProducer actorProducer)
+    : NatsClientApi(actorProducer), IApplicationCommandApi
 {
 
     /// start application

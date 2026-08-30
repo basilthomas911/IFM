@@ -67,4 +67,8 @@ public enum BoundedContextName
     MarketOutlookSnapshotBoundedContext,
     /// <summary>Routes immutable strategy parameter-set lifecycle commands.</summary>
     StrategyConfigurationBoundedContext,
+    /// <summary>Routes Portfolio aggregate commands.</summary>
+    PortfolioBoundedContext,
+    /// <summary>Routes Portfolio-owned Fund aggregate commands.</summary>
+    PortfolioFundBoundedContext,
 }

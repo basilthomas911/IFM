@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// <param name="commandSvc">The command service API client.</param>
 /// <exception cref="ArgumentNullException">Thrown when commandSvc is null.</exception>
 public partial class MarketDataCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer) , IMarketDataCommandApi
+    : NatsClientApi(actorProducer) , IMarketDataCommandApi
 {
     /// <summary>
     /// Adds a new futures contract asynchronously.

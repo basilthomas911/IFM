@@ -5,6 +5,7 @@ using TomasAI.IFM.UI.Net.Services.MarketData;
 using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.Net.Services.OptionPricing;
 using TomasAI.IFM.UI.Net.Services.Trade;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 
 namespace TomasAI.IFM.UI.Net.Services;
 
@@ -13,6 +14,10 @@ namespace TomasAI.IFM.UI.Net.Services;
 /// </summary>
 public interface IUiServiceCatalog
 {
+    IPortfolioCommandApi PortfolioCommands { get; }
+    IPortfolioFundCommandApi PortfolioFundCommands { get; }
+    IPortfolioQueryApi PortfolioQueries { get; }
+    IPortfolioIdentityApi PortfolioIdentities { get; }
     /// <summary>Gets the shared command-response event service.</summary>
     CommandResponseEventService CommandResponses { get; }
 

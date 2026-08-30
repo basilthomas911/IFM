@@ -26,7 +26,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// <param name="commandSvc"></param>
 /// <exception cref="ArgumentNullException"></exception>
 public class MarketDataFeedCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IMarketDataFeedCommandApi
+    : NatsClientApi(actorProducer), IMarketDataFeedCommandApi
 {
     /// <summary>
     /// Starts a market data feed for the specified futures contracts and value date.

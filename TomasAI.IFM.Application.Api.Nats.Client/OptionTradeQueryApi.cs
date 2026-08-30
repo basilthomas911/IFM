@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// Client implementation for trade-related queries using an <see cref="IQueryServiceApi"/>.
 /// </summary>
 public class OptionTradeQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), ITradeQueryApi
+    : NatsClientApi(actorProducer), ITradeQueryApi
 {
     /// <summary>
     /// Return trade history for selected trade order

@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="querySvc"></param>
 public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IMarketDataAnalyticsQueryApi
+    : NatsClientApi(actorProducer), IMarketDataAnalyticsQueryApi
 {
     public async Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
         string contractId,

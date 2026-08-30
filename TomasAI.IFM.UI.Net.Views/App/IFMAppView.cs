@@ -19,6 +19,7 @@ using TomasAI.IFM.UI.Net.Views.MarketData;
 using TomasAI.IFM.UI.Net.Views.Trade;
 using TomasAI.IFM.UI.Net.Views.Fund;
 using TomasAI.IFM.UI.Net.Views.Reference;
+using TomasAI.IFM.UI.Net.Views.Portfolio;
 using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
@@ -271,11 +272,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 
     private void RenderMenuState()
     {
-        tradeButton.Enabled = _viewModel.IsMenuEnabled;
-        marketDataButton.Enabled = _viewModel.IsMenuEnabled;
-        fundButton.Enabled = _viewModel.IsMenuEnabled;
-        referenceButton.Enabled = _viewModel.IsMenuEnabled;
-        systemAdminButton.Enabled = _viewModel.IsMenuEnabled;
+        // Navigation is an application-shell capability. Only the live feed action below is
+        // conditional on trading-session/market-data readiness.
+        tradeButton.Enabled = true;
+        marketDataButton.Enabled = true;
+        fundButton.Enabled = true;
+        portfolioButton.Enabled = true;
+        referenceButton.Enabled = true;
+        systemAdminButton.Enabled = true;
         RenderMarketDataFeedState();
     }
 
@@ -505,6 +509,16 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
     {
         operationViewSplitter.Invalidate();
         ResizeTabPages();
+    }
+
+    private void portfolioButton_Click(object sender, EventArgs e)
+    {
+        _navigator.ShowModal<PortfolioAdministrationForm>(view =>
+            _ = view.LoadViewModelAsync(
+                _appRoot.Services.PortfolioQueries,
+                _appRoot.Services.PortfolioCommands,
+                _appRoot.Services.PortfolioFundCommands,
+                _appRoot.Services.PortfolioIdentities));
     }
 
     private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)

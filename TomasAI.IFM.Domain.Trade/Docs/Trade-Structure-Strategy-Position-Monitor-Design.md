@@ -4,9 +4,13 @@ Date: 2026-08-17
 Status: Initial authoritative design baseline  
 Scope: Trade-domain persistence, live position updates, strategy-specific monitoring, and Trade Blotter boundaries
 
+Portfolio/Fund prerequisite: [Portfolio-Fund-High-Level-Design-v0.1.md](../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md)
+
 ## Purpose
 
 This document defines the initial target architecture for separating durable trade facts from live strategy-position calculations and immutable monitoring history.
+
+The Portfolio/Fund HLD is authoritative for planned composition. `FundOrder` and `FundOrderTrade` are Portfolio/Fund composition records; they are not the durable broker order or filled trade described here. This document's TradeDb authority begins at the future OrderExecution boundary. OrderExecution, fills, and live-position redesign are deferred until TradeSelection, OrderComposition, and RiskManagement produce an accepted candidate.
 
 It records the design decisions reached while reviewing the current option-trade and live option-tick flow. It intentionally stops short of specifying the complete Trade Strategy and Trade Monitor workflow pipelines. Those pipelines will extend this document after their commands, events, stages, and execution boundaries have been designed.
 
@@ -23,7 +27,7 @@ The primary goals are:
 
 | Decision | Authoritative direction |
 |---|---|
-| Durable trade facts | Remain in `TradeDbContext` and durable trade actors. |
+| Durable execution facts | Remain in `TradeDbContext` and durable trade actors after future OrderExecution begins. |
 | Current strategy position | Stored through `TradePositionDbContext`. |
 | Position persistence shape | Strategy-specific and allowed to use multiple tables for one logical position. |
 | Position update actors | Realtime and strategy-specific. |
@@ -607,4 +611,3 @@ These questions must be answered by explicit design and tests rather than inferr
 - `../Order/Execution/Docs/OrderExecutionWorkflowSpecification.md`
 - `../../Documents/system/Actor-Implementation-Conventions.md`
 - `../../Documents/system/Actor-Message-Types-and-Delivery-Conventions.md`
-

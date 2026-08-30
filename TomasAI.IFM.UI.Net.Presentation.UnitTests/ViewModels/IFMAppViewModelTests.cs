@@ -80,7 +80,8 @@ public class IFMAppViewModelTests
     {
         var viewModel = CreateSubject();
 
-        viewModel.IsMenuEnabled.Should().BeFalse();
+        viewModel.IsMenuEnabled.Should().BeTrue(
+            "primary navigation must remain available when no market value date exists");
         viewModel.IsMarketDataFeedActive.Should().BeFalse();
         viewModel.MarketDataFeedHealthState.Should().Be(MarketDataFeedHealthState.Inactive);
         viewModel.IsMarketDataFeedOperationInProgress.Should().BeFalse();

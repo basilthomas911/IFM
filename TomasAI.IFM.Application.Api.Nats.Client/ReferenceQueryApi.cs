@@ -13,7 +13,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class ReferenceQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IReferenceQueryApi
+    : NatsClientApi(actorProducer), IReferenceQueryApi
 {
     /// <summary>
     /// Returns default futures contract definitions.

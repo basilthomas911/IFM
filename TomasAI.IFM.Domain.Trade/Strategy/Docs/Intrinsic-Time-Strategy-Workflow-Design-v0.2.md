@@ -7,6 +7,7 @@
 **Primary actor:** `IntrinsicTimeStrategyWorkflowCommandActor`  
 **Workflow type:** Deterministic, real-time, single-flight strategy workflow  
 **Implementation target:** .NET 10 actor platform with PostgreSQL EventStoreDb, NATS Core/JetStream, and ScyllaDB projections
+**Portfolio/Fund prerequisite:** [Portfolio-Fund-High-Level-Design-v0.1.md](../../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md)
 
 ---
 
@@ -62,6 +63,9 @@ The following decisions are fixed for this version.
 18. Immutable workflow snapshots cross actor boundaries; mutable aggregate references never do.
 19. Only a completed workflow whose Risk Management result passes workflow continuation rules may start Order Execution.
 20. LLM or agentic advisory output cannot advance the authoritative workflow, approve risk, or trigger execution.
+21. TradeSelection and OrderComposition use the frozen new Portfolio/Fund mandate and composition identity model; they do not use the legacy Fund aggregate as production authority.
+22. Fund reserves the integer OrderId and TradeId values after TradeSelection and before OrderComposition; all downstream stages preserve them unchanged.
+23. OrderExecution is the final separate workflow and remains deferred during Portfolio/Fund, TradeSelection, and OrderComposition implementation.
 
 ---
 
@@ -81,6 +85,8 @@ The following decisions are fixed for this version.
 - ScyllaDB historical and operational projections;
 - event replay and actor recovery.
 
+The OrderExecution item above defines the eventual strategy-workflow boundary. Actual broker dispatch is not part of the Portfolio/Fund, TradeSelection, or OrderComposition implementation phase.
+
 ### 3.2 Excluded
 
 - the detailed Regime Discovery algorithm;
@@ -94,6 +100,8 @@ The following decisions are fixed for this version.
 - LLM-controlled strategy decisions;
 - automatic business retries;
 - concurrent workflows for one entity.
+
+Portfolio/Fund aggregate behavior, storage, UI, and legacy isolation are specified by the companion Portfolio/Fund HLD rather than this workflow orchestration document.
 
 ---
 

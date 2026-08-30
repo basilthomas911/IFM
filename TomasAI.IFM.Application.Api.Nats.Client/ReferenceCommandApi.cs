@@ -10,7 +10,7 @@ using TomasAI.IFM.Shared.Extensions;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class ReferenceCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), IReferenceCommandApi
+    : NatsClientApi(actorProducer), IReferenceCommandApi
 {
     /// <summary>
     /// add lookup type

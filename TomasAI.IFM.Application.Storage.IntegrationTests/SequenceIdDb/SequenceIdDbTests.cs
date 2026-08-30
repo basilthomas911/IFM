@@ -11,6 +11,7 @@ using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
 using TomasAI.IFM.Shared.Storage;
+using TomasAI.IFM.Domain.Portfolio.Identity;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.SequenceIdDb;
 
@@ -85,5 +86,23 @@ public class SequenceIdDbTests : IClassFixture<SequenceIdFixture>
         sequenceIds.Should().OnlyHaveUniqueItems();
         (await firstGenerator.GetHighWatermarkAsync(sequenceName))
             .Should().BeGreaterThanOrEqualTo(sequenceIds.Max());
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-02")]
+    [Trait("Category", "Portfolio")]
+    public async Task PortfolioBusinessIdsUseTheirAuthoritativePostgresSequences()
+    {
+        var allocator = new PortfolioBusinessIdAllocator(_testFixture.SequenceIdGenerator);
+
+        var portfolioId = await allocator.AllocatePortfolioIdAsync();
+        var fundId = await allocator.AllocateFundIdAsync();
+        var orderId = await allocator.AllocateOrderIdAsync();
+        var tradeId = await allocator.AllocateTradeIdAsync();
+
+        portfolioId.Id.Should().BePositive();
+        fundId.Should().BePositive();
+        orderId.Should().BePositive();
+        tradeId.Should().BePositive();
     }
 }

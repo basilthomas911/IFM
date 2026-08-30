@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="actorProducer"></param>
 public class TradePlacementCommandApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), ITradePlacementCommandApi
+    : NatsClientApi(actorProducer), ITradePlacementCommandApi
 {
     /// <summary>
     /// Signals the placement of a futures trade based on the provided trade signal.

@@ -17,7 +17,7 @@ using TomasAI.IFM.Domain.Trade.Shared.TradePlan.ServiceApi;
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
 public class TradePlanQueryApi(IActorProducer actorProducer)
-    : NatsCommandApi(actorProducer), ITradePlanQueryApi
+    : NatsClientApi(actorProducer), ITradePlanQueryApi
 {
     /// <summary>
     /// Return last iron condor stop loss limit for the specified order/trade.

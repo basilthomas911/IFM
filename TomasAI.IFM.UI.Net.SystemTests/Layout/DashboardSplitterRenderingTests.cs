@@ -13,6 +13,19 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 public sealed class DashboardSplitterRenderingTests
 {
     [Fact]
+    public void PrimaryNavigationIsAvailableBeforeAnyMarketSessionIsEstablished()
+    {
+        using var form = CreateForm();
+        var menuBar = form.Controls.Find("toolStrip1", true).OfType<ToolStrip>().Single();
+
+        new[] { "tradeButton", "marketDataButton", "portfolioButton", "fundButton", "referenceButton", "systemAdminButton" }
+            .Select(name => menuBar.Items[name])
+            .Should().OnlyContain(item => item != null && item.Enabled);
+        menuBar.Items["marketDataFeedButton"].Enabled.Should().BeFalse(
+            "the live-feed action, unlike navigation, still requires market-data readiness");
+    }
+
+    [Fact]
     public void DashboardMenuBarUsesSolidBlackChrome()
     {
         using var form = CreateForm();

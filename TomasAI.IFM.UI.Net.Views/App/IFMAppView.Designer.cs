@@ -55,6 +55,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             toolStrip1 = new ToolStrip();
             menuBarSeparator = new Panel();
             fundButton = new ToolStripButton();
+            portfolioButton = new ToolStripButton();
             referenceButton = new ToolStripButton();
             systemAdminButton = new ToolStripButton();
             statusConsoleLogViewModelBindingSource = new BindingSource(components);
@@ -278,7 +279,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // tradeButton
             // 
             tradeButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            tradeButton.Enabled = false;
+            tradeButton.Enabled = true;
             tradeButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             tradeButton.Image = (Image)resources.GetObject("tradeButton.Image");
             tradeButton.ImageTransparentColor = Color.Magenta;
@@ -290,7 +291,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // marketDataButton
             // 
             marketDataButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            marketDataButton.Enabled = false;
+            marketDataButton.Enabled = true;
             marketDataButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             marketDataButton.Image = (Image)resources.GetObject("marketDataButton.Image");
             marketDataButton.ImageTransparentColor = Color.Magenta;
@@ -348,7 +349,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             toolStrip1.ForeColor = Color.White;
             toolStrip1.GripStyle = ToolStripGripStyle.Hidden;
             toolStrip1.ImageScalingSize = new Size(24, 24);
-            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, marketDataFeedHealthIndicator, btnCloseOrder });
+            toolStrip1.Items.AddRange(new ToolStripItem[] { tradeButton, marketDataButton, portfolioButton, fundButton, referenceButton, systemAdminButton, toolStripSeparator, marketDataFeedButton, marketDataFeedHealthIndicator, btnCloseOrder });
             toolStrip1.Location = new Point(0, 0);
             toolStrip1.Name = "toolStrip1";
             toolStrip1.Renderer = new DashboardMenuRenderer()
@@ -372,7 +373,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // fundButton
             // 
             fundButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            fundButton.Enabled = false;
+            fundButton.Enabled = true;
             fundButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             fundButton.Image = (Image)resources.GetObject("fundButton.Image");
             fundButton.ImageTransparentColor = Color.Magenta;
@@ -380,11 +381,22 @@ namespace TomasAI.IFM.UI.Net.Views.App
             fundButton.Size = new Size(51, 24);
             fundButton.Text = "Funds";
             fundButton.Click += fundButton_Click;
+            //
+            // portfolioButton
+            //
+            portfolioButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            portfolioButton.Enabled = true;
+            portfolioButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            portfolioButton.Name = "portfolioButton";
+            portfolioButton.Size = new Size(72, 24);
+            portfolioButton.Text = "Portfolio";
+            portfolioButton.AccessibleName = "Portfolio";
+            portfolioButton.Click += portfolioButton_Click;
             // 
             // referenceButton
             // 
             referenceButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            referenceButton.Enabled = false;
+            referenceButton.Enabled = true;
             referenceButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             referenceButton.Image = (Image)resources.GetObject("referenceButton.Image");
             referenceButton.ImageTransparentColor = Color.Magenta;
@@ -396,7 +408,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             // systemAdminButton
             // 
             systemAdminButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            systemAdminButton.Enabled = false;
+            systemAdminButton.Enabled = true;
             systemAdminButton.Font = new Font("Segoe UI", 11.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             systemAdminButton.Image = (Image)resources.GetObject("systemAdminButton.Image");
             systemAdminButton.ImageTransparentColor = Color.Magenta;
@@ -473,6 +485,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.ToolStrip toolStrip1;
         private System.Windows.Forms.Panel menuBarSeparator;
         private System.Windows.Forms.ToolStripButton fundButton;
+        private System.Windows.Forms.ToolStripButton portfolioButton;
         private System.Windows.Forms.ToolStripButton systemAdminButton;
         private System.Windows.Forms.ToolStripButton referenceButton;
         private System.Windows.Forms.Panel pnlMarketOutlook;

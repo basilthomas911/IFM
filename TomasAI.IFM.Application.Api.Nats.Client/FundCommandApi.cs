@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 /// </summary>
 /// <param name="actorProducer"></param>
 public class FundCommandApi(IActorProducer actorProducer) 
-    : NatsCommandApi(actorProducer), IFundCommandApi
+    : NatsClientApi(actorProducer), IFundCommandApi
 {
     /// <summary>
     /// create fund

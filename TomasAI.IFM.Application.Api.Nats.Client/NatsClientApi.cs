@@ -5,7 +5,7 @@ using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Application.Api.Nats.Client;
 
-public class NatsCommandApi(IActorProducer actorProducer)
+public class NatsClientApi(IActorProducer actorProducer)
 {
     readonly IActorProducer _actorProducer = IsArgumentNull.Set(actorProducer);
 
@@ -28,11 +28,22 @@ public class NatsCommandApi(IActorProducer actorProducer)
         return new ServiceResult<Guid>
         {
             Success = actorResult.Success,
-            ErrorCode = command.ErrorCode,
+            ErrorCode = actorResult.ErrorCode != 0 ? actorResult.ErrorCode : actorResult.Success ? 0 : command.ErrorCode,
             ErrorMessage = actorResult.ErrorMessage,
             ErrorEvent = actorResult.ErrorEvent,
             Value = command.CommandId
         };
+    }
+
+    protected async ValueTask<ServiceResult<TResult>> RequestCommandResultAsync<TCommand, TEntityId, TResult>(
+        TCommand command,
+        TEntityId entityId,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, ICommand<TEntityId>
+        where TEntityId : IActorEntityId
+        where TResult : class
+    {
+        return await _actorProducer.RequestAsync<TCommand, TEntityId, TResult>(command.Subject, command, entityId, cancellationToken);
     }
 
     /// <summary>
@@ -48,6 +59,13 @@ public class NatsCommandApi(IActorProducer actorProducer)
         where TResult : class
     {
         return await _actorProducer.RequestAsync<TResult, TQuery>(subject, query);
+    }
+
+    protected async ValueTask<ServiceResult<TResult>> RequestAsync<TQuery, TResult>(ActorSubject subject, TQuery query, CancellationToken cancellationToken)
+        where TQuery : class, IQuery<TResult>
+        where TResult : class
+    {
+        return await _actorProducer.RequestAsync<TResult, TQuery>(subject, query, cancellationToken);
     }
 
     /// <summary>

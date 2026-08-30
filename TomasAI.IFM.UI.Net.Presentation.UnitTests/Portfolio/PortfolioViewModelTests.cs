@@ -1,0 +1,121 @@
+using FluentAssertions;
+using NSubstitute;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.UI.Net.ViewModels.Portfolio;
+
+namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Portfolio;
+
+public sealed class PortfolioViewModelTests
+{
+    [Fact]
+    [Trait("Gate", "PF-16")]
+    [Trait("Category", "Portfolio")]
+    public async Task Reader_cannot_mutate_and_administrator_enters_pending_projection_after_commit()
+    {
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var commands = Substitute.For<IPortfolioCommandApi>();
+        var fundCommands = Substitute.For<IPortfolioFundCommandApi>();
+        var identities = Substitute.For<IPortfolioIdentityApi>();
+        var model = ValidPortfolio();
+        commands.CreatePortfolioAsync(model, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
+        var reader = new PortfolioAdministrationViewModel(queries, commands, fundCommands, identities, false);
+        var admin = new PortfolioAdministrationViewModel(queries, commands, fundCommands, identities, true);
+
+        await reader.CreatePortfolioAsync(model);
+        await admin.CreatePortfolioAsync(model);
+
+        reader.State.Should().Be(PortfolioUiState.Unauthorized);
+        admin.State.Should().Be(PortfolioUiState.PendingProjection);
+        await commands.Received(1).CreatePortfolioAsync(model, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-02")]
+    [Trait("Gate", "PF-16")]
+    [Trait("Category", "Portfolio")]
+    public async Task Create_path_consumes_typed_allocated_identity_and_never_fabricates_failure()
+    {
+        var identities = Substitute.For<IPortfolioIdentityApi>();
+        identities.AllocatePortfolioIdAsync(Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioBusinessIdAllocation>(new() { Kind = PortfolioBusinessIdentityKind.Portfolio, Value = 7001, CorrelationId = Guid.NewGuid() }),
+            new ServiceFailed<PortfolioBusinessIdAllocation>(34012, "sequence unavailable"));
+        var vm = new PortfolioAdministrationViewModel(
+            Substitute.For<IPortfolioQueryApi>(), Substitute.For<IPortfolioCommandApi>(),
+            Substitute.For<IPortfolioFundCommandApi>(), identities, true);
+
+        var allocated = await vm.AllocatePortfolioIdAsync();
+        var failed = await vm.AllocatePortfolioIdAsync();
+
+        allocated.DisplayId.Should().Be("7001");
+        failed.IsSuccessful.Should().BeFalse();
+        failed.DisplayId.Should().BeEmpty();
+        vm.State.Should().Be(PortfolioUiState.ValidationError);
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-10")]
+    [Trait("Gate", "PF-16")]
+    [Trait("Category", "Portfolio")]
+    public async Task Mutations_use_projection_aggregate_revisions_instead_of_business_versions()
+    {
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var commands = Substitute.For<IPortfolioCommandApi>();
+        var fundCommands = Substitute.For<IPortfolioFundCommandApi>();
+        var portfolio = ValidPortfolio();
+        var fund = new FundMandateReadModel { PortfolioId = 101, FundId = 201, FundMandateVersion = 1 };
+        queries.GetFundsAsync(101, null, 100, null, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [fund] }));
+        queries.GetPortfolioRevisionAsync(101, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = 101, Revision = 7, SourceEventId = 70 }));
+        queries.GetFundRevisionAsync(101, 201, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = 101, FundId = 201, Revision = 5, SourceEventId = 71 }));
+        queries.GetFundAllocationAsync(101, 201, Arg.Any<CancellationToken>()).Returns(new ServiceFailed<FundAllocationReadModel>(34001, "none"));
+        queries.GetFundRiskEnvelopeAsync(101, 201, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(new ServiceFailed<FundRiskEnvelopeReadModel>(34001, "none"));
+        queries.GetAssignmentsAsync(101, 201, 1, Arg.Any<CancellationToken>()).Returns(new ServiceOk<FundTradeTemplateAssignmentReadModel[]>([]));
+        commands.ChangePortfolioStateAsync(new PortfolioId(101), 7, PortfolioOperatingState.Paused, "review", Arg.Any<CancellationToken>()).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
+        fundCommands.ChangeFundStateAsync(new(101, 201), 5, FundOperatingState.Paused, "review", Arg.Any<CancellationToken>()).Returns(new ServiceOk<Guid>(Guid.NewGuid()));
+        var vm = new PortfolioAdministrationViewModel(queries, commands, fundCommands, Substitute.For<IPortfolioIdentityApi>(), true);
+
+        await vm.SelectPortfolioAsync(portfolio);
+        await vm.ChangePortfolioStateAsync(PortfolioOperatingState.Paused, "review");
+        await vm.SelectFundAsync(fund);
+        await vm.ChangeFundStateAsync(FundOperatingState.Paused, "review");
+
+        await commands.Received(1).ChangePortfolioStateAsync(new PortfolioId(101), 7, PortfolioOperatingState.Paused, "review", Arg.Any<CancellationToken>());
+        await fundCommands.Received(1).ChangeFundStateAsync(new(101, 201), 5, FundOperatingState.Paused, "review", Arg.Any<CancellationToken>());
+        vm.FundRevision.Should().Be(6);
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-17")]
+    [Trait("Category", "Portfolio")]
+    public async Task Composition_navigation_is_portfolio_fund_scoped_and_exposes_no_create_fund_operation()
+    {
+        var query = Substitute.For<IPortfolioQueryApi>();
+        var order = new FundOrderProjectionReadModel { PortfolioId = 101, FundId = 201, OrderId = 7001, Status = nameof(FundCompositionState.RiskPending) };
+        query.GetOrderAsync(7001, Arg.Any<CancellationToken>()).Returns(new ServiceOk<FundOrderProjectionReadModel>(order));
+        query.GetOrdersAsync(101, 201, new DateOnly(2026, 8, 1), 200, null, Arg.Any<CancellationToken>()).Returns(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()));
+        query.GetOrderTradesAsync(7001, 200, null, Arg.Any<CancellationToken>()).Returns(new ServiceOk<PortfolioPage<FundOrderTradeProjectionReadModel>>(new() { Items = [new() { PortfolioId = 101, FundId = 201, OrderId = 7001, TradeId = 8001 }] }));
+        var vm = new PortfolioCompositionViewModel(query);
+        vm.SelectPortfolio(ValidPortfolio());
+        await vm.SelectFundAsync(new FundMandateReadModel { PortfolioId = 101, FundId = 201 }, new DateOnly(2026, 8, 1));
+
+        var found = await vm.SearchOrderAsync(7001);
+
+        found.Should().BeTrue();
+        vm.Trades.Should().ContainSingle(x => x.TradeId == 8001);
+        vm.Semantics.Should().Contain("not a broker order");
+        typeof(PortfolioCompositionViewModel).GetMethods().Should().NotContain(x => x.Name.Contains("CreateFund", StringComparison.OrdinalIgnoreCase));
+    }
+
+    static PortfolioReadModel ValidPortfolio() => new()
+    {
+        PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+        OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),
+        CreatedOnUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc), CreatedBy = "admin",
+    };
+}

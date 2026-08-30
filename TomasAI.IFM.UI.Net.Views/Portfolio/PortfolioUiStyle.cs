@@ -1,0 +1,76 @@
+namespace TomasAI.IFM.UI.Net.Views.Portfolio;
+
+static class PortfolioUiStyle
+{
+    public static readonly Color Surface = Color.FromArgb(64, 64, 64);
+    public static readonly Color DataSurface = Color.Black;
+    public static readonly Color Foreground = Color.White;
+    public static readonly Font BodyFont = new("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point);
+
+    public static void Apply(Form form)
+    {
+        form.BackColor = Surface;
+        form.ForeColor = Foreground;
+        form.Font = BodyFont;
+        form.StartPosition = FormStartPosition.CenterParent;
+    }
+
+    public static DataGridView Grid(string accessibleName) => new()
+    {
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        AutoGenerateColumns = true,
+        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        MultiSelect = false,
+        BackgroundColor = DataSurface,
+        ForeColor = Foreground,
+        GridColor = Surface,
+        BorderStyle = BorderStyle.FixedSingle,
+        AccessibleName = accessibleName,
+        RowHeadersVisible = false,
+        EnableHeadersVisualStyles = false,
+        ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = Surface, ForeColor = Foreground, Font = BodyFont },
+        DefaultCellStyle = new DataGridViewCellStyle { BackColor = DataSurface, ForeColor = Foreground, SelectionBackColor = Color.DarkSlateBlue, SelectionForeColor = Foreground },
+    };
+
+    public static Button Button(string text, string accessibleName) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        ForeColor = Color.Black,
+        Font = BodyFont,
+        AccessibleName = accessibleName,
+        UseVisualStyleBackColor = true,
+        Margin = new Padding(4),
+    };
+
+    public static Label Caption(string text) => new()
+    {
+        Text = text,
+        AutoSize = true,
+        ForeColor = Foreground,
+        TextAlign = ContentAlignment.MiddleRight,
+        Dock = DockStyle.Fill,
+        Padding = new Padding(3, 7, 3, 0),
+    };
+
+    public static TextBox TextBox(string accessibleName, bool readOnly = false) => new()
+    {
+        AccessibleName = accessibleName,
+        BackColor = DataSurface,
+        ForeColor = Foreground,
+        BorderStyle = BorderStyle.FixedSingle,
+        ReadOnly = readOnly,
+        Dock = DockStyle.Fill,
+    };
+
+    public static ComboBox Combo(string accessibleName) => new()
+    {
+        AccessibleName = accessibleName,
+        BackColor = Surface,
+        ForeColor = Foreground,
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        Dock = DockStyle.Fill,
+    };
+}

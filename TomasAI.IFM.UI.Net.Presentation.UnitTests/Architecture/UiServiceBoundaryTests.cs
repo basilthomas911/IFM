@@ -8,6 +8,7 @@ public sealed class UiServiceBoundaryTests
 {
     static readonly string[] ModelsReferenceAllowList =
     [
+        "TomasAI.IFM.Domain.Portfolio.Shared",
         "TomasAI.IFM.Domain.MarketData.Analytics.Shared",
         "TomasAI.IFM.Domain.MarketData.Shared",
         "TomasAI.IFM.Domain.SystemAdmin.Shared",
@@ -26,6 +27,7 @@ public sealed class UiServiceBoundaryTests
         "MarketData/FuturesTradeSignalUIViewModel.cs", "MarketData/FuturesTradeStatusUIViewModel.cs",
         "MarketData/YieldCurveRateEditorViewModel.cs",
         "Operations/FuturesItiSignalEventRow.cs", "Trade/EndOfDayProcessViewModel.cs",
+        "Portfolio/PortfolioAdministrationViewModel.cs", "Portfolio/PortfolioCompositionViewModel.cs",
         "Trade/FundOrderEditorViewModel.cs", "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
         "Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
         "Trade/IronCondor/IronCondorViewModel.cs", "Trade/TradeOrderConfirmationViewModel.cs",
