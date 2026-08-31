@@ -23,7 +23,7 @@ public sealed class PortfolioCompositionScenarios
         })
         {
             var x = Catalog(horizon, asset, family, fundId);
-            var result = resolver.Resolve(Guid.NewGuid(), 1, Guid.NewGuid(), x.Portfolio, [x.Fund], [x.Allocation], [x.Envelope], [x.Assignment], 2026, horizon, "ES", asset, Now);
+            var result = resolver.Resolve(Guid.NewGuid(), 1, Guid.NewGuid(), x.Portfolio, x.Policy, [x.Fund], [x.Allocation], [x.Envelope], [x.Assignment], 2026, horizon, "ES", asset, Now);
             result.Fund.FundId.Should().Be(fundId);
             result.Assignments.Should().ContainSingle(x => x.TradeFamily == family);
         }
@@ -43,6 +43,27 @@ public sealed class PortfolioCompositionScenarios
         first.Trades.Select(x => x.TradeId).Should().Equal(9101, 9102);
         retry.Order.OrderId.Should().Be(9001);
         retry.Disposition.Should().Be(ReservationDisposition.IdempotentReplay);
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-28")]
+    [Trait("Category", "Portfolio")]
+    public void Given_a_manual_operator_request_when_created_then_it_is_a_canonical_non_executable_draft()
+    {
+        var request = new CreateManualFundOrderRequest
+        {
+            PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
+            UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(Now),
+            RequestedMaturityDate = DateOnly.FromDateTime(Now.AddMonths(1)), Reference = "manual review",
+            IdempotencyKey = Guid.NewGuid(), RequestedAtUtc = Now, ExpiresAtUtc = Now.AddDays(1),
+        };
+
+        var result = new PortfolioFundCompositionAggregate().CreateManualDraft(request, 9001, Now, "operator");
+
+        result.Order.Origin.Should().Be(CompositionOrigin.ManualUi);
+        result.Order.Status.Should().Be(FundCompositionState.Draft.ToString());
+        result.Trades.Should().BeEmpty();
+        result.Order.Status.Should().NotContain("Execut");
     }
 
     [Theory]
@@ -75,7 +96,7 @@ public sealed class PortfolioCompositionScenarios
     static (PortfolioFundCompositionAggregate, ReserveFundOrderCompositionRequest, PortfolioFundStrategySnapshot) Reservation()
     {
         var x = Catalog("Weekly", "FuturesOptions", "VerticalSpread", 202);
-        var snapshot = new PortfolioFundStrategyResolver().Resolve(Guid.NewGuid(), 1, Guid.NewGuid(), x.Portfolio, [x.Fund], [x.Allocation], [x.Envelope], [x.Assignment], 2026, "Weekly", "ES", "FuturesOptions", Now);
+        var snapshot = new PortfolioFundStrategyResolver().Resolve(Guid.NewGuid(), 1, Guid.NewGuid(), x.Portfolio, x.Policy, [x.Fund], [x.Allocation], [x.Envelope], [x.Assignment], 2026, "Weekly", "ES", "FuturesOptions", Now);
         var request = new ReserveFundOrderCompositionRequest
         {
             WorkflowId = snapshot.WorkflowId, WorkflowRevision = 1, TradeSelectionInvocationId = Guid.NewGuid(), TradeSelectionResultId = Guid.NewGuid(),
@@ -96,13 +117,14 @@ public sealed class PortfolioCompositionScenarios
 
     static CatalogData Catalog(string horizon, string asset, string family, int fundId)
     {
-        var portfolio = new PortfolioReadModel { PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 2, OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = Now.AddDays(-2), PolicyId = Guid.NewGuid(), PolicyVersion = 1, CreatedOnUtc = Now.AddDays(-2), CreatedBy = "admin" };
+        var portfolio = new PortfolioReadModel { PortfolioId = 101, Name = "Core", PortfolioVersion = 2, OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = Now.AddDays(-2), ActivePolicyId = 9001, ActivePolicyVersion = 1, CreatedOnUtc = Now.AddDays(-2), CreatedBy = "admin" };
+        var policy = new PortfolioFinancialPolicyReadModel { PortfolioId = 101, PolicyId = 9001, PolicyVersion = 1, Name = "Limits", OperatingState = PortfolioFinancialPolicyState.Active, CapitalBase = 1_000_000m, MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000m, TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100 }], EffectiveFromUtc = Now.AddDays(-2), CreatedOnUtc = Now.AddDays(-2), CreatedBy = "admin" };
         var fund = new FundMandateReadModel { PortfolioId = 101, FundId = fundId, FundCode = horizon, Name = horizon, FundMandateVersion = 3, TradingYear = 2026, OperatingState = FundOperatingState.Active, EffectiveFromUtc = Now.AddDays(-1), DecisionHorizon = horizon, Objective = "ES", UnderlyingUniverse = ["ES"], EligibleAssetTypes = [asset], PermittedTradeFamilies = [family], CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin" };
-        var allocation = new FundAllocationReadModel { PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AllocationVersion = 1, TargetWeight = .2m, MaximumWeight = .4m, AllocatedCapital = 100000m, EffectiveFromUtc = Now.AddDays(-1), SourcePolicyVersion = 1, CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin" };
-        var envelope = new FundRiskEnvelopeReadModel { PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, AllocatedCapital = 100000m, AvailableCapital = 80000m, MaximumRiskPerTrade = 1000m, MaximumAggregateRisk = 5000m, MaximumMargin = 20000m, MaximumGrossNotional = 200000m, MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000m, EffectiveFromUtc = Now.AddHours(-1), ExpiresAtUtc = Now.AddDays(1), SourcePolicyId = portfolio.PolicyId, SourcePolicyVersion = 1, CreatedOnUtc = Now.AddHours(-1), CreatedBy = "admin" };
+        var allocation = new FundAllocationReadModel { PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AllocationVersion = 1, TargetWeight = .2m, MaximumWeight = .4m, AllocatedCapital = 100000m, EffectiveFromUtc = Now.AddDays(-1), SourcePolicyId = 9001, SourcePolicyVersion = 1, CreatedOnUtc = Now.AddDays(-1), CreatedBy = "admin" };
+        var envelope = new FundRiskEnvelopeReadModel { PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, AllocatedCapital = 100000m, AvailableCapital = 80000m, MaximumRiskPerTrade = 1000m, MaximumAggregateRisk = 5000m, MaximumMargin = 20000m, MaximumGrossNotional = 200000m, MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000m, EffectiveFromUtc = Now.AddHours(-1), ExpiresAtUtc = Now.AddDays(1), SourcePolicyId = portfolio.ActivePolicyId, SourcePolicyVersion = 1, CreatedOnUtc = Now.AddHours(-1), CreatedBy = "admin" };
         var assignment = new FundTradeTemplateAssignmentReadModel { PortfolioId = 101, PortfolioVersion = 2, FundId = fundId, FundMandateVersion = 3, AssignmentVersion = 1, TradeTemplateId = Guid.NewGuid(), TradeTemplateVersion = 1, Enabled = true, DecisionHorizon = horizon, UnderlyingUniverse = ["ES"], AssetType = asset, TradeFamily = family, Priority = 1, EffectiveFromUtc = Now.AddHours(-1), TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = Guid.NewGuid(), OrderCompositionProfileVersion = 1, CreatedOnUtc = Now.AddHours(-1), CreatedBy = "admin" };
-        return new(portfolio, fund, allocation, envelope, assignment);
+        return new(portfolio, policy, fund, allocation, envelope, assignment);
     }
 
-    sealed record CatalogData(PortfolioReadModel Portfolio, FundMandateReadModel Fund, FundAllocationReadModel Allocation, FundRiskEnvelopeReadModel Envelope, FundTradeTemplateAssignmentReadModel Assignment);
+    sealed record CatalogData(PortfolioReadModel Portfolio, PortfolioFinancialPolicyReadModel Policy, FundMandateReadModel Fund, FundAllocationReadModel Allocation, FundRiskEnvelopeReadModel Envelope, FundTradeTemplateAssignmentReadModel Assignment);
 }

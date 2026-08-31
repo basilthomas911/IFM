@@ -9,6 +9,7 @@ public interface IPortfolioBusinessIdAllocator
     ValueTask<int> AllocateFundIdAsync(CancellationToken cancellationToken = default);
     ValueTask<int> AllocateOrderIdAsync(CancellationToken cancellationToken = default);
     ValueTask<int> AllocateTradeIdAsync(CancellationToken cancellationToken = default);
+    ValueTask<int> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }
 
 /// <summary>Allocates operator-facing business identities from their PostgreSQL-backed named sequences.</summary>
@@ -29,6 +30,9 @@ public sealed class PortfolioBusinessIdAllocator(ISequenceIdGenerator sequenceId
 
     public ValueTask<int> AllocateTradeIdAsync(CancellationToken cancellationToken = default) =>
         AllocatePositiveInt32Async(SequenceName.Trade_TradeId, cancellationToken);
+
+    public ValueTask<int> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) =>
+        AllocatePositiveInt32Async(SequenceName.PortfolioPolicy_PolicyId, cancellationToken);
 
     async ValueTask<int> AllocatePositiveInt32Async(
         SequenceName sequenceName,

@@ -9,7 +9,8 @@ namespace TomasAI.IFM.Domain.Portfolio.Projection;
 
 public sealed record PortfolioProjectionRebuildRequest(
     IReadOnlyList<PortfolioId> Portfolios,
-    IReadOnlyList<PortfolioFundId> Funds);
+    IReadOnlyList<PortfolioFundId> Funds,
+    IReadOnlyList<PortfolioFinancialPolicyId>? Policies = null);
 
 public sealed record PortfolioProjectionRebuildResult(
     int EventCount,
@@ -38,7 +39,8 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
         ArgumentNullException.ThrowIfNull(request);
         if (request.Portfolios.Count == 0) throw new ArgumentException("At least one Portfolio stream is required.", nameof(request));
         if (request.Portfolios.Select(x => x.Id).Distinct().Count() != request.Portfolios.Count ||
-            request.Funds.Select(x => x.Format()).Distinct(StringComparer.Ordinal).Count() != request.Funds.Count)
+            request.Funds.Select(x => x.Format()).Distinct(StringComparer.Ordinal).Count() != request.Funds.Count ||
+            (request.Policies ?? []).Select(x => x.Format()).Distinct(StringComparer.Ordinal).Count() != (request.Policies?.Count ?? 0))
             throw new ArgumentException("Rebuild stream identities must be unique.", nameof(request));
 
         var history = new List<object>();
@@ -52,6 +54,11 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             cancellationToken.ThrowIfCancellationRequested();
             history.AddRange(await _events.LoadFundHistoryAsync(id, cancellationToken).ConfigureAwait(false));
         }
+        foreach (var id in request.Policies ?? [])
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            history.AddRange(await _events.LoadPolicyHistoryAsync(id, cancellationToken).ConfigureAwait(false));
+        }
         var ordered = history.OrderBy(SourceEventId).ThenBy(x => x.GetType().FullName, StringComparer.Ordinal).ToArray();
         if (ordered.Count(x => SourceEventId(x) <= 0) != 0)
             throw new InvalidOperationException("Only committed authoritative events can be rebuilt.");
@@ -61,6 +68,7 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
             cancellationToken.ThrowIfCancellationRequested();
             switch (item)
             {
+                case PortfolioFinancialPolicyDomainEvent policy: await handler.ApplyAsync(policy, cancellationToken).ConfigureAwait(false); break;
                 case PortfolioDomainEvent portfolio: await handler.ApplyAsync(portfolio, cancellationToken).ConfigureAwait(false); break;
                 case PortfolioFundDomainEvent fund: await handler.ApplyAsync(fund, cancellationToken).ConfigureAwait(false); break;
                 default: throw new InvalidOperationException($"Unsupported rebuild event {item.GetType().FullName}.");
@@ -72,6 +80,7 @@ public sealed class PortfolioProjectionRebuilder(IPortfolioEventStore events, IP
 
     static long SourceEventId(object value) => value switch
     {
+        PortfolioFinancialPolicyDomainEvent x => x.EventId,
         PortfolioDomainEvent x => x.EventId,
         PortfolioFundDomainEvent x => x.EventId,
         _ => 0,

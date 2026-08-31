@@ -14,6 +14,8 @@ using TomasAI.IFM.UI.Net.ViewModels.Extensions;
 using TomasAI.IFM.UI.Net.ViewModels.Lifecycle;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.Trade;
 
@@ -53,6 +55,10 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     IReadOnlyList<FundReadModel> _funds = [];
     IReadOnlyList<FundOrderReadModel> _fundOrders = [];
     IReadOnlyList<FundOrderTradeReadModel> _fundOrderTrades = [];
+    IReadOnlyList<PortfolioReadModel> _portfolios = [];
+    IReadOnlyList<FundMandateReadModel> _portfolioFunds = [];
+    IReadOnlyList<FundOrderProjectionReadModel> _canonicalOrders = [];
+    int _portfolioSelectedIndex = -1;
     TaskCompletionSource<IEvent>? _terminalCompletion;
     Guid _commandId;
     int _isSubmittingCommand;
@@ -67,6 +73,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     string _lastStatusMessage = string.Empty;
     long _errorSequence;
     long _changeSequence;
+    long _scopeGeneration;
 
     /// <summary>Creates the main editor for one trading date and its available futures contracts.</summary>
     public TradeOrderEditorViewModel(
@@ -112,6 +119,12 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         get => _fundOrderTrades;
         private set => SetProperty(ref _fundOrderTrades, value);
     }
+
+    public IReadOnlyList<PortfolioReadModel> Portfolios { get => _portfolios; private set => SetProperty(ref _portfolios, value); }
+    public IReadOnlyList<FundMandateReadModel> PortfolioFunds { get => _portfolioFunds; private set => SetProperty(ref _portfolioFunds, value); }
+    public IReadOnlyList<FundOrderProjectionReadModel> CanonicalOrders { get => _canonicalOrders; private set => SetProperty(ref _canonicalOrders, value); }
+    public int PortfolioSelectedIndex => _portfolioSelectedIndex;
+    public PortfolioReadModel? SelectedPortfolio => GetAt(Portfolios, PortfolioSelectedIndex);
 
     /// <summary>Gets the editor trading date.</summary>
     public DateOnly? ValueDate => _valueDate;
@@ -259,10 +272,80 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         if (_fundSelectedIndex == index)
             return false;
         _fundSelectedIndex = index;
+        Interlocked.Increment(ref _scopeGeneration);
+        CanonicalOrders = [];
         OnPropertyChanged(nameof(FundSelectedIndex));
         OnPropertyChanged(nameof(SelectedFund));
         RebuildOrders();
         return true;
+    }
+
+    public async Task SelectPortfolioAsync(int index, CancellationToken cancellationToken = default)
+    {
+        if (index < 0 || index >= Portfolios.Count) index = -1;
+        if (_portfolioSelectedIndex == index) return;
+        var generation = Interlocked.Increment(ref _scopeGeneration);
+        _portfolioSelectedIndex = index;
+        Funds = []; FundOrders = []; FundOrderTrades = []; PortfolioFunds = []; CanonicalOrders = [];
+        _fundSelectedIndex = _fundOrderSelectedIndex = _fundOrderTradeSelectedIndex = -1;
+        OnPropertyChanged(nameof(PortfolioSelectedIndex)); OnPropertyChanged(nameof(SelectedPortfolio));
+        if (SelectedPortfolio is not null)
+            await LoadPortfolioScopeAsync(SelectedPortfolio.PortfolioId, generation, cancellationToken);
+    }
+
+    public async Task LoadCanonicalOrdersAsync(CancellationToken cancellationToken = default)
+    {
+        if (SelectedPortfolio is null || SelectedFund is null) { CanonicalOrders = []; return; }
+        var generation = Volatile.Read(ref _scopeGeneration);
+        var portfolioId = SelectedPortfolio.PortfolioId;
+        var fundId = SelectedFund.FundId;
+        var rows = new List<FundOrderProjectionReadModel>();
+        var month = DateOnly.FromDateTime(_fromDate == DateTime.MinValue ? DateTime.UtcNow : _fromDate);
+        var end = DateOnly.FromDateTime(_toDate == DateTime.MaxValue ? DateTime.UtcNow : _toDate);
+        month = new DateOnly(month.Year, month.Month, 1); end = new DateOnly(end.Year, end.Month, 1);
+        for (var current = month; current <= end; current = current.AddMonths(1))
+        {
+            var result = await _appRoot.Services.PortfolioQueries.GetOrdersAsync(portfolioId, fundId, current, 200, cancellationToken: cancellationToken);
+            if (result.Success && result.Value is not null) rows.AddRange(result.Value.Items);
+        }
+        if (generation != Volatile.Read(ref _scopeGeneration) || SelectedPortfolio?.PortfolioId != portfolioId || SelectedFund?.FundId != fundId)
+            return;
+        CanonicalOrders = rows.OrderByDescending(x => x.CreatedOnUtc).ThenByDescending(x => x.OrderId).ToArray();
+    }
+
+    public async Task<FundCompositionReservationResult> CreateManualOrderAsync(FundOrderReadModel draft, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        var portfolio = SelectedPortfolio ?? throw new InvalidOperationException("Select a Portfolio before creating an order.");
+        var mandate = PortfolioFunds.SingleOrDefault(x => x.FundId == draft.FundId)
+            ?? throw new InvalidOperationException("The selected Fund is not part of the selected Portfolio.");
+        var now = DateTime.UtcNow;
+        var request = new CreateManualFundOrderRequest
+        {
+            PortfolioId = portfolio.PortfolioId,
+            PortfolioVersion = portfolio.PortfolioVersion,
+            FundId = mandate.FundId,
+            FundMandateVersion = mandate.FundMandateVersion,
+            UnderlyingRoot = draft.BaseContractId,
+            RequestedTradeDate = draft.TradeDate,
+            RequestedMaturityDate = draft.MaturityDate,
+            Reference = draft.Reference ?? string.Empty,
+            IdempotencyKey = Guid.NewGuid(),
+            RequestedAtUtc = now,
+            ExpiresAtUtc = now.AddDays(1),
+        };
+        var result = await _appRoot.Services.PortfolioFundCommands.CreateManualOrderAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!result.Success || result.Value is null)
+            throw new UiServiceOperationException(result.ErrorCode, result.ErrorMessage ?? "Unable to create the manual Portfolio order.");
+        LastStatusMessage = $"Manual Portfolio order {result.Value.Order.OrderId} created.";
+        await LoadCanonicalOrdersAsync(cancellationToken).ConfigureAwait(false);
+        return result.Value;
+    }
+
+    public async Task<IReadOnlyList<FundOrderTradeProjectionReadModel>> GetCanonicalTradesAsync(int orderId, CancellationToken cancellationToken = default)
+    {
+        var result = await _appRoot.Services.PortfolioQueries.GetOrderTradesAsync(orderId, 200, cancellationToken: cancellationToken);
+        return result.Success && result.Value is not null ? result.Value.Items : [];
     }
 
     /// <summary>Selects an order and rebuilds its trade list.</summary>
@@ -435,49 +518,44 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     {
         try
         {
-            FundReadModel[] funds = [];
-            FundOrderReadModel[] orders = [];
-            FundOrderTradeReadModel[] trades = [];
-            await _fundQueryModel.ExecuteObservableAsync(async model =>
-            {
-                await model.GetFundsAsync(value => funds = value);
-                orders = await model.GetFundOrdersAsync();
-                trades = await model.GetFundOrderTradesAsync();
-            }, cancellationToken);
-
-            var selectedFundId = SelectedFund?.FundId;
-            var selectedOrderId = SelectedFundOrder?.OrderId;
-            var selectedTradeId = SelectedFundOrderTrade?.TradeId;
-            var fundSnapshots = funds
-                .Where(fund => !string.IsNullOrWhiteSpace(fund.Name))
-                .Select(CloneFund)
-                .ToArray();
-            var orderSnapshots = orders.Select(CloneOrder).ToArray();
-            foreach (var fund in fundSnapshots)
-            {
-                foreach (var order in orderSnapshots.Where(order => order.FundId == fund.FundId))
-                {
-                    foreach (var trade in trades.Where(trade => trade.OrderId == order.OrderId))
-                        order.Add(trade);
-                    fund.Add(order);
-                }
-            }
-
-            Funds = fundSnapshots;
-            _fundSelectedIndex = selectedFundId is null
-                ? (Funds.Count > 0 ? 0 : -1)
-                : Funds.ToList().FindIndex(fund => fund.FundId == selectedFundId);
-            if (_fundSelectedIndex < 0 && Funds.Count > 0)
-                _fundSelectedIndex = 0;
-            OnPropertyChanged(nameof(FundSelectedIndex));
-            OnPropertyChanged(nameof(SelectedFund));
-            RebuildOrders(selectedOrderId, selectedTradeId);
+            var generation = Interlocked.Increment(ref _scopeGeneration);
+            var selectedPortfolioId = SelectedPortfolio?.PortfolioId;
+            var portfolioResult = await _appRoot.Services.PortfolioQueries.GetPortfoliosAsync(PortfolioOperatingState.Active, 200, cancellationToken: cancellationToken);
+            if (generation != Volatile.Read(ref _scopeGeneration)) return;
+            Portfolios = portfolioResult.Success && portfolioResult.Value is not null ? portfolioResult.Value.Items : [];
+            _portfolioSelectedIndex = selectedPortfolioId is null ? (Portfolios.Count > 0 ? 0 : -1) : Portfolios.ToList().FindIndex(x => x.PortfolioId == selectedPortfolioId);
+            if (_portfolioSelectedIndex < 0 && Portfolios.Count > 0) _portfolioSelectedIndex = 0;
+            OnPropertyChanged(nameof(PortfolioSelectedIndex)); OnPropertyChanged(nameof(SelectedPortfolio));
+            if (SelectedPortfolio is not null)
+                await LoadPortfolioScopeAsync(SelectedPortfolio.PortfolioId, generation, cancellationToken);
+            else
+                PortfolioFunds = [];
         }
         catch (UiServiceOperationException exception)
         {
             PublishError(exception, "Loading Funds Error");
             throw;
         }
+    }
+
+    async Task LoadPortfolioScopeAsync(int portfolioId, long generation, CancellationToken cancellationToken)
+    {
+        var selectedFundId = SelectedFund?.FundId;
+        var fundResult = await _appRoot.Services.PortfolioQueries.GetFundsAsync(portfolioId, null, 200, cancellationToken: cancellationToken);
+        if (generation != Volatile.Read(ref _scopeGeneration) || SelectedPortfolio?.PortfolioId != portfolioId) return;
+        PortfolioFunds = fundResult.Success && fundResult.Value is not null ? fundResult.Value.Items : [];
+        Funds = PortfolioFunds
+            .Where(x => x.OperatingState == FundOperatingState.Active)
+            .Select(x => new FundReadModel(x.FundId, x.Name, x.Objective, 0m, true, x.CreatedOnUtc, x.CreatedBy))
+            .ToArray();
+        _fundSelectedIndex = selectedFundId is null ? (Funds.Count > 0 ? 0 : -1) : Funds.ToList().FindIndex(x => x.FundId == selectedFundId);
+        if (_fundSelectedIndex < 0 && Funds.Count > 0) _fundSelectedIndex = 0;
+        FundOrders = [];
+        FundOrderTrades = [];
+        _fundOrderSelectedIndex = _fundOrderTradeSelectedIndex = -1;
+        OnPropertyChanged(nameof(FundSelectedIndex));
+        OnPropertyChanged(nameof(SelectedFund));
+        await LoadCanonicalOrdersAsync(cancellationToken);
     }
 
     async Task ExecuteMutationAsync(

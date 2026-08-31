@@ -2,6 +2,13 @@ namespace TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
 
 internal static class ReferenceSchemaCql
 {
+    public const string CreateTradeStrategyFamilyTable = """
+    CREATE TABLE IF NOT EXISTS trade_strategy_family_v2 (
+    catalog text, tradeStrategyFamilyId int, definitionVersion bigint,
+    systemKey text, name text, state text, createdOnUtc timestamp, createdBy text,
+    PRIMARY KEY ((catalog), systemKey, definitionVersion)
+    ) WITH CLUSTERING ORDER BY (systemKey ASC, definitionVersion DESC);
+    """;
     public const string CreateReferenceProjectionStateV3Table = """
     CREATE TABLE IF NOT EXISTS reference_projection_state_v3 (
     projectionName text PRIMARY KEY,

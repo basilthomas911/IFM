@@ -14,6 +14,56 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
     : IClassFixture<PortfolioEventStoreFixture>
 {
     [Fact]
+    [Trait("Gate", "PF-24")]
+    [Trait("Gate", "PF-25")]
+    [Trait("Category", "Portfolio")]
+    public async Task PostgreSQL_policy_history_replays_immutable_versions_and_idempotent_command_lookup()
+    {
+        var value = Math.Abs(Guid.NewGuid().GetHashCode()) + 1000;
+        var id = new PortfolioFinancialPolicyId(value, value + 1);
+        var now = new DateTime(2026, 8, 30, 18, 0, 0, DateTimeKind.Utc);
+        var store = new PortfolioEventStore(fixture.EventSourceDb);
+        var aggregate = new PortfolioFinancialPolicyAggregate();
+        var created = aggregate.Create(Guid.NewGuid(), Guid.NewGuid(), Policy(id, 1, now), now, "integration");
+        await store.AppendPolicyAsync(id, created, 0);
+        var activated = aggregate.Activate(Guid.NewGuid(), 1, 1, now.AddSeconds(1), "integration");
+        await store.AppendPolicyAsync(id, activated, 1);
+
+        var loaded = await store.LoadPolicyAsync(id);
+
+        loaded.Current.Should().BeEquivalentTo(aggregate.Current);
+        loaded.Revision.Should().Be(2);
+        (await store.FindCommittedPolicyCommandAsync(id, activated.CommandId)).Should().BeOfType<PortfolioFinancialPolicyActivated>();
+        (await store.LoadPolicyHistoryAsync(id)).Should().HaveCount(2);
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-03")]
+    [Trait("Gate", "PF-07")]
+    [Trait("Category", "Portfolio")]
+    public async Task PostgreSQL_authority_retains_Draft_deletion_tombstone_and_consumed_identity()
+    {
+        var id = Math.Abs(Guid.NewGuid().GetHashCode()) + 1000;
+        var portfolioId = new PortfolioId(id);
+        var now = new DateTime(2026, 8, 30, 16, 0, 0, DateTimeKind.Utc);
+        var store = new PortfolioEventStore(fixture.EventSourceDb);
+        var aggregate = new PortfolioAggregate();
+        var created = aggregate.Create(Guid.NewGuid(), Portfolio(id, now), now, "integration");
+        await store.AppendPortfolioAsync(portfolioId, created, 0);
+        var deleted = aggregate.DeleteDraft(Guid.NewGuid(), 1, "duplicate", now.AddSeconds(1), "integration");
+        await store.AppendPortfolioAsync(portfolioId, deleted, 1);
+
+        var loaded = await store.LoadPortfolioAsync(portfolioId);
+        var history = await store.LoadPortfolioHistoryAsync(portfolioId);
+
+        loaded.IsDeleted.Should().BeTrue();
+        loaded.Current!.PortfolioId.Should().Be(id);
+        loaded.Revision.Should().Be(2);
+        history.Should().HaveCount(2);
+        history[^1].Should().BeOfType<DraftPortfolioDeleted>().Which.Reason.Should().Be("duplicate");
+    }
+
+    [Fact]
     [Trait("Gate", "PF-07")]
     [Trait("Category", "Portfolio")]
     public async Task PostgreSQL_streams_rebuild_Portfolio_and_Fund_and_reject_stale_revision()
@@ -73,7 +123,7 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
 
     static PortfolioReadModel Portfolio(int id, DateTime now) => new()
     {
-        PortfolioId = id, PortfolioCode = $"P{id}", Name = "Core", PortfolioVersion = 1,
+        PortfolioId = id, Name = "Core", PortfolioVersion = 1,
         OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
         CreatedOnUtc = now, CreatedBy = "integration"
     };
@@ -86,6 +136,16 @@ public sealed class PortfolioEventStoreIntegrationTests(PortfolioEventStoreFixtu
         UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"], PermittedDirections = ["Long", "Short"],
         PermittedConditions = ["Trending"], PermittedTradeFamilies = ["Futures"],
         EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "integration"
+    };
+
+    static PortfolioFinancialPolicyReadModel Policy(PortfolioFinancialPolicyId id, long version, DateTime now) => new()
+    {
+        PortfolioId = id.PortfolioId, PolicyId = id.PolicyId, PolicyVersion = version, Name = "Integration limits",
+        OperatingState = PortfolioFinancialPolicyState.Draft, CapitalBase = 1_000_000, MaximumDeployableCapital = 900_000,
+        MaximumRiskPerTrade = 10_000, MaximumAggregateRisk = 100_000, MaximumMargin = 500_000,
+        MaximumGrossNotional = 5_000_000, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000,
+        TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }],
+        EffectiveFromUtc = now.AddMinutes(-1), CreatedOnUtc = now, CreatedBy = "integration"
     };
 
     sealed class TestState : TomasAI.IFM.Shared.EventModelActor.Contracts.IActorState<TestState>

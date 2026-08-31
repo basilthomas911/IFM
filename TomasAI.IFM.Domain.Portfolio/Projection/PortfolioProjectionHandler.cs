@@ -17,6 +17,27 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
         var portfolioId = ParsePortfolioId(domainEvent.AggregateId);
         var aggregate = await events.LoadPortfolioAsync(portfolioId, cancellationToken).ConfigureAwait(false);
         var current = aggregate.Current ?? throw new InvalidOperationException("Committed Portfolio history did not rebuild a Portfolio.");
+        if (domainEvent is DraftPortfolioDeleted)
+        {
+            var funds = new List<DraftFundProjectionDeletion>();
+            foreach (var fundId in aggregate.FundIds.Order())
+            {
+                var history = await events.LoadFundHistoryAsync(new PortfolioFundId(portfolioId.Id, fundId), cancellationToken).ConfigureAwait(false);
+                if (history.OfType<FundCompositionReserved>().Any())
+                    throw new InvalidOperationException("A Portfolio with composition history cannot be deleted.");
+                var versions = history.Select(x => x switch
+                {
+                    FundMandateCreated created => created.Mandate.FundMandateVersion,
+                    FundMandateVersionAdded added => added.Mandate.FundMandateVersion,
+                    _ => 0,
+                }).Where(x => x > 0).Distinct().Order().ToArray();
+                funds.Add(new(fundId, versions));
+            }
+            await projections.DeleteDraftPortfolioAsync(
+                new(current.PortfolioId, StateBucket(current.PortfolioId), [.. funds], domainEvent.EventId),
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
         await projections.UpsertPortfolioAsync(
             PortfolioProjection<PortfolioReadModel>.Create(current, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
             StateBucket(current.PortfolioId), cancellationToken).ConfigureAwait(false);
@@ -48,6 +69,25 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
             await ApplyCompositionAsync(reserved.Reservation, domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
         if (domainEvent is FundCompositionStateChanged changed)
             await ApplyCompositionAsync(aggregate.Composition(changed.Order.OrderId), domainEvent.EventId, domainEvent.ReceivedOn, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ApplyAsync(PortfolioFinancialPolicyDomainEvent domainEvent, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        if (domainEvent.EventId <= 0) throw new InvalidOperationException("Only committed policy events can be projected.");
+        var policyId = ParsePolicyId(domainEvent.AggregateId);
+        var aggregate = await events.LoadPolicyAsync(policyId, cancellationToken).ConfigureAwait(false);
+        if (domainEvent is DraftPortfolioFinancialPolicyDeleted)
+        {
+            await projections.DeleteDraftPolicyAsync(
+                new(policyId.PortfolioId, policyId.PolicyId, domainEvent.EventId), cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        foreach (var policy in aggregate.Versions)
+            await projections.UpsertPolicyAsync(
+                PortfolioProjection<PortfolioFinancialPolicyReadModel>.Create(
+                    policy.DefensiveCopy() with { AggregateRevision = aggregate.Revision }, aggregate.Revision, domainEvent.EventId, domainEvent.ReceivedOn),
+                cancellationToken).ConfigureAwait(false);
     }
 
     public async Task ApplyCompositionAsync(
@@ -97,5 +137,13 @@ public sealed class PortfolioProjectionHandler(IPortfolioEventStore events, IPor
         return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var fundId) && portfolioId > 0 && fundId > 0
             ? new PortfolioFundId(portfolioId, fundId)
             : throw new InvalidOperationException("PortfolioFund event aggregate identity is invalid.");
+    }
+
+    static PortfolioFinancialPolicyId ParsePolicyId(string value)
+    {
+        var parts = value.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 2 && int.TryParse(parts[0], out var portfolioId) && int.TryParse(parts[1], out var policyId) && portfolioId > 0 && policyId > 0
+            ? new PortfolioFinancialPolicyId(portfolioId, policyId)
+            : throw new InvalidOperationException("PortfolioFinancialPolicy event aggregate identity is invalid.");
     }
 }

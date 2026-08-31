@@ -22,7 +22,7 @@ public sealed class PortfolioProjectionRebuilderTests
         var aggregate = new PortfolioAggregate();
         var committed = (PortfolioCreated)aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = id.Id, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+            PortfolioId = id.Id, Name = "Core", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "test",
         }, now, "test") with { EventId = 55, AggregateId = id.Format(), ReceivedOn = now };
         var events = new StubEventStore(id, aggregate, committed);
@@ -80,5 +80,6 @@ public sealed class PortfolioProjectionRebuilderTests
         public Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> row, DateOnly orderMonth, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

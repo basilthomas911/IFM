@@ -17,6 +17,10 @@ public static class PortfolioDbCql
     public const string GetOrderTrades = "SELECT payloadJson FROM fund_order_trade_by_order_id WHERE orderId = :orderId LIMIT :pageSize;";
     public const string GetTrade = "SELECT payloadJson FROM fund_order_trade_by_trade_id WHERE tradeId = :tradeId;";
     public const string GetCompositions = "SELECT payloadJson FROM fund_composition_by_workflow WHERE workflowId = :workflowId LIMIT :pageSize;";
+    public const string GetPolicy = "SELECT payloadJson FROM portfolio_policy_by_id WHERE policyId = :policyId LIMIT 1;";
+    public const string GetPolicyVersion = "SELECT payloadJson FROM portfolio_policy_by_id WHERE policyId = :policyId AND policyVersion = :policyVersion;";
+    public const string GetPolicies = "SELECT payloadJson FROM portfolio_policy_by_portfolio WHERE portfolioId = :portfolioId LIMIT :pageSize;";
+    public const string GetActivePolicy = "SELECT payloadJson FROM active_portfolio_policy WHERE portfolioId = :portfolioId;";
 
     public const string InsertPortfolio = "INSERT INTO portfolio_by_id (portfolioId,portfolioVersion,operatingState,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:portfolioId,:portfolioVersion,:operatingState,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
     public const string InsertPortfolioState = "INSERT INTO portfolio_by_state (operatingState,bucket,portfolioId,portfolioVersion,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:operatingState,:bucket,:portfolioId,:portfolioVersion,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
@@ -31,4 +35,18 @@ public static class PortfolioDbCql
     public const string InsertTradeOrder = "INSERT INTO fund_order_trade_by_order_id (orderId,tradeId,portfolioId,fundId,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:orderId,:tradeId,:portfolioId,:fundId,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
     public const string InsertTradeId = "INSERT INTO fund_order_trade_by_trade_id (tradeId,orderId,portfolioId,fundId,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:tradeId,:orderId,:portfolioId,:fundId,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
     public const string InsertComposition = "INSERT INTO fund_composition_by_workflow (workflowId,orderId,portfolioId,fundId,status,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:workflowId,:orderId,:portfolioId,:fundId,:status,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
+    public const string InsertPolicyById = "INSERT INTO portfolio_policy_by_id (policyId,policyVersion,portfolioId,operatingState,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:policyId,:policyVersion,:portfolioId,:operatingState,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
+    public const string InsertPolicyByPortfolio = "INSERT INTO portfolio_policy_by_portfolio (portfolioId,policyId,policyVersion,operatingState,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:portfolioId,:policyId,:policyVersion,:operatingState,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
+    public const string InsertActivePolicy = "INSERT INTO active_portfolio_policy (portfolioId,policyId,policyVersion,schemaVersion,aggregateVersion,sourceEventId,updatedOnUtc,payloadJson,payloadHash) VALUES (:portfolioId,:policyId,:policyVersion,:schemaVersion,:aggregateVersion,:sourceEventId,:updatedOnUtc,:payloadJson,:payloadHash);";
+
+    public const string DeletePortfolioById = "DELETE FROM portfolio_by_id USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId;";
+    public const string DeletePortfolioByState = "DELETE FROM portfolio_by_state USING TIMESTAMP :projectionWriteTimestamp WHERE operatingState = :operatingState AND bucket = :bucket AND portfolioId = :portfolioId;";
+    public const string DeleteFundsByPortfolio = "DELETE FROM fund_by_portfolio USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId;";
+    public const string DeleteFundById = "DELETE FROM fund_by_id USING TIMESTAMP :projectionWriteTimestamp WHERE fundId = :fundId;";
+    public const string DeleteAssignments = "DELETE FROM fund_template_assignment USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId AND fundId = :fundId AND fundMandateVersion = :fundMandateVersion;";
+    public const string DeleteAllocation = "DELETE FROM fund_allocation USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId AND fundId = :fundId;";
+    public const string DeleteRiskEnvelope = "DELETE FROM fund_risk_envelope USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId AND fundId = :fundId;";
+    public const string DeletePolicyById = "DELETE FROM portfolio_policy_by_id USING TIMESTAMP :projectionWriteTimestamp WHERE policyId = :policyId;";
+    public const string DeletePolicyByPortfolio = "DELETE FROM portfolio_policy_by_portfolio USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId AND policyId = :policyId;";
+    public const string DeleteActivePolicy = "DELETE FROM active_portfolio_policy USING TIMESTAMP :projectionWriteTimestamp WHERE portfolioId = :portfolioId;";
 }

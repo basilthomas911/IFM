@@ -43,4 +43,13 @@ CREATE TABLE IF NOT EXISTS fund_order_trade_by_trade_id (tradeId int PRIMARY KEY
     public static readonly string CreateCompositionByWorkflow = $"""
 CREATE TABLE IF NOT EXISTS fund_composition_by_workflow (workflowId uuid, orderId int, portfolioId int, fundId int, status text, {Columns}, PRIMARY KEY ((workflowId), orderId));
 """;
+    public static readonly string CreatePolicyById = $"""
+CREATE TABLE IF NOT EXISTS portfolio_policy_by_id (policyId int, policyVersion bigint, portfolioId int, operatingState text, {Columns}, PRIMARY KEY ((policyId), policyVersion)) WITH CLUSTERING ORDER BY (policyVersion DESC);
+""";
+    public static readonly string CreatePolicyByPortfolio = $"""
+CREATE TABLE IF NOT EXISTS portfolio_policy_by_portfolio (portfolioId int, policyId int, policyVersion bigint, operatingState text, {Columns}, PRIMARY KEY ((portfolioId), policyId, policyVersion)) WITH CLUSTERING ORDER BY (policyId DESC, policyVersion DESC);
+""";
+    public static readonly string CreateActivePolicy = $"""
+CREATE TABLE IF NOT EXISTS active_portfolio_policy (portfolioId int PRIMARY KEY, policyId int, policyVersion bigint, {Columns});
+""";
 }

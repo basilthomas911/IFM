@@ -45,3 +45,6 @@ public sealed record AllocatePortfolioBusinessIdRequest(
 [MessagePackObject] public sealed record GetOrdersRequest([property: Key(0)] int PortfolioId, [property: Key(1)] int FundId, [property: Key(2)] DateOnly OrderMonth, [property: Key(3)] int PageSize, [property: Key(4)] string? PageToken);
 [MessagePackObject] public sealed record GetOrderTradesRequest([property: Key(0)] int OrderId, [property: Key(1)] int PageSize, [property: Key(2)] string? PageToken);
 [MessagePackObject] public sealed record GetStrategyReferenceCombinationsRequest([property: Key(0)] int PortfolioId, [property: Key(1)] DateTime AsOfUtc);
+[MessagePackObject] public sealed record GetPolicyRequest([property: Key(0)] int PolicyId, [property: Key(1)] long? PolicyVersion);
+[MessagePackObject] public sealed record GetPoliciesRequest([property: Key(0)] int PortfolioId, [property: Key(1)] int PageSize);
+[MessagePackObject] public sealed record GetActivePolicyRequest([property: Key(0)] int PortfolioId);

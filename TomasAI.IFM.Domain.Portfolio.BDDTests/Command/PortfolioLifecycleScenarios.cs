@@ -21,8 +21,8 @@ public sealed class PortfolioLifecycleScenarios
         {
             PortfolioVersion = 2,
             OperatingState = PortfolioOperatingState.Active,
-            PolicyId = Guid.NewGuid(),
-            PolicyVersion = 1,
+            ActivePolicyId = 9001,
+            ActivePolicyVersion = 1,
             BrokerAccountRefs = ["paper-primary"],
         }, Now.AddMinutes(1), "portfolio-admin");
 
@@ -44,9 +44,24 @@ public sealed class PortfolioLifecycleScenarios
         aggregate.Current!.OperatingState.Should().Be(PortfolioOperatingState.Retired);
     }
 
+    [Fact]
+    [Trait("Gate", "PF-03")]
+    [Trait("Category", "Portfolio")]
+    public void Given_a_never_activated_draft_when_the_administrator_deletes_it_then_an_audited_terminal_tombstone_is_created()
+    {
+        var aggregate = new PortfolioAggregate();
+        aggregate.Create(Guid.NewGuid(), Draft(), Now, "portfolio-admin");
+
+        var result = aggregate.DeleteDraft(Guid.NewGuid(), 1, "duplicate draft", Now.AddMinutes(1), "portfolio-admin");
+
+        result.Should().BeOfType<TomasAI.IFM.Domain.Portfolio.Command.Model.DraftPortfolioDeleted>();
+        aggregate.IsDeleted.Should().BeTrue();
+        aggregate.Current!.PortfolioId.Should().Be(101, "the consumed sequence ID remains in authoritative history");
+    }
+
     static PortfolioReadModel Draft() => new()
     {
-        PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+        PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
         OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = Now,
         CreatedOnUtc = Now, CreatedBy = "portfolio-admin",
     };

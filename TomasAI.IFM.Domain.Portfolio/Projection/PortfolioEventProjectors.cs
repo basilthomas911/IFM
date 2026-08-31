@@ -25,6 +25,7 @@ public sealed class PortfolioEventProjector(
         typeof(PortfolioCreated), typeof(PortfolioVersionAdded), typeof(PortfolioOperatingStateChanged),
         typeof(FundAddedToPortfolio), typeof(PortfolioRetired), typeof(FundAllocationDelegated),
         typeof(FundRiskEnvelopeDelegated),
+        typeof(DraftPortfolioDeleted),
     ];
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
         [
@@ -35,6 +36,7 @@ public sealed class PortfolioEventProjector(
             DescribeNotification<PortfolioRetired, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
             DescribeNotification<FundAllocationDelegated, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
             DescribeNotification<FundRiskEnvelopeDelegated, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+            DescribeNotification<DraftPortfolioDeleted, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
         ];
 
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
@@ -61,6 +63,31 @@ public sealed class PortfolioFundEventProjector(
             DescribeNotification<FundCompositionReserved, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
             DescribeNotification<FundCompositionStateChanged, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
         ];
+
+    public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
+    public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;
+}
+
+public sealed class PortfolioFinancialPolicyEventProjector(
+    IDurableReplayQueue replayQueue, IEventSourceActorDbContext eventSource, IBlackboardService blackboard,
+    ILogger<PortfolioFinancialPolicyEventProjector> logger, IPortfolioEventStore events, IPortfolioDbContext projections,
+    EventProjectorReliabilityOptions? options = null)
+    : ConventionalEventProjector<PortfolioFinancialPolicyCommandActor>(replayQueue, eventSource, blackboard, logger, options)
+{
+    static readonly ImmutableArray<Type> Types =
+    [
+        typeof(PortfolioFinancialPolicyCreated), typeof(PortfolioFinancialPolicyVersionAdded),
+        typeof(PortfolioFinancialPolicyActivated), typeof(PortfolioFinancialPolicyRetired),
+        typeof(DraftPortfolioFinancialPolicyDeleted),
+    ];
+    readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
+    [
+        DescribeNotification<PortfolioFinancialPolicyCreated, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+        DescribeNotification<PortfolioFinancialPolicyVersionAdded, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+        DescribeNotification<PortfolioFinancialPolicyActivated, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+        DescribeNotification<PortfolioFinancialPolicyRetired, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+        DescribeNotification<DraftPortfolioFinancialPolicyDeleted, ActorEntityId>(x => new PortfolioProjectionHandler(events, projections).ApplyAsync(x)),
+    ];
 
     public override IReadOnlyCollection<Type> ProjectedEventTypes => Types;
     public override IReadOnlyCollection<EventProjectionDescriptor> ProjectionDescriptors => _descriptors;

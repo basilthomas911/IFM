@@ -7,16 +7,17 @@ namespace TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 public sealed record PortfolioReadModel
 {
     [Key(0)] public int PortfolioId { get; init; }
-    [Key(1)] public string PortfolioCode { get; init; } = string.Empty;
+    // MessagePack key 1 was PortfolioCode in the pre-v1 contract. It is deliberately
+    // reserved so removing that legacy business field never renumbers the wire shape.
     [Key(2)] public string Name { get; init; } = string.Empty;
     [Key(3)] public long PortfolioVersion { get; init; }
-    [Key(4)] public int SchemaVersion { get; init; } = 1;
+    [Key(4)] public int SchemaVersion { get; init; } = 2;
     [Key(5)] public string BaseCurrency { get; init; } = "USD";
     [Key(6)] public PortfolioOperatingState OperatingState { get; init; }
     [Key(7)] public DateTime EffectiveFromUtc { get; init; }
     [Key(8)] public DateTime? EffectiveUntilUtc { get; init; }
-    [Key(9)] public Guid PolicyId { get; init; }
-    [Key(10)] public long PolicyVersion { get; init; }
+    [Key(9)] public int ActivePolicyId { get; init; }
+    [Key(10)] public long ActivePolicyVersion { get; init; }
     [Key(11)] public string[] BrokerAccountRefs { get; init; } = [];
     [Key(12)] public DateTime CreatedOnUtc { get; init; }
     [Key(13)] public string CreatedBy { get; init; } = string.Empty;
@@ -27,7 +28,6 @@ public sealed record PortfolioReadModel
     {
         List<string> errors = [];
         if (PortfolioId <= 0) errors.Add("PortfolioId must be greater than zero.");
-        if (string.IsNullOrWhiteSpace(PortfolioCode)) errors.Add("PortfolioCode is required.");
         if (string.IsNullOrWhiteSpace(Name)) errors.Add("Name is required.");
         if (PortfolioVersion <= 0) errors.Add("PortfolioVersion must be greater than zero.");
         if (SchemaVersion <= 0) errors.Add("SchemaVersion must be greater than zero.");
@@ -40,8 +40,8 @@ public sealed record PortfolioReadModel
         if (OperatingState == PortfolioOperatingState.Unknown) errors.Add("OperatingState is required.");
         if (requireActivePolicy && OperatingState == PortfolioOperatingState.Active)
         {
-            if (PolicyId == Guid.Empty) errors.Add("An active Portfolio requires PolicyId.");
-            if (PolicyVersion <= 0) errors.Add("An active Portfolio requires a positive PolicyVersion.");
+            if (ActivePolicyId <= 0) errors.Add("An active Portfolio requires a positive ActivePolicyId.");
+            if (ActivePolicyVersion <= 0) errors.Add("An active Portfolio requires a positive ActivePolicyVersion.");
         }
         if (BrokerAccountRefs.Any(string.IsNullOrWhiteSpace)) errors.Add("BrokerAccountRefs cannot contain blanks.");
         return errors;

@@ -17,7 +17,7 @@ public sealed class PortfolioLifecycleVerificationTests
         var aggregate = new PortfolioAggregate();
         aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
             CreatedOnUtc = now, CreatedBy = "verification",
         }, now, "verification");
@@ -27,5 +27,41 @@ public sealed class PortfolioLifecycleVerificationTests
         aggregate.Current!.PortfolioId.Should().Be(101);
         aggregate.FundIds.Should().BeEquivalentTo(new[] { 205 });
         aggregate.Current.OperatingState.Should().Be(PortfolioOperatingState.Retired);
+    }
+
+    [Theory]
+    [InlineData(PortfolioOperatingState.Draft, true)]
+    [InlineData(PortfolioOperatingState.Active, false)]
+    [InlineData(PortfolioOperatingState.Paused, false)]
+    [InlineData(PortfolioOperatingState.Disabled, false)]
+    [InlineData(PortfolioOperatingState.Retired, false)]
+    [Trait("Gate", "PF-03")]
+    [Trait("Category", "Portfolio")]
+    public void Only_the_Draft_decision_combination_permits_complete_deletion(PortfolioOperatingState state, bool permitted)
+    {
+        var now = new DateTime(2026, 8, 30, 15, 0, 0, DateTimeKind.Utc);
+        var aggregate = new PortfolioAggregate();
+        aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
+        {
+            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "verification",
+        }, now, "verification");
+        if (state != PortfolioOperatingState.Draft)
+        {
+            if (state == PortfolioOperatingState.Active)
+                aggregate.AddVersion(Guid.NewGuid(), 1, aggregate.Current! with { PortfolioVersion = 2, OperatingState = state, ActivePolicyId = 9001, ActivePolicyVersion = 1 }, now.AddMinutes(1), "verification");
+            else if (state == PortfolioOperatingState.Paused)
+            {
+                aggregate.AddVersion(Guid.NewGuid(), 1, aggregate.Current! with { PortfolioVersion = 2, OperatingState = PortfolioOperatingState.Active, ActivePolicyId = 9001, ActivePolicyVersion = 1 }, now.AddMinutes(1), "verification");
+                aggregate.ChangeState(Guid.NewGuid(), 2, state, "verification transition", now.AddMinutes(2), "verification");
+            }
+            else
+                aggregate.ChangeState(Guid.NewGuid(), 1, state, "verification transition", now.AddMinutes(1), "verification");
+        }
+
+        var action = () => aggregate.DeleteDraft(Guid.NewGuid(), aggregate.Revision, "verification cleanup", now.AddMinutes(3), "verification");
+
+        if (permitted) action.Should().NotThrow();
+        else action.Should().Throw<InvalidOperationException>();
     }
 }

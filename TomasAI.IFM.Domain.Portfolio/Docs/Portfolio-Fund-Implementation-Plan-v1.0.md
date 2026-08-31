@@ -1,20 +1,23 @@
-# Portfolio and Fund Implementation Plan v1.0
+# Portfolio and Fund Implementation Plan v1.1
 
 | Item | Value |
 | --- | --- |
-| Status | Approved for execution |
+| Status | Draft extension prepared for review and execution approval |
 | Created | 2026-08-29 |
-| Approved | 2026-08-29 |
-| Approved source | [Portfolio-Fund-Specification-v1.0.md](./Portfolio-Fund-Specification-v1.0.md) |
+| Prior v1.0 baseline approved | 2026-08-29 |
+| Revised | 2026-08-30 |
+| Source | [Portfolio-Fund-Specification-v1.0.md](./Portfolio-Fund-Specification-v1.0.md), revised internally to v1.1 |
 | Authoritative design | [Portfolio-Fund-High-Level-Design-v0.1.md](../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md) |
-| Scope | PF-01 through PF-20 |
-| Initial gate state | Not Started |
+| Scope | Historical PF-01 through PF-20 plus new PF-21 through PF-30 extension |
+| New-gate initial state | Not Started |
 
 ## 1. Purpose
 
-This plan converts the approved Portfolio/Fund specification into an ordered, independently reviewable implementation sequence. A gate is complete only when its production deliverables, documentation, and all five required test dispositions are recorded: BDD, unit, integration, verification, and UI system tests.
+Once approved, this plan converts the revised Portfolio/Fund specification into an ordered, independently reviewable implementation sequence. A gate is complete only when its production deliverables, documentation, and all five required test dispositions are recorded: BDD, unit, integration, verification, and UI system tests.
 
 The implementation stops after Portfolio/Fund configuration, planned composition identity, accepted OrderComposition references, and Risk outcome references. It does not authorize broker submission, fills, live positions, or an execution-facing TradeDb redesign.
+
+PF-01 through PF-20 retain their recorded evidence and status. The approved design changes are implemented by PF-21 through PF-30. A historical gate is not rewritten as though the new requirement existed at the time; the new gate explicitly supersedes affected behavior and requalifies it.
 
 ## 2. Execution rules
 
@@ -41,9 +44,14 @@ The implementation stops after Portfolio/Fund configuration, planned composition
 - `PortfolioQueryActor` serves typed reads over rebuildable ScyllaDB Portfolio projections.
 - PostgreSQL EventSourceDb is authoritative for aggregate history.
 - PostgreSQL SequenceIdDb allocates positive integer PortfolioId, FundId, OrderId, and TradeId values.
+- PostgreSQL SequenceIdDb also allocates PolicyId and TradeStrategyFamilyId; no operator enters an integer business ID.
+- ReferenceDb owns exactly three read-only v1 TradeStrategyFamily definitions: Futures, Vertical Spread, and Iron Condor.
+- PortfolioFinancialPolicy owns immutable global and per-family hard limits and atomic activation/assignment.
 - ScyllaDB `PortfolioDbContext` is a query projection, never write authority.
 - All application and UI commands/queries use typed NATS messaging.
 - Existing Fund actors, Fund data, and Funds UI are legacy and remain isolated.
+- Portfolio Administration exposes a compact command bar and Risk Policy modal, with no Planned Compositions action.
+- Trade Orders is the sole manual/StrategyWorkflow composition view and selects Portfolio before Fund.
 - TradeSelection selects a permitted template; OrderComposition constructs an exact non-executable candidate.
 - No PF gate performs OrderExecution, broker effects, fills, or live-position creation.
 
@@ -59,6 +67,8 @@ TomasAI.IFM.Domain.Portfolio.VerificationTests
 
 TomasAI.IFM.Application.Storage/PortfolioDb
 TomasAI.IFM.Application.Storage/FundLegacyDb
+TomasAI.IFM.Application.Storage/ReferenceDb
+TomasAI.IFM.Domain.Reference.Shared
 
 TomasAI.IFM.UI.Net.Presentation.UnitTests
 TomasAI.IFM.UI.Net.SystemTests
@@ -91,6 +101,21 @@ PF-01
 ```
 
 PF-03 and PF-04 may be implemented in parallel after PF-02 if shared-contract changes remain coordinated. PF-07 and PF-08 may be prepared in parallel after aggregate contracts stabilize, but PF-09 cannot close until both are complete. PF-16 UI shell work may begin after PF-10, but cannot close before PF-11 and PF-12 provide usable query data.
+
+The v1.1 extension executes as:
+
+```text
+PF-21
+  -> PF-22
+  -> PF-23
+  -> PF-24
+  -> PF-25
+  -> PF-26
+      +-> PF-27 -+
+      `-> PF-28 -+-> PF-29 -> PF-30
+```
+
+PF-27 and PF-28 may proceed in parallel only after PF-26 supplies stable typed APIs. PF-29 cannot begin until both UI gates close. PF-30 cannot close while any historical Partial item materially affects the revised path; superseded missing evidence is replaced by the named PF-21+ evidence rather than silently waived.
 
 ## 7. Standard gate evidence
 
@@ -148,6 +173,7 @@ No gate is `Complete` while a required test is skipped, flaky, quarantined, timi
 4. Reuse `Fund_FundId`, `Trade_OrderId`, and `Trade_TradeId` without creating competing sequences.
 5. Enforce checked `long`-to-`int` conversion, positive values, no reuse, and allowed gaps.
 6. Prevent callers from treating a sequence high watermark as an allocated ID.
+7. Prohibit hand-entered or client-generated integer IDs in UI, console, API, import, and test-support creation paths; allocation failure must stop creation without a fallback ID.
 
 **Test obligations:**
 
@@ -157,7 +183,7 @@ No gate is `Complete` while a required test is skipped, flaky, quarantined, timi
 | Unit | Sequence-name mapping, checked conversion, zero/negative rejection, `Int32.MaxValue` boundary, and overflow failure. |
 | Integration | Real PostgreSQL allocation proves uniqueness under concurrency, block allocation, restart continuity, and correct four-sequence names. |
 | Verification | Allocate representative Portfolio, Fund, Order, and Trade IDs through production services and prove unchanged round trip through DTOs. |
-| UI system | Create-Portfolio UI obtains/displays the allocated integer ID and presents bounded allocation failure without fabricating an ID. |
+| UI system | Create-Portfolio and Create-Fund UI obtain/display read-only allocated integer IDs, expose no editable ID input, and present bounded allocation failure without fabricating an ID. |
 
 **Exit:** schema initialization is repeatable; allocation tests pass under concurrency; cutover documentation includes the new sequence.
 
@@ -168,7 +194,7 @@ No gate is `Complete` while a required test is skipped, flaky, quarantined, timi
 **Implementation:**
 
 1. Implement Portfolio state, complete immutable views, commands, events, validators, and mapping.
-2. Implement create, add-version, operating-state change, Fund membership, risk-envelope delegation hook, and retirement transitions.
+2. Implement create, add-version, operating-state change, Fund membership, risk-envelope delegation hook, retirement transitions, and audited terminal deletion of a never-activated Draft.
 3. Enforce expected versions, effective dates, authenticated principal attribution, and command idempotency.
 4. Reject commands that would place exact composition or execution data in Portfolio state.
 5. Register `PortfolioCommandActor` routes without enabling UI writes yet.
@@ -177,11 +203,11 @@ No gate is `Complete` while a required test is skipped, flaky, quarantined, timi
 
 | Layer | Required evidence |
 | --- | --- |
-| BDD | Create/version/activate/pause/reduce-only/retire scenarios, duplicate create, invalid transitions, membership rules, and retired immutability. |
+| BDD | Create/version/activate/pause/reduce-only/retire scenarios, Draft-only deletion, duplicate create, invalid transitions, membership rules, and retired/deleted immutability. |
 | Unit | Reducers, validators, version increments, effective-time boundaries, expected-version conflicts, idempotent replay, and immutable snapshot copies. |
 | Integration | Real actor command routing and PostgreSQL event append/reload for success, validation failure, concurrency conflict, and actor restart. |
-| Verification | Production path builds one Portfolio lifecycle, reloads identical state, and proves no broker/execution records or messages are produced. |
-| UI system | Portfolio form contracts display lifecycle state/reasons and disable actions inconsistent with actor-authoritative state. |
+| Verification | Production path builds representative deletion decisions for Draft/Active/Paused/Disabled/Retired, reloads identical tombstone state, and proves no broker/execution records or messages are produced. |
+| UI system | Portfolio form contracts display lifecycle state/reasons, require exact Portfolio-code confirmation plus deletion reason, and disable deletion outside actor-authoritative Draft state. |
 
 **Exit:** every Portfolio command has deterministic state/event behavior, typed errors, durable replay evidence, and no execution side effect.
 
@@ -486,12 +512,14 @@ No gate is `Complete` while a required test is skipped, flaky, quarantined, timi
 4. Display loading, empty, pending-projection, validation, conflict, timeout, unavailable, and unauthorized states.
 5. Preserve operator-facing integer identities and accessible keyboard/search behavior.
 6. Keep the existing Funds UI operational and clearly labeled as legacy where appropriate.
+7. Treat every integer identity as sequence-allocated, read-only UI state: create actions allocate before opening the editor, version actions preserve identity, and allocation failure prevents the editor from opening.
+8. Add `Delete Draft` only for the selected Draft Portfolio; require exact-code confirmation and reason, call the typed NATS command with current aggregate revision, refresh the Draft list, and never offer deletion for other states.
 
 **Test obligations:**
 
 | Layer | Required evidence |
 | --- | --- |
-| BDD | Administrator creates/configures Portfolio and Fund; reader cannot mutate; paused/retired states present correct permitted actions. |
+| BDD | Administrator creates/configures and deletes a Draft Portfolio; reader cannot mutate; Active/Paused/Disabled/Retired states cannot delete and present correct permitted actions. |
 | Unit | View-model state, validation mapping, command enablement, selector/filter logic, cancellation, and stale-response suppression. |
 | Integration | UI service/view-model layer uses real typed NATS APIs for create/update/query/conflict/timeout/authorization paths. |
 | Verification | Production UI host completes one Portfolio plus Daily/Weekly/Monthly Fund configuration journey against real infrastructure. |
@@ -597,6 +625,248 @@ No gate is `Complete` while a required test is skipped, flaky, quarantined, timi
 
 **Exit:** PF-01 through PF-20 evidence is approved; documentation and observability are operationally usable; performance has recorded baselines; release scope contains no deferred execution work.
 
+### PF-21 — Revised contract baseline and obsolete-surface removal
+
+**Depends on:** approved v1.1 specification.
+
+**Implementation:**
+
+1. Inventory current PortfolioCode, Guid PolicyId, fabricated policy fallback, Planned Compositions, and direct/legacy Trade Orders dependencies.
+2. Remove PortfolioCode from the authoritative Portfolio contract and editors; reserve MessagePack key 1 and advance Portfolio SchemaVersion without renumbering later keys.
+3. Change Portfolio policy reference to positive integer ActivePolicyId/ActivePolicyVersion and prohibit fallback identities.
+4. Mark `PortfolioCompositionForm` and its view model/tests for removal in PF-28; remove the Portfolio Administration navigation requirement immediately.
+5. Record the deliberate no-migration/no-backward-compatibility decision for prior Portfolio/Fund data.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Draft Portfolio needs no policy; Active requires a real integer policy reference; PortfolioCode is not a business requirement. |
+| Unit | Reserved MessagePack key, schema version, positive policy reference, and no-fallback validation. |
+| Integration | Revised Portfolio DTO traverses real NATS and persists/projects without PortfolioCode or Guid policy identity. |
+| Verification | Create/version/query representative Portfolio and prove exact integer identity chain with no legacy-data dependency. |
+| UI system | Portfolio dialogs contain no PortfolioCode/raw policy input and Portfolio Administration exposes no Planned Compositions action. |
+
+**Exit:** contradictory v1.0 surfaces are removed or explicitly fenced; serialized keys are approved; no compatibility adapter was introduced.
+
+### PF-22 — ReferenceDb TradeStrategyFamily catalog
+
+**Depends on:** PF-21.
+
+**Implementation:**
+
+1. Add TradeStrategyFamilyId/DefinitionVersion contracts and `Reference_TradeStrategyFamilyId` sequence mapping.
+2. Add query-shaped `trade_strategy_family_v2` CQL/schema keyed by stable SystemKey/DefinitionVersion, typed read context, point/list query DTOs, and Reference NATS client/API.
+3. Implement concurrency-safe idempotent bootstrap by stable key for exactly FUTURES, VERTICAL_SPREAD, and IRON_CONDOR version 1 Active rows.
+4. Expose the three rows in the existing Reference screen read-only with no mutation controls.
+5. Register no public TradeStrategyFamily command API; defer management and variants to v1.x.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | The catalog contains exactly the three approved broad families and excludes Long/Short/directional variants. |
+| Unit | Stable keys, DTO validation/serialization, sequence mapping, seed definitions, ordering, and duplicate detection. |
+| Integration | Real PostgreSQL sequence + ReferenceDb + NATS bootstrap/query; repeated, concurrent, and restart bootstrap produces exactly three unique rows. |
+| Verification | Production-shaped Reference query returns exact IDs/versions/names in deterministic order and remains read-only. |
+| UI system | Reference screen lists three definitions and exposes no Add/Edit/Retire/Delete controls under authorized and read-only personas. |
+
+**Exit:** schema/bootstrap/query/UI evidence passes with exactly three active immutable definitions and no public write path.
+
+### PF-23 — Risk Policy identities, DTOs, validation, and allocation
+
+**Depends on:** PF-22.
+
+**Implementation:**
+
+1. Add PortfolioFinancialPolicyId, state enum, PortfolioFinancialPolicyReadModel, and TradeFamilyRiskLimitReadModel with stable MessagePack keys.
+2. Add `PortfolioPolicy_PolicyId` sequence and typed allocation API.
+3. Implement global and per-family validation, decimal base-currency semantics, exact family version validation, and zero-means-blocked behavior.
+4. Add stable policy/family reason codes and canonical defensive-copy/hash behavior.
+5. Extend Portfolio/Fund/template/snapshot contracts to carry exact family and policy identities/versions without display-string inference.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Valid global/family policy, disabled family, zero capacity, family-over-global rejection, and sequence-gap behavior. |
+| Unit | MessagePack keys/round trips, enum values, decimal boundaries, every invariant, family uniqueness/versioning, hash determinism, and overflow. |
+| Integration | Real PostgreSQL policy allocation and raw/typed NATS serialization retain exact IDs/versions under concurrency/restart. |
+| Verification | Futures, Vertical Spread, and Iron Condor representative DTOs compute the most restrictive configured caps. |
+| UI system | Binding contract renders read-only PolicyId/base currency and independent editable rows for the selected family. |
+
+**Exit:** contracts are frozen; validators and sequence allocation pass; no integer or family identity can be fabricated.
+
+### PF-24 — PortfolioFinancialPolicy aggregate and lifecycle
+
+**Depends on:** PF-23.
+
+**Implementation:**
+
+1. Implement event-sourced policy aggregate and immutable saved Draft/Active versions.
+2. Implement Create, AddVersion, ActivateAndAssign, Retire, and DeleteDraft commands/events with expected revisions and audit reasons.
+3. Coordinate activation/assignment idempotently across policy and Portfolio so partial failure preserves the prior valid assignment.
+4. Enforce effective-now activation, one Active selection, supersession, reference-safe retirement, and never-active/unreferenced Draft deletion.
+5. Preserve consumed IDs and authoritative tombstones.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Complete create/version/activate/assign/supersede/retire/Delete-Draft lifecycle for Draft and Active Portfolios. |
+| Unit | Transition matrix, expected revisions, validation, idempotent replay/conflict, retirement/reference checks, and deletion eligibility. |
+| Integration | Real NATS/PostgreSQL concurrent activation/retry/restart proves one logical assignment and no partial state. |
+| Verification | Valid and invalid global/family policies across all lifecycle states fail closed with stable reason codes. |
+| UI system | Public command result contracts expose the states/errors required for later modal behavior without direct storage access. |
+
+**Exit:** aggregate history is deterministic and recoverable; atomic policy replacement and reference safety are proven.
+
+### PF-25 — Policy persistence, projections, replay, and deletion fences
+
+**Depends on:** PF-24.
+
+**Implementation:**
+
+1. Add EventSourceDb repositories/snapshots for policy streams and coordinated command outcomes.
+2. Add PortfolioDb `portfolio_policy_by_id`, `portfolio_policy_by_portfolio`, and `active_portfolio_policy` tables and typed read/write contexts.
+3. Implement durable idempotent projectors with source EventId monotonic write/delete fences.
+4. Implement exact point/list/current queries, paging, tombstone cleanup, rebuild, reconciliation, and restart recovery.
+5. Prove delayed delivery cannot resurrect a deleted Draft or regress an assigned version.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Committed history remains visible while eligible Draft deletion removes operational projections only. |
+| Unit | Projection mapping, timestamp/event fences, paging tokens, tombstone ordering, and rebuild hashes. |
+| Integration | Real PostgreSQL/Scylla live projection, duplicate/out-of-order delivery, deletion, two rebuilds, and full-host restart. |
+| Verification | Query catalog before/after rebuild is hash-equivalent and deleted Draft cannot reappear. |
+| UI system | Projection-pending and refreshed-policy DTO behavior is deterministic under bounded polling. |
+
+**Exit:** EventSourceDb is authoritative; all policy query shapes rebuild exactly and deletion fencing passes.
+
+### PF-26 — Typed policy/reference APIs and frozen pipeline propagation
+
+**Depends on:** PF-25.
+
+**Implementation:**
+
+1. Register policy command/query actors, typed clients, subjects, DI, authorization hooks, timeout/cancellation mapping, and observability.
+2. Register read-only TradeStrategyFamily Reference queries and clients without exposing a mutation verb.
+3. Resolve exact assigned policy plus full family limits into PortfolioFundStrategySnapshot and canonical hash.
+4. Require Fund mandate/template family references to match the frozen enabled family definition.
+5. Carry global/family limits into TradeSelection eligibility and RiskManagement input; no stage resolves latest configuration mid-workflow.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Missing/disabled/stale family or policy stops safely; valid family proceeds without widening limits. |
+| Unit | Subject/entity mapping, error mapping, cancellation, snapshot immutability/hash, and exact version matching. |
+| Integration | Real NATS command/query/cancellation/restart routes over PostgreSQL, ReferenceDb, and PortfolioDb. |
+| Verification | Three-family catalog flows through resolution, selection eligibility, composition identity, and Risk input unchanged. |
+| UI system | Public APIs provide all policy/reference/loading/error states required by Portfolio and Reference screens. |
+
+**Exit:** stable public APIs and frozen snapshot propagation pass; no UI/pipeline direct database access exists.
+
+### PF-27 — Compact Portfolio Administration and Risk Policy modal
+
+**Depends on:** PF-26.
+
+**Implementation:**
+
+1. Replace the six-button Portfolio bar with Refresh, New Portfolio, Risk Policy, and Portfolio Actions; label Show State as a filter.
+2. Put New Version, Change State, and conditional Delete Draft in Portfolio Actions; remove Planned Compositions.
+3. Implement the modal header, bounded policy/version list, global-limit groups, Reference-backed family selector/limits, effective/audit detail, and status area.
+4. Implement New Policy allocation, immutable New Version, Save/Cancel/unsaved confirmation, Activate & Assign preview, Retire, typed Delete Draft, and permission-driven controls.
+5. Implement validation, zero-blocking display, pending projection, conflict refresh/review, timeout, unavailable, unauthorized, and accessibility behavior.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Operator creates and assigns a valid family-limited policy and cannot perform invalid lifecycle actions. |
+| Unit | View-model state/actions, field/summary validation, family selection isolation, dirty state, action eligibility, and error mapping. |
+| Integration | UI service layer uses real typed NATS for allocation/create/version/activate/query/delete and projection refresh. |
+| Verification | Draft and Active Portfolio operator journeys cover all three families, conflicts, restart, and no direct storage. |
+| UI system | Exact command bar/modal layout, accessibility, read-only IDs, validations, confirmations, role states, and lifecycle journeys. |
+
+**Exit:** the compact Portfolio/Risk Policy UI passes automated and real-host operator qualification with no obsolete action.
+
+### PF-28 — Unified Portfolio-to-Fund Trade Orders UI
+
+**Depends on:** PF-26.
+
+**Implementation:**
+
+1. Add Portfolio selection before Fund and clear/cancel every dependent load when scope changes.
+2. Query Funds only from the selected Portfolio and query canonical manual/StrategyWorkflow FundOrders from the new authority.
+3. Add Source/status columns and All/Manual/Strategy Workflow filtering while preserving integer OrderId/TradeId selection and detail behavior.
+4. Retain eligible manual Create Order/Add Trade, remove Create Fund, and make automated/accepted compositions read-only.
+5. Display workflow/template/profile/composition/risk provenance in the existing detail area.
+6. Fence submit/fill/live-feed/End-of-Day/position actions for new pre-execution records.
+7. Remove `PortfolioCompositionForm`, its view model/navigation/tests, and all dual-write/direct-storage paths.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Manual and automated compositions appear in one Fund-scoped flow with correct editability and no execution side effect. |
+| Unit | Cascading selection, stale-load generation, source filtering, action eligibility, mapping, and provenance display state. |
+| Integration | Real NATS loads and mutates canonical manual orders; automated orders arrive in the same queries; no legacy cross-write. |
+| Verification | Portfolio A/B and Fund A/B switching, manual/automated sources, restart, integer lookup, and pre-execution fencing. |
+| UI system | End-to-end Portfolio→Fund→Order→Trade interaction, source filters, removed controls/viewer, read-only automated state, and accessibility. |
+
+**Exit:** Trade Orders is the sole composition UI; new operations use one authority; the separate viewer and Planned Compositions path are absent.
+
+### PF-29 — Cross-pipeline qualification and regression
+
+**Depends on:** PF-27 and PF-28.
+
+**Implementation:**
+
+1. Execute all Portfolio, Reference, Sequence, NATS, storage, workflow, TradeSelection, Risk boundary, and UI suites independently and together.
+2. Qualify pairwise global/family/Fund-envelope cases without uncontrolled Cartesian expansion.
+3. Exercise concurrency, restart, rebuild, cancellation, timeout, authorization, cleanup, and UI stale-response behavior.
+4. Prove no broker, fill, live-position, or legacy dual-write effect.
+5. Produce requirement-to-test traceability for PF-21 through PF-29.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Full revised lifecycle and manual/automated composition feature suite passes. |
+| Unit | All revised contracts, rules, transitions, UI state, and architecture tests pass with reviewed critical branches. |
+| Integration | Full real NATS/PostgreSQL/ReferenceDb/PortfolioDb suite passes with restart/rebuild/concurrency and zero unexplained skips. |
+| Verification | Representative three-family/global/envelope/manual/automated catalog passes with exact identity/version propagation. |
+| UI system | Complete Reference, Portfolio/Risk Policy, and Trade Orders journeys pass with cleanup and accessibility. |
+
+**Exit:** all revised requirements have green five-layer evidence and affected regressions contain no unexplained failure, skip, or flake.
+
+### PF-30 — Operational qualification and release approval
+
+**Depends on:** PF-29.
+
+**Implementation:**
+
+1. Reconcile HLD, specification, implementation plan, schemas, APIs, operations, recovery, and deferred-work documents.
+2. Capture traces/metrics for family bootstrap/query, policy lifecycle/assignment, projection lag/rebuild, and Trade Orders queries without high-cardinality labels or secrets.
+3. Qualify authorization policies, service health, performance/load baselines, rollback/disable behavior, and full-host operator journeys.
+4. Audit all historical Partial gates; link remaining applicable evidence to PF-21+ or keep a concrete release blocker.
+5. Produce final manifest, commands/results, commit IDs, known deferrals, and release recommendation.
+
+**Test obligations:**
+
+| Layer | Required evidence |
+| --- | --- |
+| BDD | Authorized/unauthorized personas and prohibited deferred operations retain correct business outcomes. |
+| Unit | Telemetry/redaction, authorization, health/configuration, metric-cardinality, and rollback feature-switch behavior. |
+| Integration | Real trace/metric/auth/health/restart/rebuild/load qualification with captured bounded results. |
+| Verification | Production-shaped Reference→Policy→Portfolio/Fund→TradeSelection→Composition→Risk and manual Trade Orders paths stop before execution. |
+| UI system | Real-host Reference, Portfolio/Risk Policy, and Trade Orders operator acceptance with responsive recovery/error behavior. |
+
+**Exit:** PF-21 through PF-30 are Complete, applicable historical gaps are resolved, documents are reconciled, and the release recommendation is evidence-backed.
+
 ## 9. Representative verification catalog
 
 The verification suite must include at least the following pairwise representative cases. More cases are added when a new rule creates a distinct outcome; cases are not multiplied merely because fields can be permuted.
@@ -621,6 +891,14 @@ The verification suite must include at least the following pairwise representati
 | V16 | Risk Approved/Rejected | Valid result reference | Outcome recorded; zero OrderExecution effects |
 | V17 | Projector rebuild | Representative catalog | Query results/hash-equivalent before and after rebuild |
 | V18 | Legacy coexistence | New plus legacy reads | No cross-write; both UI navigation paths work |
+| V19 | Repeated/concurrent Reference bootstrap | Three required stable keys | Exactly three unique Active definitions with retained sequence IDs |
+| V20 | Futures enabled below global caps | Candidate inside family/global/envelope | Most restrictive remaining capacity is applied |
+| V21 | Vertical Spread disabled | Matching template exists | Eligibility stops before composition |
+| V22 | Iron Condor enabled with zero family risk | Matching template exists | Family remains configured but new exposure is blocked |
+| V23 | Family cap exceeds global cap | Draft policy | Activation rejected with stable family-limit reason |
+| V24 | Active policy replacement retry | Same idempotency key/payload | One policy activation and one exact Portfolio version assignment |
+| V25 | Trade Orders manual plus StrategyWorkflow | Same Portfolio/Fund/month | Both sources visible; automated record read-only; no execution action |
+| V26 | Rapid Portfolio/Fund selection change | Delayed earlier response | Only the latest selected scope is rendered |
 
 ## 10. Cross-gate non-functional test matrix
 
@@ -637,6 +915,11 @@ The verification suite must include at least the following pairwise representati
 | Pipeline boundary failure closure | PF-13/PF-14/PF-15 | PF-18 |
 | No broker/live-position effect | PF-03 onward | PF-15/PF-18/PF-19 |
 | UI accessibility/error handling | PF-16 | PF-18/PF-20 |
+| Reference catalog/bootstrap/read-only UI | PF-22 | PF-29/PF-30 |
+| Policy global/family validation and lifecycle | PF-23/PF-24 | PF-29/PF-30 |
+| Policy persistence/rebuild/atomic assignment | PF-25/PF-26 | PF-29/PF-30 |
+| Compact Portfolio/Risk Policy UI | PF-27 | PF-29/PF-30 |
+| Unified Trade Orders and stale-load fencing | PF-28 | PF-29/PF-30 |
 | Legacy isolation | PF-01 onward | PF-19 |
 | Authorization/redaction | PF-03 onward | PF-20 |
 | Performance/load baseline | PF-09 onward | PF-20 |
@@ -662,7 +945,7 @@ Final qualification also runs affected existing SequenceId, EventProjector, NATS
 | Gate | Current status | Completion evidence location |
 | --- | --- | --- |
 | PF-01 | Complete | 2026-08-29: BDD 2, unit 6, integration 1, verification 1, UI system 1; all passed |
-| PF-02 | Partial | 2026-08-30: typed NATS allocation now covers Portfolio/Fund/Order/Trade, the create editors display immutable allocated integers, allocation failures fabricate no ID, and unit/integration/UI contracts pass. The production-host allocation qualification is implemented but remains to run with the API actor host online |
+| PF-02 | Complete | 2026-08-30: typed NATS allocation covers Portfolio/Fund/Policy/Order/Trade; the production API actor host allocated every identity as a positive integer and editors expose allocated values without hand entry or fallback |
 | PF-03 | Complete | 2026-08-30: production Portfolio actor create/state route, PostgreSQL authority, Scylla projection, full host restart, durable idempotent create replay/conflict, lifecycle tests, and no-execution evidence pass |
 | PF-04 | Complete | 2026-08-30: production PortfolioFund actor creates and activates an owned mandate through real NATS/PostgreSQL, resolves it from Scylla, and reloads identical active state after full API-host restart; BDD/unit/catalog/UI contracts pass |
 | PF-05 | Complete | 2026-08-30: versioned template/hint/composition-profile assignment is committed through the production actor, projected, frozen into a snapshot, and retained after host restart; Daily/Weekly/Monthly catalog tests pass |
@@ -681,6 +964,16 @@ Final qualification also runs affected existing SequenceId, EventProjector, NATS
 | PF-18 | Partial | 2026-08-30: Portfolio unit 58, BDD 17, default integration 18, verification 22, full UI-presentation 244, and full UI-system 50 pass with zero skips; the Portfolio UI application graph builds with 0 warnings/errors. Host-qualified tests correctly report no responders while the API actor host is offline. Remaining partial/blocked gates and affected solution-wide qualification remain |
 | PF-19 | Partial | 2026-08-30: read-only `FundLegacyDbContext`, no-mutation/no-execution architecture tests, preserved legacy UI and no migration/deletion implemented; runtime cross-store fingerprint/subject audit remains |
 | PF-20 | Partial | 2026-08-30: operations/recovery document, bounded authorization/telemetry contracts, hash redaction and tests implemented; middleware enforcement, captured telemetry/health and performance/load baselines remain |
+| PF-21 | Complete | 2026-08-30: PortfolioCode and Guid/fallback policy identities are absent from production/tests; MessagePack key 1 is reserved, schema v2 uses positive policy identity/version, obsolete Planned Compositions navigation/types are removed, and revised DTOs pass real NATS plus UI contracts |
+| PF-22 | Complete | 2026-08-30: sequence-backed exact three-family catalog, stable-key/version Scylla LWT bootstrap, typed Reference NATS list query, startup bootstrap, and read-only Reference UI pass. Eight simultaneous independent bootstrap processes plus restart produce exactly three stable unique rows with sequence IDs; the focused process integration test passes 1/1 |
+| PF-23 | Complete | 2026-08-30: positive policy identity allocation, versioned DTOs, MessagePack contracts, stable validators/reason codes, canonical hashing, zero-blocking semantics, and most-restrictive global/family/envelope caps are implemented and pass BDD/unit/verification/UI plus live allocation evidence |
+| PF-24 | Complete | 2026-08-30: event-sourced lifecycle, expected revisions, replay/conflict and reference fences pass. Injected failure after policy append/before Portfolio assignment is healed idempotently on retry, including missed projections; concurrent replacements serialize and exactly one matching expected revision succeeds. Focused integration tests pass 3/3 |
+| PF-25 | Complete | 2026-08-30: authoritative policy events/snapshots, Scylla query projections, delete tombstones, projector registration and rebuild pass. A delayed pre-delete event cannot resurrect policy state, and two empty-store full rebuilds produce identical query/catalog hashes. Focused real-storage tests pass 3/3 |
+| PF-26 | Complete | 2026-08-30: policy command/query actors and clients, read-only Reference query actor/client, split read/write DI, cancellation-aware APIs, exact assigned policy/family snapshot propagation and effective caps are implemented. Production host tests pass typed Reference query and Policy create/activate/assign through frozen workflow resolution |
+| PF-27 | Partial | 2026-08-30: compact command bar and complete Risk Policy modal are implemented. Automated rendered-form journeys cover create/edit/save, dirty-close rejection, seven disabled mutation actions for an unauthorized persona, accessibility and layout; focused UI system tests pass 4/4. A real desktop-control run remains because the Windows automation helper failed initialization twice with `failed to write kernel assets: path not found`; operator acceptance is not claimed |
+| PF-28 | Complete | 2026-08-30: Trade Orders queries Portfolio then Fund and canonical Manual/StrategyWorkflow orders, explicit origin/status filtering, integer IDs and pre-execution fences. Manual Create Order now sends a typed Portfolio/Fund command; the actor validates active current versions, sequence-allocates OrderId, commits/projects an idempotent non-executable Draft and performs no legacy write. Generation/identity fencing rejects delayed scope responses. BDD 1, unit 1, integration 2 (including production-host NATS), verification 1 and UI system 3 pass |
+| PF-29 | Partial | 2026-08-30: final-code Portfolio unit 57, BDD 18, real integration 29, verification 28, Portfolio UI system 17 and UI presentation 4 pass with zero failures/skips. PF-22/24/25/28 explicit gaps are closed and the production-host PF-28 manual/automated NATS journey passes. PF-27 hands-on acceptance plus broader authorization/load evidence still prevent PF-29 closure |
+| PF-30 | Partial | 2026-08-30: HLD/specification/plan/schema terminology are reconciled; the full solution serial build passes with 0 warnings/errors (the parallel build exposes an existing native Databento build-directory lock); the production API host creates/bootstraps the v2 Reference catalog, starts Reference/Portfolio/Policy actors, serves live typed tests, tolerates unavailable external market data, and shuts down cleanly. Authorization enforcement, captured trace/metric baselines, load/rollback qualification and interactive operator approval remain release blockers |
 
 Allowed statuses are `Not Started`, `In Progress`, `Partial`, `Blocked`, and `Complete`. `Partial` must identify the missing deliverable or test evidence; it cannot be used as a permanent closure state.
 
@@ -698,16 +991,22 @@ The following remain outside every PF gate:
 8. Multi-asset/unrestricted template ranking and advanced Portfolio optimization.
 9. High-throughput ScyllaDB sequence/tick identity redesign.
 10. Expansion of current operator-facing integer IDs beyond checked Int32 contracts.
+11. TradeStrategyFamily mutation commands and management UI.
+12. Strategy-family variants/subtypes including Long, Short, bullish, bearish, neutral, debit, and credit.
+13. Scheduled policy activation and generic expression/rule engines.
 
 ## 14. Plan definition of done
 
 This implementation plan is complete only when:
 
-- every PF gate is `Complete` with its five-layer test evidence;
+- PF-21 through PF-30 are `Complete` with five-layer evidence and every still-applicable historical Partial item is resolved or remains an explicit release blocker;
 - all approved specification requirements map to implementation and tests;
 - real NATS, PostgreSQL, ScyllaDB, actor restart, replay, rebuild, concurrency, and failure paths pass;
 - representative Daily/Weekly/Monthly configurations and invalid variants pass verification;
 - Portfolio and composition UI system journeys pass while legacy navigation remains operational;
+- ReferenceDb contains exactly the three read-only v1 families after repeated/restart bootstrap;
+- Risk Policy global and per-family limits are immutable, versioned, and atomically assigned;
+- Trade Orders is the sole manual/StrategyWorkflow composition view with Portfolio-to-Fund scoping;
 - OrderId and TradeId values remain unchanged through all implemented stages;
 - no actor, projector, API, UI, or test path performs an OrderExecution or live-position side effect;
 - legacy Fund data has neither migrated nor received new-domain writes;

@@ -108,6 +108,12 @@ public static partial class ReferenceQueryExtensions
             async () => [.. await context.DbFactory.ReferenceDb
                 .GetMDIForwardLossRatiosAsync(trendDirection, tradeType, cancellationToken)]);
 
+    public Task<ServiceResult<TradeStrategyFamilyReadModel[]>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken)
+        => ExecuteAsync<TradeStrategyFamilyReadModel[]>(
+            GetTradeStrategyFamiliesQuery.ErrorId,
+            cancellationToken,
+            async () => [.. await context.DbFactory.ReferenceDb.GetTradeStrategyFamiliesAsync(cancellationToken)]);
+
     }
 
     static async Task<ServiceResult<T>> ExecuteAsync<T>(

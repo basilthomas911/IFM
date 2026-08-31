@@ -42,6 +42,28 @@ public sealed class PortfolioAggregateTests
         duplicate.Should().Throw<InvalidOperationException>();
     }
 
+    [Fact]
+    [Trait("Gate", "PF-03")]
+    [Trait("Category", "Portfolio")]
+    public void Draft_deletion_is_terminal_and_non_draft_deletion_is_rejected()
+    {
+        var draft = new PortfolioAggregate();
+        draft.Create(Guid.NewGuid(), Draft(), Now, "test-admin");
+        var deleted = draft.DeleteDraft(Guid.NewGuid(), 1, "created in error", Now.AddMinutes(1), "test-admin");
+
+        deleted.Should().BeOfType<TomasAI.IFM.Domain.Portfolio.Command.Model.DraftPortfolioDeleted>();
+        draft.IsDeleted.Should().BeTrue();
+        draft.Revision.Should().Be(2);
+        FluentActions.Invoking(() => draft.AddFund(Guid.NewGuid(), 2, new(101, 205), Now.AddMinutes(2), "test-admin"))
+            .Should().Throw<InvalidOperationException>().WithMessage("*deleted*");
+
+        var active = new PortfolioAggregate();
+        active.Create(Guid.NewGuid(), Draft(), Now, "test-admin");
+        active.AddVersion(Guid.NewGuid(), 1, ActiveVersion(), Now.AddMinutes(1), "test-admin");
+        FluentActions.Invoking(() => active.DeleteDraft(Guid.NewGuid(), 2, "invalid", Now.AddMinutes(2), "test-admin"))
+            .Should().Throw<InvalidOperationException>().WithMessage("Only a Draft Portfolio*");
+    }
+
     [Theory]
     [InlineData(PortfolioOperatingState.Draft, PortfolioOperatingState.Active, false, true)]
     [InlineData(PortfolioOperatingState.Disabled, PortfolioOperatingState.Active, false, false)]
@@ -55,7 +77,6 @@ public sealed class PortfolioAggregateTests
     internal static PortfolioReadModel Draft() => new()
     {
         PortfolioId = 101,
-        PortfolioCode = "CORE",
         Name = "Core Portfolio",
         PortfolioVersion = 1,
         BaseCurrency = "USD",
@@ -69,8 +90,8 @@ public sealed class PortfolioAggregateTests
     {
         PortfolioVersion = 2,
         OperatingState = PortfolioOperatingState.Active,
-        PolicyId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-        PolicyVersion = 1,
+        ActivePolicyId = 9001,
+        ActivePolicyVersion = 1,
         BrokerAccountRefs = ["paper-primary"],
     };
 }

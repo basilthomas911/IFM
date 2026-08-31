@@ -2,6 +2,10 @@ using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.ReferenceDb;
 
+internal readonly record struct GetTradeStrategyFamilies(string catalog) : IBindValue { public object Bind() => new object?[] { catalog }; }
+internal readonly record struct InsertTradeStrategyFamily(string catalog, int tradeStrategyFamilyId, long definitionVersion, string systemKey, string name, string state, DateTime createdOnUtc, string createdBy) : IBindValue
+{ public object Bind() => new object?[] { catalog, tradeStrategyFamilyId, definitionVersion, systemKey, name, state, createdOnUtc, createdBy }; }
+
 internal readonly record struct DeleteReferenceProjectionStateV3(string projectionName) : IBindValue
 {
     public object Bind() => new object?[] { projectionName };

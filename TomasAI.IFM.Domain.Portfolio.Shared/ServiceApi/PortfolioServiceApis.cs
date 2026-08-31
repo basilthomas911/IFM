@@ -43,6 +43,7 @@ public enum PortfolioBusinessIdentityKind
     Fund = 2,
     Order = 3,
     Trade = 4,
+    Policy = 5,
 }
 
 [MessagePackObject(AllowPrivate = true)]
@@ -72,6 +73,7 @@ public interface IPortfolioIdentityApi
     Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateFundIdAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateOrderIdAsync(CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateTradeIdAsync(CancellationToken cancellationToken = default);
+    Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }
 
 public interface IPortfolioCommandApi
@@ -83,6 +85,7 @@ public interface IPortfolioCommandApi
     Task<ServiceResult<Guid>> DelegateAllocationAsync(FundAllocationReadModel allocation, long expectedPortfolioVersion, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> DelegateRiskEnvelopeAsync(FundRiskEnvelopeReadModel envelope, long expectedPortfolioVersion, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> RetirePortfolioAsync(PortfolioId portfolioId, long expectedVersion, string reason, CancellationToken cancellationToken = default);
+    Task<ServiceResult<Guid>> DeleteDraftPortfolioAsync(PortfolioId portfolioId, long expectedVersion, string reason, CancellationToken cancellationToken = default);
 }
 
 public interface IPortfolioFundCommandApi
@@ -92,11 +95,21 @@ public interface IPortfolioFundCommandApi
     Task<ServiceResult<Guid>> ChangeFundStateAsync(PortfolioFundId fundId, long expectedVersion, FundOperatingState state, string reason, CancellationToken cancellationToken = default);
     Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default);
+    Task<ServiceResult<FundCompositionReservationResult>> CreateManualOrderAsync(CreateManualFundOrderRequest request, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> MarkComposingAsync(PortfolioFundOrderId orderId, long expectedVersion, Guid invocationId, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> RecordComposedAsync(PortfolioFundOrderId orderId, long expectedVersion, OrderCompositionResultReference result, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> RecordRiskOutcomeAsync(PortfolioFundOrderId orderId, long expectedVersion, RiskManagementResultReference result, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> CancelCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default);
     Task<ServiceResult<FundOrderProjectionReadModel>> ExpireCompositionAsync(PortfolioFundOrderId orderId, long expectedVersion, string reason, CancellationToken cancellationToken = default);
+}
+
+public interface IPortfolioFinancialPolicyCommandApi
+{
+    Task<ServiceResult<Guid>> CreatePolicyAsync(PortfolioFinancialPolicyReadModel policy, Guid idempotencyKey, CancellationToken cancellationToken = default);
+    Task<ServiceResult<Guid>> AddPolicyVersionAsync(PortfolioFinancialPolicyReadModel policy, long expectedRevision, CancellationToken cancellationToken = default);
+    Task<ServiceResult<Guid>> ActivateAndAssignAsync(PortfolioFinancialPolicyId policyId, long policyVersion, long expectedPolicyRevision, long expectedPortfolioRevision, CancellationToken cancellationToken = default);
+    Task<ServiceResult<Guid>> RetirePolicyAsync(PortfolioFinancialPolicyId policyId, long policyVersion, long expectedRevision, string reason, CancellationToken cancellationToken = default);
+    Task<ServiceResult<Guid>> DeleteDraftPolicyAsync(PortfolioFinancialPolicyId policyId, long expectedRevision, string reason, CancellationToken cancellationToken = default);
 }
 
 public interface IPortfolioQueryApi
@@ -117,4 +130,7 @@ public interface IPortfolioQueryApi
     Task<ServiceResult<PortfolioPage<FundOrderProjectionReadModel>>> GetOrdersAsync(int portfolioId, int fundId, DateOnly orderMonth, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioPage<FundOrderTradeProjectionReadModel>>> GetOrderTradesAsync(int orderId, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default);
     Task<ServiceResult<PortfolioFundStrategyReferenceCombination[]>> GetStrategyReferenceCombinationsAsync(int portfolioId, DateTime asOfUtc, CancellationToken cancellationToken = default);
+    Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<ServiceResult<PortfolioPage<PortfolioFinancialPolicyReadModel>>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }

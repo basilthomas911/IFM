@@ -47,7 +47,8 @@ public sealed class PortfolioFundCompositionAggregate
     {
         ArgumentNullException.ThrowIfNull(reservation);
         if (reservation.Order.OrderId <= 0 || reservation.Order.IdempotencyKey == Guid.Empty ||
-            reservation.Trades.Length == 0 || reservation.Trades.Any(x => x.OrderId != reservation.Order.OrderId))
+            (reservation.Trades.Length == 0 && (reservation.Order.Origin != CompositionOrigin.ManualUi || reservation.Order.Status != FundCompositionState.Draft.ToString())) ||
+            reservation.Trades.Any(x => x.OrderId != reservation.Order.OrderId))
             throw new InvalidOperationException("Committed composition reservation is invalid.");
         if (_orders.ContainsKey(reservation.Order.OrderId) || _reservations.ContainsKey(reservation.Order.IdempotencyKey))
             throw new InvalidOperationException("Committed composition reservation is duplicated.");
@@ -119,6 +120,7 @@ public sealed class PortfolioFundCompositionAggregate
             AggregateVersion = aggregateVersion,
             IdempotencyKey = request.IdempotencyKey,
             CanonicalRequestHash = requestHash,
+            Origin = request.Origin,
         };
         var trades = request.TradeInstructions.Select((instruction, index) => new FundOrderTradeProjectionReadModel
         {
@@ -147,6 +149,61 @@ public sealed class PortfolioFundCompositionAggregate
         };
         _orders.Add(orderId, order);
         _trades.Add(orderId, trades);
+        _reservations.Add(request.IdempotencyKey, result);
+        return result;
+    }
+
+    public FundCompositionReservationResult CreateManualDraft(
+        CreateManualFundOrderRequest request, int orderId, DateTime committedOnUtc, string principal)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principal);
+        ValidateUtc(committedOnUtc, nameof(committedOnUtc));
+        var requestHash = PortfolioCanonicalHash.Compute(request);
+        if (_reservations.TryGetValue(request.IdempotencyKey, out var prior))
+        {
+            if (!string.Equals(prior.CanonicalRequestSha256, requestHash, StringComparison.Ordinal))
+                throw new InvalidOperationException("IdempotencyKeyConflict: the key was already committed for a different manual draft.");
+            return prior with { Disposition = ReservationDisposition.IdempotentReplay };
+        }
+        if (request.IdempotencyKey == Guid.Empty || request.PortfolioId <= 0 || request.PortfolioVersion <= 0 ||
+            request.FundId <= 0 || request.FundMandateVersion <= 0 || string.IsNullOrWhiteSpace(request.UnderlyingRoot) || orderId <= 0)
+            throw new ArgumentException("A manual draft requires positive Portfolio/Fund identities and a non-empty underlying root.", nameof(request));
+        ValidateUtc(request.RequestedAtUtc, nameof(request.RequestedAtUtc));
+        ValidateUtc(request.ExpiresAtUtc, nameof(request.ExpiresAtUtc));
+        if (request.RequestedAtUtc > committedOnUtc || committedOnUtc >= request.ExpiresAtUtc ||
+            request.RequestedMaturityDate < request.RequestedTradeDate)
+            throw new InvalidOperationException("The manual draft request is stale or has an invalid date range.");
+        if (_orders.ContainsKey(orderId)) throw new InvalidOperationException("OrderId is already reserved.");
+
+        var order = new FundOrderProjectionReadModel
+        {
+            PortfolioId = request.PortfolioId,
+            FundId = request.FundId,
+            OrderId = orderId,
+            WorkflowId = request.IdempotencyKey,
+            WorkflowRevision = 1,
+            Status = FundCompositionState.Draft.ToString(),
+            CreatedOnUtc = committedOnUtc,
+            CreatedBy = principal.Trim(),
+            ExpiresAtUtc = request.ExpiresAtUtc,
+            AggregateVersion = 1,
+            IdempotencyKey = request.IdempotencyKey,
+            CanonicalRequestHash = requestHash,
+            Origin = CompositionOrigin.ManualUi,
+            OperatorReference = request.Reference.Trim(),
+        };
+        var result = new FundCompositionReservationResult
+        {
+            Order = order,
+            Trades = [],
+            AggregateVersion = 1,
+            CommittedOnUtc = committedOnUtc,
+            Disposition = ReservationDisposition.Committed,
+            CanonicalRequestSha256 = requestHash,
+        };
+        _orders.Add(orderId, order);
+        _trades.Add(orderId, []);
         _reservations.Add(request.IdempotencyKey, result);
         return result;
     }

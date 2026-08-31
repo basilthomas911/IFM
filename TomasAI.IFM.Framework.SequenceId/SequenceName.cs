@@ -23,6 +23,8 @@ public enum SequenceName
     Trade_TradeId,
     ScheduledJob_JobId,
     Portfolio_PortfolioId,
+    PortfolioPolicy_PolicyId,
+    Reference_TradeStrategyFamilyId,
 }
 
 public static class SequenceNameExtensions
@@ -50,6 +52,8 @@ public static class SequenceNameExtensions
         SequenceName.Trade_TradeId => nameof(SequenceName.Trade_TradeId),
         SequenceName.ScheduledJob_JobId => nameof(SequenceName.ScheduledJob_JobId),
         SequenceName.Portfolio_PortfolioId => nameof(SequenceName.Portfolio_PortfolioId),
+        SequenceName.PortfolioPolicy_PolicyId => nameof(SequenceName.PortfolioPolicy_PolicyId),
+        SequenceName.Reference_TradeStrategyFamilyId => nameof(SequenceName.Reference_TradeStrategyFamilyId),
         _ => value.ToString()
     };
 
@@ -69,6 +73,8 @@ public static class SequenceNameExtensions
             "TradeId" => SequenceName.Trade_TradeId,
             "ScheduledJobId" => SequenceName.ScheduledJob_JobId,
             "PortfolioId" => SequenceName.Portfolio_PortfolioId,
+            "PortfolioPolicyId" => SequenceName.PortfolioPolicy_PolicyId,
+            "TradeStrategyFamilyId" => SequenceName.Reference_TradeStrategyFamilyId,
             _ when Enum.TryParse<SequenceName>(seedType, ignoreCase: false, out var sequenceName)
                 => sequenceName,
             _ => throw new ArgumentOutOfRangeException(

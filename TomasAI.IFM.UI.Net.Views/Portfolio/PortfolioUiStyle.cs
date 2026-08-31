@@ -2,7 +2,11 @@ namespace TomasAI.IFM.UI.Net.Views.Portfolio;
 
 static class PortfolioUiStyle
 {
+    // Matches the established Trade Order form surface exactly.
     public static readonly Color Surface = Color.FromArgb(64, 64, 64);
+    public static readonly Color MenuSurface = Color.Black;
+    public static readonly Color Border = Color.Gray;
+    public const int BorderWidth = 3;
     public static readonly Color DataSurface = Color.Black;
     public static readonly Color Foreground = Color.White;
     public static readonly Font BodyFont = new("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point);
@@ -53,6 +57,19 @@ static class PortfolioUiStyle
         TextAlign = ContentAlignment.MiddleRight,
         Dock = DockStyle.Fill,
         Padding = new Padding(3, 7, 3, 0),
+    };
+
+    public static Label MenuTitle(string text) => new()
+    {
+        Name = "portfolioMenuTitle",
+        AccessibleName = "Portfolio menu title",
+        Text = text,
+        AutoSize = true,
+        BackColor = MenuSurface,
+        ForeColor = Foreground,
+        Font = new Font(BodyFont, FontStyle.Bold),
+        Margin = new Padding(2, 4, 20, 0),
+        Padding = new Padding(0, 7, 0, 0),
     };
 
     public static TextBox TextBox(string accessibleName, bool readOnly = false) => new()

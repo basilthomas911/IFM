@@ -28,6 +28,8 @@ public sealed class PortfolioCommandApi(IActorProducer actorProducer) : NatsClie
         Send(new PortfolioId(envelope.PortfolioId), "DelegateFundRiskEnvelope", new DelegateRiskEnvelopePayload(envelope, expectedPortfolioVersion), PortfolioErrorCodes.ValidationFailed, cancellationToken);
     public Task<ServiceResult<Guid>> RetirePortfolioAsync(PortfolioId portfolioId, long expectedVersion, string reason, CancellationToken cancellationToken = default) =>
         Send(portfolioId, "RetirePortfolio", new RetirePortfolioPayload(expectedVersion, reason), PortfolioErrorCodes.InvalidStateTransition, cancellationToken);
+    public Task<ServiceResult<Guid>> DeleteDraftPortfolioAsync(PortfolioId portfolioId, long expectedVersion, string reason, CancellationToken cancellationToken = default) =>
+        Send(portfolioId, "DeleteDraftPortfolio", new DeleteDraftPortfolioPayload(expectedVersion, reason), PortfolioErrorCodes.DraftDeletionNotAllowed, cancellationToken);
 
     async Task<ServiceResult<Guid>> Send<TPayload>(PortfolioId id, string verb, TPayload payload, int errorCode, CancellationToken cancellationToken, Guid? commandId = null)
     {
@@ -52,6 +54,48 @@ public sealed class PortfolioFundCommandApi(IActorProducer actorProducer, IPortf
         Send(fundId, "ChangeFundOperatingState", new ChangeFundStatePayload(expectedVersion, state, reason), PortfolioErrorCodes.InvalidStateTransition, cancellationToken);
     public Task<ServiceResult<Guid>> AssignTradeTemplateAsync(FundTradeTemplateAssignmentReadModel assignment, long expectedVersion, CancellationToken cancellationToken = default) =>
         Send(new(assignment.PortfolioId, assignment.FundId), "AssignTradeTemplate", new AssignTradeTemplatePayload(assignment, expectedVersion), PortfolioErrorCodes.ValidationFailed, cancellationToken);
+
+    public async Task<ServiceResult<FundCompositionReservationResult>> CreateManualOrderAsync(CreateManualFundOrderRequest request, CancellationToken cancellationToken = default)
+    {
+        var alreadyProjected = queries is not null && await FindManualOrderAsync(request, cancellationToken).ConfigureAwait(false) is not null;
+        var acknowledged = await Send(new(request.PortfolioId, request.FundId), "CreateManualFundOrder",
+            new CreateManualFundOrderPayload(request), PortfolioErrorCodes.ValidationFailed, cancellationToken,
+            IdempotentCommandId.Create(request.IdempotencyKey, request)).ConfigureAwait(false);
+        if (!acknowledged.Success)
+            return new ServiceFailed<FundCompositionReservationResult>(acknowledged.ErrorCode, acknowledged.ErrorMessage);
+        if (queries is null)
+            return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.Unavailable, "Portfolio query API is required to observe the committed manual order.");
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            var projected = await FindManualOrderAsync(request, cancellationToken).ConfigureAwait(false);
+            if (projected is not null)
+                return new ServiceOk<FundCompositionReservationResult>(projected with
+                {
+                    Disposition = alreadyProjected ? ReservationDisposition.IdempotentReplay : ReservationDisposition.Committed,
+                });
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+        return new ServiceFailed<FundCompositionReservationResult>(PortfolioErrorCodes.Unavailable, "Manual order committed but its projection was not visible before the bounded query timeout.");
+    }
+
+    async Task<FundCompositionReservationResult?> FindManualOrderAsync(CreateManualFundOrderRequest request, CancellationToken cancellationToken)
+    {
+        if (queries is null) return null;
+        var month = new DateOnly(request.RequestedAtUtc.Year, request.RequestedAtUtc.Month, 1);
+        var orders = await queries.GetOrdersAsync(request.PortfolioId, request.FundId, month, 200, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var order = orders.Success && orders.Value is not null
+            ? orders.Value.Items.SingleOrDefault(x => x.IdempotencyKey == request.IdempotencyKey)
+            : null;
+        return order is null ? null : new FundCompositionReservationResult
+        {
+            Order = order,
+            Trades = [],
+            AggregateVersion = order.AggregateVersion,
+            CommittedOnUtc = order.CreatedOnUtc,
+            Disposition = ReservationDisposition.Committed,
+            CanonicalRequestSha256 = order.CanonicalRequestHash,
+        };
+    }
 
     public async Task<ServiceResult<FundCompositionReservationResult>> ReserveCompositionAsync(ReserveFundOrderCompositionRequest request, PortfolioFundStrategySnapshot snapshot, CancellationToken cancellationToken = default)
     {

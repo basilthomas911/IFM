@@ -1,10 +1,16 @@
 using Serilog;
 using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
+using TomasAI.IFM.Application.Storage.ReferenceDb;
+using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
 try
 {
+    var bootstrapTradeStrategyFamiliesOnly = args.Contains(
+        "--bootstrap-trade-strategy-families-only",
+        StringComparer.OrdinalIgnoreCase);
     var builder = WebApplication.CreateBuilder(args);
     builder.ConfigureApiServer(out var logger);
     builder.Services.RegisterServices(builder.Configuration, logger);
@@ -12,19 +18,33 @@ try
     app.ConfigureRequestPipeline(logger);
     app.MapApiCommands(logger);
     app.MapApiQueries(logger);
-    // Portfolio projections are rebuildable, but their idempotent schema must exist
-    // before command actors can start durable projector workers.
-    await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
-    await app.MapEventModelActorsAsync(logger);
-    app.EnableServerManagerStandardInputShutdown(args, logger);
-    var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
-    try
+    if (bootstrapTradeStrategyFamiliesOnly)
     {
-        await app.RunAsync();
+        // Deliberately avoid HTTP binding and actor startup. This narrow process mode
+        // lets deployment/startup qualification race independent initializers against
+        // the same ReferenceDb and PostgreSQL sequence infrastructure.
+        await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
+        Log.Information("TradeStrategyFamily bootstrap-only process completed.");
     }
-    finally
+    else
     {
-        await actorSupervisor.ShutdownAsync(CancellationToken.None);
+        // Portfolio projections are rebuildable, but their idempotent schema must exist
+        // before command actors can start durable projector workers.
+        await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
+        await app.MapEventModelActorsAsync(logger);
+        app.EnableServerManagerStandardInputShutdown(args, logger);
+        var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        try
+        {
+            await app.RunAsync();
+        }
+        finally
+        {
+            await actorSupervisor.ShutdownAsync(CancellationToken.None);
+        }
     }
 }
 catch (Exception ex)

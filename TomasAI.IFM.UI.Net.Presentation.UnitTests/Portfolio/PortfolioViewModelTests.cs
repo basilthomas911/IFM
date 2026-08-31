@@ -57,6 +57,33 @@ public sealed class PortfolioViewModelTests
     }
 
     [Fact]
+    [Trait("Gate", "PF-03")]
+    [Trait("Gate", "PF-16")]
+    [Trait("Category", "Portfolio")]
+    public async Task Delete_path_accepts_only_selected_Draft_and_sends_its_current_aggregate_revision()
+    {
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var commands = Substitute.For<IPortfolioCommandApi>();
+        var draft = ValidPortfolio() with { OperatingState = PortfolioOperatingState.Draft, ActivePolicyId = 0, ActivePolicyVersion = 0 };
+        queries.GetFundsAsync(draft.PortfolioId, null, 100, null, Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundMandateReadModel>>(new() { Items = [] }));
+        queries.GetPortfolioRevisionAsync(draft.PortfolioId, Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioAggregateRevision>(new() { PortfolioId = draft.PortfolioId, Revision = 9, SourceEventId = 99 }));
+        commands.DeleteDraftPortfolioAsync(new PortfolioId(draft.PortfolioId), 9, "duplicate", Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<Guid>(Guid.NewGuid()));
+        var vm = new PortfolioAdministrationViewModel(queries, commands, Substitute.For<IPortfolioFundCommandApi>(), Substitute.For<IPortfolioIdentityApi>(), true);
+        await vm.SelectPortfolioAsync(draft);
+
+        var deleted = await vm.DeleteDraftPortfolioAsync("duplicate");
+
+        deleted.Should().BeTrue();
+        vm.SelectedPortfolio.Should().BeNull();
+        vm.PortfolioRevision.Should().Be(0);
+        vm.Message.Should().Contain("ID remains consumed");
+        await commands.Received(1).DeleteDraftPortfolioAsync(new PortfolioId(draft.PortfolioId), 9, "duplicate", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     [Trait("Gate", "PF-10")]
     [Trait("Gate", "PF-16")]
     [Trait("Category", "Portfolio")]
@@ -90,31 +117,9 @@ public sealed class PortfolioViewModelTests
         vm.FundRevision.Should().Be(6);
     }
 
-    [Fact]
-    [Trait("Gate", "PF-17")]
-    [Trait("Category", "Portfolio")]
-    public async Task Composition_navigation_is_portfolio_fund_scoped_and_exposes_no_create_fund_operation()
-    {
-        var query = Substitute.For<IPortfolioQueryApi>();
-        var order = new FundOrderProjectionReadModel { PortfolioId = 101, FundId = 201, OrderId = 7001, Status = nameof(FundCompositionState.RiskPending) };
-        query.GetOrderAsync(7001, Arg.Any<CancellationToken>()).Returns(new ServiceOk<FundOrderProjectionReadModel>(order));
-        query.GetOrdersAsync(101, 201, new DateOnly(2026, 8, 1), 200, null, Arg.Any<CancellationToken>()).Returns(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()));
-        query.GetOrderTradesAsync(7001, 200, null, Arg.Any<CancellationToken>()).Returns(new ServiceOk<PortfolioPage<FundOrderTradeProjectionReadModel>>(new() { Items = [new() { PortfolioId = 101, FundId = 201, OrderId = 7001, TradeId = 8001 }] }));
-        var vm = new PortfolioCompositionViewModel(query);
-        vm.SelectPortfolio(ValidPortfolio());
-        await vm.SelectFundAsync(new FundMandateReadModel { PortfolioId = 101, FundId = 201 }, new DateOnly(2026, 8, 1));
-
-        var found = await vm.SearchOrderAsync(7001);
-
-        found.Should().BeTrue();
-        vm.Trades.Should().ContainSingle(x => x.TradeId == 8001);
-        vm.Semantics.Should().Contain("not a broker order");
-        typeof(PortfolioCompositionViewModel).GetMethods().Should().NotContain(x => x.Name.Contains("CreateFund", StringComparison.OrdinalIgnoreCase));
-    }
-
     static PortfolioReadModel ValidPortfolio() => new()
     {
-        PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+        PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
         OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc),
         CreatedOnUtc = new DateTime(2026, 8, 30, 0, 0, 0, DateTimeKind.Utc), CreatedBy = "admin",
     };

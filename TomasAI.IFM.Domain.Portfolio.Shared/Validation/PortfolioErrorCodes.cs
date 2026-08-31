@@ -19,6 +19,7 @@ public static class PortfolioErrorCodes
     public const int SequenceAllocationFailed = 34012;
     public const int ExecutionBoundaryViolation = 34013;
     public const int Unavailable = 34014;
+    public const int DraftDeletionNotAllowed = 34015;
 
     public static bool IsReserved(int code) => code is >= RangeStart and <= RangeEnd;
 }

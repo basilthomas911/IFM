@@ -22,6 +22,10 @@ public interface IPortfolioEventStore
     Task<FundMandateCreated?> FindFundCreateByIdempotencyKeyAsync(PortfolioFundId fundId, Guid idempotencyKey, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PortfolioDomainEvent>> LoadPortfolioHistoryAsync(PortfolioId portfolioId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PortfolioFundDomainEvent>> LoadFundHistoryAsync(PortfolioFundId fundId, CancellationToken cancellationToken = default);
+    Task AppendPolicyAsync(PortfolioFinancialPolicyId policyId, PortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<PortfolioFinancialPolicyAggregate> LoadPolicyAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default) => Task.FromResult(new PortfolioFinancialPolicyAggregate());
+    Task<IReadOnlyList<PortfolioFinancialPolicyDomainEvent>> LoadPolicyHistoryAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PortfolioFinancialPolicyDomainEvent>>([]);
+    Task<PortfolioFinancialPolicyDomainEvent?> FindCommittedPolicyCommandAsync(PortfolioFinancialPolicyId policyId, Guid commandId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFinancialPolicyDomainEvent?>(null);
 }
 
 /// <summary>Persists Portfolio command history only in the shared PostgreSQL EventSourceDb.</summary>
@@ -39,6 +43,12 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
     {
         ThrowIfInvalid(id.Validate(), nameof(id));
         return $"PortfolioFund.{id.PortfolioId}.{id.FundId}";
+    }
+
+    public static string PolicyStream(PortfolioFinancialPolicyId id)
+    {
+        ThrowIfInvalid(id.Validate(), nameof(id));
+        return $"PortfolioFinancialPolicy.{id.PortfolioId}.{id.PolicyId}";
     }
 
     public static string PortfolioSnapshotStream(PortfolioId id) => $"{PortfolioStream(id)}.Snapshot";
@@ -94,6 +104,45 @@ public sealed class PortfolioEventStore(IEventSourceActorDbContext eventSourceDb
             FundStream(fundId), domainEvent.CommandId, new DomainEventCollection([domainEvent]),
             expectedRevision,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task AppendPolicyAsync(PortfolioFinancialPolicyId policyId, PortfolioFinancialPolicyDomainEvent domainEvent, long expectedRevision, PortfolioEventMetadata? metadata = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        ValidateAppend(domainEvent.Revision, expectedRevision);
+        var entity = policyId.Format();
+        metadata ??= PortfolioEventMetadata.ForCommand(domainEvent.CommandId, domainEvent.Id, domainEvent.OccurredOnUtc);
+        metadata.Validate();
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.Subject), new ActorSubject(ActorType.Event, "PortfolioFinancialPolicy", domainEvent.EventName, entity));
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.AggregateId), entity);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.EntityId), new ActorEntityId(entity));
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.EventSource), nameof(PortfolioFinancialPolicyAggregate));
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.ReceivedOn), domainEvent.OccurredOnUtc);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CorrelationId), metadata.CorrelationId);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.CausationId), metadata.CausationId);
+        EventInitHelper.SetProperty(domainEvent, nameof(domainEvent.OriginatedOnUtc), metadata.OriginatedOnUtc);
+        await _eventSourceDb.SaveEventsAsync(PolicyStream(policyId), domainEvent.CommandId, new DomainEventCollection([domainEvent]), expectedRevision, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<PortfolioFinancialPolicyAggregate> LoadPolicyAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default)
+    {
+        var history = await LoadPolicyHistoryAsync(policyId, cancellationToken).ConfigureAwait(false);
+        ValidateHistory(history.Select(x => x.Revision));
+        var aggregate = new PortfolioFinancialPolicyAggregate();
+        aggregate.Replay(history);
+        return aggregate;
+    }
+
+    public async Task<IReadOnlyList<PortfolioFinancialPolicyDomainEvent>> LoadPolicyHistoryAsync(PortfolioFinancialPolicyId policyId, CancellationToken cancellationToken = default) =>
+        ConvertRequired<PortfolioFinancialPolicyDomainEvent>(await LoadAsync(PolicyStream(policyId), cancellationToken).ConfigureAwait(false), PolicyStream(policyId))
+            .OrderBy(x => x.Revision).ToArray();
+
+    public async Task<PortfolioFinancialPolicyDomainEvent?> FindCommittedPolicyCommandAsync(PortfolioFinancialPolicyId policyId, Guid commandId, CancellationToken cancellationToken = default)
+    {
+        if (commandId == Guid.Empty) throw new ArgumentException("CommandId is required.", nameof(commandId));
+        return ConvertRequired<PortfolioFinancialPolicyDomainEvent>(
+                await LoadAsync(PolicyStream(policyId), cancellationToken).ConfigureAwait(false), PolicyStream(policyId))
+            .SingleOrDefault(x => x.CommandId == commandId);
     }
 
     public async Task<PortfolioAggregate> LoadPortfolioAsync(PortfolioId portfolioId, CancellationToken cancellationToken = default)

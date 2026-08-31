@@ -518,7 +518,9 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                 _appRoot.Services.PortfolioQueries,
                 _appRoot.Services.PortfolioCommands,
                 _appRoot.Services.PortfolioFundCommands,
-                _appRoot.Services.PortfolioIdentities));
+                _appRoot.Services.PortfolioIdentities,
+                _appRoot.Services.PortfolioPolicyCommands,
+                _appRoot.Services.ReferenceQueries));
     }
 
     private void marketViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)

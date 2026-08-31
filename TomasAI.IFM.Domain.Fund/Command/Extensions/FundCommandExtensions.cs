@@ -19,17 +19,13 @@ public static class FundCommandExtensions
         /// Gets the Fund database-context factory exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IDbContextFactory DbFactory
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.DbFactory,
-                nameof(context))!;
+            => GetContext(context).DbFactory;
 
         /// <summary>
         /// Gets the blackboard service exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IBlackboardService BlackboardService
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.BlackboardService,
-                nameof(context))!;
+            => GetContext(context).BlackboardService;
 
         /// <summary>
         /// Gets the logger exposed by the underlying <see cref="IFundCommandContext"/>.
@@ -39,48 +35,39 @@ public static class FundCommandExtensions
         /// <see langword="null"/> logger.
         /// </exception>
         public ILogger<FundCommandActor> Logger
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.Logger,
-                nameof(context))!;
+            => GetContext(context).Logger;
 
         /// <summary>
         /// Gets the event-source database context exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IEventSourceActorDbContext DbEventSource
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.DbEventSource,
-                nameof(context))!;
+            => GetContext(context).DbEventSource;
 
         /// <summary>
         /// Gets the durable replay queue exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IDurableReplayQueue DurableReplayQueue
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.DurableReplayQueue,
-                nameof(context))!;
+            => GetContext(context).DurableReplayQueue;
 
         /// <summary>
         /// Gets the actor-state factory exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IEventSourceActorStateFactory StateFactory
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.StateFactory,
-                nameof(context))!;
+            => GetContext(context).StateFactory;
 
         /// <summary>
         /// Gets the actor service exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IActorService ActorService
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.ActorService,
-                nameof(context))!;
+            => GetContext(context).ActorService;
 
         /// <summary>
         /// Gets the Fund event projector exposed by the underlying <see cref="IFundCommandContext"/>.
         /// </summary>
         public IEventProjector<FundCommandActor> EventProjector
-            => IsArgumentNull.Set(
-                (context as IFundCommandContext)?.EventProjector,
-                nameof(context))!;
+            => GetContext(context).EventProjector;
     }
+
+    static IFundCommandContext GetContext(ICommandActorContext<FundCommandActor> context)
+        => IsArgumentNull.Set(context as IFundCommandContext, nameof(context))!;
 }

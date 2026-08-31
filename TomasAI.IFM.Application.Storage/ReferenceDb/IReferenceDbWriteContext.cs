@@ -27,4 +27,5 @@ public interface IReferenceDbWriteContext
     Task UpdateScheduledJobAsync(ScheduledJobReadModel scheduledJob);
     Task UpdateLookupTypeAsync(LookupTypeId id, LookupTypeReadModel e);
     Task UpdateMDIForwardLossRatioAsync(MDIForwardLossRatioReadModel mdiForwardLossRatio);
+    Task InsertTradeStrategyFamilyAsync(TradeStrategyFamilyReadModel family, CancellationToken cancellationToken = default);
 }

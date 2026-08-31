@@ -26,5 +26,7 @@ namespace TomasAI.IFM.Domain.Reference.Shared.ServiceApi
         Task<ServiceResult<FuturesOptionStrikePriceReadModel>> GetFuturesOptionStrikePriceDefinitionsAsync();
         Task<ServiceResult<ScalarReadModel<bool>>> LookupTypeShortCodeExistsAsync(string lookupTypeName, string shortCode);
         Task<ServiceResult<MDIForwardLossRatioReadModel[]>> GetMDIForwardLossRatiosAsync(IntrinsicTimeTrendType trendDirection, TradeType tradeType);
+        Task<ServiceResult<TradeStrategyFamilyReadModel[]>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException("TradeStrategyFamily queries are not implemented by this legacy adapter.");
     }
 }

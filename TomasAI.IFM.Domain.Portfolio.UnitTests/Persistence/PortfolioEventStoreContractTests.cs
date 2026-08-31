@@ -25,7 +25,7 @@ public sealed class PortfolioEventStoreContractTests
         var now = DateTime.SpecifyKind(DateTime.Parse("2026-08-29T16:00:00"), DateTimeKind.Utc);
         IEvent domainEvent = new PortfolioCreated(Guid.NewGuid(), Guid.NewGuid(), 1, now, "unit", new PortfolioReadModel
         {
-            PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "unit"
         });
 

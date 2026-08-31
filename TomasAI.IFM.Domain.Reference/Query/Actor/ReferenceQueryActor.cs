@@ -57,6 +57,7 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
         [GetDefaultFuturesContractDefinitionsQuery.Verb] = msg => msg.AsQuery<GetDefaultFuturesContractDefinitionsQuery, DefaultFuturesContractDefinitionsReadModel>()!,
         [GetFuturesOptionStrikePriceDefinitionsQuery.Verb] = msg => msg.AsQuery<GetFuturesOptionStrikePriceDefinitionsQuery, FuturesOptionStrikePriceReadModel>()!,
         [GetMDIForwardLossRatiosQuery.Verb] = msg => msg.AsQuery<GetMDIForwardLossRatiosQuery, MDIForwardLossRatioReadModel[]>()!
+        ,[GetTradeStrategyFamiliesQuery.Verb] = msg => msg.AsQuery<GetTradeStrategyFamiliesQuery, TradeStrategyFamilyReadModel[]>()!
     };
 
     /// <summary>
@@ -127,7 +128,13 @@ public class ReferenceQueryActor(IQueryActorContext<ReferenceQueryActor> actorCo
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetMDIForwardLossRatiosQuery.Verb,
                 new ServiceResult<MDIForwardLossRatioReadModel[]>(result));
-        }
+        },
+        [typeof(GetTradeStrategyFamiliesQuery)] = async (ctx, q, cancellationToken) =>
+        {
+            var result = await ctx.GetTradeStrategyFamiliesAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetTradeStrategyFamiliesQuery.Verb, result);
+        },
     };
 
     /// <summary>

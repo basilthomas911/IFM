@@ -55,6 +55,9 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         ["GetFundOrderTradesPage"] = x => x.AsQuery<PortfolioQuery<GetOrderTradesRequest, PortfolioPage<FundOrderTradeProjectionReadModel>>, PortfolioPage<FundOrderTradeProjectionReadModel>>()!,
         ["GetPortfolioFundStrategyReferenceCombinations"] = x => x.AsQuery<PortfolioQuery<GetStrategyReferenceCombinationsRequest, PortfolioFundStrategyReferenceCombination[]>, PortfolioFundStrategyReferenceCombination[]>()!,
         ["AllocatePortfolioBusinessId"] = x => x.AsQuery<PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation>, PortfolioBusinessIdAllocation>()!,
+        ["GetPortfolioFinancialPolicy"] = x => x.AsQuery<PortfolioQuery<GetPolicyRequest, PortfolioFinancialPolicyReadModel>, PortfolioFinancialPolicyReadModel>()!,
+        ["GetPortfolioFinancialPolicies"] = x => x.AsQuery<PortfolioQuery<GetPoliciesRequest, PortfolioPage<PortfolioFinancialPolicyReadModel>>, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
+        ["GetActivePortfolioFinancialPolicy"] = x => x.AsQuery<PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel>, PortfolioFinancialPolicyReadModel>()!,
     };
 
     protected override ValueTask ReceiveAsync(IQueryActorContext<PortfolioQueryActor> context, IQuery query) =>
@@ -98,6 +101,12 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
                 await Reply(context, q, await _service.GetStrategyReferenceCombinationsAsync(q.Parameters.PortfolioId, q.Parameters.AsOfUtc, cancellationToken)); break;
             case PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation> q:
                 await Reply(context, q, await AllocateAsync(q, cancellationToken)); break;
+            case PortfolioQuery<GetPolicyRequest, PortfolioFinancialPolicyReadModel> q:
+                await Reply(context, q, await _service.GetPolicyAsync(q.Parameters.PolicyId, q.Parameters.PolicyVersion, cancellationToken)); break;
+            case PortfolioQuery<GetPoliciesRequest, PortfolioPage<PortfolioFinancialPolicyReadModel>> q:
+                await Reply(context, q, await _service.GetPoliciesAsync(q.Parameters.PortfolioId, q.Parameters.PageSize, cancellationToken)); break;
+            case PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel> q:
+                await Reply(context, q, await _service.GetActivePolicyAsync(q.Parameters.PortfolioId, cancellationToken)); break;
             default: throw new InvalidOperationException($"Unsupported Portfolio query {query.GetType().Name}.");
         }
     }
@@ -112,6 +121,7 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
             PortfolioBusinessIdentityKind.Fund => await RequireContext(Context).IdentityAllocator.AllocateFundIdAsync(cancellationToken).ConfigureAwait(false),
             PortfolioBusinessIdentityKind.Order => await RequireContext(Context).IdentityAllocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false),
             PortfolioBusinessIdentityKind.Trade => await RequireContext(Context).IdentityAllocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false),
+            PortfolioBusinessIdentityKind.Policy => await RequireContext(Context).IdentityAllocator.AllocatePolicyIdAsync(cancellationToken).ConfigureAwait(false),
             _ => throw new ArgumentOutOfRangeException(nameof(query), "A supported business identity kind is required."),
         };
         return new ServiceOk<PortfolioBusinessIdAllocation>(new()

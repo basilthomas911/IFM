@@ -33,12 +33,11 @@ public sealed class PortfolioRealProjectionIntegrationTests(
         var created = aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
         {
             PortfolioId = value,
-            PortfolioCode = $"P{value}",
             Name = "Projection rebuild",
             PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft,
-            PolicyId = Guid.NewGuid(),
-            PolicyVersion = 1,
+            ActivePolicyId = 9001,
+            ActivePolicyVersion = 1,
             EffectiveFromUtc = now,
             CreatedOnUtc = now,
             CreatedBy = "integration",
@@ -67,19 +66,22 @@ public sealed class PortfolioRealProjectionIntegrationTests(
 
     [Fact]
     [Trait("Gate", "PF-09")]
+    [Trait("Gate", "PF-25")]
     [Trait("Category", "Portfolio")]
     public async Task Representative_authority_catalog_rebuilds_from_empty_Scylla_with_identical_query_hash()
     {
         var value = Math.Abs(Guid.NewGuid().GetHashCode()) + 100_000;
         var portfolioId = new PortfolioId(value);
         var fundId = new PortfolioFundId(value, value + 1);
+        var policyId = new PortfolioFinancialPolicyId(value, value + 10);
         var now = new DateTime(2026, 8, 30, 13, 0, 0, DateTimeKind.Utc);
         var workflowId = Guid.NewGuid();
-        var portfolio = new PortfolioReadModel { PortfolioId = value, PortfolioCode = $"P{value}", Name = "Representative", PortfolioVersion = 1, OperatingState = PortfolioOperatingState.Active, PolicyId = Guid.NewGuid(), PolicyVersion = 1, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "rebuild" };
+        var portfolio = new PortfolioReadModel { PortfolioId = value, Name = "Representative", PortfolioVersion = 1, OperatingState = PortfolioOperatingState.Active, ActivePolicyId = policyId.PolicyId, ActivePolicyVersion = 1, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "rebuild" };
+        var policy = new PortfolioFinancialPolicyReadModel { PortfolioId = value, PolicyId = policyId.PolicyId, PolicyVersion = 1, Name = "Representative limits", OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD", CapitalBase = 1_000_000, MaximumDeployableCapital = 900_000, MaximumRiskPerTrade = 10_000, MaximumAggregateRisk = 100_000, MaximumMargin = 500_000, MaximumGrossNotional = 5_000_000, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000, TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000, MaximumAggregateRisk = 50_000, MaximumMargin = 250_000, MaximumGrossNotional = 2_500_000, MaximumOpenPositions = 50 }], EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "rebuild" };
         var fund = new FundMandateReadModel { PortfolioId = value, FundId = value + 1, FundCode = $"F{value}", Name = "Daily", FundMandateVersion = 1, TradingYear = 2026, OperatingState = FundOperatingState.Active, EffectiveFromUtc = now, DecisionHorizon = "Daily", Objective = "Directional", UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"], PermittedTradeFamilies = ["Futures"], CreatedOnUtc = now, CreatedBy = "rebuild" };
         var assignment = new FundTradeTemplateAssignmentReadModel { PortfolioId = value, PortfolioVersion = 1, FundId = value + 1, FundMandateVersion = 1, AssignmentVersion = 1, TradeTemplateId = Guid.NewGuid(), TradeTemplateVersion = 1, Enabled = true, DecisionHorizon = "Daily", UnderlyingUniverse = ["ES"], AssetType = "Futures", TradeFamily = "Futures", Priority = 1, EffectiveFromUtc = now, TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = Guid.NewGuid(), OrderCompositionProfileVersion = 1, CreatedOnUtc = now, CreatedBy = "rebuild" };
-        var allocation = new FundAllocationReadModel { PortfolioId = value, PortfolioVersion = 1, FundId = value + 1, FundMandateVersion = 1, AllocationVersion = 1, TargetWeight = .5m, MaximumWeight = 1, AllocatedCapital = 100000, Currency = "USD", EffectiveFromUtc = now, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "rebuild" };
-        var envelope = new FundRiskEnvelopeReadModel { PortfolioId = value, PortfolioVersion = 1, FundId = value + 1, FundMandateVersion = 1, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, Currency = "USD", AllocatedCapital = 100000, AvailableCapital = 90000, MaximumRiskPerTrade = 1000, MaximumAggregateRisk = 5000, MaximumMargin = 50000, MaximumGrossNotional = 500000, MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000, EffectiveFromUtc = now, ExpiresAtUtc = now.AddDays(30), SourcePolicyId = portfolio.PolicyId, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "rebuild" };
+        var allocation = new FundAllocationReadModel { PortfolioId = value, PortfolioVersion = 1, FundId = value + 1, FundMandateVersion = 1, AllocationVersion = 1, TargetWeight = .5m, MaximumWeight = 1, AllocatedCapital = 100000, Currency = "USD", EffectiveFromUtc = now, SourcePolicyId = policyId.PolicyId, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "rebuild" };
+        var envelope = new FundRiskEnvelopeReadModel { PortfolioId = value, PortfolioVersion = 1, FundId = value + 1, FundMandateVersion = 1, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, Currency = "USD", AllocatedCapital = 100000, AvailableCapital = 90000, MaximumRiskPerTrade = 1000, MaximumAggregateRisk = 5000, MaximumMargin = 50000, MaximumGrossNotional = 500000, MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000, EffectiveFromUtc = now, ExpiresAtUtc = now.AddDays(30), SourcePolicyId = policyId.PolicyId, SourcePolicyVersion = 1, CreatedOnUtc = now, CreatedBy = "rebuild" };
         var idempotency = Guid.NewGuid();
         var reservation = new FundCompositionReservationResult
         {
@@ -103,27 +105,33 @@ public sealed class PortfolioRealProjectionIntegrationTests(
         ];
         for (var index = 0; index < portfolioHistory.Length; index++) await store.AppendPortfolioAsync(portfolioId, portfolioHistory[index], index);
         for (var index = 0; index < fundHistory.Length; index++) await store.AppendFundAsync(fundId, fundHistory[index], index);
+        var policyAggregate = new PortfolioFinancialPolicyAggregate();
+        var policyCreated = policyAggregate.Create(Guid.NewGuid(), Guid.NewGuid(), policy, now, "rebuild");
+        await store.AppendPolicyAsync(policyId, policyCreated, 0);
+        var policyActivated = policyAggregate.Activate(Guid.NewGuid(), 1, 1, now.AddSeconds(1), "rebuild");
+        await store.AppendPolicyAsync(policyId, policyActivated, 1);
         var rebuilder = new PortfolioProjectionRebuilder(store, projections.Db);
-        var request = new PortfolioProjectionRebuildRequest([portfolioId], [fundId]);
+        var request = new PortfolioProjectionRebuildRequest([portfolioId], [fundId], [policyId]);
 
         await projections.ResetAsync();
         var firstReport = await rebuilder.RebuildAsync(request);
-        var firstHash = await CatalogHashAsync(projections.Db, portfolio, fund, reservation);
+        var firstHash = await CatalogHashAsync(projections.Db, portfolio, policy, fund, reservation);
         await projections.ResetAsync();
         var secondReport = await rebuilder.RebuildAsync(request);
-        var secondHash = await CatalogHashAsync(projections.Db, portfolio, fund, reservation);
+        var secondHash = await CatalogHashAsync(projections.Db, portfolio, policy, fund, reservation);
 
         firstReport.Should().BeEquivalentTo(secondReport);
-        firstReport.EventCount.Should().Be(7);
+        firstReport.EventCount.Should().Be(9);
         firstHash.Should().Be(secondHash);
     }
 
-    static async Task<string> CatalogHashAsync(PortfolioDbContext db, PortfolioReadModel portfolio, FundMandateReadModel fund, FundCompositionReservationResult reservation)
+    static async Task<string> CatalogHashAsync(PortfolioDbContext db, PortfolioReadModel portfolio, PortfolioFinancialPolicyReadModel policy, FundMandateReadModel fund, FundCompositionReservationResult reservation)
     {
         object?[] catalog =
         [
             await db.GetPortfolioAsync(portfolio.PortfolioId),
             await db.GetPortfoliosByStateAsync(portfolio.OperatingState, PortfolioProjectionHandler.StateBucket(portfolio.PortfolioId), 0, 100),
+            await db.GetPolicyAsync(policy.PolicyId, policy.PolicyVersion), await db.GetPoliciesAsync(portfolio.PortfolioId, 100), await db.GetActivePolicyAsync(portfolio.PortfolioId),
             await db.GetFundAsync(fund.FundId), await db.GetFundsByPortfolioAsync(portfolio.PortfolioId, 0, 100),
             await db.GetActiveFundsAsync(portfolio.PortfolioId, fund.TradingYear, fund.DecisionHorizon, fund.EffectiveFromUtc.AddSeconds(1), 100),
             await db.GetAssignmentsAsync(portfolio.PortfolioId, fund.FundId, fund.FundMandateVersion, 100),

@@ -17,6 +17,7 @@ public sealed class PortfolioAggregate
     public long Revision { get; private set; }
     public IReadOnlySet<int> FundIds => _fundIds;
     public bool Exists => Current is not null;
+    public bool IsDeleted { get; private set; }
     public IReadOnlyList<FundAllocationReadModel> Allocations(int fundId) => _allocations.GetValueOrDefault(fundId) ?? [];
     public IReadOnlyList<FundRiskEnvelopeReadModel> RiskEnvelopes(int fundId) => _envelopes.GetValueOrDefault(fundId) ?? [];
 
@@ -37,7 +38,6 @@ public sealed class PortfolioAggregate
         ValidateCommand(commandId, nowUtc, principal);
         if (Current!.OperatingState == PortfolioOperatingState.Retired) throw new InvalidOperationException("A retired Portfolio cannot be versioned.");
         if (replacement.PortfolioId != Current.PortfolioId) throw new ArgumentException("PortfolioId cannot change.", nameof(replacement));
-        if (replacement.PortfolioCode != Current.PortfolioCode) throw new ArgumentException("PortfolioCode cannot change.", nameof(replacement));
         if (replacement.PortfolioVersion != Current.PortfolioVersion + 1) throw new ArgumentException("PortfolioVersion must increment by one.", nameof(replacement));
         if (replacement.OperatingState != Current.OperatingState
             && !CanTransition(Current.OperatingState, replacement.OperatingState, Current.OperatingState == PortfolioOperatingState.Disabled))
@@ -55,6 +55,17 @@ public sealed class PortfolioAggregate
             throw new InvalidOperationException($"Portfolio transition {Current.OperatingState} -> {state} is not allowed.");
         if (state == PortfolioOperatingState.Active) ThrowIfInvalid((Current with { OperatingState = state }).Validate());
         return ApplyAndReturn(new PortfolioOperatingStateChanged(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, state, reason.Trim()));
+    }
+
+    public PortfolioDomainEvent AssignFinancialPolicy(Guid commandId, long expectedRevision, PortfolioFinancialPolicyReadModel policy, DateTime nowUtc, string principal)
+    {
+        RequireCurrent(expectedRevision);
+        ValidateCommand(commandId, nowUtc, principal);
+        ArgumentNullException.ThrowIfNull(policy);
+        if (policy.PortfolioId != Current!.PortfolioId || policy.OperatingState != PortfolioFinancialPolicyState.Active)
+            throw new InvalidOperationException("Portfolio can only select its own Active financial policy.");
+        ThrowIfInvalid(policy.Validate(forActivation: true));
+        return ApplyAndReturn(new PortfolioFinancialPolicyAssigned(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, policy.PolicyId, policy.PolicyVersion));
     }
 
     public PortfolioDomainEvent AddFund(Guid commandId, long expectedRevision, PortfolioFundId fundId, DateTime nowUtc, string principal)
@@ -75,6 +86,16 @@ public sealed class PortfolioAggregate
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         if (Current!.OperatingState == PortfolioOperatingState.Retired) throw new InvalidOperationException("Portfolio is already retired.");
         return ApplyAndReturn(new PortfolioRetired(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reason.Trim()));
+    }
+
+    public PortfolioDomainEvent DeleteDraft(Guid commandId, long expectedRevision, string reason, DateTime nowUtc, string principal)
+    {
+        RequireCurrent(expectedRevision);
+        ValidateCommand(commandId, nowUtc, principal);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (Current!.OperatingState != PortfolioOperatingState.Draft)
+            throw new InvalidOperationException("Only a Draft Portfolio can be deleted.");
+        return ApplyAndReturn(new DraftPortfolioDeleted(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reason.Trim()));
     }
 
     public PortfolioDomainEvent DelegateAllocation(Guid commandId, long expectedRevision, FundAllocationReadModel allocation, DateTime nowUtc, string principal)
@@ -115,6 +136,7 @@ public sealed class PortfolioAggregate
     public PortfolioAggregateSnapshot CaptureSnapshot()
     {
         if (Current is null) throw new InvalidOperationException("A missing Portfolio cannot be snapshotted.");
+        if (IsDeleted) throw new InvalidOperationException("A deleted Portfolio cannot be snapshotted.");
         return new PortfolioAggregateSnapshot(
             Revision,
             Current.DefensiveCopy(),
@@ -169,6 +191,7 @@ public sealed class PortfolioAggregate
     void Apply(PortfolioDomainEvent domainEvent, bool isReplay)
     {
         if (domainEvent.Revision != Revision + 1) throw new InvalidOperationException("Portfolio event revision is not contiguous.");
+        if (IsDeleted) throw new InvalidOperationException("Portfolio event history cannot continue after Draft deletion.");
         if (!_commandIds.Add(domainEvent.CommandId))
         {
             if (isReplay) throw new InvalidOperationException("Duplicate command in Portfolio history.");
@@ -186,11 +209,26 @@ public sealed class PortfolioAggregate
             case PortfolioOperatingStateChanged changed:
                 Current = Current! with { OperatingState = changed.State };
                 break;
+            case PortfolioFinancialPolicyAssigned assigned:
+                Current = Current! with
+                {
+                    PortfolioVersion = Current.PortfolioVersion + 1,
+                    ActivePolicyId = assigned.PolicyId,
+                    ActivePolicyVersion = assigned.PolicyVersion,
+                    CreatedOnUtc = assigned.OccurredOnUtc,
+                    CreatedBy = assigned.Principal,
+                };
+                break;
             case FundAddedToPortfolio fundAdded:
                 if (!_fundIds.Add(fundAdded.FundId.FundId)) throw new InvalidOperationException("Fund membership event is duplicated.");
                 break;
             case PortfolioRetired:
                 Current = Current! with { OperatingState = PortfolioOperatingState.Retired };
+                break;
+            case DraftPortfolioDeleted:
+                if (Current is null || Current.OperatingState != PortfolioOperatingState.Draft)
+                    throw new InvalidOperationException("Only a Draft Portfolio can apply a deletion tombstone.");
+                IsDeleted = true;
                 break;
             case FundAllocationDelegated delegated:
                 if (!_allocations.TryGetValue(delegated.Allocation.FundId, out var allocations)) _allocations[delegated.Allocation.FundId] = allocations = [];
@@ -209,6 +247,7 @@ public sealed class PortfolioAggregate
     void RequireCurrent(long expectedRevision)
     {
         if (Current is null) throw new InvalidOperationException("Portfolio does not exist.");
+        if (IsDeleted) throw new InvalidOperationException("Portfolio draft was deleted.");
         if (expectedRevision != Revision) throw new InvalidOperationException($"Expected revision {expectedRevision}, current revision is {Revision}.");
     }
 

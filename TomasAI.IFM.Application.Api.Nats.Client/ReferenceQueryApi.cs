@@ -15,6 +15,14 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class ReferenceQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IReferenceQueryApi
 {
+    public async Task<ServiceResult<TradeStrategyFamilyReadModel[]>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default)
+    {
+        GetTradeStrategyFamiliesQuery query = new()
+        {
+            Subject = new ActorSubject(ActorType.Query, GetTradeStrategyFamiliesQuery.Actor, GetTradeStrategyFamiliesQuery.Verb, ActorEntityId.Default.Format()),
+        };
+        return await RequestAsync<GetTradeStrategyFamiliesQuery, TradeStrategyFamilyReadModel[]>(query.Subject, query, cancellationToken);
+    }
     /// <summary>
     /// Returns default futures contract definitions.
     /// </summary>

@@ -81,6 +81,14 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
         UpdateSelectorAccessibility();
         await CloseActiveControlAsync();
         pnlMarketData.Controls.Clear();
+        if (string.Equals(ddlReferenceDataSelector.SelectedItem?.ToString(), "Trade Strategy Families", StringComparison.Ordinal))
+        {
+            var catalog = new TradeStrategyFamilyReferenceView(_appRoot.Services.ReferenceQueries) { Dock = DockStyle.Fill };
+            pnlMarketData.Controls.Add(catalog);
+            await catalog.LoadAsync();
+            btnAdd.Enabled = btnChange.Enabled = btnRemove.Enabled = btnImport.Enabled = false;
+            return;
+        }
         var mktDataDefType = _viewModel?.GetReferenceDataDefinitionType(ddlReferenceDataSelector.SelectedIndex);
         if (mktDataDefType is not null && _controlMap.ContainsKey(mktDataDefType.ShortCode))
         {
@@ -174,6 +182,7 @@ public partial class ReferenceForm : Form, IForm<ReferenceForm>, IFormControl
 
         foreach (var definitionType in _viewModel.ReferenceDataDefinitionTypes)
             ddlReferenceDataSelector.Items.Add(definitionType.Description);
+        ddlReferenceDataSelector.Items.Add("Trade Strategy Families");
         ddlReferenceDataSelector.AccessibleDescription = string.Join(", ",
             _viewModel.ReferenceDataDefinitionTypes.Select(definition => definition.Description));
 

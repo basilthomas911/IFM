@@ -21,13 +21,14 @@ public sealed record FundAllocationReadModel
     [Key(12)] public long SourcePolicyVersion { get; init; }
     [Key(13)] public DateTime CreatedOnUtc { get; init; }
     [Key(14)] public string CreatedBy { get; init; } = string.Empty;
-    [Key(15)] public int SchemaVersion { get; init; } = 1;
+    [Key(15)] public int SchemaVersion { get; init; } = 2;
+    [Key(16)] public int SourcePolicyId { get; init; }
 
     public IReadOnlyList<string> Validate()
     {
         List<string> errors = [];
         if (PortfolioId <= 0 || PortfolioVersion <= 0 || FundId <= 0 || FundMandateVersion <= 0) errors.Add("Positive Portfolio/Fund identities and versions are required.");
-        if (AllocationVersion <= 0 || SourcePolicyVersion <= 0) errors.Add("Positive allocation and policy versions are required.");
+        if (AllocationVersion <= 0 || SourcePolicyId <= 0 || SourcePolicyVersion <= 0) errors.Add("Positive allocation and policy identities/versions are required.");
         if (MinimumWeight < 0 || TargetWeight < MinimumWeight || MaximumWeight < TargetWeight || MaximumWeight > 1) errors.Add("Allocation weights must satisfy 0 <= minimum <= target <= maximum <= 1.");
         if (AllocatedCapital < 0) errors.Add("AllocatedCapital cannot be negative.");
         if (string.IsNullOrWhiteSpace(Currency)) errors.Add("Currency is required.");
@@ -64,11 +65,11 @@ public sealed record FundRiskEnvelopeReadModel
     [Key(20)] public decimal RemainingLossBudget { get; init; }
     [Key(21)] public DateTime EffectiveFromUtc { get; init; }
     [Key(22)] public DateTime ExpiresAtUtc { get; init; }
-    [Key(23)] public Guid SourcePolicyId { get; init; }
+    [Key(23)] public int SourcePolicyId { get; init; }
     [Key(24)] public long SourcePolicyVersion { get; init; }
     [Key(25)] public DateTime CreatedOnUtc { get; init; }
     [Key(26)] public string CreatedBy { get; init; } = string.Empty;
-    [Key(27)] public int SchemaVersion { get; init; } = 1;
+    [Key(27)] public int SchemaVersion { get; init; } = 2;
 
     public IReadOnlyList<string> Validate()
     {
@@ -81,7 +82,7 @@ public sealed record FundRiskEnvelopeReadModel
         if (MaximumRiskPerTrade < 0 || MaximumAggregateRisk < MaximumRiskPerTrade || MaximumMargin < 0 || MaximumGrossNotional < 0) errors.Add("Risk/margin/notional limits are invalid.");
         if (MaximumContracts < 0 || MaximumOpenPositions < 0 || RemainingLossBudget < 0) errors.Add("Capacity counts/loss budget cannot be negative.");
         if (EffectiveFromUtc.Kind != DateTimeKind.Utc || ExpiresAtUtc.Kind != DateTimeKind.Utc || ExpiresAtUtc <= EffectiveFromUtc) errors.Add("Envelope effective/expiry times must be ordered UTC values.");
-        if (SourcePolicyId == Guid.Empty || SourcePolicyVersion <= 0) errors.Add("A versioned source policy is required.");
+        if (SourcePolicyId <= 0 || SourcePolicyVersion <= 0) errors.Add("A versioned source policy is required.");
         if (CreatedOnUtc.Kind != DateTimeKind.Utc || string.IsNullOrWhiteSpace(CreatedBy)) errors.Add("UTC audit provenance is required.");
         return errors;
     }

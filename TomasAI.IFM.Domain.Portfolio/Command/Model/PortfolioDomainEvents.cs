@@ -41,12 +41,22 @@ public sealed record PortfolioOperatingStateChanged(
     PortfolioOperatingState State, string Reason)
     : PortfolioDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
 
+public sealed record PortfolioFinancialPolicyAssigned(
+    Guid Id, Guid CommandId, long Revision, DateTime OccurredOnUtc, string Principal,
+    int PolicyId, long PolicyVersion)
+    : PortfolioDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
+
 public sealed record FundAddedToPortfolio(
     Guid Id, Guid CommandId, long Revision, DateTime OccurredOnUtc, string Principal,
     PortfolioFundId FundId)
     : PortfolioDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
 
 public sealed record PortfolioRetired(
+    Guid Id, Guid CommandId, long Revision, DateTime OccurredOnUtc, string Principal, string Reason)
+    : PortfolioDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
+
+/// <summary>Audited tombstone for a never-activated Portfolio draft. Business IDs remain consumed.</summary>
+public sealed record DraftPortfolioDeleted(
     Guid Id, Guid CommandId, long Revision, DateTime OccurredOnUtc, string Principal, string Reason)
     : PortfolioDomainEvent(Id, CommandId, Revision, OccurredOnUtc, Principal);
 

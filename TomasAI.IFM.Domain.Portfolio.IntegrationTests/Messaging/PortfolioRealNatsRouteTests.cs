@@ -54,7 +54,7 @@ public sealed class PortfolioRealNatsRouteTests
             var expectedCorrelation = Guid.ParseExact(activity.TraceId.ToHexString(), "N");
             var api = new PortfolioCommandApi(producer);
             var result = await api.CreatePortfolioAsync(
-                new PortfolioReadModel { PortfolioId = portfolioId, PortfolioCode = $"P{portfolioId}", Name = "NATS route" },
+                new PortfolioReadModel { PortfolioId = portfolioId, Name = "NATS route" },
                 Guid.NewGuid(),
                 timeout.Token);
             var command = await captured.Task.WaitAsync(timeout.Token);

@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using TomasAI.IFM.UI.Net.Contracts;
+using TomasAI.IFM.UI.Net.Views.Portfolio;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
@@ -21,7 +23,8 @@ public sealed class StartupCompositionTests
     public async Task Configure_VerifiesTypedUiServices_WithoutGenericModelResolution()
     {
         Exception? failure = null;
-        object? navigator = null;
+        IViewNavigator? navigator = null;
+        string? resolvedPortfolioFormName = null;
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
@@ -36,6 +39,8 @@ public sealed class StartupCompositionTests
                     })
                     .Build();
                 navigator = global::TomasAI.IFM.UI.Net.Startup.Configure(configuration);
+                using var portfolioForm = navigator.CreateView<PortfolioAdministrationForm>();
+                resolvedPortfolioFormName = portfolioForm.Name;
             }
             catch (Exception exception)
             {
@@ -54,6 +59,7 @@ public sealed class StartupCompositionTests
         {
             failure.Should().BeNull();
             navigator.Should().NotBeNull();
+            resolvedPortfolioFormName.Should().Be("PortfolioAdministrationForm");
         }
         finally
         {

@@ -59,6 +59,13 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
     public Task<ServiceResult<PortfolioFundStrategyReferenceCombination[]>> GetStrategyReferenceCombinationsAsync(int portfolioId, DateTime asOfUtc, CancellationToken cancellationToken = default) =>
         Send<GetStrategyReferenceCombinationsRequest, PortfolioFundStrategyReferenceCombination[]>("GetPortfolioFundStrategyReferenceCombinations", portfolioId.ToString(), new(portfolioId, asOfUtc), cancellationToken);
 
+    public Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) =>
+        Send<GetPolicyRequest, PortfolioFinancialPolicyReadModel>("GetPortfolioFinancialPolicy", policyId.ToString(), new(policyId, policyVersion), cancellationToken);
+    public Task<ServiceResult<PortfolioPage<PortfolioFinancialPolicyReadModel>>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default) =>
+        Send<GetPoliciesRequest, PortfolioPage<PortfolioFinancialPolicyReadModel>>("GetPortfolioFinancialPolicies", portfolioId.ToString(), new(portfolioId, pageSize), cancellationToken);
+    public Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) =>
+        Send<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel>("GetActivePortfolioFinancialPolicy", portfolioId.ToString(), new(portfolioId), cancellationToken);
+
     async Task<ServiceResult<TResult>> Send<TParameters, TResult>(string verb, string entityKey, TParameters parameters, CancellationToken cancellationToken)
         where TResult : class
     {

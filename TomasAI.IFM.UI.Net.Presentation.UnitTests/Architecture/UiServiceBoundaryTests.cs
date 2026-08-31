@@ -27,7 +27,7 @@ public sealed class UiServiceBoundaryTests
         "MarketData/FuturesTradeSignalUIViewModel.cs", "MarketData/FuturesTradeStatusUIViewModel.cs",
         "MarketData/YieldCurveRateEditorViewModel.cs",
         "Operations/FuturesItiSignalEventRow.cs", "Trade/EndOfDayProcessViewModel.cs",
-        "Portfolio/PortfolioAdministrationViewModel.cs", "Portfolio/PortfolioCompositionViewModel.cs",
+        "Portfolio/PortfolioAdministrationViewModel.cs",
         "Trade/FundOrderEditorViewModel.cs", "Trade/IronCondor/IronCondorTradeInfoViewModel.cs",
         "Trade/IronCondor/IronCondorTradeOrderViewModel.cs",
         "Trade/IronCondor/IronCondorViewModel.cs", "Trade/TradeOrderConfirmationViewModel.cs",

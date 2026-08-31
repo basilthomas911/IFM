@@ -72,6 +72,25 @@ public sealed class PortfolioNatsClientTests
         producer.Query.Should().BeNull();
     }
 
+    [Fact]
+    [Trait("Gate", "PF-03")]
+    [Trait("Gate", "PF-10")]
+    [Trait("Category", "Portfolio")]
+    public async Task Draft_deletion_client_uses_typed_NATS_verb_revision_and_reason()
+    {
+        var producer = new CapturingProducer();
+        var api = new PortfolioCommandApi(producer);
+
+        var result = await api.DeleteDraftPortfolioAsync(new PortfolioId(101), 7, "duplicate");
+
+        result.Success.Should().BeTrue();
+        producer.Subject.Name.Should().Be(PortfolioCommandSubjects.PortfolioActor);
+        producer.Subject.Verb.Should().Be("DeleteDraftPortfolio");
+        var command = producer.Query.Should().BeOfType<PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId>>().Subject;
+        command.EntityId.Should().Be(new PortfolioId(101));
+        command.Payload.Should().Be(new DeleteDraftPortfolioPayload(7, "duplicate"));
+    }
+
     sealed class CapturingProducer : IActorProducer
     {
         public ActorSubject Subject { get; private set; }
@@ -84,11 +103,19 @@ public sealed class PortfolioNatsClientTests
             object result = typeof(TResult) == typeof(PortfolioReadModel) ? new PortfolioReadModel { PortfolioId = 101, PortfolioVersion = 2 } : Activator.CreateInstance<TResult>();
             return ValueTask.FromResult<ServiceResult<TResult>>(new ServiceOk<TResult>((TResult)result));
         }
-        public ValueTask<ServiceResult<TResult>> RequestAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId) where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class => throw new NotSupportedException();
-        public ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId, CancellationToken cancellationToken = default) where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class => throw new NotSupportedException();
+        public ValueTask<ServiceResult<TResult>> RequestAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId) where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class => CaptureCommand<TCommand, TEntityId, TResult>(subject, command);
+        public ValueTask<ServiceResult<TResult>> RequestFunctionAsync<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command, TEntityId entityId, CancellationToken cancellationToken = default) where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class => CaptureCommand<TCommand, TEntityId, TResult>(subject, command);
         public ValueTask SendAsync<TCommand, TEntityId>(ActorSubject subject, TCommand command, TEntityId entityId) where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId => throw new NotSupportedException();
         public ValueTask SendAsync<TEvent, TEntityId>(ActorSubject subject, TEvent @event) where TEvent : class, IEvent<TEntityId> where TEntityId : IActorEntityId => throw new NotSupportedException();
         public ValueTask StartAsync(ActorMailboxId mailboxId) => ValueTask.CompletedTask;
         public ValueTask StopAsync() => ValueTask.CompletedTask;
+
+        ValueTask<ServiceResult<TResult>> CaptureCommand<TCommand, TEntityId, TResult>(ActorSubject subject, TCommand command)
+            where TCommand : class, ICommand<TEntityId> where TEntityId : IActorEntityId where TResult : class
+        {
+            Subject = subject; Query = command;
+            object value = typeof(TResult) == typeof(GuidResult) ? new GuidResult(command.CommandId) : Activator.CreateInstance<TResult>();
+            return ValueTask.FromResult<ServiceResult<TResult>>(new ServiceOk<TResult>((TResult)value));
+        }
     }
 }

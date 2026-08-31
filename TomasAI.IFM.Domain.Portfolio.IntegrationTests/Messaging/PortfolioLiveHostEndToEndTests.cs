@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -19,6 +20,34 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Messaging;
 /// <summary>Explicit live-host qualification. It is excluded from the default Portfolio filter because it requires the API host.</summary>
 public sealed class PortfolioLiveHostEndToEndTests
 {
+    [Fact]
+    [Trait("Gate", "PF-22")]
+    [Trait("Gate", "PF-26")]
+    [Trait("Category", "PortfolioLiveHostReference")]
+    public async Task Production_Reference_actor_returns_the_exact_read_only_v1_family_catalog()
+    {
+        var url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var producer = new NatsActorProducer(new NatsProducerOptions { Url = url }, Substitute.For<ILogger<NatsActorProducer>>());
+        await producer.StartAsync(new ActorMailboxId(ActorType.Query, $"PortfolioReferenceTest{Guid.NewGuid():N}"), timeout.Token);
+        try
+        {
+            var result = await new ReferenceQueryApi(producer).GetTradeStrategyFamiliesAsync(timeout.Token);
+
+            result.Success.Should().BeTrue(result.ErrorMessage);
+            result.Value.Should().NotBeNull();
+            result.Value!.Select(x => (x.SystemKey, x.Name, x.DefinitionVersion, x.State)).Should().Equal(
+                ("FUTURES", "Futures", 1L, TradeStrategyFamilyState.Active),
+                ("VERTICAL_SPREAD", "Vertical Spread", 1L, TradeStrategyFamilyState.Active),
+                ("IRON_CONDOR", "Iron Condor", 1L, TradeStrategyFamilyState.Active));
+            result.Value.Should().OnlyContain(x => x.TradeStrategyFamilyId > 0);
+        }
+        finally
+        {
+            await producer.StopAsync(timeout.Token);
+        }
+    }
+
     [Fact]
     [Trait("Gate", "PF-02")]
     [Trait("Gate", "PF-10")]
@@ -36,13 +65,14 @@ public sealed class PortfolioLiveHostEndToEndTests
             {
                 await identities.AllocatePortfolioIdAsync(timeout.Token),
                 await identities.AllocateFundIdAsync(timeout.Token),
+                await identities.AllocatePolicyIdAsync(timeout.Token),
                 await identities.AllocateOrderIdAsync(timeout.Token),
                 await identities.AllocateTradeIdAsync(timeout.Token),
             };
 
             allocations.Should().OnlyContain(x => x.Success, string.Join("; ", allocations.Select(x => x.ErrorMessage)));
             allocations.Select(x => x.Value!.Kind).Should().Equal(
-                PortfolioBusinessIdentityKind.Portfolio, PortfolioBusinessIdentityKind.Fund,
+                PortfolioBusinessIdentityKind.Portfolio, PortfolioBusinessIdentityKind.Fund, PortfolioBusinessIdentityKind.Policy,
                 PortfolioBusinessIdentityKind.Order, PortfolioBusinessIdentityKind.Trade);
             allocations.Should().OnlyContain(x => x.Value!.Value > 0 && x.Value.CorrelationId != Guid.Empty);
         }
@@ -63,6 +93,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Gate", "PF-13")]
     [Trait("Gate", "PF-14")]
     [Trait("Gate", "PF-15")]
+    [Trait("Gate", "PF-28")]
     [Trait("Category", "PortfolioLiveHostPipeline")]
     public async Task Production_NATS_actors_execute_configuration_resolution_reservation_composition_and_risk()
     {
@@ -78,7 +109,9 @@ public sealed class PortfolioLiveHostEndToEndTests
                 ? configuredWorkflow
                 : Guid.NewGuid();
             var now = DateTime.UtcNow;
-            var policyId = Guid.NewGuid();
+            var policyAllocation = await new PortfolioIdentityApi(producer).AllocatePolicyIdAsync(timeout.Token);
+            policyAllocation.Success.Should().BeTrue(policyAllocation.ErrorMessage);
+            var policyId = policyAllocation.Value!.Value;
             var templateId = Guid.NewGuid();
             var hintProfileId = Guid.NewGuid();
             var compositionProfileId = Guid.NewGuid();
@@ -86,15 +119,22 @@ public sealed class PortfolioLiveHostEndToEndTests
             var portfolio = new PortfolioReadModel
             {
                 PortfolioId = portfolioId,
-                PortfolioCode = $"PF{portfolioId}",
                 Name = "Live pipeline qualification",
                 PortfolioVersion = 1,
                 OperatingState = PortfolioOperatingState.Draft,
-                PolicyId = policyId,
-                PolicyVersion = 1,
                 EffectiveFromUtc = now.AddMinutes(-1),
                 CreatedOnUtc = now,
                 CreatedBy = "portfolio-live-pipeline-test",
+            };
+            var policy = new PortfolioFinancialPolicyReadModel
+            {
+                PortfolioId = portfolioId, PolicyId = policyId, PolicyVersion = 1, Name = "Live pipeline limits",
+                OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD", CapitalBase = 1_000_000m,
+                MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m,
+                MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100,
+                MaximumDrawdownAmount = 200_000m,
+                TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 5_000m, MaximumAggregateRisk = 50_000m, MaximumMargin = 250_000m, MaximumGrossNotional = 2_500_000m, MaximumOpenPositions = 50 }],
+                EffectiveFromUtc = now.AddMinutes(-1), CreatedOnUtc = now, CreatedBy = "portfolio-live-pipeline-test"
             };
             var mandate = new FundMandateReadModel
             {
@@ -119,7 +159,7 @@ public sealed class PortfolioLiveHostEndToEndTests
             var assignment = new FundTradeTemplateAssignmentReadModel
             {
                 PortfolioId = portfolioId,
-                PortfolioVersion = 1,
+                PortfolioVersion = 2,
                 FundId = fundId,
                 FundMandateVersion = 1,
                 AssignmentVersion = 1,
@@ -142,7 +182,7 @@ public sealed class PortfolioLiveHostEndToEndTests
             var allocation = new FundAllocationReadModel
             {
                 PortfolioId = portfolioId,
-                PortfolioVersion = 1,
+                PortfolioVersion = 2,
                 FundId = fundId,
                 FundMandateVersion = 1,
                 AllocationVersion = 1,
@@ -151,6 +191,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 AllocatedCapital = 100_000m,
                 Currency = "USD",
                 EffectiveFromUtc = now.AddMinutes(-1),
+                SourcePolicyId = policyId,
                 SourcePolicyVersion = 1,
                 CreatedOnUtc = now,
                 CreatedBy = "portfolio-live-pipeline-test",
@@ -158,7 +199,7 @@ public sealed class PortfolioLiveHostEndToEndTests
             var envelope = new FundRiskEnvelopeReadModel
             {
                 PortfolioId = portfolioId,
-                PortfolioVersion = 1,
+                PortfolioVersion = 2,
                 FundId = fundId,
                 FundMandateVersion = 1,
                 EnvelopeId = envelopeId,
@@ -182,6 +223,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 CreatedBy = "portfolio-live-pipeline-test",
             };
             var portfolioCommands = new PortfolioCommandApi(producer);
+            var policyCommands = new PortfolioFinancialPolicyCommandApi(producer);
             var queries = new PortfolioQueryApi(producer);
             var fundCommands = new PortfolioFundCommandApi(producer, queries);
 
@@ -191,10 +233,12 @@ public sealed class PortfolioLiveHostEndToEndTests
             var portfolioConflict = await portfolioCommands.CreatePortfolioAsync(portfolio with { Name = "Conflicting replay" }, portfolioCreateKey, timeout.Token);
             portfolioConflict.Success.Should().BeFalse();
             portfolioConflict.ErrorCode.Should().Be(PortfolioErrorCodes.IdempotencyConflict, portfolioConflict.ErrorMessage);
-            await RequireSuccess(portfolioCommands.AddFundAsync(new(portfolioId, fundId), 1, timeout.Token));
-            await RequireSuccess(portfolioCommands.DelegateAllocationAsync(allocation, 2, timeout.Token));
-            await RequireSuccess(portfolioCommands.DelegateRiskEnvelopeAsync(envelope, 3, timeout.Token));
-            await RequireSuccess(portfolioCommands.ChangePortfolioStateAsync(new(portfolioId), 4, PortfolioOperatingState.Active, "live pipeline", timeout.Token));
+            await RequireSuccess(policyCommands.CreatePolicyAsync(policy, Guid.NewGuid(), timeout.Token));
+            await RequireSuccess(policyCommands.ActivateAndAssignAsync(new(portfolioId, policyId), 1, 1, 1, timeout.Token));
+            await RequireSuccess(portfolioCommands.AddFundAsync(new(portfolioId, fundId), 2, timeout.Token));
+            await RequireSuccess(portfolioCommands.DelegateAllocationAsync(allocation, 3, timeout.Token));
+            await RequireSuccess(portfolioCommands.DelegateRiskEnvelopeAsync(envelope, 4, timeout.Token));
+            await RequireSuccess(portfolioCommands.ChangePortfolioStateAsync(new(portfolioId), 5, PortfolioOperatingState.Active, "live pipeline", timeout.Token));
             var fundCreateKey = Guid.NewGuid();
             await RequireSuccess(fundCommands.CreateFundMandateAsync(mandate, fundCreateKey, timeout.Token));
             await RequireSuccess(fundCommands.CreateFundMandateAsync(mandate, fundCreateKey, timeout.Token));
@@ -204,11 +248,37 @@ public sealed class PortfolioLiveHostEndToEndTests
             await RequireSuccess(fundCommands.AssignTradeTemplateAsync(assignment, 1, timeout.Token));
             await RequireSuccess(fundCommands.ChangeFundStateAsync(new(portfolioId, fundId), 2, FundOperatingState.Active, "configuration complete", timeout.Token));
 
+            var manualRequest = new CreateManualFundOrderRequest
+            {
+                PortfolioId = portfolioId,
+                PortfolioVersion = 2,
+                FundId = fundId,
+                FundMandateVersion = 1,
+                UnderlyingRoot = "ES",
+                RequestedTradeDate = DateOnly.FromDateTime(now),
+                RequestedMaturityDate = DateOnly.FromDateTime(now.AddMonths(1)),
+                Reference = "live manual Portfolio draft",
+                IdempotencyKey = Guid.NewGuid(),
+                RequestedAtUtc = now.AddSeconds(-1),
+                ExpiresAtUtc = now.AddMinutes(5),
+            };
+            var manual = await fundCommands.CreateManualOrderAsync(manualRequest, timeout.Token);
+            manual.Success.Should().BeTrue(manual.ErrorMessage);
+            manual.Value!.Order.OrderId.Should().BePositive();
+            manual.Value.Order.Origin.Should().Be(CompositionOrigin.ManualUi);
+            manual.Value.Order.Status.Should().Be(FundCompositionState.Draft.ToString());
+            manual.Value.Trades.Should().BeEmpty();
+            var manualReplay = await fundCommands.CreateManualOrderAsync(manualRequest, timeout.Token);
+            manualReplay.Success.Should().BeTrue(manualReplay.ErrorMessage);
+            manualReplay.Value!.Order.OrderId.Should().Be(manual.Value.Order.OrderId);
+            manualReplay.Value.Disposition.Should().Be(ReservationDisposition.IdempotentReplay);
+
             var snapshot = await WaitForSnapshotAsync(queries, portfolioId, now.Year, workflowId, timeout.Token);
             snapshot.Portfolio.PortfolioId.Should().Be(portfolioId);
             snapshot.Fund.FundId.Should().Be(fundId);
             snapshot.Assignments.Should().ContainSingle(x => x.TradeTemplateId == templateId);
             snapshot.RiskEnvelope.EnvelopeId.Should().Be(envelopeId);
+            snapshot.FinancialPolicy.PolicyId.Should().Be(policyId);
 
             var request = new ReserveFundOrderCompositionRequest
             {
@@ -218,7 +288,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 TradeSelectionResultId = Guid.NewGuid(),
                 TradeSelectionResultSha256 = new string('a', 64),
                 PortfolioId = portfolioId,
-                PortfolioVersion = 1,
+                PortfolioVersion = 2,
                 FundId = fundId,
                 FundMandateVersion = 1,
                 TradeTemplateId = templateId,
@@ -302,7 +372,7 @@ public sealed class PortfolioLiveHostEndToEndTests
                 .LoadFundAsync(new(portfolioId, fundId), timeout.Token);
             authority.Current!.OperatingState.Should().Be(FundOperatingState.Active);
             authority.Orders.Should().ContainSingle(x => x.OrderId == reservation.Order.OrderId && x.Status == FundCompositionState.RiskApproved.ToString());
-            authority.Revision.Should().Be(7);
+            authority.Revision.Should().Be(8, "the manual draft and automated composition transitions share the Fund authority stream");
         }
         finally
         {
@@ -329,12 +399,11 @@ public sealed class PortfolioLiveHostEndToEndTests
             var model = new PortfolioReadModel
             {
                 PortfolioId = portfolioId,
-                PortfolioCode = $"PF{portfolioId}",
                 Name = "Live host qualification",
                 PortfolioVersion = 1,
                 OperatingState = PortfolioOperatingState.Draft,
-                PolicyId = Guid.NewGuid(),
-                PolicyVersion = 1,
+                ActivePolicyId = 9001,
+                ActivePolicyVersion = 1,
                 EffectiveFromUtc = now,
                 CreatedOnUtc = now,
                 CreatedBy = "portfolio-live-host-test",

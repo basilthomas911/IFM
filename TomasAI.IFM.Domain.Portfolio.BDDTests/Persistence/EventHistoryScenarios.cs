@@ -18,7 +18,7 @@ public sealed class EventHistoryScenarios
         var source = new PortfolioAggregate();
         var created = source.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+            PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
             CreatedOnUtc = now, CreatedBy = "bdd"
         }, now, "bdd");
@@ -46,7 +46,7 @@ public sealed class EventHistoryScenarios
         var source = new PortfolioAggregate();
         var first = source.Create(Guid.NewGuid(), new PortfolioReadModel
         {
-            PortfolioId = 102, PortfolioCode = "ALT", Name = "Alternative", PortfolioVersion = 1,
+            PortfolioId = 102, Name = "Alternative", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "bdd"
         }, now, "bdd");
         var snapshot = source.CaptureSnapshot();

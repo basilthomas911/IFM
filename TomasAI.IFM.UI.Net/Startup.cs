@@ -150,6 +150,7 @@ namespace TomasAI.IFM.UI.Net
         {
             _container!.RegisterSingleton<IApplicationCommandApi, ApplicationCommandApi>();
             _container!.RegisterSingleton<IPortfolioCommandApi, PortfolioCommandApi>();
+            _container!.RegisterSingleton<IPortfolioFinancialPolicyCommandApi, PortfolioFinancialPolicyCommandApi>();
             _container!.RegisterSingleton<IPortfolioFundCommandApi, PortfolioFundCommandApi>();
             _container!.RegisterSingleton<IDatabaseBackupCommandApi, DatabaseBackupCommandApi>();
             _container!.RegisterSingleton<ITradeCommandApi, OptionTradeCommandApi>();

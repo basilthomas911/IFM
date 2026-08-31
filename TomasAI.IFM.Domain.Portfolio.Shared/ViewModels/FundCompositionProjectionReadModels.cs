@@ -1,4 +1,5 @@
 using MessagePack;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 
 namespace TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
@@ -29,6 +30,8 @@ public sealed record FundOrderProjectionReadModel
     [Key(21)] public string StopReason { get; init; } = string.Empty;
     [Key(22)] public Guid IdempotencyKey { get; init; }
     [Key(23)] public string CanonicalRequestHash { get; init; } = string.Empty;
+    [Key(24)] public CompositionOrigin Origin { get; init; }
+    [Key(25)] public string OperatorReference { get; init; } = string.Empty;
 }
 
 [MessagePackObject(AllowPrivate = true)]

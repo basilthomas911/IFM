@@ -88,6 +88,7 @@ public sealed class PortfolioQueryService(IPortfolioDbReadContext db, PortfolioF
         try
         {
             var portfolio = await _db.GetPortfolioAsync(Positive(portfolioId), cancellationToken).ConfigureAwait(false) ?? throw new PortfolioResolutionException("PortfolioMissing", "Portfolio was not found.");
+            var financialPolicy = await _db.GetActivePolicyAsync(portfolioId, cancellationToken).ConfigureAwait(false) ?? throw new PortfolioResolutionException("FinancialPolicyMissing", "The Portfolio has no projected Active financial policy.");
             var funds = await _db.GetActiveFundsAsync(portfolioId, tradingYear, decisionHorizon, asOfUtc, 2, cancellationToken).ConfigureAwait(false);
             var eligible = funds.Where(x => x.UnderlyingUniverse.Contains(underlyingRoot, StringComparer.OrdinalIgnoreCase) && x.EligibleAssetTypes.Contains(assetType, StringComparer.OrdinalIgnoreCase)).ToArray();
             if (eligible.Length == 0) throw new PortfolioResolutionException("ActiveFundMissing", "No matching active Fund was found.");
@@ -95,7 +96,7 @@ public sealed class PortfolioQueryService(IPortfolioDbReadContext db, PortfolioF
             var allocation = await _db.GetCurrentAllocationAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
             var envelope = await _db.GetCurrentRiskEnvelopeAsync(portfolioId, fund.FundId, cancellationToken).ConfigureAwait(false);
             var assignments = await _db.GetAssignmentsAsync(portfolioId, fund.FundId, fund.FundMandateVersion, 200, cancellationToken).ConfigureAwait(false);
-            return new ServiceOk<PortfolioFundStrategySnapshot>(_resolver.Resolve(workflowId, workflowRevision, correlationId, portfolio, eligible, allocation is null ? [] : [allocation], envelope is null ? [] : [envelope], assignments, tradingYear, decisionHorizon, underlyingRoot, assetType, asOfUtc));
+            return new ServiceOk<PortfolioFundStrategySnapshot>(_resolver.Resolve(workflowId, workflowRevision, correlationId, portfolio, financialPolicy, eligible, allocation is null ? [] : [allocation], envelope is null ? [] : [envelope], assignments, tradingYear, decisionHorizon, underlyingRoot, assetType, asOfUtc));
         }
         catch (PortfolioResolutionException ex)
         {
@@ -155,6 +156,22 @@ public sealed class PortfolioQueryService(IPortfolioDbReadContext db, PortfolioF
             });
         return new ServiceOk<PortfolioFundStrategyReferenceCombination[]>([.. rows]);
     }
+
+    public async Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) =>
+        await _db.GetPolicyAsync(Positive(policyId), policyVersion, cancellationToken).ConfigureAwait(false) is { } value
+            ? new ServiceOk<PortfolioFinancialPolicyReadModel>(value)
+            : NotFound<PortfolioFinancialPolicyReadModel>("Financial policy/version was not found.");
+
+    public async Task<ServiceResult<PortfolioPage<PortfolioFinancialPolicyReadModel>>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var items = await _db.GetPoliciesAsync(Positive(portfolioId), Page(pageSize), cancellationToken).ConfigureAwait(false);
+        return new ServiceOk<PortfolioPage<PortfolioFinancialPolicyReadModel>>(new() { Items = [.. items], PageSize = pageSize });
+    }
+
+    public async Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) =>
+        await _db.GetActivePolicyAsync(Positive(portfolioId), cancellationToken).ConfigureAwait(false) is { } value
+            ? new ServiceOk<PortfolioFinancialPolicyReadModel>(value)
+            : NotFound<PortfolioFinancialPolicyReadModel>("Active financial policy was not found.");
 
     static ServiceFailed<T> NotFound<T>(string message) => new(PortfolioErrorCodes.NotFound, message);
     static ServiceFailed<T> Invalid<T>(string message) => new(PortfolioErrorCodes.ValidationFailed, message);

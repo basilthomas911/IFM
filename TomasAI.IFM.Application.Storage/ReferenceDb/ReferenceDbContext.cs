@@ -76,6 +76,17 @@ public class ReferenceDbContext(
             lookupTypeName: e.GetString(0)
         );
 
+    static TradeStrategyFamilyReadModel MapToTradeStrategyFamily(IObjectDataRecord e) => new()
+    {
+        TradeStrategyFamilyId = e.GetInt(0),
+        DefinitionVersion = e.GetLong(1),
+        SystemKey = e.GetString(2),
+        Name = e.GetString(3),
+        State = e.GetEnum<TradeStrategyFamilyState>(4),
+        CreatedOnUtc = e.GetDateTime(5),
+        CreatedBy = e.GetString(6),
+    };
+
     static ScheduledJobReadModel MapToScheduledJob<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
         => new(
             jobId: e.GetInt(0),
@@ -1934,6 +1945,27 @@ public class ReferenceDbContext(
             sourceJobs.Except(projectedJobs).LongCount(),
             projectedJobs.Except(sourceJobs).LongCount(),
             tokenlessScheduledJobReservations);
+    }
+
+    public async Task<IReadOnlyList<TradeStrategyFamilyReadModel>> GetTradeStrategyFamiliesAsync(CancellationToken cancellationToken = default) =>
+        [.. (await _dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.GetTradeStrategyFamilies)}", ReferenceDbCql.GetTradeStrategyFamilies)
+            .SetParameters(new GetTradeStrategyFamilies("V1"))
+            .ExecuteQueryAsync(MapToTradeStrategyFamily, cancellationToken)).OrderBy(x => x.TradeStrategyFamilyId).ThenBy(x => x.DefinitionVersion)];
+
+    public async Task<TradeStrategyFamilyReadModel?> GetTradeStrategyFamilyAsync(int tradeStrategyFamilyId, long definitionVersion, CancellationToken cancellationToken = default) =>
+        (await GetTradeStrategyFamiliesAsync(cancellationToken).ConfigureAwait(false))
+            .SingleOrDefault(x => x.TradeStrategyFamilyId == tradeStrategyFamilyId && x.DefinitionVersion == definitionVersion);
+
+    public async Task InsertTradeStrategyFamilyAsync(TradeStrategyFamilyReadModel family, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(family);
+        var errors = family.Validate();
+        if (errors.Count != 0) throw new ArgumentException(string.Join("; ", errors), nameof(family));
+        await _dbFactory.ReferenceDb
+            .Use($"{nameof(ReferenceDbCql)}.{nameof(ReferenceDbCql.InsertTradeStrategyFamily)}", ReferenceDbCql.InsertTradeStrategyFamily)
+            .SetParameters(new InsertTradeStrategyFamily("V1", family.TradeStrategyFamilyId, family.DefinitionVersion, family.SystemKey, family.Name, family.State.ToString(), family.CreatedOnUtc, family.CreatedBy))
+            .ExecuteCommandAsync(cancellationToken);
     }
 
  }

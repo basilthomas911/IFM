@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -17,7 +19,6 @@ public interface ICommandActorContext
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId;
-
     ValueTask SendAsync<TEvent, TEntityId>(TEvent @event, CancellationToken cancellationToken)
         where TEvent : class, IEvent<TEntityId>
         where TEntityId : IActorEntityId
@@ -29,11 +30,7 @@ public interface ICommandActorContext
     ActorMessageInfo? GetMessageInfo(ActorThreadId threadId, string verb);
 }
 
-/// <summary>
-/// Provides a command actor context that is associated with a specific actor type.
-/// </summary>
-/// <typeparam name="TActor">The command actor type associated with the context.</typeparam>
 public interface ICommandActorContext<TActor> : ICommandActorContext
-    where TActor : IActor
+where TActor : IActor
 {
 }

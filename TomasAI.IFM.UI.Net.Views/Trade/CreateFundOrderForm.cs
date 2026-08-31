@@ -101,7 +101,7 @@ public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFo
 
     void RenderObservableState()
     {
-        txtOrderId.Text = _viewModel.OrderId > 0 ? $"{_viewModel.OrderId}" : string.Empty;
+        txtOrderId.Text = _viewModel.OrderId > 0 ? $"{_viewModel.OrderId}" : "Allocated on Save";
         txtReference.Text = _viewModel.Reference;
         RenderSelectedBaseContract();
         RenderOperationState();
@@ -159,7 +159,7 @@ public partial class CreateFundOrderForm : Form, IForm<CreateFundOrderForm>, IFo
         if (!_viewModel.CanSave)
         {
             this.ShowErrorMessage(
-                "A generated order ID, base contract, and valid date range are required.",
+                "A base contract and valid date range are required. The Portfolio authority allocates the Order ID on save.",
                 "New Fund Order Error");
             return;
         }

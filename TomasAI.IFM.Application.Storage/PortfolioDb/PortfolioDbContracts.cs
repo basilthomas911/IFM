@@ -17,6 +17,9 @@ public sealed record PortfolioProjection<T>(T Value, int SchemaVersion, long Agg
 }
 
 public sealed record PortfolioProjectionRevision(int PortfolioId, int? FundId, long AggregateRevision, long SourceEventId);
+public sealed record DraftFundProjectionDeletion(int FundId, long[] MandateVersions);
+public sealed record DraftPortfolioProjectionDeletion(int PortfolioId, int StateBucket, DraftFundProjectionDeletion[] Funds, long SourceEventId);
+public sealed record DraftPolicyProjectionDeletion(int PortfolioId, int PolicyId, long SourceEventId);
 
 public interface IPortfolioDbReadContext
 {
@@ -35,6 +38,9 @@ public interface IPortfolioDbReadContext
     Task<IReadOnlyList<FundOrderTradeProjectionReadModel>> GetOrderTradesAsync(int orderId, int pageSize, CancellationToken cancellationToken = default);
     Task<FundOrderTradeProjectionReadModel?> GetTradeAsync(int tradeId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>> GetCompositionsAsync(Guid workflowId, int pageSize, CancellationToken cancellationToken = default);
+    Task<PortfolioFinancialPolicyReadModel?> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFinancialPolicyReadModel?>(null);
+    Task<IReadOnlyList<PortfolioFinancialPolicyReadModel>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<PortfolioFinancialPolicyReadModel>>([]);
+    Task<PortfolioFinancialPolicyReadModel?> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFinancialPolicyReadModel?>(null);
 }
 
 public interface IPortfolioDbWriteContext
@@ -47,6 +53,9 @@ public interface IPortfolioDbWriteContext
     Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> row, DateOnly orderMonth, CancellationToken cancellationToken = default);
     Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> row, CancellationToken cancellationToken = default);
     Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> row, CancellationToken cancellationToken = default);
+    Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken cancellationToken = default);
+    Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> row, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 public interface IPortfolioDbContext : IPortfolioDbReadContext, IPortfolioDbWriteContext, TomasAI.IFM.Framework.Storage.IObjectRepository<PortfolioDbContext>;

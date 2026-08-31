@@ -166,6 +166,22 @@ public sealed class PortfolioFundAggregate
         return CommitAlreadyApplied(new FundCompositionReserved(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation));
     }
 
+    public PortfolioFundDomainEvent CreateManualOrder(
+        Guid commandId, CreateManualFundOrderRequest request, int orderId, DateTime nowUtc, string principal)
+    {
+        RequireCurrent(Revision);
+        ValidateCommand(commandId, nowUtc, principal);
+        if (Current!.OperatingState != FundOperatingState.Active)
+            throw new InvalidOperationException("Only an active Fund can create a manual order draft.");
+        if (request.PortfolioId != Current.PortfolioId || request.FundId != Current.FundId ||
+            request.FundMandateVersion != Current.FundMandateVersion)
+            throw new ArgumentException("Manual draft parent identity/version does not match the Fund.", nameof(request));
+        var reservation = _compositions.CreateManualDraft(request, orderId, nowUtc, principal);
+        if (reservation.Disposition == ReservationDisposition.IdempotentReplay)
+            throw new InvalidOperationException("An idempotent manual draft must be returned from committed-command lookup.");
+        return CommitAlreadyApplied(new FundCompositionReserved(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, reservation));
+    }
+
     public PortfolioFundDomainEvent MarkCompositionComposing(Guid commandId, long expectedRevision, int orderId, long expectedOrderVersion, DateTime nowUtc, string principal) =>
         ChangeComposition(commandId, expectedRevision, nowUtc, principal, () => _compositions.MarkComposing(orderId, expectedOrderVersion));
 

@@ -16,6 +16,7 @@ public sealed class PortfolioFundStrategyResolver
         long workflowRevision,
         Guid correlationId,
         PortfolioReadModel portfolio,
+        PortfolioFinancialPolicyReadModel financialPolicy,
         IEnumerable<FundMandateReadModel> funds,
         IEnumerable<FundAllocationReadModel> allocations,
         IEnumerable<FundRiskEnvelopeReadModel> envelopes,
@@ -27,6 +28,7 @@ public sealed class PortfolioFundStrategyResolver
         DateTime asOfUtc)
     {
         ArgumentNullException.ThrowIfNull(portfolio);
+        ArgumentNullException.ThrowIfNull(financialPolicy);
         ArgumentNullException.ThrowIfNull(funds);
         ArgumentNullException.ThrowIfNull(allocations);
         ArgumentNullException.ThrowIfNull(envelopes);
@@ -41,6 +43,13 @@ public sealed class PortfolioFundStrategyResolver
 
         if (portfolio.OperatingState != PortfolioOperatingState.Active || !IsEffective(portfolio.EffectiveFromUtc, portfolio.EffectiveUntilUtc, asOfUtc))
             throw new PortfolioResolutionException("PortfolioNotActive", "The Portfolio is not active and effective at the requested time.");
+        if (financialPolicy.PortfolioId != portfolio.PortfolioId
+            || financialPolicy.PolicyId != portfolio.ActivePolicyId
+            || financialPolicy.PolicyVersion != portfolio.ActivePolicyVersion
+            || financialPolicy.OperatingState != PortfolioFinancialPolicyState.Active)
+            throw new PortfolioResolutionException("FinancialPolicyMismatch", "The exact Active Portfolio financial policy was not resolved.");
+        if (financialPolicy.Validate(forActivation: true).Count != 0 || !IsEffective(financialPolicy.EffectiveFromUtc, financialPolicy.EffectiveUntilUtc, asOfUtc))
+            throw new PortfolioResolutionException("FinancialPolicyInvalid", "The selected financial policy is invalid or not effective.");
 
         var matches = funds
             .Where(x => x.PortfolioId == portfolio.PortfolioId
@@ -100,6 +109,7 @@ public sealed class PortfolioFundStrategyResolver
             fund.EffectiveUntilUtc ?? DateTime.MaxValue,
             allocation.EffectiveUntilUtc ?? DateTime.MaxValue,
             envelope.ExpiresAtUtc,
+            financialPolicy.EffectiveUntilUtc ?? DateTime.MaxValue,
             compatibleAssignments.Min(x => x.EffectiveUntilUtc ?? DateTime.MaxValue),
         }.Min();
 
@@ -109,6 +119,7 @@ public sealed class PortfolioFundStrategyResolver
             WorkflowRevision = workflowRevision,
             CorrelationId = correlationId == Guid.Empty ? workflowId : correlationId,
             Portfolio = portfolio.DefensiveCopy(),
+            FinancialPolicy = financialPolicy.DefensiveCopy(),
             Fund = fund.DefensiveCopy(),
             Allocation = allocation,
             RiskEnvelope = envelope,

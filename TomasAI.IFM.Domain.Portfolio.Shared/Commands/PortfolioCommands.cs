@@ -12,6 +12,7 @@ public static class PortfolioCommandSubjects
 {
     public const string PortfolioActor = "PortfolioCommand";
     public const string FundActor = "PortfolioFundCommand";
+    public const string PolicyActor = "PortfolioFinancialPolicyCommand";
 }
 
 public interface IPortfolioRequestMetadata
@@ -45,12 +46,19 @@ public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>
 [MessagePackObject] public sealed record DelegateAllocationPayload([property: Key(0)] FundAllocationReadModel Allocation, [property: Key(1)] long ExpectedPortfolioVersion);
 [MessagePackObject] public sealed record DelegateRiskEnvelopePayload([property: Key(0)] FundRiskEnvelopeReadModel Envelope, [property: Key(1)] long ExpectedPortfolioVersion);
 [MessagePackObject] public sealed record RetirePortfolioPayload([property: Key(0)] long ExpectedVersion, [property: Key(1)] string Reason);
+[MessagePackObject] public sealed record DeleteDraftPortfolioPayload([property: Key(0)] long ExpectedVersion, [property: Key(1)] string Reason);
 [MessagePackObject] public sealed record CreateFundMandatePayload([property: Key(0)] FundMandateReadModel Mandate, [property: Key(1)] Guid IdempotencyKey);
 [MessagePackObject] public sealed record AddFundMandateVersionPayload([property: Key(0)] FundMandateReadModel Mandate, [property: Key(1)] long ExpectedVersion);
 [MessagePackObject] public sealed record ChangeFundStatePayload([property: Key(0)] long ExpectedVersion, [property: Key(1)] FundOperatingState State, [property: Key(2)] string Reason);
 [MessagePackObject] public sealed record AssignTradeTemplatePayload([property: Key(0)] FundTradeTemplateAssignmentReadModel Assignment, [property: Key(1)] long ExpectedVersion);
 [MessagePackObject] public sealed record ReserveCompositionPayload([property: Key(0)] ReserveFundOrderCompositionRequest Request, [property: Key(1)] PortfolioFundStrategySnapshot Snapshot);
+[MessagePackObject] public sealed record CreateManualFundOrderPayload([property: Key(0)] CreateManualFundOrderRequest Request);
 [MessagePackObject] public sealed record MarkComposingPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] Guid InvocationId);
 [MessagePackObject] public sealed record RecordComposedPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] OrderCompositionResultReference Result);
 [MessagePackObject] public sealed record RecordRiskOutcomePayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] RiskManagementResultReference Result);
 [MessagePackObject] public sealed record StopCompositionPayload([property: Key(0)] PortfolioFundOrderId OrderId, [property: Key(1)] long ExpectedVersion, [property: Key(2)] string Reason);
+[MessagePackObject] public sealed record CreatePortfolioFinancialPolicyPayload([property: Key(0)] PortfolioFinancialPolicyReadModel Policy, [property: Key(1)] Guid IdempotencyKey);
+[MessagePackObject] public sealed record AddPortfolioFinancialPolicyVersionPayload([property: Key(0)] PortfolioFinancialPolicyReadModel Policy, [property: Key(1)] long ExpectedVersion);
+[MessagePackObject] public sealed record ActivateAndAssignPortfolioFinancialPolicyPayload([property: Key(0)] long PolicyVersion, [property: Key(1)] long ExpectedPolicyRevision, [property: Key(2)] long ExpectedPortfolioRevision);
+[MessagePackObject] public sealed record RetirePortfolioFinancialPolicyPayload([property: Key(0)] long PolicyVersion, [property: Key(1)] long ExpectedRevision, [property: Key(2)] string Reason);
+[MessagePackObject] public sealed record DeleteDraftPortfolioFinancialPolicyPayload([property: Key(0)] long ExpectedRevision, [property: Key(1)] string Reason);

@@ -68,17 +68,19 @@ public sealed class PortfolioQueryServiceTests
         public FundAllocationReadModel Allocation { get; init; } = new();
         public FundRiskEnvelopeReadModel Envelope { get; set; } = new();
         public FundTradeTemplateAssignmentReadModel Assignment { get; init; } = new();
+        public PortfolioFinancialPolicyReadModel Policy { get; init; } = new();
 
         public static ProjectionCatalog Valid()
         {
             var db = new ProjectionCatalog();
-            var policy = Guid.NewGuid();
+            const int policyId = 9001;
             return new ProjectionCatalog
             {
-                Portfolio = new() { PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 2, OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = db.Now.AddDays(-2), PolicyId = policy, PolicyVersion = 1, CreatedOnUtc = db.Now.AddDays(-2), CreatedBy = "admin" },
+                Portfolio = new() { PortfolioId = 101, Name = "Core", PortfolioVersion = 2, OperatingState = PortfolioOperatingState.Active, EffectiveFromUtc = db.Now.AddDays(-2), ActivePolicyId = policyId, ActivePolicyVersion = 1, CreatedOnUtc = db.Now.AddDays(-2), CreatedBy = "admin" },
+                Policy = new() { PortfolioId = 101, PolicyId = policyId, PolicyVersion = 1, Name = "Core limits", OperatingState = PortfolioFinancialPolicyState.Active, CapitalBase = 1_000_000m, MaximumDeployableCapital = 900_000m, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100, MaximumDrawdownAmount = 200_000m, TradeFamilyLimits = [new() { TradeStrategyFamilyId = 1, DefinitionVersion = 1, Enabled = true, MaximumRiskPerTrade = 10_000m, MaximumAggregateRisk = 100_000m, MaximumMargin = 500_000m, MaximumGrossNotional = 5_000_000m, MaximumOpenPositions = 100 }], EffectiveFromUtc = db.Now.AddDays(-2), CreatedOnUtc = db.Now.AddDays(-2), CreatedBy = "admin" },
                 Fund = new() { PortfolioId = 101, FundId = 201, FundCode = "DAILY", Name = "Daily", FundMandateVersion = 3, TradingYear = 2026, OperatingState = FundOperatingState.Active, EffectiveFromUtc = db.Now.AddDays(-1), DecisionHorizon = "Daily", Objective = "ES", UnderlyingUniverse = ["ES"], EligibleAssetTypes = ["Futures"], PermittedTradeFamilies = ["DirectionalFuture"], CreatedOnUtc = db.Now.AddDays(-1), CreatedBy = "admin" },
-                Allocation = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 201, FundMandateVersion = 3, AllocationVersion = 1, TargetWeight = .2m, MaximumWeight = .4m, AllocatedCapital = 100000, EffectiveFromUtc = db.Now.AddHours(-2), SourcePolicyVersion = 1, CreatedOnUtc = db.Now.AddHours(-2), CreatedBy = "admin" },
-                Envelope = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 201, FundMandateVersion = 3, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, AllocatedCapital = 100000, AvailableCapital = 90000, MaximumRiskPerTrade = 1000, MaximumAggregateRisk = 5000, MaximumMargin = 20000, MaximumGrossNotional = 200000, MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000, EffectiveFromUtc = db.Now.AddHours(-1), ExpiresAtUtc = db.Now.AddHours(1), SourcePolicyId = policy, SourcePolicyVersion = 1, CreatedOnUtc = db.Now.AddHours(-1), CreatedBy = "admin" },
+                Allocation = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 201, FundMandateVersion = 3, AllocationVersion = 1, TargetWeight = .2m, MaximumWeight = .4m, AllocatedCapital = 100000, EffectiveFromUtc = db.Now.AddHours(-2), SourcePolicyId = policyId, SourcePolicyVersion = 1, CreatedOnUtc = db.Now.AddHours(-2), CreatedBy = "admin" },
+                Envelope = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 201, FundMandateVersion = 3, EnvelopeId = Guid.NewGuid(), EnvelopeVersion = 1, CapacityState = FundCapacityState.Available, AllocatedCapital = 100000, AvailableCapital = 90000, MaximumRiskPerTrade = 1000, MaximumAggregateRisk = 5000, MaximumMargin = 20000, MaximumGrossNotional = 200000, MaximumContracts = 10, MaximumOpenPositions = 5, RemainingLossBudget = 10000, EffectiveFromUtc = db.Now.AddHours(-1), ExpiresAtUtc = db.Now.AddHours(1), SourcePolicyId = policyId, SourcePolicyVersion = 1, CreatedOnUtc = db.Now.AddHours(-1), CreatedBy = "admin" },
                 Assignment = new() { PortfolioId = 101, PortfolioVersion = 2, FundId = 201, FundMandateVersion = 3, AssignmentVersion = 1, TradeTemplateId = Guid.NewGuid(), TradeTemplateVersion = 1, Enabled = true, DecisionHorizon = "Daily", UnderlyingUniverse = ["ES"], AssetType = "Futures", TradeFamily = "DirectionalFuture", Priority = 1, EffectiveFromUtc = db.Now.AddHours(-1), TradeSelectionHintProfileId = Guid.NewGuid(), TradeSelectionHintProfileVersion = 1, OrderCompositionProfileId = Guid.NewGuid(), OrderCompositionProfileVersion = 1, CreatedOnUtc = db.Now.AddHours(-1), CreatedBy = "admin" },
             };
         }
@@ -98,5 +100,6 @@ public sealed class PortfolioQueryServiceTests
         public Task<IReadOnlyList<FundOrderTradeProjectionReadModel>> GetOrderTradesAsync(int orderId, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FundOrderTradeProjectionReadModel>>([]);
         public Task<FundOrderTradeProjectionReadModel?> GetTradeAsync(int tradeId, CancellationToken cancellationToken = default) => Task.FromResult<FundOrderTradeProjectionReadModel?>(null);
         public Task<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>> GetCompositionsAsync(Guid workflowId, int pageSize, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>>([]);
+        public Task<PortfolioFinancialPolicyReadModel?> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) => Task.FromResult<PortfolioFinancialPolicyReadModel?>(portfolioId == Policy.PortfolioId ? Policy : null);
     }
 }

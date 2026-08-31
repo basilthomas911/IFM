@@ -22,7 +22,10 @@ public sealed class PortfolioSchemaDb(IDbConnectionSettings settings, ILogger<Db
         new("fund_order_by_order_id", PortfolioSchemaCql.CreateOrderById, "DROP TABLE IF EXISTS fund_order_by_order_id;"),
         new("fund_order_trade_by_order_id", PortfolioSchemaCql.CreateTradesByOrder, "DROP TABLE IF EXISTS fund_order_trade_by_order_id;"),
         new("fund_order_trade_by_trade_id", PortfolioSchemaCql.CreateTradeById, "DROP TABLE IF EXISTS fund_order_trade_by_trade_id;"),
-        new("fund_composition_by_workflow", PortfolioSchemaCql.CreateCompositionByWorkflow, "DROP TABLE IF EXISTS fund_composition_by_workflow;")
+        new("fund_composition_by_workflow", PortfolioSchemaCql.CreateCompositionByWorkflow, "DROP TABLE IF EXISTS fund_composition_by_workflow;"),
+        new("portfolio_policy_by_id", PortfolioSchemaCql.CreatePolicyById, "DROP TABLE IF EXISTS portfolio_policy_by_id;"),
+        new("portfolio_policy_by_portfolio", PortfolioSchemaCql.CreatePolicyByPortfolio, "DROP TABLE IF EXISTS portfolio_policy_by_portfolio;"),
+        new("active_portfolio_policy", PortfolioSchemaCql.CreateActivePolicy, "DROP TABLE IF EXISTS active_portfolio_policy;")
     ];
 
     protected override IReadOnlyList<SchemaObjectDefinition> Definitions => Objects;

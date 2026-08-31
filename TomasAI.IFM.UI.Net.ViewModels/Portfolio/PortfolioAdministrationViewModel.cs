@@ -151,6 +151,21 @@ public sealed class PortfolioAdministrationViewModel(
         return await ExecutePortfolioAsync(_commands.ChangePortfolioStateAsync(new PortfolioId(SelectedPortfolio.PortfolioId), RequirePortfolioRevision(), state, reason, cancellationToken), $"Portfolio {SelectedPortfolio.PortfolioId} state change committed.").ConfigureAwait(false);
     }
 
+    public async Task<bool> DeleteDraftPortfolioAsync(string reason, CancellationToken cancellationToken = default)
+    {
+        if (!EnsureMutation() || SelectedPortfolio is null) return false;
+        if (SelectedPortfolio.OperatingState != PortfolioOperatingState.Draft)
+        {
+            Validation(["Only a Draft Portfolio can be deleted."]);
+            return false;
+        }
+        var id = SelectedPortfolio.PortfolioId;
+        var result = await _commands.DeleteDraftPortfolioAsync(new PortfolioId(id), RequirePortfolioRevision(), reason, cancellationToken).ConfigureAwait(false);
+        if (!Finish(result, $"Draft Portfolio {id} deleted; its integer ID remains consumed.")) return false;
+        SelectedPortfolio = null; SelectedFund = null; Funds = []; PortfolioRevision = 0; FundRevision = 0; ClearConfiguration();
+        return true;
+    }
+
     public async Task<bool> CreateFundAsync(FundMandateReadModel mandate, CancellationToken cancellationToken = default)
     {
         if (!EnsureMutation() || SelectedPortfolio is null) return false;
@@ -225,7 +240,7 @@ public sealed class PortfolioAdministrationViewModel(
     {
         State = code switch
         {
-            34002 or 34012 => PortfolioUiState.ValidationError,
+            34002 or 34012 or 34015 => PortfolioUiState.ValidationError,
             34003 or 34006 => PortfolioUiState.Conflict,
             34198 => PortfolioUiState.Timeout,
             34199 or 34014 => PortfolioUiState.Unavailable,

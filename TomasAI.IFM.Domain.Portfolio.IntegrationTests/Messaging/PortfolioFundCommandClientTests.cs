@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,6 +14,38 @@ namespace TomasAI.IFM.Domain.Portfolio.IntegrationTests.Messaging;
 
 public sealed class PortfolioFundCommandClientTests
 {
+    [Fact]
+    [Trait("Gate", "PF-28")]
+    [Trait("Category", "Portfolio")]
+    public async Task Manual_order_uses_typed_Portfolio_command_and_returns_sequence_allocated_projection()
+    {
+        var now = new DateTime(2026, 8, 30, 14, 0, 0, DateTimeKind.Utc);
+        var key = Guid.NewGuid();
+        var request = new CreateManualFundOrderRequest
+        {
+            PortfolioId = 101, PortfolioVersion = 2, FundId = 202, FundMandateVersion = 3,
+            UnderlyingRoot = "ES", RequestedTradeDate = DateOnly.FromDateTime(now),
+            RequestedMaturityDate = DateOnly.FromDateTime(now.AddMonths(1)), IdempotencyKey = key,
+            RequestedAtUtc = now, ExpiresAtUtc = now.AddDays(1),
+        };
+        var projected = new FundOrderProjectionReadModel
+        {
+            PortfolioId = 101, FundId = 202, OrderId = 7001, IdempotencyKey = key,
+            CreatedOnUtc = now, AggregateVersion = 1, Origin = CompositionOrigin.ManualUi,
+            CanonicalRequestHash = PortfolioCanonicalHash.Compute(request),
+        };
+        var producer = new AcknowledgingProducer();
+        var queries = new ReservationQueryStub([], new Dictionary<int, FundOrderProjectionReadModel>(), [], [projected]);
+        var client = new PortfolioFundCommandApi(producer, queries);
+
+        var result = await client.CreateManualOrderAsync(request);
+
+        result.Success.Should().BeTrue();
+        result.Value!.Order.Should().Be(projected);
+        result.Value.Trades.Should().BeEmpty();
+        producer.Subject.Verb.Should().Be("CreateManualFundOrder");
+    }
+
     [Fact]
     [Trait("Gate", "PF-10")]
     [Trait("Gate", "PF-12")]
@@ -79,7 +112,8 @@ public sealed class PortfolioFundCommandClientTests
     sealed class ReservationQueryStub(
         FundCompositionWorkflowProjectionReadModel[] workflow,
         IReadOnlyDictionary<int, FundOrderProjectionReadModel> orders,
-        FundOrderTradeProjectionReadModel[] trades) : IPortfolioQueryApi
+        FundOrderTradeProjectionReadModel[] trades,
+        FundOrderProjectionReadModel[]? timeline = null) : IPortfolioQueryApi
     {
         public Task<ServiceResult<FundCompositionWorkflowProjectionReadModel[]>> GetCompositionByWorkflowAsync(Guid workflowId, CancellationToken cancellationToken = default) => Task.FromResult<ServiceResult<FundCompositionWorkflowProjectionReadModel[]>>(new ServiceOk<FundCompositionWorkflowProjectionReadModel[]>(workflow));
         public Task<ServiceResult<FundOrderProjectionReadModel>> GetOrderAsync(int orderId, CancellationToken cancellationToken = default) => Task.FromResult<ServiceResult<FundOrderProjectionReadModel>>(new ServiceOk<FundOrderProjectionReadModel>(orders[orderId]));
@@ -95,7 +129,11 @@ public sealed class PortfolioFundCommandClientTests
         public Task<ServiceResult<FundTradeTemplateAssignmentReadModel[]>> GetAssignmentsAsync(int portfolioId, int fundId, long mandateVersion, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ServiceResult<PortfolioFundStrategySnapshot>> GetStrategySnapshotAsync(int portfolioId, int tradingYear, string decisionHorizon, string underlyingRoot, string assetType, DateTime asOfUtc, Guid workflowId, long workflowRevision, Guid correlationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ServiceResult<FundOrderTradeProjectionReadModel>> GetTradeAsync(int tradeId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<ServiceResult<PortfolioPage<FundOrderProjectionReadModel>>> GetOrdersAsync(int portfolioId, int fundId, DateOnly orderMonth, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ServiceResult<PortfolioPage<FundOrderProjectionReadModel>>> GetOrdersAsync(int portfolioId, int fundId, DateOnly orderMonth, int pageSize, string? pageToken = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<ServiceResult<PortfolioPage<FundOrderProjectionReadModel>>>(new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(new()
+            {
+                Items = [.. (timeline ?? []).Where(x => x.PortfolioId == portfolioId && x.FundId == fundId)], PageSize = pageSize,
+            }));
         public Task<ServiceResult<PortfolioFundStrategyReferenceCombination[]>> GetStrategyReferenceCombinationsAsync(int portfolioId, DateTime asOfUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

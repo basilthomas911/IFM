@@ -36,7 +36,7 @@ public sealed class PortfolioCommandActorTests
         var commandId = Guid.NewGuid();
         var model = new PortfolioReadModel
         {
-            PortfolioId = id.Id, PortfolioCode = "IDEM", Name = "Idempotent", PortfolioVersion = 1,
+            PortfolioId = id.Id, Name = "Idempotent", PortfolioVersion = 1,
             OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
             CreatedOnUtc = now, CreatedBy = "admin",
         };
@@ -88,7 +88,7 @@ public sealed class PortfolioCommandActorTests
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
             Payload = new(new PortfolioReadModel
             {
-                PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 1,
+                PortfolioId = 101, Name = "Core", PortfolioVersion = 1,
                 OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
                 CreatedOnUtc = now, CreatedBy = "admin",
             }, Guid.NewGuid()),
@@ -102,5 +102,42 @@ public sealed class PortfolioCommandActorTests
         await events.Received(1).AppendPortfolioAsync(id, Arg.Is<PortfolioDomainEvent>(x => x is PortfolioCreated), 0,
             Arg.Is<PortfolioEventMetadata>(x => x.CorrelationId == command.CommandId && x.CausationId == command.CommandId), Arg.Any<CancellationToken>());
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Count == 1 && x.Single() is PortfolioCreated));
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-03")]
+    [Trait("Gate", "PF-10")]
+    [Trait("Category", "Portfolio")]
+    public async Task Typed_actor_route_commits_Draft_deletion_tombstone_with_expected_revision()
+    {
+        var id = new PortfolioId(901);
+        var now = DateTime.UtcNow;
+        var aggregate = new PortfolioAggregate();
+        aggregate.Create(Guid.NewGuid(), new PortfolioReadModel
+        {
+            PortfolioId = id.Id, Name = "Delete", PortfolioVersion = 1,
+            OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now, CreatedOnUtc = now, CreatedBy = "admin",
+        }, now, "admin");
+        var context = Substitute.For<ICommandActorContext<PortfolioCommandActor>>();
+        context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioCommandActor.ActorName));
+        var events = Substitute.For<IPortfolioEventStore>();
+        events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(aggregate);
+        var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
+        var actor = new PortfolioCommandActor(context, events, projector, Substitute.For<ILogger<PortfolioCommandActor>>());
+        var command = new PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId>
+        {
+            CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.DraftDeletionNotAllowed,
+            Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "DeleteDraftPortfolio", id.Format()),
+            Payload = new(1, "duplicate"),
+        };
+        var typed = (ICommandActor<PortfolioCommandActor>)actor;
+
+        var state = await typed.OnLoadStateAsync(context, command.Subject.ThreadId, command);
+        var result = await typed.ReceiveAsync(context, state, command);
+
+        result.Success.Should().BeTrue();
+        await events.Received(1).AppendPortfolioAsync(id, Arg.Is<PortfolioDomainEvent>(x => x is DraftPortfolioDeleted), 1,
+            Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
+        await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is DraftPortfolioDeleted));
     }
 }

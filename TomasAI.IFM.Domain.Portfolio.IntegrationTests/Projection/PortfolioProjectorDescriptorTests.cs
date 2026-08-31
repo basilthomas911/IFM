@@ -27,14 +27,20 @@ public sealed class PortfolioProjectorDescriptorTests
         var projections = Substitute.For<IPortfolioDbContext>();
         var portfolio = new PortfolioEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioEventProjector>>(), events, projections);
         var fund = new PortfolioFundEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFundEventProjector>>(), events, projections);
+        var policy = new PortfolioFinancialPolicyEventProjector(replay, source, blackboard, Substitute.For<ILogger<PortfolioFinancialPolicyEventProjector>>(), events, projections);
 
         portfolio.ProjectedEventTypes.Should().BeEquivalentTo([
             typeof(PortfolioCreated), typeof(PortfolioVersionAdded), typeof(PortfolioOperatingStateChanged),
-            typeof(FundAddedToPortfolio), typeof(PortfolioRetired), typeof(FundAllocationDelegated), typeof(FundRiskEnvelopeDelegated)]);
+            typeof(FundAddedToPortfolio), typeof(PortfolioRetired), typeof(FundAllocationDelegated), typeof(FundRiskEnvelopeDelegated),
+            typeof(DraftPortfolioDeleted)]);
         fund.ProjectedEventTypes.Should().BeEquivalentTo([
             typeof(FundMandateCreated), typeof(FundMandateVersionAdded), typeof(FundOperatingStateChanged),
             typeof(FundTradeTemplateAssigned), typeof(FundCompositionReserved), typeof(FundCompositionStateChanged)]);
-        portfolio.ProjectionDescriptors.Concat(fund.ProjectionDescriptors).Should().OnlyContain(x => x.UseDurableReplay);
-        portfolio.DurableProcessQueueName.Should().NotBe(fund.DurableProcessQueueName);
+        policy.ProjectedEventTypes.Should().BeEquivalentTo([
+            typeof(PortfolioFinancialPolicyCreated), typeof(PortfolioFinancialPolicyVersionAdded),
+            typeof(PortfolioFinancialPolicyActivated), typeof(PortfolioFinancialPolicyRetired),
+            typeof(DraftPortfolioFinancialPolicyDeleted)]);
+        portfolio.ProjectionDescriptors.Concat(fund.ProjectionDescriptors).Concat(policy.ProjectionDescriptors).Should().OnlyContain(x => x.UseDurableReplay);
+        new[] { portfolio.DurableProcessQueueName, fund.DurableProcessQueueName, policy.DurableProcessQueueName }.Should().OnlyHaveUniqueItems();
     }
 }

@@ -41,6 +41,7 @@ public sealed class PortfolioFundCommandActor(
         ["ChangeFundOperatingState"] = x => x.AsCommand<PortfolioCommand<ChangeFundStatePayload, PortfolioFundId>>()!,
         ["AssignTradeTemplate"] = x => x.AsCommand<PortfolioCommand<AssignTradeTemplatePayload, PortfolioFundId>>()!,
         ["ReserveFundOrderComposition"] = x => x.AsCommand<PortfolioCommand<ReserveCompositionPayload, PortfolioFundId>>()!,
+        ["CreateManualFundOrder"] = x => x.AsCommand<PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId>>()!,
         ["MarkFundOrderComposing"] = x => x.AsCommand<PortfolioCommand<MarkComposingPayload, PortfolioFundId>>()!,
         ["RecordFundOrderComposed"] = x => x.AsCommand<PortfolioCommand<RecordComposedPayload, PortfolioFundId>>()!,
         ["RecordFundOrderRiskOutcome"] = x => x.AsCommand<PortfolioCommand<RecordRiskOutcomePayload, PortfolioFundId>>()!,
@@ -78,6 +79,7 @@ public sealed class PortfolioFundCommandActor(
             if (command is PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> create && committed is FundMandateCreated prior &&
                 !string.Equals(PortfolioCanonicalHash.Compute(create.Payload.Mandate.DefensiveCopy()), PortfolioCanonicalHash.Compute(prior.Mandate.DefensiveCopy()), StringComparison.Ordinal))
                 return new ServiceFailed<GuidResult>(PortfolioErrorCodes.IdempotencyConflict, "IdempotencyKeyConflict: the key was already committed for a different Fund mandate payload.");
+            await _projector.DomainEventsProjectionAsync(new DomainEventCollection([committed])).ConfigureAwait(false);
             return new ServiceOk<GuidResult>(new(command.CommandId));
         }
         if (command is PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> requestedCreate)
@@ -100,6 +102,7 @@ public sealed class PortfolioFundCommandActor(
             PortfolioCommand<StopCompositionPayload, PortfolioFundId> x when command.Subject.Verb == "CancelFundOrderComposition" => aggregate.CancelComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, Principal),
             PortfolioCommand<StopCompositionPayload, PortfolioFundId> x => aggregate.ExpireComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, Principal),
             PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> x => await ReserveAsync(aggregate, x, now, cancellationToken),
+            PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> x => await CreateManualAsync(aggregate, x, now, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported PortfolioFund command {command.GetType().Name}."),
         };
         if (domainEvent is not null)
@@ -113,6 +116,24 @@ public sealed class PortfolioFundCommandActor(
             await _projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
         }
         return new ServiceOk<GuidResult>(new(command.CommandId));
+    }
+
+    async ValueTask<PortfolioFundDomainEvent?> CreateManualAsync(PortfolioFundAggregate aggregate,
+        PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> command, DateTime now, CancellationToken cancellationToken)
+    {
+        if (aggregate.TryComposition(command.Payload.Request.IdempotencyKey, out var prior))
+        {
+            var hash = PortfolioCanonicalHash.Compute(command.Payload.Request);
+            if (!string.Equals(prior.CanonicalRequestSha256, hash, StringComparison.Ordinal))
+                throw new InvalidOperationException("IdempotencyKeyConflict: the key was already committed for a different manual draft.");
+            return null;
+        }
+        var portfolio = await _events.LoadPortfolioAsync(new PortfolioId(command.Payload.Request.PortfolioId), cancellationToken).ConfigureAwait(false);
+        if (portfolio.Current is null || portfolio.Current.PortfolioVersion != command.Payload.Request.PortfolioVersion ||
+            portfolio.Current.OperatingState != PortfolioOperatingState.Active)
+            throw new InvalidOperationException("Manual draft Portfolio version is stale or the Portfolio is not active.");
+        var orderId = await _allocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
+        return aggregate.CreateManualOrder(command.CommandId, command.Payload.Request, orderId, now, Principal);
     }
 
     async ValueTask<PortfolioFundDomainEvent?> ReserveAsync(PortfolioFundAggregate aggregate,

@@ -1,14 +1,14 @@
-# Portfolio and Fund Detailed Specification v1.0
+# Portfolio and Fund Detailed Specification v1.1
 
-**Status:** Approved  
-**Date:** 2026-08-29  
-**Approved:** 2026-08-29  
+**Status:** Draft revision for review; v1.0 implementation evidence remains historical
+**Date:** 2026-08-30
+**Supersedes:** The approved v1.0 contract where this revision explicitly changes PortfolioCode, policy, reference-family, or UI behavior
 **Domain:** `TomasAI.IFM.Domain.Portfolio`  
 **Authoritative design:** [Portfolio-Fund-High-Level-Design-v0.1.md](../../Documents/system/Portfolio-Fund-High-Level-Design-v0.1.md)  
 **Related TradeSelection design:** [TradeSelection-High-Level-Design-v0.1.md](../../Documents/system/TradeSelection-High-Level-Design-v0.1.md)  
 **Implementation plan:** [Portfolio-Fund-Implementation-Plan-v1.0.md](./Portfolio-Fund-Implementation-Plan-v1.0.md)  
 **Runtime target:** .NET 10, MessagePack, NATS Core/JetStream, PostgreSQL EventSourceDb and SequenceIdDb, and ScyllaDB projections  
-**Implementation boundary:** Portfolio/Fund configuration and composition identity through accepted OrderComposition result references  
+**Implementation boundary:** Reference trade-family catalog, Portfolio/Fund and Risk Policy configuration, unified Trade Orders composition view, and composition identity through accepted OrderComposition result references
 **Deferred boundary:** Broker OrderExecution, fills, live positions, and execution-facing TradeDb replacement
 
 ## 1. Purpose
@@ -50,12 +50,21 @@ The HLD controls domain intent. This specification controls the initial reposito
 16. The existing Funds UI remains until the new Portfolio UI passes its system gates.
 17. The new Trade composition UI removes Create Fund and filters Fund data through a selected Portfolio.
 18. High-throughput ScyllaDB sequence-ID redesign is deferred.
+19. PortfolioCode is removed. PortfolioId is the sequence-generated stable identity and Name is the display description. MessagePack key 1 remains reserved and is not reused.
+20. Portfolio policy is a Portfolio-owned versioned `PortfolioFinancialPolicy`, identified by positive integer PolicyId and PolicyVersion; raw GUID and fabricated policy identities are prohibited.
+21. ReferenceDb owns a versioned `TradeStrategyFamily` catalog. V1 contains exactly Futures, Vertical Spread, and Iron Condor and exposes no public mutation API.
+22. A PortfolioFinancialPolicy contains Portfolio-wide hard limits plus one versioned `TradeFamilyRiskLimit` row per configured family. Family limits may reduce but never enlarge the global limits.
+23. The Reference screen displays the v1 family catalog read-only. Trade-family management and strategy variants are deferred to v1.x.
+24. Portfolio Administration uses a compact command bar with Risk Policy as a primary action and no Planned Compositions action.
+25. Trade Orders is the only UI for manual and Strategy Workflow compositions. The separate Portfolio composition viewer is removed.
 
 ## 4. Scope
 
 ### 4.1 Included
 
 - Portfolio identity, lifecycle, versions, policy references, and operating state;
+- PortfolioFinancialPolicy identities, immutable versions, lifecycle, global limits, and per-family limits;
+- read-only ReferenceDb TradeStrategyFamily catalog and idempotent three-family bootstrap;
 - Fund identity, Portfolio membership, mandate versions, and operating state;
 - Portfolio-to-Fund allocation and FundRiskEnvelope versions;
 - TradeTemplate, TradeSelectionHintProfile, and OrderCompositionProfile assignments;
@@ -66,7 +75,7 @@ The HLD controls domain intent. This specification controls the initial reposito
 - recording accepted TradeSelection and OrderComposition result references;
 - typed NATS commands, events, queries, and APIs;
 - PostgreSQL event-source integration and ScyllaDB Portfolio projections;
-- Portfolio and composition UI contracts;
+- compact Portfolio/Risk Policy and unified Trade Orders UI contracts;
 - legacy isolation;
 - observability, authorization points, tests, and implementation gates.
 
@@ -82,7 +91,11 @@ The HLD controls domain intent. This specification controls the initial reposito
 - migration of legacy Fund history;
 - deletion of legacy tables or UI;
 - non-ES initial template definitions beyond extensibility contracts;
-- high-throughput tick-table key or sequence redesign.
+- high-throughput tick-table key or sequence redesign;
+- TradeStrategyFamily mutation commands or management UI;
+- strategy-family variants/subtypes such as Long, Short, bullish, bearish, neutral, debit, or credit;
+- scheduled future policy activation; and
+- a generic policy formula, script, or conditional-rule engine.
 
 ## 5. Required solution topology
 
@@ -129,7 +142,12 @@ PortfolioDb/
 FundLegacyDb/
   FundLegacyDbContext.cs
   read-only legacy interfaces as required
+
+ReferenceDb/
+  TradeStrategyFamily CQL/schema, idempotent bootstrap, and typed read context
 ```
+
+`TomasAI.IFM.Domain.Reference.Shared` SHALL own the TradeStrategyFamily DTO/query API. `TomasAI.IFM.UI.Net.Views.Portfolio` SHALL own the compact Portfolio command bar and Risk Policy modal. `TomasAI.IFM.UI.Net.Views.Trade` SHALL retain and refactor the existing Trade Orders screen rather than adding another composition viewer.
 
 The legacy project and namespaces MUST NOT be renamed mechanically into the new domain.
 
@@ -146,6 +164,7 @@ The Portfolio aggregate is the write authority for:
 - Fund allocation versions;
 - FundRiskEnvelope delegation; and
 - Portfolio retirement.
+- audited deletion of a never-activated Draft Portfolio and its operational draft projections.
 
 The Portfolio aggregate does not own exact trade composition or broker execution.
 
@@ -166,9 +185,19 @@ The actor route includes both PortfolioId and FundId. The legacy `FundCommandAct
 
 The Strategy Workflow owns stage sequencing and accepted stage-result history. Portfolio projections may retain result IDs and hashes for navigation, but MUST NOT become a second mutable authority for TradeSelection or OrderComposition results.
 
+### 6.4 PortfolioFinancialPolicy aggregate
+
+The PortfolioFinancialPolicy aggregate owns immutable policy versions, global capital/risk hard limits, TradeFamilyRiskLimit rows, effective interval, activation/supersession/retirement, and deletion eligibility. It does not own actual Fund allocation, observed utilization, broker balances, execution, or strategy-family definitions.
+
+### 6.5 TradeStrategyFamily reference catalog
+
+ReferenceDb owns immutable TradeStrategyFamily definitions. V1 bootstrap is the only writer and the public actor/API surface is read-only. Portfolio policy, Fund mandate, template, TradeSelection, OrderComposition, and RiskManagement contracts reference exact TradeStrategyFamilyId/DefinitionVersion values and MUST NOT infer family behavior from display text.
+
 ## 7. Identity contracts
 
 All identity records are MessagePack objects with stable numeric keys, parameterless serializer constructors, positive-value validation, and dot-separated `Format()` results.
+
+All new low-volume business entities that require an integer ID MUST obtain it from `ISequenceIdGenerator` through the owning actor/service and a registered named PostgreSQL sequence. No UI, console, API, import, or other operator-facing creation path may request or accept a hand-entered integer ID. Creation allocates before submission, displays the result read-only when useful, and fails closed when allocation is unavailable. Versioning preserves the existing identity. Row-count, maximum-plus-one, random-number, timestamp-derived, and client-local integer allocation are prohibited.
 
 ### 7.1 `PortfolioId`
 
@@ -210,7 +239,25 @@ public sealed record PortfolioId([property: Key(0)] int Id) : IActorEntityId;
 
 `Format()` returns `PortfolioId.FundId.OrderId.TradeId`.
 
-### 7.5 Technical identities
+### 7.5 `PortfolioFinancialPolicyId`
+
+| Key | Field | Type |
+| ---: | --- | --- |
+| 0 | `PortfolioId` | `int` |
+| 1 | `PolicyId` | `int` |
+
+Both values MUST be positive. `Format()` returns `PortfolioId.PolicyId`.
+
+### 7.6 `TradeStrategyFamilyId`
+
+```csharp
+[MessagePackObject(AllowPrivate = true)]
+public sealed record TradeStrategyFamilyId([property: Key(0)] int Id) : IActorEntityId;
+```
+
+The ID is sequence generated and never entered by an operator. A separate positive DefinitionVersion freezes the referenced catalog definition.
+
+### 7.7 Technical identities
 
 The following remain GUID/UUID identities and MUST NOT replace integer business IDs:
 
@@ -232,11 +279,13 @@ Implementation SHALL use:
 | Business identity | `SequenceName` |
 | --- | --- |
 | PortfolioId | `Portfolio_PortfolioId` - new |
+| PolicyId | `PortfolioPolicy_PolicyId` - new |
+| TradeStrategyFamilyId | `Reference_TradeStrategyFamilyId` - new |
 | FundId | `Fund_FundId` - existing |
 | OrderId | `Trade_OrderId` - existing |
 | TradeId | `Trade_TradeId` - existing |
 
-`Portfolio_PortfolioId` MUST be added to `SequenceName`, `ToStringFast`, PostgreSQL schema initialization, cutover documentation, and integration tests before CreatePortfolio is enabled.
+All new sequence names MUST be added to `SequenceName`, `ToStringFast`, PostgreSQL schema initialization, cutover documentation, and integration tests before their create/bootstrap path is enabled.
 
 ### 8.2 Allocation requirements
 
@@ -247,6 +296,7 @@ Implementation SHALL use:
 - IDs are never reused.
 - A client MUST retain the allocated value; it cannot query the high watermark as its ID.
 - OrderId/TradeId reservation occurs inside one idempotent application operation owned by the PortfolioFund command path.
+- TradeStrategyFamily bootstrap resolves by stable system key before allocating, so restart or concurrent bootstrap cannot duplicate or renumber a seeded family.
 
 ### 8.3 Reservation failure
 
@@ -323,6 +373,33 @@ Reserved execution values MUST NOT be emitted by this implementation.
 
 Manual origin does not bypass selection, composition, or risk validation.
 
+A `CreateManualFundOrder` command SHALL accept the selected Portfolio/Fund identities and versions, underlying/date/reference values, UTC currentness window, and an idempotency key. The Portfolio/Fund actor SHALL reject stale or inactive Portfolio/Fund scope, allocate OrderId from `Trade_OrderId`, and commit a canonical `Draft` with `Origin=ManualUi`. The initial Draft SHALL contain no fabricated TradeSelection/template/profile references and no trade rows. It SHALL expose no execution, broker, fill, live-feed, End-of-Day, or position side effect. Retry with the same key and canonical payload SHALL return the original OrderId; changed-payload reuse SHALL fail.
+
+Trade Orders SHALL load Funds and orders solely through typed Portfolio queries. Every Portfolio or Fund scope change SHALL invalidate earlier in-flight loads by generation; a response may update visible state only when its captured generation and Portfolio/Fund identities still match the current selection.
+
+### 9.6 `PortfolioFinancialPolicyState`
+
+| Value | Name |
+| ---: | --- |
+| 0 | Unknown |
+| 1 | Draft |
+| 2 | Active |
+| 3 | Superseded |
+| 4 | Retired |
+
+Deleted is an authoritative tombstone outcome, not a reusable active read-model state.
+
+### 9.7 `TradeStrategyFamilyState`
+
+| Value | Name |
+| ---: | --- |
+| 0 | Unknown |
+| 1 | Draft |
+| 2 | Active |
+| 3 | Retired |
+
+V1 bootstrap creates only Active definitions and exposes no mutation command.
+
 ## 10. Core read models
 
 All read models SHALL:
@@ -340,16 +417,16 @@ All read models SHALL:
 | Key | Field | Requirement |
 | ---: | --- | --- |
 | 0 | `PortfolioId` | Positive integer |
-| 1 | `PortfolioCode` | Required stable code |
+| 1 | Reserved | Former PortfolioCode key; MUST NOT be reused |
 | 2 | `Name` | Required display name |
 | 3 | `PortfolioVersion` | Positive `long` |
-| 4 | `SchemaVersion` | Initial value 1 |
+| 4 | `SchemaVersion` | Revised contract value 2 |
 | 5 | `BaseCurrency` | Required; initially USD |
 | 6 | `OperatingState` | Explicit enum |
 | 7 | `EffectiveFromUtc` | Required UTC |
 | 8 | `EffectiveUntilUtc` | Optional UTC after start |
-| 9 | `PolicyId` | Required versioned reference when Active |
-| 10 | `PolicyVersion` | Positive when Active |
+| 9 | `ActivePolicyId` | Positive integer when assigned; required when Active |
+| 10 | `ActivePolicyVersion` | Positive when assigned; required when Active |
 | 11 | `BrokerAccountRefs` | Immutable array of references, no credentials |
 | 12 | `CreatedOnUtc` | Required UTC |
 | 13 | `CreatedBy` | Required principal |
@@ -376,7 +453,7 @@ All read models SHALL:
 | 13 | `EligibleAssetTypes` | Non-empty immutable array |
 | 14 | `PermittedDirections` | Immutable array |
 | 15 | `PermittedConditions` | Immutable array |
-| 16 | `PermittedTradeFamilies` | Non-empty immutable array |
+| 16 | `PermittedTradeFamilies` | Non-empty immutable array of exact TradeStrategyFamilyId/DefinitionVersion references |
 | 17 | `CreatedOnUtc` | Required UTC |
 | 18 | `CreatedBy` | Required principal |
 
@@ -409,7 +486,7 @@ TradeSelection uses only eligibility/capacity facts. RiskManagement owns financi
 
 ### 10.5 `FundTradeTemplateAssignmentReadModel`
 
-Required fields are Portfolio/Fund identities and versions, assignment version, TradeTemplate ID/version, enabled state, horizon, underlying universe, asset type, trade family, priority, effective interval, TradeSelectionHintProfile ID/version, OrderCompositionProfile ID/version, and audit provenance.
+Required fields are Portfolio/Fund identities and versions, assignment version, TradeTemplate ID/version, enabled state, horizon, underlying universe, asset type, exact TradeStrategyFamilyId/DefinitionVersion, priority, effective interval, TradeSelectionHintProfile ID/version, OrderCompositionProfile ID/version, and audit provenance.
 
 ### 10.6 `FundOrderReadModel`
 
@@ -462,7 +539,7 @@ Exact candidate legs and prices do not belong in FundOrder. The accepted OrderCo
 | 4 | `FundOrderTradeVersion` |
 | 5 | `SchemaVersion` |
 | 6 | `TradeRole` |
-| 7 | `TradeFamily` |
+| 7 | `TradeStrategyFamilyId` |
 | 8 | `DirectionOrBias` |
 | 9 | `TradeAction` |
 | 10 | `IsPrimaryTrade` |
@@ -472,6 +549,7 @@ Exact candidate legs and prices do not belong in FundOrder. The accepted OrderCo
 | 14 | `Reference` |
 | 15 | `CreatedOnUtc` |
 | 16 | `CreatedBy` |
+| 17 | `TradeStrategyFamilyDefinitionVersion` |
 
 `TradeRole` initially supports Primary. Opening, Closing, Hedge, Roll, and Adjustment values MAY be defined now but are not required by the initial three-template catalog.
 
@@ -481,6 +559,7 @@ The snapshot is immutable and self-contained. It includes:
 
 - workflow identity/revision and trace context;
 - PortfolioReadModel identity/version subset;
+- exact PortfolioFinancialPolicyReadModel identity/version and complete frozen global/family limits;
 - FundMandateReadModel;
 - current FundAllocation reference;
 - current FundRiskEnvelope;
@@ -491,6 +570,68 @@ The snapshot is immutable and self-contained. It includes:
 
 Stages MUST validate the supplied snapshot and MUST NOT query for a newer version during the same workflow.
 
+### 10.9 `TradeStrategyFamilyReadModel`
+
+| Key | Field | Requirement |
+| ---: | --- | --- |
+| 0 | `TradeStrategyFamilyId` | Positive sequence-generated integer |
+| 1 | `DefinitionVersion` | Positive immutable version |
+| 2 | `SchemaVersion` | Initial value 1 |
+| 3 | `SystemKey` | Stable uppercase key |
+| 4 | `DisplayName` | Operator-facing name |
+| 5 | `Description` | Required concise definition |
+| 6 | `State` | V1 value Active |
+| 7 | `DisplayOrder` | Positive deterministic order |
+| 8 | `CreatedOnUtc` | Required UTC |
+| 9 | `CreatedBy` | Required bootstrap principal |
+
+V1 contains exactly `FUTURES`/Futures, `VERTICAL_SPREAD`/Vertical Spread, and `IRON_CONDOR`/Iron Condor at DefinitionVersion 1. Long/Short and directional/credit variants are not rows in this table.
+
+### 10.10 `TradeFamilyRiskLimitReadModel`
+
+| Key | Field | Requirement |
+| ---: | --- | --- |
+| 0 | `TradeStrategyFamilyId` | Positive exact reference |
+| 1 | `DefinitionVersion` | Positive exact reference |
+| 2 | `SystemKeySnapshot` | Frozen reference display/provenance |
+| 3 | `DisplayNameSnapshot` | Frozen operator display value |
+| 4 | `Enabled` | Explicit Boolean permission |
+| 5 | `MaximumRiskPerTrade` | Non-negative decimal base-currency amount |
+| 6 | `MaximumAggregateRisk` | Non-negative decimal base-currency amount |
+| 7 | `MaximumMargin` | Non-negative decimal base-currency amount |
+| 8 | `MaximumGrossNotional` | Non-negative decimal base-currency amount |
+| 9 | `MaximumOpenPositions` | Non-negative integer |
+
+### 10.11 `PortfolioFinancialPolicyReadModel`
+
+| Key | Field | Requirement |
+| ---: | --- | --- |
+| 0 | `PortfolioId` | Positive owner identity |
+| 1 | `PolicyId` | Positive sequence-generated identity |
+| 2 | `PolicyVersion` | Positive immutable business version |
+| 3 | `SchemaVersion` | Initial value 1 |
+| 4 | `Name` | Required display name |
+| 5 | `State` | Explicit PortfolioFinancialPolicyState |
+| 6 | `BaseCurrency` | Must equal Portfolio base currency |
+| 7 | `CapitalBase` | Positive decimal before activation |
+| 8 | `ProtectedReserve` | Non-negative decimal |
+| 9 | `MaximumDeployableCapital` | Non-negative decimal |
+| 10 | `MaximumRiskPerTrade` | Non-negative global hard cap |
+| 11 | `MaximumAggregateRisk` | Non-negative global hard cap |
+| 12 | `MaximumMargin` | Non-negative global hard cap |
+| 13 | `MaximumGrossNotional` | Non-negative global hard cap |
+| 14 | `MaximumOpenPositions` | Positive integer before activation |
+| 15 | `MaximumDrawdownAmount` | Non-negative decimal hard cap |
+| 16 | `TradeFamilyLimits` | Immutable non-empty family-limit array |
+| 17 | `EffectiveFromUtc` | Required UTC |
+| 18 | `EffectiveUntilUtc` | Optional UTC after start |
+| 19 | `CreatedOnUtc` | Required UTC |
+| 20 | `CreatedBy` | Required principal |
+| 21 | `SupersededOnUtc` | Optional UTC |
+| 22 | `SupersededBy` | Optional principal |
+
+All monetary values are decimal amounts in BaseCurrency. Zero is a blocking limit, never an unlimited sentinel. Every enabled family row MUST be unique, reference an Active catalog definition, be complete, and be less than or equal to corresponding global hard limits. Per-family caps are shared ceilings, not reserved allocations, and do not need to sum to Portfolio capital.
+
 ## 11. Version rules
 
 - Business versions are positive `long` values scoped to the aggregate/configuration identity.
@@ -500,6 +641,8 @@ Stages MUST validate the supplied snapshot and MUST NOT query for a newer versio
 - The command actor checks expected version before emitting an event.
 - A stale expected version fails with `VersionConflict` and does not mutate state.
 - A workflow retains the exact versions accepted at start.
+- Saved PortfolioFinancialPolicy versions, including Draft versions, are immutable; correction uses the next PolicyVersion.
+- Existing Portfolio/Fund/policy snapshots never resolve a later TradeStrategyFamily definition or newly added family implicitly.
 
 ## 12. Actor topology
 
@@ -530,6 +673,23 @@ Portfolio and PortfolioFund command actors SHALL register durable projector desc
 
 No separate public Event actor is required merely to denormalize state.
 
+### 12.5 `PortfolioFinancialPolicyCommandActor`
+
+- Actor constant: `PortfolioFinancialPolicyCommand`.
+- Entity: `PortfolioFinancialPolicyId`.
+- Event-sourced mailbox boundary per PortfolioId/PolicyId.
+- Owns create-version, activate, supersede, retire, and Draft-deletion decisions.
+
+### 12.6 `PortfolioFinancialPolicyQueryActor`
+
+- Actor constant: `PortfolioFinancialPolicyQuery`.
+- Side-effect free and projection backed.
+- Supports exact policy/version, policies by Portfolio/state, and current assigned policy queries.
+
+### 12.7 Reference TradeStrategyFamily query surface
+
+The existing Reference query actor/API exposes exact point and bounded list queries. V1 registers no public TradeStrategyFamily command verb. Seed/bootstrap storage writes are infrastructure initialization, not UI/application commands.
+
 ## 13. Command envelope
 
 Every command implements `ICommand<TEntityId>` and follows the repository MessagePack convention:
@@ -558,8 +718,23 @@ The Portfolio domain reserves error-code family `34000-34299`, subject to the re
 | `DelegateFundAllocationCommand` / `DelegateFundAllocation` | PortfolioId | Expected version, complete allocation | Append allocation delegation |
 | `DelegateFundRiskEnvelopeCommand` / `DelegateFundRiskEnvelope` | PortfolioId | Expected version, complete envelope | Append delegation |
 | `RetirePortfolioCommand` / `RetirePortfolio` | PortfolioId | Expected version, reason | Retire for new workflows |
+| `DeleteDraftPortfolioCommand` / `DeleteDraftPortfolio` | PortfolioId | Expected aggregate revision, reason | Delete a never-activated Draft from operational projections while retaining its tombstone history |
 
 CreatePortfolio callers MAY preallocate PortfolioId through a typed sequence query/service. The command MUST reject an existing PortfolioId with different content and treat an identical idempotent replay as success.
+
+### 14.1 PortfolioFinancialPolicy commands
+
+| Command / Verb | Entity | Required outcome |
+| --- | --- | --- |
+| `CreatePortfolioFinancialPolicyCommand` / `CreatePortfolioFinancialPolicy` | PortfolioFinancialPolicyId | Commit immutable Draft version 1 |
+| `AddPortfolioFinancialPolicyVersionCommand` / `AddPortfolioFinancialPolicyVersion` | PortfolioFinancialPolicyId | Append the next immutable Draft version |
+| `ActivateAndAssignPortfolioFinancialPolicyCommand` / `ActivateAndAssignPortfolioFinancialPolicy` | PortfolioFinancialPolicyId | Validate, activate, supersede prior policy when applicable, and commit exact Portfolio reference as one logical idempotent transition |
+| `RetirePortfolioFinancialPolicyCommand` / `RetirePortfolioFinancialPolicy` | PortfolioFinancialPolicyId | Retire eligible Active policy with reason |
+| `DeleteDraftPortfolioFinancialPolicyCommand` / `DeleteDraftPortfolioFinancialPolicy` | PortfolioFinancialPolicyId | Tombstone a never-active, unreferenced Draft policy identity |
+
+Policy creation and AddVersion commands carry the complete PortfolioFinancialPolicyReadModel and expected revision where applicable. ActivateAndAssign carries selected Portfolio and policy expected revisions, exact PolicyVersion, effective-as-of time, and idempotency key. It MUST preserve the prior assignment on any validation, persistence, projection, or concurrency failure and MUST return the original result on an identical committed retry.
+
+Allocation of PolicyId occurs through a typed identity request before creation. Cancelling afterward consumes the allocated ID without creating a policy. No command accepts a client-selected or fallback ID.
 
 ## 15. PortfolioFund commands
 
@@ -610,6 +785,8 @@ CreatePortfolio callers MAY preallocate PortfolioId through a typed sequence que
 
 The initial automated workflow requests exactly one Primary TradeInstruction. The collection exists so later related instructions do not require replacing the contract.
 
+Every TradeInstruction carries the exact TradeStrategyFamilyId/DefinitionVersion accepted from the selected template and frozen policy. A display name or legacy TradeType string cannot substitute for that identity.
+
 ### 15.2 Reservation response
 
 The command returns a typed `FundCompositionReservationResult` containing the committed FundOrderReadModel, immutable FundOrderTradeReadModels, aggregate version, committed timestamp, and idempotency disposition.
@@ -628,6 +805,7 @@ Events use the existing event-source base keys and append payload fields without
 - `FundAddedToPortfolioEvent`;
 - `FundRiskEnvelopeDelegatedEvent`; and
 - `PortfolioRetiredEvent`.
+- `DraftPortfolioDeletedEvent`.
 
 ### 16.2 PortfolioFund events
 
@@ -646,6 +824,18 @@ Events use the existing event-source base keys and append payload fields without
 - `FundOrderCompositionExpiredEvent`.
 
 Every event contains the complete identity/version chain required to replay without querying current configuration. Reservation events contain allocated OrderId and TradeId values.
+
+### 16.3 PortfolioFinancialPolicy events
+
+- `PortfolioFinancialPolicyCreatedEvent`;
+- `PortfolioFinancialPolicyVersionAddedEvent`;
+- `PortfolioFinancialPolicyActivatedEvent`;
+- `PortfolioFinancialPolicySupersededEvent`;
+- `PortfolioFinancialPolicyRetiredEvent`;
+- `PortfolioFinancialPolicyAssignedEvent`; and
+- `DraftPortfolioFinancialPolicyDeletedEvent`.
+
+Policy events contain the complete global and family limits or immutable payload needed for replay, exact TradeStrategyFamilyId/DefinitionVersion values, expected/current revisions, and audit provenance. The coordinated activation/assignment operation uses one idempotency identity and cannot expose a partially selected policy.
 
 ## 17. State transitions
 
@@ -668,6 +858,8 @@ Disabled -> Active only through an explicit new version
 Any non-retired state -> Retired
 Retired -> no transition
 ```
+
+`Draft -> Deleted` is a separate terminal deletion command, not an operating-state transition. It is allowed only while the current Portfolio state is Draft and no Fund composition history exists. The command uses optimistic aggregate revision, requires a non-empty reason, records an authoritative deletion tombstone, removes the Portfolio and its draft-owned Fund/configuration rows from operational projections, and never releases PortfolioId, FundId, OrderId, or TradeId values for reuse. Active, Paused, ReduceOnly, Disabled, and Retired Portfolios cannot be deleted.
 
 Activation requires valid policy, base currency, effective interval, and at least one permitted broker-account reference if the environment policy requires it.
 
@@ -694,6 +886,20 @@ IdentityReserved/TemplateSelected/Composing/Composed/RiskPending -> Expired
 
 An implementation MAY combine IdentityReserved and TemplateSelected in one committed event because the accepted TradeSelection result already identifies the template. The projection must still expose unambiguous semantics.
 
+### 17.4 PortfolioFinancialPolicy
+
+```text
+Create -> Draft v1
+Draft/latest Active -> new immutable Draft vN
+Draft vN -> Active and assigned
+prior Active -> Superseded during replacement
+eligible Active -> Retired
+never-active unreferenced Draft identity -> Deleted tombstone
+Superseded/Retired/Deleted -> no mutation
+```
+
+Activation requires current time within the effective interval, matching Portfolio ownership/base currency, complete global limits, at least one enabled Active catalog family, valid per-family caps, and expected Portfolio/policy revisions. Scheduled future activation is rejected in v1. A policy selected by the current Portfolio version cannot retire until a coordinated operation clears/replaces the reference; an Active Portfolio also requires a valid replacement or transition out of Active.
+
 ## 18. Idempotency and concurrency
 
 ### 18.1 Command idempotency
@@ -718,11 +924,14 @@ Projectors compare event identity/revision and apply idempotent mutations. Dupli
 
 ## 19. Query contracts
 
-All queries implement the established typed query contract, use `PortfolioQuery` actor routing, and return `ServiceResult<T>`.
+All queries implement the established typed query contract and return `ServiceResult<T>`. Portfolio/Fund queries use `PortfolioQuery`, policy queries use `PortfolioFinancialPolicyQuery`, and trade-family catalog queries use the existing Reference actor route.
 
 ### 19.1 Point queries
 
 - `GetPortfolioQuery(PortfolioId, Version?)`;
+- `GetPortfolioFinancialPolicyQuery(PortfolioId, PolicyId, PolicyVersion?)`;
+- `GetActivePortfolioFinancialPolicyQuery(PortfolioId, AsOfUtc)`;
+- `GetTradeStrategyFamilyQuery(TradeStrategyFamilyId, DefinitionVersion?)`;
 - `GetFundMandateQuery(PortfolioId, FundId, Version?)`;
 - `GetActiveFundQuery(PortfolioId, TradingYear, DecisionHorizon, AsOfUtc)`;
 - `GetFundRiskEnvelopeQuery(PortfolioId, FundId, AsOfUtc)`;
@@ -735,6 +944,8 @@ All queries implement the established typed query contract, use `PortfolioQuery`
 ### 19.2 List/page queries
 
 - `GetPortfoliosPageQuery(OperatingState?, PageSize, PagingState?)`;
+- `GetPortfolioFinancialPoliciesPageQuery(PortfolioId, State?, AsOfUtc?, PageSize, PagingState?)`;
+- `GetTradeStrategyFamiliesQuery(State?, AsOfUtc?)`, bounded by the reference-catalog maximum;
 - `GetFundsByPortfolioPageQuery(PortfolioId, State?, PageSize, PagingState?)`;
 - `GetFundOrdersPageQuery(PortfolioId, FundId?, FromUtc, ToUtc, State?, PageSize, PagingState?)`; and
 - `GetFundOrderTradesPageQuery(PortfolioId, FundId, OrderId, PageSize, PagingState?)`.
@@ -750,11 +961,12 @@ Page size MUST be bounded by configuration and server maximum. Empty result is a
 `GetActiveFundQuery` applies these ordered rules:
 
 1. Portfolio exists and requested version/as-of state is Active or otherwise explicitly permitted.
-2. Exactly one Fund mandate matches PortfolioId, TradingYear, DecisionHorizon, active effective interval, and Active state.
-3. At least one enabled template assignment matches the Fund mandate and initial ES universe.
-4. Referenced TradeSelection and OrderComposition profiles exist and are effective.
-5. A current FundRiskEnvelope exists, is unexpired, and is not Blocked for new exposure.
-6. Return one immutable `PortfolioFundStrategySnapshot` plus canonical hash.
+2. The exact assigned PortfolioFinancialPolicy exists, is Active/effective, and contains the referenced global and family limits.
+3. Exactly one Fund mandate matches PortfolioId, TradingYear, DecisionHorizon, active effective interval, and Active state.
+4. At least one enabled template assignment matches the Fund mandate, initial ES universe, and an enabled exact TradeStrategyFamily definition in the policy.
+5. Referenced TradeSelection and OrderComposition profiles exist and are effective.
+6. A current FundRiskEnvelope exists, is unexpired, and is not Blocked for new exposure.
+7. Return one immutable `PortfolioFundStrategySnapshot` plus canonical hash.
 
 Missing or duplicate active Fund configuration is a configuration failure, not `NoTrade`.
 
@@ -765,6 +977,9 @@ Shared service APIs SHALL expose task-based cancellation-aware methods and typed
 - `IPortfolioCommandApi`;
 - `IPortfolioFundCommandApi`;
 - `IPortfolioQueryApi`;
+- `IPortfolioFinancialPolicyCommandApi`;
+- `IPortfolioFinancialPolicyQueryApi`;
+- `ITradeStrategyFamilyReferenceQueryApi` (read-only in v1);
 - application NATS clients implementing those interfaces; and
 - UI services mapping backend results to UI operation results without discarding error codes.
 
@@ -786,6 +1001,9 @@ PortfolioCommandActor and PortfolioFundCommandActor use the existing event-sourc
 | --- | --- |
 | `portfolio_by_id` | `((portfolioId), portfolioVersion)` descending |
 | `portfolio_by_state` | `((operatingState, bucket), portfolioId)` bounded operational list |
+| `portfolio_policy_by_id` | `((portfolioId, policyId), policyVersion)` descending |
+| `portfolio_policy_by_portfolio` | `((portfolioId, policyState), policyId, policyVersion)` bounded list |
+| `active_portfolio_policy` | `((portfolioId), effectiveFromUtc, policyId, policyVersion)` current/effective lookup |
 | `fund_by_portfolio` | `((portfolioId), fundId, fundMandateVersion)` |
 | `fund_by_id` | `((fundId), fundMandateVersion)` direct attribution/history |
 | `active_fund_by_portfolio_horizon` | `((portfolioId, tradingYear, decisionHorizon), effectiveFromUtc, fundId)` |
@@ -811,6 +1029,19 @@ Rows include schema version, aggregate version, source EventId, updated timestam
 ### 22.5 Schema initialization
 
 Portfolio schema initialization is idempotent and registered with application startup/test infrastructure. Destructive drops are test-only or separately approved administrative operations.
+
+### 22.6 ReferenceDb TradeStrategyFamily catalog
+
+ReferenceDb SHALL add a query-shaped `trade_strategy_family_v2` table with a fixed catalog partition and a stable `(SystemKey, DefinitionVersion)` clustering identity. Rows contain the complete TradeStrategyFamilyReadModel, including the sequence-generated display/foreign-key identity. The schema/bootstrap path:
+
+1. creates the table idempotently;
+2. queries the fixed catalog partition by stable SystemKey;
+3. allocates `Reference_TradeStrategyFamilyId` only when a required key is absent;
+4. conditionally inserts exactly FUTURES, VERTICAL_SPREAD, and IRON_CONDOR definition version 1 as Active using `IF NOT EXISTS`;
+5. verifies duplicate keys/IDs/versions are absent; and
+6. exposes no public write context or command API for family mutation in v1.
+
+Risk Policy and pipeline consumers use typed Reference NATS queries. They MUST NOT inject `IReferenceDbReadContext` directly. A bootstrap restart or concurrent initializer is idempotent and cannot create a duplicate family or reassign an existing ID. Losing concurrent initializers may consume unused sequence values; sequence gaps are valid and IDs are never reused.
 
 ## 23. Legacy isolation
 
@@ -839,6 +1070,7 @@ TradeSelection receives `PortfolioFundStrategySnapshot` as frozen input. It vali
 - matching workflow, Portfolio, Fund, horizon, and instrument identities;
 - effective and active versions;
 - enabled template assignment;
+- the template's exact TradeStrategyFamilyId/DefinitionVersion is Active in the frozen policy and its family row is Enabled;
 - hint-profile identity/version;
 - unexpired FundRiskEnvelope capacity permission; and
 - payload hashes.
@@ -864,6 +1096,8 @@ When the workflow accepts `Composed`, it records the result reference on FundOrd
 
 RiskManagement receives the exact candidate plus frozen Portfolio policy and FundRiskEnvelope. Portfolio/Fund records only the accepted RiskManagement result reference and state transition. The Portfolio domain does not duplicate the risk calculation.
 
+RiskManagement applies the most restrictive remaining Portfolio-wide limit, TradeFamilyRiskLimit, FundRiskEnvelope, and current-capacity value. A disabled, missing, mismatched, or stale family fails closed. No family row can enlarge the global policy or delegated Fund envelope.
+
 `RiskApproved` is terminal for the Portfolio/Fund implementation boundary. No OrderExecution command is emitted by this implementation unless the separately approved strategy-workflow execution handoff is later enabled.
 
 ## 27. UI requirements
@@ -877,25 +1111,47 @@ RiskManagement receives the exact candidate plus frozen Portfolio policy and Fun
 
 ### 27.2 Portfolio view
 
-The view supports Portfolio list/detail, versions, state, Funds, mandate versions, assignments, allocations, FundRiskEnvelope, composition history, and immutable provenance.
+The Portfolio Administration command bar SHALL expose exactly four visible actions: Refresh, New Portfolio, Risk Policy, and Portfolio Actions. `Show State` is labeled as a list filter. Portfolio Actions contains New Portfolio Version, Change Operating State, and context-valid Delete Draft only. Planned Compositions is absent.
 
-### 27.3 Trade composition view
+The existing Funds, Allocation, Risk Envelope, and Trade Assignments detail tabs remain. The command bar retains black background, white title/foreground, and a visible gray border.
 
-The minimum interaction is:
+`Risk Policy...` is disabled until a Portfolio is selected and opens one modal scoped to that Portfolio. The modal SHALL implement the section 14.1 command lifecycle and the HLD section 16.3 layout, including:
+
+- fixed Portfolio identity/state/version/base-currency context;
+- a bounded policy/version grid and immutable selected-version detail;
+- sequence-generated read-only PolicyId;
+- global capital/risk fields;
+- ReferenceDb-backed family selection with Enabled and five per-family caps;
+- field/summary validation where zero means blocked, never unlimited;
+- New Policy, New Version, Save Draft/Cancel, Activate & Assign, eligible Retire/Delete Draft, and Close behavior;
+- exact typed confirmation and reason requirements;
+- pending projection, conflict, timeout, authorization, unavailable, and validation states; and
+- no direct database access.
+
+The Reference screen SHALL show exactly the three v1 TradeStrategyFamily definitions in a read-only list/detail view and SHALL expose no Add, Edit, Retire, or Delete controls.
+
+### 27.3 Trade Orders view
+
+The existing Trade Orders screen is the only manual/automated composition view. `PortfolioCompositionForm`, its navigation action, and competing planned-composition presentation state SHALL be removed. The minimum interaction is:
 
 1. select Portfolio;
-2. select Fund filtered by Portfolio;
-3. view FundOrders for a date range;
-4. select FundOrder;
-5. view FundOrderTrades;
-6. inspect TradeSelection and OrderComposition references/details; and
-7. later inspect execution/position projections when implemented.
+2. clear stale Fund/order/trade/detail state and load Funds owned by that Portfolio;
+3. select Fund;
+4. view canonical manual and StrategyWorkflow FundOrders for a bounded date range;
+5. filter Source by All, Manual, or Strategy Workflow;
+6. select FundOrder and view its FundOrderTrades;
+7. inspect exact composition plus workflow/template/profile/composition/risk provenance; and
+8. later inspect execution/position projections when implemented.
 
-The new view MUST remove Create Fund. Portfolio/Fund administration occurs only in Portfolio administration UI.
+The view MUST remove Create Fund while retaining manual Create Order/Add Trade for an eligible Portfolio/Fund. StrategyWorkflow orders and all accepted immutable composition results are read-only. Order/trade lists retain the current operator interaction and add Source plus composition/risk status. Changing Portfolio or Fund cancels/supersedes outstanding loads so delayed responses cannot display the prior scope.
+
+Submit, fill, live-feed, End-of-Day, and position actions remain legacy execution controls and MUST be disabled for new pre-execution Portfolio-backed records until the OrderExecution/TradeDb specification authorizes them. The cutover MUST replace legacy Fund mutations with the canonical new actor surface as one tested boundary; one form/session cannot mix legacy and new writes.
 
 ### 27.4 Integer display
 
 OrderId and TradeId are primary operator-visible columns and searchable fields. Workflow GUIDs may be shown in diagnostics but do not replace integer identifiers.
+
+PortfolioId, FundId, OrderId, TradeId, and any later approved integer business identity are display/search values, never editable creation inputs. Forms may show an allocated value read-only, but they MUST NOT permit operator override or fabricate a fallback value when sequence allocation fails.
 
 ## 28. Validation reason codes
 
@@ -918,6 +1174,17 @@ Stable initial reason-code names are:
 - `PortfolioNotFound`;
 - `PortfolioNotActive`;
 - `PortfolioVersionExpired`;
+- `PolicyIdInvalid`;
+- `PortfolioPolicyMissing`;
+- `PortfolioPolicyNotActive`;
+- `PortfolioPolicyNotEffective`;
+- `PortfolioPolicyOwnershipMismatch`;
+- `PortfolioPolicyReferenced`;
+- `PortfolioPolicyLimitInvalid`;
+- `TradeStrategyFamilyMissing`;
+- `TradeStrategyFamilyVersionMismatch`;
+- `TradeStrategyFamilyDisabled`;
+- `TradeStrategyFamilyLimitInvalid`;
 - `FundNotFound`;
 - `FundNotActive`;
 - `FundMandateExpired`;
@@ -956,6 +1223,8 @@ Reason names are append-only. Numeric error-code assignments are finalized in th
 - CommandId/EventId;
 - WorkflowId/StageInvocationId;
 - PortfolioId/PortfolioVersion;
+- PolicyId/PolicyVersion;
+- TradeStrategyFamilyId/DefinitionVersion where applicable;
 - FundId/FundMandateVersion;
 - OrderId/TradeId where allocated;
 - aggregate expected/current version;
@@ -976,6 +1245,10 @@ No metric label may use unrestricted high-cardinality values such as WorkflowId,
 Authorization policies must distinguish:
 
 - Portfolio administration;
+- PortfolioFinancialPolicy Draft administration;
+- PortfolioFinancialPolicy activation/assignment;
+- PortfolioFinancialPolicy retirement/deletion;
+- TradeStrategyFamily reference read access;
 - Fund administration;
 - allocation/risk-envelope administration;
 - template/profile administration;
@@ -989,15 +1262,15 @@ Every mutation records the authenticated principal. Broker credentials, API keys
 
 ### 31.1 Unit tests
 
-Unit tests SHALL cover identities/formatting, MessagePack round trips and keys, enum numeric assignments, validators, state transitions, expected versions, idempotency, allocation overflow, snapshot/hash determinism, active Fund resolution, and mapping.
+Unit tests SHALL cover identities/formatting, MessagePack round trips and keys, reserved Portfolio key 1, enum numeric assignments, catalog bootstrap mapping, global/family policy validators, policy state transitions, expected versions, idempotency, allocation overflow, snapshot/hash determinism, active Fund resolution, Trade Orders source/action state, and mapping.
 
 ### 31.2 BDD tests
 
-BDD scenarios SHALL cover Portfolio lifecycle, Fund lifecycle, assignments, active Fund resolution, composition reservation, duplicate reservation, composition success/failure, risk outcome recording, cancellation/expiry, and prohibited execution effects.
+BDD scenarios SHALL cover Portfolio lifecycle, Draft-only deletion, three-family Reference catalog behavior, policy create/version/activate/assign/supersede/retire/Delete-Draft, global/family cap behavior, Fund lifecycle, assignments, active Fund resolution, manual and StrategyWorkflow order visibility, composition reservation, duplicate reservation, composition success/failure, risk outcome recording, cancellation/expiry, and prohibited execution effects.
 
 ### 31.3 Integration tests
 
-Integration tests use real NATS routing, PostgreSQL event/sequence databases, ScyllaDB schema/projections, actor restart/replay, and typed query clients. Test-owned IDs and rows are isolated and cleaned through public APIs or bounded test teardown.
+Integration tests use real NATS routing, PostgreSQL event/sequence databases, ReferenceDb and PortfolioDb Scylla schemas/projections, idempotent family bootstrap, policy activation/assignment coordination, actor restart/replay, and typed query clients. Test-owned IDs and rows are isolated and cleaned through public APIs or bounded test teardown.
 
 ### 31.4 Verification tests
 
@@ -1017,12 +1290,18 @@ The representative catalog includes at least:
 | Blocked/expired envelope | Any | No new-exposure permission |
 | Duplicate reservation | Same payload/key | Same integer IDs |
 | Duplicate reservation | Different payload/key reuse | IdempotencyConflict |
+| Reference bootstrap | Repeated/concurrent startup | Exactly three unique Active family definitions |
+| Futures policy row | Enabled below global caps | Effective limit is the smaller global/family capacity |
+| Vertical Spread policy row | Disabled | Family rejected before composition |
+| Iron Condor policy row | Enabled with zero risk/margin capacity | Family retained but blocked |
+| Any family row | Cap exceeds global value | Policy activation rejected |
+| Missing/stale family version | Any template | Configuration failure |
 
 Verification is representative, not an uncontrolled Cartesian expansion.
 
 ### 31.5 UI system tests
 
-System tests verify navigation, selectors, filtering, integer identity display/search, detail selection, absence of Create Fund, error presentation, lifecycle cleanup, and continued legacy navigation during transition.
+System tests verify compact Portfolio command-bar actions; Risk Policy modal layout, validation, immutable versioning, sequence gaps, activation/assignment, retirement/deletion, family selection and per-family editing; read-only three-row Reference screen; Portfolio-to-Fund Trade Orders cascading selection; Manual/Strategy Workflow source filtering; stale-load clearing; integer identity display/search; absence of Create Fund and Planned Compositions; pre-execution action fencing; error presentation; lifecycle cleanup; and continued legacy navigation during transition.
 
 ## 32. Implementation gates
 
@@ -1050,6 +1329,16 @@ Each gate requires code, required documentation updates, proportional BDD/unit/i
 | PF-18 | Full BDD/unit/integration/verification/system acceptance suite |
 | PF-19 | Legacy Fund read-only isolation and no dual-write audit |
 | PF-20 | Documentation, observability, security, performance baseline, and release evidence |
+| PF-21 | Revised contract baseline: remove PortfolioCode/raw policy identity and reserve serialized key |
+| PF-22 | ReferenceDb TradeStrategyFamily schema, sequence-backed idempotent seed, typed reads, and read-only Reference UI |
+| PF-23 | Policy/family-limit identities, DTOs, serialization, validation, and sequence allocation |
+| PF-24 | PortfolioFinancialPolicy aggregate lifecycle and atomic activation/assignment |
+| PF-25 | Policy EventSourceDb repository, PortfolioDb projections, replay, tombstones, and rebuild |
+| PF-26 | Policy/reference typed NATS APIs and frozen workflow propagation |
+| PF-27 | Compact Portfolio command bar and complete Risk Policy modal |
+| PF-28 | Unified Portfolio-to-Fund Trade Orders UI and separate composition-view removal |
+| PF-29 | Cross-pipeline global/family-limit qualification across all five test layers |
+| PF-30 | Regression, operational evidence, documentation reconciliation, and release approval |
 
 OrderExecution and TradeDb execution redesign are not PF gates.
 
@@ -1078,6 +1367,9 @@ The implementation plan SHALL retain these deferred items:
 8. Advanced Portfolio optimization beyond approved hard limits.
 9. High-throughput ScyllaDB sequence/tick identity review.
 10. Operator-facing integer-width expansion beyond current checked Int32 contracts.
+11. TradeStrategyFamily mutation commands and management UI.
+12. Trade-strategy variants/subtypes including Long, Short, bullish, bearish, neutral, debit, and credit.
+13. Scheduled PortfolioFinancialPolicy activation.
 
 Deferred work cannot be implemented accidentally inside a PF gate.
 
@@ -1085,7 +1377,7 @@ Deferred work cannot be implemented accidentally inside a PF gate.
 
 The specification is implemented only when:
 
-- all PF-01 through PF-20 gates are complete;
+- all applicable PF-01 through PF-30 gates are complete, with PF-01 through PF-20 retaining their historical evidence and reopened status where superseded behavior invalidates acceptance;
 - new Portfolio/Fund actors use NATS and authoritative PostgreSQL event history;
 - Scylla PortfolioDb projections rebuild from events;
 - Portfolio and Fund versions freeze correctly into the workflow;
@@ -1095,6 +1387,9 @@ The specification is implemented only when:
 - TradeSelection and OrderComposition handoffs satisfy their mandates;
 - no Portfolio/Fund path performs broker execution or creates a live position;
 - the Portfolio UI and composition view pass system tests;
+- the Reference screen exposes exactly three read-only v1 families and repeated bootstrap remains idempotent;
+- Risk Policy global/family limits and atomic activation/assignment pass all five test layers;
+- Trade Orders is the sole manual/automated composition view with Portfolio-to-Fund scoping;
 - legacy Funds remain isolated without dual writes;
 - all required tests pass without residual test data; and
 - release evidence records commands, tests, schemas, versions, and known deferred work.
@@ -1103,11 +1398,11 @@ The specification is implemented only when:
 
 | Horizon | Underlying | Asset type | Trade family | Minimum assignment |
 | --- | --- | --- | --- | --- |
-| Daily | ES | Futures | DirectionalFuture | One enabled template and composition profile |
+| Daily | ES | Futures | Futures | One enabled directional template and composition profile |
 | Weekly | ES | FuturesOptions | VerticalSpread | Bullish and bearish compatibility through configured template/profile variants |
-| Monthly | ES | FuturesOptions | DirectionalIronCondor | Neutral, bullish-bias, and bearish-bias compatibility as configured |
+| Monthly | ES | FuturesOptions | IronCondor | Neutral, bullish-bias, and bearish-bias compatibility as configured |
 
-The catalog is configuration. Adding templates later does not change Portfolio/Fund ownership or identity contracts.
+The three TradeStrategyFamily definitions are ReferenceDb configuration. Direction/bias examples are template/profile behavior, not additional v1 family rows. Adding templates later does not change Portfolio/Fund ownership or identity contracts.
 
 ## Appendix B. Current-to-target terminology
 

@@ -21,6 +21,9 @@ public sealed class PortfolioIdentityApi(IActorProducer actorProducer) : NatsCli
     public Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateTradeIdAsync(CancellationToken cancellationToken = default) =>
         AllocateAsync(PortfolioBusinessIdentityKind.Trade, cancellationToken);
 
+    public Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocatePolicyIdAsync(CancellationToken cancellationToken = default) =>
+        AllocateAsync(PortfolioBusinessIdentityKind.Policy, cancellationToken);
+
     async Task<ServiceResult<PortfolioBusinessIdAllocation>> AllocateAsync(
         PortfolioBusinessIdentityKind kind,
         CancellationToken cancellationToken)

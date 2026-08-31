@@ -24,6 +24,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     readonly IReferenceDataService _referenceDataService;
     readonly MarketDataFeedQueryService _marketDataFeedQueryModel;
     readonly TimeProvider _timeProvider;
+    readonly bool _allocateOrderId;
     int _orderId;
     string _selectedBaseContractId;
     DateOnly _tradeDate;
@@ -40,7 +41,8 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         IEnumerable<FuturesContractV2ReadModel> baseContracts,
         int fundId,
         IReferenceDataService referenceDataService,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        bool allocateOrderId = true)
     {
         ArgumentNullException.ThrowIfNull(appRoot);
         ArgumentNullException.ThrowIfNull(baseContracts);
@@ -50,6 +52,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
         _fundId = fundId;
         _valueDate = valueDate;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _allocateOrderId = allocateOrderId;
         _orderDate = EasternTime.GetNow(_timeProvider);
         _tradeDate = valueDate;
         _maturityDate = DateOnly.FromDateTime(_orderDate);
@@ -132,7 +135,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
 
     /// <summary>Gets whether the current snapshot can be accepted by the modal view.</summary>
     public bool CanSave => !IsBusy
-        && OrderId > 0
+        && (!_allocateOrderId || OrderId > 0)
         && !string.IsNullOrWhiteSpace(SelectedBaseContractId)
         && TradeDate > DateOnly.MinValue
         && MaturityDate >= TradeDate;
@@ -223,7 +226,8 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     {
         try
         {
-            OrderId = (await _referenceDataService.GetNextOrderIdAsync(cancellationToken)).RequireValue();
+            if (_allocateOrderId)
+                OrderId = (await _referenceDataService.GetNextOrderIdAsync(cancellationToken)).RequireValue();
             await RefreshReferenceCoreAsync(cancellationToken);
         }
         catch (UiOperationException exception)

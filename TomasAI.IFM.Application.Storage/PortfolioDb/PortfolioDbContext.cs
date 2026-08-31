@@ -30,6 +30,13 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, IDbContex
     public Task<IReadOnlyList<FundOrderTradeProjectionReadModel>> GetOrderTradesAsync(int id, int n, CancellationToken ct = default) => Many<FundOrderTradeProjectionReadModel>(PortfolioDbCql.GetOrderTrades, V(Pos(id), Page(n)), ct);
     public Task<FundOrderTradeProjectionReadModel?> GetTradeAsync(int id, CancellationToken ct = default) => One<FundOrderTradeProjectionReadModel>(PortfolioDbCql.GetTrade, V(Pos(id)), ct);
     public Task<IReadOnlyList<FundCompositionWorkflowProjectionReadModel>> GetCompositionsAsync(Guid id, int n, CancellationToken ct = default) { if (id == Guid.Empty) throw new ArgumentException("WorkflowId is required."); return Many<FundCompositionWorkflowProjectionReadModel>(PortfolioDbCql.GetCompositions, V(id, Page(n)), ct); }
+    public Task<PortfolioFinancialPolicyReadModel?> GetPolicyAsync(int id, long? version = null, CancellationToken ct = default) => version is null
+        ? One<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetPolicy, V(Pos(id)), ct)
+        : One<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetPolicyVersion, V(Pos(id), Positive(version.Value)), ct);
+    public Task<IReadOnlyList<PortfolioFinancialPolicyReadModel>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken ct = default) =>
+        Many<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetPolicies, V(Pos(portfolioId), Page(pageSize)), ct);
+    public Task<PortfolioFinancialPolicyReadModel?> GetActivePolicyAsync(int portfolioId, CancellationToken ct = default) =>
+        One<PortfolioFinancialPolicyReadModel>(PortfolioDbCql.GetActivePolicy, V(Pos(portfolioId)), ct);
 
     public async Task UpsertPortfolioAsync(PortfolioProjection<PortfolioReadModel> row, int bucket, CancellationToken ct = default)
     {
@@ -51,6 +58,43 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, IDbContex
     public async Task UpsertOrderAsync(PortfolioProjection<FundOrderProjectionReadModel> r, DateOnly month, CancellationToken ct = default) { Check(r); var x=r.Value; var c=Common(r); await Put(PortfolioDbCql.InsertOrderTimeline,V(x.PortfolioId,x.FundId,month,x.CreatedOnUtc,x.OrderId,x.Status,c),ct); await Put(PortfolioDbCql.InsertOrderId,V(x.OrderId,x.PortfolioId,x.FundId,x.Status,c),ct); }
     public async Task UpsertTradeAsync(PortfolioProjection<FundOrderTradeProjectionReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; var c=Common(r); await Put(PortfolioDbCql.InsertTradeOrder,V(x.OrderId,x.TradeId,x.PortfolioId,x.FundId,c),ct); await Put(PortfolioDbCql.InsertTradeId,V(x.TradeId,x.OrderId,x.PortfolioId,x.FundId,c),ct); }
     public Task UpsertCompositionAsync(PortfolioProjection<FundCompositionWorkflowProjectionReadModel> r, CancellationToken ct = default) { Check(r); var x=r.Value; return Put(PortfolioDbCql.InsertComposition,V(x.WorkflowId,x.OrderId,x.PortfolioId,x.FundId,x.Status,Common(r)),ct); }
+    public async Task UpsertPolicyAsync(PortfolioProjection<PortfolioFinancialPolicyReadModel> r, CancellationToken ct = default)
+    {
+        Check(r); var x = r.Value; var c = Common(r);
+        await Put(PortfolioDbCql.InsertPolicyById, V(x.PolicyId, x.PolicyVersion, x.PortfolioId, x.OperatingState.ToString(), c), ct);
+        await Put(PortfolioDbCql.InsertPolicyByPortfolio, V(x.PortfolioId, x.PolicyId, x.PolicyVersion, x.OperatingState.ToString(), c), ct);
+        if (x.OperatingState == PortfolioFinancialPolicyState.Active)
+            await Put(PortfolioDbCql.InsertActivePolicy, V(x.PortfolioId, x.PolicyId, x.PolicyVersion, c), ct);
+    }
+
+    public async Task DeleteDraftPolicyAsync(DraftPolicyProjectionDeletion deletion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(deletion);
+        var eventId = Positive(deletion.SourceEventId);
+        await Delete(PortfolioDbCql.DeletePolicyById, V(eventId, Pos(deletion.PolicyId)), ct);
+        await Delete(PortfolioDbCql.DeletePolicyByPortfolio, V(eventId, Pos(deletion.PortfolioId), Pos(deletion.PolicyId)), ct);
+        await Delete(PortfolioDbCql.DeleteActivePolicy, V(eventId, Pos(deletion.PortfolioId)), ct);
+    }
+
+    public async Task DeleteDraftPortfolioAsync(DraftPortfolioProjectionDeletion deletion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(deletion);
+        var portfolioId = Pos(deletion.PortfolioId);
+        var sourceEventId = Positive(deletion.SourceEventId);
+        if (deletion.StateBucket < 0) throw new ArgumentOutOfRangeException(nameof(deletion));
+        await Delete(PortfolioDbCql.DeletePortfolioById, V(sourceEventId, portfolioId), ct);
+        await Delete(PortfolioDbCql.DeletePortfolioByState, V(sourceEventId, PortfolioOperatingState.Draft.ToString(), deletion.StateBucket, portfolioId), ct);
+        await Delete(PortfolioDbCql.DeleteFundsByPortfolio, V(sourceEventId, portfolioId), ct);
+        foreach (var fund in deletion.Funds)
+        {
+            var fundId = Pos(fund.FundId);
+            await Delete(PortfolioDbCql.DeleteFundById, V(sourceEventId, fundId), ct);
+            await Delete(PortfolioDbCql.DeleteAllocation, V(sourceEventId, portfolioId, fundId), ct);
+            await Delete(PortfolioDbCql.DeleteRiskEnvelope, V(sourceEventId, portfolioId, fundId), ct);
+            foreach (var version in fund.MandateVersions.Distinct().Order())
+                await Delete(PortfolioDbCql.DeleteAssignments, V(sourceEventId, portfolioId, fundId, Positive(version)), ct);
+        }
+    }
 
     async Task<T?> One<T>(string cql, PortfolioValues values, CancellationToken ct) where T : class => await factory.PortfolioDb.Use($"PortfolioDb.{nameof(One)}",cql).SetParameters(values).ExecuteSingleAsync(Map<T>,ct).ConfigureAwait(false);
     async Task<T?> OneValue<T>(string cql, PortfolioValues values, Func<IObjectDataRecord, T> map, CancellationToken ct) where T : class =>
@@ -64,6 +108,8 @@ public sealed class PortfolioDbContext(IDbConnectionSettings settings, IDbContex
         var monotonicValues = new PortfolioValues([.. values.Values, values.Values[^4]]);
         await factory.PortfolioDb.Use("PortfolioDb.Upsert",monotonicCql).SetParameters(monotonicValues).ExecuteCommandAsync(ct).ConfigureAwait(false);
     }
+    Task Delete(string cql, PortfolioValues values, CancellationToken ct) =>
+        factory.PortfolioDb.Use("PortfolioDb.DeleteDraft", cql).SetParameters(values).ExecuteCommandAsync(ct);
     static T Map<T>(IObjectDataRecord row) where T : class => JsonSerializer.Deserialize<T>(row.GetString(0)) ?? throw new InvalidOperationException($"Stored {typeof(T).Name} payload is invalid.");
     static object?[] Common<T>(PortfolioProjection<T> r) => [r.SchemaVersion,r.AggregateVersion,r.SourceEventId,r.UpdatedOnUtc,JsonSerializer.Serialize(r.Value),r.PayloadHash];
     static PortfolioValues V(params object?[] values) => new(Flatten(values));

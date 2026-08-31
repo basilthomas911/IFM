@@ -16,6 +16,8 @@ using TomasAI.IFM.UI.Net.ViewModels.Presentation;
 using TomasAI.IFM.UI.Net.ViewModels.Operations;
 using TomasAI.IFM.UI.Net.Models;
 using TomasAI.IFM.UI.Net.Services.Reference;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
@@ -31,6 +33,9 @@ public partial class TradeOrderEditorForm
     long _lastErrorSequence;
     long _lastChangeSequence;
     bool _rendering;
+    readonly ComboBox _portfolioSelector = new() { Name = "ddlPortfolio", AccessibleName = "Portfolio selector", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(93, 8), Size = new Size(720, 28) };
+    readonly ComboBox _sourceFilter = new() { Name = "ddlCompositionSource", AccessibleName = "Composition source filter", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(1010, 8), Size = new Size(220, 28) };
+    bool _canonicalOrderSelected;
 
     /// <summary>
     /// create trade order form
@@ -41,6 +46,7 @@ public partial class TradeOrderEditorForm
         IReferenceDataService referenceDataService)
     {
         InitializeComponent();
+        ConfigurePortfolioScope();
         ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
         _referenceDataService = referenceDataService;
@@ -66,6 +72,20 @@ public partial class TradeOrderEditorForm
         RenderEditor();
     }
 
+    void ConfigurePortfolioScope()
+    {
+        pnlFundSelector.Height = 100;
+        ddlFund.Location = new Point(93, 58); lblFundSelector.Location = new Point(29, 64);
+        btnCreateFund.Visible = false; btnCreateFund.Enabled = false; pnlFundSelector.Controls.Remove(btnCreateFund);
+        pnlFundSelector.Controls.Add(new Label { Text = "Portfolio:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(8, 14) });
+        pnlFundSelector.Controls.Add(_portfolioSelector);
+        pnlFundSelector.Controls.Add(new Label { Text = "Source:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(935, 14) });
+        _sourceFilter.Items.AddRange(["All", "Manual", "Strategy Workflow"]); _sourceFilter.SelectedIndex = 0; pnlFundSelector.Controls.Add(_sourceFilter);
+        _portfolioSelector.SelectedIndexChanged += async (_, _) => { if (_rendering) return; await _viewModel.SelectPortfolioAsync(_portfolioSelector.SelectedIndex); RenderEditor(); };
+        _sourceFilter.SelectedIndexChanged += (_, _) => RenderFundOrders();
+        if (lstTradeOrders.Columns.Count == 4) lstTradeOrders.Columns.Add("Source", 150);
+    }
+
     void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
         => this.Post(() =>
         {
@@ -75,7 +95,9 @@ public partial class TradeOrderEditorForm
                 HandleLatestChange();
             if (eventArgs.PropertyName is nameof(TradeOrderEditorViewModel.Funds)
                 or nameof(TradeOrderEditorViewModel.FundOrders)
-                or nameof(TradeOrderEditorViewModel.FundOrderTrades))
+                or nameof(TradeOrderEditorViewModel.FundOrderTrades)
+                or nameof(TradeOrderEditorViewModel.Portfolios)
+                or nameof(TradeOrderEditorViewModel.CanonicalOrders))
                 RenderEditor();
             else
                 UpdateButtons();
@@ -193,10 +215,23 @@ public partial class TradeOrderEditorForm
 
     void RenderEditor()
     {
+        RenderPortfolios();
         RenderFunds();
         RenderFundOrders();
         RenderTrades();
         UpdateButtons();
+    }
+
+    void RenderPortfolios()
+    {
+        var prior = _rendering; _rendering = true;
+        try
+        {
+            _portfolioSelector.Items.Clear();
+            foreach (var portfolio in _viewModel.Portfolios) _portfolioSelector.Items.Add($"{portfolio.PortfolioId} — {portfolio.Name}");
+            _portfolioSelector.SelectedIndex = _viewModel.PortfolioSelectedIndex;
+        }
+        finally { _rendering = prior; }
     }
 
     void RenderFunds()
@@ -227,12 +262,23 @@ public partial class TradeOrderEditorForm
             lstTradeOrders.Items.Clear();
             foreach (var fundOrder in _viewModel.FundOrders)
             {
-                lstTradeOrders.Items.Add(new ListViewItem([
+                if (_sourceFilter.SelectedItem?.ToString() == "Strategy Workflow") continue;
+                var item = new ListViewItem([
                     $"{fundOrder.OrderId}",
                     $"{EasternTime.FromUtc(fundOrder.OrderDate):yyyy-MMM-dd}",
                     $"{fundOrder.OrderStatus}",
-                    fundOrder.Reference ?? string.Empty
-                ]));
+                    fundOrder.Reference ?? string.Empty,
+                    "Manual"
+                ]) { Tag = fundOrder };
+                lstTradeOrders.Items.Add(item);
+            }
+            foreach (var order in _viewModel.CanonicalOrders)
+            {
+                var source = order.Origin == CompositionOrigin.ManualUi ? "Manual" : "Strategy Workflow";
+                var filter = _sourceFilter.SelectedItem?.ToString() ?? "All";
+                if (filter != "All" && filter != source) continue;
+                var reference = source == "Manual" ? order.OperatorReference : order.WorkflowId.ToString("N");
+                lstTradeOrders.Items.Add(new ListViewItem([$"{order.OrderId}", $"{EasternTime.FromUtc(order.CreatedOnUtc):yyyy-MMM-dd}", order.Status, reference, source]) { Tag = order });
             }
             lstTradeOrders.AccessibleDescription = string.Join(" || ", _viewModel.FundOrders.Select(fundOrder =>
                 $"{fundOrder.OrderId} | {EasternTime.FromUtc(fundOrder.OrderDate):yyyy-MMM-dd} | "
@@ -300,18 +346,18 @@ public partial class TradeOrderEditorForm
                                         && _viewModel.SelectedFundOrderTrade is { } selectedTrade
             ? $"Remove Trade {selectedTrade.TradeId} From Order {tradeOrder.OrderId}"
             : "Remove Trade";
-        btnCreateFund.Enabled = !_viewModel.IsBusy;
-        btnLoadOrder.Enabled = _viewModel.CanLoadOrder;
-        btnCreateOrder.Enabled = _viewModel.CanCreateOrder;
-        btnDeleteOrder.Enabled = _viewModel.CanDeleteOrder;
-        btnCompleteOrder.Enabled = _viewModel.CanCompleteOrder;
-        btnAddTrade.Enabled = _viewModel.CanAddTrade;
-        btnRemoveTrade.Enabled = _viewModel.CanRemoveTrade;
-        btnChangeTradeState.Enabled = _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
-        ddlTradeState.Enabled = _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
-        btnEndOfDay.Enabled = _viewModel.CanEndOfDay;
-        btnSubmitOrder.Enabled = _viewModel.CanSubmitOrder;
-        cbLiveFeed.Enabled = _viewModel.CanUseLiveFeed;
+        btnCreateFund.Enabled = false;
+        btnLoadOrder.Enabled = !_canonicalOrderSelected && _viewModel.CanLoadOrder;
+        btnCreateOrder.Enabled = !_canonicalOrderSelected && _viewModel.CanCreateOrder;
+        btnDeleteOrder.Enabled = !_canonicalOrderSelected && _viewModel.CanDeleteOrder;
+        btnCompleteOrder.Enabled = !_canonicalOrderSelected && _viewModel.CanCompleteOrder;
+        btnAddTrade.Enabled = !_canonicalOrderSelected && _viewModel.CanAddTrade;
+        btnRemoveTrade.Enabled = !_canonicalOrderSelected && _viewModel.CanRemoveTrade;
+        btnChangeTradeState.Enabled = !_canonicalOrderSelected && _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
+        ddlTradeState.Enabled = !_canonicalOrderSelected && _viewModel.CanChangeTradeState && ddlTradeState.Items.Count > 0;
+        btnEndOfDay.Enabled = !_canonicalOrderSelected && _viewModel.CanEndOfDay;
+        btnSubmitOrder.Enabled = !_canonicalOrderSelected && _viewModel.CanSubmitOrder;
+        cbLiveFeed.Enabled = !_canonicalOrderSelected && _viewModel.CanUseLiveFeed;
     }
 
     void ClearTradeOrderControl()
@@ -400,13 +446,14 @@ public partial class TradeOrderEditorForm
         }
     }
 
-    void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
+    async void ddlFund_SelectedIndexChanged(object sender, EventArgs e)
     {
         UpdateFundSelectorAccessibility();
         if (_rendering) return;
         if (ddlFund.SelectedIndex < 0) return;
         if (_viewModel.SelectFund(ddlFund.SelectedIndex))
         {
+            await _viewModel.LoadCanonicalOrdersAsync();
             RenderFundOrders();
             RenderTrades();
         }
@@ -425,7 +472,7 @@ public partial class TradeOrderEditorForm
         UpdateButtons();
     }
 
-    void lstTradeOrders_SelectedIndexChanged(object sender, EventArgs e)
+    async void lstTradeOrders_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (_rendering) return;
         _displayedTradeId = null;
@@ -436,12 +483,26 @@ public partial class TradeOrderEditorForm
         lstTrades.Items.Clear();
         if (lstTradeOrders.SelectedItems.Count > 0)
         {
+            if (lstTradeOrders.SelectedItems[0].Tag is FundOrderProjectionReadModel canonical)
+            {
+                _canonicalOrderSelected = true;
+                _viewModel.SelectFundOrder(-1);
+                var trades = await _viewModel.GetCanonicalTradesAsync(canonical.OrderId);
+                foreach (var trade in trades)
+                    lstTrades.Items.Add(new ListViewItem([$"{trade.TradeId}", trade.TradeFamily, trade.DirectionOrBias, trade.UnderlyingRoot]));
+                UpdateButtons();
+                return;
+            }
+            _canonicalOrderSelected = false;
             _viewModel.SelectFundOrder(lstTradeOrders.SelectedIndices[0]);
             RenderTrades();
             UpdateButtons();
         }
         else
+        {
+            _canonicalOrderSelected = false;
             _viewModel.SelectFundOrder(-1);
+        }
     }
 
 
@@ -488,11 +549,18 @@ public partial class TradeOrderEditorForm
             valueDate,
             _viewModel.BaseContracts,
             fundId,
-            _referenceDataService);
+            _referenceDataService,
+            allocateOrderId: false);
         var dlg = new CreateFundOrderForm();
         dlg.SetViewModel(vm);
         if (dlg.ShowDialog() == DialogResult.OK)
-            await ObserveAsync(() => _viewModel.AddOrderToFund(dlg.FundOrder));
+            await ObserveAsync(async () =>
+            {
+                await _viewModel.CreateManualOrderAsync(dlg.FundOrder);
+                RenderFundOrders();
+                RenderTrades();
+                UpdateButtons();
+            });
     }
 
     void ddlLiveFeed_SelectedIndexChanged(object sender, EventArgs e)

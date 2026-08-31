@@ -13,7 +13,7 @@ public sealed class PortfolioLifecycleContractSystemTests
     {
         var readModel = new PortfolioReadModel
         {
-            PortfolioId = 101, PortfolioCode = "CORE", Name = "Core", PortfolioVersion = 2,
+            PortfolioId = 101, Name = "Core", PortfolioVersion = 2,
             OperatingState = PortfolioOperatingState.Paused,
             EffectiveFromUtc = new DateTime(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc),
             CreatedOnUtc = new DateTime(2026, 8, 29, 14, 0, 0, DateTimeKind.Utc),
