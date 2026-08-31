@@ -72,6 +72,12 @@ public sealed record FundMandateReadModel
     [Key(16)] public string[] PermittedTradeFamilies { get; init; } = [];
     [Key(17)] public DateTime CreatedOnUtc { get; init; }
     [Key(18)] public string CreatedBy { get; init; } = string.Empty;
+    [Key(19)] public string HistoricalSource { get; init; } = string.Empty;
+    [Key(20)] public int? HistoricalSourceFundId { get; init; }
+
+    [IgnoreMember]
+    public bool IsLegacyHistory => HistoricalSource.Equals("FundLegacyDb", StringComparison.Ordinal)
+        && HistoricalSourceFundId is >= 0;
 
     public IReadOnlyList<string> Validate()
     {
@@ -93,6 +99,14 @@ public sealed record FundMandateReadModel
         if (PermittedTradeFamilies.Length == 0 || PermittedTradeFamilies.Any(string.IsNullOrWhiteSpace)) errors.Add("PermittedTradeFamilies is required.");
         if (CreatedOnUtc.Kind != DateTimeKind.Utc) errors.Add("CreatedOnUtc must be UTC.");
         if (string.IsNullOrWhiteSpace(CreatedBy)) errors.Add("CreatedBy is required.");
+        if (string.IsNullOrWhiteSpace(HistoricalSource) != (HistoricalSourceFundId is null))
+            errors.Add("HistoricalSource and HistoricalSourceFundId must be supplied together.");
+        if (HistoricalSourceFundId is < 0) errors.Add("HistoricalSourceFundId cannot be negative.");
+        if (!string.IsNullOrWhiteSpace(HistoricalSource)
+            && !HistoricalSource.Equals("FundLegacyDb", StringComparison.Ordinal))
+            errors.Add("HistoricalSource is not supported.");
+        if (IsLegacyHistory && OperatingState != FundOperatingState.Draft)
+            errors.Add("A legacy-history Fund mandate must remain Draft.");
         return errors;
     }
 

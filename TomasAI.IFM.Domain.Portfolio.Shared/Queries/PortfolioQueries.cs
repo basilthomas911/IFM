@@ -50,3 +50,13 @@ public sealed record AllocatePortfolioBusinessIdRequest(
 [MessagePackObject] public sealed record GetPolicyRequest([property: Key(0)] int PolicyId, [property: Key(1)] long? PolicyVersion);
 [MessagePackObject] public sealed record GetPoliciesRequest([property: Key(0)] int PortfolioId, [property: Key(1)] int PageSize);
 [MessagePackObject] public sealed record GetActivePolicyRequest([property: Key(0)] int PortfolioId);
+[MessagePackObject] public sealed record GetLegacyPortfolioScopesRequest;
+[MessagePackObject] public sealed record GetLegacyFundCatalogRequest;
+[MessagePackObject] public sealed record GetLegacyFundOrdersRequest(
+    [property: Key(0)] int LegacyFundId,
+    [property: Key(1)] DateOnly FromDate,
+    [property: Key(2)] DateOnly ToDate,
+    [property: Key(3)] int PageSize);
+[MessagePackObject] public sealed record GetLegacyFundOrderTradesRequest(
+    [property: Key(0)] int LegacyFundId,
+    [property: Key(1)] int OrderId);

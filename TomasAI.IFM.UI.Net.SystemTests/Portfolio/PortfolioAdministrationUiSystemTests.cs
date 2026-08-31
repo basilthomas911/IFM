@@ -121,6 +121,40 @@ public sealed class PortfolioAdministrationUiSystemTests
 
     [Fact]
     [Trait("Gate", "PF-27")]
+    [Trait("Category", "Portfolio")]
+    public void Risk_policy_family_limit_grid_displays_reference_name_while_preserving_family_id()
+    {
+        using var form = new PortfolioRiskPolicyForm(
+            Portfolio(), Substitute.For<IPortfolioQueryApi>(), Substitute.For<IPortfolioIdentityApi>(),
+            Substitute.For<IPortfolioFinancialPolicyCommandApi>(), Substitute.For<IReferenceQueryApi>(), true);
+        SetField(form, "_catalog", new[]
+        {
+            new TradeStrategyFamilyReadModel
+            {
+                TradeStrategyFamilyId = 2, DefinitionVersion = 1, SystemKey = "VERTICAL_SPREAD", Name = "Vertical Spreads",
+                State = TradeStrategyFamilyState.Active, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test",
+            },
+        });
+        var policy = new PortfolioFinancialPolicyReadModel
+        {
+            PortfolioId = 7001, PolicyId = 9001, PolicyVersion = 1, Name = "Limits",
+            OperatingState = PortfolioFinancialPolicyState.Draft, BaseCurrency = "USD",
+            TradeFamilyLimits = [new() { TradeStrategyFamilyId = 2, DefinitionVersion = 1 }],
+            EffectiveFromUtc = DateTime.UtcNow, CreatedOnUtc = DateTime.UtcNow, CreatedBy = "test",
+        };
+
+        typeof(PortfolioRiskPolicyForm).GetMethod("DisplayPolicy", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, [policy]);
+        var grid = Field<DataGridView>(form, "_families");
+        var column = grid.Columns[nameof(TradeFamilyRiskLimitReadModel.TradeStrategyFamilyId)];
+        var cell = grid.Rows[0].Cells[column.Index];
+
+        column.HeaderText.Should().Be("Trade Family");
+        cell.FormattedValue.Should().Be("Vertical Spreads");
+        cell.Value.Should().Be(2, "the immutable policy contract still stores the reference identity");
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-27")]
     [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Unauthorized_policy_journey_is_visible_but_every_mutation_surface_is_read_only()

@@ -5,16 +5,24 @@ using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Workflow;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.Portfolio.Query;
 
-/// <summary>Side-effect-free handler used by PortfolioQueryActor; it reads PortfolioDb projections only.</summary>
-public sealed class PortfolioQueryService(IPortfolioDbReadContext db, PortfolioFundStrategyResolver resolver) : IPortfolioQueryApi
+/// <summary>
+/// Side-effect-free handler used by PortfolioQueryActor. Portfolio values come only from PortfolioDb projections;
+/// the PostgreSQL identity high watermark bounds traversal of the projection's partition buckets.
+/// </summary>
+public sealed class PortfolioQueryService(
+    IPortfolioDbReadContext db,
+    PortfolioFundStrategyResolver resolver,
+    IPortfolioBusinessIdHighWatermark identityHighWatermark) : IPortfolioQueryApi
 {
     readonly IPortfolioDbReadContext _db = db ?? throw new ArgumentNullException(nameof(db));
     readonly PortfolioFundStrategyResolver _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
+    readonly IPortfolioBusinessIdHighWatermark _identityHighWatermark = identityHighWatermark ?? throw new ArgumentNullException(nameof(identityHighWatermark));
 
     public async Task<ServiceResult<PortfolioReadModel>> GetPortfolioAsync(int portfolioId, long? version = null, CancellationToken cancellationToken = default)
     {
@@ -35,9 +43,30 @@ public sealed class PortfolioQueryService(IPortfolioDbReadContext db, PortfolioF
         try
         {
             var after = PortfolioPageToken.DecodeInteger(pageToken);
-            var bucket = after <= 0 ? 0 : (after - 1) / 1000;
-            var items = await _db.GetPortfoliosByStateAsync(state.Value, bucket, after, Page(pageSize), cancellationToken).ConfigureAwait(false);
-            return new ServiceOk<PortfolioPage<PortfolioReadModel>>(new() { Items = [.. items], PageSize = pageSize, NextPageToken = items.Count == pageSize ? PortfolioPageToken.EncodeInteger(items[^1].PortfolioId) : null });
+            var requestedPageSize = Page(pageSize);
+            var highWatermark = await _identityHighWatermark.GetPortfolioHighWatermarkAsync(cancellationToken).ConfigureAwait(false);
+            if (highWatermark <= 0 || after >= highWatermark)
+                return new ServiceOk<PortfolioPage<PortfolioReadModel>>(new() { Items = [], PageSize = pageSize });
+
+            var items = new List<PortfolioReadModel>(requestedPageSize);
+            var firstBucket = PortfolioBucket(after <= 0 ? 1 : after);
+            var lastBucket = PortfolioBucket(highWatermark);
+            for (var bucket = firstBucket; bucket <= lastBucket && items.Count < requestedPageSize; bucket++)
+            {
+                var bucketAfter = bucket == firstBucket ? after : checked(bucket * 1000);
+                var remaining = requestedPageSize - items.Count;
+                var projected = await _db.GetPortfoliosByStateAsync(state.Value, bucket, bucketAfter, remaining, cancellationToken).ConfigureAwait(false);
+                items.AddRange(projected);
+            }
+
+            return new ServiceOk<PortfolioPage<PortfolioReadModel>>(new()
+            {
+                Items = [.. items],
+                PageSize = pageSize,
+                NextPageToken = items.Count == requestedPageSize && items[^1].PortfolioId < highWatermark
+                    ? PortfolioPageToken.EncodeInteger(items[^1].PortfolioId)
+                    : null,
+            });
         }
         catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException) { return Invalid<PortfolioPage<PortfolioReadModel>>(ex.Message); }
     }
@@ -178,6 +207,7 @@ public sealed class PortfolioQueryService(IPortfolioDbReadContext db, PortfolioF
     static int Positive(int value) => value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
     static long Positive(long value) => value > 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
     static int Page(int value) => value is >= 1 and <= 200 ? value : throw new ArgumentOutOfRangeException(nameof(value), "Page size must be 1..200.");
+    static int PortfolioBucket(int portfolioId) => checked((Positive(portfolioId) - 1) / 1000);
     static void Utc(DateTime value) { if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Timestamp must be UTC."); }
 }
 

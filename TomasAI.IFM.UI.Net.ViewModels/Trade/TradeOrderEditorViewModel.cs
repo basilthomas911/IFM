@@ -58,6 +58,11 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     IReadOnlyList<PortfolioReadModel> _portfolios = [];
     IReadOnlyList<FundMandateReadModel> _portfolioFunds = [];
     IReadOnlyList<FundOrderProjectionReadModel> _canonicalOrders = [];
+    IReadOnlyList<LegacyPortfolioScopeReadModel> _legacyScopes = [];
+    IReadOnlyList<LegacyFundHistoryReadModel> _legacyCatalog = [];
+    IReadOnlyList<LegacyFundOrderHistoryReadModel> _legacyOrders = [];
+    IReadOnlyList<LegacyFundTradeHistoryReadModel> _legacyTrades = [];
+    bool _isLegacyHistoryMode;
     int _portfolioSelectedIndex = -1;
     TaskCompletionSource<IEvent>? _terminalCompletion;
     Guid _commandId;
@@ -123,6 +128,9 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public IReadOnlyList<PortfolioReadModel> Portfolios { get => _portfolios; private set => SetProperty(ref _portfolios, value); }
     public IReadOnlyList<FundMandateReadModel> PortfolioFunds { get => _portfolioFunds; private set => SetProperty(ref _portfolioFunds, value); }
     public IReadOnlyList<FundOrderProjectionReadModel> CanonicalOrders { get => _canonicalOrders; private set => SetProperty(ref _canonicalOrders, value); }
+    public IReadOnlyList<LegacyFundOrderHistoryReadModel> LegacyOrders { get => _legacyOrders; private set => SetProperty(ref _legacyOrders, value); }
+    public IReadOnlyList<LegacyFundTradeHistoryReadModel> LegacyTrades { get => _legacyTrades; private set => SetProperty(ref _legacyTrades, value); }
+    public bool IsLegacyHistoryMode => _isLegacyHistoryMode;
     public int PortfolioSelectedIndex => _portfolioSelectedIndex;
     public PortfolioReadModel? SelectedPortfolio => GetAt(Portfolios, PortfolioSelectedIndex);
 
@@ -204,10 +212,10 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     /// <summary>Gets the single-flight fund loading operation.</summary>
     public IAsyncOperation LoadOperation { get; }
 
-    public bool CanCreateOrder => !IsBusy && SelectedFund is not null;
-    public bool CanLoadOrder => !IsBusy && SelectedFundOrder is not null && SelectedFundOrderTrade is not null;
-    public bool CanDeleteOrder => !IsBusy && SelectedFundOrder is not null;
-    public bool CanCompleteOrder => !IsBusy
+    public bool CanCreateOrder => !IsLegacyHistoryMode && !IsBusy && SelectedFund is not null;
+    public bool CanLoadOrder => !IsLegacyHistoryMode && !IsBusy && SelectedFundOrder is not null && SelectedFundOrderTrade is not null;
+    public bool CanDeleteOrder => !IsLegacyHistoryMode && !IsBusy && SelectedFundOrder is not null;
+    public bool CanCompleteOrder => !IsLegacyHistoryMode && !IsBusy
         && SelectedFundOrder?.OrderStatus == TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open;
     public bool CanAddTrade => CanCompleteOrder;
     public bool CanRemoveTrade => CanCompleteOrder && SelectedFundOrderTrade is not null;
@@ -274,10 +282,32 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         _fundSelectedIndex = index;
         Interlocked.Increment(ref _scopeGeneration);
         CanonicalOrders = [];
+        LegacyOrders = [];
+        LegacyTrades = [];
         OnPropertyChanged(nameof(FundSelectedIndex));
         OnPropertyChanged(nameof(SelectedFund));
-        RebuildOrders();
+        if (IsLegacyHistoryMode)
+        {
+            FundOrders = [];
+            FundOrderTrades = [];
+            _fundOrderSelectedIndex = _fundOrderTradeSelectedIndex = -1;
+        }
+        else
+            RebuildOrders();
         return true;
+    }
+
+    public async Task SetLegacyHistoryModeAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        if (_isLegacyHistoryMode == enabled) return;
+        _isLegacyHistoryMode = enabled;
+        Interlocked.Increment(ref _scopeGeneration);
+        Portfolios = []; PortfolioFunds = []; Funds = []; FundOrders = []; FundOrderTrades = []; CanonicalOrders = [];
+        LegacyOrders = []; LegacyTrades = [];
+        _portfolioSelectedIndex = _fundSelectedIndex = _fundOrderSelectedIndex = _fundOrderTradeSelectedIndex = -1;
+        OnPropertyChanged(nameof(IsLegacyHistoryMode));
+        NotifyCapabilitiesChanged();
+        await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task SelectPortfolioAsync(int index, CancellationToken cancellationToken = default)
@@ -286,15 +316,23 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
         if (_portfolioSelectedIndex == index) return;
         var generation = Interlocked.Increment(ref _scopeGeneration);
         _portfolioSelectedIndex = index;
-        Funds = []; FundOrders = []; FundOrderTrades = []; PortfolioFunds = []; CanonicalOrders = [];
+        Funds = []; FundOrders = []; FundOrderTrades = []; PortfolioFunds = []; CanonicalOrders = []; LegacyOrders = []; LegacyTrades = [];
         _fundSelectedIndex = _fundOrderSelectedIndex = _fundOrderTradeSelectedIndex = -1;
         OnPropertyChanged(nameof(PortfolioSelectedIndex)); OnPropertyChanged(nameof(SelectedPortfolio));
         if (SelectedPortfolio is not null)
-            await LoadPortfolioScopeAsync(SelectedPortfolio.PortfolioId, generation, cancellationToken);
+        {
+            if (IsLegacyHistoryMode) await LoadLegacyPortfolioScopeAsync(SelectedPortfolio.PortfolioId, generation, cancellationToken);
+            else await LoadPortfolioScopeAsync(SelectedPortfolio.PortfolioId, generation, cancellationToken);
+        }
     }
 
     public async Task LoadCanonicalOrdersAsync(CancellationToken cancellationToken = default)
     {
+        if (IsLegacyHistoryMode)
+        {
+            await LoadLegacyOrdersAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
         if (SelectedPortfolio is null || SelectedFund is null) { CanonicalOrders = []; return; }
         var generation = Volatile.Read(ref _scopeGeneration);
         var portfolioId = SelectedPortfolio.PortfolioId;
@@ -346,6 +384,17 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     {
         var result = await _appRoot.Services.PortfolioQueries.GetOrderTradesAsync(orderId, 200, cancellationToken: cancellationToken);
         return result.Success && result.Value is not null ? result.Value.Items : [];
+    }
+
+    public async Task<IReadOnlyList<LegacyFundTradeHistoryReadModel>> GetLegacyTradesAsync(int orderId, CancellationToken cancellationToken = default)
+    {
+        if (!IsLegacyHistoryMode || SelectedFund is null) { LegacyTrades = []; return LegacyTrades; }
+        var generation = Volatile.Read(ref _scopeGeneration);
+        var legacyFundId = SelectedFund.FundId;
+        var result = await _appRoot.Services.PortfolioQueries.GetLegacyFundOrderTradesAsync(legacyFundId, orderId, cancellationToken);
+        if (generation != Volatile.Read(ref _scopeGeneration) || SelectedFund?.FundId != legacyFundId) return LegacyTrades;
+        LegacyTrades = result.Success && result.Value is not null ? result.Value : [];
+        return LegacyTrades;
     }
 
     /// <summary>Selects an order and rebuilds its trade list.</summary>
@@ -518,6 +567,11 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     {
         try
         {
+            if (IsLegacyHistoryMode)
+            {
+                await LoadLegacyCoreAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
             var generation = Interlocked.Increment(ref _scopeGeneration);
             var selectedPortfolioId = SelectedPortfolio?.PortfolioId;
             var portfolioResult = await _appRoot.Services.PortfolioQueries.GetPortfoliosAsync(PortfolioOperatingState.Active, 200, cancellationToken: cancellationToken);
@@ -536,6 +590,56 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
             PublishError(exception, "Loading Funds Error");
             throw;
         }
+    }
+
+    async Task LoadLegacyCoreAsync(CancellationToken cancellationToken)
+    {
+        var generation = Interlocked.Increment(ref _scopeGeneration);
+        var selectedPortfolioId = SelectedPortfolio?.PortfolioId;
+        var scopesTask = _appRoot.Services.PortfolioQueries.GetLegacyPortfolioScopesAsync(cancellationToken);
+        var catalogTask = _appRoot.Services.PortfolioQueries.GetLegacyFundCatalogAsync(cancellationToken);
+        await Task.WhenAll(scopesTask, catalogTask).ConfigureAwait(false);
+        if (generation != Volatile.Read(ref _scopeGeneration)) return;
+        var scopes = await scopesTask;
+        var catalog = await catalogTask;
+        _legacyScopes = scopes.Success && scopes.Value is not null ? scopes.Value : [];
+        _legacyCatalog = catalog.Success && catalog.Value is not null ? catalog.Value : [];
+        Portfolios = _legacyScopes.Select(x => x.Portfolio).ToArray();
+        _portfolioSelectedIndex = selectedPortfolioId is null ? (Portfolios.Count > 0 ? 0 : -1) : Portfolios.ToList().FindIndex(x => x.PortfolioId == selectedPortfolioId);
+        if (_portfolioSelectedIndex < 0 && Portfolios.Count > 0) _portfolioSelectedIndex = 0;
+        OnPropertyChanged(nameof(PortfolioSelectedIndex)); OnPropertyChanged(nameof(SelectedPortfolio));
+        if (SelectedPortfolio is not null)
+            await LoadLegacyPortfolioScopeAsync(SelectedPortfolio.PortfolioId, generation, cancellationToken).ConfigureAwait(false);
+    }
+
+    async Task LoadLegacyPortfolioScopeAsync(int portfolioId, long generation, CancellationToken cancellationToken)
+    {
+        var scope = _legacyScopes.SingleOrDefault(x => x.Portfolio.PortfolioId == portfolioId);
+        if (scope is null || generation != Volatile.Read(ref _scopeGeneration)) return;
+        PortfolioFunds = scope.Funds;
+        var mappedIds = scope.Funds.Select(x => x.HistoricalSourceFundId).Where(x => x.HasValue).Select(x => x!.Value).ToHashSet();
+        var catalog = _legacyCatalog.Where(x => mappedIds.Contains(x.Fund.FundId)).ToList();
+        if (_legacyScopes.FirstOrDefault()?.Portfolio.PortfolioId == portfolioId)
+            catalog.AddRange(_legacyCatalog.Where(x => x.IsUnassigned));
+        Funds = catalog.OrderBy(x => x.IsUnassigned).ThenBy(x => x.Fund.FundId).Select(x => x.Fund).ToArray();
+        _fundSelectedIndex = Funds.Count > 0 ? 0 : -1;
+        FundOrders = []; FundOrderTrades = []; CanonicalOrders = []; LegacyOrders = []; LegacyTrades = [];
+        _fundOrderSelectedIndex = _fundOrderTradeSelectedIndex = -1;
+        OnPropertyChanged(nameof(FundSelectedIndex)); OnPropertyChanged(nameof(SelectedFund));
+        await LoadLegacyOrdersAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    async Task LoadLegacyOrdersAsync(CancellationToken cancellationToken)
+    {
+        if (!IsLegacyHistoryMode || SelectedFund is null) { LegacyOrders = []; return; }
+        var generation = Volatile.Read(ref _scopeGeneration);
+        var fundId = SelectedFund.FundId;
+        var from = DateOnly.FromDateTime(_fromDate == DateTime.MinValue ? new DateTime(1900, 1, 1) : _fromDate);
+        var to = DateOnly.FromDateTime(_toDate == DateTime.MaxValue ? DateTime.UtcNow.AddYears(1) : _toDate);
+        var result = await _appRoot.Services.PortfolioQueries.GetLegacyFundOrdersAsync(fundId, from, to, 1000, cancellationToken);
+        if (generation != Volatile.Read(ref _scopeGeneration) || SelectedFund?.FundId != fundId) return;
+        LegacyOrders = result.Success && result.Value is not null ? result.Value : [];
+        LegacyTrades = [];
     }
 
     async Task LoadPortfolioScopeAsync(int portfolioId, long generation, CancellationToken cancellationToken)

@@ -59,6 +59,8 @@ public sealed class PortfolioFundAggregate
             throw new InvalidOperationException($"Fund transition {Current.OperatingState} -> {replacement.OperatingState} is not allowed.");
         if (replacement.OperatingState == FundOperatingState.Active && !activation.IsValid)
             throw new InvalidOperationException("Fund activation configuration is incomplete.");
+        if (replacement.IsLegacyHistory && replacement.OperatingState != FundOperatingState.Draft)
+            throw new InvalidOperationException("A legacy-history Fund mandate cannot become operational.");
         ThrowIfInvalid(replacement.Validate());
         return ApplyAndReturn(new FundMandateVersionAdded(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, replacement.DefensiveCopy()));
     }
@@ -79,6 +81,8 @@ public sealed class PortfolioFundAggregate
             throw new InvalidOperationException($"Fund transition {Current.OperatingState} -> {state} is not allowed.");
         if (state == FundOperatingState.Active && !activation.IsValid)
             throw new InvalidOperationException("Fund activation configuration is incomplete.");
+        if (Current.IsLegacyHistory && state != FundOperatingState.Draft)
+            throw new InvalidOperationException("A legacy-history Fund mandate cannot become operational.");
         return ApplyAndReturn(new FundOperatingStateChanged(Guid.NewGuid(), commandId, Revision + 1, nowUtc, principal, state, reason.Trim()));
     }
 

@@ -77,8 +77,22 @@ public sealed class PortfolioRiskPolicyForm : Form
         _families.ReadOnly = true;
         _families.DataBindingComplete += (_, _) =>
         {
-            if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.TradeStrategyFamilyId)] is { } familyId) familyId.ReadOnly = true;
+            if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.TradeStrategyFamilyId)] is { } familyId)
+            {
+                familyId.HeaderText = "Trade Family";
+                familyId.ReadOnly = true;
+            }
             if (_families.Columns[nameof(TradeFamilyRiskLimitReadModel.DefinitionVersion)] is { } version) version.ReadOnly = true;
+        };
+        _families.CellFormatting += (_, e) =>
+        {
+            if (e.ColumnIndex < 0
+                || _families.Columns[e.ColumnIndex].DataPropertyName != nameof(TradeFamilyRiskLimitReadModel.TradeStrategyFamilyId)
+                || e.Value is not int familyId)
+                return;
+
+            e.Value = _catalog.FirstOrDefault(x => x.TradeStrategyFamilyId == familyId)?.Name ?? "Unknown Trade Family";
+            e.FormattingApplied = true;
         };
         _newPolicy.Click += async (_, _) => await BeginNewPolicyAsync();
         _newVersion.Click += (_, _) => BeginNewVersion();

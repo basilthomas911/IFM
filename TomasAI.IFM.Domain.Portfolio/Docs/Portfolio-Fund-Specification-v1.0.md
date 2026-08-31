@@ -1361,7 +1361,7 @@ The implementation plan SHALL retain these deferred items:
 2. Broker order IDs and reconciliation.
 3. Fill lifecycle and live TradeDb positions.
 4. Position monitoring and market-feed updates.
-5. Legacy history migration or deletion.
+5. Bulk legacy history migration or deletion; PF-31 permits only explicit read-only mapping and cross-context query composition.
 6. Legacy Funds UI removal.
 7. Multi-asset and unrestricted multi-template ranking.
 8. Advanced Portfolio optimization beyond approved hard limits.
@@ -1373,11 +1373,21 @@ The implementation plan SHALL retain these deferred items:
 
 Deferred work cannot be implemented accidentally inside a PF gate.
 
+## 36. Legacy Test Portfolio history query
+
+PF-31 adds an explicit, non-authoritative history adapter. Imported Fund mandates append `HistoricalSource` and `HistoricalSourceFundId` to the MessagePack/JSON contract, remain Draft forever, and use newly allocated Portfolio/Fund IDs. The original IDs are never reused as new authority.
+
+The Portfolio NATS query actor exposes typed queries for legacy scopes, source Fund catalog, bounded FundOrders, and FundOrderTrades with hydrated TradeDb execution evidence. The adapter may read `FundLegacyDbContext` and `ITradeDbReadContext`; it exposes no write context. Matching uses the unambiguous source `(OrderId, TradeId)` pair and returns `NoTradeDbDefinition`, `DefinitionOnly`, `PositionHistory`, or `FillHistory`. Any order/composition FundId absent from the source Fund catalog is returned as a separately queryable unassigned entry using its original source FundId. Such entries are never mapped as canonical Funds.
+
+Trade Orders SHALL default to `Current`. `Legacy History` is an explicit mode that clears stale scope state, uses source-labelled DTO collections, broadens the operator date range for historical browsing, and disables Create Order, Add/Remove Trade, state changes, submit, fill, live feed, End-of-Day, and position mutations. Returning to `Current` restores the existing canonical PortfolioDb query path. Delayed responses are fenced by mode, Portfolio, Fund, and generation.
+
+`View Legacy Trade` and legacy-trade double-click SHALL return an accepted historical selection to the main application. The main application SHALL create or activate one middle-screen tab named `OrderId:TradeId`; repeated opening SHALL not duplicate that legacy tab. Its view SHALL expose Summary, Option Legs, Fills, and Positions as read-only data and SHALL contain no command dependency. A missing TradeDb definition SHALL still open a composition-only Summary. The Trade Orders form SHALL use a compact resizable layout with a 900-pixel default client height and an adaptive detail region.
+
 ## 35. Definition of done
 
 The specification is implemented only when:
 
-- all applicable PF-01 through PF-30 gates are complete, with PF-01 through PF-20 retaining their historical evidence and reopened status where superseded behavior invalidates acceptance;
+- all applicable PF-01 through PF-31 gates are complete, with PF-01 through PF-20 retaining their historical evidence and reopened status where superseded behavior invalidates acceptance;
 - new Portfolio/Fund actors use NATS and authoritative PostgreSQL event history;
 - Scylla PortfolioDb projections rebuild from events;
 - Portfolio and Fund versions freeze correctly into the workflow;

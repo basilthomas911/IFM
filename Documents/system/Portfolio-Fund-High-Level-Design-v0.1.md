@@ -1184,7 +1184,7 @@ The following are not part of the Portfolio/Fund implementation:
 - live TradeDb position creation;
 - market-feed-driven position updates;
 - final TradeDb execution schema;
-- migration of legacy Fund, order, trade, or position history;
+- bulk copying or mutation of legacy Fund, order, trade, or position history; an explicitly approved read-only Legacy Test Portfolio mapping is permitted without changing source rows;
 - removal of the existing Funds UI;
 - removal of the existing manual blotter;
 - high-throughput tick-table key redesign;
@@ -1226,3 +1226,11 @@ This HLD is ready for detailed specification when stakeholders accept that:
 The new production-shaped hierarchy is Portfolio to PortfolioFinancialPolicy and Fund, with shared TradeStrategyFamily definitions supplied by ReferenceDb. Portfolio is the top-level authority and selects one exact policy version. PortfolioFinancialPolicy owns the v1 global and per-family capital/risk limits. Fund owns mandate, selectable structures, and planned composition identities. TradeSelection chooses an allowed versioned TradeTemplate. The Fund composition authority commits the integer OrderId and TradeId identities. OrderComposition creates an exact immutable candidate using those identities. RiskManagement evaluates the candidate against the frozen global/family policy limits and delegated FundRiskEnvelope.
 
 No broker effect occurs in this phase. OrderExecution and live TradeDb positions remain a separate final workflow. This allows Portfolio/Fund, TradeSelection, and OrderComposition to be designed and verified now without preserving the limitations of the legacy manual execution path.
+
+## 26. Approved legacy-history access extension
+
+The operator may create one sequence-identified Draft `Legacy Test Portfolio`. Its imported Fund mandates receive new sequence-generated FundIds and retain the original FundDb identity only in the immutable `HistoricalSource=FundLegacyDb` and `HistoricalSourceFundId` metadata. These mandates are permanently Draft and cannot participate in active-Fund resolution, strategy execution, manual composition, or broker controls.
+
+Trade Orders exposes two source-isolated modes. `Current` continues to read canonical PortfolioDb FundOrder/FundOrderTrade projections. `Legacy History` reads FundOrder and FundOrderTrade through `FundLegacyDbContext`, resolves the corresponding historical TradeDb record by `(OrderId, TradeId)`, and labels definition-only, position-backed, fill-backed, and missing-TradeDb cases. It never merges legacy rows into canonical collections or writes either legacy database. Historical rows whose source FundId has no matching Fund definition remain separately queryable as `Unassigned Legacy Records`; they are never attached to or used to invent a canonical Fund. The qualified source contains orphan FundIds `1003` and `1016`.
+
+Accepting a selected legacy trade closes the selector and creates or activates the normal middle-screen `OrderId:TradeId` tab. That tab is a dedicated historical view—not the operational blotter—and displays read-only summary, option-leg, fill, and position sections. It owns no command service and cannot submit, transition, feed, or run End-of-Day actions. The Trade Orders selector defaults to a compact resizable height while retaining access to each section.

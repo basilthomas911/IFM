@@ -347,6 +347,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Portfoli
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Domain.Portfolio.VerificationTests", "TomasAI.IFM.Domain.Portfolio.VerificationTests\TomasAI.IFM.Domain.Portfolio.VerificationTests.csproj", "{693DE1EB-045B-4732-AED4-9FDADA7B1925}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomasAI.IFM.Application.PortfolioLegacyImport.Console", "TomasAI.IFM.Application.PortfolioLegacyImport.Console\TomasAI.IFM.Application.PortfolioLegacyImport.Console.csproj", "{3BEA9595-A147-4DE2-8806-3EFA347E0E07}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -3501,6 +3503,26 @@ Global
 		{693DE1EB-045B-4732-AED4-9FDADA7B1925}.Release|x64.Build.0 = Release|Any CPU
 		{693DE1EB-045B-4732-AED4-9FDADA7B1925}.Release|x86.ActiveCfg = Release|Any CPU
 		{693DE1EB-045B-4732-AED4-9FDADA7B1925}.Release|x86.Build.0 = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|ARM.Build.0 = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|x64.Build.0 = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Debug|x86.Build.0 = Debug|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|ARM.ActiveCfg = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|ARM.Build.0 = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|ARM64.Build.0 = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|x64.ActiveCfg = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|x64.Build.0 = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|x86.ActiveCfg = Release|Any CPU
+		{3BEA9595-A147-4DE2-8806-3EFA347E0E07}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

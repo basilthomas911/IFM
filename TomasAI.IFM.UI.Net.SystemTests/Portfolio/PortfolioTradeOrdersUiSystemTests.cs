@@ -10,6 +10,9 @@ using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.UI.Net.Services;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
+using TomasAI.IFM.Domain.Fund.Shared;
+using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.Trade.Shared;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 
@@ -27,13 +30,96 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         var fund = Field<ComboBox>(form, "ddlFund");
         var source = Field<ComboBox>(form, "_sourceFilter");
         var createFund = Field<Button>(form, "btnCreateFund");
+        var mode = Field<ComboBox>(form, "_historyModeSelector");
+        var openLegacy = Field<Button>(form, "btnOpenTrade");
+        var tradesPanel = Field<Panel>(form, "pnlTrades");
 
         portfolio.AccessibleName.Should().Be("Portfolio selector");
         portfolio.Top.Should().BeLessThan(fund.Top);
         source.Items.Cast<string>().Should().Equal("All", "Manual", "Strategy Workflow");
+        mode.Items.Cast<string>().Should().Equal("Current", "Legacy History");
+        mode.AccessibleName.Should().Be("Trade history mode");
+        form.ClientSize.Height.Should().Be(900);
+        form.FormBorderStyle.Should().Be(FormBorderStyle.Sizable);
+        openLegacy.Parent.Should().BeSameAs(tradesPanel);
+        openLegacy.Text.Should().Be("View Legacy Trade...");
         createFund.Visible.Should().BeFalse();
         createFund.Enabled.Should().BeFalse();
         Field<ListView>(form, "lstTradeOrders").Columns.Cast<ColumnHeader>().Select(x => x.Text).Should().Contain("Source");
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public void Legacy_trade_opens_or_activates_one_read_only_main_screen_tab()
+    {
+        using var host = new TabControl();
+        var composition = new FundOrderTradeReadModel
+        {
+            FundId = 1004, OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.OrderFilled,
+        };
+        var history = new LegacyFundTradeHistoryReadModel
+        {
+            Composition = composition,
+            MatchStatus = LegacyTradeMatchStatus.PositionHistory,
+        };
+
+        var first = LegacyTradeHistoryTabFactory.OpenOrActivate(host, history);
+        var second = LegacyTradeHistoryTabFactory.OpenOrActivate(host, history);
+
+        second.Should().BeSameAs(first);
+        host.TabPages.Cast<TabPage>().Should().ContainSingle();
+        host.SelectedTab.Should().BeSameAs(first);
+        first.Text.Should().Be("1084:1090");
+        first.Controls.Cast<Control>().Should().ContainSingle(x => x is LegacyTradeHistoryView);
+        ((LegacyTradeHistoryView)first.Controls[0]).IsReadOnly.Should().BeTrue();
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public async Task Legacy_mode_uses_only_legacy_queries_and_disables_every_trade_mutation()
+    {
+        var root = Substitute.For<IAppRoot>();
+        var services = Substitute.For<IUiServiceCatalog>();
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        root.Services.Returns(services);
+        services.PortfolioQueries.Returns(queries);
+        var portfolio = Portfolio(1101, "Legacy Test Portfolio") with { OperatingState = PortfolioOperatingState.Draft };
+        var mapping = Fund(1101, 5001, "Imported Legacy Fund") with
+        {
+            OperatingState = FundOperatingState.Draft,
+            HistoricalSource = "FundLegacyDb",
+            HistoricalSourceFundId = 1004,
+        };
+        var legacyFund = new FundReadModel(1004, "Imported Legacy Fund", "history", 0m, false, DateTime.UtcNow, "legacy");
+        var legacyOrder = new FundOrderReadModel(1004, 1084, DateTime.UtcNow, TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open, "ES",
+            new DateOnly(2024, 1, 2), new DateOnly(2024, 2, 2), "history", DateTime.UtcNow, "legacy", null, string.Empty);
+        var composition = new FundOrderTradeReadModel { FundId = 1004, OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor };
+        queries.GetLegacyPortfolioScopesAsync(Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyPortfolioScopeReadModel[]>([new() { Portfolio = portfolio, Funds = [mapping] }]));
+        queries.GetLegacyFundCatalogAsync(Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyFundHistoryReadModel[]>([new() { Fund = legacyFund, OrderCount = 1, CompositionTradeCount = 1 }]));
+        queries.GetLegacyFundOrdersAsync(1004, Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), 1000, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyFundOrderHistoryReadModel[]>([new() { Order = legacyOrder, CompositionTradeCount = 1 }]));
+        queries.GetLegacyFundOrderTradesAsync(1004, 1084, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyFundTradeHistoryReadModel[]>([new() { Composition = composition, MatchStatus = LegacyTradeMatchStatus.NoTradeDbDefinition }]));
+        var vm = new TradeOrderEditorViewModel(root, new DateOnly(2026, 8, 30), [], Substitute.For<IReferenceDataService>());
+        vm.SetOrderDateRange(new DateTime(2000, 1, 1), DateTime.Today.AddDays(1));
+
+        await vm.SetLegacyHistoryModeAsync(true);
+        var trades = await vm.GetLegacyTradesAsync(1084);
+
+        vm.IsLegacyHistoryMode.Should().BeTrue();
+        vm.SelectedPortfolio!.Name.Should().Be("Legacy Test Portfolio");
+        vm.SelectedFund!.FundId.Should().Be(1004);
+        vm.LegacyOrders.Should().ContainSingle();
+        trades.Should().ContainSingle();
+        vm.CanCreateOrder.Should().BeFalse();
+        vm.CanAddTrade.Should().BeFalse();
+        vm.CanSubmitOrder.Should().BeFalse();
+        await queries.DidNotReceiveWithAnyArgs().GetOrdersAsync(default, default, default, default, default, default);
     }
 
     [Fact]

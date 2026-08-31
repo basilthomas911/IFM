@@ -680,13 +680,13 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             // 
             AutoScaleDimensions = new SizeF(9F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1455, 1164);
+            ClientSize = new Size(1455, 900);
             Controls.Add(panel1);
             Controls.Add(pnlTradeOrders);
             Controls.Add(pnlFundSelector);
             Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             ForeColor = Color.Black;
-            FormBorderStyle = FormBorderStyle.FixedSingle;
+            FormBorderStyle = FormBorderStyle.Sizable;
             Margin = new Padding(3, 2, 3, 2);
             MaximizeBox = false;
             MinimizeBox = false;

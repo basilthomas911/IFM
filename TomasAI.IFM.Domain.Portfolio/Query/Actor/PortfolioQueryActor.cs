@@ -29,7 +29,14 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
     public const string ActorName = PortfolioQuerySubjects.Actor;
     readonly PortfolioQueryService _service = new(
         RequireContext(actorContext).DbFactory.PortfolioDb,
-        new PortfolioFundStrategyResolver());
+        new PortfolioFundStrategyResolver(),
+        RequireContext(actorContext).IdentityAllocator);
+    readonly LegacyPortfolioHistoryQueryService _legacyHistory = new(
+        new LegacyPortfolioHistoryStore(
+            RequireContext(actorContext).DbFactory.FundLegacyDb,
+            RequireContext(actorContext).DbFactory.TradeDb),
+        RequireContext(actorContext).DbFactory.PortfolioDb,
+        RequireContext(actorContext).IdentityAllocator);
 
     static IPortfolioQueryContext RequireContext(IQueryActorContext<PortfolioQueryActor> context) =>
         context as IPortfolioQueryContext
@@ -60,6 +67,10 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
         ["GetPortfolioFinancialPolicy"] = x => x.AsQuery<PortfolioQuery<GetPolicyRequest, PortfolioFinancialPolicyReadModel>, PortfolioFinancialPolicyReadModel>()!,
         ["GetPortfolioFinancialPolicies"] = x => x.AsQuery<PortfolioQuery<GetPoliciesRequest, PortfolioPage<PortfolioFinancialPolicyReadModel>>, PortfolioPage<PortfolioFinancialPolicyReadModel>>()!,
         ["GetActivePortfolioFinancialPolicy"] = x => x.AsQuery<PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel>, PortfolioFinancialPolicyReadModel>()!,
+        ["GetLegacyPortfolioScopes"] = x => x.AsQuery<PortfolioQuery<GetLegacyPortfolioScopesRequest, LegacyPortfolioScopeReadModel[]>, LegacyPortfolioScopeReadModel[]>()!,
+        ["GetLegacyFundCatalog"] = x => x.AsQuery<PortfolioQuery<GetLegacyFundCatalogRequest, LegacyFundHistoryReadModel[]>, LegacyFundHistoryReadModel[]>()!,
+        ["GetLegacyFundOrders"] = x => x.AsQuery<PortfolioQuery<GetLegacyFundOrdersRequest, LegacyFundOrderHistoryReadModel[]>, LegacyFundOrderHistoryReadModel[]>()!,
+        ["GetLegacyFundOrderTrades"] = x => x.AsQuery<PortfolioQuery<GetLegacyFundOrderTradesRequest, LegacyFundTradeHistoryReadModel[]>, LegacyFundTradeHistoryReadModel[]>()!,
     };
 
     protected override ValueTask ReceiveAsync(IQueryActorContext<PortfolioQueryActor> context, IQuery query) =>
@@ -117,6 +128,14 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
                 await Reply(context, q, await _service.GetPoliciesAsync(q.Parameters.PortfolioId, q.Parameters.PageSize, cancellationToken)); break;
             case PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel> q:
                 await Reply(context, q, await _service.GetActivePolicyAsync(q.Parameters.PortfolioId, cancellationToken)); break;
+            case PortfolioQuery<GetLegacyPortfolioScopesRequest, LegacyPortfolioScopeReadModel[]> q:
+                await Reply(context, q, await _legacyHistory.GetScopesAsync(cancellationToken)); break;
+            case PortfolioQuery<GetLegacyFundCatalogRequest, LegacyFundHistoryReadModel[]> q:
+                await Reply(context, q, await _legacyHistory.GetCatalogAsync(cancellationToken)); break;
+            case PortfolioQuery<GetLegacyFundOrdersRequest, LegacyFundOrderHistoryReadModel[]> q:
+                await Reply(context, q, await _legacyHistory.GetOrdersAsync(q.Parameters.LegacyFundId, q.Parameters.FromDate, q.Parameters.ToDate, q.Parameters.PageSize, cancellationToken)); break;
+            case PortfolioQuery<GetLegacyFundOrderTradesRequest, LegacyFundTradeHistoryReadModel[]> q:
+                await Reply(context, q, await _legacyHistory.GetOrderTradesAsync(q.Parameters.LegacyFundId, q.Parameters.OrderId, cancellationToken)); break;
             default: throw new InvalidOperationException($"Unsupported Portfolio query {query.GetType().Name}.");
           }
         }

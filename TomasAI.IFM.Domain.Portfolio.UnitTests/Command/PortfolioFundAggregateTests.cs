@@ -50,6 +50,24 @@ public sealed class PortfolioFundAggregateTests
     public void Fund_transition_table_matches_specification(FundOperatingState from, FundOperatingState to, bool throughVersion, bool expected) =>
         PortfolioFundAggregate.CanTransition(from, to, throughVersion).Should().Be(expected);
 
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public void Legacy_history_fund_can_never_be_activated()
+    {
+        var aggregate = new PortfolioFundAggregate();
+        aggregate.Create(Guid.NewGuid(), Draft() with
+        {
+            HistoricalSource = "FundLegacyDb",
+            HistoricalSourceFundId = 1004,
+        }, Now, "legacy-import");
+
+        var action = () => aggregate.ChangeState(Guid.NewGuid(), 1, FundOperatingState.Active,
+            "must remain read-only", ActiveContext, Now.AddMinutes(1), "fund-admin");
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*cannot become operational*");
+    }
+
     internal static FundMandateReadModel Draft() => new()
     {
         PortfolioId = 101, FundId = 205, FundCode = "DAILY", Name = "Daily Directional",

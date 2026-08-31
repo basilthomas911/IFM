@@ -20,6 +20,30 @@ public sealed class PortfolioPf30LiveQualificationTests(ITestOutputHelper output
 {
     [Fact]
     [Trait("Gate", "PF-30")]
+    [Trait("Category", "PortfolioLiveHostBucketedList")]
+    public async Task Production_bucketed_list_returns_the_expected_projected_portfolio()
+    {
+        var expectedId = int.Parse(Environment.GetEnvironmentVariable("IFM_PORTFOLIO_BUCKETED_ID")
+            ?? throw new InvalidOperationException("IFM_PORTFOLIO_BUCKETED_ID must identify a projected Portfolio outside bucket zero."));
+        expectedId.Should().BeGreaterThan(1000);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var producer = await ProducerAsync(ActorType.Query, timeout.Token);
+        try
+        {
+            var queries = new PortfolioQueryApi(producer);
+            var point = await queries.GetPortfolioAsync(expectedId, cancellationToken: timeout.Token);
+            point.Success.Should().BeTrue(point.ErrorMessage);
+
+            var page = await queries.GetPortfoliosAsync(point.Value!.OperatingState, 200, cancellationToken: timeout.Token);
+
+            page.Success.Should().BeTrue(page.ErrorMessage);
+            page.Value!.Items.Should().Contain(x => x.PortfolioId == expectedId);
+        }
+        finally { await producer.StopAsync(CancellationToken.None); }
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-30")]
     [Trait("Category", "PortfolioLiveHostPF30")]
     public async Task Production_NATS_enforces_reader_admin_and_anonymous_personas_without_mutating_authority()
     {

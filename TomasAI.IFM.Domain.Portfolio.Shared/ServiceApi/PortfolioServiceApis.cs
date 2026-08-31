@@ -133,4 +133,8 @@ public interface IPortfolioQueryApi
     Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetPolicyAsync(int policyId, long? policyVersion = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<ServiceResult<PortfolioPage<PortfolioFinancialPolicyReadModel>>> GetPoliciesAsync(int portfolioId, int pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     Task<ServiceResult<PortfolioFinancialPolicyReadModel>> GetActivePolicyAsync(int portfolioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<ServiceResult<LegacyPortfolioScopeReadModel[]>> GetLegacyPortfolioScopesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<ServiceResult<LegacyFundHistoryReadModel[]>> GetLegacyFundCatalogAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<ServiceResult<LegacyFundOrderHistoryReadModel[]>> GetLegacyFundOrdersAsync(int legacyFundId, DateOnly fromDate, DateOnly toDate, int pageSize = 1000, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<ServiceResult<LegacyFundTradeHistoryReadModel[]>> GetLegacyFundOrderTradesAsync(int legacyFundId, int orderId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }

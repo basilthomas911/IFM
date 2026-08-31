@@ -922,6 +922,7 @@ The verification suite must include at least the following pairwise representati
 | Policy persistence/rebuild/atomic assignment | PF-25/PF-26 | PF-29/PF-30 |
 | Compact Portfolio/Risk Policy UI | PF-27 | PF-29/PF-30 |
 | Unified Trade Orders and stale-load fencing | PF-28 | PF-29/PF-30 |
+| Read-only legacy Fund/Trade history and source isolation | PF-31 | PF-31 live NATS reconciliation |
 | Legacy isolation | PF-01 onward | PF-19 |
 | Authorization/redaction | PF-03 onward | PF-20 |
 | Performance/load baseline | PF-09 onward | PF-20 |
@@ -976,6 +977,7 @@ Final qualification also runs affected existing SequenceId, EventProjector, NATS
 | PF-28 | Complete | 2026-08-30: Trade Orders queries Portfolio then Fund and canonical Manual/StrategyWorkflow orders, explicit origin/status filtering, integer IDs and pre-execution fences. Manual Create Order now sends a typed Portfolio/Fund command; the actor validates active current versions, sequence-allocates OrderId, commits/projects an idempotent non-executable Draft and performs no legacy write. Generation/identity fencing rejects delayed scope responses. BDD 1, unit 1, integration 2 (including production-host NATS), verification 1 and UI system 3 pass |
 | PF-29 | Complete | 2026-08-30: complete persona/operation authorization matrix, unauthorized rendered UI journey, 64-query/8-worker production NATS load qualification (597.2 ms total, 204.6 ms p95), exact three-family results, and no execution/legacy dependency proofs pass. Focused PF-29: unit 44, BDD 7, live integration 2, verification 10, UI system 6. Full Portfolio: unit 93, BDD 22, isolated real integration 29, verification 28, UI system 17, presentation 4. Adjacent Reference 24, NATS 132, Trade unit/BDD/integrated/verification 451 pass with zero failures/skips. The traceability record maps PF-21 through PF-29 and explains the required live-host versus isolated-responder topology. |
 | PF-30 | Complete | 2026-08-30: caller principal/roles are carried by additive typed envelopes and enforced per verb at every Portfolio actor; audit events use the caller principal; bounded activities/metrics are captured without principal/hash/ID metric labels; `/health/ready` reports operational switches; production NATS persona, 128-read load (334.5 ms total, 42.9 ms p95), clean restart, deterministic rebuild/hash, and mutation-disabled rollback journeys pass. Historical Partial gates are reconciled above. See `Portfolio-Fund-PF30-Release-Qualification-v1.0.md` |
+| PF-31 | Complete | 2026-08-30: sequence-allocated Draft Portfolio 1101 `Legacy Test Portfolio` has 14 permanent-Draft, read-only mappings (new FundIds 5001-5014) to every defined legacy Fund. A repeated importer run skipped all mappings idempotently. Production Portfolio NATS queries reconciled all 1,217 FundOrders and 1,222 FundOrderTrades: 1,206/1,204 belong to mapped Funds and 11/18 under orphan source FundIds 1003/1016 remain separately queryable quarantine. TradeDb hydration demonstrated `NoTradeDbDefinition`, `DefinitionOnly`, `PositionHistory`, and `FillHistory`. Current PortfolioDb order loading remains a separate default mode; legacy mode disables every mutation. The compact resizable selector now accepts a legacy trade into one reusable middle-screen `OrderId:TradeId` tab whose Summary/Legs/Fills/Positions view has no command dependency. PF-31 passed unit 2, BDD 1, integration 2, verification 1, UI system 2, live NATS reconciliation, and affected API/UI/importer builds with zero code/test failures. |
 
 Allowed statuses are `Not Started`, `In Progress`, `Partial`, `Blocked`, and `Complete`. `Partial` must identify the missing deliverable or test evidence; it cannot be used as a permanent closure state.
 
@@ -988,7 +990,7 @@ The following remain outside every PF gate:
 3. Live TradeDb order/trade/position creation and market-feed position updates.
 4. RiskManagement calculation internals beyond its accepted result-reference contract.
 5. OrderComposition algorithms beyond their boundary contract.
-6. Migration/deletion of legacy Fund, order, trade, or position history.
+6. Bulk migration/deletion of legacy Fund, order, trade, or position history; PF-31 read-only mappings and queries are the sole approved exception.
 7. Removal of the legacy Funds UI or manual blotter.
 8. Multi-asset/unrestricted template ranking and advanced Portfolio optimization.
 9. High-throughput ScyllaDB sequence/tick identity redesign.

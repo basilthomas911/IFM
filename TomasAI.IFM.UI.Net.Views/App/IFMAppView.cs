@@ -403,7 +403,14 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         switch (navigationResult)
         {
             case NavigationResult.Accepted:
-                if (dlg.FundOrderTrade is not null)
+                if (dlg?.LegacyTradeHistory is { } legacyHistory)
+                {
+                    var tabPage = LegacyTradeHistoryTabFactory.OpenOrActivate(tabTradeBlotter, legacyHistory);
+                    btnCloseOrder.Text = $"Close Trade: {tabPage.Text}";
+                    btnCloseOrder.Visible = true;
+                    ResizeTabPages();
+                }
+                else if (dlg?.FundOrderTrade is not null)
                 {
                     var tabPageName = $"{dlg.FundOrderTrade.OrderId}:{dlg.FundOrderTrade.TradeId}";
                     tabTradeBlotter.TabPages.Add(tabPageName);
@@ -424,6 +431,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                             tabPage.UseVisualStyleBackColor = false;
                             tabPage.BackColor = Color.Black;
                             tabPage.Controls.Clear();
+                            tabPage.Tag = _tradeBlotter;
                             tabPage.Controls.Add(_tradeBlotter);
                             tabTradeBlotter.Visible = true;
                             break;
@@ -493,9 +501,9 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 
     private async void btnCloseOrder_Click(object sender, EventArgs e)
     {
-        if (_tradeBlotter != null)
-            await CloseControlAsync((IFormControl)_tradeBlotter);
-         var tabPage = tabTradeBlotter.SelectedTab!;
+        var tabPage = tabTradeBlotter.SelectedTab!;
+        if (tabPage.Tag is IFormControl tradeControl)
+            await CloseControlAsync(tradeControl);
         tabPage.Controls.Clear();
         tabTradeBlotter.TabPages.Remove(tabPage);
         if (tabTradeBlotter.TabPages.Count == 0)
