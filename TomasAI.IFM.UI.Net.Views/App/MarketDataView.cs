@@ -12,20 +12,35 @@ public partial class MarketDataView : UserControl
     public MarketDataView()
     {
         InitializeComponent();
+        DashboardTypography.ApplyFamilyAndSize(this);
         ConfigureChartGrid(graphES);
         ConfigureChartGrid(graphVIX);
     }
 
     static void ConfigureChartGrid(Chart chart)
     {
-        var area = chart.ChartAreas[0];
-        foreach (var axis in new[] { area.AxisX, area.AxisY2 })
+        chart.Font = DashboardTypography.Create();
+        foreach (var area in chart.ChartAreas)
         {
-            axis.LineColor = Color.DimGray;
-            axis.MajorGrid.Enabled = true;
-            axis.MajorGrid.LineColor = Color.FromArgb(45, 45, 45);
-            axis.MajorTickMark.LineColor = Color.DimGray;
+            foreach (var axis in new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
+            {
+                axis.LabelStyle.Font = DashboardTypography.Create();
+                axis.TitleFont = DashboardTypography.Create();
+            }
+            foreach (var axis in new[] { area.AxisX, area.AxisY2 })
+            {
+                axis.LineColor = Color.DimGray;
+                axis.MajorGrid.Enabled = true;
+                axis.MajorGrid.LineColor = Color.FromArgb(45, 45, 45);
+                axis.MajorTickMark.LineColor = Color.DimGray;
+            }
         }
+        foreach (var legend in chart.Legends)
+            legend.Font = DashboardTypography.Create();
+        foreach (var title in chart.Titles)
+            title.Font = DashboardTypography.Create(FontStyle.Bold);
+        foreach (var series in chart.Series)
+            series.Font = DashboardTypography.Create();
     }
 
     /// <summary>

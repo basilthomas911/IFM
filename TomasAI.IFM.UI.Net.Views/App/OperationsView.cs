@@ -27,6 +27,7 @@ public partial class OperationsView : UserControl
     public OperationsView()
     {
         InitializeComponent();
+        DashboardTypography.ApplyFamilyAndSize(this);
         ConfigureChart();
         lstItiEvents.SetDoubleBuffered(true);
         ddlTimeFrame.Items.AddRange(
@@ -203,6 +204,7 @@ public partial class OperationsView : UserControl
 
     void ConfigureChart()
     {
+        itiChart.Font = DashboardTypography.Create();
         var area = new ChartArea("FuturesIti")
         {
             BackColor = Color.Black
@@ -210,6 +212,11 @@ public partial class OperationsView : UserControl
         area.AxisX.Title = "Market Time (ET)";
         area.AxisY.Title = "ITI Signal Price";
         area.AxisY.IsStartedFromZero = false;
+        foreach (var axis in new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
+        {
+            axis.LabelStyle.Font = DashboardTypography.Create();
+            axis.TitleFont = DashboardTypography.Create();
+        }
         foreach (var axis in new[] { area.AxisX, area.AxisY })
         {
             axis.LabelStyle.ForeColor = Color.Silver;
@@ -224,7 +231,8 @@ public partial class OperationsView : UserControl
         {
             BackColor = Color.Black,
             ForeColor = Color.White,
-            Docking = Docking.Bottom
+            Docking = Docking.Bottom,
+            Font = DashboardTypography.Create()
         });
         itiChart.Series.Add(CreateSeries(PriceSeriesName, SeriesChartType.Line, Color.Yellow));
         itiChart.Series.Add(CreateSeries(OtherEventSeriesName, SeriesChartType.Point, Color.Navy));
@@ -249,7 +257,8 @@ public partial class OperationsView : UserControl
             YValueType = ChartValueType.Double,
             BorderWidth = chartType == SeriesChartType.Line ? 2 : 1,
             MarkerStyle = chartType == SeriesChartType.Point ? MarkerStyle.Circle : MarkerStyle.None,
-            MarkerSize = 6
+            MarkerSize = 6,
+            Font = DashboardTypography.Create()
         };
 
     void RenderChart(IReadOnlyList<FuturesItiSignalEventRow> events)
@@ -277,7 +286,7 @@ public partial class OperationsView : UserControl
                 point.MarkerStyle = MarkerStyle.None;
                 point.Label = row.Trend == IntrinsicTimeTrendType.UpTrend ? "▲" : "▼";
                 point.LabelForeColor = marker.Color;
-                point.Font = new Font("Segoe UI Symbol", 9F, FontStyle.Bold);
+                point.Font = DashboardTypography.Create(FontStyle.Bold);
             }
             else
             {

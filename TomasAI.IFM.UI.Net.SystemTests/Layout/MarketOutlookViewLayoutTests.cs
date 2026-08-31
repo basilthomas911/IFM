@@ -7,7 +7,7 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 public sealed class MarketOutlookViewLayoutTests
 {
     [Fact]
-    public async Task MarketDataValueRowsAreEqualAndNotClipped()
+    public async Task MarketDataLabelAndValueRowsAreSharedAndNotClipped()
     {
         var completion = new TaskCompletionSource<LayoutSnapshot>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -26,11 +26,16 @@ public sealed class MarketOutlookViewLayoutTests
                 view.PerformLayout();
 
                 var marketData = FindControl<TableLayoutPanel>(view, "tlpMarketData");
+                var outlook = FindControl<TableLayoutPanel>(view, "tlpMarketOutlook");
+                var tdi = FindControl<TableLayoutPanel>(view, "tlpTdiData");
                 var marketTrendData = FindControl<TableLayoutPanel>(view, "tlpMarketTrendData");
                 marketData.PerformLayout();
+                tdi.PerformLayout();
                 marketTrendData.PerformLayout();
 
                 var rowHeights = marketData.GetRowHeights();
+                var outlookRowHeights = outlook.GetRowHeights();
+                var tdiRowHeights = tdi.GetRowHeights();
                 var trendRowHeights = marketTrendData.GetRowHeights();
 
                 completion.SetResult(new LayoutSnapshot(
@@ -39,9 +44,12 @@ public sealed class MarketOutlookViewLayoutTests
                     marketData.Controls.OfType<TextBox>()
                         .Select(control => control.Margin.Vertical)
                         .ToArray(),
+                    outlookRowHeights,
+                    tdiRowHeights,
                     trendRowHeights,
                     CaptureValueBounds(marketTrendData, trendRowHeights),
-                    parent.Height - marketTrendData.Bottom));
+                    parent.Height - marketTrendData.Bottom,
+                    parent.Height));
             }
             catch (Exception exception)
             {
@@ -54,17 +62,23 @@ public sealed class MarketOutlookViewLayoutTests
         var snapshot = await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
         thread.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
 
-        snapshot.RowHeights.Distinct().Should().ContainSingle();
-        snapshot.ValueVerticalMargins.Should().OnlyContain(margin => margin == 4,
-            "2-pixel top and bottom margins make every equal row exactly 2 pixels shorter");
+        snapshot.RowHeights.Where((_, row) => row % 2 == 0).Distinct().Should().ContainSingle();
+        snapshot.RowHeights.Where((_, row) => row % 2 == 1).Distinct().Should().ContainSingle();
+        snapshot.OutlookRowHeights[0].Should().Be(snapshot.RowHeights[0]);
+        snapshot.OutlookRowHeights[1].Should().Be(snapshot.RowHeights[1]);
+        snapshot.TdiRowHeights.Should().Equal(snapshot.RowHeights.Take(2));
+        snapshot.TrendRowHeights.Should().Equal(snapshot.RowHeights.Take(2));
+        snapshot.ValueVerticalMargins.Should().OnlyContain(margin => margin == 2,
+            "compact one-pixel top and bottom margins are shared by every value control");
         snapshot.ValueBounds.Should().OnlyContain(
             value => value.ControlBottomWithMargin <= value.CellBottom,
             "every value control, including the final ITI/MDI/RSI row, must fit inside its row");
-        snapshot.TrendRowHeights.Distinct().Should().ContainSingle();
         snapshot.TrendValueBounds.Should().OnlyContain(
-            value => value.ControlBottomWithMargin < value.CellBottom,
-            "the five bottom value controls need a visible pixel below their lower borders");
-        snapshot.BottomClearance.Should().BeGreaterThanOrEqualTo(12);
+            value => value.ControlBottomWithMargin <= value.CellBottom,
+            "the five bottom value controls must fit inside the shared compact value row");
+        snapshot.BottomClearance.Should().BeGreaterThanOrEqualTo(6);
+        snapshot.TotalHeight.Should().BeLessThan(330,
+            "shared compact label/value rows should materially reduce the Market Outlook height");
     }
 
     [Theory]
@@ -103,6 +117,10 @@ public sealed class MarketOutlookViewLayoutTests
                 tdi.PerformLayout();
                 var values = tdi.Controls.OfType<TextBox>().OrderBy(tdi.GetColumn).ToArray();
                 var labels = tdi.Controls.OfType<Label>().OrderBy(tdi.GetColumn).ToArray();
+                var dataControls = Descendants(view)
+                    .Where(control => control is Label or TextBox)
+                    .Where(control => control.Name != "lblMarketOutlookSnapshotStatus")
+                    .ToArray();
                 var columns = tdi.GetColumnWidths();
                 using var rendered = new Bitmap(view.Width, view.Height);
                 view.DrawToBitmap(rendered, new Rectangle(Point.Empty, rendered.Size));
@@ -128,6 +146,9 @@ public sealed class MarketOutlookViewLayoutTests
                     values.Select(value => value.AccessibleDescription).ToArray(),
                     labels.Zip(values, (label, value) =>
                         Math.Abs((label.Left + (label.Width / 2)) - (value.Left + (value.Width / 2)))).ToArray(),
+                    dataControls.Select(control => control.Font.Name).ToArray(),
+                    dataControls.Select(control => control.Font.Size).ToArray(),
+                    dataControls.Select(control => control.Font.Style).ToArray(),
                     sampledPixels.Any(color => color.R < 60 && color.G < 60 && color.B < 60),
                     sampledPixels.Any(color => color.R > 180 && color.G > 180 && color.B > 180),
                     initialDefaultFontSize,
@@ -156,11 +177,15 @@ public sealed class MarketOutlookViewLayoutTests
         snapshot.AccessibleDescriptions.Should().OnlyContain(description => !string.IsNullOrWhiteSpace(description));
         snapshot.HeaderCenterOffsets.Should().OnlyContain(offset => offset <= 1,
             "each TDI label must be centered directly above its value control");
+        snapshot.FontFamilies.Should().OnlyContain(family => family == "Microsoft Sans Serif");
+        snapshot.FontSizes.Distinct().Should().ContainSingle(
+            "all Market Outlook labels and values must use the same nominal font size");
+        snapshot.FontStyles.Should().OnlyContain(style => style == FontStyle.Bold);
         snapshot.HasDarkPixels.Should().BeTrue();
         snapshot.HasLightPixels.Should().BeTrue(
             "the rendered bitmap must contain visible contrasting labels and values");
         snapshot.DefaultFontAfter.Should().Be(snapshot.DefaultFontBefore,
-            "the one-point font reduction must remain local to MarketOutlookView controls");
+            "Market Outlook typography must remain local to the view controls");
     }
 
     static ValueCellBounds[] CaptureValueBounds(TableLayoutPanel table, int[] rowHeights)
@@ -180,13 +205,26 @@ public sealed class MarketOutlookViewLayoutTests
     static TControl FindControl<TControl>(Control parent, string name) where TControl : Control
         => parent.Controls.Find(name, true).OfType<TControl>().Single();
 
+    static IEnumerable<Control> Descendants(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            yield return child;
+            foreach (var descendant in Descendants(child))
+                yield return descendant;
+        }
+    }
+
     sealed record LayoutSnapshot(
         int[] RowHeights,
         ValueCellBounds[] ValueBounds,
         int[] ValueVerticalMargins,
+        int[] OutlookRowHeights,
+        int[] TdiRowHeights,
         int[] TrendRowHeights,
         ValueCellBounds[] TrendValueBounds,
-        int BottomClearance);
+        int BottomClearance,
+        int TotalHeight);
 
     sealed record ValueCellBounds(
         string Name,
@@ -207,6 +245,9 @@ public sealed class MarketOutlookViewLayoutTests
         string?[] AccessibleNames,
         string?[] AccessibleDescriptions,
         int[] HeaderCenterOffsets,
+        string[] FontFamilies,
+        float[] FontSizes,
+        FontStyle[] FontStyles,
         bool HasDarkPixels,
         bool HasLightPixels,
         float DefaultFontBefore,

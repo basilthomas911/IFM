@@ -69,6 +69,21 @@ public sealed class OperationsViewRenderingTests
         chart.ChartAreas.Single().AxisX.Title.Should().Be("Market Time (ET)");
         chart.ChartAreas.Single().AxisY.Title.Should().Be("ITI Signal Price");
         chart.Titles.Should().BeEmpty();
+        chart.Font.Name.Should().Be("Microsoft Sans Serif");
+        chart.Font.Size.Should().BeApproximately(8F, 0.01F);
+        chart.ChartAreas.Cast<ChartArea>()
+            .SelectMany(area => new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
+            .Should().OnlyContain(axis =>
+                axis.LabelStyle.Font.Name == "Microsoft Sans Serif"
+                && Math.Abs(axis.LabelStyle.Font.Size - 8F) < 0.01F
+                && axis.TitleFont.Name == "Microsoft Sans Serif"
+                && Math.Abs(axis.TitleFont.Size - 8F) < 0.01F);
+        chart.Legends.Should().OnlyContain(legend =>
+            legend.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(legend.Font.Size - 8F) < 0.01F);
+        chart.Series.Should().OnlyContain(series =>
+            series.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(series.Font.Size - 8F) < 0.01F);
         chart.Series["Other ITI Event"].Color.ToArgb().Should().Be(Color.Navy.ToArgb());
         chart.Series.Select(series => series.Name).Should().Contain(
         [
@@ -119,7 +134,7 @@ public sealed class OperationsViewRenderingTests
     }
 
     [Fact]
-    public void MarketDataEsAndVxTabsUseDarkChromeBlackPagesAndSubtleGridlines()
+    public void MarketDataEsAndVxTabsUseDarkChromeSharedTypographyAndSubtleGridlines()
     {
         using var view = new MarketDataView();
         var tabs = view.Controls.Find("tabMarketData", true)
@@ -130,6 +145,8 @@ public sealed class OperationsViewRenderingTests
             .ToArray();
 
         tabs.GetType().Name.Should().Be("DarkTabControl");
+        tabs.Font.Name.Should().Be("Microsoft Sans Serif");
+        tabs.Font.Size.Should().BeApproximately(8F, 0.01F);
         tabs.TabPages.Cast<TabPage>().Should().OnlyContain(page =>
             page.BackColor.ToArgb() == Color.Black.ToArgb()
             && !page.UseVisualStyleBackColor);
@@ -140,6 +157,22 @@ public sealed class OperationsViewRenderingTests
             && chart.ChartAreas.Single().AxisY2.MajorGrid.Enabled
             && chart.ChartAreas.Single().AxisY2.MajorGrid.LineColor.ToArgb()
                 == Color.FromArgb(45, 45, 45).ToArgb());
+        charts.Should().OnlyContain(chart =>
+            chart.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(chart.Font.Size - 8F) < 0.01F
+            && chart.ChartAreas.Cast<ChartArea>()
+                .SelectMany(area => new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
+                .All(axis =>
+                    axis.LabelStyle.Font.Name == "Microsoft Sans Serif"
+                    && Math.Abs(axis.LabelStyle.Font.Size - 8F) < 0.01F
+                    && axis.TitleFont.Name == "Microsoft Sans Serif"
+                    && Math.Abs(axis.TitleFont.Size - 8F) < 0.01F)
+            && chart.Legends.All(legend =>
+                legend.Font.Name == "Microsoft Sans Serif"
+                && Math.Abs(legend.Font.Size - 8F) < 0.01F)
+            && chart.Series.All(series =>
+                series.Font.Name == "Microsoft Sans Serif"
+                && Math.Abs(series.Font.Size - 8F) < 0.01F));
     }
 
     [Fact]

@@ -14,6 +14,8 @@ namespace TomasAI.IFM.UI.Net.Views.App
 {
     public partial class MarketOutlookView : UserControl
     {
+        const int CompactBottomClearance = 6;
+
         readonly TableLayoutPanel _tdiData = new();
         readonly TextBox _txtTdiDirection = CreateTdiValue();
         readonly TextBox _txtTdiStrength = CreateTdiValue();
@@ -22,13 +24,14 @@ namespace TomasAI.IFM.UI.Net.Views.App
         readonly TextBox _txtTdiDivergence = CreateTdiValue();
         readonly Label _snapshotStatus = new()
         {
+            Name = "lblMarketOutlookSnapshotStatus",
             AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = Color.Gainsboro,
             BackColor = Color.FromArgb(32, 32, 32),
             TextAlign = ContentAlignment.MiddleLeft,
             Padding = new Padding(4, 0, 4, 0),
-            Font = new Font("Microsoft Sans Serif", 8F),
+            Font = DashboardTypography.Create(),
             Text = "Market Outlook: no persisted snapshot"
         };
 
@@ -37,13 +40,13 @@ namespace TomasAI.IFM.UI.Net.Views.App
             try
             {
                 InitializeComponent();
-                ScaleExistingFontsOnePoint();
+                ConfigureTypographyAndAlignment();
                 ConfigureTdiRow();
                 tlpMarketOutlook.RowCount = 3;
-                tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+                tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
                 tlpMarketOutlook.Controls.Add(_snapshotStatus, 0, 2);
                 tlpMarketOutlook.SetColumnSpan(_snapshotStatus, 4);
-                ConfigureMarketDataRowSpacing();
+                DashboardTypography.ApplyFamilyAndSize(this);
                 txtRSI.Text = "No";
                 txtRSI.BackColor = Color.Red;
                 ConfigureAccessibility();
@@ -58,9 +61,9 @@ namespace TomasAI.IFM.UI.Net.Views.App
             BackColor = Color.Black,
             BorderStyle = BorderStyle.FixedSingle,
             Dock = DockStyle.Fill,
-            Font = new Font("Microsoft Sans Serif", 10F, FontStyle.Bold),
+            Font = DashboardTypography.Create(FontStyle.Bold),
             ForeColor = Color.White,
-            Margin = new Padding(2),
+            Margin = new Padding(2, 1, 2, 1),
             ReadOnly = true,
             Text = "N/A",
             TextAlign = HorizontalAlignment.Center
@@ -120,45 +123,43 @@ namespace TomasAI.IFM.UI.Net.Views.App
         {
             AutoSize = false,
             Dock = DockStyle.Fill,
-            Font = new Font("Microsoft Sans Serif", 8F, FontStyle.Bold),
+            Font = DashboardTypography.Create(FontStyle.Bold),
             ForeColor = Color.White,
             Margin = new Padding(2, 0, 2, 0),
             Text = text,
             TextAlign = ContentAlignment.BottomCenter
         };
 
-        void ScaleExistingFontsOnePoint()
+        void ConfigureTypographyAndAlignment()
         {
             foreach (var control in Descendants(this))
             {
-                if (control.Font.Size > 2F)
-                    control.Font = new Font(
-                        control.Font.FontFamily,
-                        control.Font.Size - 1F,
-                        control.Font.Style,
-                        control.Font.Unit);
-            }
-
-            static IEnumerable<Control> Descendants(Control parent)
-            {
-                foreach (Control child in parent.Controls)
+                if (control is Label label)
                 {
-                    yield return child;
-                    foreach (var descendant in Descendants(child))
-                        yield return descendant;
+                    label.AutoSize = false;
+                    label.Dock = DockStyle.Fill;
+                    label.Font = DashboardTypography.Create(FontStyle.Bold);
+                    label.Margin = new Padding(2, 0, 2, 0);
+                    label.Text = label.Text.Trim();
+                    label.TextAlign = ContentAlignment.BottomCenter;
+                }
+                else if (control is TextBox value)
+                {
+                    value.Dock = DockStyle.Fill;
+                    value.Font = DashboardTypography.Create(FontStyle.Bold);
+                    value.Margin = new Padding(2, 1, 2, 1);
+                    value.TextAlign = HorizontalAlignment.Center;
                 }
             }
         }
 
-        void ConfigureMarketDataRowSpacing()
+        static IEnumerable<Control> Descendants(Control parent)
         {
-            foreach (var valueControl in tlpMarketData.Controls.OfType<TextBox>())
+            foreach (Control child in parent.Controls)
             {
-                valueControl.Margin = new Padding(
-                    valueControl.Margin.Left,
-                    2,
-                    valueControl.Margin.Right,
-                    2);
+                yield return child;
+                foreach (var descendant in Descendants(child))
+                    yield return descendant;
             }
         }
 
@@ -280,41 +281,53 @@ namespace TomasAI.IFM.UI.Net.Views.App
         {
             this.Width = parentControl.Width;
             this.Height = parentControl.Height;
-            tlpMarketOutlook.Height = 75;
-            tlpMarketOutlook.Controls[0].Width = parentControl.Width / 4;
-            tlpMarketOutlook.Controls[1].Width = parentControl.Width / 4;
-            tlpMarketOutlook.Controls[2].Width = parentControl.Width / 4;
-            tlpMarketOutlook.Controls[3].Width = parentControl.Width / 4;
             const int rowBreathingRoom = 1;
-            var marketDataRowHeight = tlpMarketData.Controls
-                .Cast<Control>()
-                .Max(control => control.PreferredSize.Height + control.Margin.Vertical) + rowBreathingRoom;
-            foreach (RowStyle rowStyle in tlpMarketData.RowStyles)
+            var dataTables = new[]
             {
-                rowStyle.SizeType = SizeType.Absolute;
-                rowStyle.Height = marketDataRowHeight;
-            }
-            tlpMarketData.Height = marketDataRowHeight * tlpMarketData.RowCount;
-            var marketTrendRowHeight = tlpMarketTrendData.Controls
-                .Cast<Control>()
-                .Max(control => control.PreferredSize.Height + control.Margin.Vertical) + rowBreathingRoom;
-            foreach (RowStyle rowStyle in tlpMarketTrendData.RowStyles)
-            {
-                rowStyle.SizeType = SizeType.Absolute;
-                rowStyle.Height = marketTrendRowHeight;
-            }
-            tlpMarketTrendData.Height = marketTrendRowHeight * tlpMarketTrendData.RowCount;
-            var tdiRowHeight = _tdiData.Controls
-                .Cast<Control>()
-                .Max(control => control.PreferredSize.Height + control.Margin.Vertical) + rowBreathingRoom;
-            foreach (RowStyle rowStyle in _tdiData.RowStyles)
-            {
-                rowStyle.SizeType = SizeType.Absolute;
-                rowStyle.Height = tdiRowHeight;
-            }
-            _tdiData.Height = tdiRowHeight * _tdiData.RowCount;
+                tlpMarketOutlook,
+                tlpMarketData,
+                _tdiData,
+                tlpMarketTrendData
+            };
+            var labelRowHeight = dataTables
+                .SelectMany(table => table.Controls.OfType<Label>())
+                .Where(label => label != _snapshotStatus)
+                .Max(label => label.PreferredSize.Height + label.Margin.Vertical) + rowBreathingRoom;
+            var valueRowHeight = dataTables
+                .SelectMany(table => table.Controls.OfType<TextBox>())
+                .Max(value => value.PreferredSize.Height + value.Margin.Vertical) + rowBreathingRoom;
+
+            SetPairRowHeights(tlpMarketOutlook, 1, labelRowHeight, valueRowHeight);
+            SetPairRowHeights(tlpMarketData, 3, labelRowHeight, valueRowHeight);
+            SetPairRowHeights(_tdiData, 1, labelRowHeight, valueRowHeight);
+            SetPairRowHeights(tlpMarketTrendData, 1, labelRowHeight, valueRowHeight);
+
+            var statusRowHeight = Math.Max(18, _snapshotStatus.PreferredSize.Height + 2);
+            tlpMarketOutlook.RowStyles[2].SizeType = SizeType.Absolute;
+            tlpMarketOutlook.RowStyles[2].Height = statusRowHeight;
+            tlpMarketOutlook.Height = labelRowHeight + valueRowHeight + statusRowHeight;
+            tlpMarketData.Height = 3 * (labelRowHeight + valueRowHeight);
+            _tdiData.Height = labelRowHeight + valueRowHeight;
+            tlpMarketTrendData.Height = labelRowHeight + valueRowHeight;
             parentControl.Height = tlpMarketOutlook.Height + tlpMarketData.Height
-                + _tdiData.Height + tlpMarketTrendData.Height + 12;
+                + _tdiData.Height + tlpMarketTrendData.Height + CompactBottomClearance;
+        }
+
+        static void SetPairRowHeights(
+            TableLayoutPanel table,
+            int pairCount,
+            int labelRowHeight,
+            int valueRowHeight)
+        {
+            for (var pair = 0; pair < pairCount; pair++)
+            {
+                var labelRow = pair * 2;
+                var valueRow = labelRow + 1;
+                table.RowStyles[labelRow].SizeType = SizeType.Absolute;
+                table.RowStyles[labelRow].Height = labelRowHeight;
+                table.RowStyles[valueRow].SizeType = SizeType.Absolute;
+                table.RowStyles[valueRow].Height = valueRowHeight;
+            }
         }
 
         private void lblRiskPosition_Click(object sender, EventArgs e)

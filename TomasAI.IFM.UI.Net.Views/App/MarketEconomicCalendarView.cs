@@ -19,6 +19,7 @@ public partial class MarketEconomicCalendarView : UserControl, IAsyncFormControl
     public MarketEconomicCalendarView()
     {
         InitializeComponent();
+        DashboardTypography.ApplyFamilyAndSize(this);
         txtCalendarDate.AccessibleName = "Economic calendar date";
         ddlCountryCodes.AccessibleName = "Economic calendar country";
         lstEconomicCalendar.AccessibleName = "Economic calendar list";

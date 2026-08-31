@@ -20,6 +20,7 @@ public partial class StatusConsoleView : UserControl
     public StatusConsoleView()
     {
         InitializeComponent();
+        DashboardTypography.ApplyFamilyAndSize(this);
         lstStatusConsole.SetDoubleBuffered(true);
     }
 
