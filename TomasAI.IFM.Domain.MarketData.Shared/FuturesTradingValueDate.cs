@@ -6,24 +6,35 @@ namespace TomasAI.IFM.Domain.MarketData.Shared;
 /// </summary>
 public static class FuturesTradingValueDate
 {
+    static readonly TimeOnly MarketOpensAt = new(18, 0);
+    static readonly TimeOnly MarketClosesAt = new(17, 0);
     static readonly Lazy<TimeZoneInfo> EasternTimeZone = new(ResolveEasternTimeZone);
 
     public static TimeZoneInfo MarketTimeZone => EasternTimeZone.Value;
 
-    /// <summary>Resolves a market-local timestamp, returning false while the weekend session is closed.</summary>
+    /// <summary>
+    /// Resolves a market-local timestamp, returning false during the daily
+    /// 17:00-18:00 maintenance close and the Friday-to-Sunday weekend close.
+    /// </summary>
     public static bool TryGet(DateTime marketLocalTime, out DateOnly valueDate)
     {
         var calendarDate = DateOnly.FromDateTime(marketLocalTime);
-        if (marketLocalTime.DayOfWeek == DayOfWeek.Saturday
-            || (marketLocalTime.DayOfWeek == DayOfWeek.Sunday
-                && marketLocalTime.TimeOfDay < TimeSpan.FromHours(18)))
+        var marketTime = TimeOnly.FromDateTime(marketLocalTime);
+        var isClosed = marketLocalTime.DayOfWeek switch
+        {
+            DayOfWeek.Friday => marketTime >= MarketClosesAt,
+            DayOfWeek.Saturday => true,
+            DayOfWeek.Sunday => marketTime < MarketOpensAt,
+            _ => marketTime >= MarketClosesAt && marketTime < MarketOpensAt
+        };
+        if (isClosed)
         {
             valueDate = default;
             return false;
         }
 
         valueDate = marketLocalTime.DayOfWeek is >= DayOfWeek.Sunday and <= DayOfWeek.Thursday
-            && marketLocalTime.TimeOfDay >= TimeSpan.FromHours(18)
+            && marketTime >= MarketOpensAt
                 ? calendarDate.AddDays(1)
                 : calendarDate;
         return true;
@@ -34,8 +45,9 @@ public static class FuturesTradingValueDate
         => TryGet(TimeZoneInfo.ConvertTime(instant, MarketTimeZone).DateTime, out valueDate);
 
     /// <summary>
-    /// Returns the active value date, or the most recent Friday during the closed
-    /// weekend. This is intended for process startup; live ticks use <see cref="TryGet(DateTimeOffset, out DateOnly)"/>.
+    /// Returns the active value date, or the most recently completed value date
+    /// during a maintenance/weekend close. This is intended for process startup
+    /// and read-only operation; live ticks use <see cref="TryGet(DateTimeOffset, out DateOnly)"/>.
     /// </summary>
     public static DateOnly GetOperational(DateTimeOffset instant)
     {
@@ -44,9 +56,40 @@ public static class FuturesTradingValueDate
             return valueDate;
 
         var calendarDate = DateOnly.FromDateTime(marketLocal);
-        return marketLocal.DayOfWeek == DayOfWeek.Saturday
-            ? calendarDate.AddDays(-1)
-            : calendarDate.AddDays(-2);
+        return marketLocal.DayOfWeek switch
+        {
+            DayOfWeek.Saturday => calendarDate.AddDays(-1),
+            DayOfWeek.Sunday => calendarDate.AddDays(-2),
+            _ => calendarDate
+        };
+    }
+
+    /// <summary>
+    /// Returns the next instant at which the active futures value date opens,
+    /// closes, or rolls. The result is always strictly after <paramref name="instant"/>.
+    /// </summary>
+    public static DateTimeOffset GetNextTransitionUtc(DateTimeOffset instant)
+    {
+        var marketLocal = TimeZoneInfo.ConvertTime(instant, MarketTimeZone);
+        var date = DateOnly.FromDateTime(marketLocal.DateTime);
+        var time = TimeOnly.FromDateTime(marketLocal.DateTime);
+        var (transitionDate, transitionTime) = marketLocal.DayOfWeek switch
+        {
+            DayOfWeek.Friday when time < MarketClosesAt => (date, MarketClosesAt),
+            DayOfWeek.Friday => (date.AddDays(2), MarketOpensAt),
+            DayOfWeek.Saturday => (date.AddDays(1), MarketOpensAt),
+            DayOfWeek.Sunday when time < MarketOpensAt => (date, MarketOpensAt),
+            DayOfWeek.Sunday => (date.AddDays(1), MarketClosesAt),
+            _ when time < MarketClosesAt => (date, MarketClosesAt),
+            _ when time < MarketOpensAt => (date, MarketOpensAt),
+            _ => (date.AddDays(1), MarketClosesAt)
+        };
+
+        var localTransition = transitionDate.ToDateTime(
+            transitionTime,
+            DateTimeKind.Unspecified);
+        var utcTransition = TimeZoneInfo.ConvertTimeToUtc(localTransition, MarketTimeZone);
+        return new DateTimeOffset(utcTransition, TimeSpan.Zero);
     }
 
     /// <summary>

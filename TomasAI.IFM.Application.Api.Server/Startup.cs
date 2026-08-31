@@ -55,6 +55,7 @@ using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Projection;
 using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.MarketData;
+using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor;
@@ -568,6 +569,10 @@ public static class Startup
                 Contracts = contracts
             };
             services.AddDatabentoMarketDataServices();
+            services.AddSingleton<FuturesMarketSessionAuthority>();
+            services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
+                provider.GetRequiredService<FuturesMarketSessionAuthority>());
+            services.AddHostedService<FuturesMarketSessionAuthorityHostedService>();
             services.AddSingleton<ITickAggregationEventPublisher,
                 TickAggregationEventPublisher>();
             services.AddApplicationMarketDataApi(runtimeOptions);
@@ -706,6 +711,8 @@ public static class Startup
     public static WebApplication ConfigureRequestPipeline(this WebApplication app, Microsoft.Extensions.Logging.ILogger logger)
     {
         // configure the HTTP request pipeline...
+        _siContainer.RegisterInstance(
+            app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
         app.Services.UseSimpleInjector(_siContainer);
         _siContainer.Verify();
         logger.LogInformationEvent("ApiServer", "configure HTTP request pipeline...");

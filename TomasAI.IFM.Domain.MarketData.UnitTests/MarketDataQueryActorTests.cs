@@ -41,6 +41,8 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             context.ActorId.Returns(new ActorMailboxId(ActorType.Query, MarketDataQueryActor.ActorName));
             context.DbFactory.Returns(dbFactory);
             context.Logger.Returns(logger);
+            context.MarketSessionAuthority.Returns(
+                new FuturesMarketSessionAuthority(TimeProvider.System));
             return context;
         }
 

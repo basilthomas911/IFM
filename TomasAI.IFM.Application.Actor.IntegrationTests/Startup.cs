@@ -88,6 +88,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realt
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Query;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.OptionPricer.Shared.ServiceApi;
@@ -248,6 +250,10 @@ public static class Startup
 
             services.AddSingleton(siContainer);
             services.AddSimpleInjector(siContainer);
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<FuturesMarketSessionAuthority>();
+            services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
+                provider.GetRequiredService<FuturesMarketSessionAuthority>());
             services.AddHttpClient();
             services.AddFinancialModelingPrepMarketData(options => options.Enabled = false);
             services.AddFinancialModelingPrepReferenceDataApi();
@@ -602,6 +608,8 @@ public static class Startup
     {
         var siContainer = app.Services.GetRequiredService<SimpleInjector.Container>();
         // configure the HTTP request pipeline...
+        siContainer.RegisterInstance(
+            app.Services.GetRequiredService<IFuturesMarketSessionAuthority>());
         app.Services.UseSimpleInjector(siContainer);
         siContainer.Verify();
         logger.LogInformationEvent("ApiServer", "configure HTTP request pipeline...");

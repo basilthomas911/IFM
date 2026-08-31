@@ -351,9 +351,10 @@ public static partial class MarketDataQueryExtensions
     {
         try
         {
-            if (!FuturesTradingValueDate.TryGet(TimeProvider.System.GetUtcNow(), out var valueDate))
+            var activeValueDate = context.MarketSessionAuthority.Current.ActiveValueDate;
+            if (!activeValueDate.HasValue)
                 throw new InvalidOperationException("The futures market weekend session is closed.");
-            var result = new ScalarReadModel<DateOnly>(valueDate);
+            var result = new ScalarReadModel<DateOnly>(activeValueDate.Value);
             return Task.FromResult<ServiceResult<ScalarReadModel<DateOnly>>>(
                 new ServiceOk<ScalarReadModel<DateOnly>>(result));
         }

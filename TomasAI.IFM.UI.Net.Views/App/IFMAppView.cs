@@ -63,6 +63,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         _referenceDataService = referenceDataService;
         _economicCalendarService = economicCalendarService;
         InitializeComponent();
+        DashboardTypography.ApplyFamilyAndSize(operationViewSplitter);
         operationViewSplitter.Paint += DashboardSplitter_Paint;
         marketViewSplitter.Paint += DashboardSplitter_Paint;
         _appVersion = Assembly.GetExecutingAssembly().GetName().Version!;
@@ -418,6 +419,7 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                                 ResolveHistoricalValueDate(legacyHistory),
                                 [.. _viewModel.BaseContracts],
                                 historicalReadOnly: true));
+                    DashboardTypography.ApplyFamilyAndSize(tabPage);
                     btnCloseOrder.Text = $"Close Trade: {tabPage.Text}";
                     btnCloseOrder.Visible = true;
                     ResizeTabPages();
@@ -439,7 +441,10 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
                                 _viewModel.ValueDate,
                                 [.. _viewModel.BaseContracts]);
                             if (_tradeBlotter is not null)
-                                 ((IFormControl)_tradeBlotter)?.Open();
+                            {
+                                DashboardTypography.ApplyFamilyAndSize(_tradeBlotter);
+                                ((IFormControl)_tradeBlotter)?.Open();
+                            }
                             tabPage.UseVisualStyleBackColor = false;
                             tabPage.BackColor = Color.Black;
                             tabPage.Controls.Clear();

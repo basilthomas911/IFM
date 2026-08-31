@@ -9,11 +9,13 @@ public static class GetMarketSession
 {
     public static ValueTask<MarketSessionReadModel> GetMarketSessionAsync(
         this GetMarketSessionQuery query,
+        IFuturesMarketSessionAuthority authority,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(authority);
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(Calculate(TimeProvider.System.GetUtcNow()));
+        return ValueTask.FromResult(authority.Current);
     }
 
     internal static MarketSessionReadModel Calculate(DateTimeOffset instant)
@@ -28,7 +30,10 @@ public static class GetMarketSession
             IsLiveSessionOpen = isOpen,
             MarketTime = marketTime.DateTime,
             SessionStartUtc = FuturesTradingValueDate.GetSessionStartUtc(operationalValueDate).UtcDateTime,
-            SessionEndUtc = FuturesTradingValueDate.GetSessionEndUtc(operationalValueDate).UtcDateTime
+            SessionEndUtc = FuturesTradingValueDate.GetSessionEndUtc(operationalValueDate).UtcDateTime,
+            NextTransitionUtc = FuturesTradingValueDate.GetNextTransitionUtc(instant).UtcDateTime,
+            Revision = 1,
+            AsOfUtc = instant.UtcDateTime
         };
     }
 }

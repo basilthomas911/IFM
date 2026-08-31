@@ -76,25 +76,29 @@ work in the background:
 
 An empty table, unresolved DataBento symbol, missing provider configuration, or a
 rollover/contract mismatch prevents market-data admission, but does not prevent
-the core application from starting. During monitoring hours the service reports
-the first failure and retries; outside monitoring hours it defers admission until
-the next opening without contacting the provider.
+the core application from starting. During a market-open value-date session the
+service reports the first failure and retries every minute. During `Closed`, it
+stops any active epoch and waits for the next 18:00 Eastern market opening.
 
 The API readiness response includes `market_data_runtime`, but market data is an
 optional capability rather than a prerequisite for the rest of the application.
-Outside the weekday 03:00-16:00 Eastern monitoring window the entry is healthy
-even when feeds are inactive. During that window a missing runtime or stale
-current-contract route is degraded, not unhealthy, so readiness remains HTTP 200
-and Server Manager can keep the API and UI available. Its data includes the
-Eastern market time, whether feeds are expected, configured-contract state, and
-source quote/trade counters so operators can distinguish an expected closed-market
-state from an in-hours feed incident.
+During `Closed`, the entry is healthy when feeds are inactive. During any
+market-open value-date session, including off-trading hours, a missing runtime or
+stale current-contract route is degraded, not unhealthy, so readiness remains
+HTTP 200 and Server Manager can keep the API and UI available. Its data includes
+the Eastern market time, whether feeds are expected, configured-contract state,
+and source quote/trade counters so operators can distinguish an expected
+closed-market state from an open-session feed incident.
 
-The rollover and Databento runtime initialize as an optional background service.
-Starting the application outside the monitoring window does not contact the feed;
-initialization waits until the next weekday opening. An in-hours initialization
-failure is reported once and retried every minute without terminating the API or
-UI.
+The API-owned `IFuturesMarketSessionAuthority` initializes before rollover/feed
+supervision and supplies one versioned operational/active value-date snapshot.
+The rollover and Databento runtime then initialize as an optional background
+service. Starting the API during an open session starts the current value-date
+epoch immediately. At each 17:00 Eastern close it stops that epoch; at each
+18:00 Sunday-through-Thursday opening it resolves the new value date and starts
+the replacement epoch. The 03:00 and 16:00 position-permission boundaries do not
+restart or stop the feed. Initialization failure is reported once and retried
+every minute without terminating the API or UI.
 
 ## Runtime contract registry and datasets
 

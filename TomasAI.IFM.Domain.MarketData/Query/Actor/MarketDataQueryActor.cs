@@ -127,7 +127,9 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         GetValueDateQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetValueDateAsync(cancellationToken).ConfigureAwait(false);
+        var result = await query.GetValueDateAsync(
+            MarketDataContext.MarketSessionAuthority,
+            cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetValueDateQuery.Verb,
             new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
@@ -138,7 +140,9 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         GetMarketSessionQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await query.GetMarketSessionAsync(cancellationToken).ConfigureAwait(false);
+        var result = await query.GetMarketSessionAsync(
+            MarketDataContext.MarketSessionAuthority,
+            cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetMarketSessionQuery.Verb,
             new ServiceResult<MarketSessionReadModel>(result)).ConfigureAwait(false);

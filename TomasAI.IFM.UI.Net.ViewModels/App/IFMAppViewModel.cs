@@ -91,11 +91,14 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     internal static readonly TimeSpan FuturesBarContinuityTolerance = TimeSpan.FromSeconds(45);
     static readonly TimeSpan DefaultStartupReferenceDataImportTimeout = TimeSpan.FromSeconds(30);
     static readonly TimeSpan DefaultMarketDataFeedTerminalTimeout = TimeSpan.FromSeconds(60);
+    static readonly TimeSpan MarketSessionReconciliationInterval = TimeSpan.FromMinutes(1);
+    static readonly TimeSpan MarketSessionBoundarySettleDelay = TimeSpan.FromMilliseconds(100);
     readonly object _statusLogGate = new();
     readonly object _marketDataStreamGate = new();
     readonly object _realtimeStreamGate = new();
     readonly object _tradePlacementGate = new();
     readonly SemaphoreSlim _marketDataFeedOperationGate = new(1, 1);
+    readonly SemaphoreSlim _marketSessionTransitionGate = new(1, 1);
     readonly IAppRoot _appRoot;
     readonly IIFMAppLiveViewAdapter _liveViewAdapter;
     readonly IEconomicCalendarService _economicCalendarService;
@@ -119,6 +122,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     IUiEventSubscription? _economicCalendarStartupSubscription;
     DateOnly? _valueDate;
     bool _isLiveMarketSessionOpen;
+    MarketSessionReadModel? _marketSession;
     IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
     StatusConsoleLogReadModel? _latestStatusLog;
@@ -509,6 +513,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await DisposeOperationAsync(StartupOperation);
         await DisposeOperationAsync(ShutdownOperation);
         _marketDataFeedOperationGate.Dispose();
+        _marketSessionTransitionGate.Dispose();
     }
 
     /// <summary>
@@ -606,8 +611,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             if (marketSession is not { IsValid: true })
                 throw new InvalidOperationException("The authoritative futures market session could not be resolved.");
 
-            ValueDate = marketSession.OperationalValueDate;
-            IsLiveMarketSessionOpen = marketSession.IsLiveSessionOpen;
+            ApplyMarketSessionSnapshot(marketSession);
             var strategyContractId = BaseContracts
                 .Where(contract => contract.Symbol == MarketOutlookSymbol)
                 .Select(contract => contract.ContractId)
@@ -638,9 +642,142 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 ? $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete"
                 : $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
                   + $"Futures session closed; read-only data is available for {ValueDate:yyyy-MM-dd} and live market-data APIs remain stopped.");
+            _ = _lifecycle.RunAsync(MonitorMarketSessionAsync);
             StartupOperation.NotifyCanExecuteChanged();
             ShutdownOperation.NotifyCanExecuteChanged();
         });
+
+    async Task MonitorMarketSessionAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var delay = GetMarketSessionRefreshDelay(
+                _timeProvider.GetUtcNow(),
+                _marketSession?.NextTransitionUtc);
+            await Task.Delay(delay, _timeProvider, cancellationToken);
+
+            try
+            {
+                MarketSessionReadModel? refreshed = null;
+                await _appRoot.Services.MarketDataQueries.ExecuteAsync(async model =>
+                {
+                    model.OnError((errorCode, errorMessage) =>
+                        PublishError(errorCode, errorMessage, "Market Session Refresh Error"));
+                    await model.GetMarketSessionAsync(value =>
+                    {
+                        refreshed = value;
+                        return Task.CompletedTask;
+                    });
+                });
+
+                if (refreshed is { IsValid: true })
+                    await ApplyMarketSessionTransitionAsync(refreshed, cancellationToken);
+                else
+                    await WriteStatusConsoleAsync(
+                        "Market-session refresh returned no valid authoritative snapshot; the last coherent value date remains active.");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                await WriteStatusConsoleAsync(
+                    $"Market-session refresh is temporarily unavailable ({exception.GetType().Name}: {exception.Message}); retaining the last coherent value date.");
+            }
+        }
+    }
+
+    async Task ApplyMarketSessionTransitionAsync(
+        MarketSessionReadModel refreshed,
+        CancellationToken cancellationToken)
+    {
+        await _marketSessionTransitionGate.WaitAsync(cancellationToken);
+        try
+        {
+            var previousValueDate = ValueDate;
+            var previousMarketOpen = IsLiveMarketSessionOpen;
+            if (previousValueDate == refreshed.OperationalValueDate
+                && previousMarketOpen == refreshed.IsLiveSessionOpen)
+            {
+                _marketSession = refreshed;
+                return;
+            }
+
+            ApplyMarketSessionSnapshot(refreshed);
+            if (previousValueDate != refreshed.OperationalValueDate)
+            {
+                if (Operations is not null)
+                {
+                    Operations.PropertyChanged -= OperationsPropertyChanged;
+                    await Operations.DisposeAsync();
+                    Operations = null;
+                }
+
+                Interlocked.Exchange(ref _marketOutlookRevision, 0);
+                MarketOutlook = null;
+                FuturesTradeSignal = null;
+                await StopMarketOutlookEventConsumer();
+
+                var strategyContractId = BaseContracts
+                    .Where(contract => contract.Symbol == MarketOutlookSymbol)
+                    .Select(contract => contract.ContractId)
+                    .FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(strategyContractId))
+                {
+                    Operations = new OperationsViewModel(
+                        _appRoot,
+                        strategyContractId,
+                        refreshed.OperationalValueDate);
+                    Operations.PropertyChanged += OperationsPropertyChanged;
+                    await Operations.InitializeAsync(cancellationToken);
+                }
+
+                await GetLastFuturesBarData(refreshed.OperationalValueDate);
+                await StartMarketOutlookEventConsumer(cancellationToken);
+                _ = _lifecycle.RunAsync(EnsureHistoricalAnalyticsWarmupAsync);
+            }
+
+            await WriteStatusConsoleAsync(
+                $"Authoritative futures session updated: value date {refreshed.OperationalValueDate:yyyy-MM-dd}, "
+                + $"market {(refreshed.IsLiveSessionOpen ? "open" : "closed")}.");
+        }
+        finally
+        {
+            _marketSessionTransitionGate.Release();
+        }
+    }
+
+    internal void ApplyMarketSessionSnapshot(MarketSessionReadModel snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!snapshot.IsValid)
+            throw new ArgumentException("A valid authoritative market-session snapshot is required.", nameof(snapshot));
+
+        _marketSession = snapshot;
+        ValueDate = snapshot.OperationalValueDate;
+        IsLiveMarketSessionOpen = snapshot.IsLiveSessionOpen;
+    }
+
+    internal static TimeSpan GetMarketSessionRefreshDelay(
+        DateTimeOffset now,
+        DateTime? nextTransitionUtc)
+    {
+        if (nextTransitionUtc is null || nextTransitionUtc == default)
+            return MarketSessionReconciliationInterval;
+
+        var normalizedTransition = nextTransitionUtc.Value.Kind == DateTimeKind.Utc
+            ? nextTransitionUtc.Value
+            : DateTime.SpecifyKind(nextTransitionUtc.Value, DateTimeKind.Utc);
+        var untilTransition = new DateTimeOffset(normalizedTransition) - now;
+        if (untilTransition <= TimeSpan.Zero)
+            return MarketSessionBoundarySettleDelay;
+
+        var boundaryDelay = untilTransition + MarketSessionBoundarySettleDelay;
+        return boundaryDelay < MarketSessionReconciliationInterval
+            ? boundaryDelay
+            : MarketSessionReconciliationInterval;
+    }
 
     void OperationsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
         => OnPropertyChanged(nameof(Operations));

@@ -7,13 +7,15 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 namespace TomasAI.IFM.Application.Api.Server;
 
 /// <summary>
-/// Starts the optional market-data runtime without making it a prerequisite for
-/// the core API or UI. Startup is deferred while feed monitoring is out of hours.
+/// Supervises the optional market-data runtime across API startup and successive
+/// futures market-open/value-date sessions without making it a prerequisite for
+/// the core API or UI.
 /// </summary>
 internal sealed class FuturesContractRolloverStartupService(
     SecuritiesSchemaDb schema,
     FuturesContractRolloverStartupCheck check,
     IMarketDataApi marketDataApi,
+    IFuturesMarketSessionAuthority marketSessionAuthority,
     TimeProvider timeProvider,
     ILogger<FuturesContractRolloverStartupService> logger) : BackgroundService
 {
@@ -31,7 +33,9 @@ internal sealed class FuturesContractRolloverStartupService(
     {
         try
         {
-            await InitializeContractsAsync(timeProvider.GetUtcNow(), cancellationToken)
+            await InitializeContractsAsync(
+                    marketSessionAuthority.Current.OperationalValueDate,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -52,26 +56,34 @@ internal sealed class FuturesContractRolloverStartupService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var failureReported = false;
-        while (!stoppingToken.IsCancellationRequested && _activeValueDate is null)
+        while (!stoppingToken.IsCancellationRequested)
         {
-            var now = timeProvider.GetUtcNow();
             try
             {
-                var (valueDate, rows) = await InitializeContractsAsync(now, stoppingToken)
-                    .ConfigureAwait(false);
-                failureReported = false;
-                if (!MarketDataFeedMonitoringWindow.IsOpen(now))
+                var session = marketSessionAuthority.Current;
+                if (session.ActiveValueDate is { } activeValueDate)
                 {
-                    var nextStart = MarketDataFeedMonitoringWindow.GetNextStartUtc(now);
-                    logger.LogInformation(
-                        "Market-data contracts are initialized for manual feed startup. Automatic feed startup is paused outside 03:00-16:00 Eastern; next attempt: {NextAttemptUtc}.",
-                        nextStart);
-                    await Task.Delay(nextStart - now, timeProvider, stoppingToken)
+                    var (_, rows) = await InitializeContractsAsync(
+                            activeValueDate,
+                            stoppingToken)
                         .ConfigureAwait(false);
-                    continue;
+                    if (_activeValueDate != activeValueDate)
+                    {
+                        await StopActiveMarketDataAsync().ConfigureAwait(false);
+                        await StartMarketDataAsync(activeValueDate, rows, stoppingToken)
+                            .ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    await StopActiveMarketDataAsync().ConfigureAwait(false);
                 }
 
-                await StartMarketDataAsync(valueDate, rows, stoppingToken)
+                failureReported = false;
+                await Task.Delay(
+                        GetNextSupervisionDelay(session, timeProvider.GetUtcNow()),
+                        timeProvider,
+                        stoppingToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -83,7 +95,7 @@ internal sealed class FuturesContractRolloverStartupService(
                 if (!failureReported)
                 {
                     logger.LogWarning(
-                        "Market-data startup is unavailable ({ExceptionType}: {ExceptionMessage}). The core API and UI remain available; retrying while the monitoring window is open.",
+                        "Market-data session supervision is unavailable ({ExceptionType}: {ExceptionMessage}). The core API and UI remain available; retrying.",
                         exception.GetType().Name,
                         exception.Message);
                     failureReported = true;
@@ -97,10 +109,9 @@ internal sealed class FuturesContractRolloverStartupService(
 
     private async Task<(DateOnly ValueDate, IReadOnlyCollection<FuturesContractRolloverReadModel> Rows)>
         InitializeContractsAsync(
-        DateTimeOffset now,
+        DateOnly valueDate,
         CancellationToken cancellationToken)
     {
-        var valueDate = FuturesTradingValueDate.GetOperational(now);
         if (_initializedValueDate == valueDate && _initializedRows is { } initializedRows)
             return (valueDate, initializedRows);
 
@@ -120,6 +131,30 @@ internal sealed class FuturesContractRolloverStartupService(
             rows.Count,
             valueDate);
         return (valueDate, rows);
+    }
+
+    private async Task StopActiveMarketDataAsync()
+    {
+        if (_activeValueDate is not { } valueDate)
+            return;
+
+        await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);
+        _activeValueDate = null;
+        logger.LogInformation(
+            "Stopped the market-data runtime for completed value date {ValueDate}.",
+            valueDate);
+    }
+
+    private static TimeSpan GetNextSupervisionDelay(
+        MarketSessionReadModel session,
+        DateTimeOffset now)
+    {
+        var transitionUtc = new DateTimeOffset(
+            DateTime.SpecifyKind(session.NextTransitionUtc, DateTimeKind.Utc));
+        var untilTransition = transitionUtc - now + TimeSpan.FromMilliseconds(200);
+        if (untilTransition <= TimeSpan.Zero)
+            return TimeSpan.FromMilliseconds(200);
+        return untilTransition < RetryDelay ? untilTransition : RetryDelay;
     }
 
     private async Task StartMarketDataAsync(
@@ -142,9 +177,6 @@ internal sealed class FuturesContractRolloverStartupService(
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
-        if (_activeValueDate is not { } valueDate)
-            return;
-        await marketDataApi.StopAsync(valueDate).ConfigureAwait(false);
-        _activeValueDate = null;
+        await StopActiveMarketDataAsync().ConfigureAwait(false);
     }
 }

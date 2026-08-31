@@ -3,6 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Application.Storage.SecuritiesDb;
+using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Query.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -199,6 +200,8 @@ public class ActorMarketDataQueryApiTests
     {
         var context = Substitute.For<IMarketDataQueryContext>();
         context.DbFactory.Returns(dbFactory);
+        context.MarketSessionAuthority.Returns(
+            new FuturesMarketSessionAuthority(TimeProvider.System));
         return context;
     }
 }

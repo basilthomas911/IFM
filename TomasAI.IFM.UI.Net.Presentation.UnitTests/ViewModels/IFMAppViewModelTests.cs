@@ -344,6 +344,42 @@ public class IFMAppViewModelTests
         viewModel.UiDispatchMetrics.MaximumRenderDuration.Should().Be(TimeSpan.FromMilliseconds(6));
     }
 
+    [Fact]
+    public void AuthoritativeMarketSessionSnapshot_UpdatesRunningValueDateAndMarketState()
+    {
+        var viewModel = CreateSubject();
+        var session = new MarketSessionReadModel
+        {
+            OperationalValueDate = new DateOnly(2026, 9, 1),
+            ActiveValueDate = new DateOnly(2026, 9, 1),
+            IsLiveSessionOpen = true,
+            MarketTime = new DateTime(2026, 8, 31, 18, 0, 0),
+            SessionStartUtc = new DateTime(2026, 8, 31, 22, 0, 0, DateTimeKind.Utc),
+            SessionEndUtc = new DateTime(2026, 9, 1, 21, 0, 0, DateTimeKind.Utc),
+            NextTransitionUtc = new DateTime(2026, 9, 1, 21, 0, 0, DateTimeKind.Utc),
+            Revision = 2,
+            AsOfUtc = new DateTime(2026, 8, 31, 22, 0, 0, DateTimeKind.Utc)
+        };
+
+        viewModel.ApplyMarketSessionSnapshot(session);
+
+        viewModel.ValueDate.Should().Be(new DateOnly(2026, 9, 1));
+        viewModel.IsLiveMarketSessionOpen.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("2026-08-31T21:58:00+00:00", "2026-08-31T22:00:00Z", 60_000)]
+    [InlineData("2026-08-31T21:59:59.950+00:00", "2026-08-31T22:00:00Z", 150)]
+    [InlineData("2026-08-31T22:00:00+00:00", "2026-08-31T22:00:00Z", 100)]
+    public void MarketSessionRefreshDelay_ReconcilesPeriodicallyAndSettlesAtBoundary(
+        string now,
+        string transition,
+        double expectedMilliseconds)
+        => IFMAppViewModel.GetMarketSessionRefreshDelay(
+                DateTimeOffset.Parse(now),
+                DateTime.Parse(transition).ToUniversalTime())
+            .Should().Be(TimeSpan.FromMilliseconds(expectedMilliseconds));
+
     static IFMAppViewModel CreateSubject(TimeProvider? timeProvider = null)
     {
         var commandResponseConsumer = Substitute.For<ICommandResponseUIEventConsumer>();

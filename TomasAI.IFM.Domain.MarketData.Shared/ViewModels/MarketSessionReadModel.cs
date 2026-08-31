@@ -15,9 +15,15 @@ public sealed record MarketSessionReadModel
     [Key(3)] public DateTime MarketTime { get; init; }
     [Key(4)] public DateTime SessionStartUtc { get; init; }
     [Key(5)] public DateTime SessionEndUtc { get; init; }
+    [Key(6)] public DateTime NextTransitionUtc { get; init; }
+    [Key(7)] public long Revision { get; init; }
+    [Key(8)] public DateTime AsOfUtc { get; init; }
 
     [IgnoreMember]
     public bool IsValid => OperationalValueDate != default
         && SessionStartUtc != default
-        && SessionEndUtc > SessionStartUtc;
+        && SessionEndUtc > SessionStartUtc
+        && NextTransitionUtc != default
+        && Revision > 0
+        && AsOfUtc != default;
 }

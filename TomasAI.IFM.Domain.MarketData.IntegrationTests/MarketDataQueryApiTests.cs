@@ -100,7 +100,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
     public async Task GetValueDateQuery_Ok()
     {
         // arrange...
-        var today = DateTime.Now;
+        var now = DateTimeOffset.Now;
 
         // act...
         _httpClientFactory.CreateClient();
@@ -111,20 +111,14 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
-        if (today.DayOfWeek == DayOfWeek.Saturday)
+        if (!FuturesTradingValueDate.TryGet(now, out var expectedValueDate))
         {
-            // The futures market is closed on Saturday, so there is no active value date.
-            response.Value.Should().BeNull();
-        }
-        else if (today.DayOfWeek == DayOfWeek.Sunday && today.TimeOfDay < TimeSpan.FromHours(18))
-        {
-            // The futures market remains closed until Sunday at 6 PM.
             response.Value.Should().BeNull();
         }
         else
         {
             response.Value.Should().NotBeNull();
-            response.Value.Value.Should().BeOnOrAfter(DateOnly.FromDateTime(today));
+            response.Value.Value.Should().Be(expectedValueDate);
             response.Value.Value.DayOfWeek.Should().NotBe(DayOfWeek.Saturday);
             response.Value.Value.DayOfWeek.Should().NotBe(DayOfWeek.Sunday);
         }
@@ -147,5 +141,6 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         response.Value!.IsValid.Should().BeTrue();
         response.Value.ActiveValueDate.HasValue.Should().Be(response.Value.IsLiveSessionOpen);
         response.Value.SessionEndUtc.Should().BeAfter(response.Value.SessionStartUtc);
+        response.Value.NextTransitionUtc.Should().BeAfter(DateTime.UtcNow);
     }
 }
