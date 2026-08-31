@@ -121,6 +121,7 @@ public sealed class PortfolioAdministrationUiSystemTests
 
     [Fact]
     [Trait("Gate", "PF-27")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Unauthorized_policy_journey_is_visible_but_every_mutation_surface_is_read_only()
     {

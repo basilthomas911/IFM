@@ -31,9 +31,9 @@ Alert on sustained command failure/conflict rates, resolution ambiguity, project
 
 ## Release evidence status
 
-The production API host initializes the idempotent Portfolio schema before actors and projectors start. Prior live qualification executed Portfolio/Fund create and configuration, deterministic snapshot resolution, concurrent idempotent integer identity reservation, composition, Risk-reference acceptance, typed queries, and a full stop/start recovery against real NATS, PostgreSQL, and ScyllaDB. The current non-host matrix is unit 58, BDD 17, integration 18, verification 22, full UI presentation 244, and full UI system 50 with zero skips; the Portfolio UI application graph builds with zero warnings/errors.
+PF-29 cross-pipeline qualification is complete. The production API host initializes the idempotent Portfolio and Reference schemas before actors/projectors start and executes Portfolio/Fund configuration, policy activation/assignment, deterministic snapshot resolution, concurrent idempotent integer reservation, composition, Risk-reference acceptance, and typed queries against real NATS, PostgreSQL, and ScyllaDB. The final Portfolio matrix is unit 93, BDD 22, integration 29, verification 28, UI system 17, and UI presentation 4 with zero failures/skips. A bounded 64-query/eight-worker production NATS run completed in 597.2 ms with 204.6 ms p95 and exact results.
 
-This is not a release waiver. Remaining evidence is listed gate-by-gate in the implementation ledger. PF-13 through PF-15 are blocked on production TradeSelection, OrderComposition, and RiskManagement actors; PF-16/17 require the real-host administrative UI journey and operator review; PF-20 requires authenticated NATS identity enforcement, captured telemetry/health, and bounded load results. PF-09 rebuild and failed-mutation evidence is complete.
+This is not a release waiver. PF-30 still requires authenticated NATS identity enforcement, captured telemetry/health, sustained performance baselines, rollback/disable qualification, and operator release approval. PF-13 through PF-15 remain blocked on production TradeSelection, OrderComposition, and RiskManagement actors. The complete PF-29 traceability and commands are recorded in `Portfolio-Fund-PF29-Qualification-Evidence-v1.0.md`.
 
 ## Manual Portfolio UI review checkpoint
 
@@ -42,5 +42,5 @@ This is not a release waiver. Remaining evidence is listed gate-by-gate in the i
 3. Create a Draft Portfolio. Confirm the allocated integer Portfolio ID is visible and read-only.
 4. Select the Portfolio, create a child Fund, then exercise new-version and state controls. Refresh after a pending-projection message before issuing the next independent edit.
 5. Configure Allocation, Risk Envelope, and Trade Assignment. The UI reads Scylla projection aggregate revisions through typed NATS queries and uses those revisions for optimistic concurrency.
-6. Open **Planned Compositions** and check Portfolio/Fund selection, month filtering, integer OrderId/TradeId lookup, refresh, selection, and close behavior. This view is planned composition only and has no Fund creation or execution control.
-7. Record layout, labels, field ordering, defaults, and interaction changes desired before PF-16/PF-17 are accepted as complete.
+6. Open **Trade Orders**, select Portfolio and then Fund, and check origin/status/month filters, integer OrderId/TradeId lookup, refresh, selection, manual Draft creation, stale-response fencing, and the absence of execution controls.
+7. Record layout, labels, field ordering, defaults, and interaction changes for PF-30 operator release approval. PF-17's obsolete Planned Compositions surface is superseded by the PF-28 Trade Orders journey.

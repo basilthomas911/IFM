@@ -17,6 +17,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
 {
     [Fact]
     [Trait("Gate", "PF-28")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Trade_Orders_scopes_Portfolio_before_Fund_and_removes_Create_Fund()
     {
@@ -38,6 +39,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
     [Fact]
     [Trait("Gate", "PF-21")]
     [Trait("Gate", "PF-28")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Obsolete_separate_composition_viewer_is_not_present()
     {
@@ -47,6 +49,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
 
     [Fact]
     [Trait("Gate", "PF-28")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public async Task Late_Portfolio_response_cannot_replace_the_newer_scope()
     {

@@ -10,6 +10,7 @@ public sealed class TradeStrategyFamilyReferenceUiSystemTests
 {
     [Fact]
     [Trait("Gate", "PF-22")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Family_catalog_view_is_read_only_and_has_no_mutation_surface()
     {

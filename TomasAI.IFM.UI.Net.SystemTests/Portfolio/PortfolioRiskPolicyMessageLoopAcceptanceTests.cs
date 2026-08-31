@@ -26,6 +26,7 @@ public sealed class PortfolioRiskPolicyMessageLoopAcceptanceTests
 {
     [Fact]
     [Trait("Gate", "PF-27")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "PortfolioInteractive")]
     public async Task Rendered_operator_journeys_save_reject_dirty_close_and_enforce_read_only_access()
     {

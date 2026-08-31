@@ -47,6 +47,7 @@ public sealed class PortfolioCompositionScenarios
 
     [Fact]
     [Trait("Gate", "PF-28")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Given_a_manual_operator_request_when_created_then_it_is_a_canonical_non_executable_draft()
     {

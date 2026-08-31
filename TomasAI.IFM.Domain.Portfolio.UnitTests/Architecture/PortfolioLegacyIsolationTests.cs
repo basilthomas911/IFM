@@ -9,6 +9,7 @@ public sealed class PortfolioLegacyIsolationTests
 {
     [Fact]
     [Trait("Gate", "PF-19")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Legacy_context_exposes_queries_and_no_mutation_contract()
     {
@@ -24,6 +25,7 @@ public sealed class PortfolioLegacyIsolationTests
     [Fact]
     [Trait("Gate", "PF-15")]
     [Trait("Gate", "PF-19")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Portfolio_authoritative_types_do_not_depend_on_legacy_or_execution_boundaries()
     {

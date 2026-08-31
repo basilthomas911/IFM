@@ -68,6 +68,7 @@ public sealed class PortfolioWorkflowTests
 
     [Fact]
     [Trait("Gate", "PF-28")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Manual_order_draft_uses_canonical_authority_without_trade_or_execution_side_effects()
     {
@@ -98,6 +99,7 @@ public sealed class PortfolioWorkflowTests
     [Fact]
     [Trait("Gate", "PF-14")]
     [Trait("Gate", "PF-15")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Composition_and_risk_references_are_immutable_and_stop_before_execution()
     {

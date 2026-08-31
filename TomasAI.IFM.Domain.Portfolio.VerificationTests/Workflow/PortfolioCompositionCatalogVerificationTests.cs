@@ -20,6 +20,7 @@ public sealed class PortfolioCompositionCatalogVerificationTests
     [Trait("Gate", "PF-13")]
     [Trait("Gate", "PF-14")]
     [Trait("Gate", "PF-15")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Representative_catalog_retains_snapshot_and_exact_integer_composition_ids(string horizon, string family, string bias, int tradeCount)
     {
@@ -54,6 +55,7 @@ public sealed class PortfolioCompositionCatalogVerificationTests
 
     [Fact]
     [Trait("Gate", "PF-15")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Portfolio_assemblies_have_no_broker_execution_or_live_trade_database_dependency()
     {
@@ -63,6 +65,7 @@ public sealed class PortfolioCompositionCatalogVerificationTests
 
     [Fact]
     [Trait("Gate", "PF-28")]
+    [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Manual_and_workflow_origins_are_unambiguous_in_the_unified_order_projection()
     {
