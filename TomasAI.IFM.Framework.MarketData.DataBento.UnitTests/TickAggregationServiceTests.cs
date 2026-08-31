@@ -162,7 +162,7 @@ public sealed class TickAggregationServiceTests
 
         await service.StartAsync();
         Assert.True(SpinWait.SpinUntil(
-            () => service.GetMetrics().EmittedTradeEvents == 3,
+            () => service.GetMetrics().EmittedTradeEvents == 2,
             TimeSpan.FromSeconds(2)));
 
         Assert.Equal(2, publisher.MarketPrices.Count);
@@ -460,7 +460,7 @@ public sealed class TickAggregationServiceTests
 
         await service.StartAsync();
         Assert.True(SpinWait.SpinUntil(
-            () => service.GetMetrics().EmittedTradeEvents == 2,
+            () => service.GetMetrics().EmittedTradeEvents == 1,
             TimeSpan.FromSeconds(2)));
         Assert.True(service.TryGetLastTickPrice("ESU6", out var snapshot));
 
@@ -471,6 +471,9 @@ public sealed class TickAggregationServiceTests
         var status = service.GetContractStatus("ESU6");
         Assert.True(status.ContractConfigured);
         Assert.NotNull(status.LastSourceRecordObservedAtUtc);
+        Assert.NotNull(status.LastAcceptedCacheUpdateAtUtc);
+        Assert.NotNull(status.LastAcceptedSourceEventAtUtc);
+        Assert.Equal(2, status.AcceptedCacheUpdates);
         Assert.NotNull(status.LastMarketPricePublishedAtUtc);
         Assert.NotNull(status.LastDurableTickPublishedAtUtc);
 
@@ -786,7 +789,7 @@ public sealed class TickAggregationServiceTests
     }
 
     [Fact]
-    public async Task Duplicate_out_of_order_and_gap_source_sequences_are_preserved_and_counted()
+    public async Task Duplicate_and_out_of_order_records_are_counted_but_not_published()
     {
         var instrument = new InstrumentKey(7, 42);
         using var feed = new FakeFeed(instrument,
@@ -807,10 +810,13 @@ public sealed class TickAggregationServiceTests
         await service.StopAsync();
 
         var metrics = service.GetMetrics();
-        Assert.Equal((ushort)3, publisher.QuoteCount);
+        Assert.Equal((ushort)1, publisher.QuoteCount);
         Assert.Equal(1, metrics.DuplicateSourceSequences);
         Assert.Equal(1, metrics.OutOfOrderSourceSequences);
         Assert.Equal(1, metrics.SourceSequenceGaps);
+        var status = service.GetContractStatus("ESU6");
+        Assert.Equal(2, status.AcceptedCacheUpdates);
+        Assert.Equal(2, status.RejectedCacheUpdates);
     }
 
     [Fact]

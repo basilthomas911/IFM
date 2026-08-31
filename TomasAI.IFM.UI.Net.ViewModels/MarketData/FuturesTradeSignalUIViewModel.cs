@@ -6,6 +6,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 public class FuturesTradeSignalUIViewModel
 {
+    const string Unavailable = "N/A";
     public string ContractId { get; private set; }
     public string Trend { get; private set; }
     public PresentationColorRole TrendForeColor { get; private set; }
@@ -143,6 +144,87 @@ public class FuturesTradeSignalUIViewModel
 
         PresentationColorRole GetDownTrendTriggerForeColor() => PresentationColorRole.LightText;
 
+    }
+
+    /// <summary>
+    /// Builds a display from an OR-composite snapshot. Values backed by an absent component are
+    /// shown as unavailable instead of retaining a stale sibling composite or displaying zero.
+    /// </summary>
+    public FuturesTradeSignalUIViewModel(MarketOutlookSnapshotReadModel snapshot)
+        : this(snapshot.FuturesTradeSignal ?? new FuturesTradeSignalV2ReadModel
+        {
+            ContractId = snapshot.ContractId,
+            ValueDate = snapshot.ValueDate
+        })
+    {
+        if (!snapshot.FuturesEodData.IsValid)
+        {
+            FiftyDMA = Unavailable;
+            TwoHundredDMA = Unavailable;
+            RiskPosition = Unavailable;
+        }
+
+        if (snapshot.FuturesRsiSignal is { } rsi)
+        {
+            RSI = $"{rsi.RSI:F2}";
+            RSIBackColor = rsi.RSI switch
+            {
+                > 60 => PresentationColorRole.Positive,
+                < 40 => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Caution
+            };
+        }
+        else
+        {
+            RSI = Unavailable;
+            RSIBackColor = PresentationColorRole.Default;
+        }
+
+        if (snapshot.FuturesTdiSignal is { } tdi)
+        {
+            MDITrend = $"{tdi.TDI}";
+            MDITrendBackColor = tdi.TDI switch
+            {
+                FuturesTrendDirectionType.UpTrending => PresentationColorRole.Positive,
+                FuturesTrendDirectionType.DownTrending => PresentationColorRole.Negative,
+                _ => PresentationColorRole.Caution
+            };
+        }
+        else
+        {
+            MDITrend = Unavailable;
+            MDITrendBackColor = PresentationColorRole.Default;
+        }
+
+        if (snapshot.TrendDirectionChange is { } direction)
+        {
+            Trend = direction.IntrinsicTimeTrend switch
+            {
+                IntrinsicTimeTrendType.UpTrend => $"{FuturesTrendType.UpTrending}",
+                IntrinsicTimeTrendType.DownTrend => $"{FuturesTrendType.DownTrending}",
+                _ => $"{FuturesTrendType.RangeBound}"
+            };
+            UpTrendLimit = $"{direction.UpTrendTrigger:F2}";
+            DownLimitTrigger = $"{direction.DownTrendTrigger:F2}";
+            TradeEntry = $"{direction.IntrinsicPrice:F2}";
+            TrendDelta = $"{direction.TrendDelta:F2}";
+        }
+        else
+        {
+            Trend = Unavailable;
+            UpTrendLimit = Unavailable;
+            DownLimitTrigger = Unavailable;
+            TradeEntry = Unavailable;
+            TradeExit = Unavailable;
+            TrendDelta = Unavailable;
+        }
+
+        TrendExtreme = snapshot.TrendExtremeChange is { } extreme
+            ? $"{extreme.TrendExtreme:F2}"
+            : Unavailable;
+        TrendReversal = snapshot.TrendReversalChange is { } reversal
+            ? $"{reversal.TrendReversal:F2}"
+            : Unavailable;
     }
 
 

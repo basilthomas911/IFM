@@ -55,7 +55,70 @@ public readonly record struct TickAggregationContractStatus(
     bool StreamActive = false,
     DateTimeOffset? LastSourceRecordObservedAtUtc = null,
     DateTimeOffset? LastMarketPricePublishedAtUtc = null,
-    DateTimeOffset? LastDurableTickPublishedAtUtc = null);
+    DateTimeOffset? LastDurableTickPublishedAtUtc = null,
+    DateTimeOffset? StreamActivatedAtUtc = null,
+    DateTimeOffset? LastAcceptedCacheUpdateAtUtc = null,
+    DateTimeOffset? LastAcceptedSourceEventAtUtc = null,
+    long AcceptedCacheUpdates = 0,
+    long RejectedCacheUpdates = 0)
+{
+    /// <summary>Gets the route-level health of accepted Databento input.</summary>
+    public DatabentoLiveFeedHealthState HealthAt(DateTimeOffset utcNow) =>
+        DatabentoLiveFeedHealthPolicy.Evaluate(
+            StreamActive,
+            StreamActivatedAtUtc,
+            LastAcceptedCacheUpdateAtUtc,
+            LastAcceptedSourceEventAtUtc,
+            utcNow);
+}
+
+/// <summary>Health of one explicitly enabled Databento route.</summary>
+public enum DatabentoLiveFeedHealthState
+{
+    Inactive,
+    Green,
+    Yellow,
+    Red
+}
+
+/// <summary>
+/// Authoritative 5/15-minute policy evaluated from accepted hot-cache mutations.
+/// Source age participates so an old backlog cannot make a route appear current.
+/// </summary>
+public static class DatabentoLiveFeedHealthPolicy
+{
+    public static readonly TimeSpan GreenLimit = TimeSpan.FromMinutes(5);
+    public static readonly TimeSpan YellowLimit = TimeSpan.FromMinutes(15);
+
+    public static DatabentoLiveFeedHealthState Evaluate(
+        bool streamActive,
+        DateTimeOffset? streamActivatedAtUtc,
+        DateTimeOffset? lastAcceptedCacheUpdateAtUtc,
+        DateTimeOffset? lastAcceptedSourceEventAtUtc,
+        DateTimeOffset utcNow)
+    {
+        if (!streamActive)
+            return DatabentoLiveFeedHealthState.Inactive;
+
+        var acceptedAge = Age(utcNow, lastAcceptedCacheUpdateAtUtc ?? streamActivatedAtUtc);
+        var sourceAge = lastAcceptedSourceEventAtUtc is null
+            ? acceptedAge
+            : Age(utcNow, lastAcceptedSourceEventAtUtc);
+        var effectiveAge = acceptedAge >= sourceAge ? acceptedAge : sourceAge;
+        if (effectiveAge <= GreenLimit)
+            return DatabentoLiveFeedHealthState.Green;
+        if (effectiveAge <= YellowLimit)
+            return DatabentoLiveFeedHealthState.Yellow;
+        return DatabentoLiveFeedHealthState.Red;
+    }
+
+    static TimeSpan Age(DateTimeOffset utcNow, DateTimeOffset? timestamp) =>
+        timestamp is null
+            ? TimeSpan.MaxValue
+            : utcNow <= timestamp.Value
+                ? TimeSpan.Zero
+                : utcNow - timestamp.Value;
+}
 
 public readonly record struct TickAggregationTickerStatus(
     string FuturesContractId,

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -326,10 +327,10 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     internal static string GetMarketDataFeedHealthIndicatorText(MarketDataFeedHealthState state)
         => state switch
         {
-            MarketDataFeedHealthState.Healthy => "Feed Health: Healthy",
-            MarketDataFeedHealthState.Intermittent => "Feed Health: Intermittent",
+            MarketDataFeedHealthState.Healthy => "Feed Health: Green",
+            MarketDataFeedHealthState.Intermittent => "Feed Health: Yellow",
             MarketDataFeedHealthState.Failed => "Feed Health: Failed",
-            MarketDataFeedHealthState.Critical => "Feed Health: Critical",
+            MarketDataFeedHealthState.Critical => "Feed Health: Red",
             MarketDataFeedHealthState.OutsidePositionEntryWindow => "Feed Health: Monitoring Paused",
             _ => "Feed Health: Stopped"
         };
@@ -780,7 +781,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         if (snapshot.Revision <= Interlocked.Read(ref _marketOutlookRevision))
             return;
         Interlocked.Exchange(ref _marketOutlookRevision, snapshot.Revision);
-        PublishMarketOutlook(snapshot.FuturesEodData);
+        if (snapshot.FuturesEodData.IsValid)
+            PublishMarketOutlook(snapshot.FuturesEodData);
         var updatedUtc = snapshot.UpdatedOn.Kind == DateTimeKind.Utc
             ? snapshot.UpdatedOn
             : DateTime.SpecifyKind(snapshot.UpdatedOn, DateTimeKind.Utc);
@@ -793,8 +795,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             : $"missing {snapshot.MissingInputs}";
         MarketOutlookSnapshotStatus =
             $"Market Outlook r{snapshot.Revision} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}";
-        if (snapshot.FuturesTradeSignal is { } tradeSignal)
-            PublishFuturesTradeSignal(tradeSignal);
+        FuturesTradeSignal = new FuturesTradeSignalUIViewModel(snapshot);
         await WriteStatusConsoleAsync(
             $"{snapshot.ContractId} Market Outlook revision {snapshot.Revision}",
             LogSourceType.MarketDataFeedEvent);
@@ -974,7 +975,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 metricsChanged: PublishFuturesBarMetrics);
             await model.StartFuturesBarDataEventConsumerAsync(
                 _siteId,
-                QueueFuturesBarRefreshAsync);
+                QueueFuturesBarRefreshAsync,
+                RecordAcceptedMarketPriceAsync);
         });
 
     /// <summary>
@@ -1006,10 +1008,22 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         if (string.IsNullOrWhiteSpace(symbol))
             return;
 
-        await ApplyMarketDataFeedHealthAsync(_marketDataFeedHealthMonitor.RecordUpdate(
-            e.FuturesBarData.ContractId,
-            _timeProvider.GetUtcNow()));
         _futuresBarChannels?.TryWrite(symbol, e);
+    }
+
+    ValueTask RecordAcceptedMarketPriceAsync(FuturesMarketPriceUpdatedRealtimeEvent e)
+    {
+        var sourceEventUtc = e.UpdateSource switch
+        {
+            FuturesMarketPriceUpdateSource.Quote => e.Price.Quote?.EventTimestamp,
+            FuturesMarketPriceUpdateSource.Trade => e.Price.Trade?.EventTimestamp,
+            _ => null
+        };
+        return new ValueTask(ApplyMarketDataFeedHealthAsync(
+            _marketDataFeedHealthMonitor.RecordUpdate(
+                e.EntityId.ContractId,
+                _timeProvider.GetUtcNow(),
+                sourceEventUtc)));
     }
 
     async ValueTask ProcessFuturesBarRefreshAsync(

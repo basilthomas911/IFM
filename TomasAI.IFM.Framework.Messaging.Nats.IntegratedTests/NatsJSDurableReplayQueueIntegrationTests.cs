@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using TomasAI.IFM.Framework.Messaging.Nats;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Shared.EventProjector;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Framework.Messaging.Nats.IntegratedTests;
@@ -17,6 +18,8 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
 {
     static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
     static readonly TimeSpan ReplayInterval = TimeSpan.FromMilliseconds(100);
+    static readonly Task<EventProjectorDeliveryResult> CompletedDelivery =
+        Task.FromResult(EventProjectorDeliveryResult.Completed);
     readonly ConcurrentBag<QueueResources> _resources = [];
     readonly string _url = Environment.GetEnvironmentVariable("IFM_NATS_URL") ?? "nats://localhost:4222";
     NatsClient _adminClient = null!;
@@ -56,7 +59,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         {
             Interlocked.Increment(ref calls);
             processed.TrySetResult();
-            return Task.CompletedTask;
+            return CompletedDelivery;
         });
 
         await queue.EnqueueAsync(resources.ProjectorName, CreateEvent("staged"));
@@ -83,7 +86,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         {
             Interlocked.Increment(ref calls);
             processed.TrySetResult();
-            return Task.CompletedTask;
+            return CompletedDelivery;
         });
         await queue.StartAsync(resources.ProjectorName, ReplayInterval);
         var domainEvent = CreateEvent("duplicate");
@@ -96,6 +99,34 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         calls.Should().Be(1);
         var stream = await _jetStream.GetStreamAsync(resources.ProcessStream);
         stream.Info.State.Messages.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Typed_deferral_redelivers_process_message_without_publishing_a_failure_replay()
+    {
+        var resources = CreateResources();
+        await using var queue = CreateQueue();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        await queue.DequeueAsync(resources.ProjectorName, _ =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+                return Task.FromResult(EventProjectorDeliveryResult.Deferred("stream-order"));
+            completed.TrySetResult();
+            return CompletedDelivery;
+        });
+        await queue.StartAsync(resources.ProjectorName, ReplayInterval);
+
+        await queue.EnqueueAsync(resources.ProjectorName, CreateEvent("deferred"));
+
+        await completed.Task.WaitAsync(TestTimeout);
+        calls.Should().Be(2);
+        var replayStream = await _jetStream.GetStreamAsync(resources.ReplayStream);
+        replayStream.Info.State.Messages.Should().Be(0);
+        var processConsumer = await _jetStream.GetConsumerAsync(
+            resources.ProcessStream,
+            resources.ProcessConsumer);
+        processConsumer.Info.Delivered.ConsumerSeq.Should().BeGreaterThanOrEqualTo(2);
     }
 
     [Fact]
@@ -112,7 +143,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
             if (Interlocked.Increment(ref calls) <= 2)
                 throw new InvalidOperationException("projection failed");
             completed.TrySetResult();
-            return Task.CompletedTask;
+            return CompletedDelivery;
         });
         await queue.StartAsync(resources.ProjectorName, ReplayInterval);
 
@@ -152,7 +183,7 @@ public sealed class NatsJSDurableReplayQueueIntegrationTests : IAsyncLifetime
         await queue.DequeueAsync(resources.ProjectorName, domainEventValue =>
         {
             received.TrySetResult((IntegrationEvent)domainEventValue);
-            return Task.CompletedTask;
+            return CompletedDelivery;
         });
         await queue.StartAsync(resources.ProjectorName, ReplayInterval);
 

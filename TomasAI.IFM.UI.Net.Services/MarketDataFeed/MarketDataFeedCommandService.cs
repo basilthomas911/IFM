@@ -11,6 +11,7 @@ using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 
@@ -184,8 +185,11 @@ public class MarketDataFeedCommandService(
     /// <param name="listenerAction"></param>
     public async Task StartFuturesBarDataEventConsumerAsync(
         Guid siteId,
-        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> listenerAction)
-        => await ExecuteValueTaskAsync( () => _futuresBarDataEventConsumer.StartAsync( listenerAction) );
+        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> listenerAction,
+        Func<FuturesMarketPriceUpdatedRealtimeEvent, ValueTask> acceptedPriceAction)
+        => await ExecuteValueTaskAsync(() => _futuresBarDataEventConsumer.StartAsync(
+            listenerAction,
+            acceptedPriceAction));
 
     /// <summary>
     /// stop listening for futures bar data inserted complete

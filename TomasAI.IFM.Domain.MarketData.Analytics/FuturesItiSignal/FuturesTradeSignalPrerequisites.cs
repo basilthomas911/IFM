@@ -71,17 +71,19 @@ internal static class FuturesTradeSignalPrerequisites
         if (vixFuturesPrice <= 0)
             missing.Add("VX price");
 
-        if (missing.Count != 0)
+        // EOD is the calculation base. All analytics enrichments are independent optional
+        // components and therefore use OR admission rather than an all-or-nothing barrier.
+        if (futuresEodData is null)
             return new FuturesTradeSignalPrerequisiteResult(null, string.Join(", ", missing));
 
         return new FuturesTradeSignalPrerequisiteResult(
             new FuturesTradeSignalInputs(
-                futuresEodData!,
-                futuresRsiSignal!,
-                futuresTdiSignal!,
-                futuresItiSignalData!,
+                futuresEodData,
+                futuresRsiSignal,
+                futuresTdiSignal,
+                futuresItiSignalData,
                 vixFuturesPrice),
-            null);
+            missing.Count == 0 ? null : string.Join(", ", missing));
     }
 }
 
@@ -91,7 +93,7 @@ internal sealed record FuturesTradeSignalPrerequisiteResult(
 
 internal sealed record FuturesTradeSignalInputs(
     FuturesEodDataV2ReadModel FuturesEodData,
-    FuturesRsiSignalReadModel FuturesRsiSignal,
-    FuturesTdiSignalReadModel FuturesTdiSignal,
-    FuturesItiSignalDataReadModel FuturesItiSignalData,
+    FuturesRsiSignalReadModel? FuturesRsiSignal,
+    FuturesTdiSignalReadModel? FuturesTdiSignal,
+    FuturesItiSignalDataReadModel? FuturesItiSignalData,
     decimal VixFuturesPrice);

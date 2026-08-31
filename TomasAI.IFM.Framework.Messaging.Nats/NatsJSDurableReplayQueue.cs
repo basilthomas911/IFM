@@ -24,7 +24,8 @@ namespace TomasAI.IFM.Framework.Messaging.Nats;
 /// letters, digits, hyphens, and underscores with underscores.
 /// </para>
 /// <para>
-/// A process message is acknowledged after its handler succeeds. If the handler fails, an envelope
+/// A process message is acknowledged after its handler completes. A typed deferred result requests
+/// redelivery without treating expected flow control as a failure. If the handler fails, an envelope
 /// containing the original event and failure details is first published to the replay stream and the
 /// process message is then acknowledged. A failed replay publication or process acknowledgement requests
 /// process redelivery without stopping the worker. Stable JetStream message identifiers suppress duplicate
@@ -286,7 +287,7 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is canceled.</exception>
     public Task DequeueAsync(
         string eventProjectorName,
-        Func<IEvent, Task> processMessageFunc,
+        Func<IEvent, Task<EventProjectorDeliveryResult>> processMessageFunc,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -309,14 +310,16 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     /// when one has not already been registered.
     /// </param>
     /// <remarks>
-    /// After the action completes or throws, the replay message is acknowledged and will not be delivered again.
+    /// A completed result acknowledges the replay message. A deferred result requests redelivery without
+    /// consuming another projector failure attempt. If the action fails unexpectedly, the message is acknowledged
+    /// and the worker reports the failure.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="eventProjectorName"/> is empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="maxAttemptsReachedFunc"/> is <see langword="null"/>.</exception>
     /// <exception cref="ObjectDisposedException">The queue has been disposed.</exception>
     public void SetMaxAttemptsReachedAction(
         string eventProjectorName,
-        Func<IEvent, Task> maxAttemptsReachedFunc,
+        Func<IEvent, Task<EventProjectorDeliveryResult>> maxAttemptsReachedFunc,
         bool overwrite = true)
     {
         ThrowIfDisposed();
@@ -468,20 +471,18 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                     var domainEvent = Deserialize(message.Data);
                     var handler = state.ProcessMessage
                         ?? throw new InvalidOperationException($"No process handler is registered for projector '{eventProjectorName}'.");
-                    await handler(domainEvent).ConfigureAwait(false);
+                    var result = await handler(domainEvent).ConfigureAwait(false);
+                    if (result.IsDeferred)
+                    {
+                        await RequestRedeliveryAsync(message, state.ReplayInterval, idleCancellation.Token)
+                            .ConfigureAwait(false);
+                        ResetIdleTimeout(idleCancellation);
+                        continue;
+                    }
                 }
                 catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
                 {
                     throw;
-                }
-                catch (EventProjectorDeliveryDeferredException)
-                {
-                    // Stream ordering is durable flow control, not a failed projection attempt. Keep the original
-                    // process message on the unlimited-delivery consumer until its predecessor is resolved.
-                    await RequestRedeliveryAsync(message, state.ReplayInterval, idleCancellation.Token)
-                        .ConfigureAwait(false);
-                    ResetIdleTimeout(idleCancellation);
-                    continue;
                 }
                 catch (Exception ex)
                 {
@@ -587,20 +588,21 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                 {
                     var handler = state.ProcessMessage
                         ?? throw new InvalidOperationException($"No replay handler is registered for projector '{eventProjectorName}'.");
-                    await handler(domainEvent).ConfigureAwait(false);
-                    await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
+                    var result = await handler(domainEvent).ConfigureAwait(false);
+                    if (result.IsDeferred)
+                    {
+                        await message.NakAsync(
+                            GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                            idleCancellation.Token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
+                    }
                 }
                 catch (OperationCanceledException) when (idleCancellation.IsCancellationRequested)
                 {
                     throw;
-                }
-                catch (EventProjectorDeliveryDeferredException)
-                {
-                    // Ordering deferrals do not consume the application replay-attempt budget. The replay consumer
-                    // has unlimited server delivery; the application terminalizes only genuine processing failures.
-                    await message.NakAsync(
-                        GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
-                        idleCancellation.Token).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -609,15 +611,19 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
                         var maxAttemptsReached = state.MaxAttemptsReached;
                         try
                         {
-                            if (maxAttemptsReached is not null)
-                                await maxAttemptsReached(domainEvent).ConfigureAwait(false);
-                            await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
-                        }
-                        catch (EventProjectorDeliveryDeferredException)
-                        {
-                            await message.NakAsync(
-                                GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
-                                idleCancellation.Token).ConfigureAwait(false);
+                            var result = maxAttemptsReached is null
+                                ? EventProjectorDeliveryResult.Completed
+                                : await maxAttemptsReached(domainEvent).ConfigureAwait(false);
+                            if (result.IsDeferred)
+                            {
+                                await message.NakAsync(
+                                    GetReplayDelay(state.ReplayInterval, message.DeliveryCount),
+                                    idleCancellation.Token).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await message.AckAsync(idleCancellation.Token).ConfigureAwait(false);
+                            }
                         }
                         catch
                         {
@@ -855,8 +861,8 @@ public sealed class NatsJSDurableReplayQueue : IDurableReplayQueue, IAsyncDispos
     sealed class ProjectorQueueState : IDisposable
     {
         public readonly SemaphoreSlim LifecycleGate = new(1, 1);
-        public Func<IEvent, Task>? ProcessMessage;
-        public Func<IEvent, Task>? MaxAttemptsReached;
+        public Func<IEvent, Task<EventProjectorDeliveryResult>>? ProcessMessage;
+        public Func<IEvent, Task<EventProjectorDeliveryResult>>? MaxAttemptsReached;
         public int MaxReplayAttempts = DefaultMaxReplayAttempts;
         public TimeSpan ReplayInterval = DefaultReplayInterval;
         public TimeSpan PreparedReplayInterval;

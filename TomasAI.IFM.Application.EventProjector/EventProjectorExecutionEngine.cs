@@ -79,7 +79,7 @@ internal sealed class EventProjectorExecutionEngine(
             ?? throw new InvalidOperationException($"Unable to initialize projector state for event {domainEvent.EventId}.");
     }
 
-    public async Task ExecuteAsync(
+    public async Task<EventProjectorDeliveryResult> ExecuteAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
         CancellationToken cancellationToken = default)
@@ -89,7 +89,7 @@ internal sealed class EventProjectorExecutionEngine(
         if (IsTerminal(state))
         {
             EventProjectorMetrics.RecordEvent(_projectorName, "already-completed");
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
 
         var executionToken = Guid.NewGuid();
@@ -102,10 +102,8 @@ internal sealed class EventProjectorExecutionEngine(
             _options.ClaimLeaseDuration,
             cancellationToken).ConfigureAwait(false);
         if (state is null)
-        {
-            await HandleClaimNotAcquiredAsync(domainEvent.EventId, claimAtUtc, cancellationToken).ConfigureAwait(false);
-            return;
-        }
+            return await HandleClaimNotAcquiredAsync(
+                domainEvent.EventId, claimAtUtc, cancellationToken).ConfigureAwait(false);
 
         EventProjectorMetrics.RecordEvent(_projectorName, "claimed");
         EventProjectorMetrics.WorkerBusy(_projectorName);
@@ -162,9 +160,11 @@ internal sealed class EventProjectorExecutionEngine(
         {
             EventProjectorMetrics.WorkerAvailable(_projectorName);
         }
+
+        return EventProjectorDeliveryResult.Completed;
     }
 
-    public async Task TerminalizeUnregisteredAsync(
+    public async Task<EventProjectorDeliveryResult> TerminalizeUnregisteredAsync(
         IEvent domainEvent,
         CancellationToken cancellationToken = default)
     {
@@ -173,7 +173,7 @@ internal sealed class EventProjectorExecutionEngine(
             _projectorName,
             cancellationToken).ConfigureAwait(false);
         if (state is null || IsTerminal(state))
-            return;
+            return EventProjectorDeliveryResult.Completed;
 
         var executionToken = Guid.NewGuid();
         state = await _eventSource.TryClaimEventProjectorExecutionAsync(
@@ -184,10 +184,8 @@ internal sealed class EventProjectorExecutionEngine(
             _options.ClaimLeaseDuration,
             cancellationToken).ConfigureAwait(false);
         if (state is null)
-        {
-            await HandleClaimNotAcquiredAsync(domainEvent.EventId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
-            return;
-        }
+            return await HandleClaimNotAcquiredAsync(
+                domainEvent.EventId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
 
         _ = await TerminalizeAsync(
             state,
@@ -197,9 +195,10 @@ internal sealed class EventProjectorExecutionEngine(
             $"Event type '{domainEvent.GetType().FullName}' is not registered by projector '{_projectorName}'.",
             "unregistered-source-event",
             cancellationToken).ConfigureAwait(false);
+        return EventProjectorDeliveryResult.Completed;
     }
 
-    public async Task HandleMaximumAttemptsAsync(
+    public async Task<EventProjectorDeliveryResult> HandleMaximumAttemptsAsync(
         IEvent domainEvent,
         EventProjectionDescriptor descriptor,
         CancellationToken cancellationToken = default)
@@ -209,16 +208,9 @@ internal sealed class EventProjectorExecutionEngine(
             _projectorName,
             cancellationToken).ConfigureAwait(false);
         if (state is null || IsTerminal(state))
-            return;
+            return EventProjectorDeliveryResult.Completed;
         if (state.RetryCount < _options.MaximumReplayAttempts)
-        {
-            throw new EventProjectorDeliveryDeferredException(
-                _projectorName,
-                domainEvent.EventId,
-                "failure-budget-not-exhausted",
-                $"Projection event {domainEvent.EventId} reached the transport delivery threshold after " +
-                $"{state.RetryCount} genuine failures; {_options.MaximumReplayAttempts} are required before terminalization.");
-        }
+            return EventProjectorDeliveryResult.Deferred("failure-budget-not-exhausted");
 
         var executionToken = Guid.NewGuid();
         state = await _eventSource.TryClaimEventProjectorExecutionAsync(
@@ -229,10 +221,8 @@ internal sealed class EventProjectorExecutionEngine(
             _options.ClaimLeaseDuration,
             cancellationToken).ConfigureAwait(false);
         if (state is null)
-        {
-            await HandleClaimNotAcquiredAsync(domainEvent.EventId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
-            return;
-        }
+            return await HandleClaimNotAcquiredAsync(
+                domainEvent.EventId, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
 
         var errorMessage = $"Maximum {_options.MaximumReplayAttempts} attempts reached for event {domainEvent.EventId} of type {domainEvent.GetType().Name}.";
         if (!_options.TransactionalOutboxEnabled || !descriptor.PublishTerminalEvent)
@@ -245,7 +235,7 @@ internal sealed class EventProjectorExecutionEngine(
                 errorMessage,
                 "maximum-attempts-reached",
                 cancellationToken).ConfigureAwait(false);
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
 
         IErrorEvent? failedEvent;
@@ -257,13 +247,13 @@ internal sealed class EventProjectorExecutionEngine(
         {
             _ = await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
                 state.LastCompletedStage, ex.ToString(), "failed-event-conversion", cancellationToken).ConfigureAwait(false);
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
         if (failedEvent is null)
         {
             _ = await TerminalizeAsync(state, executionToken, EventProjectorOutcomeType.Failed,
                 state.LastCompletedStage, "The failure-event factory returned null.", "failed-event-conversion", cancellationToken).ConfigureAwait(false);
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
 
         _ = await TerminalizeWithOutboxAsync(
@@ -276,6 +266,7 @@ internal sealed class EventProjectorExecutionEngine(
             errorMessage,
             "maximum-attempts-reached",
             cancellationToken).ConfigureAwait(false);
+        return EventProjectorDeliveryResult.Completed;
     }
 
     async Task<EventProjectorExecutionStateReadModel> PublishProcessingAsync(
@@ -639,7 +630,7 @@ internal sealed class EventProjectorExecutionEngine(
         }
     }
 
-    async Task HandleClaimNotAcquiredAsync(
+    async Task<EventProjectorDeliveryResult> HandleClaimNotAcquiredAsync(
         long eventId,
         DateTime nowUtc,
         CancellationToken cancellationToken)
@@ -647,24 +638,20 @@ internal sealed class EventProjectorExecutionEngine(
         var current = await _eventSource.GetEventProjectorExecutionStateAsync(
             eventId, _projectorName, cancellationToken).ConfigureAwait(false);
         if (current is null || IsTerminal(current))
-            return;
+            return EventProjectorDeliveryResult.Completed;
         if (await _eventSource.HasEarlierUnresolvedEventProjectorExecutionAsync(
                 eventId, _projectorName, cancellationToken).ConfigureAwait(false))
         {
             EventProjectorMetrics.RecordEvent(_projectorName, "blocked", "stream-order");
-            throw new EventProjectorStreamOrderDeferredException(_projectorName, eventId);
+            return EventProjectorDeliveryResult.Deferred("stream-order");
         }
         if (current.ExecutionToken.HasValue && current.LeaseExpiresAtUtc > nowUtc)
         {
             EventProjectorMetrics.RecordEvent(_projectorName, "claim-conflict");
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
         EventProjectorMetrics.RecordEvent(_projectorName, "claim-deferred");
-        throw new EventProjectorDeliveryDeferredException(
-            _projectorName,
-            eventId,
-            "claim-not-ready",
-            $"Projection claim for event {eventId} and projector '{_projectorName}' was deferred and must be redelivered.");
+        return EventProjectorDeliveryResult.Deferred("claim-not-ready");
     }
 
     void RecordTerminalOutcome(EventProjectorOutcomeType outcome, string blockedReason)

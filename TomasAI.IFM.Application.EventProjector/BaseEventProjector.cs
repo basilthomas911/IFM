@@ -75,28 +75,32 @@ public abstract class BaseEventProjector<TActor> (
 
     /// <inheritdoc />
     public virtual async ValueTask ProcessDomainEventAsync(IEvent domainEvent)
+        => _ = await ProcessDomainEventWithOutcomeAsync(domainEvent).ConfigureAwait(false);
+
+    async ValueTask<EventProjectorDeliveryResult> ProcessDomainEventWithOutcomeAsync(IEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
         if (!GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
         {
             if (_reliabilityOptions.FencedExecutionEnabled)
-                await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
+                return await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
             else
                 await TerminalizeLegacyUnregisteredAsync(domainEvent).ConfigureAwait(false);
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
 
         if (!descriptor.UseDurableReplay)
         {
             await ExecuteTransientDescriptorAsync(domainEvent, descriptor, CancellationToken.None)
                 .ConfigureAwait(false);
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
 
         if (_reliabilityOptions.FencedExecutionEnabled)
-            await ExecutionEngine.ExecuteAsync(domainEvent, descriptor).ConfigureAwait(false);
+            return await ExecutionEngine.ExecuteAsync(domainEvent, descriptor).ConfigureAwait(false);
         else
             await ExecuteLegacyDescriptorAsync(domainEvent, descriptor).ConfigureAwait(false);
+        return EventProjectorDeliveryResult.Completed;
     }
 
     /// <summary>
@@ -375,7 +379,7 @@ public abstract class BaseEventProjector<TActor> (
         => await DbEventSource.TrySkipEventProjectorExecutionAsync(
             eventId, ProjectorName, reason, DateTime.UtcNow, cancellationToken).ConfigureAwait(false) is not null;
 
-    async Task ProcessQueuedDomainEventAsync(IEvent domainEvent)
+    async Task<EventProjectorDeliveryResult> ProcessQueuedDomainEventAsync(IEvent domainEvent)
     {
         if (GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor)
             && !descriptor.UseDurableReplay)
@@ -385,14 +389,11 @@ public abstract class BaseEventProjector<TActor> (
                 domainEvent.EventId,
                 domainEvent.GetType().Name,
                 ProjectorName);
-            return;
+            return EventProjectorDeliveryResult.Completed;
         }
 
         if (_reliabilityOptions.FencedExecutionEnabled)
-        {
-            await ProcessDomainEventAsync(domainEvent).ConfigureAwait(false);
-            return;
-        }
+            return await ProcessDomainEventWithOutcomeAsync(domainEvent).ConfigureAwait(false);
 
         var currentState = BlackboardService.EventSourcing.EventProjectorState.Get(
             domainEvent.EventId,
@@ -406,13 +407,14 @@ public abstract class BaseEventProjector<TActor> (
         }
 
         if (IsTerminal(currentState))
-            return;
+            return EventProjectorDeliveryResult.Completed;
 
         BlackboardService.EventSourcing.EventProjectorState.Set(
             domainEvent.EventId,
             ProjectorName,
             currentState);
         await ProcessDomainEventAsync(domainEvent);
+        return EventProjectorDeliveryResult.Completed;
     }
 
     async ValueTask ProcessTransientQueuedDomainEventAsync(
@@ -824,15 +826,14 @@ public abstract class BaseEventProjector<TActor> (
         await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
     }
 
-    async Task HandleMaximumAttemptsAsync(IEvent domainEvent)
+    async Task<EventProjectorDeliveryResult> HandleMaximumAttemptsAsync(IEvent domainEvent)
     {
         if (_reliabilityOptions.FencedExecutionEnabled)
         {
             if (GetDescriptorMap().TryGetValue(domainEvent.GetType(), out var descriptor))
-                await ExecutionEngine.HandleMaximumAttemptsAsync(domainEvent, descriptor).ConfigureAwait(false);
+                return await ExecutionEngine.HandleMaximumAttemptsAsync(domainEvent, descriptor).ConfigureAwait(false);
             else
-                await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
-            return;
+                return await ExecutionEngine.TerminalizeUnregisteredAsync(domainEvent).ConfigureAwait(false);
         }
 
         var state = BlackboardService.EventSourcing.EventProjectorState.Get(domainEvent.EventId, ProjectorName)
@@ -846,6 +847,7 @@ public abstract class BaseEventProjector<TActor> (
             UpdatedTimestamp = DateTime.UtcNow
         };
         await PersistLegacyStateAsync(state, clearCache: true).ConfigureAwait(false);
+        return EventProjectorDeliveryResult.Completed;
     }
 
     async ValueTask<EventProjectorRecoveryResult> RecoverUncompletedEventsAsync(

@@ -217,7 +217,8 @@ public sealed class DatabentoOptionChainSessionManager :
                     FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
                 var enriched = new LastQuoteTickWithGreeksSnapshot(
                     tick, _enricher.EnrichQuote(route, tick));
-                _lastPrices.TryUpdateQuoteWithGreeks(enriched);
+                if (!_lastPrices.TryUpdateQuoteWithGreeks(enriched))
+                    break;
                 _state.UpdateQuote(session.Key, route.FuturesOptionContractId, enriched);
                 await _publisher.PublishAsync(new FuturesOptionChainQuoteChangedServiceEvent(
                     Guid.NewGuid(), session.Key.FuturesContractId,
@@ -238,7 +239,8 @@ public sealed class DatabentoOptionChainSessionManager :
                     FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
                 var enriched = new LastTradeTickWithGreeksSnapshot(
                     tick, _enricher.EnrichTrade(route, tick));
-                _lastPrices.TryUpdateTradeWithGreeks(enriched);
+                if (!_lastPrices.TryUpdateTradeWithGreeks(enriched))
+                    break;
                 _state.UpdateTrade(session.Key, route.FuturesOptionContractId, enriched);
                 await _publisher.PublishAsync(new FuturesOptionChainTradeChangedServiceEvent(
                     Guid.NewGuid(), session.Key.FuturesContractId,

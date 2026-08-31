@@ -15,6 +15,24 @@ produce a repository-grounded implementation plan, and wait for approval before
 editing production code. It must not invent unresolved actor or persistence
 contracts.
 
+## 0.1 Live-admission and health addendum (2026-08-31)
+
+The production hot-cache boundary now applies these additional binding rules:
+
+- Only a record that advances the canonical per-contract last-price state is accepted.
+- Duplicate and out-of-order quote/trade records increment rejected counters and do not publish
+  realtime market-price events, durable tick batches, option-chain updates, or downstream work.
+- The accepted record stores both local cache-acceptance time and Databento source-event time.
+  Feed health uses the older effective freshness so a burst of delayed backlog cannot appear green.
+- Health is evaluated only for explicitly active routes: green through five minutes, yellow after
+  five through fifteen minutes, and red after fifteen minutes. An inactive route is inactive, not
+  failed.
+- The API readiness payload exposes route activation, source observation, accepted cache time,
+  accepted source-event time, accepted/rejected counters, and the computed route color.
+- The UI feed indicator is driven by accepted `FuturesMarketPriceUpdatedRealtimeEvent` messages,
+  which are emitted immediately after the hot-cache admission boundary. Bar persistence is not
+  used as a proxy for input health.
+
 ## 1. Purpose
 
 This document specifies the proposed managed pipeline that converts every

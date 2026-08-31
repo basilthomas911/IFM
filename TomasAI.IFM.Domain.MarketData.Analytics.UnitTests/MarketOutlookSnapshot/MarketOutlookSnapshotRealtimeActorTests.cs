@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using FluentAssertions;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
@@ -45,7 +47,9 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
             FuturesRsiSignal = SampleData.AtrRsiSignals[0] with
             {
                 ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.FifteenSeconds,
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
             }
         };
 
@@ -59,6 +63,118 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 && command.FuturesRsiSignal == changed.FuturesRsiSignal));
         await context.DidNotReceiveWithAnyArgs()
             .SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(default!);
+    }
+
+    [Fact]
+    public async Task IneligibleItiComponent_IsIgnoredWithoutRequestOrException()
+    {
+        var context = Context();
+        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
+        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
+        var changed = new MarketOutlookComponentChangedRealtimeEvent
+        {
+            Subject = RealtimeSubject(MarketOutlookComponentChangedRealtimeEvent.Verb, entityId),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entityId,
+            EventId = 24,
+            ReceivedOn = DateTime.UtcNow,
+            EventSource = "ineligible-iti-test",
+            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+            {
+                ContractId = entityId.ContractId,
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+            }
+        };
+        Func<Task> receive = () => actor.InvokeReceiveAsync(context, changed).AsTask();
+
+        await receive.Should().NotThrowAsync();
+
+        await context.DidNotReceiveWithAnyArgs()
+            .RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(default!);
+    }
+
+    [Fact]
+    public async Task IneligibleItiCompletion_DoesNotPublishRealtimeComponentEvent()
+    {
+        var context = Context();
+        var valueDate = new DateOnly(2026, 8, 21);
+        var entityId = new FuturesItiSignalEntityId("ESU26", valueDate, TimeFrameType.Daily);
+        var source = SampleData.CreateItiSignalGeneratedCompleteEvent() with
+        {
+            EntityId = entityId,
+            VixFuturesPrice = 0,
+            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+            {
+                ContractId = entityId.ContractId,
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+            }
+        };
+
+        await context.PublishMarketOutlookComponentAsync(source);
+
+        await context.DidNotReceiveWithAnyArgs()
+            .SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(default!);
+    }
+
+    [Fact]
+    public async Task IneligibleItiCompletion_StillPublishesValidVixSibling()
+    {
+        var context = Context();
+        var valueDate = new DateOnly(2026, 8, 21);
+        var entityId = new FuturesItiSignalEntityId("ESU26", valueDate, TimeFrameType.Daily);
+        var source = SampleData.CreateItiSignalGeneratedCompleteEvent() with
+        {
+            EntityId = entityId,
+            VixFuturesPrice = 22.25,
+            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+            {
+                ContractId = entityId.ContractId,
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+            }
+        };
+
+        await context.PublishMarketOutlookComponentAsync(source);
+
+        await context.Received(1)
+            .SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(
+                Arg.Is<MarketOutlookComponentChangedRealtimeEvent>(changed =>
+                    changed.FuturesItiSignal == null
+                    && changed.VixFuturesPrice == 22.25m));
+    }
+
+    [Fact]
+    public async Task EligibleItiCompletion_PublishesRealtimeComponentEvent()
+    {
+        var context = Context();
+        var valueDate = new DateOnly(2026, 8, 21);
+        var entityId = new FuturesItiSignalEntityId("ESU26", valueDate, TimeFrameType.Daily);
+        var source = SampleData.CreateItiSignalGeneratedCompleteEvent() with
+        {
+            EntityId = entityId,
+            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
+            {
+                ContractId = entityId.ContractId,
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged
+            }
+        };
+
+        await context.PublishMarketOutlookComponentAsync(source);
+
+        await context.Received(1)
+            .SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(
+                Arg.Is<MarketOutlookComponentChangedRealtimeEvent>(changed =>
+                    changed.EntityId.ContractId == entityId.ContractId
+                    && changed.EntityId.ValueDate == entityId.ValueDate
+                    && changed.FuturesItiSignal == source.FuturesItiSignal));
     }
 
     [Fact]

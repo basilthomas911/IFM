@@ -28,10 +28,10 @@ public class IFMAppViewModelTests
 
     [Theory]
     [InlineData(MarketDataFeedHealthState.Inactive, "Feed Health: Stopped")]
-    [InlineData(MarketDataFeedHealthState.Healthy, "Feed Health: Healthy")]
-    [InlineData(MarketDataFeedHealthState.Intermittent, "Feed Health: Intermittent")]
+    [InlineData(MarketDataFeedHealthState.Healthy, "Feed Health: Green")]
+    [InlineData(MarketDataFeedHealthState.Intermittent, "Feed Health: Yellow")]
     [InlineData(MarketDataFeedHealthState.Failed, "Feed Health: Failed")]
-    [InlineData(MarketDataFeedHealthState.Critical, "Feed Health: Critical")]
+    [InlineData(MarketDataFeedHealthState.Critical, "Feed Health: Red")]
     [InlineData(MarketDataFeedHealthState.OutsidePositionEntryWindow, "Feed Health: Monitoring Paused")]
     public void MarketDataFeedHealthIndicatorText_ReflectsHealthState(
         MarketDataFeedHealthState state,

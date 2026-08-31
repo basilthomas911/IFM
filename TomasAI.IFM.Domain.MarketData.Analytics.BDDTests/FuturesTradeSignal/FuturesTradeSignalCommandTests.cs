@@ -448,7 +448,7 @@ public class FuturesTradeSignalCommandTests
     }
 
     [Theory]
-    [InlineData(0.0)]
+    [InlineData(-1.0)]
     [InlineData(0.001)]
     [InlineData(201.0)]
     public async Task GivenAnInvalidVixPrice_WhenTheCommandIsValidated_ThenAValidationErrorIsReported(
@@ -466,6 +466,23 @@ public class FuturesTradeSignalCommandTests
             command);
 
         await act.Should().ThrowAsync<CommandValidationException>();
+    }
+
+    [Fact]
+    public async Task GivenVixIsUnavailable_WhenOtherInputsAreValid_ThenTheOptionalSiblingDoesNotBlockValidation()
+    {
+        var scenario = CreateScenario();
+        var command = SampleData.TradeSignalUpdateCommandFor(TimeFrameType.Monthly) with
+        {
+            VixFuturesPrice = 0m
+        };
+
+        var act = async () => await scenario.Actor.InvokeOnValidateAsync(
+            scenario.Context,
+            command.Subject.ThreadId,
+            command);
+
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]

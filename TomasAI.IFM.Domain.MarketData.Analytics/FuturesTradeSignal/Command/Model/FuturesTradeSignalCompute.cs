@@ -49,7 +49,11 @@ internal class FuturesTradeSignalCompute
     /// metrics, trend analysis, and indicator values for the specified contract and date.</returns>
     FuturesTradeSignalV2ReadModel ComputeFuturesTradeSignalFromEodData()
     {
-        var score = new FuturesTradeSignalModel(_updateCmd.FuturesEodData, _updateCmd.FuturesRsiSignal!, _updateCmd.FuturesTdiSignal!, _updateCmd.FuturesItiSignalData!);
+        var score = new FuturesTradeSignalModel(
+            _updateCmd.FuturesEodData,
+            _updateCmd.FuturesRsiSignal,
+            _updateCmd.FuturesTdiSignal,
+            _updateCmd.FuturesItiSignalData);
         var utcNow = DateTime.UtcNow;
         var timestamp = new TimeOnly(utcNow.Hour, utcNow.Minute, utcNow.Second);
         return new FuturesTradeSignalV2ReadModel(

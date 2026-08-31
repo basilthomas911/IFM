@@ -657,7 +657,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
     }
 
     [Fact]
-    public async Task OnValidateAsync_ThrowsCommandValidationException_WhenVixFuturesPriceIsZero()
+    public async Task OnValidateAsync_AcceptsCommand_WhenOptionalVixFuturesPriceIsZero()
     {
         // Arrange
         var dbEventSource = Substitute.For<IEventSourceActorDbContext>();
@@ -672,8 +672,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
         Func<Task> act = async () => await actor.InvokeOnValidateAsync(context, threadId, cmd);
 
         // Assert
-        await act.Should().ThrowAsync<CommandValidationException>()
-            .WithMessage("*VixFuturesPrice must be greater than zero*");
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]
@@ -693,7 +692,7 @@ public class FuturesTradeSignalCommandActorTests : IClassFixture<MarketDataAnaly
 
         // Assert
         await act.Should().ThrowAsync<CommandValidationException>()
-            .WithMessage("*VixFuturesPrice must be greater than zero*");
+            .WithMessage("*VixFuturesPrice cannot be negative*");
     }
 
     [Fact]

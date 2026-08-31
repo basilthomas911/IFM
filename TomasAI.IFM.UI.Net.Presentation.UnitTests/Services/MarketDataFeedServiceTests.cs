@@ -2,6 +2,7 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -97,6 +98,23 @@ public sealed class MarketDataFeedServiceTests
 
         await _optionTickConsumer.Received(1).StartAsync(listener);
         await _optionTickConsumer.Received(1).StopAsync();
+    }
+
+    [Fact]
+    public async Task FuturesFeedListener_ForwardsBarAndAcceptedCacheCallbacksTogether()
+    {
+        var model = CreateModel();
+        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> barAction = _ => ValueTask.CompletedTask;
+        Func<FuturesMarketPriceUpdatedRealtimeEvent, ValueTask> acceptedPriceAction =
+            _ => ValueTask.CompletedTask;
+        _barConsumer.StartAsync(barAction, acceptedPriceAction).Returns(ValueTask.CompletedTask);
+
+        await model.StartFuturesBarDataEventConsumerAsync(
+            Guid.NewGuid(),
+            barAction,
+            acceptedPriceAction);
+
+        await _barConsumer.Received(1).StartAsync(barAction, acceptedPriceAction);
     }
 
     [Fact]

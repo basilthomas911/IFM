@@ -217,12 +217,14 @@ superseded predecessors do not block; failed, cancelled, blocked, retrying, leas
 predecessors do. This applies identically to process and replay workers and uses the
 `(ProjectorName, EventStreamId, StreamVersion)` index rather than a process-local lock.
 
-On a rejected claim, the engine reloads durable state. An unresolved predecessor throws
-`EventProjectorStreamOrderDeferredException`; another valid owner for the same event records a claim conflict and lets
-the duplicate delivery acknowledge; other transient claim conditions throw `EventProjectorDeliveryDeferredException`.
-The NATS process and replay workers negatively acknowledge deferred deliveries with bounded delay. Deferrals do not
-consume the application processing-failure budget: the maximum-attempt callback cross-checks the durable
-`RetryCount` before terminalizing. Genuine failures still terminalize at the configured maximum.
+On a rejected claim, the engine reloads durable state. An unresolved predecessor returns an
+`EventProjectorDeliveryResult` with disposition `Deferred` and reason `stream-order`; another valid owner for the same
+event records a claim conflict and lets the duplicate delivery acknowledge; other transient claim conditions return
+the same typed disposition with reason `claim-not-ready`. The NATS process and replay workers negatively acknowledge
+deferred deliveries with bounded delay. Expected deferrals never use exceptions and do not consume the application
+processing-failure budget: the maximum-attempt callback cross-checks the durable `RetryCount` and can return
+`failure-budget-not-exhausted` before terminalizing. Genuine failures still follow the exception/replay path and
+terminalize at the configured maximum.
 
 The initialization contract remains important: supported live events persist their initial projector state before
 queue publication, and bounded recovery enumerates persisted state joined to its event. A missing earlier state is not

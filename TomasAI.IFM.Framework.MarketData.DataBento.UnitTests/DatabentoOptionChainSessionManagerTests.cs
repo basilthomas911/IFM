@@ -80,6 +80,33 @@ public sealed class DatabentoOptionChainSessionManagerTests
     }
 
     [Fact]
+    public async Task Duplicate_option_record_does_not_update_state_or_publish()
+    {
+        var feed = new FakeChainFeed(
+            Quote(1, 10_000_000_000, 12_000_000_000),
+            Quote(1, 11_000_000_000, 13_000_000_000));
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        var publisher = new CapturingChainPublisher(1);
+        var state = new OptionChainStateStore();
+        await using var manager = new DatabentoOptionChainSessionManager(
+            new FakeFactory(feed),
+            DatabentoFeedOptions.ForProfile(FeedDeploymentProfile.SyntheticCi, "GLBX.MDP3"),
+            new FakeAggregation(),
+            lastPrices,
+            new FakeEnricher(),
+            publisher,
+            state,
+            pollTimeout: TimeSpan.FromMilliseconds(5));
+
+        Assert.True(await manager.StartAsync(Request()));
+        await publisher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await manager.StopAsync("ES-202609", Maturity);
+
+        Assert.Single(publisher.Quotes);
+        Assert.Equal(10m, publisher.Quotes[0].Tick.BidPrice);
+    }
+
+    [Fact]
     public async Task Dependency_loss_stops_feed_and_removes_transient_state()
     {
         var aggregation = new FakeAggregation();

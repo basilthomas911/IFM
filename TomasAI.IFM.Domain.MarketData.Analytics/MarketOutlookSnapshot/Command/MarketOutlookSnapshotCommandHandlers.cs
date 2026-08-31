@@ -30,17 +30,20 @@ public static class MarketOutlookSnapshotCommandHandlers
             : new MarketOutlookWorkingStateReadModel { EntityId = command.EntityId };
         var changed = false;
 
-        if (command.FuturesRsiSignal is { } rsi)
+        if (command.FuturesRsiSignal is { } rsi
+            && MarketOutlookComponentEligibility.IsEligible(command.EntityId, rsi))
             changed |= Accept(MarketOutlookComponentType.Rsi, value => next = next with
             {
                 FuturesRsiSignal = rsi
             });
-        if (command.FuturesTdiSignal is { } tdi)
+        if (command.FuturesTdiSignal is { } tdi
+            && MarketOutlookComponentEligibility.IsEligible(command.EntityId, tdi))
             changed |= Accept(MarketOutlookComponentType.Tdi, value => next = next with
             {
                 FuturesTdiSignal = tdi
             });
-        if (command.FuturesItiSignal is { } iti)
+        if (command.FuturesItiSignal is { } iti
+            && MarketOutlookComponentEligibility.IsEligible(command.EntityId, iti))
         {
             var componentType = iti.IntrinsicTimeMode switch
             {
@@ -58,7 +61,7 @@ public static class MarketOutlookSnapshotCommandHandlers
                 _ => next
             });
         }
-        if (command.VixFuturesPrice > 0)
+        if (command.VixFuturesPrice is >= 0.01m and <= 200m)
             changed |= Accept(MarketOutlookComponentType.Vix, value => next = next with
             {
                 VixFuturesPrice = command.VixFuturesPrice
@@ -74,24 +77,15 @@ public static class MarketOutlookSnapshotCommandHandlers
             SourceWatermarks = [.. watermarks.Values.OrderBy(static value => value.ComponentType)],
             Status = MarketOutlookStateStatus.Collecting
         };
-        if (next.FuturesEodData is { } eod && current.PublishedSnapshot is not null)
+        next = next with
         {
-            var missingInputs = MissingInputs(next);
-            var tradeSignal = ComputeTradeSignal(eod, next, missingInputs)
-                ?? current.PublishedSnapshot.FuturesTradeSignal;
-            next = next with
-            {
-                PublishedSnapshot = new MarketOutlookSnapshotReadModel(
-                    command.EntityId.ContractId,
-                    command.EntityId.ValueDate,
-                    checked(current.PublishedSnapshot.Revision + 1),
-                    command.SourceEventTimestamp,
-                    eod,
-                    tradeSignal,
-                    string.Join(", ", missingInputs)),
-                Status = MarketOutlookStateStatus.Published
-            };
-        }
+            PublishedSnapshot = CreateSnapshot(
+                command.EntityId,
+                next,
+                checked((current.PublishedSnapshot?.Revision ?? 0) + 1),
+                command.SourceEventTimestamp),
+            Status = MarketOutlookStateStatus.Published
+        };
         var applied = state.Update(new MarketOutlookComponentObservedEvent
         {
             Subject = EventSubject(
@@ -168,17 +162,11 @@ public static class MarketOutlookSnapshotCommandHandlers
             FuturesEodData = command.FuturesEodData
         };
 
-        var missingInputs = MissingInputs(reconciled);
-        var tradeSignal = ComputeTradeSignal(command.FuturesEodData, reconciled, missingInputs)
-            ?? current.PublishedSnapshot?.FuturesTradeSignal;
-        var snapshot = new MarketOutlookSnapshotReadModel(
-            command.EntityId.ContractId,
-            command.EntityId.ValueDate,
+        var snapshot = CreateSnapshot(
+            command.EntityId,
+            reconciled,
             checked((current.PublishedSnapshot?.Revision ?? 0) + 1),
-            command.SourceEventTimestamp,
-            command.FuturesEodData,
-            tradeSignal,
-            string.Join(", ", missingInputs));
+            command.SourceEventTimestamp);
         var watermarks = current.SourceWatermarks
             .Where(static value => value.ComponentType != MarketOutlookComponentType.Eod)
             .Append(incomingEod)
@@ -213,12 +201,12 @@ public static class MarketOutlookSnapshotCommandHandlers
         MarketOutlookWorkingStateReadModel state,
         IReadOnlyCollection<string> missingInputs)
     {
-        if (missingInputs.Count != 0)
+        if (!futuresEodData.IsValid)
             return null;
         var tradeSignalCommand = new UpdateFuturesTradeSignalCommand(
             futuresEodData,
-            state.FuturesRsiSignal!,
-            state.FuturesTdiSignal!,
+            state.FuturesRsiSignal,
+            state.FuturesTdiSignal,
             new FuturesItiSignalDataReadModel(
                 state.TrendDirectionChange,
                 state.TrendExtremeChange,
@@ -233,6 +221,7 @@ public static class MarketOutlookSnapshotCommandHandlers
     static List<string> MissingInputs(MarketOutlookWorkingStateReadModel state)
     {
         List<string> missing = [];
+        if (state.FuturesEodData is not { IsValid: true }) missing.Add("EOD");
         if (state.FuturesRsiSignal is null) missing.Add("RSI");
         if (state.FuturesTdiSignal is null) missing.Add("TDI");
         if (state.TrendDirectionChange is null) missing.Add("ITI direction");
@@ -240,6 +229,30 @@ public static class MarketOutlookSnapshotCommandHandlers
         if (state.TrendReversalChange is null) missing.Add("ITI reversal");
         if (state.VixFuturesPrice <= 0) missing.Add("VX price");
         return missing;
+    }
+
+    static MarketOutlookSnapshotReadModel CreateSnapshot(
+        MarketOutlookEntityId entityId,
+        MarketOutlookWorkingStateReadModel state,
+        long revision,
+        DateTime updatedOn)
+    {
+        var missingInputs = MissingInputs(state);
+        var eod = state.FuturesEodData ?? new();
+        return new MarketOutlookSnapshotReadModel(
+            entityId.ContractId,
+            entityId.ValueDate,
+            revision,
+            updatedOn,
+            eod,
+            ComputeTradeSignal(eod, state, missingInputs),
+            string.Join(", ", missingInputs),
+            state.FuturesRsiSignal,
+            state.FuturesTdiSignal,
+            state.TrendDirectionChange,
+            state.TrendExtremeChange,
+            state.TrendReversalChange,
+            state.VixFuturesPrice > 0 ? state.VixFuturesPrice : null);
     }
 
     static bool IsNewer(

@@ -70,6 +70,66 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
                 MarketOutlookComponentType.ItiDirection,
                 MarketOutlookComponentType.Vix
             ]);
+        state.WorkingState.PublishedSnapshot.Should().NotBeNull();
+        state.WorkingState.PublishedSnapshot!.TrendDirectionChange.Should().Be(iti);
+        state.WorkingState.PublishedSnapshot.VixFuturesPrice.Should().Be(21.5m);
+        state.WorkingState.PublishedSnapshot.FuturesEodData.IsValid.Should().BeFalse();
+        state.WorkingState.PublishedSnapshot.FuturesTradeSignal.Should().BeNull();
+    }
+
+    [Fact]
+    public void Observe_MixedComposite_AcceptsEveryValidSiblingAndIgnoresOnlyInvalidSibling()
+    {
+        var entityId = EntityId();
+        var state = new MarketOutlookSnapshotCommandState();
+        var sourceId = Guid.NewGuid();
+        var rsi = SampleData.AtrRsiSignals[0] with
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            TimePeriod = TimeFrameType.FifteenSeconds,
+            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+        };
+        var tdi = SampleData.TdiReadModelFor(TimeFrameType.FifteenSeconds) with
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate
+        };
+        var invalidIti = SampleData.StartOfDayEvent.FuturesItiSignal! with
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            TimePeriod = TimeFrameType.Daily,
+            IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+        };
+        var command = new ObserveMarketOutlookComponentCommand(
+            entityId,
+            sourceId,
+            32,
+            DateTime.UtcNow,
+            "mixed-composite",
+            rsi,
+            tdi,
+            invalidIti,
+            23m)
+        {
+            CommandId = sourceId,
+            Subject = Subject(ObserveMarketOutlookComponentCommand.Verb, entityId)
+        };
+
+        command.Execute(state).Success.Should().BeTrue();
+
+        state.Events.Should().ContainSingle();
+        state.WorkingState.FuturesRsiSignal.Should().Be(rsi);
+        state.WorkingState.FuturesTdiSignal.Should().Be(tdi);
+        state.WorkingState.TrendDirectionChange.Should().BeNull();
+        state.WorkingState.VixFuturesPrice.Should().Be(23m);
+        state.WorkingState.SourceWatermarks.Select(value => value.ComponentType).Should()
+            .BeEquivalentTo([
+                MarketOutlookComponentType.Rsi,
+                MarketOutlookComponentType.Tdi,
+                MarketOutlookComponentType.Vix
+            ]);
     }
 
     [Fact]
@@ -104,6 +164,8 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
         state.WorkingState.Status.Should().Be(MarketOutlookStateStatus.Published);
         state.WorkingState.PublishedSnapshot.Should().NotBeNull();
         state.WorkingState.PublishedSnapshot!.MissingInputs.Should().Contain("RSI");
+        state.WorkingState.PublishedSnapshot.FuturesTradeSignal.Should().NotBeNull(
+            "EOD is sufficient to compute an explicitly partial composite");
         state.WorkingState.SourceWatermarks.Should().ContainSingle(watermark =>
             watermark.ComponentType == MarketOutlookComponentType.Eod
             && watermark.SourceEventId == sourceId);
@@ -159,7 +221,9 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
             futuresRsiSignal: SampleData.AtrRsiSignals[0] with
             {
                 ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.FifteenSeconds,
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
             })
         {
             CommandId = sourceId,

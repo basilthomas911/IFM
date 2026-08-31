@@ -6,6 +6,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 
 namespace TomasAI.IFM.UI.EventConsumer;
 
@@ -16,10 +17,13 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
     readonly ILogger _logger = logger;
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new ActorMailboxId(ActorType.Event, FuturesBarDataInsertedCompleteEvent.Actor)] = [FuturesBarDataInsertedCompleteEvent.Verb]
+        [new ActorMailboxId(ActorType.Event, FuturesBarDataInsertedCompleteEvent.Actor)] = [FuturesBarDataInsertedCompleteEvent.Verb],
+        [new ActorMailboxId(ActorType.Realtime, FuturesMarketPriceUpdatedRealtimeEvent.Actor)] = [FuturesMarketPriceUpdatedRealtimeEvent.Verb]
     };
 
-    public async ValueTask StartAsync(Func<FuturesBarDataInsertedCompleteEvent, ValueTask> eventAction)
+    public async ValueTask StartAsync(
+        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> barEventAction,
+        Func<FuturesMarketPriceUpdatedRealtimeEvent, ValueTask> acceptedPriceAction)
     {
         await StartAsync(EventConsumer, _eventMap, EventHandlerAsync);
 
@@ -30,7 +34,10 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
                 switch (eventVerb)
                 {
                     case FuturesBarDataInsertedCompleteEvent.Verb:
-                        await eventAction(eventMsg.AsEvent<FuturesBarDataInsertedCompleteEvent>()!);
+                        await barEventAction(eventMsg.AsEvent<FuturesBarDataInsertedCompleteEvent>()!);
+                        break;
+                    case FuturesMarketPriceUpdatedRealtimeEvent.Verb:
+                        await acceptedPriceAction(eventMsg.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!);
                         break;
                 }
             }
@@ -44,6 +51,8 @@ public class FuturesBarDataUIEventConsumer(INatsEventListenerOptions options, IL
 
  public interface IFuturesBarDataUIEventConsumer
 {
-    ValueTask StartAsync(Func<FuturesBarDataInsertedCompleteEvent, ValueTask> eventAction);
+    ValueTask StartAsync(
+        Func<FuturesBarDataInsertedCompleteEvent, ValueTask> barEventAction,
+        Func<FuturesMarketPriceUpdatedRealtimeEvent, ValueTask> acceptedPriceAction);
     ValueTask StopAsync();
 }

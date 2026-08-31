@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -42,16 +43,28 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(context);
+        var eligibleSource = MarketOutlookComponentEligibility.SelectEligible(
+            source,
+            out var ineligibleReason);
+        if (!MarketOutlookComponentEligibility.IsEligible(eligibleSource, out _))
+        {
+            context.Logger.LogDebug(
+                "Ignoring ineligible Market Outlook component {EventSource} for {EntityId}: {Reason}",
+                source.EventSource,
+                source.EntityId.Format(),
+                ineligibleReason);
+            return;
+        }
         var command = new ObserveMarketOutlookComponentCommand(
-            source.EntityId,
-            source.Id,
-            source.EventId,
-            source.ReceivedOn,
-            source.EventSource,
-            source.FuturesRsiSignal,
-            source.FuturesTdiSignal,
-            source.FuturesItiSignal,
-            source.VixFuturesPrice)
+            eligibleSource.EntityId,
+            eligibleSource.Id,
+            eligibleSource.EventId,
+            eligibleSource.ReceivedOn,
+            eligibleSource.EventSource,
+            eligibleSource.FuturesRsiSignal,
+            eligibleSource.FuturesTdiSignal,
+            eligibleSource.FuturesItiSignal,
+            eligibleSource.VixFuturesPrice)
         {
             CommandId = source.Id,
             Subject = new ActorSubject(
@@ -298,6 +311,9 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             FuturesItiSignal = iti,
             VixFuturesPrice = vixFuturesPrice
         };
-        return context.SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(changed);
+        var eligible = MarketOutlookComponentEligibility.SelectEligible(changed, out _);
+        if (!MarketOutlookComponentEligibility.IsEligible(eligible, out _))
+            return ValueTask.CompletedTask;
+        return context.SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(eligible);
     }
 }

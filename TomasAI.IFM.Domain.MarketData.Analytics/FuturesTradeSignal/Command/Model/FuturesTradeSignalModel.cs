@@ -16,14 +16,14 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.Mod
 /// discretionary trading systems that require a synthesized analysis of futures market data.</remarks>
 public class FuturesTradeSignalModel(
     FuturesEodDataV2ReadModel futuresEodData,
-    FuturesRsiSignalReadModel rsiSignal,
-    FuturesTdiSignalReadModel tdiSignal,
-    FuturesItiSignalDataReadModel itiSignalData)
+    FuturesRsiSignalReadModel? rsiSignal,
+    FuturesTdiSignalReadModel? tdiSignal,
+    FuturesItiSignalDataReadModel? itiSignalData)
 {
     readonly FuturesEodDataV2ReadModel _futuresEodData = futuresEodData;
-    readonly FuturesRsiSignalReadModel _rsiSignal = rsiSignal;
-    readonly FuturesTdiSignalReadModel _tdiSignal = tdiSignal;
-    readonly FuturesItiSignalDataReadModel _itiSignalData = itiSignalData;
+    readonly FuturesRsiSignalReadModel? _rsiSignal = rsiSignal;
+    readonly FuturesTdiSignalReadModel? _tdiSignal = tdiSignal;
+    readonly FuturesItiSignalDataReadModel? _itiSignalData = itiSignalData;
     readonly FuturesItiSignalV2ReadModel? _lastItiSignal = GetLastFuturesItiSignal(itiSignalData);
 
     public double RSIAverage => _rsiSignal?.RSI ?? 0.0;
@@ -214,10 +214,10 @@ public class FuturesTradeSignalModel(
         return tradeExecuteState;
 
         bool CheckTradeExecuteState()
-            => (DateTime.Now - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalSeconds <= 30;
+            => (DateTime.Now - _itiSignalData!.TrendDirectionChange!.IntrinsicTime).TotalSeconds <= 30;
 
         bool InHoldTradeExecuteState()
-            => _itiSignalData.TrendDirectionChange.TradeState == IntrinsicTimeTradeState.Hold && (DateTime.Now - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
+            => _itiSignalData!.TrendDirectionChange!.TradeState == IntrinsicTimeTradeState.Hold && (DateTime.Now - _itiSignalData.TrendDirectionChange.IntrinsicTime).TotalMinutes < 5;
 
         bool IsBelowUpTrendEntryLimit(double entryLimitDelta, double maxExtreme)
             => FuturesTrendType == FuturesTrendType.UpTrending

@@ -75,8 +75,11 @@ internal static class FuturesTradeSignalValidation
     /// <returns>The updated list of validation errors.</returns>
     public static List<ValidationError> ValidateVixFuturesPrice(this List<ValidationError> validationErrors, decimal vixFuturesPrice, string commandName)
     {
-        if (vixFuturesPrice <= 0m)
-            validationErrors.Add(new ValidationError($"{commandName}.VixFuturesPrice must be greater than zero"));
+        // Zero means the optional VX component is unavailable. It must not invalidate valid siblings.
+        if (vixFuturesPrice == 0m)
+            return validationErrors;
+        if (vixFuturesPrice < 0m)
+            validationErrors.Add(new ValidationError($"{commandName}.VixFuturesPrice cannot be negative"));
 
         // VIX futures prices are typically between 0 and 200; values outside this range are likely errors
         if (vixFuturesPrice > 200m)

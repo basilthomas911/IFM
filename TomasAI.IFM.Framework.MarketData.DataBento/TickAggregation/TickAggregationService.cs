@@ -131,7 +131,18 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 : 0),
             ReadTimestamp(configured
                 ? Interlocked.Read(ref state!.LastDurableTickPublishedUtcTicks)
-                : 0));
+                : 0),
+            ReadTimestamp(configured
+                ? Interlocked.Read(ref state!.StreamActivatedUtcTicks)
+                : 0),
+            ReadTimestamp(configured
+                ? Interlocked.Read(ref state!.LastAcceptedCacheUpdateUtcTicks)
+                : 0),
+            ReadTimestamp(configured
+                ? Interlocked.Read(ref state!.LastAcceptedSourceEventUtcTicks)
+                : 0),
+            configured ? Interlocked.Read(ref state!.AcceptedCacheUpdates) : 0,
+            configured ? Interlocked.Read(ref state!.RejectedCacheUpdates) : 0);
     }
 
     /// <summary>
@@ -224,7 +235,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 return false;
             if (state.StreamOwners.Count != 1)
                 return true;
-            try { _streamRoutes?.Activate(state.Mapping); }
+            try
+            {
+                _streamRoutes?.Activate(state.Mapping);
+                Interlocked.Exchange(
+                    ref state.StreamActivatedUtcTicks,
+                    _timeProvider.GetUtcNow().UtcTicks);
+            }
             catch
             {
                 state.StreamOwners.Remove(owner);
@@ -255,6 +272,7 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 state.StreamOwners.Add(owner);
                 throw;
             }
+            Interlocked.Exchange(ref state.StreamActivatedUtcTicks, 0);
             return true;
         }
     }
@@ -488,8 +506,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             case MarketRecordKind.Quote:
                 Interlocked.Increment(ref _sourceQuoteRecords);
                 MarkObserved(state);
-                if (UpdateLastQuote(state, record.Quote, out var quoteMarketPrice)
-                    && IsVxFutures(state.Mapping))
+                if (!UpdateLastQuote(state, record.Quote, out var quoteMarketPrice))
+                {
+                    Interlocked.Increment(ref state.RejectedCacheUpdates);
+                    break;
+                }
+                MarkAccepted(state, record.Quote.Header.EventTimestampNanoseconds);
+                if (IsVxFutures(state.Mapping))
                 {
                     await PublishMarketPriceAsync(
                             state,
@@ -518,15 +541,18 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                 if (isReplay)
                     break;
                 MarkObserved(state);
-                if (UpdateLastTrade(state, record.Trade, out var marketPrice))
+                if (!UpdateLastTrade(state, record.Trade, out var marketPrice))
                 {
-                    await PublishMarketPriceAsync(
-                            state,
-                            marketPrice,
-                            FuturesMarketPriceUpdateSource.Trade,
-                            observedUtc)
-                        .ConfigureAwait(false);
+                    Interlocked.Increment(ref state.RejectedCacheUpdates);
+                    break;
                 }
+                MarkAccepted(state, record.Trade.Header.EventTimestampNanoseconds);
+                await PublishMarketPriceAsync(
+                        state,
+                        marketPrice,
+                        FuturesMarketPriceUpdateSource.Trade,
+                        observedUtc)
+                    .ConfigureAwait(false);
                 if (_liveRouter is not null
                     && _liveRouter.IsActive(state.Mapping.ContractId))
                     await _liveRouter.RouteAsync(CreateLiveTrade(state, record.Trade))
@@ -623,7 +649,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             FromUnixNanoseconds(quote.Header.EventTimestampNanoseconds),
             FromUnixNanoseconds(quote.Header.ReceiveTimestampNanoseconds));
 
-        _lastPrices?.TryUpdateQuote(quoteSnapshot);
+        if (_lastPrices is not null && !_lastPrices.TryUpdateQuote(quoteSnapshot))
+        {
+            snapshot = default;
+            return false;
+        }
         return state.MarketPrice.TryUpdateQuote(
             state.ValueDate,
             new FuturesMarketQuoteSnapshot(
@@ -653,7 +683,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             FromUnixNanoseconds(trade.Header.EventTimestampNanoseconds),
             FromUnixNanoseconds(trade.Header.ReceiveTimestampNanoseconds));
 
-        _lastPrices?.TryUpdateTrade(tradeSnapshot);
+        if (_lastPrices is not null && !_lastPrices.TryUpdateTrade(tradeSnapshot))
+        {
+            snapshot = default;
+            return false;
+        }
         var nextTradeOrdinal = checked(state.TradeOrdinal + 1);
         var accepted = state.MarketPrice.TryUpdateTrade(
             state.ValueDate,
@@ -939,6 +973,15 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     private void MarkObserved(TickerState state) =>
         MarkPublished(ref state.LastSourceRecordObservedUtcTicks);
 
+    private void MarkAccepted(TickerState state, long sourceEventTimestampNanoseconds)
+    {
+        MarkPublished(ref state.LastAcceptedCacheUpdateUtcTicks);
+        Interlocked.Exchange(
+            ref state.LastAcceptedSourceEventUtcTicks,
+            FromUnixNanoseconds(sourceEventTimestampNanoseconds).UtcTicks);
+        Interlocked.Increment(ref state.AcceptedCacheUpdates);
+    }
+
     private void MarkPublished(ref long target) =>
         Interlocked.Exchange(ref target, _timeProvider.GetUtcNow().UtcTicks);
 
@@ -997,6 +1040,11 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         public long LastSourceRecordObservedUtcTicks;
         public long LastMarketPricePublishedUtcTicks;
         public long LastDurableTickPublishedUtcTicks;
+        public long StreamActivatedUtcTicks;
+        public long LastAcceptedCacheUpdateUtcTicks;
+        public long LastAcceptedSourceEventUtcTicks;
+        public long AcceptedCacheUpdates;
+        public long RejectedCacheUpdates;
     }
 
     /// <summary>

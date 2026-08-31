@@ -88,8 +88,15 @@ compatibility boundaries and qualification criteria for gates MOS-0 through MOS-
 - `MarketOutlookSnapshotRealtimeActor` is stateless. It translates component/EOD realtime
   inputs into commands and translates projection-complete events into the existing
   `MarketOutlookUpdatedNotifyEvent` UI notification.
-- EOD remains the publication barrier. Before sending the publish command, the realtime bridge
-  reconciles the latest compatible EOD, RSI, TDI, ITI, and VX projections.
+- EOD is the calculation base for fields that mathematically require EOD, but it is no longer a
+  publication barrier for independent components. Every accepted RSI, TDI, ITI, VX, or EOD
+  component advances the persisted snapshot and frontend notification.
+- Composite admission uses OR semantics. An invalid or unavailable sibling is removed without
+  suppressing valid siblings in the same message. A formula may still require its own documented
+  operands; OR admission does not authorize substituting unrelated indicators.
+- `MarketOutlookSnapshotReadModel` carries the independently available component values and an
+  explicit `MissingInputs` description. The UI renders missing fields as `N/A` and never falls
+  back to a prior trade-signal composite.
 - Existing open-generic command-context registration activates the closed
   `ICommandActorContext<MarketOutlookSnapshotCommandActor>` context; no concrete context
   registration is required.
@@ -109,3 +116,14 @@ compatibility boundaries and qualification criteria for gates MOS-0 through MOS-
   notification.
 - Domain unit, BDD, integration, storage integration, and API-host build suites provide the
   final regression qualification recorded with the MOS-9 implementation change.
+
+## Live OR-composite qualification addendum (2026-08-31)
+
+- All 127 non-empty availability combinations across EOD, RSI, TDI, ITI direction, ITI extreme,
+  ITI reversal, and VX are executable verification cases.
+- EOD alone can produce an explicitly partial `FuturesTradeSignalV2ReadModel`; RSI, TDI, ITI,
+  and VX are optional enrichments.
+- A component-only snapshot is valid and queryable before EOD. It does not claim that an EOD-based
+  calculation exists.
+- The working-state blob is the preferred query projection because it retains the expanded
+  component contract. The legacy snapshot columns remain a rollout fallback.

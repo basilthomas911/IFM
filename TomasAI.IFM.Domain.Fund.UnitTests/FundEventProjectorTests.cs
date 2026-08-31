@@ -51,7 +51,7 @@ public sealed class FundEventProjectorTests
             CancellationToken.None);
         await durableReplayQueue.Received(1).DequeueAsync(
             projector.ProjectorName,
-            Arg.Any<Func<IEvent, Task>>(),
+            Arg.Any<Func<IEvent, Task<EventProjectorDeliveryResult>>>(),
             CancellationToken.None);
         await durableReplayQueue.Received(1).StartAsync(
             projector.ProjectorName,
@@ -80,7 +80,7 @@ public sealed class FundEventProjectorTests
             cancellation.Token);
         await durableReplayQueue.Received(1).DequeueAsync(
             projector.ProjectorName,
-            Arg.Any<Func<IEvent, Task>>(),
+            Arg.Any<Func<IEvent, Task<EventProjectorDeliveryResult>>>(),
             cancellation.Token);
         await dbEventSource.Received(1).GetUncompletedEventProjectorEventsAsync(
             projector.ProjectorName,
@@ -650,14 +650,80 @@ public sealed class FundEventProjectorTests
             EventProjectorEffectKind.CompletedPublication).MessageId);
     }
 
+    [Theory]
+    [InlineData(true, "stream-order")]
+    [InlineData(false, "claim-not-ready")]
+    public async Task Expected_claim_deferral_returns_typed_result_without_throwing(
+        bool hasEarlierUnresolvedEvent,
+        string expectedReason)
+    {
+        var queue = Substitute.For<IDurableReplayQueue>();
+        Func<IEvent, Task<EventProjectorDeliveryResult>>? processDelivery = null;
+        queue.When(instance => instance.DequeueAsync(
+                Arg.Any<string>(),
+                Arg.Any<Func<IEvent, Task<EventProjectorDeliveryResult>>>(),
+                Arg.Any<CancellationToken>()))
+            .Do(call => processDelivery =
+                call.ArgAt<Func<IEvent, Task<EventProjectorDeliveryResult>>>(1));
+        var eventSource = Substitute.For<IEventSourceActorDbContext>();
+        eventSource.GetUncompletedEventProjectorEventsAsync(
+                Arg.Any<string>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ICollection<EventLogReadModel>>([]));
+        var projector = CreateProjector(
+            queue,
+            eventSource,
+            CreateBlackboard(),
+            new EventProjectorReliabilityOptions { FencedExecutionEnabled = true });
+        var domainEvent = new FundCreatedEvent
+        {
+            Subject = new ActorSubject(ActorType.Event, FundCreatedEvent.Actor, FundCreatedEvent.Verb, "1"),
+            EntityId = new FundId(1),
+            EventId = hasEarlierUnresolvedEvent ? 953 : 954,
+            CommandId = Guid.NewGuid(),
+            AggregateId = "Event.FundCommandActor.1",
+            NewFund = SampleData.Fund
+        };
+        var state = RecoveryItem(domainEvent.EventId, 78).State;
+        eventSource.GetEventProjectorExecutionStateAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<CancellationToken>())
+            .Returns(state);
+        eventSource.TryClaimEventProjectorExecutionAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<Guid>(), Arg.Any<DateTime>(),
+                Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns((EventProjectorExecutionStateReadModel?)null);
+        eventSource.HasEarlierUnresolvedEventProjectorExecutionAsync(
+                domainEvent.EventId, projector.ProjectorName, Arg.Any<CancellationToken>())
+            .Returns(hasEarlierUnresolvedEvent);
+
+        await projector.StartAsync(Substitute.For<ICommandActorContext>());
+        try
+        {
+            processDelivery.Should().NotBeNull();
+            var result = EventProjectorDeliveryResult.Completed;
+            Func<Task> process = async () => result = await processDelivery!(domainEvent);
+
+            await process.Should().NotThrowAsync();
+
+            result.Disposition.Should().Be(EventProjectorDeliveryDisposition.Deferred);
+            result.Reason.Should().Be(expectedReason);
+        }
+        finally
+        {
+            await projector.StopAsync();
+        }
+    }
+
     [Fact]
     public async Task Maximum_attempt_handler_atomically_stages_the_registered_typed_failure_event()
     {
         var queue = Substitute.For<IDurableReplayQueue>();
-        Func<IEvent, Task>? maximumAttempts = null;
+        Func<IEvent, Task<EventProjectorDeliveryResult>>? maximumAttempts = null;
         queue.When(instance => instance.SetMaxAttemptsReachedAction(
-                Arg.Any<string>(), Arg.Any<Func<IEvent, Task>>(), Arg.Any<bool>()))
-            .Do(call => maximumAttempts = call.ArgAt<Func<IEvent, Task>>(1));
+                Arg.Any<string>(),
+                Arg.Any<Func<IEvent, Task<EventProjectorDeliveryResult>>>(),
+                Arg.Any<bool>()))
+            .Do(call => maximumAttempts =
+                call.ArgAt<Func<IEvent, Task<EventProjectorDeliveryResult>>>(1));
         var eventSource = Substitute.For<IEventSourceActorDbContext>();
         eventSource.GetUncompletedEventProjectorEventsAsync(
                 Arg.Any<string>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
@@ -729,11 +795,13 @@ public sealed class FundEventProjectorTests
         {
             maximumAttempts.Should().NotBeNull();
             state = state with { RetryCount = 2 };
-            Func<Task> prematureTerminalization = () => maximumAttempts!(domainEvent);
-            (await prematureTerminalization.Should().ThrowAsync<EventProjectorDeliveryDeferredException>())
-                .Which.Reason.Should().Be("failure-budget-not-exhausted");
+            var deferred = await maximumAttempts!(domainEvent);
+            deferred.Disposition.Should().Be(EventProjectorDeliveryDisposition.Deferred);
+            deferred.Reason.Should().Be("failure-budget-not-exhausted");
+            terminal.Should().BeNull();
             state = state with { RetryCount = 3 };
-            await maximumAttempts!(domainEvent);
+            var completed = await maximumAttempts!(domainEvent);
+            completed.Should().Be(EventProjectorDeliveryResult.Completed);
         }
         finally
         {

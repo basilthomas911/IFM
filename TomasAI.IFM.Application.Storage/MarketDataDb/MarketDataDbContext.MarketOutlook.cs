@@ -68,11 +68,23 @@ public partial class MarketDataDbContext
         string contractId,
         DateOnly valueDate,
         CancellationToken cancellationToken = default)
-        => await _dbFactory.MarketDataDb
+    {
+        // The working-state blob carries the independently admitted component snapshots. Prefer it
+        // so a query returns the same OR-composite contract emitted by realtime notification. The
+        // legacy snapshot columns remain as a backward-compatible fallback during rollout.
+        var workingState = await GetMarketOutlookWorkingStateAsync(
+            contractId,
+            valueDate,
+            cancellationToken).ConfigureAwait(false);
+        if (workingState?.PublishedSnapshot is { IsValid: true } published)
+            return published;
+
+        return await _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.GetMarketOutlookSnapshot)}", MarketDataDbCql.GetMarketOutlookSnapshot)
             .SetParameters(new GetMarketOutlookSnapshot(contractId, valueDate))
             .ExecuteSingleAsync(MapToMarketOutlookSnapshot, cancellationToken)
             .ConfigureAwait(false);
+    }
 
     static MarketOutlookSnapshotReadModel MapToMarketOutlookSnapshot<TDataRecord>(
         TDataRecord row)

@@ -232,8 +232,14 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         {
             lock (_writeSync)
             {
-                if (!_active || IsOlder(_hasTrade, _trade.SourceSequence,
+                if (!_active
+                    || IsOlder(_hasTrade, _trade.SourceSequence,
                         _trade.EventTimestamp, snapshot.Tick.SourceSequence,
+                        snapshot.Tick.EventTimestamp)
+                    || IsOlderOrEqual(_hasTradeWithGreeks,
+                        _tradeWithGreeks.Tick.SourceSequence,
+                        _tradeWithGreeks.Tick.EventTimestamp,
+                        snapshot.Tick.SourceSequence,
                         snapshot.Tick.EventTimestamp))
                     return false;
                 var odd = BeginWrite();
@@ -253,8 +259,14 @@ public sealed class DatabentoLastPriceStore : IDatabentoLastPriceStore
         {
             lock (_writeSync)
             {
-                if (!_active || IsOlder(_hasQuote, _quote.SourceSequence,
+                if (!_active
+                    || IsOlder(_hasQuote, _quote.SourceSequence,
                         _quote.EventTimestamp, snapshot.Tick.SourceSequence,
+                        snapshot.Tick.EventTimestamp)
+                    || IsOlderOrEqual(_hasQuoteWithGreeks,
+                        _quoteWithGreeks.Tick.SourceSequence,
+                        _quoteWithGreeks.Tick.EventTimestamp,
+                        snapshot.Tick.SourceSequence,
                         snapshot.Tick.EventTimestamp))
                     return false;
                 var odd = BeginWrite();

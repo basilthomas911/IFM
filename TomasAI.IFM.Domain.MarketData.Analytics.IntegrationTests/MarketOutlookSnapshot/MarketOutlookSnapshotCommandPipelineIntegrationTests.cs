@@ -104,8 +104,9 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             var notification = await terminal.Task.WaitAsync(TimeSpan.FromSeconds(20));
             notification.CommandId.Should().Be(publishId);
             notification.EntityId.Should().Be(entityId);
-            notification.MarketOutlook.Revision.Should().Be(1);
+            notification.MarketOutlook.Revision.Should().Be(2);
             notification.MarketOutlook.MissingInputs.Should().Contain("TDI");
+            notification.MarketOutlook.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
 
             var workingState = await dbFixture.MarketDataDb.GetMarketOutlookWorkingStateAsync(
                 contractId,

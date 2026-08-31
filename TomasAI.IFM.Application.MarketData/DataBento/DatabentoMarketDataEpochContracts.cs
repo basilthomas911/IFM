@@ -81,5 +81,9 @@ public interface IDatabentoMarketDataCatalog
 
 public sealed record DatabentoMarketDataApiOptions
 {
-    public TimeSpan MaximumLastPriceAge { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// Maximum age at which an accepted hot-cache value remains usable by a
+    /// realtime interpreter. This is the red boundary of the shared feed policy.
+    /// </summary>
+    public TimeSpan MaximumLastPriceAge { get; init; } = TimeSpan.FromMinutes(15);
 }

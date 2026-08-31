@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Application.Api.Server;
 
@@ -12,8 +13,6 @@ public sealed class MarketDataRuntimeHealthCheck(
     DatabentoMarketDataApi marketDataApi,
     TimeProvider timeProvider) : IHealthCheck
 {
-    static readonly TimeSpan MaximumCurrentContractSilence = TimeSpan.FromSeconds(30);
-
     public Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
@@ -24,10 +23,8 @@ public sealed class MarketDataRuntimeHealthCheck(
         var easternNow = TimeZoneInfo.ConvertTime(
             now,
             FuturesTradingValueDate.MarketTimeZone);
-        var feedExpected = MarketDataFeedMonitoringWindow.IsOpen(now);
         var data = new Dictionary<string, object>
         {
-            ["feedExpected"] = feedExpected,
             ["marketTimeEastern"] = easternNow.ToString("O"),
             ["running"] = health.Running,
             ["valueDate"] = health.ValueDate?.ToString("yyyy-MM-dd") ?? string.Empty,
@@ -46,11 +43,7 @@ public sealed class MarketDataRuntimeHealthCheck(
         var currentContractsLive = AddRoute("ES") & AddRoute("VX");
         data["currentContractsLive"] = currentContractsLive;
 
-        return Task.FromResult(!feedExpected
-            ? HealthCheckResult.Healthy(
-                "Market-data monitoring is paused outside 03:00-16:00 Eastern; core application services remain ready.",
-                data: data)
-            : !infrastructureReady
+        return Task.FromResult(!infrastructureReady
                 ? HealthCheckResult.Degraded(
                     "Market-data feeds or aggregation are not ready; market-data features are unavailable but core application services remain ready.",
                     data: data)
@@ -75,20 +68,23 @@ public sealed class MarketDataRuntimeHealthCheck(
             var status = epoch?.ContractStatuses?.SingleOrDefault(item =>
                 StringComparer.Ordinal.Equals(item.ContractId, contract.ContractId));
             var routeActive = marketDataApi.IsTickDataStreamActive(contract.ContractId);
-            var sourceFresh = status?.LastSourceRecordObservedAtUtc is { } sourceObserved
-                && now - sourceObserved <= MaximumCurrentContractSilence;
-            var notificationFresh = status?.LastMarketPricePublishedAtUtc is { } notificationPublished
-                && now - notificationPublished <= MaximumCurrentContractSilence;
+            var routeHealth = status?.HealthAt(now)
+                ?? DatabentoLiveFeedHealthState.Inactive;
             data[$"{key}RouteActive"] = routeActive;
             data[$"{key}AggregationRunning"] = status?.ContractRunning ?? false;
             data[$"{key}LastSourceRecordUtc"] =
                 status?.LastSourceRecordObservedAtUtc?.ToString("O") ?? string.Empty;
+            data[$"{key}LastAcceptedCacheUpdateUtc"] =
+                status?.LastAcceptedCacheUpdateAtUtc?.ToString("O") ?? string.Empty;
+            data[$"{key}LastAcceptedSourceEventUtc"] =
+                status?.LastAcceptedSourceEventAtUtc?.ToString("O") ?? string.Empty;
             data[$"{key}LastNotificationUtc"] =
                 status?.LastMarketPricePublishedAtUtc?.ToString("O") ?? string.Empty;
             data[$"{key}LastDurableTickUtc"] =
                 status?.LastDurableTickPublishedAtUtc?.ToString("O") ?? string.Empty;
-            data[$"{key}SourceFresh"] = sourceFresh;
-            data[$"{key}NotificationFresh"] = notificationFresh;
+            data[$"{key}AcceptedCacheUpdates"] = status?.AcceptedCacheUpdates ?? 0;
+            data[$"{key}RejectedCacheUpdates"] = status?.RejectedCacheUpdates ?? 0;
+            data[$"{key}FeedHealth"] = routeHealth.ToString();
             if (marketDataApi.TryGetFuturesSessionStatistics(contract.ContractId, out var statistics))
             {
                 data[$"{key}SessionStatisticsComplete"] = statistics.IsComplete;
@@ -102,12 +98,12 @@ public sealed class MarketDataRuntimeHealthCheck(
                 data[$"{key}SessionStatisticsComplete"] = false;
             }
 
-            // Route ownership is established by the application workflows after the API
-            // becomes ready, so it is diagnostic rather than a server-start prerequisite.
-            // Successful market-price publication is the end-to-end startup evidence here.
-            return status is { ContractConfigured: true, ContractRunning: true }
-                && sourceFresh
-                && notificationFresh;
+            // Only explicitly owned routes are monitored. Yellow is usable with a
+            // warning; red makes live market-data features unavailable.
+            return !routeActive
+                || status is { ContractConfigured: true, ContractRunning: true }
+                && routeHealth is DatabentoLiveFeedHealthState.Green
+                    or DatabentoLiveFeedHealthState.Yellow;
         }
     }
 }

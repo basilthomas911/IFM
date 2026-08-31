@@ -2,7 +2,7 @@ using TomasAI.IFM.UI.Net.Models;
 
 namespace TomasAI.IFM.UI.Net.ViewModels.App;
 
-/// <summary>Represents the downstream health of all currently traded futures feeds.</summary>
+/// <summary>Represents accepted-input health of all explicitly enabled Databento routes.</summary>
 public enum MarketDataFeedHealthState
 {
     Inactive,
@@ -21,19 +21,18 @@ public sealed record MarketDataFeedHealthSnapshot(
     bool EnteredCritical);
 
 /// <summary>
-/// Tracks completed downstream bar updates for the current contracts and applies the
-/// one-minute/yellow, five-minute/orange, and fifteen-minute/red escalation policy.
+/// Tracks accepted updates for enabled routes and applies the authoritative
+/// green-through-five-minutes, yellow-through-fifteen-minutes, then red policy.
 /// </summary>
 internal sealed class MarketDataFeedHealthMonitor
 {
-    internal static readonly TimeSpan FreshnessLimit = TimeSpan.FromMinutes(1);
-    internal static readonly TimeSpan IntermittentLimit = TimeSpan.FromMinutes(5);
-    internal static readonly TimeSpan FailedLimit = TimeSpan.FromMinutes(15);
+    internal static readonly TimeSpan FreshnessLimit = TimeSpan.FromMinutes(5);
+    internal static readonly TimeSpan IntermittentLimit = TimeSpan.FromMinutes(10);
+    internal static readonly TimeSpan FailedLimit = TimeSpan.Zero;
 
     readonly object _gate = new();
     readonly Dictionary<string, DateTimeOffset?> _lastUpdates = new(StringComparer.Ordinal);
     DateTimeOffset _activatedAtUtc;
-    DateTimeOffset? _currentWindowStartUtc;
     bool _active;
     bool _criticalReported;
 
@@ -55,7 +54,6 @@ internal sealed class MarketDataFeedHealthMonitor
                 _lastUpdates["No currently traded contracts configured"] = null;
 
             _activatedAtUtc = utcNow;
-            _currentWindowStartUtc = null;
             _active = true;
             _criticalReported = false;
             return EvaluateCore(utcNow);
@@ -68,18 +66,24 @@ internal sealed class MarketDataFeedHealthMonitor
         {
             _active = false;
             _criticalReported = false;
-            _currentWindowStartUtc = null;
             _lastUpdates.Clear();
             return Snapshot(MarketDataFeedHealthState.Inactive);
         }
     }
 
-    public MarketDataFeedHealthSnapshot RecordUpdate(string contractId, DateTimeOffset utcNow)
+    public MarketDataFeedHealthSnapshot RecordUpdate(
+        string contractId,
+        DateTimeOffset utcNow,
+        DateTimeOffset? sourceEventUtc = null)
     {
         lock (_gate)
         {
             if (_active && _lastUpdates.ContainsKey(contractId))
-                _lastUpdates[contractId] = utcNow;
+                _lastUpdates[contractId] = sourceEventUtc is { } source
+                    && source != default
+                    && source < utcNow
+                        ? source
+                        : utcNow;
             return EvaluateCore(utcNow);
         }
     }
@@ -95,27 +99,15 @@ internal sealed class MarketDataFeedHealthMonitor
         if (!_active)
             return Snapshot(MarketDataFeedHealthState.Inactive);
 
-        var windowStartUtc = PositionEntryWindow.GetCurrentStartUtc(utcNow);
-        if (!windowStartUtc.HasValue)
-        {
-            _currentWindowStartUtc = null;
-            _criticalReported = false;
-            return Snapshot(MarketDataFeedHealthState.OutsidePositionEntryWindow);
-        }
-
-        if (_currentWindowStartUtc != windowStartUtc)
-        {
-            _currentWindowStartUtc = windowStartUtc;
-            _criticalReported = false;
-        }
-
-        var monitoringBaseline = Latest(_activatedAtUtc, windowStartUtc.Value);
+        var monitoringBaseline = _activatedAtUtc;
         var staleContracts = new List<string>();
         var maximumAge = TimeSpan.Zero;
         foreach (var (contractId, lastUpdateUtc) in _lastUpdates)
         {
             var freshnessReference = lastUpdateUtc.HasValue
-                ? Latest(monitoringBaseline, lastUpdateUtc.Value)
+                ? (lastUpdateUtc.Value > monitoringBaseline
+                    ? lastUpdateUtc.Value
+                    : monitoringBaseline)
                 : monitoringBaseline;
             var age = utcNow - freshnessReference;
             if (age <= FreshnessLimit)
@@ -133,18 +125,13 @@ internal sealed class MarketDataFeedHealthMonitor
         }
 
         var staleDuration = maximumAge - FreshnessLimit;
-        var state = staleDuration < IntermittentLimit
+        var state = maximumAge <= FreshnessLimit + IntermittentLimit
             ? MarketDataFeedHealthState.Intermittent
-            : staleDuration < IntermittentLimit + FailedLimit
-                ? MarketDataFeedHealthState.Failed
-                : MarketDataFeedHealthState.Critical;
+            : MarketDataFeedHealthState.Critical;
         var enteredCritical = state == MarketDataFeedHealthState.Critical && !_criticalReported;
         _criticalReported = state == MarketDataFeedHealthState.Critical;
         return new MarketDataFeedHealthSnapshot(state, staleDuration, staleContracts, enteredCritical);
     }
-
-    static DateTimeOffset Latest(DateTimeOffset left, DateTimeOffset right)
-        => left >= right ? left : right;
 
     static MarketDataFeedHealthSnapshot Snapshot(MarketDataFeedHealthState state)
         => new(state, TimeSpan.Zero, [], false);

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -164,30 +165,11 @@ public sealed class MarketOutlookSnapshotCommandActor(
     {
         if (command.SourceEventId == Guid.Empty || command.SourceEventTimestamp == default)
             throw new ArgumentException("A stable Market Outlook source identity and timestamp are required.");
-        if (command.ComponentCount == 0 || command.ComponentCount > 2
-            || command.ComponentCount == 2
-                && (command.FuturesItiSignal is null || command.VixFuturesPrice <= 0))
-            throw new ArgumentException("A component command must contain one component, or ITI with its VX price.");
-        if (command.FuturesRsiSignal is { } rsi
-            && (rsi.ContractId != command.EntityId.ContractId
-                || rsi.ValueDate != command.EntityId.ValueDate
-                || rsi.TimePeriod != FuturesTradeSignalPrerequisites.SignalTimePeriod
-                || rsi.PeriodLength != FuturesIntradaySignalActivationProfile.RsiPeriodLength))
-            throw new ArgumentException("The RSI component is not eligible for this Market Outlook entity.");
-        if (command.FuturesTdiSignal is { } tdi
-            && (tdi.ContractId != command.EntityId.ContractId
-                || tdi.ValueDate != command.EntityId.ValueDate
-                || tdi.TimePeriod != FuturesTradeSignalPrerequisites.SignalTimePeriod
-                || tdi.ConfigurationId != FuturesTdiConfiguration.StandardConfigurationId))
-            throw new ArgumentException("The TDI component is not eligible for this Market Outlook entity.");
-        if (command.FuturesItiSignal is { } iti
-            && (iti.ContractId != command.EntityId.ContractId
-                || iti.ValueDate != command.EntityId.ValueDate
-                || iti.TimePeriod != TimeFrameType.Daily
-                || iti.IntrinsicTimeMode is not (IntrinsicTimeModeType.TrendDirectionChanged
-                    or IntrinsicTimeModeType.TrendExtremeChanged
-                    or IntrinsicTimeModeType.TrendReversalChanged)))
-            throw new ArgumentException("The ITI component is not eligible for this Market Outlook entity.");
+        if (command.FuturesRsiSignal is null
+            && command.FuturesTdiSignal is null
+            && command.FuturesItiSignal is null
+            && command.VixFuturesPrice == 0)
+            throw new ArgumentException("A component command must contain at least one supplied component.");
     }
 
     static void ValidatePublish(PublishMarketOutlookSnapshotCommand command)
