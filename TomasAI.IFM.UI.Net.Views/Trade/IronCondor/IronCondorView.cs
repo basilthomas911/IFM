@@ -16,6 +16,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorView : UserControl, IAsyncFormControl
 {
+    const int MinimumTradeBlotterWidth = 640;
+    const int MinimumChartWidth = 220;
+    const int MinimumRealtimeHeight = 300;
     readonly Control _parentControl;
     readonly IronCondorViewModel _viewModel;
     readonly Dictionary<ActionState, Color> _tradePlanStateMap;
@@ -38,7 +41,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     public IronCondorView(Control parentControl, IronCondorViewModel viewModel)
     {
         InitializeComponent();
-        ((IFormControl)this).Resize(parentControl);
+        Dock = DockStyle.Fill;
         _parentControl = parentControl;
         _viewModel = viewModel;
         _tradePlanStateMap = new Dictionary<ActionState, Color> {
@@ -74,19 +77,37 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         Dock = DockStyle.Fill;
         var parentSize = parentControl.ClientSize;
         if (parentSize.Width <= 0 || parentSize.Height <= 0)
+        {
+            pnlRealTimeData.Visible = false;
             return;
+        }
 
         SuspendLayout();
         try
         {
             Size = parentSize;
             SetSplitterDistance(pnlAssetSplitter, 680);
-            pnlRealTimeData.Width = Math.Max(1, Width - pnlIronCondorTradeInfo.Width - 10);
+            var realtimeWidth = Width - MinimumTradeBlotterWidth - 10;
+            var chartsAreSafe = realtimeWidth >= MinimumChartWidth * 2
+                && Height >= MinimumRealtimeHeight;
+            if (!chartsAreSafe)
+            {
+                // A hidden or narrow tab can transiently report a zero-sized chart
+                // surface. WinForms Chart throws while laying out that state, so the
+                // optional analytics region remains excluded from layout until it
+                // has a genuinely drawable surface.
+                pnlRealTimeData.Visible = false;
+                return;
+            }
+
+            pnlRealTimeData.Width = realtimeWidth;
             SetSplitterDistance(pnlRealTimeData, 495);
             SetSplitterDistance(pnlTradeSplitter, 495);
-            var graphWidth = Math.Max(1, (Width - pnlIronCondorTradeInfo.Width) / 2);
+            var graphWidth = Math.Max(MinimumChartWidth,
+                (pnlRealTimeData.Panel1.ClientSize.Width - 7) / 2);
             graphSpreadDistribution.Width = graphWidth;
             graphEodData.Width = graphWidth;
+            pnlRealTimeData.Visible = true;
         }
         finally
         {

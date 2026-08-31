@@ -138,14 +138,33 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
                 result?.ErrorMessage ?? "Market Outlook snapshot publication failed.");
     }
 
-    /// <summary>Acknowledges projection of a component checkpoint without retaining realtime state.</summary>
-    internal static ValueTask CompleteAsync(
+    /// <summary>Publishes a revised UI snapshot when a component reprojects an existing EOD outlook.</summary>
+    internal static async ValueTask CompleteAsync(
         this MarketOutlookComponentObservedCompleteEvent source,
         IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(context);
-        return ValueTask.CompletedTask;
+        if (source.WorkingState.PublishedSnapshot is not { IsValid: true } snapshot)
+            return;
+
+        var notification = new MarketOutlookUpdatedNotifyEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Notify,
+                MarketOutlookUpdatedNotifyEvent.Actor,
+                MarketOutlookUpdatedNotifyEvent.Verb,
+                source.EntityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = source.EntityId,
+            CommandId = source.CommandId,
+            AggregateId = source.AggregateId,
+            EventSource = source.EventName,
+            ReceivedOn = DateTime.UtcNow,
+            MarketOutlook = snapshot
+        };
+        await context.SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(notification)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Publishes the existing UI notification after the finalized snapshot projection completes.</summary>

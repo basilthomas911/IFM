@@ -481,6 +481,17 @@ public static class MarketDataQueries
             return await e.RequestAsync<ScalarReadModel<DateOnly>, GetValueDateQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataQueryUriPath.GetMarketSession, async (IActorService e) =>
+        {
+            var entityId = new GetMarketSessionParameter();
+            GetMarketSessionQuery query = new()
+            {
+                Subject = new ActorSubject(ActorType.Query, GetMarketSessionQuery.Actor, GetMarketSessionQuery.Verb, entityId.Format()),
+                EntityId = entityId,
+            };
+            return await e.RequestAsync<MarketSessionReadModel, GetMarketSessionQuery>(query);
+        });
+
 
         return endpoints;
     }

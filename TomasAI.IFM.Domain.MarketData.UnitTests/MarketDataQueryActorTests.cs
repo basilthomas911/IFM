@@ -193,6 +193,30 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
             Arg.Any<ActorMessageInfo>());
     }
 
+    [Fact]
+    public void ParseMessage_ShouldParseGetMarketSessionQuery_Successfully()
+    {
+        var actor = _fixture.CreateActor(Substitute.For<ILogger<MarketDataQueryActor>>());
+        var context = actor.Context;
+        var entityId = new GetMarketSessionParameter();
+        var query = new GetMarketSessionQuery
+        {
+            Subject = new ActorSubject(ActorType.Query, GetMarketSessionQuery.Actor, GetMarketSessionQuery.Verb, entityId.Format()),
+            EntityId = entityId
+        };
+        var message = new NatsMsg<byte[]>
+        {
+            Subject = query.Subject.ToString(),
+            Data = _fixture.DataSerializer.Serialize(query)
+        };
+
+        actor.InvokeParseMessage(context, message).Should().BeOfType<GetMarketSessionQuery>();
+        context.Received(1).SetMessageInfo(
+            Arg.Any<ActorThreadId>(),
+            Arg.Is(GetMarketSessionQuery.Verb),
+            Arg.Any<ActorMessageInfo>());
+    }
+
     #endregion
 
     #region ParseMessage Edge Case Tests
@@ -547,6 +571,30 @@ public class MarketDataQueryActorTests : IClassFixture<MarketDataTestFixture>
                     ? r.Value == null
                     : r.Value != null && r.Value.Value == expected.Value))
            );
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_ShouldProcessGetMarketSessionQuery_Successfully()
+    {
+        var actor = _fixture.CreateActor(
+            Substitute.For<ILogger<MarketDataQueryActor>>(),
+            Substitute.For<IDbContextFactory>());
+        var entityId = new GetMarketSessionParameter();
+        var query = new GetMarketSessionQuery
+        {
+            Subject = new ActorSubject(ActorType.Query, GetMarketSessionQuery.Actor, GetMarketSessionQuery.Verb, entityId.Format()),
+            EntityId = entityId
+        };
+        var context = actor.Context;
+        context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>()).Returns(true);
+
+        await actor.InvokeReceiveAsync(context, query);
+
+        await context.Received(1).ReplyAsync(
+            Arg.Is<ActorThreadId>(id => id == query.Subject.ThreadId),
+            Arg.Is(GetMarketSessionQuery.Verb),
+            Arg.Is<ServiceResult<MarketSessionReadModel>>(result =>
+                result.Success && result.Value != null && result.Value.IsValid));
     }
 
     #endregion

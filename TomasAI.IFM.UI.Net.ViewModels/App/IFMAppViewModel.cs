@@ -117,6 +117,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     OrderedBatchAsyncChannel<StatusConsoleLogReadModel>? _statusConsoleChannel;
     IUiEventSubscription? _economicCalendarStartupSubscription;
     DateOnly? _valueDate;
+    bool _isLiveMarketSessionOpen;
     IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
     StatusConsoleLogReadModel? _latestStatusLog;
@@ -136,6 +137,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     MarketDataFeedHealthState _marketDataFeedHealthState = MarketDataFeedHealthState.Inactive;
     long _marketOutlookRevision;
     FuturesEodDataUIViewModel? _marketOutlook;
+    string _marketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
     FuturesTradeSignalUIViewModel? _futuresTradeSignal;
     PlaceTradeUIViewModel? _latestTradePlacement;
     IReadOnlyList<PlaceTradeUIViewModel> _tradePlacements = [];
@@ -200,7 +202,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         ShutdownOperation = new AsyncOperation(ShutdownCorePresentationAsync, () => _lifecycle.IsRunning);
     }
 
-    /// <summary>Gets the current trading value date when live services are available.</summary>
+    /// <summary>Gets the operational value date used for persisted and read-only application data.</summary>
     public DateOnly? ValueDate
     {
         get => _valueDate;
@@ -208,6 +210,20 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         {
             if (SetProperty(ref _valueDate, value))
                 OnPropertyChanged(nameof(CanToggleMarketDataFeed));
+        }
+    }
+
+    /// <summary>Gets whether live market-data APIs may be started for the current futures session.</summary>
+    public bool IsLiveMarketSessionOpen
+    {
+        get => _isLiveMarketSessionOpen;
+        private set
+        {
+            if (SetProperty(ref _isLiveMarketSessionOpen, value))
+            {
+                OnPropertyChanged(nameof(CanToggleMarketDataFeed));
+                OnPropertyChanged(nameof(MarketDataFeedStateText));
+            }
         }
     }
 
@@ -292,7 +308,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     /// <summary>Gets whether the operator can start or stop the current market-data feed.</summary>
     public bool CanToggleMarketDataFeed
-        => ValueDate.HasValue && !IsMarketDataFeedOperationInProgress;
+        => ValueDate.HasValue
+           && (IsLiveMarketSessionOpen || IsMarketDataFeedActive)
+           && !IsMarketDataFeedOperationInProgress;
 
     /// <summary>Gets the operator action that will be performed by the shell feed control.</summary>
     public string MarketDataFeedActionText
@@ -320,6 +338,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     public string MarketDataFeedStateText
         => IsMarketDataFeedOperationInProgress
             ? "Market Feed: Changing"
+            : ValueDate.HasValue && !IsLiveMarketSessionOpen && !IsMarketDataFeedActive
+                ? "Market Feed: Session Closed — read-only application features remain available"
             : MarketDataFeedHealthState switch
             {
                 MarketDataFeedHealthState.Healthy
@@ -382,6 +402,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         get => _marketOutlook;
         private set => SetProperty(ref _marketOutlook, value);
+    }
+
+    /// <summary>Gets the visible revision, value date, freshness, and completeness of Market Outlook.</summary>
+    public string MarketOutlookSnapshotStatus
+    {
+        get => _marketOutlookSnapshotStatus;
+        private set => SetProperty(ref _marketOutlookSnapshotStatus, value);
     }
 
     /// <summary>Gets the newest replaceable futures trade-signal display snapshot.</summary>
@@ -492,8 +519,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await _marketDataFeedOperationGate.WaitAsync(cancellationToken);
         try
         {
-            if (!ValueDate.HasValue)
-                throw new InvalidOperationException("The market-data feed is unavailable without a trading value date.");
+            if (!ValueDate.HasValue || (!IsLiveMarketSessionOpen && !IsMarketDataFeedActive))
+                throw new InvalidOperationException(
+                    "Live market-data APIs are unavailable while the futures session is closed.");
 
             IsMarketDataFeedOperationInProgress = true;
             if (IsMarketDataFeedActive)
@@ -568,17 +596,17 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             BaseContracts = futuresContracts?.ToArray() ?? [];
             await ImportReferenceDataAtStartupAsync(cancellationToken);
 
-            DateOnly? valueDate = null;
-            await model.GetValueDateAsync(value => valueDate = value);
-            if (!valueDate.HasValue)
+            MarketSessionReadModel? marketSession = null;
+            await model.GetMarketSessionAsync(value =>
             {
-                await WriteStatusConsoleAsync(
-                    $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
-                    + "Live market-data APIs are unavailable outside valid trading hours; application menus remain available.");
-                return;
-            }
+                marketSession = value;
+                return Task.CompletedTask;
+            });
+            if (marketSession is not { IsValid: true })
+                throw new InvalidOperationException("The authoritative futures market session could not be resolved.");
 
-            ValueDate = valueDate;
+            ValueDate = marketSession.OperationalValueDate;
+            IsLiveMarketSessionOpen = marketSession.IsLiveSessionOpen;
             var strategyContractId = BaseContracts
                 .Where(contract => contract.Symbol == MarketOutlookSymbol)
                 .Select(contract => contract.ContractId)
@@ -593,16 +621,21 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                 await Operations.InitializeAsync(cancellationToken);
             }
 
-            await GetLastFuturesBarData(valueDate.Value);
+            await GetLastFuturesBarData(ValueDate.Value);
             await StartMarketOutlookEventConsumer(cancellationToken);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
             await EnableMarketDataFeedResetListener(cancellationToken);
-            await EnableTradeLiveFeed(cancellationToken);
-            _lifecycle.RunAsync(MonitorMarketDataFeedHealthAsync);
-            await StartFuturesIntradaySignalServices(cancellationToken);
-            await WriteStatusConsoleAsync(
-                $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete");
+            if (marketSession.IsLiveSessionOpen)
+            {
+                await EnableTradeLiveFeed(cancellationToken);
+                _lifecycle.RunAsync(MonitorMarketDataFeedHealthAsync);
+                await StartFuturesIntradaySignalServices(cancellationToken);
+            }
+            await WriteStatusConsoleAsync(marketSession.IsLiveSessionOpen
+                ? $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete"
+                : $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
+                  + $"Futures session closed; read-only data is available for {ValueDate:yyyy-MM-dd} and live market-data APIs remain stopped.");
             StartupOperation.NotifyCanExecuteChanged();
             ShutdownOperation.NotifyCanExecuteChanged();
         });
@@ -748,6 +781,18 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             return;
         Interlocked.Exchange(ref _marketOutlookRevision, snapshot.Revision);
         PublishMarketOutlook(snapshot.FuturesEodData);
+        var updatedUtc = snapshot.UpdatedOn.Kind == DateTimeKind.Utc
+            ? snapshot.UpdatedOn
+            : DateTime.SpecifyKind(snapshot.UpdatedOn, DateTimeKind.Utc);
+        var age = _timeProvider.GetUtcNow() - new DateTimeOffset(updatedUtc);
+        var freshness = IsLiveMarketSessionOpen && age > TimeSpan.FromMinutes(5)
+            ? "STALE"
+            : IsLiveMarketSessionOpen ? "live" : "stored";
+        var completeness = string.IsNullOrWhiteSpace(snapshot.MissingInputs)
+            ? "complete"
+            : $"missing {snapshot.MissingInputs}";
+        MarketOutlookSnapshotStatus =
+            $"Market Outlook r{snapshot.Revision} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}";
         if (snapshot.FuturesTradeSignal is { } tradeSignal)
             PublishFuturesTradeSignal(tradeSignal);
         await WriteStatusConsoleAsync(

@@ -108,11 +108,69 @@ public class IronCondorTradeOrderViewModelTests
             .Should().OnlyHaveUniqueItems();
     }
 
+    [Fact]
+    public async Task HistoricalReadOnly_LoadsHydratedTradeWithoutCurrentServices_AndFencesCommands()
+    {
+        var seed = CreateViewModel();
+        var createTrade = typeof(IronCondorTradeOrderViewModel).GetMethod(
+            "CreateIronCondorTrade",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var historicalTrade = (OptionTradeReadModel)createTrade.Invoke(seed, [TradeStatus.Open])!;
+        var viewModel = CreateViewModel(
+            historicalReadOnly: true,
+            historicalTrade: historicalTrade,
+            historicalFundBalance: 250_000m);
+
+        await viewModel.LoadIronCondorTradeOrders();
+
+        viewModel.IsHistoricalReadOnly.Should().BeTrue();
+        viewModel.IsLoaded.Should().BeTrue();
+        viewModel.IronCondorTrade.Should().BeSameAs(historicalTrade);
+        viewModel.FundBalance.Should().Be(250_000m);
+        viewModel.OptionLegs.Should().HaveCount(4);
+
+        await FluentActions.Awaiting(viewModel.SetFundMaxProfit)
+            .Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Historical trade orders are read-only.");
+        await FluentActions.Awaiting(() => viewModel.RemoveTradeFromFundOrder(new FundOrderTradeId(17, 101, 7)))
+            .Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Historical trade orders are read-only.");
+        await FluentActions.Awaiting(viewModel.TurnLiveFeedOn)
+            .Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("Historical trade orders are read-only.");
+    }
+
+    [Fact]
+    public void HistoricalReadOnly_RequiresMatchingHydratedTradeDbIdentity()
+    {
+        var missingTrade = () => CreateViewModel(historicalReadOnly: true);
+
+        missingTrade.Should().Throw<ArgumentNullException>()
+            .WithParameterName("historicalTrade");
+
+        var mismatchedTrade = new OptionTradeReadModel
+        {
+            OrderId = 999,
+            TradeId = 888,
+            TradeType = TradeType.ShortIronCondor,
+        };
+        var mismatchedIdentity = () => CreateViewModel(
+            historicalReadOnly: true,
+            historicalTrade: mismatchedTrade);
+
+        mismatchedIdentity.Should().Throw<ArgumentException>()
+            .WithParameterName("historicalTrade")
+            .WithMessage("*does not match composition 101:7*");
+    }
+
     static IronCondorTradeOrderViewModel CreateViewModel(
         IAppRoot? appRoot = null,
         TradeType tradeType = TradeType.ShortIronCondor,
         string reference = "P:4500:4550 X C:5000:5050",
-        IReferenceDataService? referenceDataService = null)
+        IReferenceDataService? referenceDataService = null,
+        bool historicalReadOnly = false,
+        OptionTradeReadModel? historicalTrade = null,
+        decimal historicalFundBalance = 0m)
         => new(
             appRoot ?? Substitute.For<IAppRoot>(),
             ValueDate,
@@ -121,7 +179,10 @@ public class IronCondorTradeOrderViewModelTests
             Order(),
             Trade(tradeType, reference),
             OrderActionType.Open,
-            referenceDataService ?? Substitute.For<IReferenceDataService>());
+            referenceDataService ?? Substitute.For<IReferenceDataService>(),
+            historicalReadOnly: historicalReadOnly,
+            historicalTrade: historicalTrade,
+            historicalFundBalance: historicalFundBalance);
 
     static FundOrderReadModel Order()
         => new(

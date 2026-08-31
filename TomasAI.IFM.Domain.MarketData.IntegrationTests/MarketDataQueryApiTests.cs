@@ -129,4 +129,23 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
             response.Value.Value.DayOfWeek.Should().NotBe(DayOfWeek.Sunday);
         }
     }
+
+    [Fact]
+    public async Task GetMarketSessionQuery_AlwaysReturnsOperationalDateAndExplicitLiveState()
+    {
+        _httpClientFactory.CreateClient();
+        var queryServiceApi = new QueryServiceApiClient(
+            _httpClientFactory,
+            _jsonSerializer,
+            new QueryServiceApiOptions("http://localhost"));
+        var marketDataApi = new MarketDataQueryApi(queryServiceApi);
+
+        var response = await marketDataApi.GetMarketSessionAsync();
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBeNull();
+        response.Value!.IsValid.Should().BeTrue();
+        response.Value.ActiveValueDate.HasValue.Should().Be(response.Value.IsLiveSessionOpen);
+        response.Value.SessionEndUtc.Should().BeAfter(response.Value.SessionStartUtc);
+    }
 }

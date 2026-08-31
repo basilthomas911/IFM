@@ -48,7 +48,9 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         [GetTradingDatesQuery.Verb] = message =>
             message.AsQuery<GetTradingDatesQuery, DateOnly[]>()!,
         [GetValueDateQuery.Verb] = message =>
-            message.AsQuery<GetValueDateQuery, ScalarReadModel<DateOnly>>()!
+            message.AsQuery<GetValueDateQuery, ScalarReadModel<DateOnly>>()!,
+        [GetMarketSessionQuery.Verb] = message =>
+            message.AsQuery<GetMarketSessionQuery, MarketSessionReadModel>()!
     };
 
     /// <summary>
@@ -82,7 +84,9 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         [typeof(GetTradingDatesQuery)] = static (actor, context, query, cancellationToken) =>
             actor.ReceiveAsync(context, (GetTradingDatesQuery)query, cancellationToken),
         [typeof(GetValueDateQuery)] = static (actor, context, query, cancellationToken) =>
-            actor.ReceiveAsync(context, (GetValueDateQuery)query, cancellationToken)
+            actor.ReceiveAsync(context, (GetValueDateQuery)query, cancellationToken),
+        [typeof(GetMarketSessionQuery)] = static (actor, context, query, cancellationToken) =>
+            actor.ReceiveAsync(context, (GetMarketSessionQuery)query, cancellationToken)
     };
 
     async ValueTask ReceiveAsync(
@@ -127,6 +131,17 @@ public class MarketDataQueryActor(IQueryActorContext<MarketDataQueryActor> actor
         cancellationToken.ThrowIfCancellationRequested();
         await context.ReplyAsync(query.Subject.ThreadId, GetValueDateQuery.Verb,
             new ServiceResult<ScalarReadModel<DateOnly>>(result)).ConfigureAwait(false);
+    }
+
+    async ValueTask ReceiveAsync(
+        IQueryActorContext<MarketDataQueryActor> context,
+        GetMarketSessionQuery query,
+        CancellationToken cancellationToken)
+    {
+        var result = await query.GetMarketSessionAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await context.ReplyAsync(query.Subject.ThreadId, GetMarketSessionQuery.Verb,
+            new ServiceResult<MarketSessionReadModel>(result)).ConfigureAwait(false);
     }
 
     /// <summary>

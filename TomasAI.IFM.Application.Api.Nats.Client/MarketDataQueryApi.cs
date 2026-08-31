@@ -193,6 +193,17 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
     }
 
     /// <inheritdoc />
+    public async Task<ServiceResult<MarketSessionReadModel>> GetMarketSessionAsync()
+    {
+        var entityId = new GetMarketSessionParameter();
+        GetMarketSessionQuery query = new()
+        {
+            Subject = new ActorSubject(ActorType.Query, GetMarketSessionQuery.Actor, GetMarketSessionQuery.Verb, entityId.Format()),
+        };
+        return await RequestAsync<GetMarketSessionQuery, MarketSessionReadModel>(query.Subject, query);
+    }
+
+    /// <inheritdoc />
     public async Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
         string underlyingContractId,
         string shortPutOptionContractId,

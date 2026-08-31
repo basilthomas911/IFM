@@ -109,6 +109,42 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
             && watermark.SourceEventId == sourceId);
     }
 
+    [Fact]
+    public void Observe_AfterEodPublication_ReprojectsSnapshotWithNewRevision()
+    {
+        var entityId = EntityId();
+        var state = new MarketOutlookSnapshotCommandState();
+        var eodSource = Guid.NewGuid();
+        var eod = SampleData.EodData with
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            Symbol = "ES"
+        };
+        new PublishMarketOutlookSnapshotCommand(
+            entityId,
+            eodSource,
+            1,
+            DateTime.UtcNow.AddMinutes(-1),
+            eod)
+        {
+            CommandId = eodSource,
+            Subject = Subject(PublishMarketOutlookSnapshotCommand.Verb, entityId)
+        }.Execute(state).Success.Should().BeTrue();
+
+        var componentSource = Guid.NewGuid();
+        ObserveRsi(entityId, componentSource, 2, DateTime.UtcNow)
+            .Execute(state).Success.Should().BeTrue();
+
+        state.Events.Should().HaveCount(2);
+        state.Events[^1].Should().BeOfType<MarketOutlookComponentObservedEvent>();
+        state.WorkingState.Status.Should().Be(MarketOutlookStateStatus.Published);
+        state.WorkingState.PublishedSnapshot.Should().NotBeNull();
+        state.WorkingState.PublishedSnapshot!.Revision.Should().Be(2);
+        state.WorkingState.PublishedSnapshot.FuturesEodData.Should().Be(eod);
+        state.WorkingState.PublishedSnapshot.MissingInputs.Should().NotContain("RSI");
+    }
+
     static ObserveMarketOutlookComponentCommand ObserveRsi(
         MarketOutlookEntityId entityId,
         Guid sourceId,

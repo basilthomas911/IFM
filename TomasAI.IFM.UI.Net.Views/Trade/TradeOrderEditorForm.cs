@@ -39,7 +39,7 @@ public partial class TradeOrderEditorForm
     bool _canonicalOrderSelected;
     bool _legacyOrderSelected;
     LegacyFundOrderHistoryReadModel? _selectedLegacyOrder;
-    Control? _embeddedLegacyTradeBlotter;
+    Control? _embeddedLegacyTradeEditor;
     long _legacyViewerGeneration;
 
     /// <summary>
@@ -104,7 +104,7 @@ public partial class TradeOrderEditorForm
         {
             if (_rendering || _viewModel is null) return;
             Interlocked.Increment(ref _legacyViewerGeneration);
-            await CloseEmbeddedLegacyTradeBlotterAsync();
+            await CloseEmbeddedLegacyTradeEditorAsync();
             var legacy = _historyModeSelector.SelectedIndex == 1;
             if (legacy)
             {
@@ -254,7 +254,7 @@ public partial class TradeOrderEditorForm
     async void TradeOrderEditorForm_FormClosing(object sender, FormClosingEventArgs e)
     {
         Interlocked.Increment(ref _legacyViewerGeneration);
-        await CloseEmbeddedLegacyTradeBlotterAsync();
+        await CloseEmbeddedLegacyTradeEditorAsync();
         if (_viewModel is not null)
         {
             _viewModel.PropertyChanged -= ViewModelPropertyChanged;
@@ -274,7 +274,7 @@ public partial class TradeOrderEditorForm
     async Task LoadFundsAsync()
     {
         Interlocked.Increment(ref _legacyViewerGeneration);
-        await CloseEmbeddedLegacyTradeBlotterAsync();
+        await CloseEmbeddedLegacyTradeEditorAsync();
         _lastTradeIndex = -1;
         _lastTradeOrderIndex = -1;
         _displayedTradeId = null;
@@ -515,7 +515,6 @@ public partial class TradeOrderEditorForm
         });
         return;
 
-        static OrderActionType GetOrderActionType(TradeState tradeState) => tradeState == TradeState.TradeToClose ? OrderActionType.Close : OrderActionType.Open;
     }
 
 
@@ -601,7 +600,7 @@ public partial class TradeOrderEditorForm
     {
         if (_rendering) return;
         Interlocked.Increment(ref _legacyViewerGeneration);
-        await CloseEmbeddedLegacyTradeBlotterAsync();
+        await CloseEmbeddedLegacyTradeEditorAsync();
         _displayedTradeId = null;
         pnlTradeControl.Controls.Clear();
         ddlOrderActionType.Enabled = false;
@@ -661,11 +660,11 @@ public partial class TradeOrderEditorForm
         if (_viewModel.IsLegacyHistoryMode && lstTrades.SelectedItems.Count > 0
             && lstTrades.SelectedItems[0].Tag is LegacyFundTradeHistoryReadModel history)
         {
-            await ShowLegacyTradeBlotterAsync(history);
+            await ShowLegacyTradeEditorAsync(history);
             return;
         }
         Interlocked.Increment(ref _legacyViewerGeneration);
-        await CloseEmbeddedLegacyTradeBlotterAsync();
+        await CloseEmbeddedLegacyTradeEditorAsync();
         if (_viewModel!.FundOrders.Count > 0 && _viewModel!.FundOrderTrades.Count > 0)
         {
             var index = lstTrades.SelectedIndices.Count > 0 ? lstTrades.SelectedIndices[0] : 0;
@@ -751,7 +750,7 @@ public partial class TradeOrderEditorForm
         }
     }
 
-    async Task ShowLegacyTradeBlotterAsync(LegacyFundTradeHistoryReadModel history)
+    async Task ShowLegacyTradeEditorAsync(LegacyFundTradeHistoryReadModel history)
     {
         var generation = Interlocked.Increment(ref _legacyViewerGeneration);
         var composition = history.Composition;
@@ -763,7 +762,7 @@ public partial class TradeOrderEditorForm
         txtDaysToExpiry.Text = composition.TradeDate == DateOnly.MinValue || composition.MaturityDate == DateOnly.MinValue
             ? "Unknown"
             : $"{composition.MaturityDate.DayNumber - composition.TradeDate.DayNumber}";
-        await CloseEmbeddedLegacyTradeBlotterAsync();
+        await CloseEmbeddedLegacyTradeEditorAsync();
         if (generation != Volatile.Read(ref _legacyViewerGeneration))
             return;
         pnlTradeControl.Controls.Clear();
@@ -772,7 +771,7 @@ public partial class TradeOrderEditorForm
         var order = _selectedLegacyOrder?.Order;
         if (trade is null || fund is null || order is null)
         {
-            ShowTradeBlotterUnavailable(
+            ShowTradeEditorUnavailable(
                 trade is null
                     ? $"No corresponding TradeDb trade exists for {composition.OrderId}:{composition.TradeId}."
                     : $"The source Fund or FundOrder is unavailable for {composition.OrderId}:{composition.TradeId}.");
@@ -780,44 +779,61 @@ public partial class TradeOrderEditorForm
             return;
         }
 
-        var valueDate = trade.TradePositions?
-            .Select(position => (DateOnly?)position.ValueDate)
-            .Max()
-            ?? (trade.TradeDate != DateOnly.MinValue
-                ? trade.TradeDate
-                : composition.TradeDate == DateOnly.MinValue ? null : composition.TradeDate);
-        var viewer = TradeBlotterFactory.Create(
-            pnlTradeControl,
-            _appRoot,
-            fund,
-            order,
-            composition,
-            valueDate,
-            [.. _viewModel.BaseContracts],
-            historicalReadOnly: true);
-        if (viewer is null)
+        if (composition.TradeType is not (TradeType.ShortIronCondor or TradeType.LongIronCondor))
         {
-            ShowTradeBlotterUnavailable(
-                $"No real trade blotter is available for trade type {composition.TradeType}.");
+            ShowTradeEditorUnavailable(
+                $"No Iron Condor trade-order editor is available for trade type {composition.TradeType}.");
             UpdateButtons();
             return;
         }
-        if (generation != Volatile.Read(ref _legacyViewerGeneration))
+
+        var baseContract = _viewModel.BaseContracts.FirstOrDefault(contract =>
+            string.Equals(contract.ContractId?.Trim(), trade.UnderlyingContractId?.Trim(), StringComparison.OrdinalIgnoreCase));
+        baseContract ??= _viewModel.BaseContracts.FirstOrDefault(contract =>
+            string.Equals(contract.Symbol?.Trim(), composition.BaseContractSymbol?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (baseContract is null)
         {
-            await CloseControlAsync(viewer);
-            viewer.Dispose();
+            ShowTradeEditorUnavailable(
+                $"The exact base contract '{composition.BaseContractSymbol}' for {composition.OrderId}:{composition.TradeId} is unavailable in reference data.");
+            UpdateButtons();
             return;
         }
 
-        _embeddedLegacyTradeBlotter = viewer;
-        viewer.Dock = DockStyle.Fill;
-        pnlTradeControl.Controls.Add(viewer);
-        if (viewer is IFormControl formControl)
+        var orderActionType = GetOrderActionType(composition.TradeState);
+        var valueDate = orderActionType == OrderActionType.Open
+            ? order.TradeDate
+            : composition.TradeDate;
+        if (valueDate == DateOnly.MinValue)
+            valueDate = trade.TradeDate;
+        var viewModel = new IronCondorTradeOrderViewModel(
+            _appRoot,
+            valueDate,
+            fund.FundId,
+            baseContract,
+            order,
+            composition,
+            orderActionType,
+            _referenceDataService,
+            historicalReadOnly: true,
+            historicalTrade: trade,
+            historicalFundBalance: fund.Balance);
+        var editor = new IronCondorTradeOrderView(this, viewModel);
+        if (generation != Volatile.Read(ref _legacyViewerGeneration))
+        {
+            await CloseControlAsync(editor);
+            editor.Dispose();
+            return;
+        }
+
+        _embeddedLegacyTradeEditor = editor;
+        editor.Dock = DockStyle.Fill;
+        pnlTradeControl.Controls.Add(editor);
+        if (editor is IFormControl formControl)
             formControl.Open();
         UpdateButtons();
     }
 
-    void ShowTradeBlotterUnavailable(string message)
+    void ShowTradeEditorUnavailable(string message)
     {
         pnlTradeControl.Controls.Clear();
         pnlTradeControl.Controls.Add(new Label
@@ -832,15 +848,15 @@ public partial class TradeOrderEditorForm
         });
     }
 
-    async Task CloseEmbeddedLegacyTradeBlotterAsync()
+    async Task CloseEmbeddedLegacyTradeEditorAsync()
     {
-        var viewer = _embeddedLegacyTradeBlotter;
-        _embeddedLegacyTradeBlotter = null;
-        if (viewer is null)
+        var editor = _embeddedLegacyTradeEditor;
+        _embeddedLegacyTradeEditor = null;
+        if (editor is null)
             return;
-        pnlTradeControl.Controls.Remove(viewer);
-        await CloseControlAsync(viewer);
-        viewer.Dispose();
+        pnlTradeControl.Controls.Remove(editor);
+        await CloseControlAsync(editor);
+        editor.Dispose();
     }
 
     static async ValueTask CloseControlAsync(Control viewer)
@@ -852,6 +868,9 @@ public partial class TradeOrderEditorForm
     }
 
     static string LegacyDate(DateOnly value) => value == DateOnly.MinValue ? "Unknown" : $"{value:yyyy-MMM-dd}";
+
+    static OrderActionType GetOrderActionType(TradeState tradeState)
+        => tradeState == TradeState.TradeToClose ? OrderActionType.Close : OrderActionType.Open;
 
     async void btnRemoveTrade_Click(object sender, EventArgs e)
     {

@@ -74,6 +74,24 @@ public static class MarketOutlookSnapshotCommandHandlers
             SourceWatermarks = [.. watermarks.Values.OrderBy(static value => value.ComponentType)],
             Status = MarketOutlookStateStatus.Collecting
         };
+        if (next.FuturesEodData is { } eod && current.PublishedSnapshot is not null)
+        {
+            var missingInputs = MissingInputs(next);
+            var tradeSignal = ComputeTradeSignal(eod, next, missingInputs)
+                ?? current.PublishedSnapshot.FuturesTradeSignal;
+            next = next with
+            {
+                PublishedSnapshot = new MarketOutlookSnapshotReadModel(
+                    command.EntityId.ContractId,
+                    command.EntityId.ValueDate,
+                    checked(current.PublishedSnapshot.Revision + 1),
+                    command.SourceEventTimestamp,
+                    eod,
+                    tradeSignal,
+                    string.Join(", ", missingInputs)),
+                Status = MarketOutlookStateStatus.Published
+            };
+        }
         var applied = state.Update(new MarketOutlookComponentObservedEvent
         {
             Subject = EventSubject(
@@ -151,7 +169,7 @@ public static class MarketOutlookSnapshotCommandHandlers
         };
 
         var missingInputs = MissingInputs(reconciled);
-        var tradeSignal = ComputeTradeSignal(command, reconciled, missingInputs)
+        var tradeSignal = ComputeTradeSignal(command.FuturesEodData, reconciled, missingInputs)
             ?? current.PublishedSnapshot?.FuturesTradeSignal;
         var snapshot = new MarketOutlookSnapshotReadModel(
             command.EntityId.ContractId,
@@ -191,14 +209,14 @@ public static class MarketOutlookSnapshotCommandHandlers
     }
 
     static FuturesTradeSignalV2ReadModel? ComputeTradeSignal(
-        PublishMarketOutlookSnapshotCommand command,
+        TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesEodDataV2ReadModel futuresEodData,
         MarketOutlookWorkingStateReadModel state,
         IReadOnlyCollection<string> missingInputs)
     {
         if (missingInputs.Count != 0)
             return null;
         var tradeSignalCommand = new UpdateFuturesTradeSignalCommand(
-            command.FuturesEodData,
+            futuresEodData,
             state.FuturesRsiSignal!,
             state.FuturesTdiSignal!,
             new FuturesItiSignalDataReadModel(

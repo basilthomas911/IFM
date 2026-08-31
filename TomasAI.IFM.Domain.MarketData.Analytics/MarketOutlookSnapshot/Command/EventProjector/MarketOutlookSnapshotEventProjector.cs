@@ -38,8 +38,18 @@ public sealed class MarketOutlookSnapshotEventProjector
                 MarketOutlookComponentObservedEvent,
                 MarketOutlookComponentObservedCompleteEvent,
                 MarketOutlookComponentObservedFailEvent,
-                MarketOutlookEntityId>((observed, cancellationToken) => actorContext.DbFactory.MarketDataDb
-                    .UpsertMarketOutlookWorkingStateAsync(observed.WorkingState, cancellationToken)),
+                MarketOutlookEntityId>(async (observed, cancellationToken) =>
+                {
+                    await actorContext.DbFactory.MarketDataDb
+                        .UpsertMarketOutlookWorkingStateAsync(observed.WorkingState, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (observed.WorkingState.PublishedSnapshot is { IsValid: true } snapshot)
+                    {
+                        await actorContext.DbFactory.MarketDataDb
+                            .UpsertMarketOutlookSnapshotAsync(snapshot, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                }),
             DescribeRealtimeTerminal<
                 MarketOutlookSnapshotPublishedEvent,
                 MarketOutlookSnapshotPublishedCompleteEvent,

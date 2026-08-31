@@ -176,6 +176,48 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 && notification.MarketOutlook == snapshot));
     }
 
+    [Fact]
+    public async Task ComponentProjectionComplete_PublishesReprojectedFrontendSnapshot()
+    {
+        var context = Context();
+        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
+        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
+        var snapshot = new MarketOutlookSnapshotReadModel
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            Revision = 4,
+            UpdatedOn = DateTime.UtcNow,
+            FuturesEodData = SampleData.EodData with
+            {
+                ContractId = entityId.ContractId,
+                ValueDate = entityId.ValueDate
+            }
+        };
+        var completed = new MarketOutlookComponentObservedCompleteEvent
+        {
+            Subject = RealtimeSubject(MarketOutlookComponentObservedCompleteEvent.Verb, entityId),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entityId,
+            WorkingState = new MarketOutlookWorkingStateReadModel
+            {
+                EntityId = entityId,
+                Revision = 7,
+                PublishedSnapshot = snapshot,
+                Status = MarketOutlookStateStatus.Published
+            }
+        };
+
+        await actor.InvokeReceiveAsync(context, completed);
+
+        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
+            Arg.Is<MarketOutlookUpdatedNotifyEvent>(notification =>
+                notification.EntityId == entityId
+                && notification.CommandId == completed.CommandId
+                && notification.MarketOutlook == snapshot));
+    }
+
     static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context(
         IDbContextFactory? dbFactory = null)
     {

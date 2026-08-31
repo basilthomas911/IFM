@@ -42,6 +42,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
     readonly TimeProvider _timeProvider;
     readonly IReferenceDataService _referenceDataService;
+    readonly bool _historicalReadOnly;
+    readonly OptionTradeReadModel? _historicalTrade;
+    readonly decimal _historicalFundBalance;
     readonly object _liveStreamMetricsGate = new();
     readonly Dictionary<string, LatestValueChannelMetrics> _futuresOptionTickMetrics = [];
     IAppRoot _appRoot;
@@ -101,7 +104,10 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         FundOrderTradeReadModel fundOrderTrade,
         OrderActionType orderActionType,
         IReferenceDataService referenceDataService,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        bool historicalReadOnly = false,
+        OptionTradeReadModel? historicalTrade = null,
+        decimal historicalFundBalance = 0m)
     {
         switch(fundOrderTrade.TradeType)
         {
@@ -111,6 +117,16 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             default:
                 throw new InvalidOperationException($"IronCondorTradeOrderViewModel.Constructor: invalid trade type '{fundOrderTrade.TradeType}'");
         }
+        if (historicalReadOnly && historicalTrade is null)
+            throw new ArgumentNullException(
+                nameof(historicalTrade),
+                "A hydrated TradeDb option trade is required for historical read-only display.");
+        if (historicalTrade is not null
+            && (historicalTrade.OrderId != fundOrderTrade.OrderId
+                || historicalTrade.TradeId != fundOrderTrade.TradeId))
+            throw new ArgumentException(
+                $"Historical TradeDb identity {historicalTrade.OrderId}:{historicalTrade.TradeId} does not match composition {fundOrderTrade.OrderId}:{fundOrderTrade.TradeId}.",
+                nameof(historicalTrade));
         _appRoot = appRoot;
         _referenceDataService = referenceDataService
             ?? throw new ArgumentNullException(nameof(referenceDataService));
@@ -121,6 +137,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         _fundOrderTrade = fundOrderTrade;
         _orderActionType = orderActionType;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _historicalReadOnly = historicalReadOnly;
+        _historicalTrade = historicalTrade;
+        _historicalFundBalance = historicalFundBalance;
         _putSpreadStrikeWidth = 30; // change to get strike width from reference data...
         _callSpreadStrikeWidth = 15; // change to get strike width from reference data...
         _liveFeedQuoteId = Guid.Empty;
@@ -129,6 +148,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     }
 
     public IAppRoot AppRoot => _appRoot;
+    public bool IsHistoricalReadOnly => _historicalReadOnly;
     public DateOnly ValueDate => _valueDate;
     public DateOnly TradeDate => _ironCondorTrade.TradeDate;
     public DateOnly MaturityDate => _ironCondorTrade.MaturityDate;
@@ -263,6 +283,13 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         IsLoaded = false;
         try
         {
+            if (_historicalReadOnly)
+            {
+                LoadHistoricalTradeOrderData();
+                IsLoaded = true;
+                PublishLoadedState();
+                return;
+            }
             _defaultFuturesContractDefinitions =
                 (await _referenceDataService.GetDefaultFuturesContractDefinitionsAsync())
                 .RequireValue();
@@ -270,13 +297,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             await LoadRiskFreeRate();
             await LoadIronCondorTradeOrderData();
             IsLoaded = true;
-            OnPropertyChanged(nameof(TradeDate));
-            OnPropertyChanged(nameof(MaturityDate));
-            OnPropertyChanged(nameof(IronCondorTrade));
-            OnPropertyChanged(nameof(OptionLegs));
-            OnPropertyChanged(nameof(OptionLegData));
-            OnPropertyChanged(nameof(TradePosition));
-            OnPropertyChanged(nameof(OrderActionType));
+            PublishLoadedState();
         }
         catch (UiServiceOperationException exception)
         {
@@ -297,6 +318,43 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         }
     }
 
+    void LoadHistoricalTradeOrderData()
+    {
+        _ironCondorTrade = _historicalTrade!;
+        FundBalance = _historicalFundBalance;
+        StrikePrices = _ironCondorTrade.OptionLegs?
+            .Select(leg => (object)leg.StrikePrice)
+            .Distinct()
+            .OrderBy(strike => strike)
+            .ToArray() ?? [];
+        SelectedStrikePriceIndex = StrikePrices.Length == 0 ? -1 : StrikePrices.Length / 2;
+        MapHistoricalOptionLeg();
+        MapOptionLegData();
+        AssetPrice = GetTradePosition(PutSpreadTradeType, TradeStatus)?.AssetPrice
+            ?? GetTradePosition(CallSpreadTradeType, TradeStatus)?.AssetPrice
+            ?? 0m;
+    }
+
+    void PublishLoadedState()
+    {
+        OnPropertyChanged(nameof(TradeDate));
+        OnPropertyChanged(nameof(MaturityDate));
+        OnPropertyChanged(nameof(IronCondorTrade));
+        OnPropertyChanged(nameof(OptionLegs));
+        OnPropertyChanged(nameof(OptionLegData));
+        OnPropertyChanged(nameof(TradePosition));
+        OnPropertyChanged(nameof(OrderActionType));
+    }
+
+    void MapHistoricalOptionLeg()
+    {
+        _optionLegMap = [];
+        foreach (var optionLeg in _ironCondorTrade.OptionLegs ?? [])
+            _optionLegMap.TryAdd(
+                (optionLeg.OptionLegAction, optionLeg.OptionLegType),
+                optionLeg);
+    }
+
     /// <summary>
     /// Initiates the process to set the maximum profit for a fund.
     /// </summary>
@@ -305,6 +363,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// process.</remarks>
     public async Task SetFundMaxProfit()
     {
+        ThrowIfHistoricalReadOnly();
         try
         {
             await _riskMarginLifecycle.InitializeAsync(CancellationToken.None);
@@ -630,6 +689,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// <param name="fundOrderTradeId">The identifier of the trade to be removed from the fund order. Cannot be null.</param>
     public async Task RemoveTradeFromFundOrder(FundOrderTradeId fundOrderTradeId)
     {
+        ThrowIfHistoricalReadOnly();
         try
         {
             await _appRoot.Services.FundCommands.ExecuteObservableAsync(
@@ -652,6 +712,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// <returns>The placed-order command correlation identifier.</returns>
     public async Task<Guid> SubmitOrder(TradeOrderReadModel tradeOrder)
     {
+        ThrowIfHistoricalReadOnly();
         // get manual trade fills if not sending to broker for trade fills...
         _ironCondorTrade = _ironCondorTrade with
         {
@@ -711,6 +772,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
 
     public async Task TurnLiveFeedOn()
     {
+        ThrowIfHistoricalReadOnly();
         try
         {
             await _liveFeedLifecycle.InitializeAsync(CancellationToken.None);
@@ -1157,6 +1219,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     /// <param name="orderActionType"></param>
     public async Task<bool> UpdateOrderActionAsync(OrderActionType orderActionType)
     {
+        ThrowIfHistoricalReadOnly();
         SetOrderAction(orderActionType);
         FundReadModel[] funds = [];
         FundOrderReadModel[] fundOrders = [];
@@ -1196,6 +1259,12 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
             PublishError(exception, "Loading Iron Condor Parent Trade Error");
             throw;
         }
+    }
+
+    void ThrowIfHistoricalReadOnly()
+    {
+        if (_historicalReadOnly)
+            throw new InvalidOperationException("Historical trade orders are read-only.");
     }
 
     public OptionTradeLegReadModel GetOptionLeg(OptionLegAction optionLegAction, OptionType optionType)

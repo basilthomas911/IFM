@@ -44,6 +44,8 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
     }
 
+    public bool IsHistoricalReadOnly => _viewModel.IsHistoricalReadOnly;
+
     async void IronCondorTradeOrderControl_Load(object sender, EventArgs e)
     {
         try
@@ -117,14 +119,16 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
             strikeSelector.Items.Clear();
             strikeSelector.Items.AddRange(_viewModel.StrikePrices);
         }
-        ShowTradeLimits((_viewModel.IronCondorTrade.TradeLimit!, _viewModel.FundBalance));
-        ShowPutCreditSpreadTradeTypeLimit(
-            _viewModel.IronCondorTrade.TradeTypeLimits!.Get(_viewModel.PutSpreadTradeType)!);
-        ShowCallCreditSpreadTradeTypeLimit(
-            _viewModel.IronCondorTrade.TradeTypeLimits!.Get(_viewModel.CallSpreadTradeType)!);
+        if (_viewModel.IronCondorTrade.TradeLimit is { } tradeLimit)
+            ShowTradeLimits((tradeLimit, _viewModel.FundBalance));
+        if (_viewModel.IronCondorTrade.TradeTypeLimits?.Get(_viewModel.PutSpreadTradeType) is { } putLimit)
+            ShowPutCreditSpreadTradeTypeLimit(putLimit);
+        if (_viewModel.IronCondorTrade.TradeTypeLimits?.Get(_viewModel.CallSpreadTradeType) is { } callLimit)
+            ShowCallCreditSpreadTradeTypeLimit(callLimit);
         ShowIronCondorTradeDetails();
         ShowIronCondorTradePositions();
         ShowAssetPrice(_viewModel.AssetPrice);
+        ApplyHistoricalReadOnlyState();
     }
 
     public DateOnly MaturityDate => DateOnly.FromDateTime(dtmLeg1LastTradeDate.Value);
@@ -160,6 +164,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         OrderActionType orderActionType,
         ITradeOrderConfirmationService tradeOrderConfirmation)
     {
+        ThrowIfHistoricalReadOnly();
         _viewModel.SetTradeStatus(orderActionType);
         _viewModel.SetTradeDate(tradeDate);
         _viewModel.SetMaturityDate(this.MaturityDate);
@@ -218,6 +223,12 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     public async Task SetLiveFeedAsync(bool enabled)
     {
+        if (_viewModel.IsHistoricalReadOnly)
+        {
+            if (enabled)
+                ThrowIfHistoricalReadOnly();
+            return;
+        }
         ClearPrices();
         if (enabled)
             await _viewModel.TurnLiveFeedOn();
@@ -227,6 +238,8 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     public void SetNearestStrikePrices()
     {
+        if (_viewModel.IsHistoricalReadOnly)
+            return;
         SetStrikePriceWidth(ddlLeg1StrikePrice, _viewModel.NearestPutStrike);
         SetStrikePriceWidth(ddlLeg3StrikePrice, _viewModel.NearestCallStrike);
         txtLeg1ExpectedOTMProbability.Text = $"{_viewModel.OTMPutProbability:P2}";
@@ -330,7 +343,8 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     void SetReadOnlyControls()
     {
-        var readOnly = _viewModel.FundOrderTrade.TradeState != TradeState.NewTrade;
+        var readOnly = _viewModel.IsHistoricalReadOnly
+            || _viewModel.FundOrderTrade.TradeState != TradeState.NewTrade;
         var controls = new Control[] { 
             txtLeg1BidPrice, txtLeg1AskPrice, txtLeg1ActualOTMProbability,txtLeg1MaxLossLimit, txtLeg1ExpectedOTMProbability, txtLeg1MinProfitLimit, txtLeg1NetSpread, txtLeg1TradeValue,
             txtLeg2BidPrice, txtLeg2AskPrice, 
@@ -338,6 +352,47 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
             txtLeg4BidPrice, txtLeg4AskPrice,
             txtFundBalance, txtRiskMargin, txtMaxLossLimit, txtMaxProfit, txtMaxProfitLimit, txtMaxReturn, txtMinProfitTarget, txtAssetPrice};
         EnableControls(readOnly, controls);
+    }
+
+    void ApplyHistoricalReadOnlyState()
+    {
+        if (!_viewModel.IsHistoricalReadOnly)
+            return;
+
+        AccessibleDescription = "Historical Iron Condor trade-order editor; read-only";
+        foreach (var control in GetDescendants(this))
+        {
+            switch (control)
+            {
+                case TextBox textBox:
+                    textBox.ReadOnly = true;
+                    break;
+                case ComboBox comboBox:
+                    comboBox.Enabled = false;
+                    break;
+                case DateTimePicker dateTimePicker:
+                    dateTimePicker.Enabled = false;
+                    break;
+                case NumericUpDown numericUpDown:
+                    numericUpDown.ReadOnly = true;
+                    numericUpDown.Enabled = false;
+                    break;
+                case Button button:
+                    button.Enabled = false;
+                    break;
+            }
+        }
+        lblStrikePrice.Enabled = false;
+
+        static IEnumerable<Control> GetDescendants(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                yield return child;
+                foreach (var descendant in GetDescendants(child))
+                    yield return descendant;
+            }
+        }
     }
 
     void ShowLiveFeedValues(FuturesEodDataV2ReadModel futuresEodData)
@@ -851,10 +906,14 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
     }
 
     public Task OrderActionTypeChangedAsync(OrderActionType orderActionType)
-        => ApplyOrderActionAsync(orderActionType);
+        => _viewModel.IsHistoricalReadOnly
+            ? Task.CompletedTask
+            : ApplyOrderActionAsync(orderActionType);
 
     async Task ApplyOrderActionAsync(OrderActionType orderActionType)
     {
+        if (_viewModel.IsHistoricalReadOnly)
+            return;
         _viewModel.SetOrderAction(orderActionType);
         if (_viewModel.FundOrderTrade.TradeState != TradeState.NewTrade)
             return;
@@ -917,6 +976,8 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     async void btnSetRiskProfit_Click(object sender, EventArgs e)
     {
+        if (_viewModel.IsHistoricalReadOnly)
+            return;
         txtRiskProfit.Text = "Loading...";
         try
         {
@@ -930,5 +991,11 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         {
             this.ShowErrorMessage(exception.Message, "Setting Fund Max Profit Error");
         }
+    }
+
+    void ThrowIfHistoricalReadOnly()
+    {
+        if (_viewModel.IsHistoricalReadOnly)
+            throw new InvalidOperationException("Historical trade orders are read-only.");
     }
 }

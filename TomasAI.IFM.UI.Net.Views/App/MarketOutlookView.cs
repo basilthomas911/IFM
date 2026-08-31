@@ -14,11 +14,26 @@ namespace TomasAI.IFM.UI.Net.Views.App
 {
     public partial class MarketOutlookView : UserControl
     {
+        readonly Label _snapshotStatus = new()
+        {
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            ForeColor = Color.Gainsboro,
+            BackColor = Color.FromArgb(32, 32, 32),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(4, 0, 4, 0),
+            Text = "Market Outlook: no persisted snapshot"
+        };
+
         public MarketOutlookView()
         {
             try
             {
                 InitializeComponent();
+                tlpMarketOutlook.RowCount = 3;
+                tlpMarketOutlook.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+                tlpMarketOutlook.Controls.Add(_snapshotStatus, 0, 2);
+                tlpMarketOutlook.SetColumnSpan(_snapshotStatus, 4);
                 ConfigureMarketDataRowSpacing();
                 txtRSI.Text = "No";
                 txtRSI.BackColor = Color.Red;
@@ -136,11 +151,20 @@ namespace TomasAI.IFM.UI.Net.Views.App
         {
         }
 
+        public void RefreshSnapshotStatus(string status)
+        {
+            _snapshotStatus.Text = string.IsNullOrWhiteSpace(status)
+                ? "Market Outlook: no persisted snapshot"
+                : status;
+            _snapshotStatus.AccessibleName = "Market Outlook snapshot status";
+            _snapshotStatus.AccessibleDescription = _snapshotStatus.Text;
+        }
+
         public void ResizeView(Control parentControl)
         {
             this.Width = parentControl.Width;
             this.Height = parentControl.Height;
-            tlpMarketOutlook.Height = 55;
+            tlpMarketOutlook.Height = 75;
             tlpMarketOutlook.Controls[0].Width = parentControl.Width / 4;
             tlpMarketOutlook.Controls[1].Width = parentControl.Width / 4;
             tlpMarketOutlook.Controls[2].Width = parentControl.Width / 4;

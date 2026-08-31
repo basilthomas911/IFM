@@ -14,6 +14,7 @@ using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 using TomasAI.IFM.UI.Net.Services.Application;
@@ -149,12 +150,21 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         Field<ComboBox>(ironCondor, "ddlLiveFeed").Enabled.Should().BeFalse();
         Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphEodData").Should().NotBeNull();
         Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphSpreadDistribution").Should().NotBeNull();
+
+        host.Controls.Add(ironCondor);
+        host.Size = new Size(800, 600);
+        ((IFormControl)ironCondor).Resize(host);
+        Field<SplitContainer>(ironCondor, "pnlRealTimeData").Visible.Should().BeFalse();
+
+        host.Size = Size.Empty;
+        ((IFormControl)ironCondor).Resize(host);
+        Field<SplitContainer>(ironCondor, "pnlRealTimeData").Visible.Should().BeFalse();
     }
 
     [Fact]
     [Trait("Gate", "PF-31")]
     [Trait("Category", "PortfolioLegacyHistory")]
-    public async Task Selecting_legacy_trade_embeds_actual_blotter_and_missing_TradeDb_shows_only_unavailable_message()
+    public async Task Selecting_legacy_trade_embeds_original_order_editor_and_missing_TradeDb_shows_only_unavailable_message()
     {
         var root = Substitute.For<IAppRoot>();
         var services = Substitute.For<IUiServiceCatalog>();
@@ -195,20 +205,29 @@ public sealed class PortfolioTradeOrdersUiSystemTests
             new ServiceOk<LegacyFundHistoryReadModel[]>([new() { Fund = legacyFund, OrderCount = 1, CompositionTradeCount = 1 }]));
         queries.GetLegacyFundOrdersAsync(1004, Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), 1000, Arg.Any<CancellationToken>()).Returns(
             new ServiceOk<LegacyFundOrderHistoryReadModel[]>([orderHistory]));
-        var vm = new TradeOrderEditorViewModel(root, new DateOnly(2026, 8, 30), [], Substitute.For<IReferenceDataService>());
+        FuturesContractV2ReadModel[] contracts =
+        [
+            new()
+            {
+                ContractId = "ES20240920",
+                Symbol = "ES",
+                LastTradeDate = new DateOnly(2024, 9, 20)
+            }
+        ];
+        var vm = new TradeOrderEditorViewModel(root, new DateOnly(2026, 8, 30), contracts, Substitute.For<IReferenceDataService>());
         vm.SetOrderDateRange(new DateTime(2000, 1, 1), new DateTime(2026, 9, 1));
         await vm.SetLegacyHistoryModeAsync(true);
         using var form = new TradeOrderEditorForm(root, Substitute.For<IReferenceDataService>());
         form.LoadViewModel(vm);
         SetField(form, "_selectedLegacyOrder", orderHistory);
 
-        await InvokeTask(form, "ShowLegacyTradeBlotterAsync", history);
+        await InvokeTask(form, "ShowLegacyTradeEditorAsync", history);
 
         var panel = Field<Panel>(form, "pnlTradeControl");
-        panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<IronCondorView>();
-        ((IronCondorView)panel.Controls[0]).IsHistoricalReadOnly.Should().BeTrue();
+        panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<IronCondorTradeOrderView>();
+        ((IronCondorTradeOrderView)panel.Controls[0]).IsHistoricalReadOnly.Should().BeTrue();
 
-        await InvokeTask(form, "ShowLegacyTradeBlotterAsync", history with { TradeDbTrade = null });
+        await InvokeTask(form, "ShowLegacyTradeEditorAsync", history with { TradeDbTrade = null });
 
         panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<Label>();
         panel.Controls[0].Text.Should().Be("No corresponding TradeDb trade exists for 1084:1090.");

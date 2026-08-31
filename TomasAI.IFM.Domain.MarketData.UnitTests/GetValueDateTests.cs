@@ -57,6 +57,26 @@ public sealed class GetValueDateTests
             .Should().Be(DateOnly.Parse(expected));
 
     [Theory]
+    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-07", null, false)]
+    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-07", null, false)]
+    [InlineData("2026-08-09T18:00:00-04:00", "2026-08-10", "2026-08-10", true)]
+    [InlineData("2026-08-10T18:00:00-04:00", "2026-08-11", "2026-08-11", true)]
+    public void MarketSession_SeparatesOperationalAndLiveValueDates(
+        string instant,
+        string operational,
+        string? active,
+        bool isOpen)
+    {
+        var result = GetMarketSession.Calculate(DateTimeOffset.Parse(instant));
+
+        result.IsValid.Should().BeTrue();
+        result.OperationalValueDate.Should().Be(DateOnly.Parse(operational));
+        result.ActiveValueDate.Should().Be(active is null ? null : DateOnly.Parse(active));
+        result.IsLiveSessionOpen.Should().Be(isOpen);
+        result.SessionEndUtc.Should().BeAfter(result.SessionStartUtc);
+    }
+
+    [Theory]
     [InlineData("2026-08-18", "2026-08-17T22:00:00+00:00")]
     [InlineData("2026-11-03", "2026-11-02T23:00:00+00:00")]
     public void SessionStartUtc_UsesPreviousDayAtSixPmEastern(

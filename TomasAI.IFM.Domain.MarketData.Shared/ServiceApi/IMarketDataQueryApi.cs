@@ -28,6 +28,7 @@ public interface IMarketDataQueryApi
     Task<ServiceResult<YieldCurveRateYearsReadModel>> GetYieldCurveRateYearsAsync();
     Task<ServiceResult<ScalarReadModel<bool>>> YieldCurveRateExistsAsync(DateOnly valueDate);
     Task<ServiceResult<ScalarReadModel<DateOnly>>> GetValueDateAsync();
+    Task<ServiceResult<MarketSessionReadModel>> GetMarketSessionAsync();
     Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
         string underlyingContractId,
         string shortPutOptionContractId,

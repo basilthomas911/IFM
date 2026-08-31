@@ -135,6 +135,16 @@ public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketData
     }
 
     /// <inheritdoc />
+    public async Task<ServiceResult<MarketSessionReadModel>> GetMarketSessionAsync()
+    {
+        var qryParam = new GetMarketSessionParameter();
+        return await _querySvc.ExecuteQueryAsync<MarketSessionReadModel>(
+            MarketDataQueryUriPath.GetMarketSession,
+            qryParam,
+            GetMarketSessionQuery.ErrorId);
+    }
+
+    /// <inheritdoc />
     public async Task<ServiceResult<IronCondorMarketDataReadModel>> GetIronCondorMarketDataAsync(
         string underlyingContractId,
         string shortPutOptionContractId,

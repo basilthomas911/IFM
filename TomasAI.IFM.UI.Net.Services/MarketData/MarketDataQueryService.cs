@@ -185,6 +185,10 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     public Task GetValueDateAsync(Func<DateOnly?, Task> onCompleted)
         => ExecuteAsync(_queryApi.GetValueDateAsync, vm => onCompleted(vm?.Value));
 
+    /// <summary>Gets operational and live-session dates from the authoritative market-session policy.</summary>
+    public Task GetMarketSessionAsync(Func<MarketSessionReadModel, Task> onCompleted)
+        => ExecuteAsync(_queryApi.GetMarketSessionAsync, onCompleted);
+
     /// <summary>
     /// get yield curve rates by date range
     /// </summary>

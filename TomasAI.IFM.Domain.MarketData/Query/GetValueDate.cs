@@ -22,11 +22,16 @@ public static class GetValueDate
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(CalculateValueDate(DateTime.Now)!);
+        return ValueTask.FromResult(CalculateValueDate(TimeProvider.System.GetUtcNow())!);
     }
 
     internal static ScalarReadModel<DateOnly>? CalculateValueDate(DateTime today)
         => FuturesTradingValueDate.TryGet(today, out var valueDate)
+            ? new ScalarReadModel<DateOnly>(valueDate)
+            : null;
+
+    internal static ScalarReadModel<DateOnly>? CalculateValueDate(DateTimeOffset instant)
+        => FuturesTradingValueDate.TryGet(instant, out var valueDate)
             ? new ScalarReadModel<DateOnly>(valueDate)
             : null;
 }
