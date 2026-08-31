@@ -12,6 +12,7 @@ public sealed class PortfolioFinancialPolicyScenarios
     [Fact]
     [Trait("Gate", "PF-23")]
     [Trait("Gate", "PF-24")]
+    [Trait("Gate", "PF-27")]
     [Trait("Category", "Portfolio")]
     public void Given_three_broad_families_when_a_replacement_is_activated_then_the_old_version_is_superseded_and_the_new_version_is_active()
     {
@@ -30,6 +31,7 @@ public sealed class PortfolioFinancialPolicyScenarios
 
     [Fact]
     [Trait("Gate", "PF-23")]
+    [Trait("Gate", "PF-27")]
     [Trait("Category", "Portfolio")]
     public void Given_a_configured_but_zero_capacity_family_when_resolving_limits_then_new_exposure_is_blocked()
     {

@@ -14,6 +14,7 @@ public sealed class PortfolioFinancialPolicyCatalogVerificationTests
     [InlineData(3, 0, false)]
     [Trait("Gate", "PF-23")]
     [Trait("Gate", "PF-26")]
+    [Trait("Gate", "PF-27")]
     [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
     public void Futures_vertical_spread_and_iron_condor_resolve_exact_most_restrictive_caps(int familyId, decimal expectedRisk, bool permits)

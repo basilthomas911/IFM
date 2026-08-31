@@ -65,10 +65,12 @@ public sealed class PortfolioRiskPolicyForm : Form
         Add(global, 2, 0, "Deployable Capital", _deployable); Add(global, 2, 2, "Risk Per Trade", _perTrade);
         Add(global, 3, 0, "Aggregate Risk", _aggregate); Add(global, 3, 2, "Maximum Margin", _margin);
         Add(global, 4, 0, "Gross Notional", _notional); Add(global, 4, 2, "Open Positions / Drawdown", Pair(_positions, _drawdown));
-        var details = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 300 };
-        details.Panel1.Controls.Add(global); details.Panel2.Controls.Add(_families);
-        var body = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 390 };
-        body.Panel1.Controls.Add(_policies); body.Panel2.Controls.Add(details);
+        var details = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = PortfolioUiStyle.Surface };
+        details.RowStyles.Add(new(SizeType.Absolute, 300)); details.RowStyles.Add(new(SizeType.Percent, 100));
+        details.Controls.Add(global, 0, 0); details.Controls.Add(_families, 0, 1);
+        var body = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 1, ColumnCount = 2, BackColor = PortfolioUiStyle.Surface };
+        body.ColumnStyles.Add(new(SizeType.Absolute, 390)); body.ColumnStyles.Add(new(SizeType.Percent, 100));
+        body.Controls.Add(_policies, 0, 0); body.Controls.Add(details, 1, 0);
         _status.Dock = DockStyle.Bottom; _status.Height = 34;
         Controls.Add(body); Controls.Add(actions); Controls.Add(_header); Controls.Add(_status);
         _policies.SelectionChanged += (_, _) => BindSelected();

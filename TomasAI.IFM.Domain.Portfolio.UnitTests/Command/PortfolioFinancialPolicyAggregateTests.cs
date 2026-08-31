@@ -28,6 +28,7 @@ public sealed class PortfolioFinancialPolicyAggregateTests
 
     [Fact]
     [Trait("Gate", "PF-23")]
+    [Trait("Gate", "PF-27")]
     public void Validation_rejects_family_cap_above_global_and_duplicate_versioned_family()
     {
         var policy = ValidPolicy() with
@@ -48,6 +49,7 @@ public sealed class PortfolioFinancialPolicyAggregateTests
     [InlineData(false, 1_000, 5_000, 20_000, 200_000, 5, false)]
     [InlineData(true, 0, 5_000, 20_000, 200_000, 5, false)]
     [Trait("Gate", "PF-23")]
+    [Trait("Gate", "PF-27")]
     [Trait("Gate", "PF-29")]
     public void Effective_caps_are_most_restrictive_and_zero_or_disabled_fails_closed(
         bool enabled, decimal familyRisk, decimal familyAggregate, decimal familyMargin, decimal familyNotional,
@@ -79,6 +81,7 @@ public sealed class PortfolioFinancialPolicyAggregateTests
 
     [Fact]
     [Trait("Gate", "PF-24")]
+    [Trait("Gate", "PF-27")]
     public void Immutable_version_activation_supersedes_prior_version_and_replays_identically()
     {
         var aggregate = new PortfolioFinancialPolicyAggregate();
@@ -104,6 +107,7 @@ public sealed class PortfolioFinancialPolicyAggregateTests
 
     [Fact]
     [Trait("Gate", "PF-24")]
+    [Trait("Gate", "PF-27")]
     public void Delete_is_allowed_only_for_never_active_unreferenced_draft()
     {
         var draft = new PortfolioFinancialPolicyAggregate();

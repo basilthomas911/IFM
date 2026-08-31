@@ -93,6 +93,7 @@ public sealed class PortfolioLiveHostEndToEndTests
     [Trait("Gate", "PF-13")]
     [Trait("Gate", "PF-14")]
     [Trait("Gate", "PF-15")]
+    [Trait("Gate", "PF-27")]
     [Trait("Gate", "PF-28")]
     [Trait("Category", "PortfolioLiveHostPipeline")]
     public async Task Production_NATS_actors_execute_configuration_resolution_reservation_composition_and_risk()
