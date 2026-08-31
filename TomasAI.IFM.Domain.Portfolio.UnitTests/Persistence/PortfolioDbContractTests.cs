@@ -13,17 +13,17 @@ public sealed class PortfolioDbContractTests
     public void Every_query_is_partitioned_bounded_and_never_uses_allow_filtering()
     {
         var queries = typeof(PortfolioDbCql).GetFields().Where(x => x.Name.StartsWith("Get", StringComparison.Ordinal)).Select(x => (string)x.GetValue(null)!).ToArray();
-        queries.Should().HaveCount(15);
+        queries.Should().HaveCount(19);
         queries.Should().OnlyContain(x => x.Contains("WHERE", StringComparison.OrdinalIgnoreCase));
         queries.Should().OnlyContain(x => !x.Contains("ALLOW FILTERING", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
     [Trait("Gate", "PF-08")]
-    public void Schema_defines_all_twelve_new_domain_tables_without_legacy_names()
+    public void Schema_defines_all_sixteen_new_domain_tables_without_legacy_names()
     {
         var schemas = typeof(PortfolioSchemaCql).GetFields().Select(x => (string)x.GetValue(null)!).ToArray();
-        schemas.Should().HaveCount(13);
+        schemas.Should().HaveCount(16);
         schemas.Should().OnlyContain(x => x.Contains("IF NOT EXISTS", StringComparison.OrdinalIgnoreCase));
         schemas.Should().OnlyContain(x => !x.Contains(" fund ", StringComparison.OrdinalIgnoreCase) && !x.Contains("fund_order ", StringComparison.OrdinalIgnoreCase));
     }
@@ -48,7 +48,7 @@ public sealed class PortfolioDbContractTests
             .Where(x => x.Name.StartsWith("Delete", StringComparison.Ordinal))
             .Select(x => (string)x.GetValue(null)!).ToArray();
 
-        deletes.Should().HaveCount(7);
+        deletes.Should().HaveCount(10);
         deletes.Should().OnlyContain(x => x.Contains("DELETE FROM", StringComparison.OrdinalIgnoreCase));
         deletes.Should().OnlyContain(x => x.Contains("USING TIMESTAMP :projectionWriteTimestamp", StringComparison.Ordinal));
         deletes.Should().OnlyContain(x => x.Contains("WHERE", StringComparison.OrdinalIgnoreCase));

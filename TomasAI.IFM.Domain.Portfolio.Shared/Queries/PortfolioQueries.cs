@@ -1,5 +1,6 @@
 using MessagePack;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,13 +14,14 @@ public static class PortfolioQuerySubjects
 }
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record PortfolioQuery<TParameters, TResult> : IQuery<TResult> where TResult : class
+public sealed record PortfolioQuery<TParameters, TResult> : IQuery<TResult>, IPortfolioRequestMetadata where TResult : class
 {
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public ActorEntityId QueryEntityId { get; init; } = ActorEntityId.Default;
     [Key(2)] public TParameters Parameters { get; init; } = default!;
     [Key(3)] public Guid CorrelationId { get; init; }
     [Key(4)] public DateTime RequestedOnUtc { get; init; }
+    [Key(5)] public PortfolioAccessContext Access { get; init; } = new();
     [IgnoreMember] public int ErrorCode => PortfolioQuerySubjects.ErrorCode;
     [IgnoreMember] public string? QueryParams => QueryEntityId.Format();
     [IgnoreMember] IActorEntityId IQuery.EntityId => QueryEntityId;

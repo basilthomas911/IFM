@@ -2,6 +2,7 @@ using FluentAssertions;
 using MessagePack;
 using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
@@ -17,7 +18,7 @@ public sealed class PortfolioNatsClientTests
     [Fact]
     [Trait("Gate", "PF-10")]
     [Trait("Category", "Portfolio")]
-    public void Command_envelope_preserves_base_keys_and_appends_correlation_metadata()
+    public void Command_envelope_preserves_base_keys_and_appends_correlation_and_access_metadata()
     {
         var id = new PortfolioId(101);
         var subject = new ActorSubject(ActorType.Command, PortfolioCommandSubjects.PortfolioActor, "ChangePortfolioOperatingState", id.Format());
@@ -25,15 +26,17 @@ public sealed class PortfolioNatsClientTests
         {
             CommandId = Guid.NewGuid(), Subject = subject, EntityId = id, ErrorCode = 34005,
             Payload = new(2, PortfolioOperatingState.Paused, "test"),
+            Access = PortfolioAccessContext.Administrator("unit-admin"),
         };
 
         var json = MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(command));
 
         using var document = System.Text.Json.JsonDocument.Parse(json);
-        document.RootElement.GetArrayLength().Should().Be(9);
+        document.RootElement.GetArrayLength().Should().Be(10);
         var copy = MessagePackSerializer.Deserialize<PortfolioCommand<ChangePortfolioStatePayload, PortfolioId>>(MessagePackSerializer.Serialize(command));
         copy.Payload.ExpectedVersion.Should().Be(2);
         copy.CorrelationId.Should().Be(Guid.Empty, "older producers deserialize appended metadata to compatible defaults");
+        copy.Access.Principal.Should().Be("unit-admin");
     }
 
     [Fact]
@@ -54,6 +57,7 @@ public sealed class PortfolioNatsClientTests
         query.Parameters.Should().Be(new GetPortfolioRequest(101, 2));
         query.CorrelationId.Should().NotBeEmpty();
         query.RequestedOnUtc.Kind.Should().Be(DateTimeKind.Utc);
+        query.Access.Roles.Should().ContainSingle(PortfolioOperationalPolicy.ReaderRole);
         MessagePackSerializer.Deserialize<PortfolioQuery<GetPortfolioRequest, PortfolioReadModel>>(MessagePackSerializer.Serialize(query)).Parameters.Should().Be(query.Parameters);
     }
 

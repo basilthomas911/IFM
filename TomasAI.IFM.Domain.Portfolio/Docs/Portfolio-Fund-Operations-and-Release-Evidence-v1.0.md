@@ -29,11 +29,17 @@ Alert on sustained command failure/conflict rates, resolution ambiguity, project
 - `StrategyWorkflow`: resolve snapshots, reserve compositions, and record composition/Risk references.
 - No role in this bounded context grants OrderExecution authority.
 
+Typed Portfolio command/query envelopes carry the asserted principal and roles as additive MessagePack fields. The production actor maps its fixed verb to a bounded operation and revalidates the role before authority is mutated. The typed UI/operator client defaults to an administrator identity, strategy continuation methods default to `StrategyWorkflow`, queries default to `PortfolioReader`, and `PortfolioAccessScope` allows the authenticated application boundary to supply its actual principal. NATS account authentication and subject ACLs remain the transport trust boundary; untrusted publishers must not receive Portfolio command/query subject permission.
+
+## Rollback and health controls
+
+`Portfolio:Operations` exposes independently deployable `Enabled`, `QueriesEnabled`, `MutationsEnabled`, and `AuthorizationRequired` settings. `AuthorizationRequired` remains `true` in every supported deployment. Operators may set `Portfolio__Operations__MutationsEnabled=false` to stop all Portfolio authority changes while retaining read-only diagnosis; the actor returns error `34017` and `/health/ready` declares the effective mode. Full disable is also valid and keeps host readiness observable.
+
 ## Release evidence status
 
-PF-29 cross-pipeline qualification is complete. The production API host initializes the idempotent Portfolio and Reference schemas before actors/projectors start and executes Portfolio/Fund configuration, policy activation/assignment, deterministic snapshot resolution, concurrent idempotent integer reservation, composition, Risk-reference acceptance, and typed queries against real NATS, PostgreSQL, and ScyllaDB. The final Portfolio matrix is unit 93, BDD 22, integration 29, verification 28, UI system 17, and UI presentation 4 with zero failures/skips. A bounded 64-query/eight-worker production NATS run completed in 597.2 ms with 204.6 ms p95 and exact results.
+PF-30 operational qualification is complete. In addition to the PF-29 matrix, seven focused unit/BDD tests and two isolated real-storage integration tests capture authorization, telemetry, configuration, rollback and rebuild behavior. Production-host tests prove reader/admin/anonymous outcomes, clean restart, health, and rollback. A bounded 128-query/eight-worker Portfolio NATS run completed in 334.5 ms with 42.9 ms p95 and exact results; the 64-query Reference run remains green.
 
-This is not a release waiver. PF-30 still requires authenticated NATS identity enforcement, captured telemetry/health, sustained performance baselines, rollback/disable qualification, and operator release approval. PF-13 through PF-15 remain blocked on production TradeSelection, OrderComposition, and RiskManagement actors. The complete PF-29 traceability and commands are recorded in `Portfolio-Fund-PF29-Qualification-Evidence-v1.0.md`.
+The release recommendation covers the Portfolio/Reference/Trade Orders pre-execution bounded context. PF-13 through PF-15 remain explicit downstream blockers for a complete automated TradeSelection, OrderComposition, and RiskManagement runtime release; no Portfolio release statement waives or simulates those actors. Detailed evidence is recorded in `Portfolio-Fund-PF30-Release-Qualification-v1.0.md`.
 
 ## Manual Portfolio UI review checkpoint
 

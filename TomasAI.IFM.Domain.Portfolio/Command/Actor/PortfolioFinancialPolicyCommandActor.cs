@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.Storage.PortfolioDb;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
@@ -20,11 +21,11 @@ public sealed class PortfolioFinancialPolicyCommandActor(
     IPortfolioEventStore events,
     IPortfolioDbWriteContext projections,
     IEventProjector<PortfolioFinancialPolicyCommandActor> projector,
+    IPortfolioOperationalGuard operationalGuard,
     ILogger<PortfolioFinancialPolicyCommandActor> logger)
     : BaseEventSourceCommandActor<PortfolioFinancialPolicyCommandActor>(context, logger)
 {
     public const string ActorName = PortfolioCommandSubjects.PolicyActor;
-    const string Principal = "portfolio-policy-nats";
     static readonly ConcurrentDictionary<int, SemaphoreSlim> PortfolioAssignmentLocks = new();
 
     protected override ValueTask OnStartup(ICommandActorContext<PortfolioFinancialPolicyCommandActor> actorContext, CancellationToken cancellationToken) =>
@@ -60,13 +61,16 @@ public sealed class PortfolioFinancialPolicyCommandActor(
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PolicyActorState state, ICommand command, CancellationToken cancellationToken)
     {
+        var request = (IPortfolioRequestMetadata)command;
+        using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request);
+        var principal = operationalGuard.Demand(PortfolioOperation.AdministerPortfolio, request, mutation: true).Principal;
         if (command is PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> activation)
         {
             var assignmentLock = PortfolioAssignmentLocks.GetOrAdd(state.PolicyId.PortfolioId, static _ => new SemaphoreSlim(1, 1));
             await assignmentLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                return await ActivateAndAssignAsync(state, activation, cancellationToken).ConfigureAwait(false);
+                return await ActivateAndAssignAsync(state, activation, principal, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -88,10 +92,10 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         var referenced = currentPortfolio.Current?.ActivePolicyId == state.PolicyId.PolicyId;
         PortfolioFinancialPolicyDomainEvent domainEvent = command switch
         {
-            PortfolioCommand<CreatePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.Create(x.CommandId, x.Payload.IdempotencyKey, x.Payload.Policy, now, Principal),
-            PortfolioCommand<AddPortfolioFinancialPolicyVersionPayload, PortfolioFinancialPolicyId> x => state.Aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Policy, now, Principal),
-            PortfolioCommand<RetirePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.Retire(x.CommandId, x.Payload.ExpectedRevision, x.Payload.PolicyVersion, x.Payload.Reason, referenced, now, Principal),
-            PortfolioCommand<DeleteDraftPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.DeleteDraft(x.CommandId, x.Payload.ExpectedRevision, x.Payload.Reason, referenced, now, Principal),
+            PortfolioCommand<CreatePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.Create(x.CommandId, x.Payload.IdempotencyKey, x.Payload.Policy, now, principal),
+            PortfolioCommand<AddPortfolioFinancialPolicyVersionPayload, PortfolioFinancialPolicyId> x => state.Aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Policy, now, principal),
+            PortfolioCommand<RetirePortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.Retire(x.CommandId, x.Payload.ExpectedRevision, x.Payload.PolicyVersion, x.Payload.Reason, referenced, now, principal),
+            PortfolioCommand<DeleteDraftPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> x => state.Aggregate.DeleteDraft(x.CommandId, x.Payload.ExpectedRevision, x.Payload.Reason, referenced, now, principal),
             _ => throw new InvalidOperationException($"Unsupported policy command {command.GetType().Name}."),
         };
         await events.AppendPolicyAsync(state.PolicyId, domainEvent, domainEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -100,12 +104,16 @@ public sealed class PortfolioFinancialPolicyCommandActor(
             await projections.DeleteDraftPolicyAsync(new(state.PolicyId.PortfolioId, state.PolicyId.PolicyId, Math.Max(1, domainEvent.EventId == 0 ? domainEvent.Revision : domainEvent.EventId)), cancellationToken).ConfigureAwait(false);
         else
             await ProjectAllAsync(state.Aggregate, domainEvent, cancellationToken).ConfigureAwait(false);
+        PortfolioTelemetry.CommandOutcomes.Add(1,
+            new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
+            new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
     async ValueTask<ServiceResult<GuidResult>> ActivateAndAssignAsync(
         PolicyActorState state,
         PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> command,
+        string principal,
         CancellationToken cancellationToken)
     {
         var committed = await events.FindCommittedPolicyCommandAsync(state.PolicyId, command.CommandId, cancellationToken).ConfigureAwait(false);
@@ -116,7 +124,7 @@ public sealed class PortfolioFinancialPolicyCommandActor(
             if (portfolio.Current?.ActivePolicyId != state.PolicyId.PolicyId || portfolio.Current.ActivePolicyVersion != activated.PolicyVersion)
             {
                 var replayCandidate = state.Aggregate.Versions.Single(x => x.PolicyVersion == activated.PolicyVersion);
-                var assignment = portfolio.AssignFinancialPolicy(command.CommandId, command.Payload.ExpectedPortfolioRevision, replayCandidate, DateTime.UtcNow, Principal);
+                var assignment = portfolio.AssignFinancialPolicy(command.CommandId, command.Payload.ExpectedPortfolioRevision, replayCandidate, DateTime.UtcNow, principal);
                 await events.AppendPortfolioAsync(portfolioId, assignment, assignment.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
                 await projections.UpsertPortfolioAsync(
                     PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, assignment.EventId == 0 ? assignment.Revision : assignment.EventId), assignment.OccurredOnUtc),
@@ -138,9 +146,9 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         // both passing this expected-revision check.
         if (portfolio.Revision != command.Payload.ExpectedPortfolioRevision)
             throw new InvalidOperationException($"Expected Portfolio revision {command.Payload.ExpectedPortfolioRevision}, actual {portfolio.Revision}.");
-        var policyEvent = state.Aggregate.Activate(command.CommandId, command.Payload.ExpectedPolicyRevision, command.Payload.PolicyVersion, now, Principal);
+        var policyEvent = state.Aggregate.Activate(command.CommandId, command.Payload.ExpectedPolicyRevision, command.Payload.PolicyVersion, now, principal);
         var candidate = state.Aggregate.Current!;
-        var portfolioEvent = portfolio.AssignFinancialPolicy(command.CommandId, command.Payload.ExpectedPortfolioRevision, candidate, now, Principal);
+        var portfolioEvent = portfolio.AssignFinancialPolicy(command.CommandId, command.Payload.ExpectedPortfolioRevision, candidate, now, principal);
         await events.AppendPolicyAsync(state.PolicyId, policyEvent, policyEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
         await events.AppendPortfolioAsync(portfolioId, portfolioEvent, portfolioEvent.Revision - 1, cancellationToken: cancellationToken).ConfigureAwait(false);
         await projector.DomainEventsProjectionAsync(new DomainEventCollection([policyEvent])).ConfigureAwait(false);
@@ -148,6 +156,9 @@ public sealed class PortfolioFinancialPolicyCommandActor(
         await projections.UpsertPortfolioAsync(
             PortfolioProjection<PortfolioReadModel>.Create(portfolio.Current!, portfolio.Revision, Math.Max(1, portfolioEvent.EventId == 0 ? portfolioEvent.Revision : portfolioEvent.EventId), portfolioEvent.OccurredOnUtc),
             TomasAI.IFM.Domain.Portfolio.Projection.PortfolioProjectionHandler.StateBucket(portfolioId.Id), cancellationToken).ConfigureAwait(false);
+        PortfolioTelemetry.CommandOutcomes.Add(1,
+            new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
+            new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
@@ -159,7 +170,12 @@ public sealed class PortfolioFinancialPolicyCommandActor(
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioFinancialPolicyCommandActor> _, ActorThreadId __, ICommand command, Exception ex) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(PortfolioErrorCodes.ValidationFailed, ex.Message));
+        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ex switch
+        {
+            PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
+            PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
+            _ => PortfolioErrorCodes.ValidationFailed,
+        }, ex.Message));
 
     static PortfolioFinancialPolicyId ParseId(ICommand command)
     {

@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.Portfolio.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -99,7 +100,9 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioFinancialPolicyCommandActor.ActorName));
         var projections = Substitute.For<IPortfolioDbWriteContext>();
         var projector = Substitute.For<IEventProjector<PortfolioFinancialPolicyCommandActor>>();
-        return (new(context, store, projections, projector, Substitute.For<ILogger<PortfolioFinancialPolicyCommandActor>>()), context, projections, projector);
+        return (new(context, store, projections, projector,
+            new PortfolioOperationalGuard(new PortfolioOperationalOptions()),
+            Substitute.For<ILogger<PortfolioFinancialPolicyCommandActor>>()), context, projections, projector);
     }
 
     static PortfolioCommand<ActivateAndAssignPortfolioFinancialPolicyPayload, PortfolioFinancialPolicyId> Activation(
@@ -110,6 +113,7 @@ public sealed class PortfolioFinancialPolicyActorRecoveryTests
         ErrorCode = 34020,
         Subject = new(ActorType.Command, PortfolioFinancialPolicyCommandActor.ActorName, "ActivateAndAssignPortfolioFinancialPolicy", id.Format()),
         Payload = new(1, expectedPolicyRevision, expectedPortfolioRevision),
+        Access = PortfolioAccessContext.Administrator("integration-admin"),
     };
 
     static PortfolioReadModel Portfolio(int id) => new()

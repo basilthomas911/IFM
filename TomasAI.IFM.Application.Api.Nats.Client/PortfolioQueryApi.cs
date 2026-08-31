@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
@@ -76,6 +77,7 @@ public sealed class PortfolioQueryApi(IActorProducer actorProducer) : NatsClient
             Parameters = parameters,
             CorrelationId = PortfolioRequestCorrelation.CurrentOrNew(),
             RequestedOnUtc = DateTime.UtcNow,
+            Access = PortfolioAccessScope.Current ?? PortfolioAccessContext.Reader($"interactive:{Environment.UserName}"),
         };
         return await RequestAsync<PortfolioQuery<TParameters, TResult>, TResult>(subject, query, cancellationToken).ConfigureAwait(false);
     }

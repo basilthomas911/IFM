@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -20,14 +21,15 @@ public sealed class PortfolioFundCommandActor(
     IPortfolioEventStore eventStore,
     IPortfolioBusinessIdAllocator allocator,
     IEventProjector<PortfolioFundCommandActor> projector,
+    IPortfolioOperationalGuard operationalGuard,
     ILogger<PortfolioFundCommandActor> logger)
     : BaseEventSourceCommandActor<PortfolioFundCommandActor>(context, logger)
 {
     public const string ActorName = PortfolioCommandSubjects.FundActor;
-    const string Principal = "portfolio-fund-nats";
     readonly IPortfolioEventStore _events = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
     readonly IPortfolioBusinessIdAllocator _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
     readonly IEventProjector<PortfolioFundCommandActor> _projector = projector ?? throw new ArgumentNullException(nameof(projector));
+    readonly IPortfolioOperationalGuard _guard = operationalGuard ?? throw new ArgumentNullException(nameof(operationalGuard));
 
     protected override ValueTask OnStartup(ICommandActorContext<PortfolioFundCommandActor> context, CancellationToken cancellationToken) =>
         _projector.StartAsync(context, cancellationToken);
@@ -73,6 +75,9 @@ public sealed class PortfolioFundCommandActor(
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PortfolioFundActorState state, ICommand command, CancellationToken cancellationToken)
     {
+        var request = (IPortfolioRequestMetadata)command;
+        using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request);
+        var principal = _guard.Demand(Operation(command.Subject.Verb), request, mutation: true).Principal;
         var committed = await _events.FindCommittedFundCommandAsync(state.IdValue, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
@@ -92,17 +97,17 @@ public sealed class PortfolioFundCommandActor(
         var aggregate = state.Aggregate;
         PortfolioFundDomainEvent? domainEvent = command switch
         {
-            PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> x => ((FundMandateCreated)aggregate.Create(x.CommandId, x.Payload.Mandate, now, Principal)) with { IdempotencyKey = x.Payload.IdempotencyKey },
-            PortfolioCommand<AddFundMandateVersionPayload, PortfolioFundId> x => aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Mandate, await ActivationAsync(state.IdValue, aggregate, cancellationToken), now, Principal),
-            PortfolioCommand<ChangeFundStatePayload, PortfolioFundId> x => aggregate.ChangeState(x.CommandId, x.Payload.ExpectedVersion, x.Payload.State, x.Payload.Reason, await ActivationAsync(state.IdValue, aggregate, cancellationToken), now, Principal),
-            PortfolioCommand<AssignTradeTemplatePayload, PortfolioFundId> x => aggregate.AssignTradeTemplate(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Assignment, now, Principal),
-            PortfolioCommand<MarkComposingPayload, PortfolioFundId> x => aggregate.MarkCompositionComposing(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, now, Principal),
-            PortfolioCommand<RecordComposedPayload, PortfolioFundId> x => aggregate.RecordCompositionResult(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Result, now, Principal),
-            PortfolioCommand<RecordRiskOutcomePayload, PortfolioFundId> x => aggregate.RecordRiskResult(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Result, now, Principal),
-            PortfolioCommand<StopCompositionPayload, PortfolioFundId> x when command.Subject.Verb == "CancelFundOrderComposition" => aggregate.CancelComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, Principal),
-            PortfolioCommand<StopCompositionPayload, PortfolioFundId> x => aggregate.ExpireComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, Principal),
-            PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> x => await ReserveAsync(aggregate, x, now, cancellationToken),
-            PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> x => await CreateManualAsync(aggregate, x, now, cancellationToken),
+            PortfolioCommand<CreateFundMandatePayload, PortfolioFundId> x => ((FundMandateCreated)aggregate.Create(x.CommandId, x.Payload.Mandate, now, principal)) with { IdempotencyKey = x.Payload.IdempotencyKey },
+            PortfolioCommand<AddFundMandateVersionPayload, PortfolioFundId> x => aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Mandate, await ActivationAsync(state.IdValue, aggregate, cancellationToken), now, principal),
+            PortfolioCommand<ChangeFundStatePayload, PortfolioFundId> x => aggregate.ChangeState(x.CommandId, x.Payload.ExpectedVersion, x.Payload.State, x.Payload.Reason, await ActivationAsync(state.IdValue, aggregate, cancellationToken), now, principal),
+            PortfolioCommand<AssignTradeTemplatePayload, PortfolioFundId> x => aggregate.AssignTradeTemplate(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Assignment, now, principal),
+            PortfolioCommand<MarkComposingPayload, PortfolioFundId> x => aggregate.MarkCompositionComposing(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, now, principal),
+            PortfolioCommand<RecordComposedPayload, PortfolioFundId> x => aggregate.RecordCompositionResult(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Result, now, principal),
+            PortfolioCommand<RecordRiskOutcomePayload, PortfolioFundId> x => aggregate.RecordRiskResult(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Result, now, principal),
+            PortfolioCommand<StopCompositionPayload, PortfolioFundId> x when command.Subject.Verb == "CancelFundOrderComposition" => aggregate.CancelComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, principal),
+            PortfolioCommand<StopCompositionPayload, PortfolioFundId> x => aggregate.ExpireComposition(x.CommandId, aggregate.Revision, x.Payload.OrderId.OrderId, x.Payload.ExpectedVersion, x.Payload.Reason, now, principal),
+            PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> x => await ReserveAsync(aggregate, x, now, principal, cancellationToken),
+            PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> x => await CreateManualAsync(aggregate, x, now, principal, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported PortfolioFund command {command.GetType().Name}."),
         };
         if (domainEvent is not null)
@@ -115,11 +120,14 @@ public sealed class PortfolioFundCommandActor(
                 cancellationToken).ConfigureAwait(false);
             await _projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
         }
+        PortfolioTelemetry.CommandOutcomes.Add(1,
+            new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
+            new KeyValuePair<string, object?>("portfolio.outcome", domainEvent is null ? "replayed" : "committed"));
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
     async ValueTask<PortfolioFundDomainEvent?> CreateManualAsync(PortfolioFundAggregate aggregate,
-        PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> command, DateTime now, CancellationToken cancellationToken)
+        PortfolioCommand<CreateManualFundOrderPayload, PortfolioFundId> command, DateTime now, string principal, CancellationToken cancellationToken)
     {
         if (aggregate.TryComposition(command.Payload.Request.IdempotencyKey, out var prior))
         {
@@ -133,11 +141,11 @@ public sealed class PortfolioFundCommandActor(
             portfolio.Current.OperatingState != PortfolioOperatingState.Active)
             throw new InvalidOperationException("Manual draft Portfolio version is stale or the Portfolio is not active.");
         var orderId = await _allocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
-        return aggregate.CreateManualOrder(command.CommandId, command.Payload.Request, orderId, now, Principal);
+        return aggregate.CreateManualOrder(command.CommandId, command.Payload.Request, orderId, now, principal);
     }
 
     async ValueTask<PortfolioFundDomainEvent?> ReserveAsync(PortfolioFundAggregate aggregate,
-        PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> command, DateTime now, CancellationToken cancellationToken)
+        PortfolioCommand<ReserveCompositionPayload, PortfolioFundId> command, DateTime now, string principal, CancellationToken cancellationToken)
     {
         if (aggregate.TryComposition(command.Payload.Request.IdempotencyKey, out var prior))
         {
@@ -149,7 +157,7 @@ public sealed class PortfolioFundCommandActor(
         var orderId = await _allocator.AllocateOrderIdAsync(cancellationToken).ConfigureAwait(false);
         var tradeIds = new int[command.Payload.Request.TradeInstructions.Length];
         for (var i = 0; i < tradeIds.Length; i++) tradeIds[i] = await _allocator.AllocateTradeIdAsync(cancellationToken).ConfigureAwait(false);
-        return aggregate.ReserveComposition(command.CommandId, aggregate.Revision, command.Payload.Request, command.Payload.Snapshot, orderId, tradeIds, now, Principal);
+        return aggregate.ReserveComposition(command.CommandId, aggregate.Revision, command.Payload.Request, command.Payload.Snapshot, orderId, tradeIds, now, principal);
     }
 
     async ValueTask<FundActivationContext> ActivationAsync(PortfolioFundId id, PortfolioFundAggregate aggregate, CancellationToken cancellationToken)
@@ -162,7 +170,23 @@ public sealed class PortfolioFundCommandActor(
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioFundCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command?.ErrorCode ?? 34100, ex.Message));
+        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ErrorCode(command, ex), ex.Message));
+
+    static int ErrorCode(ICommand? command, Exception exception) => exception switch
+    {
+        PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
+        PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
+        _ => command?.ErrorCode ?? 34100,
+    };
+
+    static PortfolioOperation Operation(string verb) => verb switch
+    {
+        "AssignTradeTemplate" => PortfolioOperation.AssignTemplate,
+        "ReserveFundOrderComposition" or "MarkFundOrderComposing" or "ExpireFundOrderComposition" => PortfolioOperation.ReserveComposition,
+        "RecordFundOrderComposed" => PortfolioOperation.RecordCompositionResult,
+        "RecordFundOrderRiskOutcome" => PortfolioOperation.RecordRiskResult,
+        _ => PortfolioOperation.AdministerFund,
+    };
 
     static PortfolioEventMetadata Metadata(ICommand command, DateTime nowUtc)
     {

@@ -41,7 +41,7 @@ public static class PortfolioOperationalPolicy
     [
         "portfolio.command.outcomes", "portfolio.resolution.failures", "portfolio.projection.lag",
         "portfolio.projection.failures", "portfolio.reservation.duration", "portfolio.reservation.replays",
-        "portfolio.query.duration"
+        "portfolio.query.duration", "portfolio.authorization.checks"
     ];
 
     public static string RedactHash(string? sha256) =>

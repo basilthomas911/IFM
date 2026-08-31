@@ -12,6 +12,8 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IPortfolioFinancialPolicyCommandApi
 {
+    static PortfolioAccessContext Access => PortfolioAccessScope.Current
+        ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}");
     public Task<ServiceResult<Guid>> CreatePolicyAsync(PortfolioFinancialPolicyReadModel policy, Guid idempotencyKey, CancellationToken cancellationToken = default) =>
         Send(new(policy.PortfolioId, policy.PolicyId), "CreatePortfolioFinancialPolicy", new CreatePortfolioFinancialPolicyPayload(policy, idempotencyKey), cancellationToken);
     public Task<ServiceResult<Guid>> AddPolicyVersionAsync(PortfolioFinancialPolicyReadModel policy, long expectedRevision, CancellationToken cancellationToken = default) =>
@@ -30,7 +32,7 @@ public sealed class PortfolioFinancialPolicyCommandApi(IActorProducer actorProdu
         {
             CommandId = Guid.NewGuid(), Subject = subject, EntityId = id, Payload = payload,
             ErrorCode = PortfolioErrorCodes.ValidationFailed,
-            CorrelationId = PortfolioRequestCorrelation.CurrentOrNew(), RequestedOnUtc = DateTime.UtcNow,
+            CorrelationId = PortfolioRequestCorrelation.CurrentOrNew(), RequestedOnUtc = DateTime.UtcNow, Access = Access,
         };
         try { return await RequestCommandAsync(command, id, cancellationToken).ConfigureAwait(false); }
         catch (Exception ex) when (ex is not OperationCanceledException) { return new ServiceFailed<Guid>(PortfolioErrorCodes.Unavailable, ex.Message); }

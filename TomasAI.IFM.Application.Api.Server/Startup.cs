@@ -52,6 +52,7 @@ using TomasAI.IFM.Domain.Portfolio;
 using TomasAI.IFM.Domain.Portfolio.Identity;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
 using TomasAI.IFM.Domain.Portfolio.Projection;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.MarketData;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics;
@@ -219,10 +220,15 @@ public static class Startup
             // add web app services...
             logger.LogInformationEvent("ApiServer", "register base services...");
             services.AddIfmMetrics(config, "TomasAI.IFM.Application.Api.Server");
+            var portfolioOperations = config.GetSection(PortfolioOperationalOptions.SectionName)
+                .Get<PortfolioOperationalOptions>() ?? new PortfolioOperationalOptions();
+            services.AddSingleton(portfolioOperations.Validate());
+            services.AddSingleton<IPortfolioOperationalGuard, PortfolioOperationalGuard>();
             services.AddHealthChecks()
                 .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"])
                 .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["ready"])
-                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["ready"]);
+                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["ready"])
+                .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["ready"]);
             var dataProtectionKeyPath = config.GetValue<string>("DataProtection:KeyPath");
             if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
             {

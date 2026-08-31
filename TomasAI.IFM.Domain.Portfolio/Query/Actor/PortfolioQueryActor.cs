@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.Portfolio.Identity;
+using TomasAI.IFM.Domain.Portfolio.Operations;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
@@ -21,7 +23,7 @@ public interface IPortfolioQueryContext : IQueryActorContext<PortfolioQueryActor
 }
 
 /// <summary>NATS-only public query boundary over PortfolioDb projections.</summary>
-public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> actorContext)
+public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> actorContext, IPortfolioOperationalGuard operationalGuard)
     : BaseQueryActor<PortfolioQueryActor>(actorContext, RequireContext(actorContext).Logger)
 {
     public const string ActorName = PortfolioQuerySubjects.Actor;
@@ -65,8 +67,16 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
 
     protected override async ValueTask ReceiveAsync(IQueryActorContext<PortfolioQueryActor> context, IQuery query, CancellationToken cancellationToken)
     {
-        switch (query)
+        var request = (IPortfolioRequestMetadata)query;
+        using var activity = PortfolioTelemetry.StartRequest("query", query.Subject.Verb, request);
+        var allocatesIdentity = query.Subject.Verb == "AllocatePortfolioBusinessId";
+        operationalGuard.Demand(allocatesIdentity ? PortfolioOperation.AdministerPortfolio : PortfolioOperation.Read,
+            request, mutation: allocatesIdentity);
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
         {
+          switch (query)
+          {
             case PortfolioQuery<GetPortfolioRequest, PortfolioReadModel> q:
                 await Reply(context, q, await _service.GetPortfolioAsync(q.Parameters.PortfolioId, q.Parameters.Version, cancellationToken)); break;
             case PortfolioQuery<GetPortfolioRevisionRequest, PortfolioAggregateRevision> q:
@@ -108,6 +118,13 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
             case PortfolioQuery<GetActivePolicyRequest, PortfolioFinancialPolicyReadModel> q:
                 await Reply(context, q, await _service.GetActivePolicyAsync(q.Parameters.PortfolioId, cancellationToken)); break;
             default: throw new InvalidOperationException($"Unsupported Portfolio query {query.GetType().Name}.");
+          }
+        }
+        finally
+        {
+            PortfolioTelemetry.QueryDuration.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                new KeyValuePair<string, object?>("portfolio.operation", query.Subject.Verb),
+                new KeyValuePair<string, object?>("portfolio.outcome", "completed"));
         }
     }
 
@@ -134,9 +151,13 @@ public sealed class PortfolioQueryActor(IQueryActorContext<PortfolioQueryActor> 
 
     protected override async ValueTask OnExceptionAsync(IQueryActorContext<PortfolioQueryActor> context, ActorThreadId threadId, IQuery query, string verb, Exception ex)
     {
-        var errorCode = query is PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation>
-            ? PortfolioErrorCodes.SequenceAllocationFailed
-            : PortfolioErrorCodes.ValidationFailed;
+        var errorCode = ex switch
+        {
+            PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
+            PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
+            _ when query is PortfolioQuery<AllocatePortfolioBusinessIdRequest, PortfolioBusinessIdAllocation> => PortfolioErrorCodes.SequenceAllocationFailed,
+            _ => PortfolioErrorCodes.ValidationFailed,
+        };
         var method = typeof(PortfolioQueryActor).GetMethod(nameof(ReplyFailure), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
             .MakeGenericMethod(query.GetType().GetGenericArguments()[1]);
         await (ValueTask)method.Invoke(null, [context, threadId, verb, errorCode, ex.Message])!;

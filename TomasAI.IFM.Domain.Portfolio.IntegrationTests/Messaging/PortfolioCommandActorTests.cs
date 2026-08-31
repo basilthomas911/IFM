@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.Portfolio.Command.Actor;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
@@ -31,7 +32,7 @@ public sealed class PortfolioCommandActorTests
         var events = Substitute.For<IPortfolioEventStore>();
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(new PortfolioAggregate());
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
-        var actor = new PortfolioCommandActor(context, events, projector, Substitute.For<ILogger<PortfolioCommandActor>>());
+        var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var now = DateTime.UtcNow;
         var commandId = Guid.NewGuid();
         var model = new PortfolioReadModel
@@ -49,6 +50,7 @@ public sealed class PortfolioCommandActorTests
             CommandId = commandId, EntityId = id, ErrorCode = 34002,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
             Payload = new(model, commandId),
+            Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
         var state = await typed.OnLoadStateAsync(context, command.Subject.ThreadId, command);
@@ -80,7 +82,7 @@ public sealed class PortfolioCommandActorTests
         var events = Substitute.For<IPortfolioEventStore>();
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(new PortfolioAggregate());
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
-        var actor = new PortfolioCommandActor(context, events, projector, Substitute.For<ILogger<PortfolioCommandActor>>());
+        var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var now = DateTime.UtcNow;
         var command = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
         {
@@ -92,6 +94,7 @@ public sealed class PortfolioCommandActorTests
                 OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
                 CreatedOnUtc = now, CreatedBy = "admin",
             }, Guid.NewGuid()),
+            Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
 
@@ -123,12 +126,13 @@ public sealed class PortfolioCommandActorTests
         var events = Substitute.For<IPortfolioEventStore>();
         events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(aggregate);
         var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
-        var actor = new PortfolioCommandActor(context, events, projector, Substitute.For<ILogger<PortfolioCommandActor>>());
+        var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
         var command = new PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId>
         {
             CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.DraftDeletionNotAllowed,
             Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "DeleteDraftPortfolio", id.Format()),
             Payload = new(1, "duplicate"),
+            Access = PortfolioAccessContext.Administrator("integration-admin"),
         };
         var typed = (ICommandActor<PortfolioCommandActor>)actor;
 
@@ -140,4 +144,42 @@ public sealed class PortfolioCommandActorTests
             Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
         await projector.Received(1).DomainEventsProjectionAsync(Arg.Is<DomainEventCollection>(x => x.Single() is DraftPortfolioDeleted));
     }
+
+    [Fact]
+    [Trait("Gate", "PF-30")]
+    [Trait("Category", "Integration")]
+    public async Task Reader_cannot_mutate_through_the_actor_and_no_event_is_appended()
+    {
+        var id = new PortfolioId(990);
+        var context = Substitute.For<ICommandActorContext<PortfolioCommandActor>>();
+        context.ActorId.Returns(new ActorMailboxId(ActorType.Command, PortfolioCommandActor.ActorName));
+        var events = Substitute.For<IPortfolioEventStore>();
+        events.LoadPortfolioAsync(id, Arg.Any<CancellationToken>()).Returns(new PortfolioAggregate());
+        var projector = Substitute.For<IEventProjector<PortfolioCommandActor>>();
+        var actor = new PortfolioCommandActor(context, events, projector, Guard(), Substitute.For<ILogger<PortfolioCommandActor>>());
+        var now = DateTime.UtcNow;
+        var command = new PortfolioCommand<CreatePortfolioPayload, PortfolioId>
+        {
+            CommandId = Guid.NewGuid(), EntityId = id, ErrorCode = PortfolioErrorCodes.ValidationFailed,
+            Subject = new ActorSubject(ActorType.Command, PortfolioCommandActor.ActorName, "CreatePortfolio", id.Format()),
+            Payload = new(new PortfolioReadModel
+            {
+                PortfolioId = id.Id, Name = "Denied", PortfolioVersion = 1,
+                OperatingState = PortfolioOperatingState.Draft, EffectiveFromUtc = now,
+                CreatedOnUtc = now, CreatedBy = "ignored",
+            }, Guid.NewGuid()),
+            CorrelationId = Guid.NewGuid(), RequestedOnUtc = now,
+            Access = PortfolioAccessContext.Reader("read-only-user"),
+        };
+        var typed = (ICommandActor<PortfolioCommandActor>)actor;
+        var state = await typed.OnLoadStateAsync(context, command.Subject.ThreadId, command);
+
+        var act = async () => await typed.ReceiveAsync(context, state, command);
+
+        await act.Should().ThrowAsync<PortfolioAuthorizationException>();
+        await events.DidNotReceive().AppendPortfolioAsync(Arg.Any<PortfolioId>(), Arg.Any<PortfolioDomainEvent>(),
+            Arg.Any<long>(), Arg.Any<PortfolioEventMetadata?>(), Arg.Any<CancellationToken>());
+    }
+
+    static IPortfolioOperationalGuard Guard() => new PortfolioOperationalGuard(new PortfolioOperationalOptions());
 }

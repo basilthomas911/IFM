@@ -67,6 +67,7 @@ public sealed class PortfolioRealProjectionIntegrationTests(
     [Fact]
     [Trait("Gate", "PF-09")]
     [Trait("Gate", "PF-25")]
+    [Trait("Gate", "PF-30")]
     [Trait("Category", "Portfolio")]
     public async Task Representative_authority_catalog_rebuilds_from_empty_Scylla_with_identical_query_hash()
     {

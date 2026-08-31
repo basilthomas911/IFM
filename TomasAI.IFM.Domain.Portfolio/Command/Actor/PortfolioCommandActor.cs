@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.Portfolio.Command.Model;
 using TomasAI.IFM.Domain.Portfolio.Command.State;
 using TomasAI.IFM.Domain.Portfolio.Persistence;
+using TomasAI.IFM.Domain.Portfolio.Operations;
 using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.Identities;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
@@ -17,13 +18,14 @@ public sealed class PortfolioCommandActor(
     ICommandActorContext<PortfolioCommandActor> context,
     IPortfolioEventStore eventStore,
     IEventProjector<PortfolioCommandActor> projector,
+    IPortfolioOperationalGuard operationalGuard,
     ILogger<PortfolioCommandActor> logger)
     : BaseEventSourceCommandActor<PortfolioCommandActor>(context, logger)
 {
     public const string ActorName = PortfolioCommandSubjects.PortfolioActor;
-    const string Principal = "portfolio-nats";
     readonly IPortfolioEventStore _events = eventStore ?? throw new ArgumentNullException(nameof(eventStore));
     readonly IEventProjector<PortfolioCommandActor> _projector = projector ?? throw new ArgumentNullException(nameof(projector));
+    readonly IPortfolioOperationalGuard _guard = operationalGuard ?? throw new ArgumentNullException(nameof(operationalGuard));
 
     protected override ValueTask OnStartup(ICommandActorContext<PortfolioCommandActor> context, CancellationToken cancellationToken) =>
         _projector.StartAsync(context, cancellationToken);
@@ -63,6 +65,9 @@ public sealed class PortfolioCommandActor(
 
     async ValueTask<ServiceResult<GuidResult>> ReceiveCoreAsync(PortfolioActorState state, ICommand command, CancellationToken cancellationToken)
     {
+        var request = (IPortfolioRequestMetadata)command;
+        using var activity = PortfolioTelemetry.StartRequest("command", command.Subject.Verb, request);
+        var principal = _guard.Demand(Operation(command.Subject.Verb), request, mutation: true).Principal;
         var committed = await _events.FindCommittedPortfolioCommandAsync(state.PortfolioId, command.CommandId, cancellationToken).ConfigureAwait(false);
         if (committed is not null)
         {
@@ -80,14 +85,14 @@ public sealed class PortfolioCommandActor(
         var now = DateTime.UtcNow;
         PortfolioDomainEvent domainEvent = command switch
         {
-            PortfolioCommand<CreatePortfolioPayload, PortfolioId> x => ((PortfolioCreated)state.Aggregate.Create(x.CommandId, x.Payload.Portfolio, now, Principal)) with { IdempotencyKey = x.Payload.IdempotencyKey },
-            PortfolioCommand<AddPortfolioVersionPayload, PortfolioId> x => state.Aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Portfolio, now, Principal),
-            PortfolioCommand<ChangePortfolioStatePayload, PortfolioId> x => state.Aggregate.ChangeState(x.CommandId, x.Payload.ExpectedVersion, x.Payload.State, x.Payload.Reason, now, Principal),
-            PortfolioCommand<AddFundPayload, PortfolioId> x => state.Aggregate.AddFund(x.CommandId, x.Payload.ExpectedPortfolioVersion, x.Payload.FundId, now, Principal),
-            PortfolioCommand<DelegateAllocationPayload, PortfolioId> x => state.Aggregate.DelegateAllocation(x.CommandId, x.Payload.ExpectedPortfolioVersion, x.Payload.Allocation, now, Principal),
-            PortfolioCommand<DelegateRiskEnvelopePayload, PortfolioId> x => state.Aggregate.DelegateRiskEnvelope(x.CommandId, x.Payload.ExpectedPortfolioVersion, x.Payload.Envelope, now, Principal),
-            PortfolioCommand<RetirePortfolioPayload, PortfolioId> x => state.Aggregate.Retire(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Reason, now, Principal),
-            PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId> x => await DeleteDraftAsync(state, x, now, cancellationToken),
+            PortfolioCommand<CreatePortfolioPayload, PortfolioId> x => ((PortfolioCreated)state.Aggregate.Create(x.CommandId, x.Payload.Portfolio, now, principal)) with { IdempotencyKey = x.Payload.IdempotencyKey },
+            PortfolioCommand<AddPortfolioVersionPayload, PortfolioId> x => state.Aggregate.AddVersion(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Portfolio, now, principal),
+            PortfolioCommand<ChangePortfolioStatePayload, PortfolioId> x => state.Aggregate.ChangeState(x.CommandId, x.Payload.ExpectedVersion, x.Payload.State, x.Payload.Reason, now, principal),
+            PortfolioCommand<AddFundPayload, PortfolioId> x => state.Aggregate.AddFund(x.CommandId, x.Payload.ExpectedPortfolioVersion, x.Payload.FundId, now, principal),
+            PortfolioCommand<DelegateAllocationPayload, PortfolioId> x => state.Aggregate.DelegateAllocation(x.CommandId, x.Payload.ExpectedPortfolioVersion, x.Payload.Allocation, now, principal),
+            PortfolioCommand<DelegateRiskEnvelopePayload, PortfolioId> x => state.Aggregate.DelegateRiskEnvelope(x.CommandId, x.Payload.ExpectedPortfolioVersion, x.Payload.Envelope, now, principal),
+            PortfolioCommand<RetirePortfolioPayload, PortfolioId> x => state.Aggregate.Retire(x.CommandId, x.Payload.ExpectedVersion, x.Payload.Reason, now, principal),
+            PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId> x => await DeleteDraftAsync(state, x, now, principal, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported Portfolio command {command.GetType().Name}."),
         };
         await _events.AppendPortfolioAsync(
@@ -97,6 +102,9 @@ public sealed class PortfolioCommandActor(
             Metadata(command, now),
             cancellationToken).ConfigureAwait(false);
         await _projector.DomainEventsProjectionAsync(new DomainEventCollection([domainEvent])).ConfigureAwait(false);
+        PortfolioTelemetry.CommandOutcomes.Add(1,
+            new KeyValuePair<string, object?>("portfolio.operation", command.Subject.Verb),
+            new KeyValuePair<string, object?>("portfolio.outcome", "committed"));
         return new ServiceOk<GuidResult>(new(command.CommandId));
     }
 
@@ -104,6 +112,7 @@ public sealed class PortfolioCommandActor(
         PortfolioActorState state,
         PortfolioCommand<DeleteDraftPortfolioPayload, PortfolioId> command,
         DateTime now,
+        string principal,
         CancellationToken cancellationToken)
     {
         foreach (var fundId in state.Aggregate.FundIds)
@@ -112,11 +121,25 @@ public sealed class PortfolioCommandActor(
             if (fund.Orders.Count != 0)
                 throw new InvalidOperationException("A Draft Portfolio with composition history cannot be deleted.");
         }
-        return state.Aggregate.DeleteDraft(command.CommandId, command.Payload.ExpectedVersion, command.Payload.Reason, now, Principal);
+        return state.Aggregate.DeleteDraft(command.CommandId, command.Payload.ExpectedVersion, command.Payload.Reason, now, principal);
     }
 
     protected override ValueTask<ServiceResult<GuidResult>> OnExceptionAsync(ICommandActorContext<PortfolioCommandActor> context, ActorThreadId threadId, ICommand command, Exception ex) =>
-        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(command?.ErrorCode ?? 34000, ex.Message));
+        ValueTask.FromResult<ServiceResult<GuidResult>>(new ServiceFailed<GuidResult>(ErrorCode(command, ex), ex.Message));
+
+    static int ErrorCode(ICommand? command, Exception exception) => exception switch
+    {
+        PortfolioAuthorizationException => PortfolioErrorCodes.Unauthorized,
+        PortfolioOperationalException => PortfolioErrorCodes.OperationallyDisabled,
+        _ => command?.ErrorCode ?? 34000,
+    };
+
+    static PortfolioOperation Operation(string verb) => verb switch
+    {
+        "DelegateFundAllocation" => PortfolioOperation.DelegateAllocation,
+        "DelegateFundRiskEnvelope" => PortfolioOperation.DelegateRiskEnvelope,
+        _ => PortfolioOperation.AdministerPortfolio,
+    };
 
     static PortfolioId ParseId(ICommand command) =>
         int.TryParse(command.Subject.EntityId, out var id) && id > 0

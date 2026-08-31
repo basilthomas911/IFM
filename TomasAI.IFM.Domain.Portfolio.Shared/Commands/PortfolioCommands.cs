@@ -19,6 +19,43 @@ public interface IPortfolioRequestMetadata
 {
     Guid CorrelationId { get; }
     DateTime RequestedOnUtc { get; }
+    PortfolioAccessContext Access { get; }
+}
+
+/// <summary>
+/// Caller identity asserted by an authenticated, Portfolio-authorized NATS client.
+/// NATS subject ACLs are the transport trust boundary; roles are still revalidated by the actor.
+/// </summary>
+[MessagePackObject]
+public sealed record PortfolioAccessContext
+{
+    [Key(0)] public string Principal { get; init; } = string.Empty;
+    [Key(1)] public string[] Roles { get; init; } = [];
+
+    public static PortfolioAccessContext Reader(string principal) => new() { Principal = principal, Roles = ["PortfolioReader"] };
+    public static PortfolioAccessContext Administrator(string principal) => new() { Principal = principal, Roles = ["PortfolioAdministrator"] };
+    public static PortfolioAccessContext Workflow(string principal) => new() { Principal = principal, Roles = ["StrategyWorkflow"] };
+}
+
+/// <summary>Async-flow caller scope used by typed NATS clients and operator applications.</summary>
+public static class PortfolioAccessScope
+{
+    static readonly AsyncLocal<PortfolioAccessContext?> CurrentValue = new();
+    public static PortfolioAccessContext? Current => CurrentValue.Value;
+
+    public static IDisposable Push(PortfolioAccessContext access)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        var prior = CurrentValue.Value;
+        CurrentValue.Value = access;
+        return new Scope(() => CurrentValue.Value = prior);
+    }
+
+    sealed class Scope(Action dispose) : IDisposable
+    {
+        Action? _dispose = dispose;
+        public void Dispose() => Interlocked.Exchange(ref _dispose, null)?.Invoke();
+    }
 }
 
 /// <summary>Stable command envelope: repository base keys 0..5 and typed payload at key 6.</summary>
@@ -34,6 +71,7 @@ public sealed record PortfolioCommand<TPayload, TEntityId> : ICommand<TEntityId>
     [Key(6)] public TPayload Payload { get; init; } = default!;
     [Key(7)] public Guid CorrelationId { get; init; }
     [Key(8)] public DateTime RequestedOnUtc { get; init; }
+    [Key(9)] public PortfolioAccessContext Access { get; init; } = new();
     [IgnoreMember] public string CommandName => typeof(TPayload).Name.Replace("Payload", "Command", StringComparison.Ordinal);
     [IgnoreMember] public string StreamId => Subject.StreamId;
     [IgnoreMember] public string EventSource => Subject.Name;

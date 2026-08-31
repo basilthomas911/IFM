@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.Queries;
+using TomasAI.IFM.Domain.Portfolio.Shared.Commands;
 using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Portfolio.Shared.Validation;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -36,6 +37,7 @@ public sealed class PortfolioIdentityApi(IActorProducer actorProducer) : NatsCli
             Parameters = new(kind),
             CorrelationId = correlationId,
             RequestedOnUtc = DateTime.UtcNow,
+            Access = PortfolioAccessScope.Current ?? PortfolioAccessContext.Administrator($"interactive:{Environment.UserName}"),
         };
         try
         {
