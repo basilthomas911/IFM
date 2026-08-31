@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Event.Actor;
 
@@ -29,6 +30,17 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
             await ((FuturesRsiSignalStoppedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
         [typeof(FuturesRsiSignalGeneratedEvent)] = async (@event, context, logger) =>
             await ((FuturesRsiSignalGeneratedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
+        [typeof(FuturesRsiSignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
+        {
+            var completed = (FuturesRsiSignalGeneratedCompleteEvent)@event;
+            if (completed.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
+                && completed.FuturesRsiSignal.Metadata is { IsValid: true })
+            {
+                await ((IEventActorContext<FuturesRsiSignalEventActor>)context)
+                    .PublishMarketOutlookComponentAsync(completed).ConfigureAwait(false);
+            }
+            return true;
+        },
         [typeof(FuturesRsiDailySignalGeneratedEvent)] = async (@event, context, logger) =>
             await ((FuturesRsiDailySignalGeneratedEvent)@event).ExecuteAsync(context, logger).ConfigureAwait(false),
         [typeof(FuturesRsiDailySignalGeneratedCompleteEvent)] = async (@event, context, logger) =>
@@ -39,6 +51,7 @@ public class FuturesRsiSignalEventActor(IEventActorContext<FuturesRsiSignalEvent
         [FuturesRsiSignalStartedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalStartedEvent>()!,
         [FuturesRsiSignalStoppedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalStoppedEvent>()!,
         [FuturesRsiSignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiSignalGeneratedEvent>()!,
+        [FuturesRsiSignalGeneratedCompleteEvent.Verb] = message => message.AsEvent<FuturesRsiSignalGeneratedCompleteEvent>()!,
         [FuturesRsiDailySignalGeneratedEvent.Verb] = message => message.AsEvent<FuturesRsiDailySignalGeneratedEvent>()!,
         [FuturesRsiDailySignalGeneratedCompleteEvent.Verb] = message => message.AsEvent<FuturesRsiDailySignalGeneratedCompleteEvent>()!
     };

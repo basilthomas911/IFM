@@ -65,8 +65,10 @@ namespace TomasAI.IFM.UI.Net.Services.Analytics
         }
 
         /// <summary>Requests the Development-only historical Analytics startup warm-up.</summary>
-        public Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(DateOnly candidateValueDate)
-            => _commandApi.EnsureHistoricalAnalyticsWarmupAsync(candidateValueDate);
+        public Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(
+            DateOnly candidateValueDate,
+            string analyticsTargetContractId)
+            => _commandApi.EnsureHistoricalAnalyticsWarmupAsync(candidateValueDate, analyticsTargetContractId);
 
         /// <summary>
         /// start futures rsi signal service

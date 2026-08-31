@@ -31,7 +31,8 @@ public sealed class MarketOutlookOrCombinationVerificationTests
             ContractId = entityId.ContractId,
             ValueDate = entityId.ValueDate,
             TimePeriod = TimeFrameType.FifteenSeconds,
-            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+            IsWarm = true
         };
         var tdi = SampleData.TdiReadModelFor(TimeFrameType.FifteenSeconds) with
         {
@@ -92,7 +93,8 @@ public sealed class MarketOutlookOrCombinationVerificationTests
         (snapshot.VixFuturesPrice > 0).Should().Be(Has(6));
         (snapshot.FuturesTradeSignal is not null).Should().Be(Has(0),
             "EOD is the calculation base, while enrichment availability is OR-composed");
-        snapshot.IsComplete.Should().Be(mask == 127);
+        snapshot.IsComplete.Should().Be(
+            Has(0) && Has(1) && (Has(3) || Has(4) || Has(5)) && Has(6));
 
         void Observe(
             FuturesRsiSignalReadModel? rsi = null,

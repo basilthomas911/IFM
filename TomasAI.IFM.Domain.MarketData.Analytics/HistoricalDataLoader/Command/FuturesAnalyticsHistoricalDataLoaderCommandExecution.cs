@@ -23,6 +23,7 @@ public static class FuturesAnalyticsHistoricalDataLoaderCommandExecution
                 FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Verb,
                 command.EntityId.Format()),
             EntityId = command.EntityId,
+            ReceivedOn = DateTime.UtcNow,
             Parameters = command.Parameters
         }, command);
         return updated

@@ -21,7 +21,9 @@ public enum FuturesAnalyticsHistoricalSchema : byte
     /// <summary>One-minute OHLCV observations.</summary>
     OhlcvOneMinute = 1,
     /// <summary>Exact normalized trades.</summary>
-    Trades = 2
+    Trades = 2,
+    /// <summary>Daily OHLCV observations.</summary>
+    OhlcvDaily = 3
 }
 
 /// <summary>Defines one provider-neutral series in a data load request.</summary>
@@ -64,6 +66,8 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderParameters
     [Key(9)] public string RequestedBy { get; init; } = string.Empty;
     /// <summary>Gets whether this is the Development UI automatic coverage request.</summary>
     [Key(10)] public bool AutomaticStartupWarmup { get; init; }
+    /// <summary>Gets the active contract that receives the reconciled Analytics result.</summary>
+    [Key(11)] public string AnalyticsTargetContractId { get; init; } = string.Empty;
 }
 
 /// <summary>Requests one durable, idempotent futures Analytics history data load.</summary>

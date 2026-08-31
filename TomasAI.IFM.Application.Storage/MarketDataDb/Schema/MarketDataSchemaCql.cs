@@ -100,9 +100,15 @@ internal static class MarketDataSchemaCql
         eodData blob,
         futuresTradeSignal blob,
         missingInputs text,
+        snapshot blob,
         PRIMARY KEY ((contractId), valueDate)
     ) WITH CLUSTERING ORDER BY (valueDate DESC);
     """;
+
+    public const string AddMarketOutlookSnapshotBlobColumn = """
+        ALTER TABLE market_outlook_snapshot
+        ADD snapshot BLOB;
+        """;
 
     public const string CreateMarketOutlookWorkingStateTable = """
     CREATE TABLE IF NOT EXISTS market_outlook_working_state (

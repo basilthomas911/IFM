@@ -3441,13 +3441,14 @@ internal static class MarketDataDbCql
 
     public const string UpsertMarketOutlookSnapshot = """
         INSERT INTO market_outlook_snapshot
-            (contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs)
+            (contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs, snapshot)
         VALUES
-            (:contractId, :valueDate, :revision, :updatedOn, :eodData, :futuresTradeSignal, :missingInputs);
+            (:contractId, :valueDate, :revision, :updatedOn, :eodData, :futuresTradeSignal, :missingInputs, :snapshot);
     """;
 
     public const string GetMarketOutlookSnapshot = """
-        SELECT contractId AS "ContractId",
+        SELECT snapshot AS "Snapshot",
+            contractId AS "ContractId",
             valueDate AS "ValueDate",
             revision AS "Revision",
             updatedOn AS "UpdatedOn",

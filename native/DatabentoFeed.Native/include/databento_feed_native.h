@@ -424,7 +424,8 @@ typedef enum dbf_historical_schema {
     DBF_HISTORICAL_DEFINITION = 1,
     DBF_HISTORICAL_OHLCV_1M = 2,
     DBF_HISTORICAL_TRADES = 3,
-    DBF_HISTORICAL_STATISTICS = 4
+    DBF_HISTORICAL_STATISTICS = 4,
+    DBF_HISTORICAL_OHLCV_1D = 5
 } dbf_historical_schema;
 
 typedef enum dbf_historical_flags {

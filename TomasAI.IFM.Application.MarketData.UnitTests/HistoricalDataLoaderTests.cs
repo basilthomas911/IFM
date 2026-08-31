@@ -43,6 +43,63 @@ public sealed class HistoricalDataLoaderTests
         Assert.Equal(first.Audit.ValidSessionCount, replay.BatchCount);
     }
 
+    [Fact]
+    public async Task EstimateFailureIsDurablyVisibleWithoutAdvancingPastEstimation()
+    {
+        var calendar = new CmeFuturesMarketSessionCalendar();
+        var series = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
+        var request = new MarketDataHistoricalRequest
+        {
+            DataLoadAttemptId = Guid.NewGuid(),
+            Series = [new() { SeriesIdentity = series, Schema = TomasAI.IFM.Framework.MarketData.Contracts.Historical.HistoricalDataSchema.OhlcvDaily }],
+            StartDate = new(2024, 1, 2), EndDate = new(2024, 12, 31),
+            MaximumCostUsd = 1, MaximumBytes = 10_000_000,
+            NormalizationVersion = "fixture-v1", RequestedBy = "test"
+        };
+        var states = new MemoryDataLoaderStore();
+        var coordinator = new HistoricalDataLoader(
+            new EstimateFailureHistoricalApi(),
+            states,
+            new MemoryObservationStore(),
+            new RecordingReplayPublisher(),
+            calendar,
+            TimeProvider.System);
+
+        var exception = await Assert.ThrowsAsync<TimeoutException>(
+            () => coordinator.ExecuteAsync(request, CancellationToken.None).AsTask());
+
+        Assert.Equal("fixture estimate timeout", exception.Message);
+        Assert.Collection(states.Saves,
+            started =>
+            {
+                Assert.Equal(HistoricalDataLoaderStatus.Processing, started.Status);
+                Assert.Equal(HistoricalAcquisitionStage.None, started.Checkpoint.Stage);
+                Assert.StartsWith("estimating:", started.RequestSha256, StringComparison.Ordinal);
+            },
+            failed =>
+            {
+                Assert.Equal(HistoricalDataLoaderStatus.Failed, failed.Status);
+                Assert.Equal(HistoricalAcquisitionStage.None, failed.Checkpoint.Stage);
+                Assert.Equal("fixture estimate timeout", failed.ErrorMessage);
+            });
+    }
+
+    sealed class EstimateFailureHistoricalApi : IMarketDataHistoricalApi
+    {
+        public ValueTask<MarketDataHistoricalEstimate> EstimateAsync(
+            MarketDataHistoricalRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<MarketDataHistoricalEstimate>(new TimeoutException("fixture estimate timeout"));
+
+        public ValueTask<MarketDataHistoricalManifest> AcquireAsync(
+            MarketDataHistoricalRequest request,
+            HistoricalAcquisitionCheckpoint checkpoint,
+            IHistoricalObservationSink sink,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Acquisition must not run after an estimate failure.");
+    }
+
     sealed class FixtureHistoricalApi(IMarketSessionCalendar calendar) : IMarketDataHistoricalApi
     {
         internal int AcquireCount { get; private set; }
@@ -101,12 +158,14 @@ public sealed class HistoricalDataLoaderTests
     sealed class MemoryDataLoaderStore : IHistoricalDataLoaderStore
     {
         readonly Dictionary<Guid, HistoricalDataLoaderState> states = [];
+        internal List<HistoricalDataLoaderState> Saves { get; } = [];
         public ValueTask<HistoricalDataLoaderState?> GetAsync(Guid attemptId, CancellationToken cancellationToken) =>
             ValueTask.FromResult(states.GetValueOrDefault(attemptId));
         public ValueTask<HistoricalDataLoaderState?> GetCompletedByRequestHashAsync(string hash, CancellationToken cancellationToken) =>
             ValueTask.FromResult(states.Values.FirstOrDefault(x => x.RequestSha256 == hash && x.Status == HistoricalDataLoaderStatus.Completed));
         public ValueTask SaveAsync(HistoricalDataLoaderState state, CancellationToken cancellationToken)
         {
+            Saves.Add(state);
             states[state.DataLoadAttemptId] = state;
             return ValueTask.CompletedTask;
         }

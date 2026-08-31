@@ -43,6 +43,11 @@ public class FuturesTradeSignalUIViewModel
     public PresentationColorRole TrendReversalForeColor { get; private set; }
     public string FiftyDMA { get; private set; }
     public string TwoHundredDMA { get; private set; }
+    public string TdiDirection { get; private set; } = Unavailable;
+    public string TdiStrength { get; private set; } = Unavailable;
+    public string TdiMarketState { get; private set; } = Unavailable;
+    public string TdiCross { get; private set; } = Unavailable;
+    public string TdiDivergence { get; private set; } = Unavailable;
 
     public FuturesTradeSignalUIViewModel(FuturesTradeSignalV2ReadModel e)
     {
@@ -182,15 +187,23 @@ public class FuturesTradeSignalUIViewModel
             RSIBackColor = PresentationColorRole.Default;
         }
 
-        if (snapshot.FuturesTdiSignal is { } tdi)
+        if (snapshot.FuturesBbSignal?.Position20 is { } position)
         {
-            MDITrend = $"{tdi.TDI}";
-            MDITrendBackColor = tdi.TDI switch
+            var mdi = Math.Clamp(position * 100m, 0m, 100m);
+            MDITrend = mdi switch
             {
-                FuturesTrendDirectionType.UpTrending => PresentationColorRole.Positive,
-                FuturesTrendDirectionType.DownTrending => PresentationColorRole.Negative,
+                >= 60m => $"{FuturesMDITrendType.UpTrending}",
+                < 30m => $"{FuturesMDITrendType.DownTrending}",
+                _ => $"{FuturesMDITrendType.RangeBound}"
+            };
+            MDITrendBackColor = mdi switch
+            {
+                >= 60m => PresentationColorRole.Positive,
+                < 30m => PresentationColorRole.Negative,
                 _ => PresentationColorRole.Caution
             };
+            MDIUpLimit = "60.00";
+            MDIDownLimit = "30.00";
         }
         else
         {
@@ -198,7 +211,7 @@ public class FuturesTradeSignalUIViewModel
             MDITrendBackColor = PresentationColorRole.Default;
         }
 
-        if (snapshot.TrendDirectionChange is { } direction)
+        if (snapshot.LatestItiTrendSignal is { } direction)
         {
             Trend = direction.IntrinsicTimeTrend switch
             {
@@ -227,6 +240,23 @@ public class FuturesTradeSignalUIViewModel
         TrendReversal = snapshot.TrendReversalChange is { } reversal
             ? $"{reversal.TrendReversal:F2}"
             : Unavailable;
+
+        if (snapshot.FuturesTdiSignal is { } tdi)
+        {
+            TdiDirection = $"{tdi.TDI}";
+            TdiStrength = $"{tdi.TDIStrength}";
+            TdiMarketState = $"{tdi.MarketState}";
+            TdiCross = $"{tdi.Cross}";
+            TdiDivergence = $"{tdi.PriceSignalDivergence:F2}";
+        }
+        else
+        {
+            TdiDirection = "Warming";
+            TdiStrength = Unavailable;
+            TdiMarketState = Unavailable;
+            TdiCross = Unavailable;
+            TdiDivergence = Unavailable;
+        }
     }
 
 

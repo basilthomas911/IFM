@@ -59,7 +59,8 @@ public partial class MarketDataDbContext
                 snapshot.UpdatedOn,
                 MessagePackSerializer.Serialize(snapshot.FuturesEodData),
                 tradeSignal,
-                snapshot.MissingInputs))
+                snapshot.MissingInputs,
+                MessagePackSerializer.Serialize(snapshot)))
             .ExecuteCommandAsync(cancellationToken)
             .ConfigureAwait(false);
     }
@@ -89,14 +90,19 @@ public partial class MarketDataDbContext
     static MarketOutlookSnapshotReadModel MapToMarketOutlookSnapshot<TDataRecord>(
         TDataRecord row)
         where TDataRecord : IObjectDataRecord
-        => new(
-            row.GetString(0),
-            row.GetDateOnly(1),
-            row.GetLong(2),
-            row.GetDateTime(3),
-            MessagePackSerializer.Deserialize<FuturesEodDataV2ReadModel>(row.GetBytes(4)),
-            row.IsNull(5)
+    {
+        if (!row.IsNull(0))
+            return MessagePackSerializer.Deserialize<MarketOutlookSnapshotReadModel>(row.GetBytes(0));
+
+        return new(
+            row.GetString(1),
+            row.GetDateOnly(2),
+            row.GetLong(3),
+            row.GetDateTime(4),
+            MessagePackSerializer.Deserialize<FuturesEodDataV2ReadModel>(row.GetBytes(5)),
+            row.IsNull(6)
                 ? null
-                : MessagePackSerializer.Deserialize<FuturesTradeSignalV2ReadModel>(row.GetBytes(5)),
-            row.IsNull(6) ? string.Empty : row.GetString(6));
+                : MessagePackSerializer.Deserialize<FuturesTradeSignalV2ReadModel>(row.GetBytes(6)),
+            row.IsNull(7) ? string.Empty : row.GetString(7));
+    }
 }

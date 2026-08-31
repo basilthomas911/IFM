@@ -18,6 +18,8 @@ public static class RegimeDiscoverySignalCacheAdapter
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), decimal> LatestEma20 = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesEmaSignalReadModel> LatestEmaSignals = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesBbSignalReadModel> LatestBbSignals = new();
+    static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesEmaAccumulatorCheckpoint> LatestEmaCheckpoints = new();
+    static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesBbAccumulatorCheckpoint> LatestBbCheckpoints = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), Queue<FuturesTradeSessionBarReadModel>> Bars = new();
 
     /// <summary>Publishes the EMA family and current price using common observation provenance.</summary>
@@ -38,6 +40,14 @@ public static class RegimeDiscoverySignalCacheAdapter
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.Ema200Slope, signal.Ema200Slope, signal.IsWarm);
     }
 
+    /// <summary>Publishes a committed EMA signal together with its immutable Daily baseline.</summary>
+    public static void Publish(FuturesEmaSignalReadModel signal, FuturesEmaAccumulatorCheckpoint checkpoint)
+    {
+        Publish(signal);
+        if (!signal.IsProvisional)
+            LatestEmaCheckpoints[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = checkpoint;
+    }
+
     /// <summary>Publishes Bollinger width, ratio, position, and price interaction inputs.</summary>
     public static void Publish(FuturesBbSignalReadModel signal)
     {
@@ -48,6 +58,53 @@ public static class RegimeDiscoverySignalCacheAdapter
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidth, signal.Width20, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidthRatio, signal.Width20Ratio, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerPosition, signal.Position20, signal.IsWarm);
+    }
+
+    /// <summary>Publishes a committed Bollinger signal together with its immutable Daily baseline.</summary>
+    public static void Publish(FuturesBbSignalReadModel signal, FuturesBbAccumulatorCheckpoint checkpoint)
+    {
+        Publish(signal);
+        if (!signal.IsProvisional)
+            LatestBbCheckpoints[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = checkpoint;
+    }
+
+    /// <summary>Gets the newest warm committed ES Daily baseline for live preview calculation.</summary>
+    public static bool TryGetLatestEsDailyBaseline(
+        string contractId,
+        out FuturesEmaAccumulatorCheckpoint ema,
+        out FuturesBbAccumulatorCheckpoint bb,
+        out FuturesEmaSignalReadModel committedEma,
+        out FuturesBbSignalReadModel committedBb)
+    {
+        var exact = (contractId, TimeFrameType.Daily);
+        if (LatestEmaCheckpoints.TryGetValue(exact, out ema!)
+            && LatestBbCheckpoints.TryGetValue(exact, out bb!)
+            && LatestEmaSignals.TryGetValue(exact, out committedEma!)
+            && LatestBbSignals.TryGetValue(exact, out committedBb!))
+            return true;
+
+        var candidate = LatestEmaSignals
+            .Where(static pair => pair.Key.TimeFrame == TimeFrameType.Daily)
+            .Where(static pair => pair.Key.ContractId.StartsWith("ES", StringComparison.OrdinalIgnoreCase))
+            .Where(pair => LatestBbSignals.ContainsKey(pair.Key)
+                && LatestEmaCheckpoints.ContainsKey(pair.Key)
+                && LatestBbCheckpoints.ContainsKey(pair.Key))
+            .OrderByDescending(static pair => pair.Value.Metadata.ValueDate)
+            .ThenByDescending(static pair => pair.Value.Metadata.SourceSequence)
+            .FirstOrDefault();
+        if (candidate.Value is null)
+        {
+            ema = default!;
+            bb = default!;
+            committedEma = default!;
+            committedBb = default!;
+            return false;
+        }
+        ema = LatestEmaCheckpoints[candidate.Key];
+        bb = LatestBbCheckpoints[candidate.Key];
+        committedEma = candidate.Value;
+        committedBb = LatestBbSignals[candidate.Key];
+        return true;
     }
 
     /// <summary>Gets the latest typed EMA family for one exact contract and timeframe.</summary>
@@ -88,6 +145,9 @@ public static class RegimeDiscoverySignalCacheAdapter
     /// <summary>Publishes RSI14 and its slope.</summary>
     public static void Publish(FuturesRsiSignalReadModel signal)
     {
+        if (signal is not { IsWarm: true, RSI: >= 0d }
+            || signal.Metadata is { IsValid: false })
+            return;
         var metadata = Metadata(signal.Metadata, signal.ContractId, signal.TimePeriod, signal.ValueDate,
             signal.Timestamp, "rsi-v1");
         Publish(metadata, RegimeDiscoverySignalMetric.Rsi14, (decimal)signal.RSI, true);

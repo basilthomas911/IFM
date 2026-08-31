@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -17,6 +18,7 @@ public static class FuturesRsiSignalsGenerated
     public static async ValueTask<bool> ExecuteRealtimeAsync(
         this FuturesRsiSignalsGeneratedEvent source,
         IRealtimeProjector<FuturesTdiSignalRealtimeActor> projector,
+        IMarketDataDbReadContext marketDataDb,
         FuturesTdiSignalRealtimeState state,
         ILogger logger)
     {
@@ -31,7 +33,9 @@ public static class FuturesRsiSignalsGenerated
                 && signal.ValueDate == source.EntityId.ValueDate
                 && signal.TimePeriod == source.EntityId.TimePeriod
                 && signal.PeriodLength == configuration.RsiPeriod
-                && signal.RSI >= 0d)
+                && signal.IsWarm
+                && signal.RSI >= 0d
+                && signal.Metadata is not { IsValid: false })
             .OrderBy(static signal => signal.ValueDate)
             .ThenBy(static signal => signal.Timestamp)
             .TakeLast(configuration.RequiredRsiSamples)
@@ -39,7 +43,14 @@ public static class FuturesRsiSignalsGenerated
         if (signals.Length < configuration.RequiredRsiSamples)
             return true;
 
-        var evaluation = state.Evaluate(source, signals, configuration);
+        await state.SeedAsync(source, configuration, marketDataDb).ConfigureAwait(false);
+        if (!state.TryEvaluate(source, signals, configuration, out var evaluation))
+        {
+            logger.LogDebug(
+                "TDI window for {ContractId} was not yet calculable; retaining the prior optional value",
+                source.EntityId.ContractId);
+            return true;
+        }
         if (!await projector.ProcessRealtimeEventAsync(evaluation.Generated).ConfigureAwait(false))
             return false;
         state.Confirm(evaluation);
@@ -53,11 +64,35 @@ public static class FuturesRsiSignalsGenerated
 public sealed class FuturesTdiSignalRealtimeState
 {
     readonly ConcurrentDictionary<FuturesTdiSignalEntityId, FuturesTdiSignalReadModel> _signals = new();
+    readonly ConcurrentDictionary<FuturesTdiSignalEntityId, byte> _seeded = new();
 
-    public FuturesTdiSignalEvaluation Evaluate(
+    /// <summary>Seeds the prior TDI once so cross detection survives an actor or process restart.</summary>
+    public async ValueTask SeedAsync(
+        FuturesRsiSignalsGeneratedEvent source,
+        FuturesTdiConfiguration configuration,
+        IMarketDataDbReadContext marketDataDb)
+    {
+        var entityId = new FuturesTdiSignalEntityId(
+            source.EntityId.ContractId,
+            source.EntityId.ValueDate,
+            source.EntityId.TimePeriod,
+            configuration.ConfigurationId);
+        if (!_seeded.TryAdd(entityId, 0))
+            return;
+        var persisted = await marketDataDb.GetLastFuturesTdiSignalAsync(
+            entityId.ContractId,
+            entityId.ValueDate,
+            entityId.TimePeriod,
+            entityId.ConfigurationId).ConfigureAwait(false);
+        if (persisted is not null)
+            _signals.TryAdd(entityId, persisted);
+    }
+
+    public bool TryEvaluate(
         FuturesRsiSignalsGeneratedEvent source,
         FuturesRsiSignalReadModel[] signals,
-        FuturesTdiConfiguration configuration)
+        FuturesTdiConfiguration configuration,
+        out FuturesTdiSignalEvaluation evaluation)
     {
         var latest = signals[^1];
         var signalId = new FuturesTdiSignalId(
@@ -72,7 +107,10 @@ public sealed class FuturesTdiSignalRealtimeState
         };
         _signals.TryGetValue(command.EntityId, out var previous);
         if (!command.Compute(previous, out var computed) || computed is null)
-            throw new InvalidOperationException("The realtime TDI window did not produce a signal.");
+        {
+            evaluation = default!;
+            return false;
+        }
         var generated = command.CreateFuturesTdiSignalGeneratedEvent(computed) with
         {
             Subject = new(ActorType.Realtime, FuturesTdiSignalRealtimeActor.ActorName,
@@ -83,7 +121,8 @@ public sealed class FuturesTdiSignalRealtimeState
             EventSource = source.EventName,
             ReceivedOn = DateTime.UtcNow
         };
-        return new(command.EntityId, generated.FuturesTdiSignal, generated);
+        evaluation = new(command.EntityId, generated.FuturesTdiSignal, generated);
+        return true;
     }
 
     public void Confirm(FuturesTdiSignalEvaluation evaluation) =>

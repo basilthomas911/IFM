@@ -20,6 +20,7 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(IActorService act
     public async ValueTask PublishAsync(
         IReadOnlyList<FuturesEodObservationReadModel> observations,
         DateOnly targetValueDate,
+        string targetContractId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observations);
@@ -75,12 +76,15 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(IActorService act
             }
         }
 
-        if (latestEsEma is not { IsWarm: true }
-            || latestEsBb is not { IsWarm: true }
-            || string.IsNullOrWhiteSpace(latestEsContractId))
+        if (latestEsEma is not { IsWarm: true } || latestEsBb is not { IsWarm: true })
             return;
 
-        var outlookEntityId = new MarketOutlookEntityId(latestEsContractId, targetValueDate);
+        var resolvedTargetContractId = string.IsNullOrWhiteSpace(targetContractId)
+            ? latestEsContractId
+            : targetContractId;
+        if (string.IsNullOrWhiteSpace(resolvedTargetContractId))
+            return;
+        var outlookEntityId = new MarketOutlookEntityId(resolvedTargetContractId, targetValueDate);
         var sourceEventId = latestEsEma.Metadata.ObservationId.Value;
         var reconcile = new ObserveMarketOutlookComponentCommand(
             outlookEntityId,

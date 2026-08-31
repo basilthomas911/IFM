@@ -14,7 +14,9 @@ public enum HistoricalDataSchema : byte
     /// <summary>Individual trade records.</summary>
     Trades = 3,
     /// <summary>Exchange statistics records.</summary>
-    Statistics = 4
+    Statistics = 4,
+    /// <summary>Daily open, high, low, close, and volume records.</summary>
+    OhlcvDaily = 5
 }
 
 /// <summary>Identifies provider-neutral input symbology.</summary>

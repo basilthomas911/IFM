@@ -42,7 +42,8 @@ public sealed class MarketOutlookOrCompositionScenarios
             TimePeriod = TimeFrameType.FifteenSeconds,
             PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
             RSI = 62.5,
-            RSISlope = 0.75
+            RSISlope = 0.75,
+            IsWarm = true
         };
         var command = new PublishMarketOutlookSnapshotCommand(
             entityId,
@@ -73,9 +74,55 @@ public sealed class MarketOutlookOrCompositionScenarios
         snapshot.FuturesRsiSignal.Should().Be(rsi);
         snapshot.FuturesTradeSignal.Should().NotBeNull();
         snapshot.FuturesTradeSignal!.RSI.Should().Be(62.5);
-        snapshot.MissingInputs.Should().Contain("TDI");
-        snapshot.MissingInputs.Should().Contain("ITI direction");
+        snapshot.MissingInputs.Should().NotContain("TDI");
+        snapshot.MissingInputs.Should().Contain("ITI trend");
         snapshot.IsComplete.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(IntrinsicTimeModeType.TrendDirectionChanged)]
+    [InlineData(IntrinsicTimeModeType.TrendExtremeChanged)]
+    [InlineData(IntrinsicTimeModeType.TrendReversalChanged)]
+    [InlineData(IntrinsicTimeModeType.Trending)]
+    public void GivenAnySupportedDailyItiMode_WhenObserved_ThenLatestTrendAndDeltaAdvance(
+        IntrinsicTimeModeType mode)
+    {
+        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
+        var iti = new FuturesItiSignalV2ReadModel
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            TimePeriod = TimeFrameType.Daily,
+            IntrinsicTimeMode = mode,
+            IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+            TrendDelta = 47.25,
+            IntrinsicPrice = 6425
+        };
+        var sourceId = Guid.NewGuid();
+        var command = new ObserveMarketOutlookComponentCommand(
+            entityId,
+            sourceId,
+            1,
+            DateTime.UtcNow,
+            "bdd-iti",
+            futuresItiSignal: iti)
+        {
+            CommandId = sourceId,
+            Subject = new(
+                ActorType.Command,
+                ObserveMarketOutlookComponentCommand.Actor,
+                ObserveMarketOutlookComponentCommand.Verb,
+                entityId.Format())
+        };
+        var state = new MarketOutlookSnapshotCommandState();
+
+        command.Execute(state).Success.Should().BeTrue();
+
+        var observed = state.Events.Should().ContainSingle()
+            .Which.Should().BeOfType<MarketOutlookComponentObservedEvent>().Which;
+        observed.WorkingState.LatestItiTrendSignal.Should().Be(iti);
+        observed.WorkingState.PublishedSnapshot!.LatestItiTrendSignal!.TrendDelta
+            .Should().Be(47.25);
     }
 
     [Theory]

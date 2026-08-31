@@ -49,7 +49,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
                 TimePeriod = TimeFrameType.FifteenSeconds,
-                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+                IsWarm = true
             }
         };
 
@@ -89,7 +90,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
                 TimePeriod = TimeFrameType.FifteenSeconds,
-                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+                IsWarm = true
             }
         };
 
@@ -101,7 +103,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
     }
 
     [Fact]
-    public async Task IneligibleItiComponent_IsIgnoredWithoutRequestOrException()
+    public async Task UnsupportedItiComponent_IsIgnoredWithoutRequestOrException()
     {
         var context = Context();
         var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
@@ -120,7 +122,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
                 TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+                IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
             }
         };
         Func<Task> receive = () => actor.InvokeReceiveAsync(context, changed).AsTask();
@@ -132,7 +134,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
     }
 
     [Fact]
-    public async Task IneligibleItiCompletion_DoesNotPublishRealtimeComponentEvent()
+    public async Task UnsupportedItiCompletion_DoesNotPublishRealtimeComponentEvent()
     {
         var context = Context();
         var valueDate = new DateOnly(2026, 8, 21);
@@ -146,7 +148,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
                 TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+                IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
             }
         };
 
@@ -157,7 +159,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
     }
 
     [Fact]
-    public async Task IneligibleItiCompletion_StillPublishesValidVixSibling()
+    public async Task UnsupportedItiCompletion_StillPublishesValidVixSibling()
     {
         var context = Context();
         var valueDate = new DateOnly(2026, 8, 21);
@@ -171,7 +173,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
                 TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+                IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
             }
         };
 
@@ -367,6 +369,46 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
                 notification.EntityId == entityId
                 && notification.CommandId == completed.CommandId
                 && notification.MarketOutlook == snapshot));
+    }
+
+    [Fact]
+    public async Task LiveTradePreview_AcceptsOrderedNewTrades_FencesDuplicatesAndGaps_ThenRecoversOnNewEpoch()
+    {
+        const string contractId = "ESZ00";
+        var valueDate = new DateOnly(2026, 8, 31);
+        MarketOutlookDailyPreviewCalculatorTests.SeedBaseline(contractId);
+        var database = Substitute.For<IMarketDataDbContext>();
+        database.GetMarketOutlookSnapshotAsync(contractId, valueDate, Arg.Any<CancellationToken>())
+            .Returns((MarketOutlookSnapshotReadModel?)null);
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        dbFactory.MarketDataDb.Returns(database);
+        var context = Context(dbFactory);
+        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
+        var first = MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_100m, 1);
+
+        await actor.InvokeReceiveAsync(context, first);
+        await actor.InvokeReceiveAsync(context, first);
+        await actor.InvokeReceiveAsync(context,
+            MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_102m, 3));
+        await actor.InvokeReceiveAsync(context,
+            MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_103m, 4));
+
+        var newEpoch = MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_104m, 1);
+        newEpoch = newEpoch with
+        {
+            Price = newEpoch.Price with
+            {
+                Trade = newEpoch.Price.Trade!.Value with { StreamEpochId = Guid.NewGuid() }
+            }
+        };
+        await actor.InvokeReceiveAsync(context, newEpoch);
+
+        await context.Received(2).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
+            Arg.Is<MarketOutlookUpdatedNotifyEvent>(notification =>
+                notification.MarketOutlook.FuturesEmaSignal!.IsProvisional
+                && notification.MarketOutlook.FuturesBbSignal!.IsProvisional));
+        await database.Received(1).GetMarketOutlookSnapshotAsync(
+            contractId, valueDate, Arg.Any<CancellationToken>());
     }
 
     static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context(

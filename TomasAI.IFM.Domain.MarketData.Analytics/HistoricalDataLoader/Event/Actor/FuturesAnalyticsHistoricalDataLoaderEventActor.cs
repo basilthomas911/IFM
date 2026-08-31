@@ -16,6 +16,7 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
     IEventActorContext<FuturesAnalyticsHistoricalDataLoaderEventActor> actorContext)
     : BaseEventActor<FuturesAnalyticsHistoricalDataLoaderEventActor>(actorContext, actorContext.Logger)
 {
+    static readonly TimeSpan AutomaticRequestMaximumAge = TimeSpan.FromMinutes(5);
     /// <summary>Gets the Event actor mailbox name.</summary>
     public const string ActorName = FuturesAnalyticsHistoricalDataLoaderRequestedEvent.Actor;
 
@@ -78,15 +79,67 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
         FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested)
     {
         var request = ToApplicationRequest(requested);
+        context.Logger.LogInformation(
+            "Received historical Analytics request {AttemptId}; automatic={AutomaticStartupWarmup}, received={ReceivedOnUtc}, target={AnalyticsTargetContractId}.",
+            requested.EntityId.Value,
+            requested.Parameters.AutomaticStartupWarmup,
+            requested.ReceivedOn,
+            requested.Parameters.AnalyticsTargetContractId);
         try
         {
+            if (requested.Parameters.AutomaticStartupWarmup
+                && requested.ReceivedOn != default
+                && DateTime.UtcNow - DateTime.SpecifyKind(requested.ReceivedOn, DateTimeKind.Utc)
+                    > AutomaticRequestMaximumAge)
+            {
+                context.Logger.LogInformation(
+                    "Ignoring stale automatic historical Analytics request {AttemptId} received at {ReceivedOnUtc}.",
+                    requested.EntityId.Value,
+                    requested.ReceivedOn);
+                return;
+            }
+
             HistoricalAnalyticsWarmupResult? warmupResult = null;
             HistoricalDataLoaderState state;
             if (requested.Parameters.AutomaticStartupWarmup)
             {
+                context.Logger.LogInformation(
+                    "Writing historical Analytics coverage-scan checkpoint for {AttemptId}.",
+                    requested.EntityId.Value);
+                await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
+                {
+                    DataLoadAttemptId = requested.EntityId.Value,
+                    RequestSha256 = $"coverage-scan:{requested.EntityId.Value:D}",
+                    Status = HistoricalDataLoaderStatus.Processing,
+                    Checkpoint = new HistoricalAcquisitionCheckpoint
+                    {
+                        DataLoadAttemptId = requested.EntityId.Value,
+                        Stage = HistoricalAcquisitionStage.None
+                    },
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                }, CancellationToken.None).ConfigureAwait(false);
+                context.Logger.LogInformation(
+                    "Historical Analytics coverage-scan checkpoint written for {AttemptId}.",
+                    requested.EntityId.Value);
                 warmupResult = await context.WarmupService.EnsureAsync(
                     request, CancellationToken.None).ConfigureAwait(false);
                 state = ToState(requested, warmupResult);
+                await context.DataLoaderStore.SaveAsync(new HistoricalDataLoaderState
+                {
+                    DataLoadAttemptId = requested.EntityId.Value,
+                    RequestSha256 = $"automatic:{requested.EntityId.Value:D}:{warmupResult.Outcome}:{warmupResult.StartDate:O}:{warmupResult.EndDate:O}",
+                    Status = HistoricalDataLoaderStatus.Completed,
+                    Checkpoint = new HistoricalAcquisitionCheckpoint
+                    {
+                        DataLoadAttemptId = requested.EntityId.Value,
+                        Stage = HistoricalAcquisitionStage.Completed
+                    },
+                    Audit = new HistoricalDataLoaderAudit(
+                        warmupResult.ValidSessionCount,
+                        [],
+                        []),
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                }, CancellationToken.None).ConfigureAwait(false);
                 context.Logger.LogInformation(
                     "Historical Analytics warm-up {Outcome} for {StartDate} through {EndDate}; valid ES sessions {ValidSessionCount}, initially missing sessions {MissingSessionCount}.",
                     warmupResult.Outcome,
@@ -121,8 +174,23 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            context.Logger.LogError(
+                exception,
+                "Historical Analytics request {AttemptId} failed before terminal publication.",
+                requested.EntityId.Value);
             var state = await context.DataLoaderStore.GetAsync(
                 requested.EntityId.Value, CancellationToken.None).ConfigureAwait(false);
+            if (state is not null)
+            {
+                state = state with
+                {
+                    Status = HistoricalDataLoaderStatus.Failed,
+                    ErrorMessage = exception.Message,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                };
+                await context.DataLoaderStore.SaveAsync(state, CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
             var terminal = new FuturesAnalyticsHistoricalDataLoaderFailedEvent
             {
                 Subject = new(ActorType.Event, ActorName,
@@ -152,6 +220,7 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
             {
                 FuturesAnalyticsHistoricalSchema.OhlcvOneMinute => HistoricalDataSchema.OhlcvOneMinute,
                 FuturesAnalyticsHistoricalSchema.Trades => HistoricalDataSchema.Trades,
+                FuturesAnalyticsHistoricalSchema.OhlcvDaily => HistoricalDataSchema.OhlcvDaily,
                 _ => throw new InvalidOperationException($"Unsupported historical schema {value.Schema}.")
             },
             ExactTradesRequired = value.ExactTradesRequired || requested.Parameters.ExactVwapRequired
@@ -161,7 +230,8 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
         MaximumCostUsd = requested.Parameters.MaximumCostUsd,
         MaximumBytes = requested.Parameters.MaximumBytes,
         NormalizationVersion = requested.Parameters.NormalizationVersion,
-        RequestedBy = requested.Parameters.RequestedBy
+        RequestedBy = requested.Parameters.RequestedBy,
+        AnalyticsTargetContractId = requested.Parameters.AnalyticsTargetContractId
     };
 
     static long ParseRecordOrdinal(string? sourcePosition) =>

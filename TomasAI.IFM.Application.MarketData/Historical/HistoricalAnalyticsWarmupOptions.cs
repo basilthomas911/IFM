@@ -9,6 +9,7 @@ public sealed record HistoricalAnalyticsWarmupOptions
     public bool IsDevelopmentEnvironment { get; init; }
     public int LookbackCalendarDays { get; init; } = 365;
     public int MinimumValidDailySessions { get; init; } = 201;
+    public int TrailingProviderAvailabilityGraceSessions { get; init; } = 1;
     public decimal MaximumCostUsd { get; init; } = 10m;
     public long MaximumBytes { get; init; } = 1_073_741_824;
     public string NormalizationVersion { get; init; } = "historical-daily-v1";
@@ -23,6 +24,8 @@ public sealed record HistoricalAnalyticsWarmupOptions
             throw new ArgumentOutOfRangeException(nameof(LookbackCalendarDays));
         if (MinimumValidDailySessions < 201)
             throw new ArgumentOutOfRangeException(nameof(MinimumValidDailySessions));
+        if (TrailingProviderAvailabilityGraceSessions is < 0 or > 5)
+            throw new ArgumentOutOfRangeException(nameof(TrailingProviderAvailabilityGraceSessions));
         if (MaximumCostUsd <= 0 || MaximumBytes <= 0)
             throw new ArgumentOutOfRangeException(nameof(MaximumCostUsd));
         ArgumentException.ThrowIfNullOrWhiteSpace(NormalizationVersion);

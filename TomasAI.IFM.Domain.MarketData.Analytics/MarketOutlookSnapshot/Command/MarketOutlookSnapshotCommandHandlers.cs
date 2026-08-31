@@ -45,21 +45,25 @@ public static class MarketOutlookSnapshotCommandHandlers
         if (command.FuturesItiSignal is { } iti
             && MarketOutlookComponentEligibility.IsEligible(command.EntityId, iti))
         {
-            var componentType = iti.IntrinsicTimeMode switch
+            var milestoneType = iti.IntrinsicTimeMode switch
             {
                 IntrinsicTimeModeType.TrendDirectionChanged => MarketOutlookComponentType.ItiDirection,
                 IntrinsicTimeModeType.TrendExtremeChanged => MarketOutlookComponentType.ItiExtreme,
                 IntrinsicTimeModeType.TrendReversalChanged => MarketOutlookComponentType.ItiReversal,
-                _ => throw new InvalidOperationException(
-                    $"Unsupported Market Outlook ITI mode {iti.IntrinsicTimeMode}.")
+                _ => (MarketOutlookComponentType?)null
             };
-            changed |= Accept(componentType, value => next = componentType switch
+            if (milestoneType is { } componentType)
             {
-                MarketOutlookComponentType.ItiDirection => next with { TrendDirectionChange = iti },
-                MarketOutlookComponentType.ItiExtreme => next with { TrendExtremeChange = iti },
-                MarketOutlookComponentType.ItiReversal => next with { TrendReversalChange = iti },
-                _ => next
-            });
+                changed |= Accept(componentType, value => next = componentType switch
+                {
+                    MarketOutlookComponentType.ItiDirection => next with { TrendDirectionChange = iti },
+                    MarketOutlookComponentType.ItiExtreme => next with { TrendExtremeChange = iti },
+                    MarketOutlookComponentType.ItiReversal => next with { TrendReversalChange = iti },
+                    _ => next
+                });
+            }
+            changed |= Accept(MarketOutlookComponentType.ItiLatest,
+                value => next = next with { LatestItiTrendSignal = iti });
         }
         if (command.VixFuturesPrice is >= 0.01m and <= 200m)
             changed |= Accept(MarketOutlookComponentType.Vix, value => next = next with
@@ -160,14 +164,24 @@ public static class MarketOutlookSnapshotCommandHandlers
             : new MarketOutlookWorkingStateReadModel { EntityId = command.EntityId };
         reconciled = reconciled with
         {
-            FuturesRsiSignal = command.FuturesRsiSignal ?? reconciled.FuturesRsiSignal,
-            FuturesTdiSignal = command.FuturesTdiSignal ?? reconciled.FuturesTdiSignal,
+            FuturesRsiSignal = command.FuturesRsiSignal is { } rsi
+                && MarketOutlookComponentEligibility.IsEligible(command.EntityId, rsi)
+                    ? rsi
+                    : reconciled.FuturesRsiSignal,
+            FuturesTdiSignal = command.FuturesTdiSignal is { } tdi
+                && MarketOutlookComponentEligibility.IsEligible(command.EntityId, tdi)
+                    ? tdi
+                    : reconciled.FuturesTdiSignal,
             TrendDirectionChange = command.FuturesItiSignalData?.TrendDirectionChange
                 ?? reconciled.TrendDirectionChange,
             TrendExtremeChange = command.FuturesItiSignalData?.TrendExtremeChange
                 ?? reconciled.TrendExtremeChange,
             TrendReversalChange = command.FuturesItiSignalData?.TrendReversalChange
                 ?? reconciled.TrendReversalChange,
+            LatestItiTrendSignal = command.FuturesItiSignalData?.TrendDirectionChange
+                ?? command.FuturesItiSignalData?.TrendExtremeChange
+                ?? command.FuturesItiSignalData?.TrendReversalChange
+                ?? reconciled.LatestItiTrendSignal,
             VixFuturesPrice = command.VixFuturesPrice > 0
                 ? command.VixFuturesPrice
                 : reconciled.VixFuturesPrice,
@@ -242,11 +256,8 @@ public static class MarketOutlookSnapshotCommandHandlers
     {
         List<string> missing = [];
         if (state.FuturesEodData is not { IsValid: true }) missing.Add("EOD");
-        if (state.FuturesRsiSignal is null) missing.Add("RSI");
-        if (state.FuturesTdiSignal is null) missing.Add("TDI");
-        if (state.TrendDirectionChange is null) missing.Add("ITI direction");
-        if (state.TrendExtremeChange is null) missing.Add("ITI extreme");
-        if (state.TrendReversalChange is null) missing.Add("ITI reversal");
+        if (state.FuturesRsiSignal is not { IsWarm: true, RSI: >= 0d }) missing.Add("RSI warming");
+        if (state.LatestItiTrendSignal is null) missing.Add("ITI trend");
         if (state.VixFuturesPrice <= 0) missing.Add("VX price");
         if (state.FuturesEmaSignal is not { IsWarm: true }) missing.Add("EMA");
         if (state.FuturesBbSignal is not { IsWarm: true }) missing.Add("Bollinger Bands");
@@ -276,7 +287,8 @@ public static class MarketOutlookSnapshotCommandHandlers
             state.TrendReversalChange,
             state.VixFuturesPrice > 0 ? state.VixFuturesPrice : null,
             state.FuturesEmaSignal,
-            state.FuturesBbSignal);
+            state.FuturesBbSignal,
+            state.LatestItiTrendSignal);
     }
 
     static bool IsNewer(

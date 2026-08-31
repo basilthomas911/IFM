@@ -43,6 +43,7 @@ public sealed class HistoricalDataLoaderContractTests
     {
         var state = new FuturesAnalyticsHistoricalDataLoaderCommandState();
         var command = CreateCommand();
+        var earliestExpectedReceivedOn = DateTime.UtcNow;
 
         var first = command.Execute(state);
         var second = command.Execute(state);
@@ -51,6 +52,9 @@ public sealed class HistoricalDataLoaderContractTests
         Assert.IsType<ServiceFailed<GuidResult>>(second);
         Assert.True(state.IsRequested);
         Assert.Equal(command.Parameters, state.Parameters);
+        var requested = Assert.IsType<FuturesAnalyticsHistoricalDataLoaderRequestedEvent>(
+            Assert.Single(state.Events));
+        Assert.InRange(requested.ReceivedOn, earliestExpectedReceivedOn, DateTime.UtcNow);
     }
 
     static LoadFuturesAnalyticsHistoricalDataCommand CreateCommand()

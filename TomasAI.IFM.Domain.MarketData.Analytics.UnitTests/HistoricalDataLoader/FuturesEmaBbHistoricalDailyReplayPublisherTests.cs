@@ -34,18 +34,19 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
         var targetValueDate = observations[^1].ValueDate.AddDays(1);
         var publisher = new FuturesEmaBbHistoricalDailyReplayPublisher(actorService);
 
-        await publisher.PublishAsync(observations, targetValueDate, CancellationToken.None);
+        await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
 
         emaCommands.Should().HaveCount(201);
         outlookCommands.Should().ContainSingle();
         var reconcile = outlookCommands[0];
         reconcile.EntityId.ValueDate.Should().Be(targetValueDate);
-        reconcile.EntityId.ContractId.Should().Be("ESZ25");
+        reconcile.EntityId.ContractId.Should().Be("ES-ACTIVE");
         reconcile.FuturesEmaSignal.Should().NotBeNull();
         reconcile.FuturesEmaSignal!.IsWarm.Should().BeTrue();
         reconcile.FuturesEmaSignal.Ema50.Should().NotBeNull();
         reconcile.FuturesEmaSignal.Ema200.Should().NotBeNull();
         reconcile.FuturesBbSignal.Should().NotBeNull();
+        reconcile.ComponentCount.Should().Be(2);
         reconcile.FuturesBbSignal!.IsWarm.Should().BeTrue();
         reconcile.FuturesBbSignal.StandardDeviation20.Should().NotBeNull();
         reconcile.FuturesBbSignal.Upper20.Should().Be(

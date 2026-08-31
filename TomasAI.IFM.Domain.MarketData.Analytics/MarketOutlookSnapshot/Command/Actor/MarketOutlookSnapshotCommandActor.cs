@@ -174,10 +174,7 @@ public sealed class MarketOutlookSnapshotCommandActor(
     {
         if (command.SourceEventId == Guid.Empty || command.SourceEventTimestamp == default)
             errors.Add(new("A stable Market Outlook source identity and timestamp are required."));
-        if (command.FuturesRsiSignal is null
-            && command.FuturesTdiSignal is null
-            && command.FuturesItiSignal is null
-            && command.VixFuturesPrice == 0)
+        if (command.ComponentCount == 0)
             errors.Add(new("A component command must contain at least one supplied component."));
     }
 

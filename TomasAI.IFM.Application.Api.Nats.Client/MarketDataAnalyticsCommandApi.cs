@@ -21,7 +21,9 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataAnalyticsCommandApi
 {
     /// <inheritdoc />
-    public async Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(DateOnly candidateValueDate)
+    public async Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(
+        DateOnly candidateValueDate,
+        string analyticsTargetContractId)
     {
         var commandId = Guid.NewGuid();
         var entityId = new FuturesAnalyticsHistoricalDataLoaderEntityId(commandId);
@@ -40,19 +42,15 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
                 {
                     StartDate = candidateValueDate.AddYears(-1),
                     EndDate = candidateValueDate,
-                    Series =
-                    [
-                        Series("ES", "calendar-front"),
-                        Series("VX", "calendar-front"),
-                        Series("VX", "calendar-second")
-                    ],
+                    Series = [Series("ES", "calendar-front")],
                     SignalFamilies = ["EMA", "BollingerBand"],
                     MaximumCostUsd = 10m,
                     MaximumBytes = 1_073_741_824,
                     NormalizationVersion = "historical-daily-v1",
                     CalculationConfigurationVersion = "ema-bb-daily-v1",
                     RequestedBy = $"{Environment.UserDomainName}\\{Environment.UserName}",
-                    AutomaticStartupWarmup = true
+                    AutomaticStartupWarmup = true,
+                    AnalyticsTargetContractId = analyticsTargetContractId
                 }
             };
             return await RequestCommandAsync(command, entityId).ConfigureAwait(false);
@@ -66,7 +64,7 @@ public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
         {
             MarketSeriesIdentity = MarketSeriesIdentity.ForFuturesSeries(
                 new FuturesSeriesId(root, rollRule, "unadjusted", 1)),
-            Schema = FuturesAnalyticsHistoricalSchema.OhlcvOneMinute
+            Schema = FuturesAnalyticsHistoricalSchema.OhlcvDaily
         };
     }
 

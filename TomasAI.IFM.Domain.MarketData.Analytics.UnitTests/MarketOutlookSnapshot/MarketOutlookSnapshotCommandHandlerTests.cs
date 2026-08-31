@@ -15,6 +15,47 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapsho
 
 public sealed class MarketOutlookSnapshotCommandHandlerTests
 {
+    public static IEnumerable<object[]> SupportedLatestItiModes() =>
+    [
+        [IntrinsicTimeModeType.TrendDirectionChanged],
+        [IntrinsicTimeModeType.TrendExtremeChanged],
+        [IntrinsicTimeModeType.TrendReversalChanged],
+        [IntrinsicTimeModeType.Trending]
+    ];
+
+    [Theory]
+    [MemberData(nameof(SupportedLatestItiModes))]
+    public void Observe_AllFourSupportedItiModesAdvanceLatestTrendWithoutThrowing(
+        IntrinsicTimeModeType mode)
+    {
+        var entityId = EntityId();
+        var state = new MarketOutlookSnapshotCommandState();
+        var iti = SampleData.StartOfDayEvent.FuturesItiSignal! with
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            TimePeriod = TimeFrameType.Daily,
+            IntrinsicTimeMode = mode
+        };
+        var command = new ObserveMarketOutlookComponentCommand(
+            entityId,
+            Guid.NewGuid(),
+            1,
+            DateTime.UtcNow,
+            "iti-four-mode-verification",
+            futuresItiSignal: iti)
+        {
+            CommandId = Guid.NewGuid(),
+            Subject = Subject(ObserveMarketOutlookComponentCommand.Verb, entityId)
+        };
+
+        var act = () => command.Execute(state);
+
+        act.Should().NotThrow().Which.Success.Should().BeTrue();
+        state.WorkingState.LatestItiTrendSignal.Should().Be(iti);
+        state.WorkingState.PublishedSnapshot!.LatestItiTrendSignal.Should().Be(iti);
+    }
+
     [Fact]
     public void Observe_DuplicateAndOlderSources_DoNotCreateAdditionalEvents()
     {
@@ -68,10 +109,12 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
         state.Events.Should().ContainSingle()
             .Which.Should().BeOfType<MarketOutlookComponentObservedEvent>();
         state.WorkingState.TrendDirectionChange.Should().Be(iti);
+        state.WorkingState.LatestItiTrendSignal.Should().Be(iti);
         state.WorkingState.VixFuturesPrice.Should().Be(21.5m);
         state.WorkingState.SourceWatermarks.Select(static value => value.ComponentType)
             .Should().BeEquivalentTo([
                 MarketOutlookComponentType.ItiDirection,
+                MarketOutlookComponentType.ItiLatest,
                 MarketOutlookComponentType.Vix
             ]);
         state.WorkingState.PublishedSnapshot.Should().NotBeNull();
@@ -92,7 +135,8 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
             ContractId = entityId.ContractId,
             ValueDate = entityId.ValueDate,
             TimePeriod = TimeFrameType.FifteenSeconds,
-            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+            IsWarm = true
         };
         var tdi = SampleData.TdiReadModelFor(TimeFrameType.FifteenSeconds) with
         {
@@ -104,7 +148,7 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
             ContractId = entityId.ContractId,
             ValueDate = entityId.ValueDate,
             TimePeriod = TimeFrameType.Daily,
-            IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+            IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
         };
         var command = new ObserveMarketOutlookComponentCommand(
             entityId,
@@ -261,6 +305,43 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
     }
 
     [Fact]
+    public void Observe_ContinuationDailyAnalytics_AcceptsSourceInstrumentForActiveRootContract()
+    {
+        var entityId = EntityId();
+        var metadata = Metadata(entityId) with
+        {
+            ContractId = "42140870",
+            ValueDate = entityId.ValueDate.AddDays(-1)
+        };
+        var ema = new FuturesEmaSignalReadModel
+        {
+            Metadata = metadata,
+            Ema50 = 5100m,
+            Ema200 = 4900m,
+            IsWarm = true
+        };
+        var sourceId = Guid.NewGuid();
+        var state = new MarketOutlookSnapshotCommandState();
+        var command = new ObserveMarketOutlookComponentCommand(
+            entityId,
+            sourceId,
+            50,
+            DateTime.UtcNow,
+            "historical-continuation",
+            futuresEmaSignal: ema)
+        {
+            CommandId = sourceId,
+            Subject = Subject(ObserveMarketOutlookComponentCommand.Verb, entityId)
+        };
+
+        command.Execute(state).Success.Should().BeTrue();
+
+        state.WorkingState.FuturesEmaSignal.Should().Be(ema);
+        state.WorkingState.PublishedSnapshot!.FuturesEmaSignal!.Metadata.ContractId
+            .Should().Be("42140870");
+    }
+
+    [Fact]
     public void Publish_ReconcilesLatestCompletedDailyAnalyticsIntoCurrentValueDate()
     {
         var entityId = EntityId();
@@ -330,7 +411,8 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
                 TimePeriod = TimeFrameType.FifteenSeconds,
-                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+                IsWarm = true
             })
         {
             CommandId = sourceId,

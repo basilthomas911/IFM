@@ -5,24 +5,27 @@ public static class HistoricalDataLoaderSql
 {
     /// <summary>Creates or advances a checkpoint and stores its immutable terminal manifest.</summary>
     public const string Save = """
-    INSERT INTO historical_data_load_checkpoint (
-        data_load_attempt_id, request_sha256, status, stage, provider_job_id,
-        provider_file_id, batch_ordinal, source_position, error_message, updated_at_utc)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    ON CONFLICT (data_load_attempt_id) DO UPDATE SET
-        request_sha256 = EXCLUDED.request_sha256,
-        status = EXCLUDED.status,
-        stage = EXCLUDED.stage,
-        provider_job_id = EXCLUDED.provider_job_id,
-        provider_file_id = EXCLUDED.provider_file_id,
-        batch_ordinal = EXCLUDED.batch_ordinal,
-        source_position = EXCLUDED.source_position,
-        error_message = EXCLUDED.error_message,
-        updated_at_utc = EXCLUDED.updated_at_utc;
-
+    WITH checkpoint AS (
+        INSERT INTO historical_data_load_checkpoint (
+            data_load_attempt_id, request_sha256, status, stage, provider_job_id,
+            provider_file_id, batch_ordinal, source_position, error_message, updated_at_utc)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (data_load_attempt_id) DO UPDATE SET
+            request_sha256 = EXCLUDED.request_sha256,
+            status = EXCLUDED.status,
+            stage = EXCLUDED.stage,
+            provider_job_id = EXCLUDED.provider_job_id,
+            provider_file_id = EXCLUDED.provider_file_id,
+            batch_ordinal = EXCLUDED.batch_ordinal,
+            source_position = EXCLUDED.source_position,
+            error_message = EXCLUDED.error_message,
+            updated_at_utc = EXCLUDED.updated_at_utc
+        RETURNING data_load_attempt_id
+    )
     INSERT INTO historical_data_load_manifest (
         data_load_attempt_id, manifest_json, audit_json, created_at_utc)
     SELECT $1, $11, $12, $10
+    FROM checkpoint
     WHERE $11 <> ''
     ON CONFLICT (data_load_attempt_id) DO NOTHING;
     """;

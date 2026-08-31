@@ -50,7 +50,11 @@ public class FuturesTdiSignalRealtimeActor(
             [typeof(FuturesRsiSignalsGeneratedEvent)] = async (@event, eventContext, context, state) =>
             {
                 _ = await ((FuturesRsiSignalsGeneratedEvent)@event)
-                    .ExecuteRealtimeAsync(context.Projector, state, context.Logger).ConfigureAwait(false);
+                    .ExecuteRealtimeAsync(
+                        context.Projector,
+                        context.DbFactory.MarketDataDb,
+                        state,
+                        context.Logger).ConfigureAwait(false);
             },
             [typeof(FuturesTdiSignalGeneratedFailEvent)] = static (@event, eventContext, context, state) =>
             {

@@ -52,14 +52,20 @@ public sealed class HistoricalAnalyticsWarmupService
             var endDate = LastCompletedTradingDate(template.EndDate);
             var startDate = endDate.AddDays(-(options.LookbackCalendarDays - 1));
             var expected = TradingDates(startDate, endDate);
+            var trailingGraceDates = expected
+                .TakeLast(options.TrailingProviderAvailabilityGraceSessions)
+                .ToHashSet();
             var coverage = await ReadCoverageAsync(template.Series, startDate, endDate, cancellationToken)
                 .ConfigureAwait(false);
             var missingBySeries = template.Series
                 .Select(series => new
                 {
                     Series = series,
-                    Missing = expected.Where(date => !coverage[series.SeriesIdentity]
-                        .Any(value => value.ValueDate == date && value.IsComplete && value.IsValid)).ToArray()
+                    Missing = MissingTradingDates(
+                        coverage[series.SeriesIdentity],
+                        expected,
+                        trailingGraceDates,
+                        options.MinimumValidDailySessions)
                 })
                 .Where(value => value.Missing.Length > 0)
                 .ToArray();
@@ -91,12 +97,18 @@ public sealed class HistoricalAnalyticsWarmupService
                     .ConfigureAwait(false);
             }
 
+            var remainingBlockingMissing = template.Series.Sum(series => MissingTradingDates(
+                coverage[series.SeriesIdentity],
+                expected,
+                trailingGraceDates,
+                options.MinimumValidDailySessions).Length);
+            if (remainingBlockingMissing > 0)
+                throw new InvalidDataException(
+                    $"Historical coverage remains incomplete after acquisition: {remainingBlockingMissing} non-grace trading sessions are missing or invalid.");
+
             var remainingMissing = template.Series.Sum(series => expected.Count(date =>
                 !coverage[series.SeriesIdentity].Any(value =>
                     value.ValueDate == date && value.IsComplete && value.IsValid)));
-            if (remainingMissing > 0)
-                throw new InvalidDataException(
-                    $"Historical coverage remains incomplete after acquisition: {remainingMissing} trading sessions are missing or invalid.");
 
             var ordered = coverage
                 .OrderBy(static pair => pair.Key.Format(), StringComparer.Ordinal)
@@ -125,6 +137,7 @@ public sealed class HistoricalAnalyticsWarmupService
                 await dailyReplayPublisher.PublishAsync(
                     ordered,
                     template.EndDate,
+                    template.AnalyticsTargetContractId,
                     cancellationToken).ConfigureAwait(false);
                 lastCompletedReplayKey = replayKey;
             }
@@ -138,7 +151,7 @@ public sealed class HistoricalAnalyticsWarmupService
                 startDate,
                 endDate,
                 esCount,
-                missingBySeries.Sum(value => value.Missing.Length),
+                remainingMissing,
                 loaded);
         }
         finally
@@ -148,6 +161,23 @@ public sealed class HistoricalAnalyticsWarmupService
     }
 
     readonly record struct AcquisitionRange(DateOnly StartDate, DateOnly EndDate);
+
+    static DateOnly[] MissingTradingDates(
+        IReadOnlyList<FuturesEodObservationReadModel> observations,
+        IReadOnlyList<DateOnly> expected,
+        IReadOnlySet<DateOnly> trailingGraceDates,
+        int minimumValidDailySessions)
+    {
+        var validDates = observations
+            .Where(static value => value.IsComplete && value.IsValid)
+            .Select(static value => value.ValueDate)
+            .ToHashSet();
+        var gracePermitted = validDates.Count >= minimumValidDailySessions;
+        return expected
+            .Where(date => !validDates.Contains(date)
+                && !(gracePermitted && trailingGraceDates.Contains(date)))
+            .ToArray();
+    }
 
     static AcquisitionRange[] ContiguousRanges(
         IReadOnlyCollection<DateOnly> missing,

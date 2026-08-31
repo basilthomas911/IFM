@@ -28,7 +28,7 @@ public sealed class FuturesEmaSignalEventProjector(IDbContextFactory dbFactory,
             (Func<FuturesEmaSignalGeneratedEvent, Task>)(async e =>
             {
                 await dbFactory.MarketDataDb.InsertFuturesEmaSignalAsync(e.Signal).ConfigureAwait(false);
-                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal, e.Checkpoint);
             }))
     ];
     /// <inheritdoc />

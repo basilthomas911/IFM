@@ -35,7 +35,9 @@ public enum MarketOutlookComponentType
     /// <summary>Daily EMA family component.</summary>
     Ema,
     /// <summary>Daily Bollinger family component.</summary>
-    BollingerBand
+    BollingerBand,
+    /// <summary>Latest accepted Daily ITI signal across all supported display modes.</summary>
+    ItiLatest
 }
 
 /// <summary>Captures the last accepted source position for one Market Outlook component stream.</summary>
@@ -107,13 +109,13 @@ public sealed record MarketOutlookWorkingStateReadModel
     /// <summary>Gets the latest accepted Daily Bollinger family.</summary>
     [Key(14)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
 
+    /// <summary>Gets the latest accepted Daily ITI signal, including ordinary Trending updates.</summary>
+    [Key(15)] public FuturesItiSignalV2ReadModel? LatestItiTrendSignal { get; init; }
+
     /// <summary>Gets whether all analytics required to compute a trade signal are present.</summary>
     [IgnoreMember]
-    public bool HasAllAnalytics => FuturesRsiSignal is not null
-        && FuturesTdiSignal is not null
-        && TrendDirectionChange is not null
-        && TrendExtremeChange is not null
-        && TrendReversalChange is not null
+    public bool HasAllAnalytics => FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
+        && LatestItiTrendSignal is not null
         && VixFuturesPrice > 0;
 
     /// <summary>Gets whether this checkpoint has a valid published snapshot.</summary>

@@ -2730,7 +2730,22 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             DateTime.UtcNow,
             eod,
             tradeSignal,
-            string.Empty);
+            string.Empty,
+            futuresRsiSignal: SampleData.FuturesRsiSignal with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                IsWarm = true
+            },
+            vixFuturesPrice: 20m,
+            latestItiTrendSignal: SampleData.FuturesItiSignal1 with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTime = DateTime.UtcNow,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
+            });
 
         await TestFixture.DevDatabase.UpsertMarketOutlookSnapshotAsync(expected);
         var result = await TestFixture.DevDatabase.GetMarketOutlookSnapshotAsync(
@@ -2744,6 +2759,7 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.FuturesEodData.Should().BeEquivalentTo(eod);
         result.FuturesTradeSignal.Should().BeEquivalentTo(tradeSignal);
         result.MissingInputs.Should().BeEmpty();
+        result.LatestItiTrendSignal.Should().BeEquivalentTo(expected.LatestItiTrendSignal);
         result.IsComplete.Should().BeTrue();
     }
 
@@ -2761,7 +2777,16 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             FuturesRsiSignal = SampleData.FuturesRsiSignal with
             {
                 ContractId = contractId,
-                ValueDate = valueDate
+                ValueDate = valueDate,
+                IsWarm = true
+            },
+            LatestItiTrendSignal = SampleData.FuturesItiSignal1 with
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTime = DateTime.UtcNow,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending
             },
             SourceWatermarks =
             [
@@ -2770,6 +2795,13 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
                     ComponentType = MarketOutlookComponentType.Rsi,
                     SourceEventId = sourceEventId,
                     SourceEventSequence = 17,
+                    SourceEventTimestamp = DateTime.UtcNow
+                },
+                new MarketOutlookSourceWatermark
+                {
+                    ComponentType = MarketOutlookComponentType.ItiLatest,
+                    SourceEventId = Guid.NewGuid(),
+                    SourceEventSequence = 18,
                     SourceEventTimestamp = DateTime.UtcNow
                 }
             ],
@@ -2782,7 +2814,8 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
             valueDate);
 
         result.Should().BeEquivalentTo(expected);
-        result!.SourceWatermarks.Should().ContainSingle(watermark =>
+        result!.LatestItiTrendSignal.Should().BeEquivalentTo(expected.LatestItiTrendSignal);
+        result.SourceWatermarks.Should().ContainSingle(watermark =>
             watermark.ComponentType == MarketOutlookComponentType.Rsi
             && watermark.SourceEventId == sourceEventId
             && watermark.SourceEventSequence == 17);

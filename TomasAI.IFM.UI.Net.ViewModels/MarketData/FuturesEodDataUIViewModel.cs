@@ -101,6 +101,22 @@ public class FuturesEodDataUIViewModel
         UpperBand = bb?.Upper20 is { } upper ? $"{upper:F2}" : Unavailable;
         Mean = bb?.Ema20Center is { } center ? $"{center:F2}" : Unavailable;
         LowerBand = bb?.Lower20 is { } lower ? $"{lower:F2}" : Unavailable;
+        if (bb?.Position20 is { } position)
+        {
+            var mdi = Math.Clamp(position * 100m, 0m, 100m);
+            MDI = $"{mdi:F2}";
+            MDIBackColor = mdi switch
+            {
+                >= 60m => PresentationColorRole.Positive,
+                >= 30m => PresentationColorRole.Caution,
+                _ => PresentationColorRole.Negative
+            };
+        }
+        else
+        {
+            MDI = Unavailable;
+            MDIBackColor = PresentationColorRole.Default;
+        }
     }
 
     public string MarketDirection { get; private set; }

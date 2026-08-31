@@ -649,10 +649,16 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     {
         if (!ValueDate.HasValue)
             return;
+        var targetContractId = GetMarketOutlookContract()?.ContractId;
+        if (string.IsNullOrWhiteSpace(targetContractId))
+        {
+            await WriteStatusConsoleAsync("Historical Analytics warm-up skipped: no active ES contract is available.");
+            return;
+        }
         await _appRoot.Services.AnalyticsCommands.ExecuteAsync(async model =>
         {
-            await WriteStatusConsoleAsync("Checking ES/VX historical Analytics coverage...");
-            var result = await model.EnsureHistoricalAnalyticsWarmupAsync(ValueDate.Value)
+            await WriteStatusConsoleAsync("Checking ES historical Analytics coverage...");
+            var result = await model.EnsureHistoricalAnalyticsWarmupAsync(ValueDate.Value, targetContractId)
                 .ConfigureAwait(false);
             await WriteStatusConsoleAsync(result?.Success == true
                 ? "Historical Analytics coverage request accepted."

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
+using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -14,6 +15,8 @@ public interface IFuturesTdiSignalRealtimeContext : IRealtimeActorContext<Future
     IActorSupervisor Supervisor { get; }
     /// <summary>Gets the Projector service supplied to the actor context.</summary>
     IRealtimeProjector<FuturesTdiSignalRealtimeActor> Projector { get; }
+    /// <summary>Gets storage used to seed restart-safe TDI cross continuity.</summary>
+    IDbContextFactory DbFactory { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<FuturesTdiSignalRealtimeActor> Logger { get; }
 }
@@ -25,11 +28,13 @@ public sealed class FuturesTdiSignalRealtimeContext : EventActorContext, IRealti
     public FuturesTdiSignalRealtimeContext(
         IActorSupervisor supervisor,
         IRealtimeProjector<FuturesTdiSignalRealtimeActor> projector,
+        IDbContextFactory dbFactory,
         ILogger<FuturesTdiSignalRealtimeActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, FuturesTdiSignalRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         Projector = IsArgumentNull.Set(projector);
+        DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
     }
 
@@ -37,6 +42,8 @@ public sealed class FuturesTdiSignalRealtimeContext : EventActorContext, IRealti
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
     public IRealtimeProjector<FuturesTdiSignalRealtimeActor> Projector { get; }
+    /// <inheritdoc/>
+    public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
     public ILogger<FuturesTdiSignalRealtimeActor> Logger { get; }
 }

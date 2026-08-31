@@ -125,6 +125,7 @@ public interface IHistoricalDailyReplayPublisher
     ValueTask PublishAsync(
         IReadOnlyList<FuturesEodObservationReadModel> observations,
         DateOnly targetValueDate,
+        string targetContractId,
         CancellationToken cancellationToken);
 }
 
@@ -135,6 +136,7 @@ public sealed class NullHistoricalDailyReplayPublisher : IHistoricalDailyReplayP
     public ValueTask PublishAsync(
         IReadOnlyList<FuturesEodObservationReadModel> observations,
         DateOnly targetValueDate,
+        string targetContractId,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(observations);

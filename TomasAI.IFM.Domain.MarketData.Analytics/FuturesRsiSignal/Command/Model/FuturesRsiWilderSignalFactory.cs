@@ -42,7 +42,13 @@ public static class FuturesRsiWilderSignalFactory
             observation.LastMarketEventUtc.UtcDateTime)
         {
             Metadata = MarketAnalyticsSignalMetadataFactory.Create(
-                observation, MarketAnalyticsSignalKind.Rsi, configurationId, "rsi-wilder-v1"),
+                observation, MarketAnalyticsSignalKind.Rsi, configurationId, "rsi-wilder-v1") with
+            {
+                IsValid = result.IsWarm,
+                ValidationIssues = result.IsWarm
+                    ? []
+                    : [MarketSignalValidationIssue.InvalidCalculation]
+            },
             PreviousRsi = result.PreviousRsi,
             RegimeSlope = result.Slope,
             IsWarm = result.IsWarm

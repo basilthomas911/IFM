@@ -18,7 +18,10 @@ internal static class MarketOutlookComponentEligibility
         => signal.ContractId == entityId.ContractId
             && signal.ValueDate == entityId.ValueDate
             && signal.TimePeriod == FuturesTradeSignalPrerequisites.SignalTimePeriod
-            && signal.PeriodLength == FuturesIntradaySignalActivationProfile.RsiPeriodLength;
+            && signal.PeriodLength == FuturesIntradaySignalActivationProfile.RsiPeriodLength
+            && signal.IsWarm
+            && signal.RSI >= 0d
+            && signal.Metadata is not { IsValid: false };
 
     internal static bool IsEligible(
         MarketOutlookEntityId entityId,
@@ -36,7 +39,8 @@ internal static class MarketOutlookComponentEligibility
             && signal.TimePeriod == TimeFrameType.Daily
             && signal.IntrinsicTimeMode is IntrinsicTimeModeType.TrendDirectionChanged
                 or IntrinsicTimeModeType.TrendExtremeChanged
-                or IntrinsicTimeModeType.TrendReversalChanged;
+                or IntrinsicTimeModeType.TrendReversalChanged
+                or IntrinsicTimeModeType.Trending;
 
     internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesEmaSignalReadModel signal)
         => signal.Metadata.ContractId == entityId.ContractId
@@ -66,7 +70,11 @@ internal static class MarketOutlookComponentEligibility
         metadata.IsValid
         && metadata.TimeFrame == TimeFrameType.Daily
         && metadata.ValueDate <= entityId.ValueDate
-        && string.Equals(metadata.ContractId, entityId.ContractId, StringComparison.Ordinal);
+        && (string.Equals(metadata.ContractId, entityId.ContractId, StringComparison.Ordinal)
+            || metadata.FuturesSeriesId is { } continuation
+            && entityId.ContractId.StartsWith(
+                continuation.RootSymbol,
+                StringComparison.OrdinalIgnoreCase));
 
     internal static bool IsEligible(
         MarketOutlookComponentChangedRealtimeEvent source,

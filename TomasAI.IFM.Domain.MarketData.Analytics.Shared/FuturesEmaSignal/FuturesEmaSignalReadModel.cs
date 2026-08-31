@@ -37,6 +37,12 @@ public sealed record FuturesEmaSignalReadModel
     [Key(13)] public decimal? Ema200Slope { get; init; }
     /// <summary>Gets whether EMA200 and its prior value are available.</summary>
     [Key(14)] public bool IsWarm { get; init; }
+    /// <summary>Gets whether this is a non-durable live-price preview.</summary>
+    [Key(15)] public bool IsProvisional { get; init; }
+    /// <summary>Gets the value date of the last committed Daily baseline.</summary>
+    [Key(16)] public DateOnly BaselineValueDate { get; init; }
+    /// <summary>Gets the live trade time used by a provisional preview.</summary>
+    [Key(17)] public DateTimeOffset? LivePriceAsOfUtc { get; init; }
 }
 
 /// <summary>Represents immutable event-sourced state for the complete EMA family.</summary>

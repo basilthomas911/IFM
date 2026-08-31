@@ -41,6 +41,7 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
         Assert.Equal(0, fixture.Api.AcquireCount);
         Assert.Equal(1, fixture.DailyReplay.PublishCount);
         Assert.Equal(first.ValidSessionCount, fixture.DailyReplay.LastObservations.Count);
+        Assert.Equal("ES-ACTIVE", fixture.DailyReplay.LastTargetContractId);
     }
 
     [Fact]
@@ -55,6 +56,22 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
 
         Assert.Single(results, value => value.Outcome == HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage);
         Assert.Equal(9, results.Count(value => value.Outcome == HistoricalAnalyticsWarmupOutcome.AlreadyCurrent));
+        Assert.Equal(0, fixture.Api.AcquireCount);
+        Assert.Equal(1, fixture.DailyReplay.PublishCount);
+    }
+
+    [Fact]
+    public async Task OneTrailingUnpublishedSessionReplaysQualifiedHistoryWithoutProviderAcquisition()
+    {
+        var fixture = new Fixture(isDevelopment: true, enabled: true, seedCoverage: true);
+        var trailingDate = fixture.ObservationStore.Raw.Max(static value => value.ValueDate);
+        fixture.ObservationStore.Raw.RemoveAll(value => value.ValueDate == trailingDate);
+
+        var result = await fixture.Service.EnsureAsync(fixture.Request, CancellationToken.None);
+
+        Assert.Equal(HistoricalAnalyticsWarmupOutcome.ReplayedFromStorage, result.Outcome);
+        Assert.Equal(1, result.MissingSessionCount);
+        Assert.True(result.ValidSessionCount >= 201);
         Assert.Equal(0, fixture.Api.AcquireCount);
         Assert.Equal(1, fixture.DailyReplay.PublishCount);
     }
@@ -103,7 +120,8 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
             MaximumCostUsd = 10,
             MaximumBytes = 1_073_741_824,
             NormalizationVersion = "historical-daily-v1",
-            RequestedBy = "test"
+            RequestedBy = "test",
+            AnalyticsTargetContractId = "ES-ACTIVE"
         };
 
         var result = await service.EnsureAsync(request, CancellationToken.None);
@@ -130,6 +148,12 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
             Enabled = true,
             IsDevelopmentEnvironment = true,
             MinimumValidDailySessions = 200
+        }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new HistoricalAnalyticsWarmupOptions
+        {
+            Enabled = true,
+            IsDevelopmentEnvironment = true,
+            TrailingProviderAvailabilityGraceSessions = 6
         }.Validate());
     }
 
@@ -177,7 +201,8 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
                 MaximumCostUsd = 10,
                 MaximumBytes = 1_073_741_824,
                 NormalizationVersion = "historical-daily-v1",
-                RequestedBy = "test"
+                RequestedBy = "test",
+                AnalyticsTargetContractId = "ES-ACTIVE"
             };
         }
 
@@ -242,13 +267,16 @@ public sealed class HistoricalAnalyticsWarmupServiceTests
     {
         internal int PublishCount { get; private set; }
         internal IReadOnlyList<FuturesEodObservationReadModel> LastObservations { get; private set; } = [];
+        internal string LastTargetContractId { get; private set; } = string.Empty;
         public ValueTask PublishAsync(
             IReadOnlyList<FuturesEodObservationReadModel> observations,
             DateOnly targetValueDate,
+            string targetContractId,
             CancellationToken token)
         {
             PublishCount++;
             LastObservations = observations;
+            LastTargetContractId = targetContractId;
             return ValueTask.CompletedTask;
         }
     }

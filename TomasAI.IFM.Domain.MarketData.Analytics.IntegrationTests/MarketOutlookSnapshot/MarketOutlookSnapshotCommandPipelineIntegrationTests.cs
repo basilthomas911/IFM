@@ -64,7 +64,18 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             {
                 ContractId = contractId,
                 ValueDate = valueDate,
-                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+                IsWarm = true
+            };
+            var iti = new FuturesItiSignalV2ReadModel
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+                TrendDelta = 44.5,
+                IntrinsicPrice = 5425
             };
             var series = MarketSeriesIdentity.ForFuturesSeries(
                 new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
@@ -111,6 +122,7 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
                 observedAt,
                 "integration-rsi",
                 futuresRsiSignal: rsi,
+                futuresItiSignal: iti,
                 futuresEmaSignal: ema,
                 futuresBbSignal: bb)
             {
@@ -158,8 +170,9 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             notification.CommandId.Should().Be(publishId);
             notification.EntityId.Should().Be(entityId);
             notification.MarketOutlook.Revision.Should().Be(2);
-            notification.MarketOutlook.MissingInputs.Should().Contain("TDI");
+            notification.MarketOutlook.MissingInputs.Should().NotContain("TDI");
             notification.MarketOutlook.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
+            notification.MarketOutlook.LatestItiTrendSignal.Should().BeEquivalentTo(iti);
             notification.MarketOutlook.FuturesEmaSignal.Should().BeEquivalentTo(ema);
             notification.MarketOutlook.FuturesBbSignal.Should().BeEquivalentTo(bb);
             notification.MarketOutlook.FuturesEodData.Should().BeEquivalentTo(eod);
@@ -174,6 +187,7 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             workingState!.Revision.Should().Be(2);
             workingState.Status.Should().Be(MarketOutlookStateStatus.Published);
             workingState.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
+            workingState.LatestItiTrendSignal.Should().BeEquivalentTo(iti);
             workingState.FuturesEmaSignal.Should().BeEquivalentTo(ema);
             workingState.FuturesBbSignal.Should().BeEquivalentTo(bb);
             workingState.FuturesEodData.Should().BeEquivalentTo(eod);

@@ -45,8 +45,11 @@ startup path.
    Analytics checkpoint is absent or obsolete.
 8. Initial acquisition fills the required window. Later runs acquire only
    missing contiguous trading-date ranges.
-9. EMA and Bollinger use completed Daily closes. Values do not change on every
-   intraday tick and are not presented as provisional Daily indicators.
+9. Committed EMA and Bollinger state uses completed Daily closes and advances
+   exactly once at session close. This persistence rule does not prohibit the
+   approved Market Outlook realtime preview: `MOR` recalculates a non-durable
+   provisional Daily view from the prior completed checkpoint plus every
+   accepted ES last trade, replacing rather than appending the preview.
 10. Missing or unwarmed values display `N/A`, never a misleading numeric zero.
 11. Market Outlook retains OR semantics: one missing component cannot prevent
     another valid component from updating.

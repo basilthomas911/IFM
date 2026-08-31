@@ -90,7 +90,29 @@ public sealed class FuturesTradeSignalUIViewModelTests
                 Upper20 = 5200.125m,
                 Ema20Center = 5155.435m,
                 Lower20 = 5110.745m,
+                Position20 = 0.75m,
                 IsWarm = true
+            },
+            LatestItiTrendSignal = new FuturesItiSignalV2ReadModel
+            {
+                ContractId = metadata.ContractId,
+                ValueDate = metadata.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+                IntrinsicPrice = 5190,
+                TrendDelta = 42.5
+            },
+            FuturesTdiSignal = new FuturesTdiSignalReadModel
+            {
+                ContractId = metadata.ContractId,
+                ValueDate = metadata.ValueDate,
+                TimePeriod = TimeFrameType.FifteenSeconds,
+                TDI = FuturesTrendDirectionType.UpTrending,
+                TDIStrength = FuturesTrendDirectionStrengthType.High,
+                MarketState = FuturesTdiMarketStateType.AboveMidline,
+                Cross = FuturesTdiCrossType.Bullish,
+                PriceSignalDivergence = 2.345
             }
         };
 
@@ -99,10 +121,51 @@ public sealed class FuturesTradeSignalUIViewModelTests
 
         trade.FiftyDMA.Should().Be("5123.46");
         trade.TwoHundredDMA.Should().Be("4987.65");
+        trade.MDITrend.Should().Be("UpTrending");
+        trade.Trend.Should().Be("UpTrending");
+        trade.TrendDelta.Should().Be("42.50");
+        trade.TdiDirection.Should().Be("UpTrending");
+        trade.TdiStrength.Should().Be("High");
+        trade.TdiMarketState.Should().Be("AboveMidline");
+        trade.TdiCross.Should().Be("Bullish");
+        trade.TdiDivergence.Should().Be("2.35");
         eod.DailyStdDev.Should().Be("22.35");
         eod.UpperBand.Should().Be("5200.13");
         eod.Mean.Should().Be("5155.44");
         eod.LowerBand.Should().Be("5110.75");
+        eod.MDI.Should().Be("75.00");
+    }
+
+    [Theory]
+    [InlineData(-0.10, "0.00", "DownTrending")]
+    [InlineData(0.00, "0.00", "DownTrending")]
+    [InlineData(0.2999, "29.99", "DownTrending")]
+    [InlineData(0.30, "30.00", "RangeBound")]
+    [InlineData(0.5999, "59.99", "RangeBound")]
+    [InlineData(0.60, "60.00", "UpTrending")]
+    [InlineData(1.00, "100.00", "UpTrending")]
+    [InlineData(1.10, "100.00", "UpTrending")]
+    public void Mdi_ClampsBollingerPositionAndUsesExactThirtySixtyBoundaries(
+        double position,
+        string expectedValue,
+        string expectedTrend)
+    {
+        var metadata = Metadata();
+        var snapshot = new MarketOutlookSnapshotReadModel
+        {
+            ContractId = metadata.ContractId,
+            ValueDate = metadata.ValueDate,
+            Revision = 1,
+            FuturesBbSignal = new FuturesBbSignalReadModel
+            {
+                Metadata = metadata,
+                Position20 = (decimal)position,
+                IsWarm = true
+            }
+        };
+
+        new FuturesEodDataUIViewModel(snapshot).MDI.Should().Be(expectedValue);
+        new FuturesTradeSignalUIViewModel(snapshot).MDITrend.Should().Be(expectedTrend);
     }
 
     static MarketAnalyticsSignalMetadata Metadata()

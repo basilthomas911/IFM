@@ -42,6 +42,12 @@ public sealed record FuturesBbSignalReadModel
     [Key(15)] public decimal? Width20Ratio { get; init; }
     /// <summary>Gets whether BB20 and its prior-width baseline are available.</summary>
     [Key(16)] public bool IsWarm { get; init; }
+    /// <summary>Gets whether this is a non-durable live-price preview.</summary>
+    [Key(17)] public bool IsProvisional { get; init; }
+    /// <summary>Gets the value date of the last committed Daily baseline.</summary>
+    [Key(18)] public DateOnly BaselineValueDate { get; init; }
+    /// <summary>Gets the live trade time used by a provisional preview.</summary>
+    [Key(19)] public DateTimeOffset? LivePriceAsOfUtc { get; init; }
 }
 
 /// <summary>Represents immutable event-sourced state for Bollinger calculation.</summary>

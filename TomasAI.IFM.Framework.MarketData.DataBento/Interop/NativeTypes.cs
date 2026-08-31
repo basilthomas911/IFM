@@ -401,7 +401,8 @@ internal enum NativeHistoricalSchema : uint
     Definition = 1,
     OhlcvOneMinute = 2,
     Trades = 3,
-    Statistics = 4
+    Statistics = 4,
+    OhlcvDaily = 5
 }
 
 [Flags]

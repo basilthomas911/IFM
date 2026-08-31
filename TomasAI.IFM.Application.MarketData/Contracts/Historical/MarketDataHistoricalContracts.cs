@@ -56,6 +56,8 @@ public sealed record MarketDataHistoricalRequest
     public required string NormalizationVersion { get; init; }
     /// <summary>Gets the requesting principal.</summary>
     public required string RequestedBy { get; init; }
+    /// <summary>Gets the active contract that receives a continuation-series Analytics result.</summary>
+    public string AnalyticsTargetContractId { get; init; } = string.Empty;
 }
 
 /// <summary>Reports the combined non-billable estimate for an application request.</summary>

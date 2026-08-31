@@ -28,7 +28,7 @@ public sealed class FuturesBbSignalEventProjector(IDbContextFactory dbFactory,
             (Func<FuturesBbSignalGeneratedEvent, Task>)(async e =>
             {
                 await dbFactory.MarketDataDb.InsertFuturesBollingerBandSignalAsync(e.Signal).ConfigureAwait(false);
-                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal);
+                RegimeDiscoverySignalCacheAdapter.Publish(e.Signal, e.Checkpoint);
             }))
     ];
     /// <inheritdoc />

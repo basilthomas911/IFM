@@ -2,6 +2,9 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
+using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -67,14 +70,34 @@ public sealed class FuturesTdiSignalRealtimeActorTests
         await projector.Received(1).StopAsync(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task RestartSeed_LoadsPriorTdiExactlyOncePerIdentity()
+    {
+        var state = new FuturesTdiSignalRealtimeState();
+        var db = Substitute.For<IMarketDataDbReadContext>();
+        var source = RsiWindow(Guid.NewGuid());
+
+        await state.SeedAsync(source, FuturesTdiConfiguration.Standard, db);
+        await state.SeedAsync(source, FuturesTdiConfiguration.Standard, db);
+
+        await db.Received(1).GetLastFuturesTdiSignalAsync(
+            source.EntityId.ContractId,
+            source.EntityId.ValueDate,
+            source.EntityId.TimePeriod,
+            FuturesTdiConfiguration.StandardConfigurationId);
+    }
+
     static TestableFuturesTdiSignalRealtimeActor CreateActor(
         out IRealtimeProjector<FuturesTdiSignalRealtimeActor> projector)
     {
         var supervisor = Substitute.For<IActorSupervisor>();
         projector = Substitute.For<IRealtimeProjector<FuturesTdiSignalRealtimeActor>>();
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var marketDataDb = Substitute.For<IMarketDataDbContext>();
+        dbFactory.MarketDataDb.Returns(marketDataDb);
         var logger = Substitute.For<ILogger<FuturesTdiSignalRealtimeActor>>();
         return new TestableFuturesTdiSignalRealtimeActor(
-            new FuturesTdiSignalRealtimeContext(supervisor, projector, logger));
+            new FuturesTdiSignalRealtimeContext(supervisor, projector, dbFactory, logger));
     }
 
     static FuturesRsiSignalsGeneratedEvent RsiWindow(Guid commandId)
@@ -99,6 +122,8 @@ public sealed class FuturesTdiSignalRealtimeActorTests
             ReceivedOn = DateTime.UtcNow,
             PeriodLength = FuturesTdiConfiguration.Standard.RsiPeriod,
             FuturesRsiSignals = SampleData.TdiRsiSignals
+                .Select(static signal => signal with { IsWarm = true })
+                .ToArray()
         };
     }
 

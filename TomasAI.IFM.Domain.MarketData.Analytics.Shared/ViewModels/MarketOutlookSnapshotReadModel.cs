@@ -27,14 +27,12 @@ public sealed record MarketOutlookSnapshotReadModel
     [Key(12)] public decimal? VixFuturesPrice { get; init; }
     [Key(13)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
     [Key(14)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
+    [Key(15)] public FuturesItiSignalV2ReadModel? LatestItiTrendSignal { get; init; }
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid
-        && FuturesRsiSignal is not null
-        && FuturesTdiSignal is not null
-        && TrendDirectionChange is not null
-        && TrendExtremeChange is not null
-        && TrendReversalChange is not null
+        && FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
+        && LatestItiTrendSignal is not null
         && VixFuturesPrice > 0;
 
     /// <summary>Gets whether both Daily indicator families are fully warm.</summary>
@@ -52,6 +50,7 @@ public sealed record MarketOutlookSnapshotReadModel
             || TrendDirectionChange is not null
             || TrendExtremeChange is not null
             || TrendReversalChange is not null
+            || LatestItiTrendSignal is not null
             || VixFuturesPrice > 0
             || FuturesEmaSignal is not null
             || FuturesBbSignal is not null);
@@ -74,7 +73,8 @@ public sealed record MarketOutlookSnapshotReadModel
         FuturesItiSignalV2ReadModel? trendReversalChange = null,
         decimal? vixFuturesPrice = null,
         FuturesEmaSignalReadModel? futuresEmaSignal = null,
-        FuturesBbSignalReadModel? futuresBbSignal = null)
+        FuturesBbSignalReadModel? futuresBbSignal = null,
+        FuturesItiSignalV2ReadModel? latestItiTrendSignal = null)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -91,5 +91,6 @@ public sealed record MarketOutlookSnapshotReadModel
         VixFuturesPrice = vixFuturesPrice;
         FuturesEmaSignal = futuresEmaSignal;
         FuturesBbSignal = futuresBbSignal;
+        LatestItiTrendSignal = latestItiTrendSignal;
     }
 }

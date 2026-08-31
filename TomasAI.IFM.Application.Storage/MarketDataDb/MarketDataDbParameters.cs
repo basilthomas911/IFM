@@ -976,11 +976,12 @@ internal readonly record struct UpsertMarketOutlookSnapshot(
     DateTime updatedOn,
     byte[] eodData,
     byte[]? futuresTradeSignal,
-    string missingInputs) : IBindValue
+    string missingInputs,
+    byte[] snapshot) : IBindValue
 {
     public object Bind() => new object?[]
     {
-        contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs
+        contractId, valueDate, revision, updatedOn, eodData, futuresTradeSignal, missingInputs, snapshot
     };
 }
 

@@ -41,6 +41,21 @@ public sealed class FuturesSignalAccumulatorTests
     }
 
     [Fact]
+    public void PrewarmRsiIsExplicitlyInvalidAndCannotReplaceTheWarmHotValue()
+    {
+        var observation = Observation(1, 101m);
+        var result = FuturesRsiWilderAccumulator.Apply(null, observation, 13);
+
+        var signal = FuturesRsiWilderSignalFactory.Create(observation, 13, result);
+
+        Assert.False(signal.IsWarm);
+        Assert.Equal(-1d, signal.RSI);
+        Assert.False(signal.Metadata!.IsValid);
+        Assert.Contains(MarketSignalValidationIssue.InvalidCalculation,
+            signal.Metadata.ValidationIssues);
+    }
+
+    [Fact]
     public void RsiConfigurationIdentitySeparatesTdi13FromRegime14()
     {
         FuturesRsiAccumulatorCheckpoint? rsi13 = null;

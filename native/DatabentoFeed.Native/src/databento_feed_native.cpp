@@ -375,7 +375,7 @@ bool valid_historical_request(
         || !valid_struct(request->struct_size, sizeof(*request), request->abi_version)
         || request->reserved32 != 0
         || request->schema < DBF_HISTORICAL_DEFINITION
-        || request->schema > DBF_HISTORICAL_STATISTICS
+        || request->schema > DBF_HISTORICAL_OHLCV_1D
         || request->symbol_count == 0 || symbols == nullptr || blob == nullptr
         || request->dataset.length == 0
         || !valid_blob_range(request->dataset.offset, request->dataset.length, blob_bytes)
@@ -468,13 +468,14 @@ std::string environment_value(const char* name) {
 }
 
 databento::Schema historical_schema(std::uint32_t schema) {
-    return schema == DBF_HISTORICAL_DEFINITION
-               ? databento::Schema::Definition
-               : schema == DBF_HISTORICAL_OHLCV_1M
-                     ? databento::Schema::Ohlcv1M
-                     : schema == DBF_HISTORICAL_TRADES
-                           ? databento::Schema::Trades
-                           : databento::Schema::Statistics;
+    switch (schema) {
+        case DBF_HISTORICAL_DEFINITION: return databento::Schema::Definition;
+        case DBF_HISTORICAL_OHLCV_1M: return databento::Schema::Ohlcv1M;
+        case DBF_HISTORICAL_TRADES: return databento::Schema::Trades;
+        case DBF_HISTORICAL_STATISTICS: return databento::Schema::Statistics;
+        case DBF_HISTORICAL_OHLCV_1D: return databento::Schema::Ohlcv1D;
+        default: throw std::invalid_argument("Unsupported historical schema");
+    }
 }
 
 databento::SType historical_stype(std::uint32_t value) {
@@ -492,6 +493,7 @@ std::uint32_t historical_schema_id(databento::Schema schema) noexcept {
         case databento::Schema::Ohlcv1M: return DBF_HISTORICAL_OHLCV_1M;
         case databento::Schema::Trades: return DBF_HISTORICAL_TRADES;
         case databento::Schema::Statistics: return DBF_HISTORICAL_STATISTICS;
+        case databento::Schema::Ohlcv1D: return DBF_HISTORICAL_OHLCV_1D;
         default: return 0;
     }
 }
@@ -2770,7 +2772,15 @@ dbf_status DBF_CALL dbf_historical_estimate(
                 symbols[index].length);
         }
         const auto schema = historical_schema(request->schema);
-        auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
+        const auto timeout = std::chrono::milliseconds{request->timeout_ms};
+        auto client = databento::Historical::Builder()
+                          .SetKeyFromEnv()
+                          .SetHttpClientConfig([timeout](httplib::Client& http) {
+                              http.set_connection_timeout(timeout);
+                              http.set_read_timeout(timeout);
+                              http.set_write_timeout(timeout);
+                          })
+                          .Build();
         const databento::DateTimeRange<databento::UnixNanos> range{
             databento::UnixNanos{databento::UnixNanos::duration{request->start_ts_ns}},
             databento::UnixNanos{databento::UnixNanos::duration{request->end_ts_ns}}};
@@ -2805,8 +2815,8 @@ dbf_status DBF_CALL dbf_historical_batch_submit(
     if (!valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes)) {
         return DBF_INVALID_ARGUMENT;
     }
+    auto result = std::make_unique<dbf_historical_result>();
     try {
-        auto result = std::make_unique<dbf_historical_result>();
         if ((request->flags & DBF_HISTORICAL_SYNTHETIC) != 0) {
             result->payload =
                 "{\"providerJobId\":\"synthetic-job\",\"state\":\"Completed\","
@@ -2824,11 +2834,11 @@ dbf_status DBF_CALL dbf_historical_batch_submit(
                 dataset, historical_symbols(*request, symbols, utf8_blob),
                 historical_schema(request->schema), range,
                 databento::Encoding::Dbn, databento::Compression::Zstd,
-                false, false, true, false,
+                false, false, false, false,
                 databento::SplitDuration::Month, 0,
                 databento::Delivery::Download,
                 historical_stype(request->input_symbology),
-                databento::SType::RawSymbol,
+                databento::SType::InstrumentId,
                 request->record_limit);
             result->payload = historical_job_payload(job);
 #else
@@ -2840,10 +2850,18 @@ dbf_status DBF_CALL dbf_historical_batch_submit(
     } catch (const std::bad_alloc&) {
         return DBF_NO_MEMORY;
 #if defined(DBF_ENABLE_LIVE)
-    } catch (const databento::Exception&) {
+    } catch (const databento::Exception& exception) {
+        result->error = exception.what();
+        *output = result.release();
         return DBF_DATABENTO_ERROR;
 #endif
+    } catch (const std::exception& exception) {
+        result->error = exception.what();
+        *output = result.release();
+        return DBF_INTERNAL_ERROR;
     } catch (...) {
+        result->error = "Unknown historical batch submission failure";
+        *output = result.release();
         return DBF_INTERNAL_ERROR;
     }
 }
@@ -2906,14 +2924,20 @@ dbf_status DBF_CALL dbf_historical_batch_list_files(
             const auto schema = historical_schema_id(job.schema);
             const auto files = client.BatchListFiles(job_id);
             std::string payload{"{\"files\":["};
-            for (std::size_t index = 0; index < files.size(); ++index) {
-                if (index != 0) payload += ',';
-                const auto& file = files[index];
+            std::size_t emitted{};
+            for (const auto& file : files) {
+                if (!(file.filename.ends_with(".dbn") || file.filename.ends_with(".dbn.zst"))) {
+                    continue;
+                }
+                if (emitted++ != 0) payload += ',';
+                const auto hash = file.hash.starts_with("sha256:")
+                                      ? file.hash.substr(7)
+                                      : file.hash;
                 payload += "{\"providerFileId\":\"" + json_escape(file.filename)
                            + "\",\"fileName\":\"" + json_escape(file.filename)
                            + "\",\"schema\":" + std::to_string(schema)
                            + ",\"sizeBytes\":" + std::to_string(file.size)
-                           + ",\"sha256\":\"" + json_escape(file.hash) + "\"}";
+                           + ",\"sha256\":\"" + json_escape(hash) + "\"}";
             }
             result->payload = payload + "]}";
 #else
@@ -3010,7 +3034,7 @@ dbf_status DBF_CALL dbf_historical_range_open(
             auto client = databento::Historical::Builder().SetKeyFromEnv().Build();
             auto store = client.TimeseriesGetRange(
                 dataset, range, requested, historical_schema(request->schema),
-                historical_stype(request->input_symbology), databento::SType::RawSymbol,
+                historical_stype(request->input_symbology), databento::SType::InstrumentId,
                 request->record_limit);
             append_historical_records(
                 store, request->schema, requested.front(), *result);
@@ -3038,7 +3062,7 @@ dbf_status DBF_CALL dbf_historical_file_open(
     dbf_historical_result_t** output) {
     if (output == nullptr || file_path == nullptr || file_path_bytes == 0
         || schema < DBF_HISTORICAL_DEFINITION
-        || schema > DBF_HISTORICAL_STATISTICS) {
+        || schema > DBF_HISTORICAL_OHLCV_1D) {
         return DBF_INVALID_ARGUMENT;
     }
     *output = nullptr;

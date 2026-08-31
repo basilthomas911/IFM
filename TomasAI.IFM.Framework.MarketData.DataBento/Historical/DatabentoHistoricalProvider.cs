@@ -35,11 +35,28 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
     }
 
     /// <inheritdoc />
-    public unsafe ValueTask<HistoricalProviderEstimate> EstimateAsync(
+    public async ValueTask<HistoricalProviderEstimate> EstimateAsync(
         HistoricalProviderRequest request,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var nativeEstimate = Task.Run(() => EstimateNative(request), CancellationToken.None);
+        try
+        {
+            return await nativeEstimate
+                .WaitAsync(TimeSpan.FromMilliseconds(options.TimeoutMilliseconds), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException exception)
+        {
+            throw new TimeoutException(
+                $"Databento historical estimate exceeded the configured {options.TimeoutMilliseconds} ms timeout.",
+                exception);
+        }
+    }
+
+    private unsafe HistoricalProviderEstimate EstimateNative(HistoricalProviderRequest request)
+    {
         using var input = NativeHistoricalInput.Create(request, options);
         var estimate = new NativeHistoricalEstimate
         {
@@ -51,11 +68,11 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
             &nativeRequest, input.SymbolsPointer, input.BlobPointer,
             checked((uint)input.Blob.Length), ref estimate);
         Throw(status, "estimate historical data");
-        return ValueTask.FromResult(new HistoricalProviderEstimate(
+        return new HistoricalProviderEstimate(
             (decimal)estimate.EstimatedCostUsd,
             checked((long)estimate.EstimatedBytes),
             checked((long)estimate.EstimatedRecords),
-            timeProvider.GetUtcNow()));
+            timeProvider.GetUtcNow());
     }
 
     /// <inheritdoc />
@@ -69,6 +86,16 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
         var status = NativeMethods.HistoricalBatchSubmit(
             &nativeRequest, input.SymbolsPointer, input.BlobPointer,
             checked((uint)input.Blob.Length), out var pointer);
+        if (status != DatabentoFeedStatus.Ok && pointer != 0)
+        {
+            using var failedResult = new SafeHistoricalResultHandle(pointer);
+            var detail = ReadError(failedResult);
+            throw new DatabentoFeedException(
+                status,
+                string.IsNullOrWhiteSpace(detail)
+                    ? $"submit historical batch failed with {status}."
+                    : $"submit historical batch failed with {status}: {detail}");
+        }
         Throw(status, "submit historical batch");
         using var result = new SafeHistoricalResultHandle(pointer);
         return ValueTask.FromResult(ParseJob(ReadPayload(result)));
@@ -246,6 +273,23 @@ public sealed class DatabentoHistoricalProvider : IMarketDataHistoricalProvider
                 result, pointer, required, out _), "copy historical result payload");
         }
         return Encoding.UTF8.GetString(bytes.AsSpan(0, checked((int)required - 1)));
+    }
+
+    private static unsafe string ReadError(SafeHistoricalResultHandle result)
+    {
+        var status = NativeMethods.HistoricalResultGetError(result, null, 0, out var required);
+        if (status == DatabentoFeedStatus.Ok && required == 1)
+            return string.Empty;
+        if (status != DatabentoFeedStatus.BufferTooSmall || required < 1)
+            return string.Empty;
+        var bytes = new byte[required];
+        fixed (byte* pointer = bytes)
+        {
+            status = NativeMethods.HistoricalResultGetError(result, pointer, required, out _);
+        }
+        return status == DatabentoFeedStatus.Ok
+            ? Encoding.UTF8.GetString(bytes.AsSpan(0, checked((int)required - 1)))
+            : string.Empty;
     }
 
     private static void Throw(DatabentoFeedStatus status, string operation) =>

@@ -32,7 +32,13 @@ public static class FuturesRsiSignalGenerated
         var source = $"FuturesRsiSignalGeneratedEvent for ContractId: {e.FuturesRsiSignal.ContractId}, ValueDate: {e.FuturesRsiSignal.ValueDate}";
         try
         {
-                context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(e.EntityId, e.FuturesRsiSignal);
+            if (e.FuturesRsiSignal is { IsWarm: true, RSI: >= 0d }
+                && e.FuturesRsiSignal.Metadata is { IsValid: true })
+            {
+                context.BlackboardService.MarketDataAnalytics.FuturesRsiSignal.Set(
+                    e.EntityId,
+                    e.FuturesRsiSignal);
+            }
         }
         catch (Exception ex)
         {

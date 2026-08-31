@@ -40,34 +40,43 @@ public sealed class HistoricalDataLoader
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var estimate = await historicalApi.EstimateAsync(request, cancellationToken).ConfigureAwait(false);
-        if (await dataLoaderStore.GetCompletedByRequestHashAsync(
-                estimate.RequestSha256, cancellationToken).ConfigureAwait(false) is { } completed)
-        {
-            return completed;
-        }
-
         var existing = await dataLoaderStore.GetAsync(
             request.DataLoadAttemptId, cancellationToken).ConfigureAwait(false);
         var checkpoint = existing?.Checkpoint ?? new HistoricalAcquisitionCheckpoint
         {
             DataLoadAttemptId = request.DataLoadAttemptId,
-            Stage = HistoricalAcquisitionStage.Estimated
+            Stage = HistoricalAcquisitionStage.None
         };
         var state = new HistoricalDataLoaderState
         {
             DataLoadAttemptId = request.DataLoadAttemptId,
-            RequestSha256 = estimate.RequestSha256,
+            RequestSha256 = existing?.RequestSha256 ?? $"estimating:{request.DataLoadAttemptId:D}",
             Status = HistoricalDataLoaderStatus.Processing,
             Checkpoint = checkpoint,
             UpdatedAtUtc = timeProvider.GetUtcNow()
         };
         await dataLoaderStore.SaveAsync(state, cancellationToken).ConfigureAwait(false);
-
-        var sink = new DataLoadSink(
-            request, observationStore, replayPublisher, calendar, dataLoaderStore, state, timeProvider);
+        DataLoadSink? sink = null;
         try
         {
+            var estimate = await historicalApi.EstimateAsync(request, cancellationToken).ConfigureAwait(false);
+            if (await dataLoaderStore.GetCompletedByRequestHashAsync(
+                    estimate.RequestSha256, cancellationToken).ConfigureAwait(false) is { } completed)
+            {
+                return completed;
+            }
+
+            checkpoint = checkpoint with { Stage = HistoricalAcquisitionStage.Estimated };
+            state = state with
+            {
+                RequestSha256 = estimate.RequestSha256,
+                Checkpoint = checkpoint,
+                UpdatedAtUtc = timeProvider.GetUtcNow()
+            };
+            await dataLoaderStore.SaveAsync(state, cancellationToken).ConfigureAwait(false);
+
+            sink = new DataLoadSink(
+                request, observationStore, replayPublisher, calendar, dataLoaderStore, state, timeProvider);
             var manifest = await historicalApi.AcquireAsync(
                 request, checkpoint, sink, cancellationToken).ConfigureAwait(false);
             var audit = await sink.CompleteAsync(cancellationToken).ConfigureAwait(false);
@@ -87,7 +96,7 @@ public sealed class HistoricalDataLoader
             state = state with
             {
                 Status = HistoricalDataLoaderStatus.Failed,
-                Checkpoint = sink.Checkpoint,
+                Checkpoint = sink?.Checkpoint ?? checkpoint,
                 ErrorMessage = exception.Message,
                 UpdatedAtUtc = timeProvider.GetUtcNow()
             };
