@@ -48,6 +48,33 @@ public sealed class ScyllaHistoricalObservationStore(
             .SetParameters(new RawEodKey(seriesIdentity.Format(), YearMonth(valueDate), valueDate))
             .ExecuteSingleAsync<FuturesEodObservationReadModel?>(MapRawEod, cancellationToken));
 
+    public async ValueTask<IReadOnlyList<FuturesEodObservationReadModel>> GetRawEodRangeAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+    {
+        if (startDate > endDate)
+            throw new ArgumentOutOfRangeException(nameof(startDate));
+        List<FuturesEodObservationReadModel> values = [];
+        for (var month = new DateOnly(startDate.Year, startDate.Month, 1); month <= endDate; month = month.AddMonths(1))
+        {
+            var monthEnd = month.AddMonths(1).AddDays(-1);
+            var lower = startDate > month ? startDate : month;
+            var upper = endDate < monthEnd ? endDate : monthEnd;
+            var rows = await Database
+                .Use($"{nameof(HistoricalObservationCql)}.{nameof(HistoricalObservationCql.GetRawEodRange)}", HistoricalObservationCql.GetRawEodRange)
+                .SetParameters(new RawEodRangeKey(seriesIdentity.Format(), YearMonth(month), lower, upper))
+                .ExecuteQueryAsync(MapRawEod, cancellationToken)
+                .ConfigureAwait(false);
+            values.AddRange(rows);
+        }
+        return values
+            .OrderBy(static value => value.ValueDate)
+            .ThenBy(static value => value.ContractId, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     static FuturesEodObservationReadModel MapRawEod(IObjectDataRecord row) => new()
     {
         MarketSeriesIdentity = MarketSeriesIdentity.Parse(row.GetString(0)), ContractId = row.GetString(1),
@@ -92,5 +119,14 @@ public sealed class ScyllaHistoricalObservationStore(
     readonly record struct RawEodKey(string SeriesKey, int YearMonth, DateOnly ValueDate) : IBindValue
     {
         public object Bind() => new object?[] { SeriesKey, YearMonth, ValueDate };
+    }
+
+    readonly record struct RawEodRangeKey(
+        string SeriesKey,
+        int YearMonth,
+        DateOnly StartDate,
+        DateOnly EndDate) : IBindValue
+    {
+        public object Bind() => new object?[] { SeriesKey, YearMonth, StartDate, EndDate };
     }
 }

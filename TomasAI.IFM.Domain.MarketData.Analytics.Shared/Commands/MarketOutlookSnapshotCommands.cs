@@ -1,4 +1,6 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -50,6 +52,12 @@ public sealed record ObserveMarketOutlookComponentCommand : ICommand<MarketOutlo
     /// <summary>Gets an optional VX futures price component.</summary>
     [Key(13)] public decimal VixFuturesPrice { get; init; }
 
+    /// <summary>Gets an optional Daily EMA component.</summary>
+    [Key(14)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
+
+    /// <summary>Gets an optional Daily Bollinger component.</summary>
+    [Key(15)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
+
     /// <summary>Gets the CLR command name.</summary>
     [IgnoreMember] public string CommandName => nameof(ObserveMarketOutlookComponentCommand);
 
@@ -70,7 +78,9 @@ public sealed record ObserveMarketOutlookComponentCommand : ICommand<MarketOutlo
     public int ComponentCount => (FuturesRsiSignal is null ? 0 : 1)
         + (FuturesTdiSignal is null ? 0 : 1)
         + (FuturesItiSignal is null ? 0 : 1)
-        + (VixFuturesPrice > 0 ? 1 : 0);
+        + (VixFuturesPrice > 0 ? 1 : 0)
+        + (FuturesEmaSignal is null ? 0 : 1)
+        + (FuturesBbSignal is null ? 0 : 1);
 
     /// <summary>Initializes an empty command for MessagePack deserialization.</summary>
     public ObserveMarketOutlookComponentCommand() { }
@@ -85,7 +95,9 @@ public sealed record ObserveMarketOutlookComponentCommand : ICommand<MarketOutlo
         FuturesRsiSignalReadModel? futuresRsiSignal = null,
         FuturesTdiSignalReadModel? futuresTdiSignal = null,
         FuturesItiSignalV2ReadModel? futuresItiSignal = null,
-        decimal vixFuturesPrice = 0)
+        decimal vixFuturesPrice = 0,
+        FuturesEmaSignalReadModel? futuresEmaSignal = null,
+        FuturesBbSignalReadModel? futuresBbSignal = null)
     {
         EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
         SourceEventId = sourceEventId;
@@ -96,6 +108,8 @@ public sealed record ObserveMarketOutlookComponentCommand : ICommand<MarketOutlo
         FuturesTdiSignal = futuresTdiSignal;
         FuturesItiSignal = futuresItiSignal;
         VixFuturesPrice = vixFuturesPrice;
+        FuturesEmaSignal = futuresEmaSignal;
+        FuturesBbSignal = futuresBbSignal;
     }
 }
 
@@ -143,6 +157,12 @@ public sealed record PublishMarketOutlookSnapshotCommand : ICommand<MarketOutloo
     /// <summary>Gets an optional reconciled VX futures price.</summary>
     [Key(13)] public decimal VixFuturesPrice { get; init; }
 
+    /// <summary>Gets the latest completed Daily EMA family available at the publication boundary.</summary>
+    [Key(14)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
+
+    /// <summary>Gets the latest completed Daily Bollinger family available at the publication boundary.</summary>
+    [Key(15)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
+
     /// <summary>Gets the CLR command name.</summary>
     [IgnoreMember] public string CommandName => nameof(PublishMarketOutlookSnapshotCommand);
 
@@ -171,7 +191,9 @@ public sealed record PublishMarketOutlookSnapshotCommand : ICommand<MarketOutloo
         FuturesRsiSignalReadModel? futuresRsiSignal = null,
         FuturesTdiSignalReadModel? futuresTdiSignal = null,
         FuturesItiSignalDataReadModel? futuresItiSignalData = null,
-        decimal vixFuturesPrice = 0)
+        decimal vixFuturesPrice = 0,
+        FuturesEmaSignalReadModel? futuresEmaSignal = null,
+        FuturesBbSignalReadModel? futuresBbSignal = null)
     {
         EntityId = entityId ?? throw new ArgumentNullException(nameof(entityId));
         SourceEventId = sourceEventId;
@@ -182,5 +204,7 @@ public sealed record PublishMarketOutlookSnapshotCommand : ICommand<MarketOutloo
         FuturesTdiSignal = futuresTdiSignal;
         FuturesItiSignalData = futuresItiSignalData;
         VixFuturesPrice = vixFuturesPrice;
+        FuturesEmaSignal = futuresEmaSignal;
+        FuturesBbSignal = futuresBbSignal;
     }
 }

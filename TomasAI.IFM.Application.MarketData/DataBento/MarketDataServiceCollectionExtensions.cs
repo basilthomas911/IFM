@@ -53,6 +53,7 @@ public static class MarketDataServiceCollectionExtensions
         services.TryAddSingleton<IMarketDataHistoricalApi>(provider =>
             provider.GetRequiredService<DatabentoHistoricalApi>());
         services.TryAddSingleton<IHistoricalReplayPublisher, NullHistoricalReplayPublisher>();
+        services.TryAddSingleton<IHistoricalDailyReplayPublisher, NullHistoricalDailyReplayPublisher>();
         services.TryAddSingleton<IHistoricalAnalyticsSignalReader, NullHistoricalAnalyticsSignalReader>();
         services.TryAddSingleton<HistoricalDataLoader>();
         services.TryAddSingleton<IFuturesEodAnalyticsAssembler, FuturesEodAnalyticsAssembler>();

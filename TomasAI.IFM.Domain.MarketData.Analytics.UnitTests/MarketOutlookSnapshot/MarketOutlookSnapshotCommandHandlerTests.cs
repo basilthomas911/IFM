@@ -4,6 +4,10 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.Stat
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 
@@ -207,6 +211,109 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
         state.WorkingState.PublishedSnapshot.MissingInputs.Should().NotContain("RSI");
     }
 
+    [Fact]
+    public void Observe_EmaAndBollinger_AcceptsBothTypedDailyComponentsIndependently()
+    {
+        var entityId = EntityId();
+        var metadata = Metadata(entityId);
+        var ema = new FuturesEmaSignalReadModel
+        {
+            Metadata = metadata,
+            Ema50 = 5100m,
+            Ema200 = 4900m,
+            IsWarm = true
+        };
+        var bb = new FuturesBbSignalReadModel
+        {
+            Metadata = metadata with
+            {
+                SignalKey = metadata.SignalKey with { SignalKind = MarketAnalyticsSignalKind.BollingerBand }
+            },
+            Ema20Center = 5150m,
+            StandardDeviation20 = 20m,
+            Upper20 = 5190m,
+            Lower20 = 5110m,
+            IsWarm = true
+        };
+        var sourceId = Guid.NewGuid();
+        var state = new MarketOutlookSnapshotCommandState();
+        var command = new ObserveMarketOutlookComponentCommand(
+            entityId,
+            sourceId,
+            50,
+            DateTime.UtcNow,
+            "daily-analytics",
+            futuresEmaSignal: ema,
+            futuresBbSignal: bb)
+        {
+            CommandId = sourceId,
+            Subject = Subject(ObserveMarketOutlookComponentCommand.Verb, entityId)
+        };
+
+        command.Execute(state).Success.Should().BeTrue();
+
+        state.WorkingState.FuturesEmaSignal.Should().Be(ema);
+        state.WorkingState.FuturesBbSignal.Should().Be(bb);
+        state.WorkingState.SourceWatermarks.Select(value => value.ComponentType).Should()
+            .BeEquivalentTo([MarketOutlookComponentType.Ema, MarketOutlookComponentType.BollingerBand]);
+        state.WorkingState.PublishedSnapshot!.FuturesEmaSignal.Should().Be(ema);
+        state.WorkingState.PublishedSnapshot.FuturesBbSignal.Should().Be(bb);
+    }
+
+    [Fact]
+    public void Publish_ReconcilesLatestCompletedDailyAnalyticsIntoCurrentValueDate()
+    {
+        var entityId = EntityId();
+        var metadata = Metadata(entityId) with { ValueDate = entityId.ValueDate.AddDays(-1) };
+        var ema = new FuturesEmaSignalReadModel
+        {
+            Metadata = metadata,
+            Ema50 = 5100m,
+            Ema200 = 4900m,
+            IsWarm = true
+        };
+        var bb = new FuturesBbSignalReadModel
+        {
+            Metadata = metadata with
+            {
+                SignalKey = metadata.SignalKey with { SignalKind = MarketAnalyticsSignalKind.BollingerBand }
+            },
+            Ema20Center = 5150m,
+            StandardDeviation20 = 20m,
+            Upper20 = 5190m,
+            Lower20 = 5110m,
+            IsWarm = true
+        };
+        var sourceId = Guid.NewGuid();
+        var eod = SampleData.EodData with
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            Symbol = "ES"
+        };
+        var state = new MarketOutlookSnapshotCommandState();
+        var command = new PublishMarketOutlookSnapshotCommand(
+            entityId,
+            sourceId,
+            51,
+            DateTime.UtcNow,
+            eod,
+            futuresEmaSignal: ema,
+            futuresBbSignal: bb)
+        {
+            CommandId = sourceId,
+            Subject = Subject(PublishMarketOutlookSnapshotCommand.Verb, entityId)
+        };
+
+        command.Execute(state).Success.Should().BeTrue();
+
+        state.WorkingState.PublishedSnapshot!.FuturesEmaSignal.Should().Be(ema);
+        state.WorkingState.PublishedSnapshot.FuturesBbSignal.Should().Be(bb);
+        state.WorkingState.PublishedSnapshot.HasWarmDailyAnalytics.Should().BeTrue();
+        state.WorkingState.PublishedSnapshot.MissingInputs.Should().NotContain("EMA");
+        state.WorkingState.PublishedSnapshot.MissingInputs.Should().NotContain("Bollinger Bands");
+    }
+
     static ObserveMarketOutlookComponentCommand ObserveRsi(
         MarketOutlookEntityId entityId,
         Guid sourceId,
@@ -232,6 +339,27 @@ public sealed class MarketOutlookSnapshotCommandHandlerTests
 
     static MarketOutlookEntityId EntityId()
         => new("ESU26", new DateOnly(2026, 8, 21));
+
+    static MarketAnalyticsSignalMetadata Metadata(MarketOutlookEntityId entityId)
+    {
+        var series = MarketSeriesIdentity.ForFuturesSeries(
+            new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
+        var end = new DateTimeOffset(2026, 8, 21, 21, 0, 0, TimeSpan.Zero);
+        return new()
+        {
+            SignalKey = new(series, MarketAnalyticsSignalKind.Ema, TimeFrameType.Daily, "daily-v1"),
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            ObservationId = FuturesTradeSessionBarId.Create(series, TimeFrameType.Daily, end, 50),
+            MarketDataAsOfUtc = end,
+            CalculatedAtUtc = end,
+            SourceSequence = 50,
+            SchemaVersion = 1,
+            CalculationVersion = "daily-v1",
+            CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate,
+            IsValid = true
+        };
+    }
 
     static ActorSubject Subject(string verb, MarketOutlookEntityId entityId)
         => new(

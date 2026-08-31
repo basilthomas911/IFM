@@ -9,6 +9,10 @@ using TomasAI.IFM.Application.Api.Nats.Client;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -62,13 +66,53 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
                 ValueDate = valueDate,
                 PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
             };
+            var series = MarketSeriesIdentity.ForFuturesSeries(
+                new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
+            var dailyEnd = new DateTimeOffset(2099, 12, 30, 21, 0, 0, TimeSpan.Zero);
+            var metadata = new MarketAnalyticsSignalMetadata
+            {
+                SignalKey = new(series, MarketAnalyticsSignalKind.Ema, TimeFrameType.Daily, "daily-v1"),
+                ContractId = contractId,
+                ValueDate = valueDate,
+                ObservationId = FuturesTradeSessionBarId.Create(series, TimeFrameType.Daily, dailyEnd, 2),
+                MarketDataAsOfUtc = dailyEnd,
+                CalculatedAtUtc = dailyEnd,
+                SourceSequence = 2,
+                SchemaVersion = 1,
+                CalculationVersion = "daily-v1",
+                IsValid = true
+            };
+            var ema = new FuturesEmaSignalReadModel
+            {
+                Metadata = metadata,
+                Ema50 = 5300m,
+                Ema200 = 5000m,
+                IsWarm = true
+            };
+            var bb = new FuturesBbSignalReadModel
+            {
+                Metadata = metadata with
+                {
+                    SignalKey = metadata.SignalKey with
+                    {
+                        SignalKind = MarketAnalyticsSignalKind.BollingerBand
+                    }
+                },
+                Ema20Center = 5400m,
+                StandardDeviation20 = 25m,
+                Upper20 = 5450m,
+                Lower20 = 5350m,
+                IsWarm = true
+            };
             var observe = new ObserveMarketOutlookComponentCommand(
                 entityId,
                 observeId,
                 1,
                 observedAt,
                 "integration-rsi",
-                futuresRsiSignal: rsi)
+                futuresRsiSignal: rsi,
+                futuresEmaSignal: ema,
+                futuresBbSignal: bb)
             {
                 CommandId = observeId,
                 Subject = CommandSubject(ObserveMarketOutlookComponentCommand.Verb, entityId)
@@ -97,7 +141,9 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
                 2,
                 observedAt.AddMinutes(1),
                 eod,
-                futuresRsiSignal: rsi)
+                futuresRsiSignal: rsi,
+                futuresEmaSignal: ema,
+                futuresBbSignal: bb)
             {
                 CommandId = publishId,
                 Subject = CommandSubject(PublishMarketOutlookSnapshotCommand.Verb, entityId)
@@ -114,6 +160,8 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             notification.MarketOutlook.Revision.Should().Be(2);
             notification.MarketOutlook.MissingInputs.Should().Contain("TDI");
             notification.MarketOutlook.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
+            notification.MarketOutlook.FuturesEmaSignal.Should().BeEquivalentTo(ema);
+            notification.MarketOutlook.FuturesBbSignal.Should().BeEquivalentTo(bb);
             notification.MarketOutlook.FuturesEodData.Should().BeEquivalentTo(eod);
 
             var workingState = await dbFixture.MarketDataDb.GetMarketOutlookWorkingStateAsync(
@@ -126,6 +174,8 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             workingState!.Revision.Should().Be(2);
             workingState.Status.Should().Be(MarketOutlookStateStatus.Published);
             workingState.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
+            workingState.FuturesEmaSignal.Should().BeEquivalentTo(ema);
+            workingState.FuturesBbSignal.Should().BeEquivalentTo(bb);
             workingState.FuturesEodData.Should().BeEquivalentTo(eod);
             snapshot.Should().BeEquivalentTo(
                 notification.MarketOutlook,
@@ -146,6 +196,8 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             queryResult.Value.FuturesEodData.OpenPrice.Should().Be(5400m);
             queryResult.Value.FuturesEodData.ClosePrice.Should().Be(5425m);
             queryResult.Value.FuturesEodData.DailyPercentChange.Should().Be(0.0046);
+            queryResult.Value.FuturesEmaSignal.Should().BeEquivalentTo(ema);
+            queryResult.Value.FuturesBbSignal.Should().BeEquivalentTo(bb);
 
             var streamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync(
                 CommandSubject(ObserveMarketOutlookComponentCommand.Verb, entityId).ThreadId.ToString());

@@ -16,11 +16,17 @@ public static class RegimeDiscoverySignalCacheAdapter
     static readonly RegimeDiscoveryMarketSignalSnapshotProvider Cache = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), decimal> LatestAtr = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), decimal> LatestEma20 = new();
+    static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesEmaSignalReadModel> LatestEmaSignals = new();
+    static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), FuturesBbSignalReadModel> LatestBbSignals = new();
     static readonly ConcurrentDictionary<(string ContractId, TimeFrameType TimeFrame), Queue<FuturesTradeSessionBarReadModel>> Bars = new();
 
     /// <summary>Publishes the EMA family and current price using common observation provenance.</summary>
     public static void Publish(FuturesEmaSignalReadModel signal)
     {
+        LatestEmaSignals.AddOrUpdate(
+            (signal.Metadata.ContractId, signal.Metadata.TimeFrame),
+            signal,
+            (_, current) => IsNewer(signal.Metadata, current.Metadata) ? signal : current);
         Publish(signal.Metadata, RegimeDiscoverySignalMetric.CurrentPrice, signal.Price, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.Ema20, signal.Ema20, signal.IsWarm);
         if (signal.Ema20 is { } ema20)
@@ -35,10 +41,28 @@ public static class RegimeDiscoverySignalCacheAdapter
     /// <summary>Publishes Bollinger width, ratio, position, and price interaction inputs.</summary>
     public static void Publish(FuturesBbSignalReadModel signal)
     {
+        LatestBbSignals.AddOrUpdate(
+            (signal.Metadata.ContractId, signal.Metadata.TimeFrame),
+            signal,
+            (_, current) => IsNewer(signal.Metadata, current.Metadata) ? signal : current);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidth, signal.Width20, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidthRatio, signal.Width20Ratio, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerPosition, signal.Position20, signal.IsWarm);
     }
+
+    /// <summary>Gets the latest typed EMA family for one exact contract and timeframe.</summary>
+    public static bool TryGetLatestEma(
+        string contractId,
+        TimeFrameType timeFrame,
+        out FuturesEmaSignalReadModel signal) =>
+        LatestEmaSignals.TryGetValue((contractId, timeFrame), out signal!);
+
+    /// <summary>Gets the latest typed Bollinger family for one exact contract and timeframe.</summary>
+    public static bool TryGetLatestBb(
+        string contractId,
+        TimeFrameType timeFrame,
+        out FuturesBbSignalReadModel signal) =>
+        LatestBbSignals.TryGetValue((contractId, timeFrame), out signal!);
 
     /// <summary>Publishes ADX14, +DI14, and -DI14.</summary>
     public static void Publish(FuturesAdxSignalReadModel signal)
@@ -191,6 +215,10 @@ public static class RegimeDiscoverySignalCacheAdapter
             SignalIdentity = $"{key.MarketSeriesIdentity.Format()}.{metric}.{key.TimeFrame}"
         });
     }
+
+    static bool IsNewer(MarketAnalyticsSignalMetadata incoming, MarketAnalyticsSignalMetadata current) =>
+        incoming.ValueDate > current.ValueDate
+        || (incoming.ValueDate == current.ValueDate && incoming.SourceSequence >= current.SourceSequence);
 
     static MarketAnalyticsSignalMetadata Metadata(MarketAnalyticsSignalMetadata? metadata,
         string contractId, TimeFrameType timeFrame, DateOnly valueDate, TimeOnly timestamp,

@@ -17,6 +17,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
@@ -59,6 +60,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
@@ -580,6 +582,18 @@ public static class Startup
             });
             services.AddApplicationMarketDataHistoricalApi(historicalOptions);
             services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
+            services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
+            services.AddSingleton(provider =>
+            {
+                var configured = config
+                    .GetSection("AppSettings:HistoricalAnalyticsWarmup")
+                    .Get<HistoricalAnalyticsWarmupOptions>() ?? new HistoricalAnalyticsWarmupOptions();
+                return (configured with
+                {
+                    IsDevelopmentEnvironment = provider.GetRequiredService<IHostEnvironment>().IsDevelopment()
+                }).Validate();
+            });
+            services.AddSingleton<HistoricalAnalyticsWarmupService>();
             services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
                 new PrefixFuturesTradeSessionBarSeriesResolver(
                     new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)

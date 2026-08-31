@@ -157,12 +157,14 @@ public class FuturesTradeSignalUIViewModel
             ValueDate = snapshot.ValueDate
         })
     {
+        FiftyDMA = snapshot.FuturesEmaSignal?.Ema50 is { } ema50
+            ? $"{ema50:F2}"
+            : Unavailable;
+        TwoHundredDMA = snapshot.FuturesEmaSignal is { IsWarm: true, Ema200: { } ema200 }
+            ? $"{ema200:F2}"
+            : Unavailable;
         if (!snapshot.FuturesEodData.IsValid)
-        {
-            FiftyDMA = Unavailable;
-            TwoHundredDMA = Unavailable;
             RiskPosition = Unavailable;
-        }
 
         if (snapshot.FuturesRsiSignal is { } rsi)
         {

@@ -1,6 +1,8 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
@@ -36,6 +38,36 @@ internal static class MarketOutlookComponentEligibility
                 or IntrinsicTimeModeType.TrendExtremeChanged
                 or IntrinsicTimeModeType.TrendReversalChanged;
 
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesEmaSignalReadModel signal)
+        => signal.Metadata.ContractId == entityId.ContractId
+            && signal.Metadata.ValueDate == entityId.ValueDate
+            && signal.Metadata.TimeFrame == TimeFrameType.Daily
+            && signal.Metadata.IsValid;
+
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesBbSignalReadModel signal)
+        => signal.Metadata.ContractId == entityId.ContractId
+            && signal.Metadata.ValueDate == entityId.ValueDate
+            && signal.Metadata.TimeFrame == TimeFrameType.Daily
+            && signal.Metadata.IsValid;
+
+    internal static bool IsEligibleAtPublicationBoundary(
+        MarketOutlookEntityId entityId,
+        FuturesEmaSignalReadModel signal) =>
+        IsEligibleAtPublicationBoundary(entityId, signal.Metadata);
+
+    internal static bool IsEligibleAtPublicationBoundary(
+        MarketOutlookEntityId entityId,
+        FuturesBbSignalReadModel signal) =>
+        IsEligibleAtPublicationBoundary(entityId, signal.Metadata);
+
+    static bool IsEligibleAtPublicationBoundary(
+        MarketOutlookEntityId entityId,
+        TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common.MarketAnalyticsSignalMetadata metadata) =>
+        metadata.IsValid
+        && metadata.TimeFrame == TimeFrameType.Daily
+        && metadata.ValueDate <= entityId.ValueDate
+        && string.Equals(metadata.ContractId, entityId.ContractId, StringComparison.Ordinal);
+
     internal static bool IsEligible(
         MarketOutlookComponentChangedRealtimeEvent source,
         out string reason)
@@ -44,7 +76,9 @@ internal static class MarketOutlookComponentEligibility
         return eligible.FuturesRsiSignal is not null
             || eligible.FuturesTdiSignal is not null
             || eligible.FuturesItiSignal is not null
-            || eligible.VixFuturesPrice > 0;
+            || eligible.VixFuturesPrice > 0
+            || eligible.FuturesEmaSignal is not null
+            || eligible.FuturesBbSignal is not null;
     }
 
     /// <summary>
@@ -81,13 +115,27 @@ internal static class MarketOutlookComponentEligibility
                 rejected.Add("vx-range");
             vix = 0;
         }
+        var ema = source.FuturesEmaSignal;
+        if (ema is not null && !IsEligible(source.EntityId, ema))
+        {
+            rejected.Add("ema-profile");
+            ema = null;
+        }
+        var bb = source.FuturesBbSignal;
+        if (bb is not null && !IsEligible(source.EntityId, bb))
+        {
+            rejected.Add("bb-profile");
+            bb = null;
+        }
         reason = rejected.Count == 0 ? string.Empty : string.Join(", ", rejected);
         return source with
         {
             FuturesRsiSignal = rsi,
             FuturesTdiSignal = tdi,
             FuturesItiSignal = iti,
-            VixFuturesPrice = vix
+            VixFuturesPrice = vix,
+            FuturesEmaSignal = ema,
+            FuturesBbSignal = bb
         };
     }
 }

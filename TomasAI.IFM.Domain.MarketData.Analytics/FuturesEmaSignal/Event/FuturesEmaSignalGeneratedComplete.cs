@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Event.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -13,6 +14,7 @@ public static class FuturesEmaSignalGeneratedComplete
     public static async ValueTask<bool> ExecuteAsync(this FuturesEmaSignalGeneratedCompleteEvent @event,
         IFuturesEmaSignalEventContext context, ILogger logger)
     {
+        await context.PublishMarketOutlookComponentAsync(@event).ConfigureAwait(false);
         var result = await context.GenerateFuturesBbSignalAsync(@event.Observation, @event.Signal);
         if (result is ServiceFailed<GuidResult>)
             logger.LogError("Bollinger command rejected EMA observation {ObservationId}.",

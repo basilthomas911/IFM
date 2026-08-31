@@ -20,6 +20,8 @@ public static class FuturesAnalyticsHistoricalDataLoaderEventExtensions
         public HistoricalDataLoaderService DataLoader => context.DataLoaderContext.DataLoader;
         /// <summary>Gets the data load operational store.</summary>
         public IHistoricalDataLoaderStore DataLoaderStore => context.DataLoaderContext.DataLoaderStore;
+        /// <summary>Gets the Development-only coverage coordinator.</summary>
+        public HistoricalAnalyticsWarmupService WarmupService => context.DataLoaderContext.WarmupService;
         /// <summary>Gets the typed logger.</summary>
         public ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> Logger => context.DataLoaderContext.Logger;
     }

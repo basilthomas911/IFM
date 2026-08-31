@@ -127,3 +127,22 @@ compatibility boundaries and qualification criteria for gates MOS-0 through MOS-
   calculation exists.
 - The working-state blob is the preferred query projection because it retains the expanded
   component contract. The legacy snapshot columns remain a rollout fallback.
+
+## Daily EMA/Bollinger authority addendum (2026-08-31)
+
+- Market Outlook now carries typed `FuturesEmaSignalReadModel` and
+  `FuturesBbSignalReadModel` components. Their MessagePack keys are append-only in
+  commands, working state, events, and snapshots.
+- The UI's `50 EMA` and `200 EMA` fields come from typed EMA50/EMA200. The four
+  Bollinger fields come from BB20 population standard deviation, upper band,
+  EMA20 centerline, and lower band. The six legacy EOD/trade-composite values are
+  no longer read by the snapshot UI path.
+- Daily Analytics are admitted independently under OR semantics. One missing or
+  delayed family never suppresses the other family or any intraday component.
+- A prior completed Daily observation can be reconciled into the active value-date
+  stream while its original market-data timestamp and value date remain intact.
+  This supports closed-market startup without pretending that the value is an
+  intraday calculation.
+- After historical replay, one explicit active-value-date Observe command updates
+  an existing EOD snapshot. Market Outlook therefore does not depend on a future
+  live EOD tick to display warmed values.

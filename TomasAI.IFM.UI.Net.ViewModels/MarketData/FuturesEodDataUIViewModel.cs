@@ -1,4 +1,5 @@
 using TomasAI.IFM.UI.Net.ViewModels.Presentation;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -10,6 +11,7 @@ namespace TomasAI.IFM.UI.Net.ViewModels.MarketData;
 
 public class FuturesEodDataUIViewModel
 {
+    const string Unavailable = "N/A";
     public FuturesEodDataUIViewModel(FuturesEodDataV2ReadModel e)
     {
         MarketDirection = $"{e.MarketDirection}";
@@ -86,6 +88,19 @@ public class FuturesEodDataUIViewModel
                _ when e.MarketDirectionIndicator >= 30 => PresentationColorRole.Caution,
                _ => PresentationColorRole.Negative,
            };
+    }
+
+    /// <summary>Builds the EOD display while sourcing Bollinger values from typed Analytics.</summary>
+    public FuturesEodDataUIViewModel(MarketOutlookSnapshotReadModel snapshot)
+        : this(snapshot.FuturesEodData)
+    {
+        var bb = snapshot.FuturesBbSignal;
+        DailyStdDev = bb?.StandardDeviation20 is { } standardDeviation
+            ? $"{standardDeviation:F2}"
+            : Unavailable;
+        UpperBand = bb?.Upper20 is { } upper ? $"{upper:F2}" : Unavailable;
+        Mean = bb?.Ema20Center is { } center ? $"{center:F2}" : Unavailable;
+        LowerBand = bb?.Lower20 is { } lower ? $"{lower:F2}" : Unavailable;
     }
 
     public string MarketDirection { get; private set; }

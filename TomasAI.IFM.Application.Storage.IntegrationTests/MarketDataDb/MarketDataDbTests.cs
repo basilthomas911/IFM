@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.SequenceIdDb;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -29,6 +30,9 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using Xunit;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Framework.Storage.Extensions;
+using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 
@@ -171,6 +175,73 @@ public class MarketDataFixture : IDisposable
 public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<MarketDataFixture>
 {
     MarketDataFixture TestFixture { get; } = testFixture;
+
+    [Fact]
+    public async Task HistoricalRawEodRange_ReadsAcrossMonthPartitionsInAscendingOrder()
+    {
+        var settings = new DbConnectionSettings()
+            .Add("MarketDataDbConnection",
+                "Contact Points=localhost;Port=9042;Default Keyspace=market_data_test_db",
+                "System.Data.ScyllaDb");
+        var store = new ScyllaHistoricalObservationStore(
+            settings,
+            Substitute.For<ILogger<DbProvider>>());
+        var series = MarketSeriesIdentity.ForFuturesSeries(new FuturesSeriesId(
+            $"T{Guid.NewGuid():N}"[..8],
+            "calendar-front",
+            "unadjusted",
+            1));
+        var dates = new[]
+        {
+            new DateOnly(2097, 1, 30),
+            new DateOnly(2097, 1, 31),
+            new DateOnly(2097, 2, 1),
+            new DateOnly(2097, 2, 2)
+        };
+        long sequence = 1;
+        foreach (var date in dates.Reverse())
+        {
+            var start = new DateTimeOffset(date.ToDateTime(new TimeOnly(22, 0)), TimeSpan.Zero).AddDays(-1);
+            var end = start.AddHours(23);
+            await store.TryWriteRawEodAsync(new FuturesEodObservationReadModel
+            {
+                MarketSeriesIdentity = series,
+                ContractId = "ESH97",
+                ValueDate = date,
+                SessionStartUtc = start,
+                SessionEndUtc = end,
+                Open = 5000,
+                High = 5010,
+                Low = 4990,
+                Close = 5005,
+                Volume = 100,
+                TradeCount = 10,
+                PriceVolumeSum = 500_500,
+                ObservationId = FuturesTradeSessionBarId.Create(
+                    series,
+                    TimeFrameType.Daily,
+                    end,
+                    sequence),
+                FirstSourceSequence = sequence,
+                LastSourceSequence = sequence,
+                FirstMarketEventUtc = start,
+                LastMarketEventUtc = end.AddTicks(-1),
+                SchemaVersion = 1,
+                IsComplete = true,
+                IsValid = true
+            }, CancellationToken.None);
+            sequence++;
+        }
+
+        var result = await store.GetRawEodRangeAsync(
+            series,
+            dates[0],
+            dates[^1],
+            CancellationToken.None);
+
+        result.Select(value => value.ValueDate).Should().Equal(dates);
+        result.Should().OnlyContain(value => value.MarketSeriesIdentity == series && value.IsValid);
+    }
 
     async Task DeleteFuturesItiSignalsAsync(string contractId, DateOnly? valueDate = null)
     {

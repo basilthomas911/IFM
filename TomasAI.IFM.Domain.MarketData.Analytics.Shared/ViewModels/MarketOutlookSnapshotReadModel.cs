@@ -1,4 +1,6 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -23,6 +25,8 @@ public sealed record MarketOutlookSnapshotReadModel
     [Key(10)] public FuturesItiSignalV2ReadModel? TrendExtremeChange { get; init; }
     [Key(11)] public FuturesItiSignalV2ReadModel? TrendReversalChange { get; init; }
     [Key(12)] public decimal? VixFuturesPrice { get; init; }
+    [Key(13)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
+    [Key(14)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid
@@ -32,6 +36,11 @@ public sealed record MarketOutlookSnapshotReadModel
         && TrendExtremeChange is not null
         && TrendReversalChange is not null
         && VixFuturesPrice > 0;
+
+    /// <summary>Gets whether both Daily indicator families are fully warm.</summary>
+    [IgnoreMember]
+    public bool HasWarmDailyAnalytics => FuturesEmaSignal is { IsWarm: true }
+        && FuturesBbSignal is { IsWarm: true };
 
     [IgnoreMember]
     public bool IsValid => !string.IsNullOrWhiteSpace(ContractId)
@@ -43,7 +52,9 @@ public sealed record MarketOutlookSnapshotReadModel
             || TrendDirectionChange is not null
             || TrendExtremeChange is not null
             || TrendReversalChange is not null
-            || VixFuturesPrice > 0);
+            || VixFuturesPrice > 0
+            || FuturesEmaSignal is not null
+            || FuturesBbSignal is not null);
 
     public MarketOutlookSnapshotReadModel() { }
 
@@ -61,7 +72,9 @@ public sealed record MarketOutlookSnapshotReadModel
         FuturesItiSignalV2ReadModel? trendDirectionChange = null,
         FuturesItiSignalV2ReadModel? trendExtremeChange = null,
         FuturesItiSignalV2ReadModel? trendReversalChange = null,
-        decimal? vixFuturesPrice = null)
+        decimal? vixFuturesPrice = null,
+        FuturesEmaSignalReadModel? futuresEmaSignal = null,
+        FuturesBbSignalReadModel? futuresBbSignal = null)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
@@ -76,5 +89,7 @@ public sealed record MarketOutlookSnapshotReadModel
         TrendExtremeChange = trendExtremeChange;
         TrendReversalChange = trendReversalChange;
         VixFuturesPrice = vixFuturesPrice;
+        FuturesEmaSignal = futuresEmaSignal;
+        FuturesBbSignal = futuresBbSignal;
     }
 }

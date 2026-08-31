@@ -62,6 +62,8 @@ public sealed record FuturesAnalyticsHistoricalDataLoaderParameters
     [Key(8)] public string CalculationConfigurationVersion { get; init; } = string.Empty;
     /// <summary>Gets the operator or scheduler identity.</summary>
     [Key(9)] public string RequestedBy { get; init; } = string.Empty;
+    /// <summary>Gets whether this is the Development UI automatic coverage request.</summary>
+    [Key(10)] public bool AutomaticStartupWarmup { get; init; }
 }
 
 /// <summary>Requests one durable, idempotent futures Analytics history data load.</summary>

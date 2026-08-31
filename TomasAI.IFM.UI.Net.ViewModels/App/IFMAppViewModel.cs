@@ -624,6 +624,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
             await GetLastFuturesBarData(ValueDate.Value);
             await StartMarketOutlookEventConsumer(cancellationToken);
+            _ = _lifecycle.RunAsync(EnsureHistoricalAnalyticsWarmupAsync);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
             await EnableMarketDataFeedResetListener(cancellationToken);
@@ -643,6 +644,21 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     void OperationsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
         => OnPropertyChanged(nameof(Operations));
+
+    async Task EnsureHistoricalAnalyticsWarmupAsync(CancellationToken cancellationToken)
+    {
+        if (!ValueDate.HasValue)
+            return;
+        await _appRoot.Services.AnalyticsCommands.ExecuteAsync(async model =>
+        {
+            await WriteStatusConsoleAsync("Checking ES/VX historical Analytics coverage...");
+            var result = await model.EnsureHistoricalAnalyticsWarmupAsync(ValueDate.Value)
+                .ConfigureAwait(false);
+            await WriteStatusConsoleAsync(result?.Success == true
+                ? "Historical Analytics coverage request accepted."
+                : $"Historical Analytics coverage request failed: {result?.ErrorMessage ?? "No command result."}");
+        }).ConfigureAwait(false);
+    }
 
 
     /// <summary>
@@ -782,7 +798,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             return;
         Interlocked.Exchange(ref _marketOutlookRevision, snapshot.Revision);
         if (snapshot.FuturesEodData.IsValid)
-            PublishMarketOutlook(snapshot.FuturesEodData);
+            MarketOutlook = new FuturesEodDataUIViewModel(snapshot);
         var updatedUtc = snapshot.UpdatedOn.Kind == DateTimeKind.Utc
             ? snapshot.UpdatedOn
             : DateTime.SpecifyKind(snapshot.UpdatedOn, DateTimeKind.Utc);

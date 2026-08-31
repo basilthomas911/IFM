@@ -66,3 +66,26 @@ Server build completed with no warnings or errors.
 
 The actor surface, restart checkpoints, roll-aware normalization, idempotent
 raw persistence, and repeat-run behavior satisfy the gate. MDSI-3 is complete.
+
+## 6. Development startup warm-up addendum (2026-08-31)
+
+The historical loader now also supports a Development-only automatic Analytics
+warm-up coordinated over NATS:
+
+- every UI startup requests coverage for ES calendar-front plus VX calendar-front
+  and calendar-second;
+- the server resolves the most recently completed CME trading session, reads the
+  trailing 365 calendar days from ScyllaDB, and requires at least 201 valid ES
+  Daily sessions;
+- existing raw history is replayed locally without a provider request;
+- missing trading dates are grouped into minimal disjoint ranges and only those
+  ranges are acquired;
+- an ordered, coverage-hashed replay advances EMA before same-observation
+  Bollinger calculation and then reconciles the active Market Outlook value date;
+- same-day concurrent requests serialize and reuse the completed replay; and
+- Production returns `IgnoredInProduction` before range reads, replay, estimate,
+  staging, or provider acquisition, even if `Enabled` is accidentally true.
+
+The base and Production settings are disabled. Development defaults to enabled.
+Provider estimation, maximum-cost, maximum-byte, immutable manifest, checkpoint,
+and insert-if-absent protections remain owned by the existing loader.

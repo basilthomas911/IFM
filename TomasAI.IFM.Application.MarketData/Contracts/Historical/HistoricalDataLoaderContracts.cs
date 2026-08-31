@@ -82,6 +82,21 @@ public interface IHistoricalObservationStore
         MarketSeriesIdentity seriesIdentity,
         DateOnly valueDate,
         CancellationToken cancellationToken);
+    /// <summary>Gets valid or invalid raw Daily EOD sessions in ascending value-date order.</summary>
+    async ValueTask<IReadOnlyList<FuturesEodObservationReadModel>> GetRawEodRangeAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken cancellationToken)
+    {
+        if (startDate > endDate)
+            throw new ArgumentOutOfRangeException(nameof(startDate));
+        List<FuturesEodObservationReadModel> values = [];
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+            if (await GetRawEodAsync(seriesIdentity, date, cancellationToken).ConfigureAwait(false) is { } value)
+                values.Add(value);
+        return values;
+    }
 }
 
 /// <summary>Publishes bounded private replay batches to analytics realtime workers.</summary>
@@ -98,6 +113,31 @@ public sealed class NullHistoricalReplayPublisher : IHistoricalReplayPublisher
     public ValueTask PublishAsync(NormalizedHistoricalBatch batch, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(batch);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>Publishes ordered, completed Daily observations to bar-derived Analytics actors.</summary>
+public interface IHistoricalDailyReplayPublisher
+{
+    /// <summary>Publishes a complete ordered replay window.</summary>
+    ValueTask PublishAsync(
+        IReadOnlyList<FuturesEodObservationReadModel> observations,
+        DateOnly targetValueDate,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>Provides a no-op Daily replay target outside Analytics hosts.</summary>
+public sealed class NullHistoricalDailyReplayPublisher : IHistoricalDailyReplayPublisher
+{
+    /// <inheritdoc />
+    public ValueTask PublishAsync(
+        IReadOnlyList<FuturesEodObservationReadModel> observations,
+        DateOnly targetValueDate,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
         cancellationToken.ThrowIfCancellationRequested();
         return ValueTask.CompletedTask;
     }

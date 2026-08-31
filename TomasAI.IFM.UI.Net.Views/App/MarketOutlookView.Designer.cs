@@ -563,7 +563,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lbl50Dma.Name = "lbl50Dma";
             lbl50Dma.Size = new Size(79, 17);
             lbl50Dma.TabIndex = 16;
-            lbl50Dma.Text = "   50 DMA";
+            lbl50Dma.Text = "   50 EMA";
             // 
             // lbl200Dma
             // 
@@ -576,7 +576,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
             lbl200Dma.Name = "lbl200Dma";
             lbl200Dma.Size = new Size(83, 17);
             lbl200Dma.TabIndex = 17;
-            lbl200Dma.Text = "  200 DMA";
+            lbl200Dma.Text = "  200 EMA";
             lbl200Dma.Click += lblRiskPosition_Click;
             // 
             // txtStdDevRT

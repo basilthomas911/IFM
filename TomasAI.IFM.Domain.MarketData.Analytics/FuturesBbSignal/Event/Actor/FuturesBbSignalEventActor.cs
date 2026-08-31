@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -21,10 +22,11 @@ public sealed class FuturesBbSignalEventActor(IEventActorContext<FuturesBbSignal
                 message.AsEvent<FuturesBbSignalGeneratedCompleteEvent>()!
         };
 
-    static readonly IReadOnlyDictionary<Type, Func<IEvent, ValueTask>> _receiveMap =
-        new Dictionary<Type, Func<IEvent, ValueTask>>
+    static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<FuturesBbSignalEventActor>, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent, IEventActorContext<FuturesBbSignalEventActor>, ValueTask>>
         {
-            [typeof(FuturesBbSignalGeneratedCompleteEvent)] = static _ => ValueTask.CompletedTask
+            [typeof(FuturesBbSignalGeneratedCompleteEvent)] = static (@event, context) =>
+                context.PublishMarketOutlookComponentAsync((FuturesBbSignalGeneratedCompleteEvent)@event)
         };
 
     /// <inheritdoc />
@@ -32,7 +34,7 @@ public sealed class FuturesBbSignalEventActor(IEventActorContext<FuturesBbSignal
         => ParseMappedEvent(context, message, _parseMap);
     /// <inheritdoc />
     protected override ValueTask ReceiveAsync(IEventActorContext<FuturesBbSignalEventActor> context, IEvent @event)
-        => ResolveMappedEventHandler(@event, _receiveMap)(@event);
+        => ResolveMappedEventHandler(@event, _receiveMap)(@event, context);
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(IEventActorContext<FuturesBbSignalEventActor> context,
         ActorThreadId threadId, IEvent @event, Exception exception) =>

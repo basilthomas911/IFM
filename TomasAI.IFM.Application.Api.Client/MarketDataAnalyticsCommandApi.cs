@@ -22,6 +22,12 @@ public class MarketDataAnalyticsCommandApi(ICommandServiceApi commandSvc)
 {
     readonly ICommandServiceApi _commandSvc = IsArgumentNull.Set(commandSvc);
 
+    /// <inheritdoc />
+    public Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(DateOnly candidateValueDate)
+        => Task.FromResult<ServiceResult<Guid>>(new ServiceFailed<Guid>(
+            26020,
+            "Automatic historical warm-up is available only through the NATS actor API."));
+
     /// <summary>
     /// start futures rsi signal service
     /// </summary>

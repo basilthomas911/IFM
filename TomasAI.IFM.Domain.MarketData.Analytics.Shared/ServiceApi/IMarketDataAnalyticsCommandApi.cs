@@ -6,6 +6,8 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
 public interface IMarketDataAnalyticsCommandApi
 {
+    /// <summary>Requests Development-only automatic ES/VX historical coverage over NATS.</summary>
+    Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(DateOnly candidateValueDate);
     Task<ServiceResult<Guid>> UpdateFuturesTradeSignalAsync(
         FuturesEodDataV2ReadModel futuresEodData, 
         FuturesRsiSignalReadModel futuresRsiSignal,

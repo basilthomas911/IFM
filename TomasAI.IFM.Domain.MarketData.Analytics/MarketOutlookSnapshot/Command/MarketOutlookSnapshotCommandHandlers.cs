@@ -66,6 +66,18 @@ public static class MarketOutlookSnapshotCommandHandlers
             {
                 VixFuturesPrice = command.VixFuturesPrice
             });
+        if (command.FuturesEmaSignal is { } ema
+            && MarketOutlookComponentEligibility.IsEligibleAtPublicationBoundary(command.EntityId, ema))
+            changed |= Accept(MarketOutlookComponentType.Ema, value => next = next with
+            {
+                FuturesEmaSignal = ema
+            });
+        if (command.FuturesBbSignal is { } bb
+            && MarketOutlookComponentEligibility.IsEligibleAtPublicationBoundary(command.EntityId, bb))
+            changed |= Accept(MarketOutlookComponentType.BollingerBand, value => next = next with
+            {
+                FuturesBbSignal = bb
+            });
 
         if (!changed)
             return new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
@@ -159,6 +171,14 @@ public static class MarketOutlookSnapshotCommandHandlers
             VixFuturesPrice = command.VixFuturesPrice > 0
                 ? command.VixFuturesPrice
                 : reconciled.VixFuturesPrice,
+            FuturesEmaSignal = command.FuturesEmaSignal is { } ema
+                && MarketOutlookComponentEligibility.IsEligibleAtPublicationBoundary(command.EntityId, ema)
+                    ? ema
+                    : reconciled.FuturesEmaSignal,
+            FuturesBbSignal = command.FuturesBbSignal is { } bb
+                && MarketOutlookComponentEligibility.IsEligibleAtPublicationBoundary(command.EntityId, bb)
+                    ? bb
+                    : reconciled.FuturesBbSignal,
             FuturesEodData = command.FuturesEodData
         };
 
@@ -228,6 +248,8 @@ public static class MarketOutlookSnapshotCommandHandlers
         if (state.TrendExtremeChange is null) missing.Add("ITI extreme");
         if (state.TrendReversalChange is null) missing.Add("ITI reversal");
         if (state.VixFuturesPrice <= 0) missing.Add("VX price");
+        if (state.FuturesEmaSignal is not { IsWarm: true }) missing.Add("EMA");
+        if (state.FuturesBbSignal is not { IsWarm: true }) missing.Add("Bollinger Bands");
         return missing;
     }
 
@@ -252,7 +274,9 @@ public static class MarketOutlookSnapshotCommandHandlers
             state.TrendDirectionChange,
             state.TrendExtremeChange,
             state.TrendReversalChange,
-            state.VixFuturesPrice > 0 ? state.VixFuturesPrice : null);
+            state.VixFuturesPrice > 0 ? state.VixFuturesPrice : null,
+            state.FuturesEmaSignal,
+            state.FuturesBbSignal);
     }
 
     static bool IsNewer(

@@ -6,6 +6,8 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 
@@ -18,6 +20,56 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class MarketDataAnalyticsCommandApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataAnalyticsCommandApi
 {
+    /// <inheritdoc />
+    public async Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(DateOnly candidateValueDate)
+    {
+        var commandId = Guid.NewGuid();
+        var entityId = new FuturesAnalyticsHistoricalDataLoaderEntityId(commandId);
+        try
+        {
+            var command = new LoadFuturesAnalyticsHistoricalDataCommand
+            {
+                CommandId = commandId,
+                EntityId = entityId,
+                Subject = new(
+                    ActorType.Command,
+                    LoadFuturesAnalyticsHistoricalDataCommand.Actor,
+                    LoadFuturesAnalyticsHistoricalDataCommand.Verb,
+                    entityId.Format()),
+                Parameters = new FuturesAnalyticsHistoricalDataLoaderParameters
+                {
+                    StartDate = candidateValueDate.AddYears(-1),
+                    EndDate = candidateValueDate,
+                    Series =
+                    [
+                        Series("ES", "calendar-front"),
+                        Series("VX", "calendar-front"),
+                        Series("VX", "calendar-second")
+                    ],
+                    SignalFamilies = ["EMA", "BollingerBand"],
+                    MaximumCostUsd = 10m,
+                    MaximumBytes = 1_073_741_824,
+                    NormalizationVersion = "historical-daily-v1",
+                    CalculationConfigurationVersion = "ema-bb-daily-v1",
+                    RequestedBy = $"{Environment.UserDomainName}\\{Environment.UserName}",
+                    AutomaticStartupWarmup = true
+                }
+            };
+            return await RequestCommandAsync(command, entityId).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            return OnError(exception, commandId, LoadFuturesAnalyticsHistoricalDataCommand.ErrorId);
+        }
+
+        static FuturesAnalyticsHistorySeriesRequest Series(string root, string rollRule) => new()
+        {
+            MarketSeriesIdentity = MarketSeriesIdentity.ForFuturesSeries(
+                new FuturesSeriesId(root, rollRule, "unadjusted", 1)),
+            Schema = FuturesAnalyticsHistoricalSchema.OhlcvOneMinute
+        };
+    }
+
     /// <summary>
     /// start futures rsi signal service
     /// </summary>

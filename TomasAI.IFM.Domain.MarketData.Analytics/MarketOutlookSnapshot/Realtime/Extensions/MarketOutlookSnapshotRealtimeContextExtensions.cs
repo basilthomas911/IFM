@@ -4,9 +4,13 @@ using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -64,7 +68,9 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             eligibleSource.FuturesRsiSignal,
             eligibleSource.FuturesTdiSignal,
             eligibleSource.FuturesItiSignal,
-            eligibleSource.VixFuturesPrice)
+            eligibleSource.VixFuturesPrice,
+            eligibleSource.FuturesEmaSignal,
+            eligibleSource.FuturesBbSignal)
         {
             CommandId = source.Id,
             Subject = new ActorSubject(
@@ -125,6 +131,15 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             reversalTask,
             vixTask).ConfigureAwait(false);
 
+        RegimeDiscoverySignalCacheAdapter.TryGetLatestEma(
+            source.EntityId.ContractId,
+            TimeFrameType.Daily,
+            out var latestEma);
+        RegimeDiscoverySignalCacheAdapter.TryGetLatestBb(
+            source.EntityId.ContractId,
+            TimeFrameType.Daily,
+            out var latestBb);
+
         var command = new PublishMarketOutlookSnapshotCommand(
             source.EntityId,
             source.Id,
@@ -137,7 +152,9 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
                 await directionTask.ConfigureAwait(false),
                 await extremeTask.ConfigureAwait(false),
                 await reversalTask.ConfigureAwait(false)),
-            await vixTask.ConfigureAwait(false))
+            await vixTask.ConfigureAwait(false),
+            latestEma,
+            latestBb)
         {
             CommandId = source.Id,
             Subject = new ActorSubject(
@@ -281,6 +298,42 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             iti: source.FuturesItiSignal,
             vixFuturesPrice: Convert.ToDecimal(source.VixFuturesPrice));
 
+    /// <summary>Publishes one completed Daily EMA family independently.</summary>
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesEmaSignalGeneratedCompleteEvent source)
+        where TActor : IActor
+    {
+        if (!IsEsSeries(source.Signal.Metadata.SignalKey.MarketSeriesIdentity))
+            return ValueTask.CompletedTask;
+        return PublishMarketOutlookComponentAsync(
+            context,
+            source.Signal.Metadata.ContractId,
+            source.Signal.Metadata.ValueDate,
+            source.CommandId,
+            source.AggregateId,
+            source.EventName,
+            ema: source.Signal);
+    }
+
+    /// <summary>Publishes one completed Daily Bollinger family independently.</summary>
+    internal static ValueTask PublishMarketOutlookComponentAsync<TActor>(
+        this IEventActorContext<TActor> context,
+        FuturesBbSignalGeneratedCompleteEvent source)
+        where TActor : IActor
+    {
+        if (!IsEsSeries(source.Signal.Metadata.SignalKey.MarketSeriesIdentity))
+            return ValueTask.CompletedTask;
+        return PublishMarketOutlookComponentAsync(
+            context,
+            source.Signal.Metadata.ContractId,
+            source.Signal.Metadata.ValueDate,
+            source.CommandId,
+            source.AggregateId,
+            source.EventName,
+            bb: source.Signal);
+    }
+
     static ValueTask PublishMarketOutlookComponentAsync<TActor>(
         IEventActorContext<TActor> context,
         string contractId,
@@ -291,7 +344,9 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
         FuturesRsiSignalReadModel? rsi = null,
         FuturesTdiSignalReadModel? tdi = null,
         FuturesItiSignalV2ReadModel? iti = null,
-        decimal vixFuturesPrice = 0)
+        decimal vixFuturesPrice = 0,
+        FuturesEmaSignalReadModel? ema = null,
+        FuturesBbSignalReadModel? bb = null)
         where TActor : IActor
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -313,11 +368,19 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
             FuturesRsiSignal = rsi,
             FuturesTdiSignal = tdi,
             FuturesItiSignal = iti,
-            VixFuturesPrice = vixFuturesPrice
+            VixFuturesPrice = vixFuturesPrice,
+            FuturesEmaSignal = ema,
+            FuturesBbSignal = bb
         };
         var eligible = MarketOutlookComponentEligibility.SelectEligible(changed, out _);
         if (!MarketOutlookComponentEligibility.IsEligible(eligible, out _))
             return ValueTask.CompletedTask;
         return context.SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(eligible);
     }
+
+    static bool IsEsSeries(MarketSeriesIdentity series) =>
+        series.FuturesSeriesId is { } continuation
+            ? string.Equals(continuation.RootSymbol, "ES", StringComparison.OrdinalIgnoreCase)
+            : series.Kind == MarketSeriesIdentityKind.Contract
+              && series.ContractId.StartsWith("ES", StringComparison.OrdinalIgnoreCase);
 }

@@ -21,6 +21,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
@@ -48,6 +49,7 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
@@ -482,6 +484,13 @@ public static class Startup
                     SeriesProfiles = []
                 });
             services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
+            services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
+            services.AddSingleton(new HistoricalAnalyticsWarmupOptions
+            {
+                Enabled = false,
+                IsDevelopmentEnvironment = true
+            });
+            services.AddSingleton<HistoricalAnalyticsWarmupService>();
             services.AddSingleton<IFuturesTradeSessionBarSeriesResolver>(_ =>
                 new PrefixFuturesTradeSessionBarSeriesResolver(
                     new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)

@@ -1,4 +1,6 @@
 using MessagePack;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -29,7 +31,11 @@ public enum MarketOutlookComponentType
     /// <summary>VX futures price component.</summary>
     Vix,
     /// <summary>EOD publication-boundary component.</summary>
-    Eod
+    Eod,
+    /// <summary>Daily EMA family component.</summary>
+    Ema,
+    /// <summary>Daily Bollinger family component.</summary>
+    BollingerBand
 }
 
 /// <summary>Captures the last accepted source position for one Market Outlook component stream.</summary>
@@ -94,6 +100,12 @@ public sealed record MarketOutlookWorkingStateReadModel
 
     /// <summary>Gets the current lifecycle stage.</summary>
     [Key(12)] public MarketOutlookStateStatus Status { get; init; }
+
+    /// <summary>Gets the latest accepted Daily EMA family.</summary>
+    [Key(13)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
+
+    /// <summary>Gets the latest accepted Daily Bollinger family.</summary>
+    [Key(14)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
 
     /// <summary>Gets whether all analytics required to compute a trade signal are present.</summary>
     [IgnoreMember]

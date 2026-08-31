@@ -32,4 +32,13 @@ public static class HistoricalObservationCql
     FROM futures_eod_observation
     WHERE seriesKey = ? AND yearMonth = ? AND valueDate = ?;
     """;
+
+    public const string GetRawEodRange = """
+    SELECT seriesKey, contractId, valueDate, sessionStart, sessionEnd,
+           openPrice, highPrice, lowPrice, closePrice, volume, tradeCount,
+           priceVolumeSum, observationId, firstSourceSequence, lastSourceSequence,
+           firstMarketEvent, lastMarketEvent, schemaVersion, isComplete, isValid
+    FROM futures_eod_observation
+    WHERE seriesKey = ? AND yearMonth = ? AND valueDate >= ? AND valueDate <= ?;
+    """;
 }

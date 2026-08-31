@@ -16,6 +16,8 @@ public interface IFuturesAnalyticsHistoricalDataLoaderEventContext
     HistoricalDataLoaderService DataLoader { get; }
     /// <summary>Gets the durable operational data load store.</summary>
     IHistoricalDataLoaderStore DataLoaderStore { get; }
+    /// <summary>Gets the Development-only automatic coverage coordinator.</summary>
+    HistoricalAnalyticsWarmupService WarmupService { get; }
     /// <summary>Gets the typed logger.</summary>
     ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> Logger { get; }
 }
@@ -31,11 +33,13 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventContext
         IActorSupervisor supervisor,
         HistoricalDataLoaderService dataLoader,
         IHistoricalDataLoaderStore dataLoaderStore,
+        HistoricalAnalyticsWarmupService warmupService,
         ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> logger)
         : base(supervisor, new(ActorType.Event, FuturesAnalyticsHistoricalDataLoaderEventActor.ActorName))
     {
         DataLoader = IsArgumentNull.Set(dataLoader);
         DataLoaderStore = IsArgumentNull.Set(dataLoaderStore);
+        WarmupService = IsArgumentNull.Set(warmupService);
         Logger = IsArgumentNull.Set(logger);
     }
 
@@ -43,6 +47,8 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventContext
     public HistoricalDataLoaderService DataLoader { get; }
     /// <inheritdoc />
     public IHistoricalDataLoaderStore DataLoaderStore { get; }
+    /// <inheritdoc />
+    public HistoricalAnalyticsWarmupService WarmupService { get; }
     /// <inheritdoc />
     public ILogger<FuturesAnalyticsHistoricalDataLoaderEventActor> Logger { get; }
 }

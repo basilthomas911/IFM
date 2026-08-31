@@ -64,6 +64,10 @@ namespace TomasAI.IFM.UI.Net.Services.Analytics
             _marketOutlookEventConsumer = marketOutlookEventConsumer;
         }
 
+        /// <summary>Requests the Development-only historical Analytics startup warm-up.</summary>
+        public Task<ServiceResult<Guid>> EnsureHistoricalAnalyticsWarmupAsync(DateOnly candidateValueDate)
+            => _commandApi.EnsureHistoricalAnalyticsWarmupAsync(candidateValueDate);
+
         /// <summary>
         /// start futures rsi signal service
         /// </summary>

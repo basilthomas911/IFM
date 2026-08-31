@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.HistoricalDataLoader;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
@@ -78,8 +80,26 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
         var request = ToApplicationRequest(requested);
         try
         {
-            var state = await context.DataLoader.ExecuteAsync(
-                request, CancellationToken.None).ConfigureAwait(false);
+            HistoricalAnalyticsWarmupResult? warmupResult = null;
+            HistoricalDataLoaderState state;
+            if (requested.Parameters.AutomaticStartupWarmup)
+            {
+                warmupResult = await context.WarmupService.EnsureAsync(
+                    request, CancellationToken.None).ConfigureAwait(false);
+                state = ToState(requested, warmupResult);
+                context.Logger.LogInformation(
+                    "Historical Analytics warm-up {Outcome} for {StartDate} through {EndDate}; valid ES sessions {ValidSessionCount}, initially missing sessions {MissingSessionCount}.",
+                    warmupResult.Outcome,
+                    warmupResult.StartDate,
+                    warmupResult.EndDate,
+                    warmupResult.ValidSessionCount,
+                    warmupResult.MissingSessionCount);
+            }
+            else
+            {
+                state = await context.DataLoader.ExecuteAsync(
+                    request, CancellationToken.None).ConfigureAwait(false);
+            }
             var terminal = new FuturesAnalyticsHistoricalDataLoaderCompletedEvent
             {
                 Subject = new(ActorType.Event, ActorName,
@@ -146,6 +166,23 @@ public sealed class FuturesAnalyticsHistoricalDataLoaderEventActor(
 
     static long ParseRecordOrdinal(string? sourcePosition) =>
         long.TryParse(sourcePosition, out var value) ? value : -1;
+
+    static HistoricalDataLoaderState ToState(
+        FuturesAnalyticsHistoricalDataLoaderRequestedEvent requested,
+        HistoricalAnalyticsWarmupResult result)
+        => result.LastLoadState ?? new HistoricalDataLoaderState
+        {
+            DataLoadAttemptId = requested.EntityId.Value,
+            RequestSha256 = $"automatic:{result.Outcome}:{result.StartDate:O}:{result.EndDate:O}",
+            Status = HistoricalDataLoaderStatus.Completed,
+            Checkpoint = new HistoricalAcquisitionCheckpoint
+            {
+                DataLoadAttemptId = requested.EntityId.Value,
+                Stage = HistoricalAcquisitionStage.Completed
+            },
+            Audit = new HistoricalDataLoaderAudit(result.ValidSessionCount, [], []),
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
 
     /// <inheritdoc />
     protected override async ValueTask OnExceptionAsync(
