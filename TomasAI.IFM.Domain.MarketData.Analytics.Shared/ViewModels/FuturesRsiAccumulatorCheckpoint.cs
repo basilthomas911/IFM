@@ -39,4 +39,10 @@ public sealed record FuturesRsiAccumulatorCheckpoint
 
     /// <summary>Gets the last accepted market event time.</summary>
     [Key(10)] public DateTimeOffset LastMarketEventUtc { get; init; }
+
+    /// <summary>Gets the exclusive end of the last accepted observation interval.</summary>
+    [Key(11)] public DateTimeOffset LastIntervalEndUtc { get; init; }
+
+    /// <summary>Gets the source stream epoch of the last accepted observation.</summary>
+    [Key(12)] public Guid LastStreamEpochId { get; init; }
 }

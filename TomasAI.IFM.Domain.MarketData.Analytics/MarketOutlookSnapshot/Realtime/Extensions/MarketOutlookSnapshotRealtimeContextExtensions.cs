@@ -76,8 +76,10 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
         var result = await context.RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(
             command).ConfigureAwait(false);
         if (result?.Success != true)
-            throw new InvalidOperationException(
-                result?.ErrorMessage ?? "Market Outlook component observation failed.");
+            context.Logger.LogWarning(
+                "Market Outlook component observation was rejected for {EntityId}: {ErrorMessage}",
+                source.EntityId.Format(),
+                result?.ErrorMessage ?? "No command result was returned.");
     }
 
     /// <summary>Reconciles persisted inputs and forwards the EOD publication boundary to the command aggregate.</summary>
@@ -147,8 +149,10 @@ public static class MarketOutlookSnapshotRealtimeContextExtensions
         var result = await context.RequestAsync<PublishMarketOutlookSnapshotCommand, MarketOutlookEntityId>(
             command).ConfigureAwait(false);
         if (result?.Success != true)
-            throw new InvalidOperationException(
-                result?.ErrorMessage ?? "Market Outlook snapshot publication failed.");
+            context.Logger.LogWarning(
+                "Market Outlook snapshot publication was rejected for {EntityId}: {ErrorMessage}",
+                source.EntityId.Format(),
+                result?.ErrorMessage ?? "No command result was returned.");
     }
 
     /// <summary>Publishes a revised UI snapshot when a component reprojects an existing EOD outlook.</summary>

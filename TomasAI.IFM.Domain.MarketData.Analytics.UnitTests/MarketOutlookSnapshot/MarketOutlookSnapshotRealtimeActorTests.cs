@@ -66,6 +66,41 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests
     }
 
     [Fact]
+    public async Task RejectedComponentCommand_IsLoggedWithoutThrowingOrPublishingNotification()
+    {
+        var context = Context();
+        context.RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(
+                Arg.Any<ObserveMarketOutlookComponentCommand>())
+            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
+                new ServiceFailed<GuidResult>(ObserveMarketOutlookComponentCommand.ErrorId, "rejected")));
+        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
+        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
+        var changed = new MarketOutlookComponentChangedRealtimeEvent
+        {
+            Subject = RealtimeSubject(MarketOutlookComponentChangedRealtimeEvent.Verb, entityId),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = entityId,
+            EventId = 25,
+            ReceivedOn = DateTime.UtcNow,
+            EventSource = "rejected-test",
+            FuturesRsiSignal = SampleData.AtrRsiSignals[0] with
+            {
+                ContractId = entityId.ContractId,
+                ValueDate = entityId.ValueDate,
+                TimePeriod = TimeFrameType.FifteenSeconds,
+                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength
+            }
+        };
+
+        Func<Task> receive = () => actor.InvokeReceiveAsync(context, changed).AsTask();
+
+        await receive.Should().NotThrowAsync();
+        await context.DidNotReceiveWithAnyArgs()
+            .SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(default!);
+    }
+
+    [Fact]
     public async Task IneligibleItiComponent_IsIgnoredWithoutRequestOrException()
     {
         var context = Context();

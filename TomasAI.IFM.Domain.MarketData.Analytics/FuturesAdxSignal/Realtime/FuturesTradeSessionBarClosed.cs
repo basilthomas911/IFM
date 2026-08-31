@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesAdxSignal.Realtime;
@@ -25,6 +26,7 @@ public static class FuturesTradeSessionBarClosed
 
         try
         {
+            var succeeded = true;
             foreach (var entityId in FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>
                          .Snapshot()
                          .Where(entityId => Matches(entityId, observation)))
@@ -35,17 +37,25 @@ public static class FuturesTradeSessionBarClosed
                     entityId.TimePeriod,
                     entityId.PeriodLength,
                     TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
-                _ = await context.GenerateFuturesAdxSignalAsync(
+                var result = await context.GenerateFuturesAdxSignalAsync(
                         signalId,
                         observation.Close,
                         observation)
                     .ConfigureAwait(false);
-                logger.LogDebug(
-                    "Forwarded observation {ObservationId} to the ADX command actor for {EntityId}",
-                    observation.ObservationId,
-                    entityId);
+                if (result is ServiceFailed<GuidResult> failed)
+                {
+                    succeeded = false;
+                    logger.LogError(
+                        "ADX command rejected observation {ObservationId} for {EntityId}: {ErrorMessage}",
+                        observation.ObservationId, entityId, failed.ErrorMessage);
+                }
+                else
+                    logger.LogDebug(
+                        "Forwarded observation {ObservationId} to the ADX command actor for {EntityId}",
+                        observation.ObservationId,
+                        entityId);
             }
-            return true;
+            return succeeded;
         }
         catch (Exception exception)
         {

@@ -19,6 +19,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime.Actor;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
@@ -273,6 +274,45 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
         }
 
         throw new TimeoutException("EMA projection did not continue into the Bollinger command stream.");
+    }
+
+    [Fact]
+    public async Task EmaProjection_AcceptsLaterBarAfterStreamEpochRestartsAtLowerSequence()
+    {
+        var contractId = $"ESER{Guid.NewGuid():N}"[..18];
+        var timeFrame = TimeFrameType.FifteenMinutes;
+        var firstTimestamp = new DateTime(2026, 8, 17, 13, 30, 0, DateTimeKind.Utc);
+        var entityId = new FuturesTradeSessionBarEntityId(
+            MarketSeriesIdentity.ForContract(contractId), timeFrame);
+
+        await PublishAsync(ClosedObservation(
+            contractId, timeFrame, 10_000, firstTimestamp, 5400m, Guid.NewGuid()));
+        await PublishAsync(ClosedObservation(
+            contractId, timeFrame, 1, firstTimestamp.AddMinutes(15), 5401m, Guid.NewGuid()));
+
+        var subject = new ActorSubject(ActorType.Command,
+            GenerateFuturesEmaSignalCommand.Actor,
+            GenerateFuturesEmaSignalCommand.Verb,
+            entityId.Format());
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < deadline)
+        {
+            var stream = await dbFixture.ActorEventSourceDb
+                .GetEventStreamIdFromDbAsync($"{subject.ThreadId}");
+            if (stream is not null)
+            {
+                var eventCount = 0;
+                await dbFixture.ActorEventSourceDb.MapReduceActorEventStreamAsync<FuturesEmaSignalCommandState>(
+                    stream.EventStreamId,
+                    rows => eventCount = rows.Count());
+                if (eventCount >= 2)
+                    return;
+            }
+            await Task.Delay(250);
+        }
+
+        throw new TimeoutException(
+            "EMA did not advance after a newer interval restarted at a lower source sequence.");
     }
 
     [Fact]
@@ -567,7 +607,8 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
         TimeFrameType timeFrame,
         long sequence,
         DateTime timestamp,
-        decimal price)
+        decimal price,
+        Guid streamEpochId = default)
     {
         var series = MarketSeriesIdentity.ForContract(contractId);
         var end = new DateTimeOffset(timestamp, TimeSpan.Zero);
@@ -593,10 +634,12 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             FirstMarketEventUtc = end.AddSeconds(-30),
             LastMarketEventUtc = end,
             CalculatedAtUtc = end,
+            SchemaVersion = streamEpochId == Guid.Empty ? (ushort)1 : (ushort)2,
             CalculationVersion = "integration-test-v1",
             IsComplete = true,
             IsValid = true,
-            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation,
+            StreamEpochId = streamEpochId
         };
         return new()
         {

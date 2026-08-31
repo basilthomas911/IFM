@@ -85,6 +85,9 @@ public sealed record FuturesTradeSessionBarReadModel
 
     /// <summary>Gets how this observation was calculated.</summary>
     [Key(24)] public MarketSignalCalculationMethod CalculationMethod { get; init; }
+
+    /// <summary>Gets the Databento live-stream epoch that supplied this observation, when applicable.</summary>
+    [Key(25)] public Guid StreamEpochId { get; init; }
 }
 
 /// <summary>Validates an immutable futures analytics observation.</summary>
@@ -132,6 +135,9 @@ public sealed class FuturesTradeSessionBarReadModelValidationRules
             RuleFor(x => x.SchemaVersion).GreaterThan((ushort)0);
             RuleFor(x => x.CalculationVersion).NotEmpty();
             RuleFor(x => x.CalculationMethod).IsInEnum().NotEqual(MarketSignalCalculationMethod.Unknown);
+            RuleFor(x => x.StreamEpochId).NotEmpty()
+                .When(x => x.SchemaVersion >= 2
+                    && x.CalculationMethod == MarketSignalCalculationMethod.ClosedObservation);
             RuleFor(x => x.ValidationIssues).NotNull();
             RuleFor(x => x).Must(x => !x.IsValid || (x.IsComplete && x.ValidationIssues.Length == 0))
                 .WithMessage("A valid observation must be complete and contain no validation issues.");

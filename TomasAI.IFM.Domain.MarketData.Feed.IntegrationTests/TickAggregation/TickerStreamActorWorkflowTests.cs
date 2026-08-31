@@ -198,8 +198,57 @@ public sealed class TickerStreamActorWorkflowTests
                 && inserted.FuturesEodData.LowPrice == 5350m
                 && inserted.FuturesEodData.ClosePrice == 5425m
                 && inserted.FuturesEodData.Volume == 100
-                && inserted.FuturesEodData.DailyPercentChange == 0d
-                && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Flat),
+                && inserted.FuturesEodData.DailyPercentChange == 0.0046d
+                && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Rising
+                && inserted.FuturesEodData.DailyStdDev == previous.DailyStdDev
+                && inserted.FuturesEodData.Mean == previous.Mean
+                && inserted.FuturesEodData.MarketDirection == previous.MarketDirection),
+            Arg.Any<CancellationToken>());
+
+        var firstProjection = projector.ReceivedCalls()
+            .Select(call => call.GetArguments()[0])
+            .OfType<FuturesEodDataInsertedEvent>()
+            .Single();
+        context.RequestAsync<FuturesEodDataV2ReadModel, GetFuturesEodDataQuery>(
+                Arg.Any<GetFuturesEodDataQuery>())
+            .Returns(new ServiceOk<FuturesEodDataV2ReadModel>(firstProjection.FuturesEodData));
+        var fallingTrade = trade with
+        {
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            TickDataId = trade.TickDataId with
+            {
+                SequenceId = trade.TickDataId.SequenceId + 1,
+                TimestampUtc = trade.TickDataId.TimestampUtc.AddMilliseconds(1)
+            },
+            TradeData = trade.TradeData with
+            {
+                SourceSequence = trade.TradeData.SourceSequence + 1,
+                Price = 5375m,
+                Size = 11
+            }
+        };
+
+        handled = await FuturesTradeHandler.ExecuteAsync(
+            fallingTrade,
+            context,
+            marketDataApi,
+            blackboard,
+            Substitute.For<IStatusConsoleWriter>(),
+            projector,
+            Substitute.For<ILogger<FuturesEodDataRealtimeActor>>());
+
+        handled.Should().BeTrue();
+        await projector.Received(1).ProcessRealtimeEventAsync(
+            Arg.Is<FuturesEodDataInsertedEvent>(inserted =>
+                inserted.CommandId == fallingTrade.CommandId
+                && inserted.FuturesEodData.OpenPrice == 5400m
+                && inserted.FuturesEodData.HighPrice == 5500m
+                && inserted.FuturesEodData.LowPrice == 5350m
+                && inserted.FuturesEodData.ClosePrice == 5375m
+                && inserted.FuturesEodData.DailyPercentChange == -0.0046d
+                && inserted.FuturesEodData.PriceDirection == PriceDirectionType.Falling
+                && inserted.FuturesEodData.DailyStdDev == previous.DailyStdDev),
             Arg.Any<CancellationToken>());
 
         aggregation.StopTickDataStream(owner, contractId).Should().BeTrue();
@@ -432,8 +481,14 @@ public sealed class TickerStreamActorWorkflowTests
             projector,
             logger);
 
-        projector.ReceivedCalls().Select(call => call.GetArguments()[0])
-            .Should().ContainSingle(argument => argument is FuturesEodDataInsertedEvent);
+        var projectedEod = projector.ReceivedCalls()
+            .Select(call => call.GetArguments()[0])
+            .Should().ContainSingle(argument => argument is FuturesEodDataInsertedEvent)
+            .Which.Should().BeOfType<FuturesEodDataInsertedEvent>().Which;
+        projectedEod.FuturesEodData.OpenPrice.Should().Be(5400m);
+        projectedEod.FuturesEodData.ClosePrice.Should().Be(5451m);
+        projectedEod.FuturesEodData.DailyPercentChange.Should().Be(0.0094);
+        projectedEod.FuturesEodData.PriceDirection.Should().Be(PriceDirectionType.Rising);
     }
 
     [Fact]

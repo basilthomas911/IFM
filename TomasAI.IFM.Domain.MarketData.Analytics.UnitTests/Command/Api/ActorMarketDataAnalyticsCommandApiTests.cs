@@ -84,7 +84,7 @@ public class ActorMarketDataAnalyticsCommandApiTests
     }
 
     [Fact]
-    public async Task FailedCommandResultIsRaisedToTheCallingEventHandler()
+    public async Task FailedCommandResultIsReturnedWithoutThrowingFromTheCallingEventHandler()
     {
         var context = Substitute.For<IEventActorContext>();
         var signalId = new FuturesRsiSignalId(
@@ -94,9 +94,25 @@ public class ActorMarketDataAnalyticsCommandApiTests
             .Returns(new ServiceFailed<GuidResult>(GenerateFuturesRsiSignalCommand.ErrorId, "generation failed"));
         var api = context;
 
-        Func<Task> act = async () => await api.GenerateFuturesRsiSignalAsync(signalId, 6425.25m);
+        var result = await api.GenerateFuturesRsiSignalAsync(signalId, 6425.25m);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("generation failed");
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Be("generation failed");
+    }
+
+    [Fact]
+    public async Task MissingCommandResultBecomesTypedFailureWithoutThrowing()
+    {
+        var context = Substitute.For<IEventActorContext>();
+        var signalId = new FuturesRsiSignalId(
+            "ESZ6", new DateOnly(2026, 8, 2), TimeFrameType.Daily, 14, new TimeOnly(16, 0));
+        context.RequestAsync<GenerateFuturesRsiSignalCommand, FuturesRsiSignalEntityId>(
+                Arg.Any<GenerateFuturesRsiSignalCommand>())
+            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(null!));
+
+        var result = await context.GenerateFuturesRsiSignalAsync(signalId, 6425.25m);
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("did not return a command result");
     }
 }

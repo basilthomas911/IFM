@@ -10,6 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging.NatsJetStream;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -82,7 +83,13 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             {
                 ContractId = contractId,
                 ValueDate = valueDate,
-                Symbol = "ES"
+                Symbol = "ES",
+                OpenPrice = 5400m,
+                HighPrice = 5500m,
+                LowPrice = 5350m,
+                ClosePrice = 5425m,
+                DailyPercentChange = 0.0046,
+                PriceDirection = PriceDirectionType.Rising
             };
             var publish = new PublishMarketOutlookSnapshotCommand(
                 entityId,
@@ -107,6 +114,7 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             notification.MarketOutlook.Revision.Should().Be(2);
             notification.MarketOutlook.MissingInputs.Should().Contain("TDI");
             notification.MarketOutlook.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
+            notification.MarketOutlook.FuturesEodData.Should().BeEquivalentTo(eod);
 
             var workingState = await dbFixture.MarketDataDb.GetMarketOutlookWorkingStateAsync(
                 contractId,
@@ -118,6 +126,7 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             workingState!.Revision.Should().Be(2);
             workingState.Status.Should().Be(MarketOutlookStateStatus.Published);
             workingState.FuturesRsiSignal.Should().BeEquivalentTo(rsi);
+            workingState.FuturesEodData.Should().BeEquivalentTo(eod);
             snapshot.Should().BeEquivalentTo(
                 notification.MarketOutlook,
                 options => options.Excluding(value => value.UpdatedOn));
@@ -134,6 +143,9 @@ public sealed class MarketOutlookSnapshotCommandPipelineIntegrationTests(
             queryResult.Value!.UpdatedOn.Should().BeCloseTo(
                 snapshot.UpdatedOn,
                 TimeSpan.FromMilliseconds(1));
+            queryResult.Value.FuturesEodData.OpenPrice.Should().Be(5400m);
+            queryResult.Value.FuturesEodData.ClosePrice.Should().Be(5425m);
+            queryResult.Value.FuturesEodData.DailyPercentChange.Should().Be(0.0046);
 
             var streamId = await dbFixture.ActorEventSourceDb.GetEventStreamIdAsync(
                 CommandSubject(ObserveMarketOutlookComponentCommand.Verb, entityId).ThreadId.ToString());

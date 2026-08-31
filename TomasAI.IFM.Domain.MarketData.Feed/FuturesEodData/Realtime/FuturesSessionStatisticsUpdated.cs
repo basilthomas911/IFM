@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -66,10 +67,14 @@ internal static class FuturesSessionStatisticsUpdated
             && current.ClosePrice >= statistics.LowPrice
             && current.ClosePrice <= statistics.HighPrice;
         var dailyPercentChange = updatePrices
-            ? CalculateDailyPercentChange(current.ClosePrice, statistics.OpenPrice)
+            ? FuturesSessionPriceCalculator.CalculateDailyPercentChange(
+                current.ClosePrice,
+                statistics.OpenPrice)
             : current.DailyPercentChange;
         var priceDirection = updatePrices
-            ? CalculatePriceDirection(current.ClosePrice, statistics.OpenPrice)
+            ? FuturesSessionPriceCalculator.CalculatePriceDirection(
+                current.ClosePrice,
+                statistics.OpenPrice)
             : current.PriceDirection;
         var volume = statistics.HasVolume ? statistics.Volume : current.Volume;
         if ((!updatePrices
@@ -112,18 +117,4 @@ internal static class FuturesSessionStatisticsUpdated
             .ConfigureAwait(false);
     }
 
-    internal static double CalculateDailyPercentChange(
-        decimal closePrice,
-        decimal openPrice) => openPrice <= 0m
-            ? 0d
-            : Convert.ToDouble(Math.Round((closePrice - openPrice) / openPrice, 4));
-
-    internal static PriceDirectionType CalculatePriceDirection(
-        decimal closePrice,
-        decimal openPrice) => closePrice switch
-        {
-            _ when closePrice > openPrice => PriceDirectionType.Rising,
-            _ when closePrice < openPrice => PriceDirectionType.Falling,
-            _ => PriceDirectionType.Rising
-        };
 }

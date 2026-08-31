@@ -65,4 +65,8 @@ public sealed record FuturesEmaAccumulatorCheckpoint
     [Key(9)] public FuturesTradeSessionBarSignal.FuturesTradeSessionBarId LastObservationId { get; init; }
     /// <summary>Gets the last source sequence.</summary>
     [Key(10)] public long LastSourceSequence { get; init; }
+    /// <summary>Gets the exclusive end of the last accepted observation interval.</summary>
+    [Key(11)] public DateTimeOffset LastIntervalEndUtc { get; init; }
+    /// <summary>Gets the source stream epoch of the last accepted observation.</summary>
+    [Key(12)] public Guid LastStreamEpochId { get; init; }
 }

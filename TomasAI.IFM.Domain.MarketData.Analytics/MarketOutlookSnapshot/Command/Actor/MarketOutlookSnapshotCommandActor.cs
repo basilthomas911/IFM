@@ -56,26 +56,35 @@ public sealed class MarketOutlookSnapshotCommandActor(
         return ValueTask.CompletedTask;
     }
 
+    /// <inheritdoc />
+    protected override IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) =>
+        _validationMap.TryGetValue(command.GetType(), out var validator)
+            ? validator(command)
+            : throw new InvalidOperationException(
+                $"Unable to validate {ActorName} commands from message: {command.Subject}");
+
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
         [typeof(ObserveMarketOutlookComponentCommand)] = static command =>
         {
             var observe = (ObserveMarketOutlookComponentCommand)command;
-            return new List<ValidationError>()
+            var errors = new List<ValidationError>()
                 .ValidateCommandId(observe.CommandId, observe.CommandName)
-                .ValidateEntityId(observe.EntityId, observe.CommandName)
-                .CaptureCommandValidation(() => ValidateEnvelope(observe, observe.EntityId.Format()))
-                .CaptureCommandValidation(() => ValidateObserve(observe));
+                .ValidateEntityId(observe.EntityId, observe.CommandName);
+            ValidateEnvelope(errors, observe, observe.EntityId.Format());
+            ValidateObserve(errors, observe);
+            return errors;
         },
         [typeof(PublishMarketOutlookSnapshotCommand)] = static command =>
         {
             var publish = (PublishMarketOutlookSnapshotCommand)command;
-            return new List<ValidationError>()
+            var errors = new List<ValidationError>()
                 .ValidateCommandId(publish.CommandId, publish.CommandName)
-                .ValidateEntityId(publish.EntityId, publish.CommandName)
-                .CaptureCommandValidation(() => ValidateEnvelope(publish, publish.EntityId.Format()))
-                .CaptureCommandValidation(() => ValidatePublish(publish));
+                .ValidateEntityId(publish.EntityId, publish.CommandName);
+            ValidateEnvelope(errors, publish, publish.EntityId.Format());
+            ValidatePublish(errors, publish);
+            return errors;
         }
     };
 
@@ -153,32 +162,32 @@ public sealed class MarketOutlookSnapshotCommandActor(
             command?.ErrorCode ?? ObserveMarketOutlookComponentCommand.ErrorId,
             exception.Message));
 
-    static void ValidateEnvelope(ICommand command, string entityId)
+    static void ValidateEnvelope(List<ValidationError> errors, ICommand command, string entityId)
     {
         if (command.CommandId == Guid.Empty)
-            throw new ArgumentException("A Market Outlook command ID is required.");
+            errors.Add(new("A Market Outlook command ID is required."));
         if (command.Subject.EntityId != entityId)
-            throw new ArgumentException("The Market Outlook command subject must match its entity identity.");
+            errors.Add(new("The Market Outlook command subject must match its entity identity."));
     }
 
-    static void ValidateObserve(ObserveMarketOutlookComponentCommand command)
+    static void ValidateObserve(List<ValidationError> errors, ObserveMarketOutlookComponentCommand command)
     {
         if (command.SourceEventId == Guid.Empty || command.SourceEventTimestamp == default)
-            throw new ArgumentException("A stable Market Outlook source identity and timestamp are required.");
+            errors.Add(new("A stable Market Outlook source identity and timestamp are required."));
         if (command.FuturesRsiSignal is null
             && command.FuturesTdiSignal is null
             && command.FuturesItiSignal is null
             && command.VixFuturesPrice == 0)
-            throw new ArgumentException("A component command must contain at least one supplied component.");
+            errors.Add(new("A component command must contain at least one supplied component."));
     }
 
-    static void ValidatePublish(PublishMarketOutlookSnapshotCommand command)
+    static void ValidatePublish(List<ValidationError> errors, PublishMarketOutlookSnapshotCommand command)
     {
         if (command.SourceEventId == Guid.Empty || command.SourceEventTimestamp == default)
-            throw new ArgumentException("A stable Market Outlook EOD source identity and timestamp are required.");
+            errors.Add(new("A stable Market Outlook EOD source identity and timestamp are required."));
         if (command.FuturesEodData.ContractId != command.EntityId.ContractId
             || command.FuturesEodData.ValueDate != command.EntityId.ValueDate
             || !string.Equals(command.FuturesEodData.Symbol, "ES", StringComparison.Ordinal))
-            throw new ArgumentException("The Market Outlook EOD input must be the matching ES contract and date.");
+            errors.Add(new("The Market Outlook EOD input must be the matching ES contract and date."));
     }
 }

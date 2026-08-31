@@ -36,6 +36,12 @@ public sealed record FuturesAtrAccumulatorCheckpoint
     /// <summary>Gets the number of unique observations incorporated into this stream.</summary>
     [Key(8)] public long ObservationCount { get; init; }
 
+    /// <summary>Gets the exclusive end of the last accepted observation interval.</summary>
+    [Key(9)] public DateTimeOffset LastIntervalEndUtc { get; init; }
+
+    /// <summary>Gets the source stream epoch of the last accepted observation.</summary>
+    [Key(10)] public Guid LastStreamEpochId { get; init; }
+
     /// <summary>Creates an empty checkpoint for the supplied period.</summary>
     public static FuturesAtrAccumulatorCheckpoint Empty(int periodLength) => new()
     {

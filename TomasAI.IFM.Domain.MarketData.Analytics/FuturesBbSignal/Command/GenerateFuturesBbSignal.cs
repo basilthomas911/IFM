@@ -16,12 +16,14 @@ public static class GenerateFuturesBbSignal
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(state);
         var result = FuturesBbAccumulator.Apply(state.Checkpoint, command.Observation, command.EmaSignal);
+        if (!result.IsApplied)
+            return new ServiceOk<GuidResult>(new(command.CommandId));
         return state.Update(new FuturesBbSignalGeneratedEvent
         {
             Subject = new(ActorType.Event, FuturesBbSignalGeneratedEvent.Actor,
                 FuturesBbSignalGeneratedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
-            Signal = result.Signal,
+            Signal = result.Signal!,
             Checkpoint = result.Checkpoint
         }, command)
             ? new ServiceOk<GuidResult>(new(command.CommandId))

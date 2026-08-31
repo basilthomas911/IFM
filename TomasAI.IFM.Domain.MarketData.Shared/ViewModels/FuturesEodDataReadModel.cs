@@ -42,7 +42,7 @@ public record FuturesEodDataV2ReadModel
     [Key(5)]
     public decimal LowPrice { get; init; }
 
-    /// <summary>Settlement / close price.</summary>
+    /// <summary>Latest accepted trade price while the session is live; final close after the session.</summary>
     [Key(6)]
     public decimal ClosePrice { get; init; }
 
@@ -50,7 +50,10 @@ public record FuturesEodDataV2ReadModel
     [Key(7)]
     public long Volume { get; init; }
 
-    /// <summary>Percent change over the analysis window (daily or rolling).</summary>
+    /// <summary>
+    /// Decimal ratio of the latest accepted close relative to the trading-session open:
+    /// <c>(ClosePrice - OpenPrice) / OpenPrice</c>.
+    /// </summary>
     [Key(8)]
     public double DailyPercentChange { get; init; }
 

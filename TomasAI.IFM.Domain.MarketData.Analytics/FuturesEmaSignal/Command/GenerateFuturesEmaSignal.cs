@@ -16,12 +16,14 @@ public static class GenerateFuturesEmaSignal
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(state);
         var result = FuturesEmaAccumulator.Apply(state.Checkpoint, command.Observation);
+        if (!result.IsApplied)
+            return new ServiceOk<GuidResult>(new(command.CommandId));
         return state.Update(new FuturesEmaSignalGeneratedEvent
         {
             Subject = new(ActorType.Event, FuturesEmaSignalGeneratedEvent.Actor,
                 FuturesEmaSignalGeneratedEvent.Verb, command.EntityId.Format()),
             EntityId = command.EntityId,
-            Signal = result.Signal,
+            Signal = result.Signal!,
             Observation = command.Observation,
             Checkpoint = result.Checkpoint
         }, command)

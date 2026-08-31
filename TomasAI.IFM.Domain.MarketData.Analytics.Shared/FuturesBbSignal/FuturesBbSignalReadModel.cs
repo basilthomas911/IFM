@@ -56,4 +56,8 @@ public sealed record FuturesBbAccumulatorCheckpoint
     [Key(2)] public FuturesTradeSessionBarId LastObservationId { get; init; }
     /// <summary>Gets the last source sequence.</summary>
     [Key(3)] public long LastSourceSequence { get; init; }
+    /// <summary>Gets the exclusive end of the last accepted observation interval.</summary>
+    [Key(4)] public DateTimeOffset LastIntervalEndUtc { get; init; }
+    /// <summary>Gets the source stream epoch of the last accepted observation.</summary>
+    [Key(5)] public Guid LastStreamEpochId { get; init; }
 }

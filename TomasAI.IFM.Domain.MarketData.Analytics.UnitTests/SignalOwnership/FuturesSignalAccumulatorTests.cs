@@ -1,9 +1,12 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
@@ -63,14 +66,97 @@ public sealed class FuturesSignalAccumulatorTests
     }
 
     [Fact]
-    public void RsiRejectsDuplicateAndStaleObservations()
+    public void RsiIgnoresDuplicateAndStaleObservationsWithoutThrowing()
     {
         var first = Observation(2, 102m);
         var checkpoint = FuturesRsiWilderAccumulator.Apply(null, first, 14).Checkpoint;
 
-        Assert.Throws<InvalidOperationException>(() => FuturesRsiWilderAccumulator.Apply(checkpoint, first, 14));
-        Assert.Throws<InvalidOperationException>(() =>
-            FuturesRsiWilderAccumulator.Apply(checkpoint, Observation(1, 101m), 14));
+        var duplicate = FuturesRsiWilderAccumulator.Apply(checkpoint, first, 14);
+        var stale = FuturesRsiWilderAccumulator.Apply(checkpoint, Observation(1, 101m), 14);
+
+        Assert.Equal(MarketObservationApplicationDisposition.Duplicate, duplicate.Disposition);
+        Assert.Equal(MarketObservationApplicationDisposition.Stale, stale.Disposition);
+        Assert.Same(checkpoint, duplicate.Checkpoint);
+        Assert.Same(checkpoint, stale.Checkpoint);
+        Assert.False(duplicate.IsApplied);
+        Assert.False(stale.IsApplied);
+    }
+
+    [Fact]
+    public void LaterBarFromNewStreamEpochAdvancesAllDurableAccumulatorsWithLowerSequence()
+    {
+        var oldEpoch = Guid.NewGuid();
+        var newEpoch = Guid.NewGuid();
+        var first = Observation(10_000, 5000m, oldEpoch, 1);
+        var resumed = Observation(1, 5001m, newEpoch, 2);
+
+        var emaFirst = FuturesEmaAccumulator.Apply(null, first);
+        var emaResumed = FuturesEmaAccumulator.Apply(emaFirst.Checkpoint, resumed);
+        Assert.True(emaResumed.IsApplied);
+        Assert.Equal(2, emaResumed.Checkpoint.Count);
+        Assert.Equal(newEpoch, emaResumed.Checkpoint.LastStreamEpochId);
+        Assert.Equal(resumed.IntervalEndUtc, emaResumed.Checkpoint.LastIntervalEndUtc);
+        Assert.Equal(newEpoch, emaResumed.Signal!.Metadata.StreamEpochId);
+
+        var bbFirst = FuturesBbAccumulator.Apply(null, first, emaFirst.Signal!);
+        var bbResumed = FuturesBbAccumulator.Apply(
+            bbFirst.Checkpoint, resumed, emaResumed.Signal!);
+        Assert.True(bbResumed.IsApplied);
+        Assert.Equal(2, bbResumed.Checkpoint.Closes.Length);
+        Assert.Equal(newEpoch, bbResumed.Checkpoint.LastStreamEpochId);
+
+        var rsiFirst = FuturesRsiWilderAccumulator.Apply(null, first, 14);
+        var rsiResumed = FuturesRsiWilderAccumulator.Apply(rsiFirst.Checkpoint, resumed, 14);
+        Assert.True(rsiResumed.IsApplied);
+        Assert.Equal(1, rsiResumed.Checkpoint.ChangeCount);
+        Assert.Equal(newEpoch, rsiResumed.Checkpoint.LastStreamEpochId);
+    }
+
+    [Fact]
+    public void EmaAndBollingerIgnoreDuplicateAndOlderIntervalsWithoutThrowing()
+    {
+        var newest = Observation(20, 5020m);
+        var older = Observation(19, 5019m);
+        var emaApplied = FuturesEmaAccumulator.Apply(null, newest);
+        var emaDuplicate = FuturesEmaAccumulator.Apply(emaApplied.Checkpoint, newest);
+        var emaStale = FuturesEmaAccumulator.Apply(emaApplied.Checkpoint, older);
+
+        Assert.Equal(MarketObservationApplicationDisposition.Duplicate, emaDuplicate.Disposition);
+        Assert.Equal(MarketObservationApplicationDisposition.Stale, emaStale.Disposition);
+        Assert.Null(emaDuplicate.Signal);
+        Assert.Null(emaStale.Signal);
+
+        var bbApplied = FuturesBbAccumulator.Apply(null, newest, emaApplied.Signal!);
+        var bbDuplicate = FuturesBbAccumulator.Apply(bbApplied.Checkpoint, newest, emaApplied.Signal!);
+        var olderEma = FuturesEmaAccumulator.Apply(null, older).Signal!;
+        var bbStale = FuturesBbAccumulator.Apply(bbApplied.Checkpoint, older, olderEma);
+
+        Assert.Equal(MarketObservationApplicationDisposition.Duplicate, bbDuplicate.Disposition);
+        Assert.Equal(MarketObservationApplicationDisposition.Stale, bbStale.Disposition);
+        Assert.Null(bbDuplicate.Signal);
+        Assert.Null(bbStale.Signal);
+    }
+
+    [Fact]
+    public void DuplicateEmaCommandReturnsSuccessWithoutAppendingAnotherEvent()
+    {
+        var observation = Observation(1, 5001m);
+        var entityId = new FuturesTradeSessionBarEntityId(Series, TimeFrameType.Daily);
+        var command = new GenerateFuturesEmaSignalCommand
+        {
+            CommandId = observation.ObservationId.Value,
+            Subject = new(ActorType.Command, GenerateFuturesEmaSignalCommand.Actor,
+                GenerateFuturesEmaSignalCommand.Verb, entityId.Format()),
+            EntityId = entityId,
+            Observation = observation
+        };
+        var state = new FuturesEmaSignalCommandState();
+
+        Assert.True(command.Execute(state).Success);
+        Assert.True(command.Execute(state).Success);
+
+        Assert.Single(state.Events);
+        Assert.Equal(1, state.Checkpoint!.Count);
     }
 
     [Fact]
@@ -180,9 +266,14 @@ public sealed class FuturesSignalAccumulatorTests
             || field.FieldType == typeof(FuturesEmaSignalReadModel));
     }
 
-    static FuturesTradeSessionBarReadModel Observation(long sequence, decimal close)
+    static FuturesTradeSessionBarReadModel Observation(
+        long sequence,
+        decimal close,
+        Guid streamEpochId = default,
+        int? intervalDay = null)
     {
-        var end = new DateTimeOffset(2026, 1, 1, 20, 0, 0, TimeSpan.Zero).AddDays(sequence);
+        var end = new DateTimeOffset(2026, 1, 1, 20, 0, 0, TimeSpan.Zero)
+            .AddDays(intervalDay ?? checked((int)sequence));
         return new()
         {
             MarketSeriesIdentity = Series,
@@ -209,7 +300,8 @@ public sealed class FuturesSignalAccumulatorTests
             IsComplete = true,
             IsValid = true,
             ValidationIssues = [],
-            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+            CalculationMethod = MarketSignalCalculationMethod.ClosedObservation,
+            StreamEpochId = streamEpochId
         };
     }
 }

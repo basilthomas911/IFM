@@ -15,9 +15,10 @@ public static class FuturesEmaAccumulator
         ArgumentNullException.ThrowIfNull(observation);
         checkpoint ??= new();
         if (checkpoint.LastObservationId.Value != Guid.Empty && checkpoint.LastObservationId == observation.ObservationId)
-            throw new InvalidOperationException($"Observation {observation.ObservationId} has already been applied.");
-        if (observation.LastSourceSequence < checkpoint.LastSourceSequence)
-            throw new InvalidOperationException("A stale observation cannot advance EMA state.");
+            return new(checkpoint, null, MarketObservationApplicationDisposition.Duplicate);
+        if (checkpoint.LastIntervalEndUtc != default
+            && observation.IntervalEndUtc <= checkpoint.LastIntervalEndUtc)
+            return new(checkpoint, null, MarketObservationApplicationDisposition.Stale);
 
         var count = checkpoint.Count + 1;
         var value10 = Advance(10, count, observation.Close, checkpoint.Seed10, checkpoint.Ema10);
@@ -36,7 +37,9 @@ public static class FuturesEmaAccumulator
             Ema50 = value50.Current,
             Ema200 = value200.Current,
             LastObservationId = observation.ObservationId,
-            LastSourceSequence = observation.LastSourceSequence
+            LastSourceSequence = observation.LastSourceSequence,
+            LastIntervalEndUtc = observation.IntervalEndUtc,
+            LastStreamEpochId = observation.StreamEpochId
         };
         var signal = new FuturesEmaSignalReadModel
         {
@@ -57,7 +60,7 @@ public static class FuturesEmaAccumulator
             Ema200Slope = Slope(value200),
             IsWarm = value200.Current is not null && value200.Previous is not null
         };
-        return new(next, signal);
+        return new(next, signal, MarketObservationApplicationDisposition.Applied);
     }
 
     static EmaValue Advance(int period, int count, decimal close, decimal seed, decimal? current)
@@ -87,4 +90,9 @@ public static class FuturesEmaAccumulator
 /// <summary>Contains one EMA state transition.</summary>
 public sealed record FuturesEmaAccumulatorResult(
     FuturesEmaAccumulatorCheckpoint Checkpoint,
-    FuturesEmaSignalReadModel Signal);
+    FuturesEmaSignalReadModel? Signal,
+    MarketObservationApplicationDisposition Disposition)
+{
+    /// <summary>Gets whether this transition advanced durable state.</summary>
+    public bool IsApplied => Disposition == MarketObservationApplicationDisposition.Applied;
+}

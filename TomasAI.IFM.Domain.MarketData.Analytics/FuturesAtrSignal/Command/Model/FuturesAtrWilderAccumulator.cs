@@ -63,6 +63,8 @@ public static class FuturesAtrWilderAccumulator
             LastObservationId = observation.ObservationId,
             LastSourceSequence = observation.LastSourceSequence,
             LastMarketEventUtc = observation.LastMarketEventUtc,
+            LastIntervalEndUtc = observation.IntervalEndUtc,
+            LastStreamEpochId = observation.StreamEpochId,
             ObservationCount = checked(checkpoint.ObservationCount + 1)
         };
         result = new FuturesAtrWilderResult(
@@ -92,10 +94,9 @@ public static class FuturesAtrWilderAccumulator
         if (checkpoint.LastObservationId.Value != Guid.Empty
             && observation.ObservationId == checkpoint.LastObservationId)
             return true;
-        if (observation.LastSourceSequence > 0 && checkpoint.LastSourceSequence > 0)
-            return observation.LastSourceSequence <= checkpoint.LastSourceSequence;
-        return checkpoint.LastMarketEventUtc is { } last
-            && observation.LastMarketEventUtc <= last;
+        if (checkpoint.LastIntervalEndUtc != default)
+            return observation.IntervalEndUtc <= checkpoint.LastIntervalEndUtc;
+        return false;
     }
 }
 

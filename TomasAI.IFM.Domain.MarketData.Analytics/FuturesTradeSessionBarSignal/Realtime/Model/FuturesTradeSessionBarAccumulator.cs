@@ -132,7 +132,8 @@ public sealed class FuturesTradeSessionBarAccumulator(
             if (!buckets.TryGetValue(key, out bucket))
             {
                 buckets.Add(key, bucket = new ObservationBucket(
-                    seriesIdentity, contractId, valueDate, timeFrame, interval.StartUtc, interval.EndUtc));
+                    seriesIdentity, contractId, valueDate, timeFrame, interval.StartUtc, interval.EndUtc,
+                    trade.StreamEpochId));
             }
             bucket.Add(trade);
         }
@@ -192,7 +193,8 @@ public sealed class FuturesTradeSessionBarAccumulator(
         DateOnly valueDate,
         TimeFrameType timeFrame,
         DateTimeOffset startUtc,
-        DateTimeOffset endUtc)
+        DateTimeOffset endUtc,
+        Guid streamEpochId)
     {
         private decimal open;
         private decimal high = decimal.MinValue;
@@ -238,10 +240,11 @@ public sealed class FuturesTradeSessionBarAccumulator(
                 TradeCount = tradeCount, PriceVolumeSum = priceVolumeSum,
                 FirstSourceSequence = firstSequence, LastSourceSequence = lastSequence,
                 FirstMarketEventUtc = firstEvent, LastMarketEventUtc = lastEvent,
-                CalculatedAtUtc = timeProvider.GetUtcNow(), SchemaVersion = 1,
+                CalculatedAtUtc = timeProvider.GetUtcNow(), SchemaVersion = 2,
                 CalculationVersion = "trade-session-bar-v1", IsComplete = true, IsValid = true,
                 ValidationIssues = [],
-                CalculationMethod = MarketSignalCalculationMethod.ClosedObservation
+                CalculationMethod = MarketSignalCalculationMethod.ClosedObservation,
+                StreamEpochId = streamEpochId
             };
         }
     }

@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -237,10 +238,10 @@ internal static class FuturesTickTradeDataInserted
             statistics.LowPrice,
             tickData.Price,
             statistics.HasVolume ? statistics.Volume : tickData.Size,
-            FuturesSessionStatisticsUpdated.CalculateDailyPercentChange(
+            FuturesSessionPriceCalculator.CalculateDailyPercentChange(
                 tickData.Price,
                 statistics.OpenPrice),
-            priceDirection: FuturesSessionStatisticsUpdated.CalculatePriceDirection(
+            priceDirection: FuturesSessionPriceCalculator.CalculatePriceDirection(
                 tickData.Price,
                 statistics.OpenPrice));
     }

@@ -1,19 +1,16 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
-
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 
 /// <summary>
 /// Provides the compatibility transport model for raw end-of-day futures session facts.
 /// </summary>
-/// <remarks>Derived indicators are intentionally not calculated here. Analytics actors own them.</remarks>
+/// <remarks>
+/// Session-relative percentage and direction are live price facts and are recalculated here.
+/// Historical analytics indicators are preserved because Analytics actors own them.
+/// </remarks>
 internal static class FuturesEodDataModel 
 {
     public static FuturesEodDataV2ReadModel CreateFuturesEodData(
@@ -30,16 +27,21 @@ internal static class FuturesEodDataModel
         ArgumentNullException.ThrowIfNull(contract);
         ArgumentNullException.ThrowIfNull(eodDataToday);
         var close = futuresTickData.Price;
-        return new FuturesEodDataV2ReadModel(
-            contractId: contract.ContractId,
-            valueDate: valueDate,
-            symbol: contract.Symbol,
-            openPrice: eodDataToday.OpenPrice,
-            highPrice: Math.Max(eodDataToday.HighPrice, close),
-            lowPrice: Math.Min(eodDataToday.LowPrice, close),
-            closePrice: close,
-            volume: eodDataToday.Volume
-        );
+        return eodDataToday with
+        {
+            ContractId = contract.ContractId,
+            ValueDate = valueDate,
+            Symbol = contract.Symbol,
+            HighPrice = Math.Max(eodDataToday.HighPrice, close),
+            LowPrice = Math.Min(eodDataToday.LowPrice, close),
+            ClosePrice = close,
+            DailyPercentChange = FuturesSessionPriceCalculator.CalculateDailyPercentChange(
+                close,
+                eodDataToday.OpenPrice),
+            PriceDirection = FuturesSessionPriceCalculator.CalculatePriceDirection(
+                close,
+                eodDataToday.OpenPrice)
+        };
     }
 
    

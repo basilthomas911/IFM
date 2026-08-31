@@ -1,5 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.Model;
 
@@ -17,9 +18,11 @@ public static class FuturesRsiWilderAccumulator
         if (checkpoint is not null && checkpoint.PeriodLength != periodLength)
             throw new InvalidOperationException("The RSI checkpoint period does not match the command period.");
         if (checkpoint?.LastObservationId.Value != Guid.Empty && checkpoint?.LastObservationId == observation.ObservationId)
-            throw new InvalidOperationException($"Observation {observation.ObservationId} has already been applied.");
-        if (checkpoint is not null && observation.LastSourceSequence < checkpoint.LastSourceSequence)
-            throw new InvalidOperationException("A stale observation cannot advance RSI state.");
+            return FuturesRsiWilderResult.Ignored(checkpoint!, MarketObservationApplicationDisposition.Duplicate);
+        if (checkpoint is not null
+            && checkpoint.LastIntervalEndUtc != default
+            && observation.IntervalEndUtc <= checkpoint.LastIntervalEndUtc)
+            return FuturesRsiWilderResult.Ignored(checkpoint, MarketObservationApplicationDisposition.Stale);
 
         checkpoint ??= new() { PeriodLength = periodLength };
         var previousRsi = checkpoint.CurrentRsi;
@@ -30,9 +33,12 @@ public static class FuturesRsiWilderAccumulator
                 PreviousClose = observation.Close,
                 LastObservationId = observation.ObservationId,
                 LastSourceSequence = observation.LastSourceSequence,
-                LastMarketEventUtc = observation.LastMarketEventUtc
+                LastMarketEventUtc = observation.LastMarketEventUtc,
+                LastIntervalEndUtc = observation.IntervalEndUtc,
+                LastStreamEpochId = observation.StreamEpochId
             };
-            return new(first, 0m, 0m, 0m, null, null, null, previousRsi, null, false);
+            return new(first, 0m, 0m, 0m, null, null, null, previousRsi, null, false,
+                MarketObservationApplicationDisposition.Applied);
         }
 
         var change = observation.Close - checkpoint.PreviousClose.Value;
@@ -82,10 +88,13 @@ public static class FuturesRsiWilderAccumulator
             ChangeCount = count,
             LastObservationId = observation.ObservationId,
             LastSourceSequence = observation.LastSourceSequence,
-            LastMarketEventUtc = observation.LastMarketEventUtc
+            LastMarketEventUtc = observation.LastMarketEventUtc,
+            LastIntervalEndUtc = observation.IntervalEndUtc,
+            LastStreamEpochId = observation.StreamEpochId
         };
         return new(next, change, gain, loss, averageGain, averageLoss, rs, previousRsi, slope,
-            currentRsi is not null && previousRsi is not null);
+            currentRsi is not null && previousRsi is not null,
+            MarketObservationApplicationDisposition.Applied);
     }
 
     static double CalculateRsi(decimal averageGain, decimal averageLoss) =>
@@ -105,4 +114,16 @@ public sealed record FuturesRsiWilderResult(
     double? RelativeStrength,
     double? PreviousRsi,
     double? Slope,
-    bool IsWarm);
+    bool IsWarm,
+    MarketObservationApplicationDisposition Disposition)
+{
+    /// <summary>Gets whether this transition advanced durable state.</summary>
+    public bool IsApplied => Disposition == MarketObservationApplicationDisposition.Applied;
+
+    /// <summary>Creates a no-op transition for a duplicate or older observation.</summary>
+    public static FuturesRsiWilderResult Ignored(
+        FuturesRsiAccumulatorCheckpoint checkpoint,
+        MarketObservationApplicationDisposition disposition) =>
+        new(checkpoint, 0m, 0m, 0m, checkpoint.AverageGain, checkpoint.AverageLoss, null,
+            checkpoint.CurrentRsi, null, false, disposition);
+}

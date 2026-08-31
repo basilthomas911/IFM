@@ -384,8 +384,8 @@ public static class MarketDataAnalyticsCommandApiExtensions
         where TEntityId : IActorEntityId
     {
         var result = await context.RequestAsync<TCommand, TEntityId>(command);
-        if (result?.Success != true)
-            throw new InvalidOperationException(result?.ErrorMessage);
-        return result;
+        return result ?? new ServiceFailed<GuidResult>(
+            command.ErrorCode,
+            $"{command.CommandName} did not return a command result.");
     }
 }

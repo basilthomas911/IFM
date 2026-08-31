@@ -31,7 +31,12 @@ public class FuturesEodDataUIViewModel
         Volume = $"{e.Volume}";
         DailyPercentChange = $"{e.DailyPercentChange:P2}";
         DailyPercentChangeForeColor = PresentationColorRole.DarkText;
-        DailyPercentChangeBackColor = e.DailyPercentChange >= 0 ? PresentationColorRole.Positive : PresentationColorRole.Negative;
+        DailyPercentChangeBackColor = e.DailyPercentChange switch
+        {
+            > 0 => PresentationColorRole.Positive,
+            < 0 => PresentationColorRole.Negative,
+            _ => PresentationColorRole.Caution
+        };
         DailyStdDev = $"{e.DailyStdDev:F2}";
         UpperBand = $"{e.UpperBand:F2}";
         Mean = $"{e.Mean:F2}";

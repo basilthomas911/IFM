@@ -23,6 +23,7 @@ public static class MarketAnalyticsSignalMetadataFactory
             MarketDataAsOfUtc = observation.LastMarketEventUtc,
             CalculatedAtUtc = observation.CalculatedAtUtc,
             SourceSequence = observation.LastSourceSequence,
+            StreamEpochId = observation.StreamEpochId,
             SchemaVersion = schemaVersion,
             CalculationVersion = calculationVersion,
             CalculationMethod = observation.CalculationMethod,

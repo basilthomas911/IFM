@@ -3,6 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
@@ -224,6 +225,64 @@ public class IFMAppViewModelTests
         IFMAppViewModel.IsMarketOutlookUpdate("ESZ26", staleEs).Should().BeFalse();
         IFMAppViewModel.IsMarketOutlookUpdate("ESZ26", nq).Should().BeFalse();
         IFMAppViewModel.IsMarketOutlookUpdate(null, es).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task MarketOutlookSnapshot_RefreshesPercentageAndRejectsStaleRevision()
+    {
+        var viewModel = CreateSubject();
+        var valueDate = new DateOnly(2026, 8, 11);
+        var source = new FuturesEodDataV2ReadModel(
+            "ESZ26",
+            valueDate,
+            "ES",
+            5400m,
+            5500m,
+            5350m,
+            5425m,
+            1_000,
+            0.0046,
+            priceDirection: PriceDirectionType.Rising);
+
+        await viewModel.ProcessMarketOutlookSnapshotAsync(
+            Snapshot(2, source),
+            CancellationToken.None);
+        await viewModel.ProcessMarketOutlookSnapshotAsync(
+            Snapshot(1, source with
+            {
+                ClosePrice = 5375m,
+                DailyPercentChange = -0.0046,
+                PriceDirection = PriceDirectionType.Falling
+            }),
+            CancellationToken.None);
+
+        viewModel.MarketOutlook.Should().NotBeNull();
+        viewModel.MarketOutlook!.ClosePrice.Should().Be("5425.00");
+        viewModel.MarketOutlook.DailyPercentChange.Should().Be($"{0.0046:P2}");
+
+        await viewModel.ProcessMarketOutlookSnapshotAsync(
+            Snapshot(3, source with
+            {
+                ClosePrice = 5375m,
+                DailyPercentChange = -0.0046,
+                PriceDirection = PriceDirectionType.Falling
+            }),
+            CancellationToken.None);
+
+        viewModel.MarketOutlook.ClosePrice.Should().Be("5375.00");
+        viewModel.MarketOutlook.DailyPercentChange.Should().Be($"{-0.0046:P2}");
+
+        MarketOutlookSnapshotReadModel Snapshot(
+            long revision,
+            FuturesEodDataV2ReadModel eod) => new()
+            {
+                ContractId = eod.ContractId,
+                ValueDate = eod.ValueDate,
+                Revision = revision,
+                UpdatedOn = DateTime.UtcNow,
+                FuturesEodData = eod,
+                MissingInputs = "RSI"
+            };
     }
 
     [Fact]

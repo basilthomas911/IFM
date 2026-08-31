@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
+using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime;
@@ -18,17 +19,25 @@ public static class FuturesTradeSessionBarClosed
         if (!observation.IsValid) return true;
         try
         {
+            var succeeded = true;
             foreach (var entityId in FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>
                          .Snapshot().Where(entityId => Matches(entityId, observation)))
             {
                 var signalId = new FuturesRsiSignalId(entityId.ContractId, entityId.ValueDate,
                     entityId.TimePeriod, entityId.PeriodLength,
                     TimeOnly.FromDateTime(observation.LastMarketEventUtc.UtcDateTime));
-                _ = await context.GenerateFuturesRsiSignalAsync(signalId, observation.Close,
+                var result = await context.GenerateFuturesRsiSignalAsync(signalId, observation.Close,
                     observation.LastSourceSequence, observation.LastMarketEventUtc.UtcDateTime, observation)
                     .ConfigureAwait(false);
+                if (result is ServiceFailed<GuidResult> failed)
+                {
+                    succeeded = false;
+                    logger.LogError(
+                        "RSI command rejected observation {ObservationId} for {EntityId}: {ErrorMessage}",
+                        observation.ObservationId, entityId, failed.ErrorMessage);
+                }
             }
-            return true;
+            return succeeded;
         }
         catch (Exception exception)
         {

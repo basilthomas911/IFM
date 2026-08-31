@@ -58,7 +58,10 @@ public sealed class MarketOutlookOrCombinationVerificationTests
             {
                 ContractId = entityId.ContractId,
                 ValueDate = entityId.ValueDate,
-                Symbol = "ES"
+                Symbol = "ES",
+                OpenPrice = 5400m,
+                ClosePrice = 5425m,
+                DailyPercentChange = 0.0046
             };
             new PublishMarketOutlookSnapshotCommand(
                 entityId,
@@ -75,6 +78,12 @@ public sealed class MarketOutlookOrCombinationVerificationTests
         var snapshot = state.WorkingState.PublishedSnapshot;
         snapshot.Should().NotBeNull();
         snapshot!.FuturesEodData.IsValid.Should().Be(Has(0));
+        if (Has(0))
+        {
+            snapshot.FuturesEodData.OpenPrice.Should().Be(5400m);
+            snapshot.FuturesEodData.ClosePrice.Should().Be(5425m);
+            snapshot.FuturesEodData.DailyPercentChange.Should().Be(0.0046);
+        }
         (snapshot.FuturesRsiSignal is not null).Should().Be(Has(1));
         (snapshot.FuturesTdiSignal is not null).Should().Be(Has(2));
         (snapshot.TrendDirectionChange is not null).Should().Be(Has(3));

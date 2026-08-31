@@ -50,31 +50,39 @@ public sealed class FuturesTradeSessionBarSignalCommandActor(
         return ValueTask.CompletedTask;
     }
 
+    /// <inheritdoc />
+    protected override IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) =>
+        _validationMap.TryGetValue(command.GetType(), out var validator)
+            ? validator(command)
+            : throw new InvalidOperationException(
+                $"Unable to validate {ActorName} commands from message: {command.Subject}");
+
     static readonly IReadOnlyDictionary<Type, Func<ICommand, List<ValidationError>>> _validationMap =
         new Dictionary<Type, Func<ICommand, List<ValidationError>>>
     {
         [typeof(PublishFuturesTradeSessionBarCommand)] = static command =>
         {
             var publish = (PublishFuturesTradeSessionBarCommand)command;
-            return new List<ValidationError>()
+            var errors = new List<ValidationError>()
                 .ValidateCommandId(publish.CommandId, publish.CommandName)
-                .ValidateEntityId(publish.EntityId, publish.CommandName)
-                .CaptureCommandValidation(() => ValidatePublish(publish));
+                .ValidateEntityId(publish.EntityId, publish.CommandName);
+            ValidatePublish(errors, publish);
+            return errors;
         }
     };
 
-    static void ValidatePublish(PublishFuturesTradeSessionBarCommand value)
+    static void ValidatePublish(List<ValidationError> errors, PublishFuturesTradeSessionBarCommand value)
     {
         if (value.CommandId == Guid.Empty || value.CommandId != value.Bar.ObservationId.Value)
-            throw new ArgumentException("CommandId must equal the deterministic bar identity.");
+            errors.Add(new("CommandId must equal the deterministic bar identity."));
         if (new FuturesTradeSessionBarEntityIdValidationRules().Execute(value.EntityId).Length != 0)
-            throw new ArgumentException("A valid bar signal entity identity is required.");
+            errors.Add(new("A valid bar signal entity identity is required."));
         if (new FuturesTradeSessionBarReadModelValidationRules().Execute(value.Bar).Length != 0)
-            throw new ArgumentException("A valid completed futures trade-session bar is required.");
+            errors.Add(new("A valid completed futures trade-session bar is required."));
         if (value.EntityId.MarketSeriesIdentity != value.Bar.MarketSeriesIdentity
             || value.EntityId.TimeFrame != value.Bar.TimeFrame
             || value.Subject.EntityId != value.EntityId.Format())
-            throw new ArgumentException("Command routing identity must match the completed bar.");
+            errors.Add(new("Command routing identity must match the completed bar."));
     }
 
     /// <inheritdoc />

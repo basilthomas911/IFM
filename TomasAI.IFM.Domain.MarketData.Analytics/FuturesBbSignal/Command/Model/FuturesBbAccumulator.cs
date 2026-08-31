@@ -20,9 +20,10 @@ public static class FuturesBbAccumulator
             throw new InvalidOperationException("EMA and Bollinger observation identities must match.");
         checkpoint ??= new();
         if (checkpoint.LastObservationId.Value != Guid.Empty && checkpoint.LastObservationId == observation.ObservationId)
-            throw new InvalidOperationException($"Observation {observation.ObservationId} has already been applied.");
-        if (observation.LastSourceSequence < checkpoint.LastSourceSequence)
-            throw new InvalidOperationException("A stale observation cannot advance Bollinger state.");
+            return new(checkpoint, null, MarketObservationApplicationDisposition.Duplicate);
+        if (checkpoint.LastIntervalEndUtc != default
+            && observation.IntervalEndUtc <= checkpoint.LastIntervalEndUtc)
+            return new(checkpoint, null, MarketObservationApplicationDisposition.Stale);
 
         var closes = checkpoint.Closes.Append(observation.Close).TakeLast(20).ToArray();
         decimal? sd10 = closes.Length >= 10 ? PopulationStandardDeviation(closes.TakeLast(10)) : null;
@@ -62,8 +63,10 @@ public static class FuturesBbAccumulator
             Closes = closes,
             CompletedWidths20 = widths,
             LastObservationId = observation.ObservationId,
-            LastSourceSequence = observation.LastSourceSequence
-        }, signal);
+            LastSourceSequence = observation.LastSourceSequence,
+            LastIntervalEndUtc = observation.IntervalEndUtc,
+            LastStreamEpochId = observation.StreamEpochId
+        }, signal, MarketObservationApplicationDisposition.Applied);
     }
 
     static decimal? Position(decimal close, decimal? center, decimal? standardDeviation)
@@ -85,4 +88,9 @@ public static class FuturesBbAccumulator
 /// <summary>Contains one Bollinger state transition.</summary>
 public sealed record FuturesBbAccumulatorResult(
     FuturesBbAccumulatorCheckpoint Checkpoint,
-    FuturesBbSignalReadModel Signal);
+    FuturesBbSignalReadModel? Signal,
+    MarketObservationApplicationDisposition Disposition)
+{
+    /// <summary>Gets whether this transition advanced durable state.</summary>
+    public bool IsApplied => Disposition == MarketObservationApplicationDisposition.Applied;
+}

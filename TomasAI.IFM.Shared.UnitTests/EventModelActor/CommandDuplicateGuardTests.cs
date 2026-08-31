@@ -9,6 +9,7 @@ using NATS.Client.Core;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Shared.Validation;
 using Xunit;
 
 namespace TomasAI.IFM.Shared.UnitTests.EventModelActor;
@@ -111,6 +112,30 @@ public sealed class CommandAuditLoggerTests
         message.Reply.ErrorMessage.Should().Contain("CommandId is empty");
     }
 
+    [Fact]
+    public async Task Routine_validation_failure_returns_typed_failure_without_exception_path_or_state_loading()
+    {
+        var auditLogger = new SequencedAuditLogger(true);
+        var actorId = new ActorMailboxId(ActorType.Command, TestCommandActor.ActorName);
+        var supervisor = CreateSupervisor(actorId, auditLogger);
+        var actor = new TestCommandActor(new TestCommandContext(supervisor.Object, actorId));
+        var message = new TestCommandMessage(new TestCommand { IsInvalid = true });
+
+        await actor.StartAsync(supervisor.Object);
+        await actor.HandleMessageAsync(message);
+        await actor.StopAsync();
+
+        auditLogger.Calls.Should().Be(1);
+        actor.Validations.Should().Be(0);
+        actor.StateLoads.Should().Be(0);
+        actor.Executions.Should().Be(0);
+        actor.StateSaves.Should().Be(0);
+        actor.Exceptions.Should().Be(0);
+        message.Reply.Should().NotBeNull();
+        message.Reply!.Success.Should().BeFalse();
+        message.Reply.ErrorMessage.Should().Be("routine validation failure");
+    }
+
     static Mock<IActorSupervisor> CreateSupervisor(
         ActorMailboxId actorId,
         ICommandAuditLogger auditLogger)
@@ -171,11 +196,17 @@ public sealed class CommandAuditLoggerTests
         public int StateLoads { get; private set; }
         public int Executions { get; private set; }
         public int StateSaves { get; private set; }
+        public int Exceptions { get; private set; }
 
         protected override ICommand ParseMessage(
             ICommandActorContext<TestCommandActor> context,
             IActorMessage message)
             => ParseMappedCommand(context, message, ParseMap);
+
+        protected override IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) =>
+            command is TestCommand { IsInvalid: true }
+                ? [new ValidationError("routine validation failure")]
+                : [];
 
         protected override ValueTask OnValidateAsync(
             ICommandActorContext<TestCommandActor> context,
@@ -220,8 +251,11 @@ public sealed class CommandAuditLoggerTests
             ActorThreadId threadId,
             ICommand command,
             Exception ex)
-            => ValueTask.FromResult<ServiceResult<GuidResult>>(
+        {
+            Exceptions++;
+            return ValueTask.FromResult<ServiceResult<GuidResult>>(
                 new ServiceFailed<GuidResult>(-1, ex.Message));
+        }
     }
 
     sealed class TestCommandContext(IActorSupervisor supervisor, ActorMailboxId actorId)
@@ -244,6 +278,7 @@ public sealed class CommandAuditLoggerTests
         public string StreamId => "entity-1";
         public string EventSource => "unit-test";
         public int ErrorCode => 0;
+        public bool IsInvalid { get; init; }
     }
 
     sealed class TestCommandMessage(TestCommand command) : IActorMessage

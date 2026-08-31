@@ -36,6 +36,8 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         {
             Assert.Equal(1, x.TradeCount);
             Assert.Equal(100m, x.Open);
+            Assert.Equal(epoch, x.StreamEpochId);
+            Assert.Equal((ushort)2, x.SchemaVersion);
             Assert.Equal(x.ObservationId,
                 FuturesTradeSessionBarId.Create(
                     x.MarketSeriesIdentity, x.TimeFrame, x.IntervalEndUtc, x.LastSourceSequence));
@@ -80,7 +82,11 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         Assert.Empty(state.Accept(Trade("ESU6", valueDate, session.StartUtc.AddSeconds(47), recoveredEpoch, 1, 103)));
         var recovered = state.CloseThrough(session.EndUtc);
         Assert.Equal(7, recovered.Count);
-        Assert.All(recovered, value => Assert.Equal(103m, value.Close));
+        Assert.All(recovered, value =>
+        {
+            Assert.Equal(103m, value.Close);
+            Assert.Equal(recoveredEpoch, value.StreamEpochId);
+        });
     }
 
     static FuturesMarketPriceUpdatedRealtimeEvent Trade(

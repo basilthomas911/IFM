@@ -184,91 +184,106 @@ public abstract class BaseEventSourceCommandActor<TActor>(
             // the audit boundary; derived validation maps retain the same visible rule
             // so their complete command contract remains explicit and directly testable.
             if (command.CommandId == Guid.Empty)
-                throw new CommandValidationException(
+            {
+                result = new ServiceFailed<GuidResult>(
                     errorCode,
                     $"{command.CommandName}.CommandId is empty");
-
-            cancellationToken.ThrowIfCancellationRequested();
-            activeStage = ActorRuntimeMetrics.DeduplicationStage;
-            var stageStarted = ActorRuntimeMetrics.StartStage();
-            bool accepted;
-            try
-            {
-                var reservation = await _commandAuditLogger!
-                    .TryReserveAsync(command, cancellationToken)
-                    .ConfigureAwait(false);
-                accepted = reservation.Accepted;
-            }
-            finally
-            {
-                ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
-            }
-
-            if (!accepted)
-            {
-                ActorRuntimeMetrics.DuplicateCommands.Add(1);
-                result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
             }
             else
             {
-                /// check if the message is a command and validate it...
                 cancellationToken.ThrowIfCancellationRequested();
-                activeStage = ActorRuntimeMetrics.ValidationStage;
-                stageStarted = ActorRuntimeMetrics.StartStage();
+                activeStage = ActorRuntimeMetrics.DeduplicationStage;
+                var stageStarted = ActorRuntimeMetrics.StartStage();
+                bool accepted;
                 try
                 {
-                    if (cancellationToken.CanBeCanceled)
-                        await OnValidateAsync(_context!, threadId, command, cancellationToken);
+                    var reservation = await _commandAuditLogger!
+                        .TryReserveAsync(command, cancellationToken)
+                        .ConfigureAwait(false);
+                    accepted = reservation.Accepted;
+                }
+                finally
+                {
+                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                }
+
+                if (!accepted)
+                {
+                    ActorRuntimeMetrics.DuplicateCommands.Add(1);
+                    result = new ServiceOk<GuidResult>(new GuidResult(command.CommandId));
+                }
+                else
+                {
+                    var validationErrors = GetCommandValidationErrors(command);
+                    if (validationErrors is { Count: > 0 })
+                    {
+                        result = new ServiceFailed<GuidResult>(
+                            command.ErrorCode,
+                            string.Join(Environment.NewLine,
+                                validationErrors.Select(error => error.ErrorMessage)));
+                    }
                     else
-                        await OnValidateAsync(_context!, threadId, command);
-                }
-                finally
-                {
-                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
-                }
+                    {
+                        /// check if the message is a command and validate it...
+                        cancellationToken.ThrowIfCancellationRequested();
+                        activeStage = ActorRuntimeMetrics.ValidationStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        try
+                        {
+                            if (cancellationToken.CanBeCanceled)
+                                await OnValidateAsync(_context!, threadId, command, cancellationToken);
+                            else
+                                await OnValidateAsync(_context!, threadId, command);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
 
-                /// load the current state, process the message, and save the updated state...
-                cancellationToken.ThrowIfCancellationRequested();
-                activeStage = ActorRuntimeMetrics.ReplayStage;
-                stageStarted = ActorRuntimeMetrics.StartStage();
-                IActorState state;
-                try
-                {
-                    state = cancellationToken.CanBeCanceled
-                        ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
-                        : await OnLoadStateAsync(_context!, threadId, command);
-                }
-                finally
-                {
-                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
-                }
-                state?.Id = threadId;
+                        /// load the current state, process the message, and save the updated state...
+                        cancellationToken.ThrowIfCancellationRequested();
+                        activeStage = ActorRuntimeMetrics.ReplayStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        IActorState state;
+                        try
+                        {
+                            state = cancellationToken.CanBeCanceled
+                                ? await OnLoadStateAsync(_context!, threadId, command, cancellationToken)
+                                : await OnLoadStateAsync(_context!, threadId, command);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
+                        state?.Id = threadId;
 
-                /// process the message...
-                cancellationToken.ThrowIfCancellationRequested();
-                activeStage = ActorRuntimeMetrics.ExecutionStage;
-                stageStarted = ActorRuntimeMetrics.StartStage();
-                try
-                {
-                    result = cancellationToken.CanBeCanceled
-                        ? await ReceiveAsync(_context!, state!, command, cancellationToken)
-                        : await ReceiveAsync(_context!, state!, command);
-                }
-                finally
-                {
-                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
-                }
+                        /// process the message...
+                        cancellationToken.ThrowIfCancellationRequested();
+                        activeStage = ActorRuntimeMetrics.ExecutionStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        try
+                        {
+                            result = cancellationToken.CanBeCanceled
+                                ? await ReceiveAsync(_context!, state!, command, cancellationToken)
+                                : await ReceiveAsync(_context!, state!, command);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
 
-                /// save the updated state...
-                activeStage = ActorRuntimeMetrics.PersistenceStage;
-                stageStarted = ActorRuntimeMetrics.StartStage();
-                try
-                {
-                    await OnSaveStateAsync(_context!, threadId, state!, command);
-                }
-                finally
-                {
-                    ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        /// save the updated state...
+                        activeStage = ActorRuntimeMetrics.PersistenceStage;
+                        stageStarted = ActorRuntimeMetrics.StartStage();
+                        try
+                        {
+                            await OnSaveStateAsync(_context!, threadId, state!, command);
+                        }
+                        finally
+                        {
+                            ActorRuntimeMetrics.RecordStage(stageStarted, activeStage, ActorType.Command);
+                        }
+                    }
                 }
             }
         }
@@ -325,6 +340,12 @@ public abstract class BaseEventSourceCommandActor<TActor>(
 
     // Protected hooks for derived classes
     protected abstract ICommand ParseMessage(ICommandActorContext<TActor> context, IActorMessage message);
+
+    /// <summary>
+    /// Returns routine ingress validation errors without using exceptions as control flow.
+    /// A null result retains the legacy throwing validation hook for actors not yet migrated.
+    /// </summary>
+    protected virtual IReadOnlyList<ValidationError>? GetCommandValidationErrors(ICommand command) => null;
 
     /// <summary>
     /// Resolves a command parser from an actor-owned verb map and materializes the command.

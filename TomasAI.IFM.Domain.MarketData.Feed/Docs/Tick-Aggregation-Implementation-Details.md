@@ -102,8 +102,14 @@ through `FuturesEodDataRealtimeProjector`. It updates the canonical
 intraday-history observation. The normal realtime source/complete/fail family
 is still published; no replay, retry, or durable queue is introduced.
 
-Only `DailyPercentChange` and `PriceDirection` are recomputed because they
-depend on session open. Session high and low are output/storage fields. Mean,
+`DailyPercentChange` is the decimal ratio `(current accepted ClosePrice -
+session OpenPrice) / session OpenPrice`, rounded to four decimal places in the
+EOD transport and formatted as a percentage only by presentation clients.
+`PriceDirection` compares the same two prices and is `Flat` when they are equal.
+Both fields are recomputed for every accepted trade and for every accepted
+session-statistics correction through one shared session-price calculator.
+Non-positive session opens produce a safe zero ratio and `Flat` direction until
+valid provider statistics are available. Session high and low are output/storage fields. Mean,
 standard deviation, Bollinger bands, market direction, and market-direction
 indicator depend on closing-price history and are intentionally unchanged by a
 statistics-only correction.

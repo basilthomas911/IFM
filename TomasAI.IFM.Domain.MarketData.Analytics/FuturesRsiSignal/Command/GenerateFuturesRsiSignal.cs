@@ -23,19 +23,28 @@ public static class GenerateFuturesRsiSignal
     public static ServiceResult<GuidResult> Execute(this GenerateFuturesRsiSignalCommand e, FuturesRsiSignalCommandState state)
     {
         FuturesRsiWilderResult? wilderResult = null;
-        var futuresRsiSignal = e.Observation is { } observation
-            ? FuturesRsiWilderSignalFactory.Create(
+        FuturesRsiSignalReadModel futuresRsiSignal;
+        if (e.Observation is { } observation)
+        {
+            wilderResult = FuturesRsiWilderAccumulator.Apply(
+                state.AccumulatorCheckpoint,
+                observation,
+                e.EntityId.PeriodLength);
+            if (!wilderResult.IsApplied)
+                return new ServiceOk<GuidResult>(new GuidResult(e.CommandId));
+            futuresRsiSignal = FuturesRsiWilderSignalFactory.Create(
                 observation,
                 e.EntityId.PeriodLength,
-                wilderResult = FuturesRsiWilderAccumulator.Apply(
-                    state.AccumulatorCheckpoint,
-                    observation,
-                    e.EntityId.PeriodLength))
-            : state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice) with
+                wilderResult);
+        }
+        else
+        {
+            futuresRsiSignal = state.FuturesRsiSignals.GenerateRsiSignal(e.FuturesRsiSignalId, e.FuturesPrice) with
             {
                 SourceSequence = e.SourceSequence,
                 SourceEventTimestamp = e.SourceEventTimestamp
             };
+        }
         var futuresRsiSignalGeneratedEvent = e.CreateFuturesRsiSignalGeneratedEvent(
             futuresRsiSignal,
             wilderResult?.Checkpoint);

@@ -7,6 +7,9 @@ using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.Portfolio.Shared.Contracts;
+using TomasAI.IFM.Domain.Portfolio.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -27,32 +30,52 @@ public class TradeOrderEditorViewModelTests
         new(2026, 8, 11, 14, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task LoadOperation_PublishesNestedSelectionAndDateFilteredState()
+    public async Task LoadOperation_PublishesPortfolioFundAndDateScopedCanonicalState()
     {
         var subject = CreateSubject();
         subject.ViewModel.SetOrderDateRange(new DateTime(2026, 8, 1), new DateTime(2026, 8, 31, 23, 59, 59));
 
         await subject.ViewModel.LoadOperation.ExecuteAsync();
 
+        subject.ViewModel.Portfolios.Should().ContainSingle(portfolio => portfolio.PortfolioId == 41);
         subject.ViewModel.Funds.Should().ContainSingle();
-        subject.ViewModel.FundOrders.Should().ContainSingle(order => order.OrderId == 101);
-        subject.ViewModel.FundOrderTrades.Should().ContainSingle(trade => trade.TradeId == 7);
+        subject.ViewModel.CanonicalOrders.Should().ContainSingle(order => order.OrderId == 101);
         subject.ViewModel.SelectedFund!.FundId.Should().Be(17);
-        subject.ViewModel.SelectedFundOrder!.OrderId.Should().Be(101);
-        subject.ViewModel.SelectedFundOrderTrade!.TradeId.Should().Be(7);
-        subject.ViewModel.CanSubmitOrder.Should().BeTrue();
+        subject.ViewModel.CanCreateOrder.Should().BeTrue();
+        var trades = await subject.ViewModel.GetCanonicalTradesAsync(101);
+        trades.Should().ContainSingle(trade => trade.TradeId == 7);
         subject.ViewModel.GetFund(-1).Should().BeNull();
         subject.ViewModel.GetFundOrder(99).Should().BeNull();
         subject.ViewModel.GetFundOrderTrade(-1).Should().BeNull();
+        await subject.PortfolioQueryApi.Received(1).GetOrdersAsync(
+            41,
+            17,
+            new DateOnly(2026, 8, 1),
+            200,
+            null,
+            Arg.Any<CancellationToken>());
         await subject.ViewModel.DisposeAsync();
     }
 
     [Fact]
-    public async Task LoadOperation_ExcludesUnnamedLegacyFunds()
+    public async Task LoadOperation_ExcludesInactivePortfolioFundMandates()
     {
         var subject = CreateSubject();
-        subject.QueryApi.GetFundsAsync().Returns(new ServiceOk<FundReadModel[]>(
-            [Fund(), Fund() with { FundId = 18, Name = string.Empty }]));
+        subject.PortfolioQueryApi.GetFundsAsync(
+                Arg.Any<int>(),
+                Arg.Any<FundOperatingState?>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundMandateReadModel>>(Page(
+                FundMandate(),
+                FundMandate() with
+                {
+                    FundId = 18,
+                    FundCode = "ARCHIVE",
+                    Name = "Archived",
+                    OperatingState = FundOperatingState.Retired
+                })));
 
         await subject.ViewModel.LoadOperation.ExecuteAsync();
 
@@ -69,14 +92,60 @@ public class TradeOrderEditorViewModelTests
         var subject = CreateSubject(afterHours);
         await subject.ViewModel.LoadOperation.ExecuteAsync();
 
-        subject.ViewModel.OrderActionType = OrderActionType.Open;
-        subject.ViewModel.CanSubmitOrder.Should().BeFalse();
+        subject.ViewModel.CanSubmitOrderAction(OrderActionType.Open).Should().BeFalse();
         subject.ViewModel.ValidateOrderSubmission(OrderActionType.Open).Should().BeFalse();
         subject.ViewModel.LastError!.Caption.Should().Be("Position Entry Closed");
 
-        subject.ViewModel.OrderActionType = OrderActionType.Close;
-        subject.ViewModel.CanSubmitOrder.Should().BeTrue();
+        subject.ViewModel.CanSubmitOrderAction(OrderActionType.Close).Should().BeTrue();
         subject.ViewModel.ValidateOrderSubmission(OrderActionType.Close).Should().BeTrue();
+        await subject.ViewModel.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CreateManualOrder_UsesPortfolioAuthorityAndRefreshesCanonicalOrders()
+    {
+        var subject = CreateSubject();
+        var createdOrder = CanonicalOrder(
+            102,
+            new DateTime(2026, 8, 12, 14, 0, 0, DateTimeKind.Utc));
+        var reservation = new FundCompositionReservationResult
+        {
+            Order = createdOrder,
+            Trades = [CanonicalTrade() with { OrderId = 102, TradeId = 8 }],
+            AggregateVersion = 1,
+            CommittedOnUtc = createdOrder.CreatedOnUtc,
+            Disposition = ReservationDisposition.Committed,
+            CanonicalRequestSha256 = "manual-order-hash"
+        };
+        CreateManualFundOrderRequest? capturedRequest = null;
+        subject.PortfolioFundCommandApi.CreateManualOrderAsync(
+                Arg.Do<CreateManualFundOrderRequest>(request => capturedRequest = request),
+                Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<FundCompositionReservationResult>(reservation));
+        subject.PortfolioQueryApi.GetOrdersAsync(
+                Arg.Any<int>(),
+                Arg.Any<int>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(Page(CanonicalOrder())),
+                new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(Page(CanonicalOrder(), createdOrder)));
+        await subject.ViewModel.LoadOperation.ExecuteAsync();
+
+        var result = await subject.ViewModel.CreateManualOrderAsync(
+            Order(102, new DateTime(2026, 8, 12)));
+
+        result.Should().BeSameAs(reservation);
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.PortfolioId.Should().Be(41);
+        capturedRequest.PortfolioVersion.Should().Be(3);
+        capturedRequest.FundId.Should().Be(17);
+        capturedRequest.FundMandateVersion.Should().Be(4);
+        capturedRequest.UnderlyingRoot.Should().Be("ESZ26");
+        subject.ViewModel.CanonicalOrders.Should().HaveCount(2);
+        subject.ViewModel.LastStatusMessage.Should().Contain("102");
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -86,6 +155,18 @@ public class TradeOrderEditorViewModelTests
         var commandId = Guid.NewGuid();
         var addedOrder = Order(102, new DateTime(2026, 8, 12));
         var subject = CreateSubject();
+        subject.PortfolioQueryApi.GetOrdersAsync(
+                Arg.Any<int>(),
+                Arg.Any<int>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(Page(CanonicalOrder())),
+                new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(Page(
+                    CanonicalOrder(),
+                    CanonicalOrder(102, new DateTime(2026, 8, 12, 14, 0, 0, DateTimeKind.Utc)))));
         subject.CommandApi.AddOrderToFundAsync(addedOrder).Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
         await subject.ViewModel.LoadOperation.ExecuteAsync();
@@ -109,9 +190,13 @@ public class TradeOrderEditorViewModelTests
         subject.ViewModel.CommandId.Should().BeEmpty();
         subject.ViewModel.LastChange!.Kind.Should().Be(TradeOrderEditorChangeKind.OrderAdded);
         subject.ViewModel.LastStatusMessage.Should().Contain("102");
-        subject.ViewModel.Funds.Single().Orders.Should().HaveCount(2);
-        subject.ViewModel.Funds.Single().Orders.Single(order => order.OrderId == 101).Trades.Should().ContainSingle();
-        await subject.QueryApi.Received(2).GetFundsAsync();
+        subject.ViewModel.CanonicalOrders.Should().HaveCount(2);
+        subject.ViewModel.CanonicalOrders.Should().Contain(order => order.OrderId == 102);
+        await subject.PortfolioQueryApi.Received(2).GetPortfoliosAsync(
+            PortfolioOperatingState.Active,
+            200,
+            null,
+            Arg.Any<CancellationToken>());
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -169,15 +254,11 @@ public class TradeOrderEditorViewModelTests
     }
 
     [Fact]
-    public async Task ChangeTradeState_AwaitsExactTerminalAndRefreshesTheDurableState()
+    public async Task ChangeTradeState_AwaitsExactTerminalAndPublishesTheChange()
     {
         var commandId = Guid.NewGuid();
         var initial = Trade();
-        var changed = initial with { TradeState = TradeState.OrderSubmitted };
         var subject = CreateSubject();
-        subject.QueryApi.GetFundOrderTradesAsync().Returns(
-            new ServiceOk<FundOrderTradeReadModel[]>([initial]),
-            new ServiceOk<FundOrderTradeReadModel[]>([changed]));
         subject.CommandApi.ChangeFundOrderTradeStateAsync(initial.Id, TradeState.OrderSubmitted)
             .Returns(new ServiceOk<Guid>(commandId));
         await subject.ViewModel.InitializeAsync(CancellationToken.None);
@@ -194,9 +275,13 @@ public class TradeOrderEditorViewModelTests
         await operation;
 
         subject.ViewModel.LastChange!.Kind.Should().Be(TradeOrderEditorChangeKind.TradeStateChanged);
-        subject.ViewModel.SelectedFundOrderTrade!.TradeState.Should().Be(TradeState.OrderSubmitted);
+        subject.ViewModel.LastStatusMessage.Should().Contain("OrderSubmitted");
         subject.ViewModel.CommandId.Should().BeEmpty();
-        await subject.QueryApi.Received(2).GetFundOrderTradesAsync();
+        await subject.PortfolioQueryApi.Received(2).GetPortfoliosAsync(
+            PortfolioOperatingState.Active,
+            200,
+            null,
+            Arg.Any<CancellationToken>());
         await subject.ViewModel.DisposeAsync();
     }
 
@@ -255,10 +340,44 @@ public class TradeOrderEditorViewModelTests
             [Order(101, new DateTime(2026, 8, 11)), Order(99, new DateTime(2026, 6, 1))]));
         queryApi.GetFundOrderTradesAsync().Returns(new ServiceOk<FundOrderTradeReadModel[]>([Trade()]));
         var commandApi = Substitute.For<IFundCommandApi>();
+        var portfolioQueryApi = Substitute.For<IPortfolioQueryApi>();
+        portfolioQueryApi.GetPortfoliosAsync(
+                Arg.Any<PortfolioOperatingState?>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<PortfolioReadModel>>(Page(Portfolio())));
+        portfolioQueryApi.GetFundsAsync(
+                Arg.Any<int>(),
+                Arg.Any<FundOperatingState?>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundMandateReadModel>>(Page(FundMandate())));
+        portfolioQueryApi.GetOrdersAsync(
+                Arg.Any<int>(),
+                Arg.Any<int>(),
+                Arg.Any<DateOnly>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(call => new ServiceOk<PortfolioPage<FundOrderProjectionReadModel>>(
+                call.ArgAt<DateOnly>(2) == new DateOnly(2026, 8, 1)
+                    ? Page(CanonicalOrder())
+                    : Page<FundOrderProjectionReadModel>()));
+        portfolioQueryApi.GetOrderTradesAsync(
+                Arg.Any<int>(),
+                Arg.Any<int>(),
+                Arg.Any<string?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ServiceOk<PortfolioPage<FundOrderTradeProjectionReadModel>>(Page(CanonicalTrade())));
+        var portfolioFundCommandApi = Substitute.For<IPortfolioFundCommandApi>();
         var riskConsumer = Substitute.For<IFundRiskMarginUIEventConsumer>();
         var eventConsumers = new EventHarness();
         var referenceApi = Substitute.For<IReferenceQueryApi>();
         var appRoot = Substitute.For<IAppRoot>();
+        appRoot.Services.PortfolioQueries.Returns(portfolioQueryApi);
+        appRoot.Services.PortfolioFundCommands.Returns(portfolioFundCommandApi);
         appRoot.Services.FundQueries.Returns(new FundQueryService(queryApi));
         appRoot.Services.FundCommands.Returns(new FundCommandService(
             commandApi,
@@ -274,8 +393,88 @@ public class TradeOrderEditorViewModelTests
             [Contract()],
             UiServiceFactory.CreateReference(referenceApi),
             timeProvider ?? new ManualTimeProvider(EntryWindowUtc));
-        return new Subject(viewModel, queryApi, commandApi, eventConsumers);
+        return new Subject(
+            viewModel,
+            queryApi,
+            commandApi,
+            portfolioQueryApi,
+            portfolioFundCommandApi,
+            eventConsumers);
     }
+
+    static PortfolioReadModel Portfolio()
+        => new()
+        {
+            PortfolioId = 41,
+            Name = "Trading Portfolio",
+            PortfolioVersion = 3,
+            OperatingState = PortfolioOperatingState.Active,
+            EffectiveFromUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ActivePolicyId = 9,
+            ActivePolicyVersion = 2,
+            CreatedOnUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            CreatedBy = "test"
+        };
+
+    static FundMandateReadModel FundMandate()
+        => new()
+        {
+            PortfolioId = 41,
+            FundId = 17,
+            FundCode = "PAPER",
+            Name = "Paper",
+            FundMandateVersion = 4,
+            TradingYear = 2026,
+            OperatingState = FundOperatingState.Active,
+            EffectiveFromUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            DecisionHorizon = "Daily",
+            Objective = "Paper trading",
+            UnderlyingUniverse = ["ES"],
+            EligibleAssetTypes = ["FUT", "OPT"],
+            PermittedTradeFamilies = ["Futures", "VerticalSpreads", "IronCondor"],
+            CreatedOnUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            CreatedBy = "test"
+        };
+
+    static FundOrderProjectionReadModel CanonicalOrder(
+        int orderId = 101,
+        DateTime? createdOnUtc = null)
+        => new()
+        {
+            PortfolioId = 41,
+            FundId = 17,
+            OrderId = orderId,
+            WorkflowId = Guid.Parse("bb91b2db-20b5-42c4-aa4b-9023daf1328b"),
+            Status = "Reserved",
+            CreatedOnUtc = createdOnUtc ?? new DateTime(2026, 8, 11, 14, 0, 0, DateTimeKind.Utc),
+            CreatedBy = "test",
+            AggregateVersion = 1,
+            ExpiresAtUtc = new DateTime(2026, 8, 12, 14, 0, 0, DateTimeKind.Utc),
+            IdempotencyKey = Guid.Parse("fb971b1f-f42f-4eaa-b885-2ae9c4e6118c"),
+            Origin = CompositionOrigin.ManualUi,
+            OperatorReference = $"Order {orderId}"
+        };
+
+    static FundOrderTradeProjectionReadModel CanonicalTrade()
+        => new()
+        {
+            PortfolioId = 41,
+            FundId = 17,
+            OrderId = 101,
+            TradeId = 7,
+            TradeFamily = "IronCondor",
+            InstructionReference = "P:4500:4550 X C:5000:5050",
+            LegOrdinal = 1,
+            AggregateVersion = 1,
+            DirectionOrBias = "Neutral",
+            TradeAction = "Sell",
+            UnderlyingRoot = "ES",
+            RequestedTradeDate = new DateOnly(2026, 8, 11),
+            RequestedMaturityDate = new DateOnly(2026, 9, 18)
+        };
+
+    static PortfolioPage<T> Page<T>(params T[] items)
+        => new() { Items = items, PageSize = 200 };
 
     static FundReadModel Fund()
         => new(17, "Paper", "Paper trading", 100_000m, false, DateTime.UtcNow, "test");
@@ -337,6 +536,8 @@ public class TradeOrderEditorViewModelTests
         TradeOrderEditorViewModel ViewModel,
         IFundQueryApi QueryApi,
         IFundCommandApi CommandApi,
+        IPortfolioQueryApi PortfolioQueryApi,
+        IPortfolioFundCommandApi PortfolioFundCommandApi,
         EventHarness Events);
 
     sealed class EventHarness

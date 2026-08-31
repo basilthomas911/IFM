@@ -5,6 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
 
@@ -27,7 +28,9 @@ public sealed class MarketOutlookOrCompositionScenarios
             6_450m,
             6_350m,
             6_425m,
-            100_000);
+            100_000,
+            0.0039,
+            priceDirection: PriceDirectionType.Rising);
         var rsi = new FuturesRsiSignalReadModel
         {
             ContractId = entityId.ContractId,
@@ -60,6 +63,9 @@ public sealed class MarketOutlookOrCompositionScenarios
             .Which.MarketOutlook;
         snapshot.Should().NotBeNull();
         snapshot.FuturesEodData.Should().Be(eod);
+        snapshot.FuturesEodData.OpenPrice.Should().Be(6_400m);
+        snapshot.FuturesEodData.ClosePrice.Should().Be(6_425m);
+        snapshot.FuturesEodData.DailyPercentChange.Should().Be(0.0039);
         snapshot.FuturesRsiSignal.Should().Be(rsi);
         snapshot.FuturesTradeSignal.Should().NotBeNull();
         snapshot.FuturesTradeSignal!.RSI.Should().Be(62.5);

@@ -56,6 +56,37 @@ public sealed class FuturesAtrWilderAccumulatorTests
     }
 
     [Fact]
+    public void TryApply_AcceptsLaterIntervalFromNewEpochWithLowerSequence()
+    {
+        var oldEpoch = Guid.NewGuid();
+        var newEpoch = Guid.NewGuid();
+        var first = Observation(10_000, 99m, 101m, 100m) with
+        {
+            StreamEpochId = oldEpoch
+        };
+        FuturesAtrWilderAccumulator.TryApply(first, 14, null, out var accepted).Should().BeTrue();
+        var resumedEnd = first.IntervalEndUtc.AddMinutes(1);
+        var resumed = Observation(1, 100m, 102m, 101m) with
+        {
+            ObservationId = FuturesTradeSessionBarId.Create(
+                Series, TimeFrameType.OneMinute, resumedEnd, 1),
+            IntervalStartUtc = resumedEnd.AddMinutes(-1),
+            IntervalEndUtc = resumedEnd,
+            FirstMarketEventUtc = resumedEnd.AddSeconds(-30),
+            LastMarketEventUtc = resumedEnd,
+            CalculatedAtUtc = resumedEnd,
+            StreamEpochId = newEpoch
+        };
+
+        FuturesAtrWilderAccumulator.TryApply(
+            resumed, 14, accepted.Checkpoint, out var result).Should().BeTrue();
+        result.Checkpoint.ObservationCount.Should().Be(2);
+        result.Checkpoint.LastSourceSequence.Should().Be(1);
+        result.Checkpoint.LastStreamEpochId.Should().Be(newEpoch);
+        result.Checkpoint.LastIntervalEndUtc.Should().Be(resumedEnd);
+    }
+
+    [Fact]
     public void TryApply_ProducesPriorOnlyBaselineOnThirtyFourthObservation()
     {
         FuturesAtrAccumulatorCheckpoint? checkpoint = null;

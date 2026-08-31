@@ -97,6 +97,9 @@ public sealed record MarketAnalyticsSignalMetadata
     /// <summary>Gets stable issues explaining an invalid signal.</summary>
     [Key(11)] public MarketSignalValidationIssue[] ValidationIssues { get; init; } = [];
 
+    /// <summary>Gets the Databento stream epoch paired with <see cref="SourceSequence"/>, when applicable.</summary>
+    [Key(12)] public Guid StreamEpochId { get; init; }
+
     /// <summary>Gets the exact provider-neutral market series from <see cref="SignalKey"/>.</summary>
     [IgnoreMember]
     public MarketSeriesIdentity MarketSeriesIdentity => SignalKey.MarketSeriesIdentity;

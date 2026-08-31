@@ -773,7 +773,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         });
     }
 
-    async ValueTask ProcessMarketOutlookSnapshotAsync(
+    internal async ValueTask ProcessMarketOutlookSnapshotAsync(
         MarketOutlookSnapshotReadModel snapshot,
         CancellationToken cancellationToken)
     {
