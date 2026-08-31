@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Contracts;
 
 namespace TomasAI.IFM.UI.Net.Views.Trade;
 
@@ -118,7 +119,10 @@ public sealed class LegacyTradeHistoryView : UserControl
 /// <summary>Creates or activates the unique read-only legacy trade tab in the main blotter area.</summary>
 public static class LegacyTradeHistoryTabFactory
 {
-    public static TabPage OpenOrActivate(TabControl host, LegacyFundTradeHistoryReadModel history)
+    public static TabPage OpenOrActivate(
+        TabControl host,
+        LegacyFundTradeHistoryReadModel history,
+        Func<TabPage, Control?>? createActualTradeViewer = null)
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(history);
@@ -132,10 +136,26 @@ public static class LegacyTradeHistoryTabFactory
                 Name = key,
                 BackColor = Color.Black,
                 UseVisualStyleBackColor = false,
-                Tag = history,
             };
-            page.Controls.Add(new LegacyTradeHistoryView(history));
             host.TabPages.Add(page);
+            try
+            {
+                var viewer = history.TradeDbTrade is not null
+                    ? createActualTradeViewer?.Invoke(page)
+                    : null;
+                viewer ??= new LegacyTradeHistoryView(history);
+                viewer.Dock = DockStyle.Fill;
+                page.Tag = viewer is IFormControl ? viewer : history;
+                page.Controls.Add(viewer);
+                if (viewer is IFormControl formControl)
+                    formControl.Open();
+            }
+            catch
+            {
+                host.TabPages.Remove(page);
+                page.Dispose();
+                throw;
+            }
         }
         host.SelectedTab = page;
         host.Visible = true;

@@ -1,10 +1,7 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 
@@ -12,14 +9,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public static class TradeBlotterFactory
 {
-    public static Control? Create(Control parentControl, IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate, ICollection<FuturesContractV2ReadModel> baseContracts)
+    public static Control? Create(Control parentControl, IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate, ICollection<FuturesContractV2ReadModel> baseContracts, bool historicalReadOnly = false)
     {
         var blotter = default(Control);
         switch(fundOrderTrade.TradeType)
         {
             case TradeType.ShortIronCondor:
             case TradeType.LongIronCondor:
-                var viewModel = new IronCondorViewModel(appRoot, fund, fundOrder, fundOrderTrade, valueDate, baseContracts);
+                var viewModel = new IronCondorViewModel(appRoot, fund, fundOrder, fundOrderTrade, valueDate, baseContracts, historicalReadOnly: historicalReadOnly);
                 blotter = new IronCondorView(parentControl, viewModel);
                 break;
         }

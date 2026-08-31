@@ -87,6 +87,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     decimal _fundBalance;
     double _riskFreeRate;
     readonly TimeProvider _timeProvider;
+    readonly bool _historicalReadOnly;
     readonly AsyncLifecycleCoordinator _liveFeedLifecycle;
     CancellationTokenSource _resetListenerCancellation = new();
     Dictionary<string, OptionTradeLegDataReadModel> _optionLegDataMap;
@@ -131,7 +132,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <param name="baseContracts"></param>
     public IronCondorViewModel(IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate,
         ICollection<FuturesContractV2ReadModel> baseContracts,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        bool historicalReadOnly = false)
     {
         _appRoot = appRoot;
         _fund = fund;
@@ -141,6 +143,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _baseContracts = baseContracts;
         _fundOrderTrades = [];
         _fundOrderTrades.AddRange(_fundOrder.Trades);
+        if (_fundOrderTrades.All(trade => trade.Id != _fundOrderTrade.Id))
+            _fundOrderTrades.Add(_fundOrderTrade);
         _tradePositions = [];
         _futuresEodData = [];
         _optionLegDataMap = [];
@@ -149,6 +153,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
         _siteId = _appRoot.Services.CommandResponses.SiteId;
         _liveStreamsIds = [];
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _historicalReadOnly = historicalReadOnly;
         _liveFeedLifecycle = new AsyncLifecycleCoordinator(EnableLiveFeedCoreAsync, DisableLiveFeedCoreAsync);
     }
 
@@ -160,6 +165,11 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public ICollection<FuturesContractV2ReadModel> BaseContracts => _baseContracts;
     public int OrderId => _fundOrder.OrderId;
     public int TradeId => _fundOrderTrade.TradeId;
+    /// <summary>
+    /// Gets whether this instance is a query-only historical viewer. Historical viewers retain the complete
+    /// TradeDb presentation while permanently fencing live feeds and TradeDb mutations.
+    /// </summary>
+    public bool IsHistoricalReadOnly => _historicalReadOnly;
     public object[] LiveFeedLabels => new object[] { LiveFeedOff, LiveFeedOn };
     public bool IsLiveFeedEnabled
     {
@@ -280,6 +290,8 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     public async Task EnableMarketDataFeedResetListener()
     {
+        if (_historicalReadOnly)
+            return;
         if (_resetListenerEnabled)
             return;
         if (_resetListenerCancellation.IsCancellationRequested)
@@ -309,17 +321,22 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     private Task DeleteOptionTradeSpreadBarData()
-        => _appRoot.Services.TradeCommands.ExecuteAsync(async model => {
+    {
+        EnsureOperationalMode();
+        return _appRoot.Services.TradeCommands.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMsg) => PublishError(errorCode, errorMsg, "Delete Option Trade Spread Bar Data Error"));
             var optionTradeId = new OptionTradeEntityId(_fundOrderTrade.OrderId, _fundOrderTrade.TradeId);
             await model.DeleteOptionTradeSpreadBarDataAsync(optionTradeId, _fundOrderTrade.TradeType, _valueDate.HasValue? _valueDate.Value: DateOnly.FromDateTime(EasternTime.GetNow(TimeProvider.System)));
         });
+    }
 
     /// <summary>
     /// disable market data feed listener
     /// </summary>
     public async Task DisableMarketDataFeedResetListener()
     {
+        if (_historicalReadOnly)
+            return;
         if (!_resetListenerEnabled)
             return;
         _resetListenerCancellation.Cancel();
@@ -737,11 +754,14 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
 
     /// <inheritdoc />
     public Task InitializeAsync(CancellationToken cancellationToken)
-        => _liveFeedLifecycle.InitializeAsync(cancellationToken);
+    {
+        EnsureOperationalMode();
+        return _liveFeedLifecycle.InitializeAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken)
-        => _liveFeedLifecycle.StopAsync(cancellationToken);
+        => _historicalReadOnly ? Task.CompletedTask : _liveFeedLifecycle.StopAsync(cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -1288,12 +1308,22 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     }
 
     public Task InsertOptionTradeSpreadData(decimal netForwardPrice, (TradePositionReadModel PutCreditSpread, TradePositionReadModel CallCreditSpread) e)
-       => _appRoot.Services.TradeCommands
+    {
+       EnsureOperationalMode();
+       return _appRoot.Services.TradeCommands
             .ExecuteAsync(async model => {
                 model.OnError((errorCode, errorMessage) => PublishError(errorCode, errorMessage, "Insert Option Trade Spread Data Error"));
                 var optionTradeSpreadData = GetOptionTradeSpreadData(netForwardPrice, e);
                 await model.InsertOptionTradeSpreadDataAsync(optionTradeSpreadData);
             });
+    }
+
+    void EnsureOperationalMode()
+    {
+        if (_historicalReadOnly)
+            throw new InvalidOperationException(
+                $"Historical trade {OrderId}:{TradeId} is read-only; live feeds and TradeDb mutations are disabled.");
+    }
 
     OptionTradeSpreadsDataModel GetOptionTradeSpreadData(decimal netForwardPrice, (TradePositionReadModel PutCreditSpread, TradePositionReadModel CallCreditSpread) e)
             => new OptionTradeSpreadsDataModel(

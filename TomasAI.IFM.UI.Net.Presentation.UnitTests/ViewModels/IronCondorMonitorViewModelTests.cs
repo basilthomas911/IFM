@@ -98,18 +98,69 @@ public class IronCondorMonitorViewModelTests
         await viewModel.DisposeAsync();
     }
 
-    static IronCondorViewModel CreateViewModel(IAppRoot? appRoot = null)
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public async Task HistoricalViewer_LoadsSelectedTrade_WhenLegacyOrderDoesNotEmbedItsCompositions()
+    {
+        var optionTrade = new OptionTradeReadModel
+        {
+            OrderId = 101,
+            TradeId = 7,
+            TradeDate = ValueDate,
+            TradeType = TradeType.ShortIronCondor,
+        };
+        var tradeApi = Substitute.For<ITradeQueryApi>();
+        tradeApi.GetOptionTradeAsync(101, 7).Returns(new ServiceOk<OptionTradeReadModel>(optionTrade));
+        var appRoot = CreateAppRoot();
+        appRoot.Services.TradeQueries.Returns(new TradeQueryService(tradeApi));
+        var viewModel = CreateViewModel(appRoot, historicalReadOnly: true, embedTradeInOrder: false);
+
+        var result = await viewModel.LoadIronCondorTrade();
+
+        result.Should().NotBeNull();
+        result!.EntityId.Should().Be(optionTrade.EntityId);
+        viewModel.IsHistoricalReadOnly.Should().BeTrue();
+        await tradeApi.Received(1).GetOptionTradeAsync(101, 7);
+        await viewModel.DisposeAsync();
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public async Task HistoricalViewer_FencesListenersLiveFeedsAndTradeDbWrites()
+    {
+        var viewModel = CreateViewModel(historicalReadOnly: true);
+
+        await viewModel.EnableMarketDataFeedResetListener();
+        var enableFeed = () => viewModel.EnableLiveFeedAsync();
+        var writeSpread = () => viewModel.InsertOptionTradeSpreadData(0m, (null!, null!));
+
+        (await enableFeed.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*read-only*live feeds and TradeDb mutations are disabled*");
+        (await writeSpread.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage("*read-only*live feeds and TradeDb mutations are disabled*");
+        viewModel.IsLiveFeedEnabled.Should().BeFalse();
+        await viewModel.DisposeAsync();
+    }
+
+    static IronCondorViewModel CreateViewModel(
+        IAppRoot? appRoot = null,
+        bool historicalReadOnly = false,
+        bool embedTradeInOrder = true)
     {
         var trade = Trade();
         var order = Order();
-        order.Add(trade);
+        if (embedTradeInOrder)
+            order.Add(trade);
         return new IronCondorViewModel(
             appRoot ?? CreateAppRoot(),
             Fund(),
             order,
             trade,
             ValueDate,
-            [Contract()]);
+            [Contract()],
+            historicalReadOnly: historicalReadOnly);
     }
 
     static IAppRoot CreateAppRoot()

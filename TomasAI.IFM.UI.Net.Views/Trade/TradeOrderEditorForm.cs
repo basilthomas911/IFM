@@ -38,6 +38,9 @@ public partial class TradeOrderEditorForm
     readonly ComboBox _historyModeSelector = new() { Name = "ddlTradeHistoryMode", AccessibleName = "Trade history mode", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 10F), Location = new Point(1300, 8), Size = new Size(140, 28) };
     bool _canonicalOrderSelected;
     bool _legacyOrderSelected;
+    LegacyFundOrderHistoryReadModel? _selectedLegacyOrder;
+    Control? _embeddedLegacyTradeBlotter;
+    long _legacyViewerGeneration;
 
     /// <summary>
     /// create trade order form
@@ -63,6 +66,12 @@ public partial class TradeOrderEditorForm
 
     /// <summary>Gets the read-only historical trade accepted for the main-screen legacy tab.</summary>
     public LegacyFundTradeHistoryReadModel? LegacyTradeHistory { get; private set; }
+
+    /// <summary>Gets the source legacy Fund selected with <see cref="LegacyTradeHistory"/>.</summary>
+    public FundReadModel? LegacyFund { get; private set; }
+
+    /// <summary>Gets the source legacy FundOrder selected with <see cref="LegacyTradeHistory"/>.</summary>
+    public FundOrderReadModel? LegacyFundOrder { get; private set; }
 
     /// <summary>
     /// load view model
@@ -94,11 +103,13 @@ public partial class TradeOrderEditorForm
         _historyModeSelector.SelectedIndexChanged += async (_, _) =>
         {
             if (_rendering || _viewModel is null) return;
+            Interlocked.Increment(ref _legacyViewerGeneration);
+            await CloseEmbeddedLegacyTradeBlotterAsync();
             var legacy = _historyModeSelector.SelectedIndex == 1;
             if (legacy)
             {
                 dtpFrom.Value = new DateTime(2000, 1, 1);
-                dtpTo.Value = DateTime.Today.AddDays(1);
+                dtpTo.Value = EasternTime.GetNow(TimeProvider.System).Date.AddDays(1);
             }
             _viewModel.SetOrderDateRange(dtpFrom.Value, dtpTo.Value);
             await _viewModel.SetLegacyHistoryModeAsync(legacy);
@@ -242,6 +253,8 @@ public partial class TradeOrderEditorForm
 
     async void TradeOrderEditorForm_FormClosing(object sender, FormClosingEventArgs e)
     {
+        Interlocked.Increment(ref _legacyViewerGeneration);
+        await CloseEmbeddedLegacyTradeBlotterAsync();
         if (_viewModel is not null)
         {
             _viewModel.PropertyChanged -= ViewModelPropertyChanged;
@@ -260,6 +273,8 @@ public partial class TradeOrderEditorForm
 
     async Task LoadFundsAsync()
     {
+        Interlocked.Increment(ref _legacyViewerGeneration);
+        await CloseEmbeddedLegacyTradeBlotterAsync();
         _lastTradeIndex = -1;
         _lastTradeOrderIndex = -1;
         _displayedTradeId = null;
@@ -418,7 +433,7 @@ public partial class TradeOrderEditorForm
             pnlTradeControl.Controls.Clear();
         }
         if (!wasRendering && lstTrades.SelectedIndices.Count > 0)
-            ShowSelectedTrade();
+            _ = ObserveAsync(ShowSelectedTradeAsync);
     }
 
     void UpdateButtons()
@@ -564,6 +579,8 @@ public partial class TradeOrderEditorForm
             || lstTrades.SelectedItems[0].Tag is not LegacyFundTradeHistoryReadModel history)
             return;
         LegacyTradeHistory = history;
+        LegacyFund = _viewModel.SelectedFund;
+        LegacyFundOrder = _selectedLegacyOrder?.Order;
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -583,6 +600,8 @@ public partial class TradeOrderEditorForm
     async void lstTradeOrders_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (_rendering) return;
+        Interlocked.Increment(ref _legacyViewerGeneration);
+        await CloseEmbeddedLegacyTradeBlotterAsync();
         _displayedTradeId = null;
         pnlTradeControl.Controls.Clear();
         ddlOrderActionType.Enabled = false;
@@ -593,6 +612,7 @@ public partial class TradeOrderEditorForm
         {
             if (lstTradeOrders.SelectedItems[0].Tag is LegacyFundOrderHistoryReadModel legacy)
             {
+                _selectedLegacyOrder = legacy;
                 _legacyOrderSelected = true;
                 _canonicalOrderSelected = false;
                 _viewModel.SelectFundOrder(-1);
@@ -603,6 +623,7 @@ public partial class TradeOrderEditorForm
             }
             if (lstTradeOrders.SelectedItems[0].Tag is FundOrderProjectionReadModel canonical)
             {
+                _selectedLegacyOrder = null;
                 _legacyOrderSelected = false;
                 _canonicalOrderSelected = true;
                 _viewModel.SelectFundOrder(-1);
@@ -614,6 +635,7 @@ public partial class TradeOrderEditorForm
             }
             _canonicalOrderSelected = false;
             _legacyOrderSelected = false;
+            _selectedLegacyOrder = null;
             _viewModel.SelectFundOrder(lstTradeOrders.SelectedIndices[0]);
             RenderTrades();
             UpdateButtons();
@@ -622,25 +644,28 @@ public partial class TradeOrderEditorForm
         {
             _canonicalOrderSelected = false;
             _legacyOrderSelected = false;
+            _selectedLegacyOrder = null;
             _viewModel.SelectFundOrder(-1);
         }
     }
 
 
-    void lstTrades_SelectedIndexChanged(object sender, EventArgs e)
+    async void lstTrades_SelectedIndexChanged(object sender, EventArgs e)
     {
         if (_rendering) return;
-        ShowSelectedTrade();
+        await ObserveAsync(ShowSelectedTradeAsync);
     }
 
-    void ShowSelectedTrade()
+    async Task ShowSelectedTradeAsync()
     {
         if (_viewModel.IsLegacyHistoryMode && lstTrades.SelectedItems.Count > 0
             && lstTrades.SelectedItems[0].Tag is LegacyFundTradeHistoryReadModel history)
         {
-            ShowLegacyTrade(history);
+            await ShowLegacyTradeBlotterAsync(history);
             return;
         }
+        Interlocked.Increment(ref _legacyViewerGeneration);
+        await CloseEmbeddedLegacyTradeBlotterAsync();
         if (_viewModel!.FundOrders.Count > 0 && _viewModel!.FundOrderTrades.Count > 0)
         {
             var index = lstTrades.SelectedIndices.Count > 0 ? lstTrades.SelectedIndices[0] : 0;
@@ -726,8 +751,9 @@ public partial class TradeOrderEditorForm
         }
     }
 
-    void ShowLegacyTrade(LegacyFundTradeHistoryReadModel history)
+    async Task ShowLegacyTradeBlotterAsync(LegacyFundTradeHistoryReadModel history)
     {
+        var generation = Interlocked.Increment(ref _legacyViewerGeneration);
         var composition = history.Composition;
         var trade = history.TradeDbTrade;
         txtTradeType.Text = composition.TradeType.ToString();
@@ -737,23 +763,92 @@ public partial class TradeOrderEditorForm
         txtDaysToExpiry.Text = composition.TradeDate == DateOnly.MinValue || composition.MaturityDate == DateOnly.MinValue
             ? "Unknown"
             : $"{composition.MaturityDate.DayNumber - composition.TradeDate.DayNumber}";
+        await CloseEmbeddedLegacyTradeBlotterAsync();
+        if (generation != Volatile.Read(ref _legacyViewerGeneration))
+            return;
         pnlTradeControl.Controls.Clear();
-        var detail = new TextBox
+
+        var fund = _viewModel.SelectedFund;
+        var order = _selectedLegacyOrder?.Order;
+        if (trade is null || fund is null || order is null)
+        {
+            ShowTradeBlotterUnavailable(
+                trade is null
+                    ? $"No corresponding TradeDb trade exists for {composition.OrderId}:{composition.TradeId}."
+                    : $"The source Fund or FundOrder is unavailable for {composition.OrderId}:{composition.TradeId}.");
+            UpdateButtons();
+            return;
+        }
+
+        var valueDate = trade.TradePositions?
+            .Select(position => (DateOnly?)position.ValueDate)
+            .Max()
+            ?? (trade.TradeDate != DateOnly.MinValue
+                ? trade.TradeDate
+                : composition.TradeDate == DateOnly.MinValue ? null : composition.TradeDate);
+        var viewer = TradeBlotterFactory.Create(
+            pnlTradeControl,
+            _appRoot,
+            fund,
+            order,
+            composition,
+            valueDate,
+            [.. _viewModel.BaseContracts],
+            historicalReadOnly: true);
+        if (viewer is null)
+        {
+            ShowTradeBlotterUnavailable(
+                $"No real trade blotter is available for trade type {composition.TradeType}.");
+            UpdateButtons();
+            return;
+        }
+        if (generation != Volatile.Read(ref _legacyViewerGeneration))
+        {
+            await CloseControlAsync(viewer);
+            viewer.Dispose();
+            return;
+        }
+
+        _embeddedLegacyTradeBlotter = viewer;
+        viewer.Dock = DockStyle.Fill;
+        pnlTradeControl.Controls.Add(viewer);
+        if (viewer is IFormControl formControl)
+            formControl.Open();
+        UpdateButtons();
+    }
+
+    void ShowTradeBlotterUnavailable(string message)
+    {
+        pnlTradeControl.Controls.Clear();
+        pnlTradeControl.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
             BackColor = Color.FromArgb(48, 48, 48),
             ForeColor = Color.White,
-            Font = new Font("Consolas", 11F),
-            AccessibleName = $"Legacy trade {composition.OrderId}:{composition.TradeId} execution details",
-            Text = trade is null
-                ? $"LEGACY COMPOSITION\r\nOrderId: {composition.OrderId}\r\nTradeId: {composition.TradeId}\r\nState: {composition.TradeState}\r\nType: {composition.TradeType}\r\nReference: {composition.Reference}\r\n\r\nTRADEDB MATCH\r\nNo corresponding TradeDb option_trade record."
-                : $"LEGACY COMPOSITION\r\nOrderId: {composition.OrderId}\r\nTradeId: {composition.TradeId}\r\nState: {composition.TradeState}\r\nType: {composition.TradeType}\r\nReference: {composition.Reference}\r\n\r\nTRADEDB EXECUTION HISTORY\r\nMatch: {history.MatchStatus}\r\nTrade state: {trade.TradeState}\r\nUnderlying: {trade.UnderlyingContractId}\r\nOption legs: {history.OptionLegCount}\r\nFills: {history.FillCount}\r\nPositions: {history.PositionCount}"
-        };
-        pnlTradeControl.Controls.Add(detail);
-        UpdateButtons();
+            Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter,
+            AccessibleName = message,
+            Text = message,
+        });
+    }
+
+    async Task CloseEmbeddedLegacyTradeBlotterAsync()
+    {
+        var viewer = _embeddedLegacyTradeBlotter;
+        _embeddedLegacyTradeBlotter = null;
+        if (viewer is null)
+            return;
+        pnlTradeControl.Controls.Remove(viewer);
+        await CloseControlAsync(viewer);
+        viewer.Dispose();
+    }
+
+    static async ValueTask CloseControlAsync(Control viewer)
+    {
+        if (viewer is IAsyncFormControl asyncControl)
+            await asyncControl.CloseAsync();
+        else if (viewer is IFormControl formControl)
+            formControl.Close();
     }
 
     static string LegacyDate(DateOnly value) => value == DateOnly.MinValue ? "Unknown" : $"{value:yyyy-MMM-dd}";

@@ -23,6 +23,9 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     bool _renderingLiveFeed;
     long _lastErrorSequence;
 
+    /// <summary>Gets whether this blotter is permanently constrained to historical query-only behavior.</summary>
+    public bool IsHistoricalReadOnly => _viewModel.IsHistoricalReadOnly;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="IronCondorView"/> class with the specified parent control and view
     /// model.
@@ -50,6 +53,12 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         ddlLiveFeed.SelectedIndex = 0;
         pbPercentProfit.Style = ProgressBarStyle.Continuous;
         pnlRt.Visible = true;
+        if (_viewModel.IsHistoricalReadOnly)
+        {
+            ddlLiveFeed.Visible = false;
+            ddlLiveFeed.Enabled = false;
+            AccessibleName = $"Read-only historical Iron Condor trade {_viewModel.OrderId}:{_viewModel.TradeId}";
+        }
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
     }
 
@@ -61,14 +70,39 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// <param name="parentControl">The parent control whose size is used to adjust the layout of this control.</param>
     void IFormControl.Resize(Control parentControl)
     {
-        Size = parentControl.Size;
-        pnlAssetSplitter.SplitterDistance = 680;
-        pnlRealTimeData.Width = Width - pnlIronCondorTradeInfo.Width - 10;
-        pnlRealTimeData.SplitterDistance = 495;
-        pnlTradeSplitter.SplitterDistance = 495;
-        var graphWidth = (Width - pnlIronCondorTradeInfo.Width) / 2;
-        graphSpreadDistribution.Width = graphWidth;
-        graphEodData.Width = graphWidth;
+        ArgumentNullException.ThrowIfNull(parentControl);
+        Dock = DockStyle.Fill;
+        var parentSize = parentControl.ClientSize;
+        if (parentSize.Width <= 0 || parentSize.Height <= 0)
+            return;
+
+        SuspendLayout();
+        try
+        {
+            Size = parentSize;
+            SetSplitterDistance(pnlAssetSplitter, 680);
+            pnlRealTimeData.Width = Math.Max(1, Width - pnlIronCondorTradeInfo.Width - 10);
+            SetSplitterDistance(pnlRealTimeData, 495);
+            SetSplitterDistance(pnlTradeSplitter, 495);
+            var graphWidth = Math.Max(1, (Width - pnlIronCondorTradeInfo.Width) / 2);
+            graphSpreadDistribution.Width = graphWidth;
+            graphEodData.Width = graphWidth;
+        }
+        finally
+        {
+            ResumeLayout(performLayout: true);
+        }
+
+        static void SetSplitterDistance(SplitContainer splitter, int preferredDistance)
+        {
+            var length = splitter.Orientation == Orientation.Vertical
+                ? splitter.ClientSize.Width
+                : splitter.ClientSize.Height;
+            var maximum = length - splitter.SplitterWidth - splitter.Panel2MinSize;
+            if (maximum < splitter.Panel1MinSize)
+                return;
+            splitter.SplitterDistance = Math.Clamp(preferredDistance, splitter.Panel1MinSize, maximum);
+        }
     }
 
     /// <summary>
@@ -113,10 +147,13 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         lstTradePlanAction.SetDoubleBuffered(true);
         lstTradeHistory.SetDoubleBuffered(true);
         lstTradeHistory.Enabled = true;
-        lblTradeDescription.Text = $"{_viewModel.Fund.Name} | {_viewModel.FundOrder.Reference ?? string.Empty}";
+        lblTradeDescription.Text = _viewModel.IsHistoricalReadOnly
+            ? $"READ-ONLY HISTORICAL TRADE | {_viewModel.Fund.Name} | {_viewModel.FundOrder.Reference ?? string.Empty}"
+            : $"{_viewModel.Fund.Name} | {_viewModel.FundOrder.Reference ?? string.Empty}";
         try
         {
-            await _viewModel.EnableMarketDataFeedResetListener();
+            if (!_viewModel.IsHistoricalReadOnly)
+                await _viewModel.EnableMarketDataFeedResetListener();
             var trade = await _viewModel.LoadIronCondorTrade();
             if (trade is null)
             {
@@ -213,7 +250,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
                 RenderLiveFeedState();
                 break;
             case nameof(IronCondorViewModel.IsLoading):
-                ddlLiveFeed.Enabled = !_viewModel.IsLoading && _viewModel.FuturesEodHistory.Length > 0;
+                ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && !_viewModel.IsLoading && _viewModel.FuturesEodHistory.Length > 0;
                 break;
         }
     }
@@ -233,7 +270,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         }
         graphEodData.ChartAreas[0].RecalculateAxesScale();
         graphEodData.Update();
-        ddlLiveFeed.Enabled = !_viewModel.IsLoading;
+        ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && !_viewModel.IsLoading;
     }
 
     void RenderTradeHistory()
@@ -544,7 +581,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
             tradePnlValue = tradePnlValue > maxLoss ? tradePnlValue :maxLoss ;
             DisplayPercentLoss(maxLoss);
         }
-        ddlLiveFeed.Enabled = _viewModel.ValueDate.HasValue;
+        ddlLiveFeed.Enabled = !_viewModel.IsHistoricalReadOnly && _viewModel.ValueDate.HasValue;
         return;
 
         double ToDoublePercent(string percentText)
@@ -772,7 +809,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     /// <param name="e">The event arguments.</param>
     async void ddlLiveFeed_SelectedIndexChanged(object sender, EventArgs e)
     {
-        if (!ddlLiveFeed.Enabled || _renderingLiveFeed)
+        if (_viewModel.IsHistoricalReadOnly || !ddlLiveFeed.Enabled || _renderingLiveFeed)
             return;
         try
         {

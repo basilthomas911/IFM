@@ -27,6 +27,7 @@ using TomasAI.IFM.UI.Net.ViewModels.Reference;
 using TomasAI.IFM.UI.Net.Services.Reference;
 using TomasAI.IFM.UI.Net.ViewModels.Fund;
 using TomasAI.IFM.UI.Net.ViewModels.SystemAdmin;
+using TomasAI.IFM.Domain.Portfolio.Shared.ViewModels;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
@@ -405,7 +406,20 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
             case NavigationResult.Accepted:
                 if (dlg?.LegacyTradeHistory is { } legacyHistory)
                 {
-                    var tabPage = LegacyTradeHistoryTabFactory.OpenOrActivate(tabTradeBlotter, legacyHistory);
+                    var tabPage = LegacyTradeHistoryTabFactory.OpenOrActivate(
+                        tabTradeBlotter,
+                        legacyHistory,
+                        parent => dlg.LegacyFund is null || dlg.LegacyFundOrder is null
+                            ? null
+                            : TradeBlotterFactory.Create(
+                                parent,
+                                _appRoot,
+                                dlg.LegacyFund,
+                                dlg.LegacyFundOrder,
+                                legacyHistory.Composition,
+                                ResolveHistoricalValueDate(legacyHistory),
+                                [.. _viewModel.BaseContracts],
+                                historicalReadOnly: true));
                     btnCloseOrder.Text = $"Close Trade: {tabPage.Text}";
                     btnCloseOrder.Visible = true;
                     ResizeTabPages();
@@ -472,6 +486,20 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         {
             this.ShowErrorMessage(ex.Message, "Market Data Feed Error");
         }
+    }
+
+    static DateOnly? ResolveHistoricalValueDate(LegacyFundTradeHistoryReadModel history)
+    {
+        var positionDate = history.TradeDbTrade?.TradePositions?
+            .Select(position => (DateOnly?)position.ValueDate)
+            .Max();
+        if (positionDate.HasValue)
+            return positionDate;
+        if (history.TradeDbTrade?.TradeDate is { } tradeDate && tradeDate != DateOnly.MinValue)
+            return tradeDate;
+        return history.Composition.TradeDate == DateOnly.MinValue
+            ? null
+            : history.Composition.TradeDate;
     }
 
     private void fundButton_Click(object sender, EventArgs e)

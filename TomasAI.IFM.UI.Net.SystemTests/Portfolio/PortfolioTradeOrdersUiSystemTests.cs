@@ -13,6 +13,10 @@ using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
+using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
+using TomasAI.IFM.UI.EventConsumer;
+using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.Services.Application;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 
@@ -74,6 +78,142 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         first.Text.Should().Be("1084:1090");
         first.Controls.Cast<Control>().Should().ContainSingle(x => x is LegacyTradeHistoryView);
         ((LegacyTradeHistoryView)first.Controls[0]).IsReadOnly.Should().BeTrue();
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public void TradeDb_backed_legacy_trade_uses_actual_historical_blotter_and_reuses_its_tab()
+    {
+        using var host = new TabControl();
+        var composition = new FundOrderTradeReadModel
+        {
+            FundId = 1004, OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.OrderFilled,
+        };
+        var tradeDbTrade = new OptionTradeReadModel
+        {
+            OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor,
+            TradeDate = new DateOnly(2024, 1, 2),
+        };
+        var history = new LegacyFundTradeHistoryReadModel
+        {
+            Composition = composition,
+            TradeDbTrade = tradeDbTrade,
+            MatchStatus = LegacyTradeMatchStatus.PositionHistory,
+        };
+        var actualViewer = new HistoricalTradeViewerStub();
+
+        var first = LegacyTradeHistoryTabFactory.OpenOrActivate(host, history, page =>
+        {
+            host.TabPages.Contains(page).Should().BeTrue("the viewer requires a measured, hosted TabPage");
+            return actualViewer;
+        });
+        var second = LegacyTradeHistoryTabFactory.OpenOrActivate(host, history, _ => throw new InvalidOperationException("duplicate viewer"));
+
+        second.Should().BeSameAs(first);
+        first.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeSameAs(actualViewer);
+        first.Controls.Cast<Control>().Should().NotContain(x => x is LegacyTradeHistoryView);
+        first.Tag.Should().BeSameAs(actualViewer);
+        actualViewer.OpenCount.Should().Be(1);
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public void Historical_iron_condor_factory_creates_the_actual_graph_blotter_with_live_feed_disabled()
+    {
+        var root = Substitute.For<IAppRoot>();
+        var services = Substitute.For<IUiServiceCatalog>();
+        var commandResponses = new CommandResponseEventService(Substitute.For<ICommandResponseUIEventConsumer>());
+        commandResponses.SetSiteId(Guid.NewGuid());
+        root.Services.Returns(services);
+        services.CommandResponses.Returns(commandResponses);
+        var fund = new FundReadModel(1004, "Legacy Fund", "history", 0m, false, DateTime.UtcNow, "legacy");
+        var order = new FundOrderReadModel(1004, 1084, DateTime.UtcNow, TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open, "ES",
+            new DateOnly(2024, 1, 2), new DateOnly(2024, 2, 2), "history", DateTime.UtcNow, "legacy", null, string.Empty);
+        var composition = new FundOrderTradeReadModel
+        {
+            FundId = 1004, OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor,
+            BaseContractSymbol = "ES", TradeDate = new DateOnly(2024, 1, 2),
+        };
+        using var host = new Panel { Size = Size.Empty };
+
+        using var viewer = TradeBlotterFactory.Create(host, root, fund, order, composition,
+            new DateOnly(2024, 1, 31), [], historicalReadOnly: true);
+
+        viewer.Should().BeOfType<IronCondorView>();
+        var ironCondor = (IronCondorView)viewer!;
+        ironCondor.IsHistoricalReadOnly.Should().BeTrue();
+        ironCondor.Dock.Should().Be(DockStyle.Fill);
+        Field<ComboBox>(ironCondor, "ddlLiveFeed").Enabled.Should().BeFalse();
+        Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphEodData").Should().NotBeNull();
+        Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphSpreadDistribution").Should().NotBeNull();
+    }
+
+    [Fact]
+    [Trait("Gate", "PF-31")]
+    [Trait("Category", "PortfolioLegacyHistory")]
+    public async Task Selecting_legacy_trade_embeds_actual_blotter_and_missing_TradeDb_shows_only_unavailable_message()
+    {
+        var root = Substitute.For<IAppRoot>();
+        var services = Substitute.For<IUiServiceCatalog>();
+        var queries = Substitute.For<IPortfolioQueryApi>();
+        var commandResponses = new CommandResponseEventService(Substitute.For<ICommandResponseUIEventConsumer>());
+        commandResponses.SetSiteId(Guid.NewGuid());
+        root.Services.Returns(services);
+        services.PortfolioQueries.Returns(queries);
+        services.CommandResponses.Returns(commandResponses);
+        var portfolio = Portfolio(1101, "Legacy Test Portfolio") with { OperatingState = PortfolioOperatingState.Draft };
+        var mapping = Fund(1101, 5001, "Imported Legacy Fund") with
+        {
+            OperatingState = FundOperatingState.Draft,
+            HistoricalSource = "FundLegacyDb",
+            HistoricalSourceFundId = 1004,
+        };
+        var legacyFund = new FundReadModel(1004, "Imported Legacy Fund", "history", 0m, false, DateTime.UtcNow, "legacy");
+        var legacyOrder = new FundOrderReadModel(1004, 1084, DateTime.UtcNow, TomasAI.IFM.Domain.Fund.Shared.OrderStatus.Open, "ES",
+            new DateOnly(2024, 1, 2), new DateOnly(2024, 2, 2), "history", DateTime.UtcNow, "legacy", null, string.Empty);
+        var orderHistory = new LegacyFundOrderHistoryReadModel { Order = legacyOrder, CompositionTradeCount = 1 };
+        var composition = new FundOrderTradeReadModel
+        {
+            FundId = 1004, OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor,
+            BaseContractSymbol = "ES", TradeDate = new DateOnly(2024, 1, 2), MaturityDate = new DateOnly(2024, 2, 2),
+        };
+        var tradeDb = new OptionTradeReadModel
+        {
+            OrderId = 1084, TradeId = 1090, TradeType = TradeType.ShortIronCondor,
+            TradeDate = new DateOnly(2024, 1, 2), MaturityDate = new DateOnly(2024, 2, 2),
+        };
+        var history = new LegacyFundTradeHistoryReadModel
+        {
+            Composition = composition, TradeDbTrade = tradeDb, MatchStatus = LegacyTradeMatchStatus.DefinitionOnly,
+        };
+        queries.GetLegacyPortfolioScopesAsync(Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyPortfolioScopeReadModel[]>([new() { Portfolio = portfolio, Funds = [mapping] }]));
+        queries.GetLegacyFundCatalogAsync(Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyFundHistoryReadModel[]>([new() { Fund = legacyFund, OrderCount = 1, CompositionTradeCount = 1 }]));
+        queries.GetLegacyFundOrdersAsync(1004, Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), 1000, Arg.Any<CancellationToken>()).Returns(
+            new ServiceOk<LegacyFundOrderHistoryReadModel[]>([orderHistory]));
+        var vm = new TradeOrderEditorViewModel(root, new DateOnly(2026, 8, 30), [], Substitute.For<IReferenceDataService>());
+        vm.SetOrderDateRange(new DateTime(2000, 1, 1), new DateTime(2026, 9, 1));
+        await vm.SetLegacyHistoryModeAsync(true);
+        using var form = new TradeOrderEditorForm(root, Substitute.For<IReferenceDataService>());
+        form.LoadViewModel(vm);
+        SetField(form, "_selectedLegacyOrder", orderHistory);
+
+        await InvokeTask(form, "ShowLegacyTradeBlotterAsync", history);
+
+        var panel = Field<Panel>(form, "pnlTradeControl");
+        panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<IronCondorView>();
+        ((IronCondorView)panel.Controls[0]).IsHistoricalReadOnly.Should().BeTrue();
+
+        await InvokeTask(form, "ShowLegacyTradeBlotterAsync", history with { TradeDbTrade = null });
+
+        panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<Label>();
+        panel.Controls[0].Text.Should().Be("No corresponding TradeDb trade exists for 1084:1090.");
+        panel.Controls[0].Text.Should().NotContain("LEGACY COMPOSITION");
+        await vm.DisposeAsync();
     }
 
     [Fact]
@@ -201,5 +341,28 @@ public sealed class PortfolioTradeOrdersUiSystemTests
             if (type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(owner) is T value)
                 return value;
         throw new InvalidOperationException($"Missing {name} on {owner.GetType().Name}.");
+    }
+
+    static void SetField(object owner, string name, object? value)
+    {
+        for (var type = owner.GetType(); type is not null; type = type.BaseType)
+            if (type.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic) is { } field)
+            {
+                field.SetValue(owner, value);
+                return;
+            }
+        throw new InvalidOperationException($"Missing {name} on {owner.GetType().Name}.");
+    }
+
+    static Task InvokeTask(object owner, string name, params object[] arguments)
+        => (Task)(owner.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(owner, arguments)
+            ?? throw new InvalidOperationException($"Missing {name} on {owner.GetType().Name}."));
+
+    sealed class HistoricalTradeViewerStub : UserControl, IFormControl
+    {
+        public int OpenCount { get; private set; }
+        public void Open() => OpenCount++;
+        public void Resize(Control parentControl) => Size = parentControl.Size;
+        public void Close() { }
     }
 }
