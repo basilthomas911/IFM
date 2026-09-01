@@ -133,4 +133,12 @@ public static class MarketDataFeedQueryApiResult
     public static Task FromGetStreamingRequestIdAsync(HttpResponse resp)
         => resp.SetResult(new ScalarValue<int>(12345));
 
+    public static Task FromGetRuntimeStatusAsync(HttpResponse resp)
+        => resp.SetResult(new MarketDataFeedRuntimeStatusReadModel
+        {
+            IsRunning = true,
+            ActiveValueDate = new DateOnly(2026, 9, 1),
+            ObservedAtUtc = new DateTimeOffset(2026, 8, 31, 22, 0, 0, TimeSpan.Zero)
+        });
+
 }

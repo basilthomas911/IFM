@@ -1,4 +1,5 @@
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -122,6 +123,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     IUiEventSubscription? _economicCalendarStartupSubscription;
     DateOnly? _valueDate;
     bool _isLiveMarketSessionOpen;
+    FuturesMarketState _marketState = FuturesMarketState.Closed;
     MarketSessionReadModel? _marketSession;
     IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
@@ -232,6 +234,23 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
     }
 
+    /// <summary>Gets the authoritative market/value-date and position-permission state.</summary>
+    public FuturesMarketState MarketState
+    {
+        get => _marketState;
+        private set
+        {
+            if (!SetProperty(ref _marketState, value))
+                return;
+            OnPropertyChanged(nameof(IsMarketOpen));
+            OnPropertyChanged(nameof(CanToggleMarketDataFeed));
+            OnPropertyChanged(nameof(MarketDataFeedStateText));
+        }
+    }
+
+    /// <summary>Gets whether the 18:00-17:00 value-date session is open.</summary>
+    public bool IsMarketOpen => MarketState != FuturesMarketState.Closed;
+
     /// <summary>Gets the currently traded base futures contracts.</summary>
     public IReadOnlyList<FuturesContractV2ReadModel> BaseContracts
     {
@@ -314,7 +333,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     /// <summary>Gets whether the operator can start or stop the current market-data feed.</summary>
     public bool CanToggleMarketDataFeed
         => ValueDate.HasValue
-           && (IsLiveMarketSessionOpen || IsMarketDataFeedActive)
+           && (IsMarketOpen || IsMarketDataFeedActive)
            && !IsMarketDataFeedOperationInProgress;
 
     /// <summary>Gets the operator action that will be performed by the shell feed control.</summary>
@@ -333,9 +352,9 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         {
             MarketDataFeedHealthState.Healthy => "Feed Health: Green",
             MarketDataFeedHealthState.Intermittent => "Feed Health: Yellow",
-            MarketDataFeedHealthState.Failed => "Feed Health: Failed",
             MarketDataFeedHealthState.Critical => "Feed Health: Red",
-            MarketDataFeedHealthState.OutsidePositionEntryWindow => "Feed Health: Monitoring Paused",
+            MarketDataFeedHealthState.OffHoursActive => "Feed Health: Off-hours Active",
+            MarketDataFeedHealthState.OffHoursDegraded => "Feed Health: Off-hours Degraded",
             _ => "Feed Health: Stopped"
         };
 
@@ -343,20 +362,20 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     public string MarketDataFeedStateText
         => IsMarketDataFeedOperationInProgress
             ? "Market Feed: Changing"
-            : ValueDate.HasValue && !IsLiveMarketSessionOpen && !IsMarketDataFeedActive
+            : ValueDate.HasValue && !IsMarketOpen && !IsMarketDataFeedActive
                 ? "Market Feed: Session Closed — read-only application features remain available"
             : MarketDataFeedHealthState switch
             {
                 MarketDataFeedHealthState.Healthy
-                    => "Market Feed: Healthy — current contracts updated within 1 minute",
+                    => "Market Feed: Healthy — accepted updates within 5 minutes",
                 MarketDataFeedHealthState.Intermittent
                     => "Market Feed: Intermittent — a current contract update is overdue",
-                MarketDataFeedHealthState.Failed
-                    => "Market Feed: Failed — current contract updates have remained intermittent for 5 minutes",
                 MarketDataFeedHealthState.Critical
                     => "Market Feed: Critical — stop and restart the market feed",
-                MarketDataFeedHealthState.OutsidePositionEntryWindow
-                    => "Market Feed: Active — monitoring paused outside 03:00–16:00 Eastern; exits only",
+                MarketDataFeedHealthState.OffHoursActive
+                    => "Market Feed: Active — off-hours data received within 15 minutes; exits only",
+                MarketDataFeedHealthState.OffHoursDegraded
+                    => "Market Feed: Degraded — no accepted off-hours update for over 15 minutes; feed remains live",
                 _ => "Market Feed: Inactive"
             };
 
@@ -525,7 +544,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await _marketDataFeedOperationGate.WaitAsync(cancellationToken);
         try
         {
-            if (!ValueDate.HasValue || (!IsLiveMarketSessionOpen && !IsMarketDataFeedActive))
+            if (!ValueDate.HasValue || (!IsMarketOpen && !IsMarketDataFeedActive))
                 throw new InvalidOperationException(
                     "Live market-data APIs are unavailable while the futures session is closed.");
 
@@ -632,13 +651,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
             await EnableMarketDataFeedResetListener(cancellationToken);
-            if (marketSession.IsLiveSessionOpen)
+            if (marketSession.IsMarketOpen)
             {
                 await EnableTradeLiveFeed(cancellationToken);
-                _lifecycle.RunAsync(MonitorMarketDataFeedHealthAsync);
                 await StartFuturesIntradaySignalServices(cancellationToken);
             }
-            await WriteStatusConsoleAsync(marketSession.IsLiveSessionOpen
+            _lifecycle.RunAsync(MonitorMarketDataFeedHealthAsync);
+            await WriteStatusConsoleAsync(marketSession.IsMarketOpen
                 ? $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete"
                 : $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
                   + $"Futures session closed; read-only data is available for {ValueDate:yyyy-MM-dd} and live market-data APIs remain stopped.");
@@ -696,15 +715,23 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         try
         {
             var previousValueDate = ValueDate;
-            var previousMarketOpen = IsLiveMarketSessionOpen;
+            var previousState = MarketState;
             if (previousValueDate == refreshed.OperationalValueDate
-                && previousMarketOpen == refreshed.IsLiveSessionOpen)
+                && previousState == refreshed.State)
             {
                 _marketSession = refreshed;
                 return;
             }
 
             ApplyMarketSessionSnapshot(refreshed);
+            if (previousState == FuturesMarketState.Closed
+                && refreshed.IsMarketOpen
+                && !IsMarketDataFeedActive)
+                await EnableTradeLiveFeed(cancellationToken);
+            else if (previousState != FuturesMarketState.Closed
+                     && !refreshed.IsMarketOpen
+                     && IsMarketDataFeedActive)
+                await DisableTradeLiveFeed(cancellationToken: cancellationToken);
             if (previousValueDate != refreshed.OperationalValueDate)
             {
                 if (Operations is not null)
@@ -740,7 +767,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
             await WriteStatusConsoleAsync(
                 $"Authoritative futures session updated: value date {refreshed.OperationalValueDate:yyyy-MM-dd}, "
-                + $"market {(refreshed.IsLiveSessionOpen ? "open" : "closed")}.");
+                + $"state {refreshed.State}.");
         }
         finally
         {
@@ -756,7 +783,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
         _marketSession = snapshot;
         ValueDate = snapshot.OperationalValueDate;
-        IsLiveMarketSessionOpen = snapshot.IsLiveSessionOpen;
+        MarketState = snapshot.State;
+        IsLiveMarketSessionOpen = snapshot.IsLiveTrading;
+        if (IsMarketDataFeedActive)
+            ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.SetMarketState(
+                snapshot.State,
+                _timeProvider.GetUtcNow()));
     }
 
     internal static TimeSpan GetMarketSessionRefreshDelay(
@@ -1568,7 +1600,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var commandId = Guid.Empty;
         ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Activate(
             _baseContracts.Select(contract => contract.ContractId),
-            _timeProvider.GetUtcNow()));
+            _timeProvider.GetUtcNow(),
+            MarketState));
         _marketDataFeedTerminalCorrelation.BeginAttempt();
         try
         {
@@ -1660,12 +1693,41 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         }
         catch (TimeoutException)
         {
-            PublishError(
-                0,
-                $"Market-data feed command {commandId} did not produce a terminal event within {_marketDataFeedTerminalTimeout}.",
-                errorCaption);
+            var expectedRunning = typeof(TCompleteEvent) == typeof(MarketDataFeedStartedCompleteEvent);
+            if (await TryReconcileMarketDataFeedTerminalAsync(commandId, expectedRunning))
+                return true;
+
+            var message = $"Market-data feed command {commandId} did not produce a terminal event within "
+                + $"{_marketDataFeedTerminalTimeout}, and authoritative backend reconciliation did not confirm completion.";
+            await WriteStatusConsoleAsync(message);
+            if (MarketState == FuturesMarketState.LiveTrading)
+                PublishError(0, message, errorCaption);
         }
         return false;
+    }
+
+    internal async Task<bool> TryReconcileMarketDataFeedTerminalAsync(Guid commandId, bool expectedRunning)
+    {
+        var status = await _appRoot.Services.FeedQueries.GetRuntimeStatusAsync();
+        var expectedValueDate = _valueDate;
+        var matches = status is not null
+            && status.IsValid
+            && status.IsRunning == expectedRunning
+            && (!expectedRunning || status.ActiveValueDate == expectedValueDate);
+        if (!matches)
+            return false;
+
+        IsMarketDataFeedActive = expectedRunning;
+        ApplyMarketDataFeedHealth(expectedRunning
+            ? _marketDataFeedHealthMonitor.Activate(
+                _baseContracts.Select(contract => contract.ContractId),
+                _timeProvider.GetUtcNow(),
+                MarketState)
+            : _marketDataFeedHealthMonitor.Deactivate());
+        await WriteStatusConsoleAsync(
+            $"Market-data feed command {commandId} completed without an observed terminal event; "
+            + $"backend runtime state reconciled it as {(expectedRunning ? "running" : "stopped")}.");
+        return true;
     }
 
     Task StartMarketDataFeedStatusListener()
@@ -1682,7 +1744,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                         IsMarketDataFeedActive = true;
                         ApplyMarketDataFeedHealth(_marketDataFeedHealthMonitor.Activate(
                             _baseContracts.Select(contract => contract.ContractId),
-                            _timeProvider.GetUtcNow()));
+                            _timeProvider.GetUtcNow(),
+                            MarketState));
                         break;
                     case MarketDataFeedStoppedCompleteEvent:
                         IsMarketDataFeedActive = false;

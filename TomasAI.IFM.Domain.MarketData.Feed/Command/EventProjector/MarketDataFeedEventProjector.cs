@@ -21,8 +21,11 @@ public sealed class MarketDataFeedEventProjector(
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
-        DescribeNotification<MarketDataFeedStartedEvent, MarketDataFeedId>(useDurableReplay: false),
-        DescribeNotification<MarketDataFeedStoppedEvent, MarketDataFeedId>(useDurableReplay: false),
+        // Feed lifecycle operations are idempotent for the same value date. Durable
+        // replay prevents an accepted command from being stranded without its
+        // started/stopped terminal event when projector delivery is interrupted.
+        DescribeNotification<MarketDataFeedStartedEvent, MarketDataFeedId>(useDurableReplay: true),
+        DescribeNotification<MarketDataFeedStoppedEvent, MarketDataFeedId>(useDurableReplay: true),
         DescribeNotification<MarketDataFeedResetEvent, MarketDataFeedId>(),
         DescribeNotification<TradeLiveFeedAddedEvent, TradeLiveFeedId>(),
         DescribeNotification<TradeLiveFeedRemovedEvent, TradeLiveFeedId>(),

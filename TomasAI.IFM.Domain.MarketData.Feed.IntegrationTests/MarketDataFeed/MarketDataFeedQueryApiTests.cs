@@ -10,6 +10,7 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.Serialization;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using Xunit;
 
@@ -173,5 +174,23 @@ public class MarketDataFeedQueryApiTests(WebApplicationFactory<Program> factory,
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value.AsInteger.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task GetRuntimeStatusQuery_ReturnsTypedBackendFeedState()
+    {
+        _httpClientFactory.CreateClient();
+        var queryServiceApi = new QueryServiceApiClient(
+            _httpClientFactory,
+            _jsonSerializer,
+            new QueryServiceApiOptions("http://localhost"));
+        var marketDataFeedApi = new MarketDataFeedQueryApi(queryServiceApi);
+
+        var response = await marketDataFeedApi.GetRuntimeStatusAsync();
+
+        response.Should().NotBeNull();
+        response.Success.Should().BeTrue(response.ErrorMessage);
+        response.Value.Should().BeAssignableTo<MarketDataFeedRuntimeStatusReadModel>();
+        response.Value!.IsValid.Should().BeTrue();
     }
 }

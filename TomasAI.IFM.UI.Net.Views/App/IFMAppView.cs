@@ -312,10 +312,9 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         {
             MarketDataFeedHealthState.Healthy => (Color.LimeGreen, Color.Black),
             MarketDataFeedHealthState.Intermittent => (Color.Yellow, Color.Black),
-            MarketDataFeedHealthState.Failed or MarketDataFeedHealthState.Critical
-                => (Color.Red, Color.White),
-            MarketDataFeedHealthState.OutsidePositionEntryWindow
-                => (Color.SteelBlue, Color.White),
+            MarketDataFeedHealthState.Critical => (Color.Red, Color.White),
+            MarketDataFeedHealthState.OffHoursActive => (Color.SteelBlue, Color.White),
+            MarketDataFeedHealthState.OffHoursDegraded => (Color.DarkOrange, Color.Black),
             _ => (Color.DimGray, Color.White)
         };
 

@@ -139,7 +139,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory, Mar
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value!.IsValid.Should().BeTrue();
-        response.Value.ActiveValueDate.HasValue.Should().Be(response.Value.IsLiveSessionOpen);
+        response.Value.ActiveValueDate.HasValue.Should().Be(response.Value.IsMarketOpen);
         response.Value.SessionEndUtc.Should().BeAfter(response.Value.SessionStartUtc);
         response.Value.NextTransitionUtc.Should().BeAfter(DateTime.UtcNow);
     }

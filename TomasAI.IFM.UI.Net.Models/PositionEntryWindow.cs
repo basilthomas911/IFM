@@ -8,19 +8,13 @@ namespace TomasAI.IFM.UI.Net.Models;
 /// </summary>
 public static class PositionEntryWindow
 {
-    public static readonly TimeOnly OpensAt = new(3, 0);
-    public static readonly TimeOnly ClosesAt = new(16, 0);
+    public static readonly TimeOnly OpensAt = FuturesMarketSessionPolicy.LiveTradingOpensAt;
+    public static readonly TimeOnly ClosesAt = FuturesMarketSessionPolicy.LiveTradingClosesAt;
 
     /// <summary>Gets whether a new position may be opened at the supplied instant.</summary>
     public static bool IsOpen(DateTimeOffset utcNow)
     {
-        var easternNow = TimeZoneInfo.ConvertTime(
-            utcNow,
-            FuturesTradingValueDate.MarketTimeZone);
-        var easternTime = TimeOnly.FromDateTime(easternNow.DateTime);
-        return easternNow.DayOfWeek is >= DayOfWeek.Monday and <= DayOfWeek.Friday
-            && easternTime >= OpensAt
-            && easternTime < ClosesAt;
+        return FuturesMarketSessionPolicy.GetState(utcNow) == FuturesMarketState.LiveTrading;
     }
 
     /// <summary>
@@ -28,18 +22,5 @@ public static class PositionEntryWindow
     /// when the supplied instant is outside the window.
     /// </summary>
     public static DateTimeOffset? GetCurrentStartUtc(DateTimeOffset utcNow)
-    {
-        var easternNow = TimeZoneInfo.ConvertTime(
-            utcNow,
-            FuturesTradingValueDate.MarketTimeZone);
-        if (!IsOpen(utcNow))
-            return null;
-        var easternStart = DateOnly.FromDateTime(easternNow.DateTime).ToDateTime(
-            OpensAt,
-            DateTimeKind.Unspecified);
-        var utcStart = TimeZoneInfo.ConvertTimeToUtc(
-            easternStart,
-            FuturesTradingValueDate.MarketTimeZone);
-        return new DateTimeOffset(utcStart, TimeSpan.Zero);
-    }
+        => MarketDataFeedMonitoringWindow.GetCurrentStartUtc(utcNow);
 }

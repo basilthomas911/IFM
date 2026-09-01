@@ -155,14 +155,16 @@ Those callbacks use `Control.Post` or `ShowErrorMessage`, which dispatch work wi
 5. Query the current value date; lack of a live-feed value date does not prevent the preceding reference-data imports.
 6. Start the market-data-feed terminal listener, then the EOD, bar-data, trade-signal, and trade-placement event consumers.
 7. Enable the market-data-feed reset listener.
-8. Start the live market-data feeds and retain the command ID until the matching started-complete or started-fail event is observed.
+8. Start the market-data feeds during the 18:00-17:00 value-date session and retain the command ID until the matching terminal event is observed or the typed backend runtime-status query reconciles a missed notification.
 9. Start the inactivity-reset loop.
 10. Start the authoritative 24-actor intraday analytics profile for ES and load the ES status-console context.
 11. Enable the main menu buttons, including the shell feed toggle.
 
 Application startup and shutdown events can cause the same orchestration methods to run through `ApplicationEventModel` and `ApplicationUIEventConsumer`.
 
-The shell exposes one `Start Market Feed`/`Stop Market Feed` toggle. While an operation is pending it is disabled and reports `Changing`. A successful start is rendered as active only after the exact `MarketDataFeedStartedCompleteEvent`; a successful stop is rendered as inactive only after the exact `MarketDataFeedStoppedCompleteEvent`. Typed fail events and the bounded 60-second terminal timeout preserve the prior state and surface an error. Feed stop first awaits per-contract stream cleanup and then submits the domain stop command.
+The shell exposes one `Start Market Feed`/`Stop Market Feed` toggle. While an operation is pending it is disabled and reports `Changing`. Exact complete/fail events remain the primary terminal path. If the bounded terminal wait expires, the UI queries the provider-neutral backend runtime state and accepts it only when running/stopped intent and value date match; a stale value-date response is rejected. Feed stop first awaits per-contract stream cleanup and then submits the domain stop command.
+
+Feed health is state-aware. During `LiveTrading` (03:00-16:00 Eastern), accepted hot-cache updates are green through five minutes, yellow after five through fifteen minutes and red after fifteen minutes. During `OffTrading`, the feed remains available and shows `Off-hours Active` through fifteen minutes or `Off-hours Degraded` afterward without a critical modal or automatic feed action. Every running route begins a new green live-health epoch at 03:00, including a route degraded overnight. During `Closed`, health is inactive. The UI consumes the API-owned market-state decision and does not reconstruct those boundaries locally.
 
 When the main form closes, `IFMAppViewModel.AppShutdown` unloads the status console, closes trade blotters, stops the principal market-data and trade event consumers, stops all 24 intraday signal actors and the trade-placement service, disables the feed-reset listener, stops live feeds with terminal correlation, stops the feed terminal listener, and cancels the inactivity-reset loop.
 
@@ -425,7 +427,7 @@ When a singleton form is reopened, its load method must fully reset any state th
   complete/fail events for a bounded 30 seconds, reports only failed/unobserved outcomes, performs no retry, and
   continues startup with manual maintenance imports available later.
 - `IAppRoot.Execute`, the `BaseModelExtension` helpers, status-console methods, control-posting helpers, and several shutdown paths suppress exceptions.
-- `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES selection, the shared intraday signal activation profile, and a 900-second live-feed inactivity threshold. The profile starts RSI-13, ATR-14, ADX-14, and MACD-9/12/26 for 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours; it reports partial startup failure without retry and exposes the per-actor result through `IntradaySignalStartup`.
+- `IFMAppViewModel` contains operational assumptions specific to the current deployment, including ES/VX feed routes and the shared intraday signal activation profile. Feed health uses five/fifteen-minute live thresholds and a non-critical fifteen-minute off-hours degraded threshold. The profile starts RSI-13, ATR-14, ADX-14, and MACD-9/12/26 for 15 seconds, 1 minute, 5 minutes, 15 minutes, 1 hour, and 4 hours; it reports partial startup failure without retry and exposes the per-actor result through `IntradaySignalStartup`.
 - `IControlExtension.Draw` uses `user32.dll` and is Windows-only, which is consistent with the project target.
 - `TomasAI.IFM.UI.Net.Presentation.UnitTests` enforces the NATS-only composition and readiness lifecycle. Form-specific behavior still requires targeted WinForms or manual end-to-end verification.
 - QTS view implementation, CommunityToolkit.Mvvm, R3, `IAsyncEnumerable` listener implementation, and discretionary WinForms view changes are deferred until the existing application passes user-driven backend integration and Milestone A legacy operational-restoration acceptance.

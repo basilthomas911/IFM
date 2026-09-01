@@ -78,4 +78,21 @@ public class TerminalEventCorrelationTests
         correlation.BeginAttempt();
         correlation.EndAttempt();
     }
+
+    [Fact]
+    public async Task DuplicateTerminalNotification_CompletesTheAttemptOnlyOnce()
+    {
+        var commandId = Guid.NewGuid();
+        var correlation = new TerminalEventCorrelation();
+        correlation.BeginAttempt();
+        var observation = correlation.AwaitAsync(commandId, CancellationToken.None);
+        var first = new YieldCurveRatesImportedCompleteEvent { CommandId = commandId };
+        var duplicate = new YieldCurveRatesImportedCompleteEvent { CommandId = commandId };
+
+        correlation.TryPublish(first).Should().BeTrue();
+        correlation.TryPublish(duplicate).Should().BeFalse();
+
+        (await observation).Should().BeSameAs(first);
+        correlation.EndAttempt();
+    }
 }

@@ -78,6 +78,7 @@ public class MarketDataFeedQueryUriPath
     public const string GetFuturesRiskPositionType = "/api/marketdata/feed/futures/riskpositiontype";
     public const string GetFuturesEodMovingAverages = "/api/marketdata/feed/futures/eod/movingaverages";
     public const string GetStreamingRequestId = "/api/marketdata/feed/streaming/requestid";
+    public const string GetRuntimeStatus = "/api/marketdata/feed/runtime/status";
 }
 
 public class FuturesBarDataQueryUriPath

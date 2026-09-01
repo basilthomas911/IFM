@@ -336,4 +336,19 @@ public class MarketDataFeedQueryApiTests(WebApplicationFactory<Program> factory)
         response.Value.Should().BeAssignableTo<ScalarValue<int>>();
     }
 
+    [Fact]
+    public async Task GetRuntimeStatus_ReturnsTypedAuthoritativeFeedState()
+    {
+        var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
+        var queryApi = new MarketDataFeedQueryApi(queryServiceApi);
+
+        var response = await queryApi.GetRuntimeStatusAsync();
+
+        response.Success.Should().BeTrue();
+        response.Value.Should().NotBeNull();
+        response.Value!.IsValid.Should().BeTrue();
+        response.Value.IsRunning.Should().BeTrue();
+        response.Value.ActiveValueDate.Should().Be(new DateOnly(2026, 9, 1));
+    }
+
 }

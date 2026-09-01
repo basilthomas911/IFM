@@ -22,18 +22,19 @@ public static class GetMarketSession
     {
         var operationalValueDate = FuturesTradingValueDate.GetOperational(instant);
         var isOpen = FuturesTradingValueDate.TryGet(instant, out var activeValueDate);
+        var state = FuturesMarketSessionPolicy.GetState(instant);
         var marketTime = TimeZoneInfo.ConvertTime(instant, FuturesTradingValueDate.MarketTimeZone);
         return new MarketSessionReadModel
         {
             OperationalValueDate = operationalValueDate,
             ActiveValueDate = isOpen ? activeValueDate : null,
-            IsLiveSessionOpen = isOpen,
             MarketTime = marketTime.DateTime,
             SessionStartUtc = FuturesTradingValueDate.GetSessionStartUtc(operationalValueDate).UtcDateTime,
             SessionEndUtc = FuturesTradingValueDate.GetSessionEndUtc(operationalValueDate).UtcDateTime,
-            NextTransitionUtc = FuturesTradingValueDate.GetNextTransitionUtc(instant).UtcDateTime,
             Revision = 1,
-            AsOfUtc = instant.UtcDateTime
+            AsOfUtc = instant.UtcDateTime,
+            State = state,
+            NextTransitionUtc = FuturesMarketSessionPolicy.GetNextTransitionUtc(instant).UtcDateTime
         };
     }
 }

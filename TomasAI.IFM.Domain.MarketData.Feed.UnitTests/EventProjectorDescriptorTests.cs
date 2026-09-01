@@ -29,7 +29,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests;
 public sealed class EventProjectorDescriptorTests
 {
     [Fact]
-    public void All_feed_events_have_one_descriptor_and_only_start_stop_events_are_non_durable()
+    public void All_feed_events_have_one_descriptor_and_market_feed_lifecycle_is_durable()
     {
         var dbFactory = Substitute.For<IDbContextFactory>();
         var queue = Substitute.For<IDurableReplayQueue>();
@@ -58,7 +58,9 @@ public sealed class EventProjectorDescriptorTests
             {
                 var isLifecycle = descriptor.SourceEventType.Name.Contains("Started", StringComparison.Ordinal)
                     || descriptor.SourceEventType.Name.Contains("Stopped", StringComparison.Ordinal);
-                descriptor.UseDurableReplay.Should().Be(!isLifecycle);
+                var isRecoverableMarketFeedLifecycle = descriptor.SourceEventType == typeof(MarketDataFeedStartedEvent)
+                    || descriptor.SourceEventType == typeof(MarketDataFeedStoppedEvent);
+                descriptor.UseDurableReplay.Should().Be(!isLifecycle || isRecoverableMarketFeedLifecycle);
             }
         }
     }

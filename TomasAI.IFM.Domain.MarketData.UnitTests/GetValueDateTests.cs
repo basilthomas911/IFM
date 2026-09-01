@@ -1,6 +1,8 @@
 using FluentAssertions;
+using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Query;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Xunit;
 
 namespace TomasAI.IFM.Domain.MarketData.UnitTests;
@@ -63,25 +65,31 @@ public sealed class GetValueDateTests
             .Should().Be(DateOnly.Parse(expected));
 
     [Theory]
-    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-07", null, false)]
-    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-07", null, false)]
-    [InlineData("2026-08-09T18:00:00-04:00", "2026-08-10", "2026-08-10", true)]
-    [InlineData("2026-08-10T16:59:59-04:00", "2026-08-10", "2026-08-10", true)]
-    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-10", null, false)]
-    [InlineData("2026-08-10T18:00:00-04:00", "2026-08-11", "2026-08-11", true)]
-    [InlineData("2026-08-14T17:00:00-04:00", "2026-08-14", null, false)]
+    [InlineData("2026-08-08T16:00:00-04:00", "2026-08-07", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-09T17:59:59-04:00", "2026-08-07", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-09T18:00:00-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.OffTrading)]
+    [InlineData("2026-08-10T02:59:59-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.OffTrading)]
+    [InlineData("2026-08-10T03:00:00-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.LiveTrading)]
+    [InlineData("2026-08-10T15:59:59-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.LiveTrading)]
+    [InlineData("2026-08-10T16:00:00-04:00", "2026-08-10", "2026-08-10", true, FuturesMarketState.OffTrading)]
+    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-10", null, false, FuturesMarketState.Closed)]
+    [InlineData("2026-08-10T18:00:00-04:00", "2026-08-11", "2026-08-11", true, FuturesMarketState.OffTrading)]
+    [InlineData("2026-08-14T17:00:00-04:00", "2026-08-14", null, false, FuturesMarketState.Closed)]
     public void MarketSession_SeparatesOperationalAndLiveValueDates(
         string instant,
         string operational,
         string? active,
-        bool isOpen)
+        bool isOpen,
+        FuturesMarketState expectedState)
     {
         var result = GetMarketSession.Calculate(DateTimeOffset.Parse(instant));
 
         result.IsValid.Should().BeTrue();
         result.OperationalValueDate.Should().Be(DateOnly.Parse(operational));
         result.ActiveValueDate.Should().Be(active is null ? null : DateOnly.Parse(active));
-        result.IsLiveSessionOpen.Should().Be(isOpen);
+        result.IsMarketOpen.Should().Be(isOpen);
+        result.State.Should().Be(expectedState);
+        result.IsLiveTrading.Should().Be(expectedState == FuturesMarketState.LiveTrading);
         result.SessionEndUtc.Should().BeAfter(result.SessionStartUtc);
         result.NextTransitionUtc.Should().BeAfter(DateTimeOffset.Parse(instant).UtcDateTime);
     }
@@ -138,6 +146,38 @@ public sealed class GetValueDateTests
         reconciled.Revision.Should().Be(2);
         reconciled.AsOfUtc.Should().Be(timeProvider.UtcNow.UtcDateTime);
     }
+
+    [Fact]
+    public void MarketSessionDecision_RoundTripsItsExplicitStateOverMessagePack()
+    {
+        var source = GetMarketSession.Calculate(
+            DateTimeOffset.Parse("2026-08-10T03:00:00-04:00")) with
+        {
+            Revision = 17,
+            AsOfUtc = new DateTime(2026, 8, 10, 7, 0, 0, DateTimeKind.Utc)
+        };
+
+        var restored = MessagePackSerializer.Deserialize<MarketSessionReadModel>(
+            MessagePackSerializer.Serialize(source));
+
+        restored.Should().BeEquivalentTo(source);
+        restored.State.Should().Be(FuturesMarketState.LiveTrading);
+        restored.IsValid.Should().BeTrue();
+        new MarketSessionReadModel().IsValid.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("2026-08-10T02:59:59-04:00", "2026-08-10T07:00:00Z")]
+    [InlineData("2026-08-10T03:00:00-04:00", "2026-08-10T20:00:00Z")]
+    [InlineData("2026-08-10T15:59:59-04:00", "2026-08-10T20:00:00Z")]
+    [InlineData("2026-08-10T16:00:00-04:00", "2026-08-10T21:00:00Z")]
+    [InlineData("2026-08-10T17:00:00-04:00", "2026-08-10T22:00:00Z")]
+    [InlineData("2026-08-10T18:00:00-04:00", "2026-08-11T07:00:00Z")]
+    public void MarketSessionDecision_ReportsEveryPermissionAndLifecycleBoundary(
+        string instant,
+        string expectedTransition)
+        => GetMarketSession.Calculate(DateTimeOffset.Parse(instant)).NextTransitionUtc
+            .Should().Be(DateTime.Parse(expectedTransition).ToUniversalTime());
 
     sealed class SettableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {

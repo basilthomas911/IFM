@@ -544,6 +544,13 @@ public static class MarketDataFeedQueries
             return await e.RequestAsync<ScalarValue<int>, GetStreamingRequestIdQuery>(query);
         });
 
+        endpoints.MapGet(MarketDataFeedQueryUriPath.GetRuntimeStatus, async (IActorService e) =>
+        {
+            var query = new GetMarketDataFeedRuntimeStatusQuery();
+            query.Subject = new ActorSubject(ActorType.Query, GetMarketDataFeedRuntimeStatusQuery.Actor, GetMarketDataFeedRuntimeStatusQuery.Verb, query.EntityId.Format());
+            return await e.RequestAsync<MarketDataFeedRuntimeStatusReadModel, GetMarketDataFeedRuntimeStatusQuery>(query);
+        });
+
         endpoints.MapGet(MarketDataFeedQueryUriPath.GetFuturesBarData, async (IActorService e, string contractId, string symbol, DateOnly valueDate, DateTime startDate, DateTime endDate) =>
         {
             var query = new GetFuturesBarDataQuery(contractId, symbol, valueDate, startDate, endDate);

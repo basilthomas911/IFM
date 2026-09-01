@@ -49,6 +49,7 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
         [GetFuturesRiskPositionTypeQuery.Verb] = msg => msg.AsQuery<GetFuturesRiskPositionTypeQuery, RiskPositionTypeReadModel>()!,
         [GetIronCondorMarketDataFeedQuery.Verb] = msg => msg.AsQuery<GetIronCondorMarketDataFeedQuery, IronCondorMarketDataFeedReadModel>()!,
         [GetNormalCurveTableQuery.Verb] = msg => msg.AsQuery<GetNormalCurveTableQuery, NormalCurveTableReadModel>()!,
+        [GetMarketDataFeedRuntimeStatusQuery.Verb] = msg => msg.AsQuery<GetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel>()!,
         [GetStreamingRequestIdQuery.Verb] = msg => msg.AsQuery<GetStreamingRequestIdQuery, ScalarValue<int>>()!
     };
 
@@ -107,6 +108,12 @@ public class MarketDataFeedQueryActor(IQueryActorContext<MarketDataFeedQueryActo
             var result = await query.GetNormalCurveTableAsync(qryParams.DbFactory);
             await ctx.ReplyAsync(q.Subject.ThreadId, GetNormalCurveTableQuery.Verb,
                 new ServiceResult<NormalCurveTableReadModel>(result));
+        },
+        [typeof(GetMarketDataFeedRuntimeStatusQuery)] = async (ctx, qryParams, q) =>
+        {
+            var result = qryParams.MarketDataApi.GetRuntimeStatus();
+            await ctx.ReplyAsync(q.Subject.ThreadId, GetMarketDataFeedRuntimeStatusQuery.Verb,
+                new ServiceResult<MarketDataFeedRuntimeStatusReadModel>(result));
         },
         [typeof(GetStreamingRequestIdQuery)] = async (ctx, qryParams, q) =>
         {

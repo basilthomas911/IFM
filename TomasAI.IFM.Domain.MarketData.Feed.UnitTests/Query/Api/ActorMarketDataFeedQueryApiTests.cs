@@ -16,6 +16,25 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.Query.Api;
 public class ActorMarketDataFeedQueryApiTests
 {
     [Fact]
+    public void RuntimeStatusComesFromTheApplicationOwnedFeed()
+    {
+        var expected = new MarketDataFeedRuntimeStatusReadModel
+        {
+            IsRunning = true,
+            ActiveValueDate = new DateOnly(2026, 9, 1),
+            ObservedAtUtc = new DateTimeOffset(2026, 8, 31, 22, 0, 0, TimeSpan.Zero)
+        };
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
+        marketDataApi.GetRuntimeStatus().Returns(expected);
+
+        var result = marketDataApi.GetRuntimeStatus();
+
+        result.Should().BeSameAs(expected);
+        result.IsValid.Should().BeTrue();
+        marketDataApi.Received(1).GetRuntimeStatus();
+    }
+
+    [Fact]
     public async Task StreamingRequestIdentifierUsesTheSystemSequenceGenerator()
     {
         const SequenceName sequenceName = SequenceName.StreamingRequest_RequestId;

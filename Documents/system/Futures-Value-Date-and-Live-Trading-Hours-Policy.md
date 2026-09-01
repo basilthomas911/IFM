@@ -35,6 +35,16 @@ Off-trading hours have an active value date but must not be represented as live 
 
 Market-data, broker and order services required to monitor or close existing positions may remain available during off-trading hours because the market is open. Entry-only workflows remain disabled.
 
+### 3.1 Market-data feed health during off-trading hours
+
+Feed ownership and feed freshness severity are separate decisions. An enabled Databento feed remains owned throughout the active value-date session, including off-trading hours.
+
+- During `OffTrading`, a route is `OffHoursActive` through fifteen minutes without an accepted hot-cache update and `OffHoursDegraded` after fifteen minutes.
+- `OffHoursDegraded` is visible operational status. It must not stop, restart or disable the feed and must not produce a live-trading critical dialog.
+- At 03:00 Eastern, every enabled and running route begins a new live-health epoch at green, even when it was degraded overnight.
+- If no accepted update arrives after 03:00, live health becomes yellow after five minutes and red after fifteen minutes.
+- At 16:00 Eastern, live severity ends immediately and the route is reclassified under the off-hours rule without changing feed ownership.
+
 ## 4. Closed hours
 
 Closed hours have no active value date:
@@ -63,6 +73,9 @@ No opening or closing of positions is permitted while the market is closed. Appl
 - With production automatic feed startup enabled, each futures feed session starts at market open, 18:00 Eastern Sunday through Thursday, and stops at market close, 17:00 Eastern Monday through Friday.
 - If the API server starts or restarts during an open session, production automatic startup must initialize the current value date and start the required feed immediately. If it starts during `Closed`, it retains the last operational value date for read-only use and waits for the next market open.
 - The 03:00 and 16:00 boundaries change position-entry permission only. They must not start, restart or stop an otherwise-required market-data feed.
+- The 03:00 boundary starts a new green live-health baseline; overnight degradation must not carry into live severity.
+- Live feed health is green through five minutes, yellow after five through fifteen minutes, and red after fifteen minutes without an accepted hot-cache update.
+- Off-trading feed health uses only `OffHoursActive` and non-critical `OffHoursDegraded`; it never triggers an automatic feed lifecycle action.
 - The UI must refresh the authoritative session while it remains open and react at 03:00, 16:00, 17:00 and 18:00 boundaries without requiring an application restart.
 - A value-date rollover must update every value-date-keyed UI model and pipeline service coherently; changing only the displayed date is prohibited.
 - `LiveTrading` must mean only the weekday 03:00-16:00 window. It must not be inferred from the broader value-date session.
@@ -74,6 +87,6 @@ No opening or closing of positions is permitted while the market is closed. Appl
 - Application navigation and non-live functionality must remain independent of all three trading states.
 - Tests must cover exact boundary instants, Eastern daylight-saving transitions, an application kept open across rollover and coherent rollover of value-date-dependent services.
 
-## 7. Current conformance gap recorded on 2026-08-31
+## 7. Conformance history
 
-The shared calculator already rolls Monday through Thursday to the following value date at 18:00 Eastern, while the current startup service incorrectly treats the narrower 03:00-16:00 position-entry window as the automatic feed-start window. The running UI reads the market-session snapshot only at startup, so it can retain the previous value date after 18:00. The current session DTO also derives `IsLiveSessionOpen` from the broader value-date session instead of representing market-open, live-trading and off-trading states independently. The active-value-date calculation does not exclude the weekday 17:00-18:00 gap or Friday after 17:00. These are implementation defects relative to this approved policy and require correction.
+The value-date/trading-state gaps recorded on 2026-08-31 were corrected by the VDS implementation. The later session-aware health correction is recorded by `Market-Data-Feed-Live-Trading-Health-Monitoring-Correction-Implementation-Plan-v1.0.md`: it preserves the 18:00/17:00 feed lifecycle, adds explicit `Closed`/`OffTrading`/`LiveTrading` transport state, applies non-critical off-hours degradation, and creates a new green live-health baseline at 03:00.

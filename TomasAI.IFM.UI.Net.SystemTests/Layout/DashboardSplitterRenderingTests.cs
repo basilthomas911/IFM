@@ -137,11 +137,11 @@ public sealed class DashboardSplitterRenderingTests
         var expectedHealthColors = new Dictionary<MarketDataFeedHealthState, (Color Background, Color Foreground)>
         {
             [MarketDataFeedHealthState.Inactive] = (Color.DimGray, Color.White),
+            [MarketDataFeedHealthState.OffHoursActive] = (Color.SteelBlue, Color.White),
+            [MarketDataFeedHealthState.OffHoursDegraded] = (Color.DarkOrange, Color.Black),
             [MarketDataFeedHealthState.Healthy] = (Color.LimeGreen, Color.Black),
             [MarketDataFeedHealthState.Intermittent] = (Color.Yellow, Color.Black),
-            [MarketDataFeedHealthState.Failed] = (Color.Red, Color.White),
-            [MarketDataFeedHealthState.Critical] = (Color.Red, Color.White),
-            [MarketDataFeedHealthState.OutsidePositionEntryWindow] = (Color.SteelBlue, Color.White)
+            [MarketDataFeedHealthState.Critical] = (Color.Red, Color.White)
         };
         foreach (var healthState in expectedHealthColors)
         {

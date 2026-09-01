@@ -11,6 +11,7 @@ namespace TomasAI.IFM.Application.Api.Server;
 /// </summary>
 public sealed class MarketDataRuntimeHealthCheck(
     DatabentoMarketDataApi marketDataApi,
+    IFuturesMarketSessionAuthority marketSessionAuthority,
     TimeProvider timeProvider) : IHealthCheck
 {
     public Task<HealthCheckResult> CheckHealthAsync(
@@ -20,12 +21,14 @@ public sealed class MarketDataRuntimeHealthCheck(
         var health = marketDataApi.GetHealth();
         var epoch = health.Epoch;
         var now = timeProvider.GetUtcNow();
+        var marketState = marketSessionAuthority.Current.State;
         var easternNow = TimeZoneInfo.ConvertTime(
             now,
             FuturesTradingValueDate.MarketTimeZone);
         var data = new Dictionary<string, object>
         {
             ["marketTimeEastern"] = easternNow.ToString("O"),
+            ["marketState"] = marketState.ToString(),
             ["running"] = health.Running,
             ["valueDate"] = health.ValueDate?.ToString("yyyy-MM-dd") ?? string.Empty,
             ["aggregationRunning"] = epoch?.AggregationRunning ?? false,
@@ -43,15 +46,24 @@ public sealed class MarketDataRuntimeHealthCheck(
         var currentContractsLive = AddRoute("ES") & AddRoute("VX");
         data["currentContractsLive"] = currentContractsLive;
 
-        return Task.FromResult(!infrastructureReady
+        return Task.FromResult(marketState == FuturesMarketState.Closed
+                ? HealthCheckResult.Healthy(
+                    "Futures market is closed; live feed health is inactive and core services remain ready.",
+                    data)
+                : !infrastructureReady
                 ? HealthCheckResult.Degraded(
                     "Market-data feeds or aggregation are not ready; market-data features are unavailable but core application services remain ready.",
                     data: data)
                 : currentContractsLive
                 ? HealthCheckResult.Healthy(
-                    "Current futures contracts are feeding downstream notifications.", data)
+                    marketState == FuturesMarketState.LiveTrading
+                        ? "Current futures contracts are green during live trading."
+                        : "Current futures contracts are active within the off-hours fifteen-minute allowance.",
+                    data)
                 : HealthCheckResult.Degraded(
-                    "Current futures contracts have not produced recent downstream notifications.",
+                    marketState == FuturesMarketState.LiveTrading
+                        ? "One or more current futures contracts are not green during live trading."
+                        : "One or more current futures contracts have received no accepted off-hours update for over fifteen minutes; feeds remain live.",
                     data: data));
 
         bool AddRoute(string symbol)
@@ -68,8 +80,16 @@ public sealed class MarketDataRuntimeHealthCheck(
             var status = epoch?.ContractStatuses?.SingleOrDefault(item =>
                 StringComparer.Ordinal.Equals(item.ContractId, contract.ContractId));
             var routeActive = marketDataApi.IsTickDataStreamActive(contract.ContractId);
-            var routeHealth = status?.HealthAt(now)
-                ?? DatabentoLiveFeedHealthState.Inactive;
+            var activationUtc = health.ValueDate is { } valueDate
+                ? FuturesTradingValueDate.GetSessionStartUtc(valueDate)
+                : now;
+            var routeHealth = MarketDataFeedSessionHealthPolicy.Evaluate(
+                marketState,
+                now,
+                activationUtc,
+                status?.LastAcceptedCacheUpdateAtUtc,
+                routeActive,
+                status is { ContractConfigured: true, ContractRunning: true });
             data[$"{key}RouteActive"] = routeActive;
             data[$"{key}AggregationRunning"] = status?.ContractRunning ?? false;
             data[$"{key}LastSourceRecordUtc"] =
@@ -84,7 +104,12 @@ public sealed class MarketDataRuntimeHealthCheck(
                 status?.LastDurableTickPublishedAtUtc?.ToString("O") ?? string.Empty;
             data[$"{key}AcceptedCacheUpdates"] = status?.AcceptedCacheUpdates ?? 0;
             data[$"{key}RejectedCacheUpdates"] = status?.RejectedCacheUpdates ?? 0;
-            data[$"{key}FeedHealth"] = routeHealth.ToString();
+            var sessionHealth = marketState switch
+            {
+                FuturesMarketState.Closed => "Inactive",
+                _ => routeHealth.ToString()
+            };
+            data[$"{key}FeedHealth"] = sessionHealth;
             if (marketDataApi.TryGetFuturesSessionStatistics(contract.ContractId, out var statistics))
             {
                 data[$"{key}SessionStatisticsComplete"] = statistics.IsComplete;
@@ -98,12 +123,16 @@ public sealed class MarketDataRuntimeHealthCheck(
                 data[$"{key}SessionStatisticsComplete"] = false;
             }
 
-            // Only explicitly owned routes are monitored. Yellow is usable with a
-            // warning; red makes live market-data features unavailable.
+            // Only explicitly owned routes are monitored. Live yellow/red degrade
+            // market-data readiness; off-hours degradation leaves ownership intact.
             return !routeActive
                 || status is { ContractConfigured: true, ContractRunning: true }
-                && routeHealth is DatabentoLiveFeedHealthState.Green
-                    or DatabentoLiveFeedHealthState.Yellow;
+                && (marketState switch
+                    {
+                        FuturesMarketState.Closed => true,
+                        FuturesMarketState.OffTrading => routeHealth == MarketDataFeedSessionHealthState.OffHoursActive,
+                        _ => routeHealth == MarketDataFeedSessionHealthState.Green
+                    });
         }
     }
 }

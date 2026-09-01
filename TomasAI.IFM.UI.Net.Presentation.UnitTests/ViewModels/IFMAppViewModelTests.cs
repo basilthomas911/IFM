@@ -2,12 +2,15 @@ using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole;
 using TomasAI.IFM.Shared.StatusConsole.ViewModels;
+using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.UI.Net.Services.MarketDataFeed;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Models;
@@ -31,9 +34,9 @@ public class IFMAppViewModelTests
     [InlineData(MarketDataFeedHealthState.Inactive, "Feed Health: Stopped")]
     [InlineData(MarketDataFeedHealthState.Healthy, "Feed Health: Green")]
     [InlineData(MarketDataFeedHealthState.Intermittent, "Feed Health: Yellow")]
-    [InlineData(MarketDataFeedHealthState.Failed, "Feed Health: Failed")]
     [InlineData(MarketDataFeedHealthState.Critical, "Feed Health: Red")]
-    [InlineData(MarketDataFeedHealthState.OutsidePositionEntryWindow, "Feed Health: Monitoring Paused")]
+    [InlineData(MarketDataFeedHealthState.OffHoursActive, "Feed Health: Off-hours Active")]
+    [InlineData(MarketDataFeedHealthState.OffHoursDegraded, "Feed Health: Off-hours Degraded")]
     public void MarketDataFeedHealthIndicatorText_ReflectsHealthState(
         MarketDataFeedHealthState state,
         string expected)
@@ -352,7 +355,7 @@ public class IFMAppViewModelTests
         {
             OperationalValueDate = new DateOnly(2026, 9, 1),
             ActiveValueDate = new DateOnly(2026, 9, 1),
-            IsLiveSessionOpen = true,
+            State = FuturesMarketState.LiveTrading,
             MarketTime = new DateTime(2026, 8, 31, 18, 0, 0),
             SessionStartUtc = new DateTime(2026, 8, 31, 22, 0, 0, DateTimeKind.Utc),
             SessionEndUtc = new DateTime(2026, 9, 1, 21, 0, 0, DateTimeKind.Utc),
@@ -379,6 +382,88 @@ public class IFMAppViewModelTests
                 DateTimeOffset.Parse(now),
                 DateTime.Parse(transition).ToUniversalTime())
             .Should().Be(TimeSpan.FromMilliseconds(expectedMilliseconds));
+
+    [Fact]
+    public async Task MissingStartTerminal_ReconcilesFromAuthoritativeRuntimeQuery()
+    {
+        var valueDate = new DateOnly(2026, 9, 1);
+        var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
+        feedApi.GetRuntimeStatusAsync().Returns(new ServiceOk<MarketDataFeedRuntimeStatusReadModel>(new()
+        {
+            IsRunning = true,
+            ActiveValueDate = valueDate,
+            ObservedAtUtc = new DateTimeOffset(2026, 8, 31, 22, 0, 0, TimeSpan.Zero)
+        }));
+        var appRoot = Substitute.For<IAppRoot>();
+        var services = Substitute.For<TomasAI.IFM.UI.Net.Services.IUiServiceCatalog>();
+        appRoot.Services.Returns(services);
+        services.CommandResponses.Returns(new CommandResponseEventService(Substitute.For<ICommandResponseUIEventConsumer>()));
+        services.FeedQueries.Returns(new MarketDataFeedQueryService(feedApi));
+        var viewModel = new IFMAppViewModel(
+            appRoot,
+            new Version(1, 2, 3),
+            "Test",
+            Substitute.For<IIFMAppLiveViewAdapter>(),
+            Substitute.For<IEconomicCalendarService>());
+        viewModel.ApplyMarketSessionSnapshot(new MarketSessionReadModel
+        {
+            OperationalValueDate = valueDate,
+            ActiveValueDate = valueDate,
+            State = FuturesMarketState.LiveTrading,
+            MarketTime = new DateTime(2026, 9, 1, 10, 0, 0),
+            SessionStartUtc = new DateTime(2026, 8, 31, 22, 0, 0, DateTimeKind.Utc),
+            SessionEndUtc = new DateTime(2026, 9, 1, 21, 0, 0, DateTimeKind.Utc),
+            NextTransitionUtc = new DateTime(2026, 9, 1, 20, 0, 0, DateTimeKind.Utc),
+            Revision = 1,
+            AsOfUtc = new DateTime(2026, 9, 1, 14, 0, 0, DateTimeKind.Utc)
+        });
+
+        var reconciled = await viewModel.TryReconcileMarketDataFeedTerminalAsync(Guid.NewGuid(), true);
+
+        reconciled.Should().BeTrue();
+        viewModel.IsMarketDataFeedActive.Should().BeTrue();
+        await feedApi.Received(1).GetRuntimeStatusAsync();
+    }
+
+    [Fact]
+    public async Task MissingStartTerminal_DoesNotAcceptAStaleValueDate()
+    {
+        var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
+        feedApi.GetRuntimeStatusAsync().Returns(new ServiceOk<MarketDataFeedRuntimeStatusReadModel>(new()
+        {
+            IsRunning = true,
+            ActiveValueDate = new DateOnly(2026, 8, 31),
+            ObservedAtUtc = new DateTimeOffset(2026, 9, 1, 14, 0, 0, TimeSpan.Zero)
+        }));
+        var appRoot = Substitute.For<IAppRoot>();
+        var services = Substitute.For<TomasAI.IFM.UI.Net.Services.IUiServiceCatalog>();
+        appRoot.Services.Returns(services);
+        services.CommandResponses.Returns(new CommandResponseEventService(Substitute.For<ICommandResponseUIEventConsumer>()));
+        services.FeedQueries.Returns(new MarketDataFeedQueryService(feedApi));
+        var viewModel = new IFMAppViewModel(
+            appRoot,
+            new Version(1, 2, 3),
+            "Test",
+            Substitute.For<IIFMAppLiveViewAdapter>(),
+            Substitute.For<IEconomicCalendarService>());
+        viewModel.ApplyMarketSessionSnapshot(new MarketSessionReadModel
+        {
+            OperationalValueDate = new DateOnly(2026, 9, 1),
+            ActiveValueDate = new DateOnly(2026, 9, 1),
+            State = FuturesMarketState.LiveTrading,
+            MarketTime = new DateTime(2026, 9, 1, 10, 0, 0),
+            SessionStartUtc = new DateTime(2026, 8, 31, 22, 0, 0, DateTimeKind.Utc),
+            SessionEndUtc = new DateTime(2026, 9, 1, 21, 0, 0, DateTimeKind.Utc),
+            NextTransitionUtc = new DateTime(2026, 9, 1, 20, 0, 0, DateTimeKind.Utc),
+            Revision = 1,
+            AsOfUtc = new DateTime(2026, 9, 1, 14, 0, 0, DateTimeKind.Utc)
+        });
+
+        var reconciled = await viewModel.TryReconcileMarketDataFeedTerminalAsync(Guid.NewGuid(), true);
+
+        reconciled.Should().BeFalse();
+        viewModel.IsMarketDataFeedActive.Should().BeFalse();
+    }
 
     static IFMAppViewModel CreateSubject(TimeProvider? timeProvider = null)
     {

@@ -33,4 +33,5 @@ public interface IMarketDataFeedQueryApi
     Task<ServiceResult<NormalCurveTableReadModel>> GetNormalCurveTableAsync();
     Task<ServiceResult<RiskPositionTypeReadModel>> GetFuturesRiskPositionTypeAsync(DateOnly valueDate, TradeType tradeType);
     Task<ServiceResult<ScalarValue<int>>> GetStreamingRequestIdAsync();
+    Task<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> GetRuntimeStatusAsync();
 }

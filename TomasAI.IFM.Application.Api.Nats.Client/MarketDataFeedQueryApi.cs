@@ -256,5 +256,22 @@ public class MarketDataFeedQueryApi(IActorProducer actorProducer)
         return await RequestAsync<GetStreamingRequestIdQuery, ScalarValue<int>>(query.Subject, query);
     }
 
+    /// <summary>Returns authoritative application-owned feed runtime state over NATS.</summary>
+    public async Task<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> GetRuntimeStatusAsync()
+    {
+        var entityId = new GetMarketDataFeedRuntimeStatusParameter();
+        GetMarketDataFeedRuntimeStatusQuery query = new()
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketDataFeedRuntimeStatusQuery.Actor,
+                GetMarketDataFeedRuntimeStatusQuery.Verb,
+                entityId.Format())
+        };
+        return await RequestAsync<GetMarketDataFeedRuntimeStatusQuery, MarketDataFeedRuntimeStatusReadModel>(
+            query.Subject,
+            query);
+    }
+
 }
 

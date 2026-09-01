@@ -18,11 +18,11 @@ internal sealed class FuturesMarketSessionAuthorityHostedService(
     {
         var snapshot = authority.Refresh();
         logger.LogInformation(
-            "Authoritative futures session initialized at revision {Revision}: operational {OperationalValueDate}, active {ActiveValueDate}, market-open {IsMarketOpen}, next transition {NextTransitionUtc}.",
+            "Authoritative futures session initialized at revision {Revision}: operational {OperationalValueDate}, active {ActiveValueDate}, state {MarketState}, next transition {NextTransitionUtc}.",
             snapshot.Revision,
             snapshot.OperationalValueDate,
             snapshot.ActiveValueDate,
-            snapshot.IsLiveSessionOpen,
+            snapshot.State,
             snapshot.NextTransitionUtc);
         return base.StartAsync(cancellationToken);
     }
@@ -48,11 +48,11 @@ internal sealed class FuturesMarketSessionAuthorityHostedService(
             if (refreshed.Revision != previousRevision)
             {
                 logger.LogInformation(
-                    "Authoritative futures session advanced to revision {Revision}: operational {OperationalValueDate}, active {ActiveValueDate}, market-open {IsMarketOpen}, next transition {NextTransitionUtc}.",
+                    "Authoritative futures session advanced to revision {Revision}: operational {OperationalValueDate}, active {ActiveValueDate}, state {MarketState}, next transition {NextTransitionUtc}.",
                     refreshed.Revision,
                     refreshed.OperationalValueDate,
                     refreshed.ActiveValueDate,
-                    refreshed.IsLiveSessionOpen,
+                    refreshed.State,
                     refreshed.NextTransitionUtc);
             }
         }

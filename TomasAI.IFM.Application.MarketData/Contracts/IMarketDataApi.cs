@@ -30,6 +30,15 @@ public readonly record struct FuturesTermStructureContracts(
 /// </remarks>
 public interface IMarketDataApi
 {
+    /// <summary>Reads provider-neutral runtime state without changing feed ownership.</summary>
+    MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus()
+        => new()
+        {
+            IsRunning = false,
+            ActiveValueDate = null,
+            ObservedAtUtc = DateTimeOffset.UtcNow
+        };
+
     /// <summary>
     /// Reads the startup-validated currently traded futures contract for a root symbol
     /// from the in-memory rollover registry.

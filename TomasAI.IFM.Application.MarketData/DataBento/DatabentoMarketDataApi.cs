@@ -145,6 +145,18 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
                 true, active.ValueDate, active.GetHealth());
     }
 
+    /// <inheritdoc />
+    public MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus()
+    {
+        var active = Volatile.Read(ref _epoch);
+        return new MarketDataFeedRuntimeStatusReadModel
+        {
+            IsRunning = active is not null,
+            ActiveValueDate = active?.ValueDate,
+            ObservedAtUtc = _timeProvider.GetUtcNow()
+        };
+    }
+
     /// <summary>
     /// Initializes the application-level DataBento market-data API.
     /// </summary>

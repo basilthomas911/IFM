@@ -33,14 +33,17 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
 
     public class TestableMarketDataFeedQueryActor : MarketDataFeedQueryActor
     {
+        public IMarketDataFeedQueryContext Context { get; }
+
         public TestableMarketDataFeedQueryActor(
             ApplicationMarketDataApi marketDataApi,
             ISequenceIdGenerator sequenceIdGenerator,
             IDbContextFactory dbFactory,
             ILogger<MarketDataFeedQueryActor> logger)
-            : base(TypedActorContextFactory.Query(dbFactory, logger))
-        {
-        }
+            : this(TypedActorContextFactory.Query(dbFactory, logger)) { }
+
+        public TestableMarketDataFeedQueryActor(IMarketDataFeedQueryContext context)
+            : base(context) => Context = context;
 
         public IQuery InvokeParseMessage(IQueryActorContext<MarketDataFeedQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -52,6 +55,43 @@ public class MarketDataFeedQueryActorTests : IClassFixture<MarketDataFeedTestFix
             => await OnExceptionAsync(context, threadId, query, verb, ex);
 
 
+    }
+
+    [Fact]
+    [Trait("TestType", "Integration")]
+    public async Task RuntimeStatusQuery_ReturnsTypedApplicationFeedState()
+    {
+        var expected = new MarketDataFeedRuntimeStatusReadModel
+        {
+            IsRunning = true,
+            ActiveValueDate = new DateOnly(2026, 9, 1),
+            ObservedAtUtc = new DateTimeOffset(2026, 8, 31, 22, 0, 0, TimeSpan.Zero)
+        };
+        var marketDataApi = Substitute.For<ApplicationMarketDataApi>();
+        marketDataApi.GetRuntimeStatus().Returns(expected);
+        var context = Substitute.For<IMarketDataFeedQueryContext>();
+        context.MarketDataApi.Returns(marketDataApi);
+        context.DbFactory.Returns(Substitute.For<IDbContextFactory>());
+        context.SequenceIdGenerator.Returns(Substitute.For<ISequenceIdGenerator>());
+        context.Logger.Returns(Substitute.For<ILogger<MarketDataFeedQueryActor>>());
+        context.ActorId.Returns(new ActorMailboxId(ActorType.Query, MarketDataFeedQueryActor.ActorName));
+        var actor = new TestableMarketDataFeedQueryActor(context);
+        var query = new GetMarketDataFeedRuntimeStatusQuery
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketDataFeedRuntimeStatusQuery.Actor,
+                GetMarketDataFeedRuntimeStatusQuery.Verb,
+                "runtime-status")
+        };
+
+        await actor.InvokeReceiveAsync(context, query);
+
+        await context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetMarketDataFeedRuntimeStatusQuery.Verb,
+            Arg.Is<ServiceResult<MarketDataFeedRuntimeStatusReadModel>>(result =>
+                result.Success && ReferenceEquals(result.Value, expected)));
     }
 
  

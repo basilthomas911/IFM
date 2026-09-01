@@ -192,5 +192,15 @@ public class MarketDataFeedQueryApi(IQueryServiceApi querySvc) : IMarketDataFeed
         return await _querySvc.ExecuteQueryAsync<ScalarValue<int>>(MarketDataFeedQueryUriPath.GetStreamingRequestId, qryParam, 1016);
     }
 
+    /// <summary>Returns authoritative application-owned feed runtime state.</summary>
+    public async Task<ServiceResult<MarketDataFeedRuntimeStatusReadModel>> GetRuntimeStatusAsync()
+    {
+        var qryParam = new GetMarketDataFeedRuntimeStatusParameter();
+        return await _querySvc.ExecuteQueryAsync<MarketDataFeedRuntimeStatusReadModel>(
+            MarketDataFeedQueryUriPath.GetRuntimeStatus,
+            qryParam,
+            GetMarketDataFeedRuntimeStatusQuery.ErrorId);
+    }
+
 }
 

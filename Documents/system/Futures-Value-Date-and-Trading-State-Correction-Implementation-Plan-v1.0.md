@@ -1,6 +1,6 @@
 # Futures Value Date and Trading State Correction Implementation Plan v1.0
 
-**Status:** Proposed for approval  
+**Status:** Implemented; feed-health portions amended by MDF v1.0
 **Date:** 2026-08-31  
 **Authoritative policy:** [Futures Value Date and Live Trading Hours Policy](Futures-Value-Date-and-Live-Trading-Hours-Policy.md)
 
@@ -67,7 +67,8 @@ The ambiguous `IsLiveSessionOpen` contract is replaced by precise state/derived 
 - `Closed` permits neither opening nor closing.
 - When production automatic feed startup is enabled, the required feed starts at every market open: 18:00 Eastern Sunday through Thursday. Sunday 18:00 starts the Monday value-date feed; Monday 18:00 starts Tuesday's, and so on through Thursday 18:00 for Friday.
 - An API server started or restarted mid-session starts the required production feed immediately after the authoritative value date and contracts are resolved; it does not wait for 03:00 or the next 18:00 boundary.
-- The feed remains active and health-monitored throughout both `OffTrading` and `LiveTrading`. The 03:00 and 16:00 transitions alter position permissions only and never constitute feed lifecycle boundaries.
+- The feed remains active throughout both `OffTrading` and `LiveTrading`. During `OffTrading`, health is `OffHoursActive` or non-critical `OffHoursDegraded`; during `LiveTrading`, health is green/yellow/red. The 03:00 and 16:00 transitions alter health mode and position permissions but never constitute feed lifecycle boundaries.
+- At 03:00, every enabled running route starts a new green live-health epoch. If no accepted update arrives, it becomes yellow after five minutes and red after fifteen minutes.
 - At 17:00, active feeds and value-date-specific live services stop before the market becomes `Closed`. During `Closed`, the supervisor waits for the next 18:00 market open.
 - Development/manual operation may disable automatic startup by configuration. If automatic startup is enabled in any environment, it follows the market-open/market-close lifecycle above, never the 03:00 position-entry window.
 
@@ -194,7 +195,9 @@ The server remains authoritative. The UI queries the typed `GetMarketSession` re
 
 - Separate position-entry window from feed-health monitoring.
 - Monitor every enabled Databento feed during both `LiveTrading` and `OffTrading`.
-- Keep green/yellow/red freshness semantics active whenever a feed is owned.
+- Keep green/yellow/red freshness semantics active only during `LiveTrading`.
+- During `OffTrading`, expose `OffHoursActive` through fifteen minutes and `OffHoursDegraded` afterward without a critical modal or automatic lifecycle action.
+- Reset enabled running routes to a new green health baseline at 03:00 without restarting the feed epoch.
 - Start production-automatic feeds at 18:00, keep them active across 03:00 and 16:00, and stop them at 17:00.
 - Stop feeds in `Closed`; allow development/manual feed start during a market-open session.
 - Replace misleading `OutsidePositionEntryWindow` health behavior where it suppresses enabled-feed monitoring.
@@ -207,11 +210,11 @@ The server remains authoritative. The UI queries the typed `GetMarketSession` re
 - Feed is stopped at 17:00.
 - API startup during `OffTrading` or `LiveTrading` starts the configured production feed immediately; startup during `Closed` does not.
 - Development/manual market-open start is accepted; closed-market start is rejected without an expected exception path.
-- Green/yellow/red thresholds remain unchanged.
+- Live green/yellow/red thresholds remain unchanged; off-hours use the single fifteen-minute degraded threshold.
 
 **Exit criteria**
 
-- No enabled Databento route is marked “monitoring paused” solely because entry hours ended.
+- No enabled Databento route is marked “monitoring paused” solely because entry hours ended, and no off-hours route is reported as live yellow/red.
 
 ### VDS-07 — UI session monitor
 

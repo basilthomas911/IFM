@@ -54,7 +54,7 @@ public sealed class FuturesMarketSessionAuthority : IFuturesMarketSessionAuthori
         MarketSessionReadModel candidate)
         => current.OperationalValueDate != candidate.OperationalValueDate
            || current.ActiveValueDate != candidate.ActiveValueDate
-           || current.IsLiveSessionOpen != candidate.IsLiveSessionOpen
+           || current.State != candidate.State
            || current.SessionStartUtc != candidate.SessionStartUtc
            || current.SessionEndUtc != candidate.SessionEndUtc
            || current.NextTransitionUtc != candidate.NextTransitionUtc;

@@ -141,4 +141,11 @@ public class MarketDataFeedQueryService(IMarketDataFeedQueryApi marketDataFeedQu
             : -1;
     }
 
+    /// <summary>Gets the authoritative backend feed state used for terminal-event reconciliation.</summary>
+    public async Task<MarketDataFeedRuntimeStatusReadModel?> GetRuntimeStatusAsync()
+    {
+        var result = await _marketDataFeedQueryApi.GetRuntimeStatusAsync();
+        return result.Success ? result.Value : null;
+    }
+
 }
