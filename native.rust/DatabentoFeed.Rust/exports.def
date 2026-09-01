@@ -22,3 +22,14 @@ EXPORTS
     dbf_contract_details_result_get_error
     dbf_contract_details_result_destroy
     dbf_get_latest_price
+    dbf_historical_estimate
+    dbf_historical_batch_submit
+    dbf_historical_batch_get_status
+    dbf_historical_batch_list_files
+    dbf_historical_batch_download_file
+    dbf_historical_range_open
+    dbf_historical_file_open
+    dbf_historical_result_get_payload
+    dbf_historical_result_get_next_batch
+    dbf_historical_result_get_error
+    dbf_historical_result_destroy

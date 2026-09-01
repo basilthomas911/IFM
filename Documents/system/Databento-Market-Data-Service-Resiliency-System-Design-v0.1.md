@@ -5,7 +5,13 @@
 **Scope:** System-wide detailed design; implementation is not authorized by this document  
 **Current deployment:** API-server-hosted market-data runtime  
 **Target deployment:** Dedicated Databento Market Data service orchestrated by .NET Aspire
-**Related projection plan:** `TomasAI.IFM.Domain.MarketData.Analytics/Docs/Market-Outlook-Hot-Cache-Refactor-Implementation-Plan-v1.0.md`
+**Related projection authority:** `TomasAI.IFM.Domain.MarketData.Analytics/Docs/Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md`
+
+> The `MOSC` correction supersedes every Market Outlook activation, native-generation admission
+> fence, source-order rejection, generation-driven cache clear and dedicated hot-cache worker
+> statement retained later in this historical design. Databento generation fencing remains valid
+> for native lifecycle ownership and feed diagnostics, but it never gates a routed Market Outlook
+> partial write.
 
 ## 1. Purpose
 
@@ -54,9 +60,9 @@ The following decisions are authoritative for this design.
 17. C++ and Rust remain equal, supported native implementations of one managed P/Invoke contract. This design does not select a preferred production backend.
 18. Every native feed or watchdog API change must be implemented in both backends and pass the same ABI, behavioral, failure, and performance qualification before the managed application may consume it.
 19. A deployment selects exactly one native backend before process startup. Managed market-data code uses the same exported functions, structs, status values, and normalized record layout regardless of that selection.
-20. The Market Data Service boundary hosts the versionless Market Outlook hot cache because the projection is assembled from current market-data and analytics hot caches and is invalidated by feed generation, value-date, and contract-rollover changes.
-21. `DatabentoMarketDataWatchdogService` remains the sole Databento lifecycle owner. A separate `MarketOutlookHotCacheService` worker owns only the derived Market Outlook input/projection cache; it cannot start, stop, reset, replace, or roll a Databento runtime.
-22. The watchdog service coordinates Market Outlook cache activation, generation fencing, value-date reset, and shutdown. Market Outlook calculation or notification failure never initiates a Databento reset and never changes native feed truth.
+20. The Market Data Service boundary hosts the versionless Market Outlook singleton because the projection is assembled from current market-data and analytics hot caches. Contract ID and value date select an identity; feed generation never controls write admission.
+21. `DatabentoMarketDataWatchdogService` remains the sole Databento lifecycle owner. Market Outlook is an immediately writable singleton projection/cache used by the realtime actor and query actor, not a second lifecycle worker, and it cannot start, stop, reset, replace, or roll Databento.
+22. The watchdog reports explicit `Up`, `Resetting`, or `Down` feed truth and its reason as an independent partial input. That status cannot clear analytics, reject a cache write or roll back a published snapshot. Market Outlook calculation or notification failure never initiates a Databento reset.
 23. Market Outlook is non-authoritative, versionless, process-local and rebuildable. It is not persisted in `MarketDataServiceDbContext`, `MarketDataDbContext`, or any other database. Its authoritative inputs retain their existing owners and persistence rules.
 
 ## 3. Verified baseline
@@ -78,11 +84,43 @@ Both native implementations expose feed lifecycle and terminal status. The C++ i
 
 The managed wrapper can retrieve a terminal error, but epoch and API health currently discard important native transport details. Native terminal completion can therefore stop a worker without leaving enough application-level evidence to identify the terminal cause.
 
-### 3.3 Existing recovery utilities are not wired to production
+### 3.3 Implemented interim synchronous up/down probe
+
+Before the full persisted watchdog is implemented, the current API exposes one deliberately small
+connection/runtime liveness query:
+
+```csharp
+bool IsDatabentoFeedUp(TimeSpan? timeout = null);
+```
+
+The default timeout is one second. The result is `true` only when an epoch exists, every configured
+native feed reports `Running` with terminal status `Ok`, every associated managed aggregation worker
+is still running, and the complete enumeration finishes within the supplied timeout. A connected
+feed remains up during a quiet market because record freshness is explicitly outside this probe.
+
+The probe uses the existing `dbf_feed_get_stats` operation implemented by both C++ and Rust. It does
+not add a new P/Invoke operation, perform network I/O, reset a feed, persist an observation, or replace
+the future bulk watchdog snapshot. Expected lifecycle, disposed-handle, native-status and timeout
+conditions fail closed as `false` rather than escaping as operational exceptions. Both C++ and Rust
+now advertise canonical ABI version 3. A shared capability manifest and binary comparison suite
+qualify exports, layouts, validation/status behavior, deterministic lifecycle/record/statistics
+vectors, latest-price behavior and historical operations. Every future public C++ change must
+include its Rust equivalent and parity evidence in the same change set.
+
+Persistent live sessions treat the provider `SlowReaderWarning` as an advisory pressure signal, not
+as terminal feed completion. Both C++ and Rust increment the observable slow-reader counter and keep
+the session open while the managed consumer drains. Development and Paper/Production profiles permit
+up to 30 seconds for a full native ring to regain capacity during the startup/session replay burst;
+the deterministic Synthetic CI profile retains its two-millisecond bound. Exhausting the configured
+ring wait or receiving a different terminal system code remains a real feed failure. The future bulk
+watchdog snapshot must expose the warning count, ring occupancy/high-water data and terminal reason
+so this behavior is visible without changing its lifecycle meaning.
+
+### 3.4 Existing recovery utilities are not wired to production
 
 `DatabentoFeedMonitor` and `DatabentoRecoveryOrchestrator` exist in the framework but are only used by tests. The existing orchestrator uses five attempts and synchronous callbacks. This design requires an asynchronous, production-wired coordinator with exactly three attempts.
 
-### 3.4 Current contract storage location
+### 3.5 Current contract storage location
 
 The complete `FuturesContractV2ReadModel` catalog is currently stored through `SecuritiesDbContext` in the `futures_contract` source table and its controlled projections. `MarketDataDbContext` stores market observations and analytics rather than the complete futures-contract master.
 
@@ -101,7 +139,7 @@ UI and actor clients
         v
 API Server
   +-- DatabentoMarketDataWatchdogService (single lifecycle owner)
-  +-- MarketOutlookHotCacheService (derived projection worker)
+  +-- Market Outlook singleton cache (realtime/query actor projection)
   +-- MarketDataServiceDbContext (PostgreSQL)
   +-- Existing contract catalog reader (read-only)
   +-- Databento managed application/framework layer
@@ -120,7 +158,7 @@ UI / strategy / trading / administration services
                         v
 Dedicated Databento Market Data service
   +-- lifecycle/watchdog coordinator
-  +-- Market Outlook hot-cache worker
+  +-- Market Outlook singleton cache
   +-- PostgreSQL authority and history
   +-- contract-catalog adapter
   +-- managed aggregation and hot caches
@@ -137,22 +175,22 @@ The current implementation must use interfaces for lifecycle control, contract a
 ### 4.3 Market Outlook hosting boundary
 
 Market Outlook belongs inside the Market Data Service hosting boundary, but it is not part of the
-native Databento lifecycle state machine. The boundary contains two cooperating background workers:
+native Databento lifecycle state machine. The boundary contains one lifecycle worker and one
+immediately available cache service:
 
 - `DatabentoMarketDataWatchdogService` owns contracts, startup, native feeds, managed aggregation,
   watchdog polling, reset, rollover, readiness and shutdown; and
-- `MarketOutlookHotCacheService` consumes already accepted market-data/analytics events, maintains
+- `MarketOutlookHotCache` consumes routed market-data/analytics events through its realtime actor, maintains
   immutable latest-value input and display caches, answers typed queries and publishes UI updates.
 
-The watchdog service establishes a value-date/native-generation fence before a Market Outlook
-entry can be current. On initial startup, rollover, reset, replacement or shutdown, it tells the
-Market Outlook worker to clear or fence entries belonging to the displaced value date, contract or
-native generation. After the replacement generation reaches managed readiness, accepted component
-events and ES trade events rebuild the projection naturally.
+The cache is writable before, during and after Databento startup/reset. A routed update always
+overwrites only the fields it owns. `(contract ID, value date)` prevents cross-instrument/session
+mixing; source sequence, event time, stream epoch and native generation are diagnostics only. The
+watchdog may publish feed health, but cannot activate, fence, clear or reject Market Outlook state.
 
 This is hosting and lifecycle coordination, not shared calculation ownership. The watchdog never
-calculates RSI, TDI, ITI, EMA, Bollinger, MDI or a Futures Trade Signal. The Market Outlook worker
-never interprets transport heartbeat as market data and never mutates Databento lifecycle state.
+calculates RSI, TDI, ITI, EMA, Bollinger, MDI or a Futures Trade Signal. The Market Outlook realtime
+actor and cache never interpret transport heartbeat as market data and never mutate Databento lifecycle state.
 Market Outlook cache failure is a derived-view degradation; Databento recovery continues to depend
 only on authoritative native/managed feed evidence.
 
@@ -387,9 +425,10 @@ If one native dataset connection contains any core role, that connection is core
 
 Only `DatabentoMarketDataWatchdogService` may mutate the Databento lifecycle. Existing startup services and actor handlers become request adapters. Direct calls to start, stop, or reset from other production components are prohibited by architecture tests.
 
-`MarketOutlookHotCacheService` is lifecycle-coordinated by the watchdog but is not granted this
-mutation authority. It may observe the active generation, clear/fence its own derived entries and
-report projection health. It cannot call Databento start, stop, reset or rollover APIs.
+The process-local `MarketOutlookHotCache` is available immediately and is not lifecycle-coordinated
+by the watchdog. The watchdog may write feed-health facts as one independent partial input, but it
+cannot activate, clear, fence or reject Market Outlook state. The cache has no Databento start,
+stop, reset or rollover capability.
 
 ### 8.2 Serialized operation queue
 
@@ -425,10 +464,10 @@ When the API starts:
 13. Confirm native transport, subscription acknowledgements, provider heartbeat, workers, routes, and hot-cache authority.
 14. Persist the startup observation.
 15. Publish authoritative readiness.
-16. Publish the active value-date, contract and native-generation fence to the Market Outlook
-    hot-cache worker.
-17. Confirm the Market Outlook worker can accept current-generation inputs and answer typed current
-    or unavailable queries.
+16. Publish the active value date, currently traded contracts and explicit feed-health facts to
+    their consumers; native generation remains feed-lifecycle diagnostics only.
+17. Confirm the immediately available Market Outlook cache can answer typed current or unavailable
+    queries. No cache activation or current-generation admission check exists.
 18. Begin the one-minute timer after startup reaches Up or a terminal Down result.
 
 Market records are not required to prove connectivity during quiet periods. A valid provider heartbeat plus acknowledged subscriptions proves transport health. Live-data freshness remains a separate managed signal.
@@ -465,27 +504,28 @@ Native terminal signaling may request an immediate out-of-cycle watchdog evaluat
 
 During OffTrading, absent market records do not trigger recovery while provider heartbeats remain current. During LiveTrading, a core route with no accepted current data for more than 15 minutes is a recovery trigger even if the transport appears open. A native Stopped/Faulted state or missing heartbeat initiates Orange recovery immediately in any active value-date period.
 
-### 8.6 Market Outlook worker coordination
+### 8.6 Market Outlook cache coordination
 
-The Market Outlook worker implements the two refresh behaviours defined by the related `MOHC`
-plan:
+The Market Outlook realtime actor and immediately available singleton cache implement the two
+refresh behaviours defined by the `MOSC` correction plan:
 
 1. every eligible component event updates its input slot, atomically refreshes the projection and
    publishes a UI notification; and
-2. every accepted normalized ES `New` trade captures all current input slots, recalculates all
+2. every structurally valid, correctly routed ES `New` trade captures all current input slots, recalculates all
    price-derived values, atomically replaces the projection and publishes a UI notification.
 
-The worker starts as part of the Market Data Service background-service group and remains available
-for typed queries even when the Databento runtime is Resetting or Down. In those states it returns
+The cache is available as soon as the Market Data Service process constructs its singleton and remains
+available for typed queries even when the Databento runtime is Resetting or Down. In those states it returns
 the last immutable value with explicit stale/red health, or a typed unavailable result if no value
 exists. A timer or watchdog observation never advances `UpdatedAtUtc` or `MarketDataAsOfUtc`.
 
 Coordination rules are:
 
-- startup/value-date/rollover/reset supplies an immutable active-generation fence;
-- events from a displaced generation, contract or value date are ignored without exception;
+- startup/value-date/rollover/reset changes native lifecycle and health diagnostics only;
+- every structurally valid, correctly routed partial update is latest-arrival-wins;
+- contract/value-date identities remain isolated without activation or eviction side effects;
 - cache replacement is process-local and is not written to either PostgreSQL or ScyllaDB;
-- the first accepted current-generation component may rebuild partial output under OR semantics;
+- the first component may rebuild partial output under OR semantics;
 - notification failure leaves the committed cache readable and does not affect feed readiness; and
 - projection/calculator failure reports Market Outlook degradation but cannot request or trigger a
   Databento reset.
@@ -707,9 +747,10 @@ Each persisted observation identifies one of:
 - `RequestedStop`;
 - `ApplicationShutdown`.
 
-The latest in-memory service diagnostics additionally expose Market Outlook worker availability,
-active generation, last component refresh, last ES full refresh, last notification and stale-input
-rejection counts. These fields help correlate feed health with the derived UI projection but are not
+The latest in-memory service diagnostics additionally expose Market Outlook cache availability,
+last component refresh, last ES full refresh, received/written/composed/query counts and notification
+failure counts. No accepted/rejected or active-generation cache counters exist. These fields help
+correlate feed health with the derived UI projection but are not
 persisted as Market Outlook state. Watchdog history may record the worker's health/status as
 diagnostic detail; it must not serialize the Market Outlook payload.
 
@@ -752,7 +793,7 @@ Qualification evidence for each backend must include:
 - full value-date-session runs spanning OffTrading and LiveTrading boundaries;
 - repeated 18:00 startup, 03:00 live-health reset, 16:00 off-trading transition, and 17:00 shutdown boundaries;
 - sustained dev and paper-trading observation over many complete market-data sessions;
-- record counts, sequence continuity, accepted/rejected cache updates, and watchdog snapshots reconciled against the provider stream;
+- record counts, sequence continuity, unconditional cache writes, and watchdog snapshots reconciled against the provider stream;
 - CPU, allocation, native/managed memory growth, handle growth, ring occupancy, backlog, and P/Invoke latency measurements;
 - reset recovery time and post-recovery continuity evidence;
 - clean shutdown, value-date rollover, and restart evidence;
@@ -797,7 +838,7 @@ Development and paper-trading soak evidence informs the eventual backend decisio
   DTO.
 - Market Outlook queries return the same immutable cache value represented by the latest
   notification.
-- Reset and rollover fence delayed old-generation Market Outlook inputs without throwing.
+- Reset and rollover health changes never suppress a correctly routed Market Outlook input.
 
 ### 15.6 Runtime/process tests
 
@@ -810,11 +851,11 @@ Development and paper-trading soak evidence informs the eventual backend decisio
 - PostgreSQL unavailable at startup fails closed.
 - PostgreSQL watchdog insert failure after startup leaves feeds Up but health Orange.
 - Value-date rollover cannot race reset or a watchdog poll.
-- Market Outlook worker starts and stops with the Market Data Service background-service group.
+- Market Outlook cache is immediately available with the Market Data Service process and requires no hosted-worker activation.
 - Market Outlook calculator or notification failure does not stop/reset Databento or alter native
   feed status.
-- Databento reset fences old Market Outlook inputs; current-generation events rebuild partial then
-  complete display state.
+- Databento reset changes health independently; correctly routed events continue rebuilding partial
+  then complete display state without a generation admission fence.
 - API restart rebuilds Market Outlook from authoritative component caches without reading a
   persisted Market Outlook snapshot.
 
@@ -854,14 +895,14 @@ The design is successfully implemented only when:
 14. The component can move into a future Aspire-hosted Market Data service without changing actor-facing commands, events, or queries.
 15. The same managed market-data binaries operate against either native backend through the same exported ABI without conditional application behavior.
 16. No native backend is selected for production until both have completed equivalent dev/paper-trading qualification over many full market-data sessions and a later explicit approval records the selection.
-17. The Market Data Service background-service group hosts a separate versionless Market Outlook
-    hot-cache worker coordinated by the watchdog lifecycle owner.
+17. The Market Data Service process hosts an immediately writable versionless Market Outlook
+    singleton used by its realtime/query actors; watchdog lifecycle state never gates cache writes.
 18. Component events and accepted ES trades implement the two approved Market Outlook refresh
     behaviours without PostgreSQL event state or ScyllaDB Market Outlook persistence.
 19. Market Outlook failure cannot mutate or reset Databento, and Databento health/readiness never
     depends on successful Market Outlook calculation or UI notification.
-20. Reset, rollover and native-generation replacement fence prior Market Outlook inputs, while typed
-    queries remain available with current, stale or unavailable status.
+20. Reset, rollover and native-generation replacement update explicit feed health independently,
+    while typed Market Outlook queries remain available with current, stale or unavailable analytics.
 
 ## 17. Explicit non-goals for the initial implementation
 
@@ -883,6 +924,6 @@ After approval, create:
 
 1. a detailed implementation specification defining PostgreSQL DDL, DTOs, actor subjects, P/Invoke ABI structs, service interfaces, state machines, and migrations;
 2. a gated implementation plan covering native C++, native Rust, managed storage, lifecycle service, actors, UI, and all qualification suites;
-3. execute the related `Market-Outlook-Hot-Cache-Refactor-Implementation-Plan-v1.0.md` with the
-   Market Outlook worker hosted at this service boundary; and
+3. retain the completed `Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md`
+   model when the cache is moved to this service boundary; and
 4. an Aspire extraction specification when the dedicated Market Data service is scheduled.

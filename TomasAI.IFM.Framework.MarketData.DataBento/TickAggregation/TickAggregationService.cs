@@ -80,6 +80,32 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
 
+    /// <summary>
+    /// Synchronously reports whether the managed reader and its native Databento transport are
+    /// both running. Expected lifecycle and interop failures are represented as
+    /// <see langword="false"/>.
+    /// </summary>
+    public bool IsFeedUp()
+    {
+        try
+        {
+            var worker = Volatile.Read(ref _worker);
+            if (!IsRunning
+                || Volatile.Read(ref _stopping) != 0
+                || worker is not { IsCompleted: false })
+                return false;
+
+            var health = _feed.GetHealth();
+            return health.TransportReady
+                && health.State == FeedState.Running
+                && health.TerminalStatus == DatabentoFeedStatus.Ok;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public TickAggregationTickerStatus GetTickerStatus(string futuresContractId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(futuresContractId);

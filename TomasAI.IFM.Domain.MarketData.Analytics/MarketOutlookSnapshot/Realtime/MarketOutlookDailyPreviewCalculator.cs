@@ -27,8 +27,6 @@ public static class MarketOutlookDailyPreviewCalculator
             || trade.NormalizedTradeAction != NormalizedTradeAction.New
             || trade.LastPrice <= 0m
             || trade.LastSize == 0
-            || trade.StreamEpochId == Guid.Empty
-            || trade.TradeOrdinal <= 0
             || !RegimeDiscoverySignalCacheAdapter.TryGetLatestEsDailyBaseline(
                 source.Price.ContractId,
                 out var emaBaseline,

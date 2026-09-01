@@ -56,6 +56,7 @@ public sealed record MarketOutlookReadModel
     [Key(21)] public MarketOutlookInputAvailability VxAvailability { get; init; }
     [Key(22)] public MarketOutlookInputAvailability DailyAnalyticsAvailability { get; init; }
     [Key(23)] public string FeedHealth { get; init; } = "Unknown";
+    [Key(24)] public string FeedHealthReason { get; init; } = string.Empty;
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid

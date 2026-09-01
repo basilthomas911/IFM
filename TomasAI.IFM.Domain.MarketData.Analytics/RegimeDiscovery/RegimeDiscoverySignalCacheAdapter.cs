@@ -25,10 +25,7 @@ public static class RegimeDiscoverySignalCacheAdapter
     /// <summary>Publishes the EMA family and current price using common observation provenance.</summary>
     public static void Publish(FuturesEmaSignalReadModel signal)
     {
-        LatestEmaSignals.AddOrUpdate(
-            (signal.Metadata.ContractId, signal.Metadata.TimeFrame),
-            signal,
-            (_, current) => IsNewer(signal.Metadata, current.Metadata) ? signal : current);
+        LatestEmaSignals[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = signal;
         Publish(signal.Metadata, RegimeDiscoverySignalMetric.CurrentPrice, signal.Price, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.Ema20, signal.Ema20, signal.IsWarm);
         if (signal.Ema20 is { } ema20)
@@ -51,10 +48,7 @@ public static class RegimeDiscoverySignalCacheAdapter
     /// <summary>Publishes Bollinger width, ratio, position, and price interaction inputs.</summary>
     public static void Publish(FuturesBbSignalReadModel signal)
     {
-        LatestBbSignals.AddOrUpdate(
-            (signal.Metadata.ContractId, signal.Metadata.TimeFrame),
-            signal,
-            (_, current) => IsNewer(signal.Metadata, current.Metadata) ? signal : current);
+        LatestBbSignals[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = signal;
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidth, signal.Width20, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerWidthRatio, signal.Width20Ratio, signal.IsWarm);
         PublishNullable(signal.Metadata, RegimeDiscoverySignalMetric.BollingerPosition, signal.Position20, signal.IsWarm);
@@ -66,6 +60,33 @@ public static class RegimeDiscoverySignalCacheAdapter
         Publish(signal);
         if (!signal.IsProvisional)
             LatestBbCheckpoints[(signal.Metadata.ContractId, signal.Metadata.TimeFrame)] = checkpoint;
+    }
+
+    /// <summary>
+    /// Publishes one immutable completed-session baseline under the active domain contract alias.
+    /// Historical observations can carry a provider instrument id while live prices carry the
+    /// canonical contract id; the preview calculator must resolve both to the same baseline.
+    /// </summary>
+    public static void PublishDailyBaseline(
+        string activeContractId,
+        FuturesEmaSignalReadModel emaSignal,
+        FuturesEmaAccumulatorCheckpoint emaCheckpoint,
+        FuturesBbSignalReadModel bbSignal,
+        FuturesBbAccumulatorCheckpoint bbCheckpoint)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(activeContractId);
+        ArgumentNullException.ThrowIfNull(emaSignal);
+        ArgumentNullException.ThrowIfNull(emaCheckpoint);
+        ArgumentNullException.ThrowIfNull(bbSignal);
+        ArgumentNullException.ThrowIfNull(bbCheckpoint);
+
+        Publish(emaSignal, emaCheckpoint);
+        Publish(bbSignal, bbCheckpoint);
+        var alias = (activeContractId, TimeFrameType.Daily);
+        LatestEmaSignals[alias] = emaSignal;
+        LatestBbSignals[alias] = bbSignal;
+        LatestEmaCheckpoints[alias] = emaCheckpoint;
+        LatestBbCheckpoints[alias] = bbCheckpoint;
     }
 
     /// <summary>Gets the newest warm committed ES Daily baseline for live preview calculation.</summary>
@@ -275,10 +296,6 @@ public static class RegimeDiscoverySignalCacheAdapter
             SignalIdentity = $"{key.MarketSeriesIdentity.Format()}.{metric}.{key.TimeFrame}"
         });
     }
-
-    static bool IsNewer(MarketAnalyticsSignalMetadata incoming, MarketAnalyticsSignalMetadata current) =>
-        incoming.ValueDate > current.ValueDate
-        || (incoming.ValueDate == current.ValueDate && incoming.SourceSequence >= current.SourceSequence);
 
     static MarketAnalyticsSignalMetadata Metadata(MarketAnalyticsSignalMetadata? metadata,
         string contractId, TimeFrameType timeFrame, DateOnly valueDate, TimeOnly timestamp,

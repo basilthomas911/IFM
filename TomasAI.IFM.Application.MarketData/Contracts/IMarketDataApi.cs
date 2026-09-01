@@ -30,6 +30,17 @@ public readonly record struct FuturesTermStructureContracts(
 /// </remarks>
 public interface IMarketDataApi
 {
+    /// <summary>
+    /// Synchronously reports whether every configured Databento transport and its managed
+    /// aggregation worker are currently running.
+    /// </summary>
+    /// <remarks>
+    /// This is a connection/runtime liveness check, not a market-data freshness check. A quiet
+    /// but connected feed is considered up. Expected operational failures return
+    /// <see langword="false"/>.
+    /// </remarks>
+    bool IsDatabentoFeedUp(TimeSpan? timeout = null) => false;
+
     /// <summary>Reads provider-neutral runtime state without changing feed ownership.</summary>
     MarketDataFeedRuntimeStatusReadModel GetRuntimeStatus()
         => new()

@@ -46,6 +46,39 @@ public sealed class TickerStreamActorWorkflowTests
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
 
     [Fact]
+    public async Task Synchronous_feed_probe_tracks_native_and_managed_lifecycle_without_market_records()
+    {
+        const string contractId = "ES20260918";
+        var instrument = new InstrumentKey(7, 42);
+        using var feed = new ControllableLiveFeed(instrument);
+        using var lastPrices = new DatabentoLastPriceStore(ValueDate, 1);
+        await using var aggregation = CreateAggregation(
+            feed,
+            lastPrices,
+            new CapturingPublisher(),
+            instrument,
+            CreateDetails(contractId, instrument, AssetTypeId.Futures));
+
+        aggregation.IsFeedUp().Should().BeFalse();
+
+        await aggregation.StartAsync();
+
+        aggregation.IsFeedUp().Should().BeTrue(
+            "a connected quiet feed is still up");
+        feed.State = FeedState.Faulted;
+        aggregation.IsFeedUp().Should().BeFalse();
+        feed.State = FeedState.Running;
+        feed.TerminalStatus = DatabentoFeedStatus.ConnectionHung;
+        aggregation.IsFeedUp().Should().BeFalse();
+        feed.TerminalStatus = DatabentoFeedStatus.Ok;
+        aggregation.IsFeedUp().Should().BeTrue();
+
+        await aggregation.StopAsync();
+
+        aggregation.IsFeedUp().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Databento_statistics_replay_flows_through_hot_cache_and_realtime_eod_projection()
     {
         const string contractId = "ES20260918";
@@ -943,6 +976,70 @@ public sealed class TickerStreamActorWorkflowTests
 
         public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
         public void Dispose() => _channel.Complete();
+    }
+
+    private sealed class ControllableLiveFeed(InstrumentKey instrument) : IDatabentoTickerFeed
+    {
+        private readonly BoundedBatchChannel _channel = new(4, 64);
+        private bool _leased;
+
+        internal FeedState State { get; set; } = FeedState.Created;
+        internal DatabentoFeedStatus TerminalStatus { get; set; } = DatabentoFeedStatus.Ok;
+
+        public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
+
+        public void Start(TimeSpan timeout) => State = FeedState.Running;
+
+        public void Stop(TimeSpan timeout)
+        {
+            State = FeedState.Stopped;
+            _channel.Complete();
+        }
+
+        public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey key) => _channel;
+
+        public IMultiplexedTickerBatchReader GetMultiplexedReader()
+        {
+            if (_leased)
+                throw new InvalidOperationException("The integration-test feed reader is already leased.");
+            _leased = true;
+            return new MultiplexedTickerBatchReader(
+                [(instrument, _channel)],
+                () => _leased = false);
+        }
+
+        public IReadOnlyList<TickerInstrumentRegistration> GetInstruments() =>
+            [new TickerInstrumentRegistration("TEST", instrument.InstrumentId.ToString(), instrument)];
+
+        public FeedHealthSnapshot GetHealth()
+        {
+            var up = State == FeedState.Running && TerminalStatus == DatabentoFeedStatus.Ok;
+            return new FeedHealthSnapshot(
+                State,
+                TerminalStatus,
+                1024,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null)
+            {
+                TransportReady = up,
+                TradingReady = up,
+                BaselineReadyInstrumentCount = up ? 1 : 0,
+                InstrumentCount = 1
+            };
+        }
+
+        public void Dispose()
+        {
+            State = FeedState.Stopped;
+            _channel.Complete();
+        }
     }
 
     private sealed class MemoryRedisCache : IRedisCache

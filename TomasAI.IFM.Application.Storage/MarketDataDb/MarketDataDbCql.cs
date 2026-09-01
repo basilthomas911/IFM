@@ -1744,7 +1744,10 @@ internal static class MarketDataDbCql
             calculationVersion,
             calculationMethod,
             schemaVersion,
-            isValid
+            isValid,
+            previousRsi,
+            regimeSlope,
+            isWarm
         ) VALUES (
             :contractId,
             :valueDate,
@@ -1769,7 +1772,10 @@ internal static class MarketDataDbCql
             :calculationVersion,
             :calculationMethod,
             :schemaVersion,
-            :isValid
+            :isValid,
+            :previousRsi,
+            :regimeSlope,
+            :isWarm
         );
     """;
 
@@ -2296,7 +2302,16 @@ internal static class MarketDataDbCql
             rsislope AS "RSISlope",
             sourceSequence AS "SourceSequence",
             sourceEventTimestamp AS "SourceEventTimestamp",
-            windowsize AS "WindowSize"
+            configurationId AS "ConfigurationId",
+            observationId AS "ObservationId",
+            marketDataAsOf AS "MarketDataAsOf",
+            calculationVersion AS "CalculationVersion",
+            calculationMethod AS "CalculationMethod",
+            schemaVersion AS "SchemaVersion",
+            isValid AS "IsValid",
+            previousRsi AS "PreviousRsi",
+            regimeSlope AS "RegimeSlope",
+            isWarm AS "IsWarm"
         FROM futures_rsi_signal
         WHERE contractid = :contractId
         AND timePeriod = :timePeriod
@@ -2323,7 +2338,16 @@ internal static class MarketDataDbCql
             rsislope AS "RSISlope",
             sourceSequence AS "SourceSequence",
             sourceEventTimestamp AS "SourceEventTimestamp",
-            windowsize AS "WindowSize"
+            configurationId AS "ConfigurationId",
+            observationId AS "ObservationId",
+            marketDataAsOf AS "MarketDataAsOf",
+            calculationVersion AS "CalculationVersion",
+            calculationMethod AS "CalculationMethod",
+            schemaVersion AS "SchemaVersion",
+            isValid AS "IsValid",
+            previousRsi AS "PreviousRsi",
+            regimeSlope AS "RegimeSlope",
+            isWarm AS "IsWarm"
         FROM futures_rsi_signal
            WHERE contractid = :contractId
         AND timePeriod = :timePeriod

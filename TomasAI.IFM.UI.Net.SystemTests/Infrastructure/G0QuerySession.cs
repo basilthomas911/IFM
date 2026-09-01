@@ -21,6 +21,7 @@ public sealed class G0QuerySession : IAsyncDisposable
         MarketDataFeed = new MarketDataFeedQueryApi(_producer);
         MarketDataFeedCommands = new MarketDataFeedCommandApi(_producer);
         MarketDataAnalytics = new MarketDataAnalyticsQueryApi(_producer);
+        MarketDataAnalyticsCommands = new MarketDataAnalyticsCommandApi(_producer);
         Reference = new ReferenceQueryApi(_producer);
         ReferenceCommands = new ReferenceCommandApi(_producer);
         Fund = new FundQueryApi(_producer);
@@ -36,6 +37,7 @@ public sealed class G0QuerySession : IAsyncDisposable
     public MarketDataFeedQueryApi MarketDataFeed { get; }
     public MarketDataFeedCommandApi MarketDataFeedCommands { get; }
     public MarketDataAnalyticsQueryApi MarketDataAnalytics { get; }
+    public MarketDataAnalyticsCommandApi MarketDataAnalyticsCommands { get; }
     public ReferenceQueryApi Reference { get; }
     public ReferenceCommandApi ReferenceCommands { get; }
     public FundQueryApi Fund { get; }

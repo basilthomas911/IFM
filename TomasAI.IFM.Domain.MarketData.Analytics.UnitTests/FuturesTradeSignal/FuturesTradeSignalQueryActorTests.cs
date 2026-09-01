@@ -229,9 +229,12 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
             FuturesTradeSignal = SampleData.TradeSignalReadModelFor(TimeFrameType.Daily)
         };
         MarketOutlookHotCache.Shared.Clear();
-        MarketOutlookHotCache.Shared.Activate(new(
-            entityId.ContractId, entityId.ValueDate, Guid.NewGuid()));
-        MarketOutlookHotCache.Shared.SetCurrent(expected);
+        MarketOutlookHotCache.Shared.Write(
+            entityId,
+            [new(TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType.Eod,
+                new(Guid.NewGuid(), 1, DateTime.UtcNow))],
+            state => state,
+            _ => expected);
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 

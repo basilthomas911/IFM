@@ -1,9 +1,15 @@
 # Market Outlook Hot-Cache Refactor Implementation Plan v1.0
 
+> **Superseded cache-lifecycle record.** `MOSC` replaces this document's generation activation,
+> source-order admission, stale-input rejection, activation polling, generation-driven clearing
+> and dedicated `MarketOutlookHotCacheService` requirements. The retained design is a
+> non-authoritative, process-local, immutable whole-snapshot projection with independent component
+> refresh, ES-trade recalculation, typed NATS query/notification contracts and no persistence.
+
 | Item | Value |
 | --- | --- |
 | Plan ID | `MOHC` |
-| Status | Implemented and qualified |
+| Status | Partially superseded by `Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md` |
 | Date | 2026-09-01 |
 | Scope | Replace the versioned, event-sourced Market Outlook projection with a versionless, process-local hot-cache projection |
 | Initial host | Separate `MarketOutlookHotCacheService` worker hosted by `TomasAI.IFM.Application.Api.Server` |

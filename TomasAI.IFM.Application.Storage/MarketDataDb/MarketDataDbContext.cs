@@ -1640,7 +1640,8 @@ public partial class MarketDataDbContext(
         );
 
     static FuturesRsiSignalReadModel MapToFuturesRsiSignal<TDataRecord>(TDataRecord e) where TDataRecord : IObjectDataRecord
-        => new(
+    {
+        var signal = new FuturesRsiSignalReadModel(
             contractId: e.GetString(0),
             valueDate: e.GetDateOnly(1),
             timePeriod: e.GetEnum<TimeFrameType>(2),
@@ -1658,7 +1659,42 @@ public partial class MarketDataDbContext(
             rsiSlope: e.GetDouble(14),
             sourceSequence: e.GetLong(15),
             sourceEventTimestamp: e.GetDateTime(16)
-        );
+        )
+        {
+            PreviousRsi = e.IsNull(24) ? null : e.GetDouble(24),
+            RegimeSlope = e.IsNull(25) ? null : e.GetDouble(25),
+            IsWarm = !e.IsNull(26) ? e.GetBool(26) : !e.IsNull(23) && e.GetBool(23)
+        };
+        if (e.IsNull(17))
+            return signal;
+
+        var marketDataAsOf = new DateTimeOffset(
+            DateTime.SpecifyKind(e.GetDateTime(19), DateTimeKind.Utc));
+        return signal with
+        {
+            Metadata = new MarketAnalyticsSignalMetadata
+            {
+                SignalKey = new(
+                    MarketSeriesIdentity.ForContract(signal.ContractId),
+                    MarketAnalyticsSignalKind.Rsi,
+                    signal.TimePeriod,
+                    e.GetString(17)),
+                ContractId = signal.ContractId,
+                ValueDate = signal.ValueDate,
+                ObservationId = new FuturesTradeSessionBarId(e.GetGuid(18)),
+                MarketDataAsOfUtc = marketDataAsOf,
+                CalculatedAtUtc = marketDataAsOf,
+                SourceSequence = signal.SourceSequence,
+                CalculationVersion = e.GetString(20),
+                CalculationMethod = e.GetEnum<MarketSignalCalculationMethod>(21),
+                SchemaVersion = checked((ushort)e.GetInt(22)),
+                IsValid = e.GetBool(23),
+                ValidationIssues = e.GetBool(23)
+                    ? []
+                    : [MarketSignalValidationIssue.InvalidCalculation]
+            }
+        };
+    }
 
     static FuturesContractV2ReadModel MapToFuturesContract(IObjectDataRecord o)
             => new(
@@ -2498,7 +2534,10 @@ public partial class MarketDataDbContext(
                 e.Metadata?.CalculationVersion,
                 e.Metadata?.CalculationMethod.ToString(),
                 e.Metadata is { } rsiMetadata ? rsiMetadata.SchemaVersion : null,
-                e.Metadata?.IsValid);
+                e.Metadata?.IsValid,
+                e.PreviousRsi,
+                e.RegimeSlope,
+                e.IsWarm);
         await _dbFactory.MarketDataDb
             .Use($"{nameof(MarketDataDbCql)}.{nameof(MarketDataDbCql.InsertFuturesRsiSignal)}", MarketDataDbCql.InsertFuturesRsiSignal)
             .SetParameters(parameters)

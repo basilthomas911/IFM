@@ -2541,7 +2541,30 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         // Arrange
         var entityId = SampleData.FuturesRsiSignal.EntityId;
         var signalType = SampleData.FuturesRsiSignal.TimePeriod;
-        var expectedSignal = SampleData.FuturesRsiSignal;
+        var expectedSignal = SampleData.FuturesRsiSignal with
+        {
+            PreviousRsi = 65.25d,
+            RegimeSlope = 1.42d,
+            IsWarm = true,
+            Metadata = new MarketAnalyticsSignalMetadata
+            {
+                SignalKey = new(
+                    MarketSeriesIdentity.ForContract(SampleData.FuturesRsiSignal.ContractId),
+                    MarketAnalyticsSignalKind.Rsi,
+                    SampleData.FuturesRsiSignal.TimePeriod,
+                    "rsi-14-storage-roundtrip-v1"),
+                ContractId = SampleData.FuturesRsiSignal.ContractId,
+                ValueDate = SampleData.FuturesRsiSignal.ValueDate,
+                ObservationId = new FuturesTradeSessionBarId(Guid.NewGuid()),
+                MarketDataAsOfUtc = new DateTimeOffset(SampleData.FuturesRsiSignal.SourceEventTimestamp),
+                CalculatedAtUtc = new DateTimeOffset(SampleData.FuturesRsiSignal.SourceEventTimestamp),
+                SourceSequence = SampleData.FuturesRsiSignal.SourceSequence,
+                SchemaVersion = 1,
+                CalculationVersion = "rsi-wilder-v1",
+                CalculationMethod = MarketSignalCalculationMethod.ClosedObservation,
+                IsValid = true
+            }
+        };
 
         await TestFixture.DevDatabase.UseTest(
             $"delete from futures_rsi_signal where contractId = '{expectedSignal.ContractId}' " +
@@ -2570,6 +2593,19 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
         result.RSISlope.Should().Be(expectedSignal.RSISlope);
         result.SourceSequence.Should().Be(expectedSignal.SourceSequence);
         result.SourceEventTimestamp.Should().Be(expectedSignal.SourceEventTimestamp);
+        result.PreviousRsi.Should().Be(expectedSignal.PreviousRsi);
+        result.RegimeSlope.Should().Be(expectedSignal.RegimeSlope);
+        result.IsWarm.Should().BeTrue();
+        result.Metadata.Should().NotBeNull();
+        result.Metadata!.CalculationConfigurationId.Should().Be(
+            expectedSignal.Metadata!.CalculationConfigurationId);
+        result.Metadata.ObservationId.Should().Be(expectedSignal.Metadata.ObservationId);
+        result.Metadata.MarketDataAsOfUtc.Should().Be(expectedSignal.Metadata.MarketDataAsOfUtc);
+        result.Metadata.SourceSequence.Should().Be(expectedSignal.Metadata.SourceSequence);
+        result.Metadata.CalculationVersion.Should().Be(expectedSignal.Metadata.CalculationVersion);
+        result.Metadata.CalculationMethod.Should().Be(expectedSignal.Metadata.CalculationMethod);
+        result.Metadata.SchemaVersion.Should().Be(expectedSignal.Metadata.SchemaVersion);
+        result.Metadata.IsValid.Should().BeTrue();
     }
 
     /// <summary>

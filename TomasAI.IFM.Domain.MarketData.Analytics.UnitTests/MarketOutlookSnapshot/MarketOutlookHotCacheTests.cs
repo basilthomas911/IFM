@@ -36,79 +36,86 @@ public sealed class MarketOutlookHotCacheTests
     }
 
     [Fact]
-    public void PerComponentOrdering_RejectsDuplicateAndDelayedButAcceptsOrdinalGap()
+    public void LatestArrivalAlwaysOverwritesWithoutSourceOrderingRejection()
     {
         var cache = new MarketOutlookHotCache();
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
         var epoch = Guid.NewGuid();
         var t0 = DateTime.UtcNow;
 
-        cache.TryUpdateInput(Id, CacheComponentType.EsTrade,
-            new(Guid.NewGuid(), 0, t0, epoch, 1),
-            state => state with { CurrentEsPrice = 100m }, out _).Should().BeTrue();
-        cache.TryUpdateInput(Id, CacheComponentType.EsTrade,
+        Write(cache, Id, CacheComponentType.EsTrade,
             new(Guid.NewGuid(), 0, t0.AddSeconds(2), epoch, 3),
-            state => state with { CurrentEsPrice = 103m }, out _).Should().BeTrue();
-        cache.TryUpdateInput(Id, CacheComponentType.EsTrade,
+            state => state with { CurrentEsPrice = 103m });
+        Write(cache, Id, CacheComponentType.EsTrade,
             new(Guid.NewGuid(), 0, t0.AddSeconds(1), epoch, 2),
-            state => state with { CurrentEsPrice = 102m }, out _).Should().BeFalse();
+            state => state with { CurrentEsPrice = 102m });
 
         cache.TryGetInputs(Id, out var state).Should().BeTrue();
-        state.CurrentEsPrice.Should().Be(103m);
-        cache.GetMetrics().RejectedInputUpdates.Should().Be(1);
+        state.CurrentEsPrice.Should().Be(102m, "the last routed arrival owns the slot");
+        state.Positions[CacheComponentType.EsTrade].StreamOrdinal.Should().Be(2);
+        typeof(MarketOutlookHotCacheMetrics).GetProperty("RejectedInputUpdates").Should().BeNull();
+        cache.GetMetrics().ReceivedInputUpdates.Should().Be(2);
     }
 
     [Fact]
-    public void GenerationFence_RejectsOldValueDateAndEvictsPriorIdentity()
+    public void SeparateContractAndValueDateIdentitiesNeverEvictOrMixEachOther()
     {
         var cache = new MarketOutlookHotCache();
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
-        cache.TryUpdateInput(Id, CacheComponentType.Vx, Position(1),
-            state => state with { VixFuturesPrice = 20m }, out _).Should().BeTrue();
         var next = new MarketOutlookEntityId("ESH27", Id.ValueDate.AddDays(1));
 
-        cache.Activate(new(next.ContractId, next.ValueDate, Guid.NewGuid()));
+        Write(cache, Id, CacheComponentType.Vx, Position(1),
+            state => state with { VixFuturesPrice = 20m });
+        Write(cache, next, CacheComponentType.Vx, Position(2),
+            state => state with { VixFuturesPrice = 22m });
 
-        cache.TryGetInputs(Id, out _).Should().BeFalse();
-        cache.TryUpdateInput(Id, CacheComponentType.Vx, Position(2),
-            state => state with { VixFuturesPrice = 21m }, out _).Should().BeFalse();
-        cache.TryUpdateInput(next, CacheComponentType.Vx, Position(3),
-            state => state with { VixFuturesPrice = 22m }, out _).Should().BeTrue();
+        cache.TryGetCurrent(Id, out var first).Should().BeTrue();
+        cache.TryGetCurrent(next, out var second).Should().BeTrue();
+        first.VixFuturesPrice.Should().Be(20m);
+        second.VixFuturesPrice.Should().Be(22m);
     }
 
     [Fact]
-    public void NativeGenerationChange_ClearsSameContractAndValueDate()
+    public async Task ConcurrentPartialWritersPreserveSiblingFieldsAndPublishAtomicSnapshots()
     {
         var cache = new MarketOutlookHotCache();
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
-        cache.TryUpdateInput(Id, CacheComponentType.Vx, Position(1),
-            state => state with { VixFuturesPrice = 20m }, out _).Should().BeTrue();
-
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
-
-        cache.TryGetInputs(Id, out _).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task ConcurrentWriters_LeaveAtomicDeterministicHighestOrdinal()
-    {
-        var cache = new MarketOutlookHotCache();
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
-        var epoch = Guid.NewGuid();
         var t0 = DateTime.UtcNow;
-
-        await Parallel.ForEachAsync(Enumerable.Range(1, 2_000), async (ordinal, cancellationToken) =>
+        var readers = Enumerable.Range(0, 4).Select(async _ =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            cache.TryUpdateInput(Id, CacheComponentType.EsTrade,
-                new(Guid.NewGuid(), 0, t0.AddTicks(ordinal), epoch, ordinal),
-                state => state with { CurrentEsPrice = ordinal }, out _);
-            await Task.Yield();
+            for (var index = 0; index < 2_000; index++)
+            {
+                if (cache.TryGetCurrent(Id, out var snapshot))
+                {
+                    snapshot.ContractId.Should().Be(Id.ContractId);
+                    snapshot.ValueDate.Should().Be(Id.ValueDate);
+                }
+                await Task.Yield();
+            }
         });
+        var writers = new[]
+        {
+            Task.Run(() =>
+            {
+                for (var index = 1; index <= 1_000; index++)
+                    Write(cache, Id, CacheComponentType.EsTrade,
+                        new(Guid.NewGuid(), index, t0.AddTicks(index)),
+                        state => state with { CurrentEsPrice = index });
+            }),
+            Task.Run(() =>
+            {
+                for (var index = 1; index <= 1_000; index++)
+                    Write(cache, Id, CacheComponentType.Vx,
+                        new(Guid.NewGuid(), index, t0.AddTicks(index)),
+                        state => state with { VixFuturesPrice = index });
+            })
+        };
+
+        await Task.WhenAll(readers.Concat(writers));
+        Write(cache, Id, CacheComponentType.EsTrade, Position(2_001),
+            state => state with { CurrentEsPrice = 2_001m });
 
         cache.TryGetInputs(Id, out var state).Should().BeTrue();
-        state.CurrentEsPrice.Should().Be(2_000m);
-        state.Positions[CacheComponentType.EsTrade].StreamOrdinal.Should().Be(2_000);
+        state.CurrentEsPrice.Should().Be(2_001m);
+        state.VixFuturesPrice.Should().NotBeNull();
+        cache.GetMetrics().ComposedSnapshots.Should().Be(2_001);
     }
 
     [Fact]
@@ -199,6 +206,86 @@ public sealed class MarketOutlookHotCacheTests
         result.UpdatedAtUtc.Should().BeAfter(result.MarketDataAsOfUtc);
         result.MarketDataAsOfUtc.Should().Be(sourceTime);
     }
+
+    [Theory]
+    [InlineData("Up", "Databento connection and required subscriptions are active")]
+    [InlineData("Resetting", "Native reset attempt 2 of 3")]
+    [InlineData("Down", "Required ES subscription could not be restored")]
+    public void ExplicitFeedHealth_IsIndependentFromAnalyticsFreshness(
+        string health,
+        string reason)
+    {
+        var oldReceipt = DateTime.UtcNow.AddHours(-1);
+        var state = new MarketOutlookInputState
+        {
+            EntityId = Id,
+            CurrentEsPrice = 5_100m,
+            FeedHealth = health,
+            FeedHealthReason = reason,
+            Positions = ImmutableDictionary<CacheComponentType, MarketOutlookSourcePosition>.Empty
+                .Add(CacheComponentType.EsTrade, new(Guid.NewGuid(), 1, oldReceipt))
+        };
+
+        var result = MarketOutlookComposer.Compose(
+            state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow);
+
+        result.FeedHealth.Should().Be(health);
+        result.FeedHealthReason.Should().Be(reason);
+        result.EsPriceAvailability.Should().Be(MarketOutlookInputAvailability.Stale);
+    }
+
+    [Fact]
+    public void FeedHealthWrite_CannotClearAnalyticsValues()
+    {
+        var cache = new MarketOutlookHotCache();
+        Write(cache, Id, CacheComponentType.EsTrade, Position(1),
+            state => state with { CurrentEsPrice = 5_100m });
+
+        Write(cache, Id, CacheComponentType.FeedHealth, Position(2),
+            state => state with
+            {
+                FeedHealth = "Resetting",
+                FeedHealthReason = "Watchdog reset is in progress"
+            });
+
+        cache.TryGetCurrent(Id, out var snapshot).Should().BeTrue();
+        snapshot.FuturesEodData.ClosePrice.Should().Be(5_100m);
+        snapshot.FeedHealth.Should().Be("Resetting");
+    }
+
+    [Fact]
+    public void ComposerFailure_ReleasesWriteLockAndRetainsLastCompleteSnapshot()
+    {
+        var cache = new MarketOutlookHotCache();
+        Write(cache, Id, CacheComponentType.EsTrade, Position(1),
+            state => state with { CurrentEsPrice = 5_100m });
+
+        Action failedWrite = () => cache.Write(
+            Id,
+            [new(CacheComponentType.Vx, Position(2))],
+            state => state with { VixFuturesPrice = 21m },
+            _ => throw new InvalidOperationException("injected composer failure"));
+
+        failedWrite.Should().Throw<InvalidOperationException>();
+        Write(cache, Id, CacheComponentType.Vx, Position(3),
+            state => state with { VixFuturesPrice = 22m });
+
+        cache.TryGetCurrent(Id, out var snapshot).Should().BeTrue();
+        snapshot.FuturesEodData.ClosePrice.Should().Be(5_100m);
+        snapshot.VixFuturesPrice.Should().Be(22m);
+        cache.GetMetrics().CompositionFailures.Should().Be(1);
+        cache.GetMetrics().WrittenInputUpdates.Should().Be(2);
+    }
+
+    static MarketOutlookHotCacheWriteResult Write(
+        MarketOutlookHotCache cache,
+        MarketOutlookEntityId id,
+        CacheComponentType component,
+        MarketOutlookSourcePosition position,
+        Func<MarketOutlookInputState, MarketOutlookInputState> update) =>
+        cache.Write(id, [new(component, position)], update,
+            state => MarketOutlookComposer.Compose(
+                state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow));
 
     static MarketOutlookSourcePosition Position(long sequence) =>
         new(Guid.NewGuid(), sequence, DateTime.UtcNow.AddTicks(sequence));

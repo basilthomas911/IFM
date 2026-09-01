@@ -36,6 +36,18 @@ public interface IDatabentoMarketDataEpoch : IAsyncDisposable
     }
     bool IsTickDataStreamActive(string contractId);
 
+    /// <summary>Returns whether every native feed and managed aggregation worker is running.</summary>
+    bool IsFeedUp(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero)
+            return false;
+        var health = GetHealth();
+        return health.Running
+            && health.AggregationRunning
+            && health.ConfiguredContracts > 0
+            && health.LastPriceStoreActive;
+    }
+
     Task StartAsync(CancellationToken cancellationToken);
     Task StopAsync();
     DatabentoMarketDataEpochHealth GetHealth();

@@ -71,7 +71,8 @@ public static class MarketOutlookComposer
                 : ema is null && bb is null
                     ? MarketOutlookInputAvailability.Unavailable
                     : MarketOutlookInputAvailability.Warming,
-            FeedHealth = FeedHealth(state, updatedAtUtc)
+            FeedHealth = FeedHealth(state, updatedAtUtc),
+            FeedHealthReason = FeedHealthReason(state)
         };
     }
 
@@ -93,12 +94,24 @@ public static class MarketOutlookComposer
 
     static string FeedHealth(MarketOutlookInputState state, DateTime nowUtc)
     {
+        if (!string.Equals(state.FeedHealth, "Unavailable", StringComparison.OrdinalIgnoreCase))
+            return state.FeedHealth;
+
         if (!state.Positions.TryGetValue(CacheComponentType.EsTrade, out var position))
             return "Unavailable";
         var age = nowUtc - position.SourceTimestampUtc;
         return age <= TimeSpan.FromMinutes(5)
             ? "Green"
             : age <= TimeSpan.FromMinutes(15) ? "Yellow" : "Red";
+    }
+
+    static string FeedHealthReason(MarketOutlookInputState state)
+    {
+        if (!string.IsNullOrWhiteSpace(state.FeedHealthReason))
+            return state.FeedHealthReason;
+        return string.Equals(state.FeedHealth, "Unavailable", StringComparison.OrdinalIgnoreCase)
+            ? "Interim status inferred from the most recent ES receipt until native watchdog health is supplied."
+            : string.Empty;
     }
 
     static FuturesEodDataV2ReadModel ApplyLivePrice(

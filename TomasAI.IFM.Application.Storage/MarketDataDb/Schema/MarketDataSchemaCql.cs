@@ -270,6 +270,9 @@ internal static class MarketDataSchemaCql
             calculationMethod TEXT,
             schemaVersion INT,
             isValid BOOLEAN,
+            previousRsi DOUBLE,
+            regimeSlope DOUBLE,
+            isWarm BOOLEAN,
             signalType TEXT,
             timePeriod TEXT,
             windowSize INT,
@@ -292,6 +295,12 @@ internal static class MarketDataSchemaCql
             configurationId TEXT, observationId UUID, marketDataAsOf TIMESTAMP,
             calculationVersion TEXT, calculationMethod TEXT, schemaVersion INT,
             isValid BOOLEAN
+        );
+        """;
+
+    public const string AddFuturesRsiSignalWarmStateColumns = """
+        ALTER TABLE futures_rsi_signal ADD (
+            previousRsi DOUBLE, regimeSlope DOUBLE, isWarm BOOLEAN
         );
         """;
 

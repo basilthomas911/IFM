@@ -21,41 +21,25 @@ public enum MarketOutlookComponentType : byte
     Ema,
     BollingerBand,
     EsTrade,
-    TradeSignal
+    TradeSignal,
+    FeedHealth
 }
 
+/// <summary>
+/// Describes where a latest-arrival cache value came from. These values are diagnostic only and
+/// never participate in cache admission or ordering decisions.
+/// </summary>
 public readonly record struct MarketOutlookSourcePosition(
     Guid SourceId,
     long SourceSequence,
     DateTime SourceTimestampUtc,
     Guid StreamEpochId = default,
-    long StreamOrdinal = 0)
-{
-    public bool IsNewerThan(MarketOutlookSourcePosition current)
-    {
-        if (SourceId != Guid.Empty && SourceId == current.SourceId)
-            return false;
-        if (StreamEpochId != Guid.Empty && current.StreamEpochId != Guid.Empty)
-            return StreamEpochId == current.StreamEpochId
-                && StreamOrdinal > 0 && current.StreamOrdinal > 0
-                ? StreamOrdinal > current.StreamOrdinal
-                : SourceTimestampUtc > current.SourceTimestampUtc;
-        if (SourceSequence > 0 && current.SourceSequence > 0)
-            return SourceSequence > current.SourceSequence;
-        return SourceTimestampUtc > current.SourceTimestampUtc;
-    }
-}
+    long StreamOrdinal = 0);
 
-public readonly record struct MarketOutlookGenerationFence(
-    string ContractId,
-    DateOnly ValueDate,
-    Guid GenerationId = default)
-{
-    public bool IsValid => !string.IsNullOrWhiteSpace(ContractId) && ValueDate != default;
-    public bool Accepts(MarketOutlookEntityId id) => IsValid
-        && string.Equals(ContractId, id.ContractId, StringComparison.Ordinal)
-        && ValueDate == id.ValueDate;
-}
+/// <summary>One component position written in the same atomic partial-state transaction.</summary>
+public readonly record struct MarketOutlookComponentWrite(
+    MarketOutlookComponentType Component,
+    MarketOutlookSourcePosition Position);
 
 public sealed record MarketOutlookInputState
 {
@@ -73,208 +57,160 @@ public sealed record MarketOutlookInputState
     public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
     public decimal? CurrentEsPrice { get; init; }
     public DateTime MarketDataAsOfUtc { get; init; }
+    public string FeedHealth { get; init; } = "Unavailable";
+    public string FeedHealthReason { get; init; } = string.Empty;
     public ImmutableDictionary<MarketOutlookComponentType, MarketOutlookSourcePosition> Positions { get; init; }
         = ImmutableDictionary<MarketOutlookComponentType, MarketOutlookSourcePosition>.Empty;
 }
 
+public readonly record struct MarketOutlookHotCacheWriteResult(
+    MarketOutlookInputState Inputs,
+    MarketOutlookReadModel Snapshot);
+
 public readonly record struct MarketOutlookHotCacheMetrics(
-    long AcceptedInputUpdates,
-    long RejectedInputUpdates,
-    long ProjectionUpdates,
+    long ReceivedInputUpdates,
+    long WrittenInputUpdates,
+    long ComposedSnapshots,
     long Queries,
+    long NotificationFailures,
+    long CompositionFailures,
     DateTime? LastComponentRefreshUtc,
     DateTime? LastEsRefreshUtc);
 
 public interface IMarketOutlookHotCache
 {
-    MarketOutlookGenerationFence ActiveFence { get; }
-    void Activate(MarketOutlookGenerationFence fence);
-    bool TryUpdateInput(
+    MarketOutlookHotCacheWriteResult Write(
         MarketOutlookEntityId entityId,
-        MarketOutlookComponentType component,
-        MarketOutlookSourcePosition position,
+        IReadOnlyCollection<MarketOutlookComponentWrite> components,
         Func<MarketOutlookInputState, MarketOutlookInputState> update,
-        out MarketOutlookInputState state);
+        Func<MarketOutlookInputState, MarketOutlookReadModel> compose);
     bool TryGetInputs(MarketOutlookEntityId entityId, out MarketOutlookInputState state);
-    void SetCurrent(MarketOutlookReadModel value);
     bool TryGetCurrent(MarketOutlookEntityId entityId, out MarketOutlookReadModel value);
+    void RecordNotificationFailure();
     MarketOutlookHotCacheMetrics GetMetrics();
     void Clear();
 }
 
-/// <summary>Process-local immutable Market Outlook input and projection cache.</summary>
+/// <summary>
+/// Process-local latest-arrival Market Outlook cache. All writers share one short critical section;
+/// readers atomically capture immutable references and never take that lock.
+/// </summary>
 public sealed class MarketOutlookHotCache : IMarketOutlookHotCache
 {
-    sealed class Cell
+    sealed class Cell(MarketOutlookEntityId id)
     {
-        public object Gate { get; } = new();
-        public MarketOutlookInputState Inputs = new();
+        public MarketOutlookInputState Inputs = new() { EntityId = id };
+        public MarketOutlookReadModel? Current;
     }
 
-    readonly ConcurrentDictionary<MarketOutlookEntityId, Cell> inputs = new();
-    readonly ConcurrentDictionary<MarketOutlookEntityId, MarketOutlookReadModel> current = new();
-    readonly object fenceGate = new();
-    MarketOutlookGenerationFence activeFence;
-    long accepted;
-    long rejected;
-    long projections;
+    readonly ConcurrentDictionary<MarketOutlookEntityId, Cell> cells = new();
+    readonly object writeGate = new();
+    long received;
+    long written;
+    long composed;
     long queries;
+    long notificationFailures;
+    long compositionFailures;
     long lastComponentTicks;
     long lastEsTicks;
 
     public static MarketOutlookHotCache Shared { get; } = new();
 
-    public MarketOutlookGenerationFence ActiveFence
-    {
-        get
-        {
-            lock (fenceGate)
-                return activeFence;
-        }
-    }
-
-    public void Activate(MarketOutlookGenerationFence fence)
-    {
-        lock (fenceGate)
-        {
-            if (activeFence == fence)
-                return;
-            var previous = activeFence;
-            activeFence = fence;
-            if (!fence.IsValid)
-                return;
-            if (previous.IsValid
-                && previous.GenerationId != fence.GenerationId
-                && fence.GenerationId != Guid.Empty)
-            {
-                inputs.Clear();
-                current.Clear();
-                return;
-            }
-            foreach (var key in inputs.Keys.Where(key => !fence.Accepts(key)))
-                inputs.TryRemove(key, out _);
-            foreach (var key in current.Keys.Where(key => !fence.Accepts(key)))
-                current.TryRemove(key, out _);
-        }
-    }
-
-    public bool TryUpdateInput(
+    public MarketOutlookHotCacheWriteResult Write(
         MarketOutlookEntityId entityId,
-        MarketOutlookComponentType component,
-        MarketOutlookSourcePosition position,
+        IReadOnlyCollection<MarketOutlookComponentWrite> components,
         Func<MarketOutlookInputState, MarketOutlookInputState> update,
-        out MarketOutlookInputState state)
+        Func<MarketOutlookInputState, MarketOutlookReadModel> compose)
     {
         ArgumentNullException.ThrowIfNull(entityId);
+        ArgumentNullException.ThrowIfNull(components);
         ArgumentNullException.ThrowIfNull(update);
-        lock (fenceGate)
-            return TryUpdateInputCore(entityId, component, position, update, out state);
-    }
+        ArgumentNullException.ThrowIfNull(compose);
+        Interlocked.Add(ref received, components.Count);
 
-    bool TryUpdateInputCore(
-        MarketOutlookEntityId entityId,
-        MarketOutlookComponentType component,
-        MarketOutlookSourcePosition position,
-        Func<MarketOutlookInputState, MarketOutlookInputState> update,
-        out MarketOutlookInputState state)
-    {
-        if (!activeFence.Accepts(entityId))
+        lock (writeGate)
         {
-            Interlocked.Increment(ref rejected);
-            state = default!;
-            return false;
-        }
-        var cell = inputs.GetOrAdd(entityId, static id => new Cell
-        {
-            Inputs = new MarketOutlookInputState { EntityId = id }
-        });
-        lock (cell.Gate)
-        {
-            if (cell.Inputs.Positions.TryGetValue(component, out var existing)
-                && !position.IsNewerThan(existing))
+            var cell = cells.GetOrAdd(entityId, static id => new Cell(id));
+            var previous = Volatile.Read(ref cell.Inputs);
+            var positions = previous.Positions;
+            var marketDataAsOfUtc = previous.MarketDataAsOfUtc;
+            foreach (var component in components)
             {
-                Interlocked.Increment(ref rejected);
-                state = cell.Inputs;
-                return false;
+                positions = positions.SetItem(component.Component, component.Position);
+                if (component.Position.SourceTimestampUtc > marketDataAsOfUtc)
+                    marketDataAsOfUtc = component.Position.SourceTimestampUtc;
             }
-            var next = update(cell.Inputs) with
+
+            var next = update(previous) with
             {
                 EntityId = entityId,
-                MarketDataAsOfUtc = position.SourceTimestampUtc > cell.Inputs.MarketDataAsOfUtc
-                    ? position.SourceTimestampUtc
-                    : cell.Inputs.MarketDataAsOfUtc,
-                Positions = cell.Inputs.Positions.SetItem(component, position)
+                MarketDataAsOfUtc = marketDataAsOfUtc,
+                Positions = positions
             };
-            cell.Inputs = next;
-            state = next;
+            MarketOutlookReadModel snapshot;
+            try
+            {
+                snapshot = compose(next);
+            }
+            catch
+            {
+                Interlocked.Increment(ref compositionFailures);
+                throw;
+            }
+            Volatile.Write(ref cell.Inputs, next);
+            Volatile.Write(ref cell.Current, snapshot);
+
+            Interlocked.Add(ref written, components.Count);
+            Interlocked.Increment(ref composed);
+            var nowTicks = DateTime.UtcNow.Ticks;
+            if (components.Any(static value => value.Component == MarketOutlookComponentType.EsTrade))
+                Interlocked.Exchange(ref lastEsTicks, nowTicks);
+            else
+                Interlocked.Exchange(ref lastComponentTicks, nowTicks);
+            return new(next, snapshot);
         }
-        Interlocked.Increment(ref accepted);
-        var nowTicks = DateTime.UtcNow.Ticks;
-        if (component == MarketOutlookComponentType.EsTrade)
-            Interlocked.Exchange(ref lastEsTicks, nowTicks);
-        else
-            Interlocked.Exchange(ref lastComponentTicks, nowTicks);
-        return true;
     }
 
     public bool TryGetInputs(MarketOutlookEntityId entityId, out MarketOutlookInputState state)
     {
-        lock (fenceGate)
+        if (!cells.TryGetValue(entityId, out var cell))
         {
-            if (!activeFence.Accepts(entityId) || !inputs.TryGetValue(entityId, out var cell))
-            {
-                state = default!;
-                return false;
-            }
-            lock (cell.Gate)
-                state = cell.Inputs;
-            return true;
+            state = default!;
+            return false;
         }
-    }
-
-    public void SetCurrent(MarketOutlookReadModel value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-        var id = new MarketOutlookEntityId(value.ContractId, value.ValueDate);
-        lock (fenceGate)
-        {
-            if (!activeFence.Accepts(id))
-                return;
-            current[id] = value;
-            Interlocked.Increment(ref projections);
-        }
+        state = Volatile.Read(ref cell.Inputs);
+        return true;
     }
 
     public bool TryGetCurrent(MarketOutlookEntityId entityId, out MarketOutlookReadModel value)
     {
         Interlocked.Increment(ref queries);
-        lock (fenceGate)
+        if (!cells.TryGetValue(entityId, out var cell)
+            || Volatile.Read(ref cell.Current) is not { } current)
         {
-            if (!activeFence.Accepts(entityId))
-            {
-                value = default!;
-                return false;
-            }
-            return current.TryGetValue(entityId, out value!);
+            value = default!;
+            return false;
         }
+        value = current;
+        return true;
     }
 
+    public void RecordNotificationFailure() => Interlocked.Increment(ref notificationFailures);
+
     public MarketOutlookHotCacheMetrics GetMetrics() => new(
-        Interlocked.Read(ref accepted),
-        Interlocked.Read(ref rejected),
-        Interlocked.Read(ref projections),
+        Interlocked.Read(ref received),
+        Interlocked.Read(ref written),
+        Interlocked.Read(ref composed),
         Interlocked.Read(ref queries),
+        Interlocked.Read(ref notificationFailures),
+        Interlocked.Read(ref compositionFailures),
         ReadTime(ref lastComponentTicks),
         ReadTime(ref lastEsTicks));
 
     public void Clear()
     {
-        lock (fenceGate)
-        {
-            inputs.Clear();
-            current.Clear();
-            activeFence = default;
-        }
+        lock (writeGate)
+            cells.Clear();
     }
 
     static DateTime? ReadTime(ref long ticks)

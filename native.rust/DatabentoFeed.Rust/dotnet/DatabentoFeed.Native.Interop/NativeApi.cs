@@ -14,7 +14,13 @@ public sealed unsafe class NativeApi : IDisposable
         "dbf_feed_get_stats", "dbf_feed_get_last_error", "dbf_feed_destroy",
         "dbf_contract_details_query", "dbf_contract_details_result_get_counts",
         "dbf_contract_details_result_copy", "dbf_contract_details_result_get_error",
-        "dbf_contract_details_result_destroy", "dbf_get_latest_price"
+        "dbf_contract_details_result_destroy", "dbf_get_latest_price",
+        "dbf_historical_estimate", "dbf_historical_batch_submit",
+        "dbf_historical_batch_get_status", "dbf_historical_batch_list_files",
+        "dbf_historical_batch_download_file", "dbf_historical_range_open",
+        "dbf_historical_file_open", "dbf_historical_result_get_payload",
+        "dbf_historical_result_get_next_batch", "dbf_historical_result_get_error",
+        "dbf_historical_result_destroy"
     ];
 
     private nint _library;
@@ -46,6 +52,17 @@ public sealed unsafe class NativeApi : IDisposable
         ContractGetError = Load<ContractGetErrorFn>(CanonicalExports[19]);
         ContractDestroy = Load<DestroyFn>(CanonicalExports[20]);
         GetLatestPrice = Load<GetLatestPriceFn>(CanonicalExports[21]);
+        HistoricalEstimate = Load<HistoricalEstimateFn>(CanonicalExports[22]);
+        HistoricalBatchSubmit = Load<HistoricalOpenFn>(CanonicalExports[23]);
+        HistoricalBatchGetStatus = Load<HistoricalJobQueryFn>(CanonicalExports[24]);
+        HistoricalBatchListFiles = Load<HistoricalJobQueryFn>(CanonicalExports[25]);
+        HistoricalBatchDownloadFile = Load<HistoricalDownloadFn>(CanonicalExports[26]);
+        HistoricalRangeOpen = Load<HistoricalOpenFn>(CanonicalExports[27]);
+        HistoricalFileOpen = Load<HistoricalFileOpenFn>(CanonicalExports[28]);
+        HistoricalGetPayload = Load<HistoricalTextFn>(CanonicalExports[29]);
+        HistoricalGetNextBatch = Load<HistoricalNextBatchFn>(CanonicalExports[30]);
+        HistoricalGetError = Load<HistoricalTextFn>(CanonicalExports[31]);
+        HistoricalDestroy = Load<DestroyFn>(CanonicalExports[32]);
     }
 
     private T Load<T>(string name) where T : Delegate =>
@@ -74,6 +91,17 @@ public sealed unsafe class NativeApi : IDisposable
     public ContractGetErrorFn ContractGetError { get; }
     public DestroyFn ContractDestroy { get; }
     public GetLatestPriceFn GetLatestPrice { get; }
+    public HistoricalEstimateFn HistoricalEstimate { get; }
+    public HistoricalOpenFn HistoricalBatchSubmit { get; }
+    public HistoricalJobQueryFn HistoricalBatchGetStatus { get; }
+    public HistoricalJobQueryFn HistoricalBatchListFiles { get; }
+    public HistoricalDownloadFn HistoricalBatchDownloadFile { get; }
+    public HistoricalOpenFn HistoricalRangeOpen { get; }
+    public HistoricalFileOpenFn HistoricalFileOpen { get; }
+    public HistoricalTextFn HistoricalGetPayload { get; }
+    public HistoricalNextBatchFn HistoricalGetNextBatch { get; }
+    public HistoricalTextFn HistoricalGetError { get; }
+    public DestroyFn HistoricalDestroy { get; }
 
     public void Dispose()
     {
@@ -100,4 +128,11 @@ public sealed unsafe class NativeApi : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int ContractCopyFn(nint result, ContractDetailV1* details, uint detailCapacity, byte* blob, uint blobCapacity);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int ContractGetErrorFn(nint result, byte* buffer, uint capacity, uint* requiredBytes);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int GetLatestPriceFn(LatestPriceRequestV1* request, uint timeoutMs, LatestPriceResult64* result);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalEstimateFn(HistoricalRequestV1* request, Utf8SliceV1* symbols, byte* blob, uint bytes, HistoricalEstimateV1* estimate);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalOpenFn(HistoricalRequestV1* request, Utf8SliceV1* symbols, byte* blob, uint bytes, nint* result);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalJobQueryFn(byte* jobId, uint jobIdBytes, nint* result);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalDownloadFn(byte* jobId, uint jobIdBytes, byte* fileName, uint fileNameBytes, byte* destinationPath, uint destinationPathBytes);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalFileOpenFn(byte* filePath, uint filePathBytes, uint schema, nint* result);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalTextFn(nint result, byte* buffer, uint capacity, uint* requiredBytes);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] public delegate int HistoricalNextBatchFn(nint result, HistoricalRecord120* records, uint capacity, HistoricalBatchV1* batch);
 }

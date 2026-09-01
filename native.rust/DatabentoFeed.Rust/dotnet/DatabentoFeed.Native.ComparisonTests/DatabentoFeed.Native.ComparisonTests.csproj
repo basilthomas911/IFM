@@ -14,5 +14,9 @@
   <ItemGroup>
     <ProjectReference Include="..\DatabentoFeed.Native.Interop\DatabentoFeed.Native.Interop.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\..\native\DatabentoFeed.Native\abi-v3-capabilities.json"
+          Link="abi-v3-capabilities.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
 </Project>

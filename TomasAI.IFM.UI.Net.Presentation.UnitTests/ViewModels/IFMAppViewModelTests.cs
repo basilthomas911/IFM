@@ -231,7 +231,7 @@ public class IFMAppViewModelTests
     }
 
     [Fact]
-    public async Task MarketOutlookSnapshot_RefreshesPercentageAndRejectsStaleRevision()
+    public async Task MarketOutlookSnapshot_RefreshesPercentageForEveryArrivalIncludingOlderTimestamp()
     {
         var viewModel = CreateSubject();
         var valueDate = new DateOnly(2026, 8, 11);

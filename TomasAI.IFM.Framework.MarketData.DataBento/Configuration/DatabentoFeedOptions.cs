@@ -175,6 +175,10 @@ public sealed record DatabentoFeedOptions
                 DeploymentProfile = profile,
                 Dataset = dataset,
                 DataSource = FeedDataSourceMode.Synthetic,
+                RingBackpressure = new FeedRingBackpressureOptions
+                {
+                    RingFullTimeout = TimeSpan.FromSeconds(30)
+                },
                 CoreIsolation = new FeedCoreIsolationOptions
                 {
                     Mode = FeedCoreIsolationMode.PinnedOnly
@@ -193,6 +197,10 @@ public sealed record DatabentoFeedOptions
                     ThreadPriority = new FeedThreadPriorityOptions
                     {
                         RequireConfiguredPriority = true
+                    },
+                    RingBackpressure = new FeedRingBackpressureOptions
+                    {
+                        RingFullTimeout = TimeSpan.FromSeconds(30)
                     },
                     Memory = new FeedMemoryOptions
                     {

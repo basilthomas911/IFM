@@ -1,6 +1,6 @@
 use core::ffi::c_void;
 
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 pub const WAIT_INFINITE: u32 = u32::MAX;
 pub const UNPINNED_PROCESSOR: u16 = u16::MAX;
 
@@ -71,6 +71,16 @@ pub const LATEST_PRICE_BID: u32 = 3;
 pub const LATEST_PRICE_ASK: u32 = 4;
 pub const LATEST_PRICE_NEXT_OBSERVED: u32 = 1;
 pub const LATEST_PRICE_REPLAY_LOOKBACK_THEN_LIVE: u32 = 2;
+pub const HISTORICAL_DEFINITION: u32 = 1;
+pub const HISTORICAL_OHLCV_1M: u32 = 2;
+pub const HISTORICAL_TRADES: u32 = 3;
+pub const HISTORICAL_STATISTICS: u32 = 4;
+pub const HISTORICAL_OHLCV_1D: u32 = 5;
+pub const HISTORICAL_SYNTHETIC: u32 = 1;
+pub const HISTORICAL_RECORD_DEFINITION: u32 = 1;
+pub const HISTORICAL_RECORD_OHLCV: u32 = 2;
+pub const HISTORICAL_RECORD_TRADE: u32 = 3;
+pub const HISTORICAL_RECORD_STATISTIC: u32 = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -394,6 +404,66 @@ pub struct LatestPriceResult64 {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct HistoricalRequestV1 {
+    pub struct_size: u32,
+    pub abi_version: u32,
+    pub schema: u32,
+    pub input_symbology: u32,
+    pub flags: u32,
+    pub symbol_count: u32,
+    pub dataset: Utf8SliceV1,
+    pub start_ts_ns: i64,
+    pub end_ts_ns: i64,
+    pub record_limit: u64,
+    pub timeout_ms: u32,
+    pub reserved32: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct HistoricalEstimateV1 {
+    pub struct_size: u32,
+    pub abi_version: u32,
+    pub estimated_cost_usd: f64,
+    pub estimated_bytes: u64,
+    pub estimated_records: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct HistoricalRecord120 {
+    pub struct_size: u32,
+    pub abi_version: u32,
+    pub record_kind: u32,
+    pub schema: u32,
+    pub instrument_id: u32,
+    pub publisher_id: u16,
+    pub condition_flags: u16,
+    pub event_ts_ns: i64,
+    pub source_sequence: i64,
+    pub open_price: i64,
+    pub high_price: i64,
+    pub low_price: i64,
+    pub close_or_trade_price: i64,
+    pub volume_or_size: u64,
+    pub action: u8,
+    pub side: u8,
+    pub reserved8: [u8; 6],
+    pub symbol: [u8; 32],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct HistoricalBatchV1 {
+    pub struct_size: u32,
+    pub abi_version: u32,
+    pub records_read: u32,
+    pub more_available: u32,
+    pub batch_ordinal: u64,
+}
+
+#[repr(C)]
 pub struct FeedOpaque {
     _private: [u8; 0],
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
@@ -426,4 +496,8 @@ const _: () = {
     assert!(size_of::<ContractDetailV1>() == 192);
     assert!(size_of::<LatestPriceRequestV1>() == 88);
     assert!(size_of::<LatestPriceResult64>() == 64);
+    assert!(size_of::<HistoricalRequestV1>() == 64);
+    assert!(size_of::<HistoricalEstimateV1>() == 32);
+    assert!(size_of::<HistoricalRecord120>() == 120);
+    assert!(size_of::<HistoricalBatchV1>() == 24);
 };

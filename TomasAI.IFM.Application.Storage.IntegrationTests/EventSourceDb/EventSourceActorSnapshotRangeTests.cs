@@ -175,6 +175,24 @@ public class EventSourceActorSnapshotRangeTests(EventSourceActorSnapshotRangeFix
     }
 
     [Fact]
+    public async Task TypedLastNRangePreservesRsiHistoryAcrossNewerRestartMarker()
+    {
+        var stream = NewStream();
+        await SaveAsync(stream,
+            RangeEvent(),
+            RangeEvent(),
+            Snapshot(),
+            RangeEvent());
+
+        var result = await LoadTypedRangeAsync<FuturesRsiSignalGeneratedEvent>(stream, 3);
+
+        result.Should().HaveCount(3);
+        result.Should().OnlyContain(row =>
+            row.EventTypeName.Contains(nameof(FuturesRsiSignalGeneratedEvent), StringComparison.Ordinal));
+        result.Select(row => row.EventVersion).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
     public async Task TypedLastNRangeReturnsEmptyWhenTypeIsMissingOrRangeIsNonPositive()
     {
         var missingTypeStream = NewStream();

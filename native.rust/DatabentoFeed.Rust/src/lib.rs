@@ -35,6 +35,13 @@ mod exports {
         entries: Vec<ContractResultEntry>,
         error: Vec<u8>,
     }
+    pub struct HistoricalResult {
+        payload: Vec<u8>,
+        error: Vec<u8>,
+        records: Vec<HistoricalRecord120>,
+        cursor: usize,
+        batch_ordinal: u64,
+    }
 
     fn ffi_status(operation: impl FnOnce() -> Status) -> Status {
         catch_unwind(AssertUnwindSafe(operation)).unwrap_or(INTERNAL_ERROR)
@@ -61,6 +68,105 @@ mod exports {
     }
     fn contains_nul(bytes: &[u8]) -> bool {
         bytes.contains(&0)
+    }
+    fn valid_historical_request(
+        request: *const HistoricalRequestV1,
+        symbols: *const Utf8SliceV1,
+        blob: *const u8,
+        blob_bytes: u32,
+    ) -> bool {
+        if request.is_null() {
+            return false;
+        }
+        let request = unsafe { &*request };
+        if !valid_struct(
+            request.struct_size,
+            size_of::<HistoricalRequestV1>(),
+            request.abi_version,
+        ) || request.reserved32 != 0
+            || !(HISTORICAL_DEFINITION..=HISTORICAL_OHLCV_1D).contains(&request.schema)
+            || request.symbol_count == 0
+            || symbols.is_null()
+            || blob.is_null()
+            || request.dataset.length == 0
+            || !valid_range(request.dataset.offset, request.dataset.length, blob_bytes)
+            || request.start_ts_ns >= request.end_ts_ns
+            || request.timeout_ms == 0
+            || request.timeout_ms == WAIT_INFINITE
+        {
+            return false;
+        }
+        let symbols = unsafe { slice::from_raw_parts(symbols, request.symbol_count as usize) };
+        symbols.iter().all(|symbol| {
+            symbol.length != 0 && valid_range(symbol.offset, symbol.length, blob_bytes)
+        })
+    }
+    fn historical_inputs(
+        request: &HistoricalRequestV1,
+        symbols: *const Utf8SliceV1,
+        blob: *const u8,
+        blob_bytes: u32,
+    ) -> Result<(String, Vec<String>), Status> {
+        let input = unsafe { slice::from_raw_parts(blob, blob_bytes as usize) };
+        let text = |value: Utf8SliceV1| -> Result<String, Status> {
+            let bytes = &input[value.offset as usize..(value.offset + value.length) as usize];
+            if contains_nul(bytes) {
+                return Err(INVALID_ARGUMENT);
+            }
+            std::str::from_utf8(bytes)
+                .map(str::to_owned)
+                .map_err(|_| DATABENTO_ERROR)
+        };
+        let dataset = text(request.dataset)?;
+        let slices = unsafe { slice::from_raw_parts(symbols, request.symbol_count as usize) };
+        let requested = slices
+            .iter()
+            .copied()
+            .map(text)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok((dataset, requested))
+    }
+    fn historical_result(payload: &[u8]) -> Box<HistoricalResult> {
+        Box::new(HistoricalResult {
+            payload: payload.to_vec(),
+            error: Vec::new(),
+            records: Vec::new(),
+            cursor: 0,
+            batch_ordinal: 0,
+        })
+    }
+    fn synthetic_historical_record(
+        request: &HistoricalRequestV1,
+        ordinal: u64,
+    ) -> HistoricalRecord120 {
+        let price = 5_000_000_000_i64 + ordinal as i64 * 1_000_000;
+        let mut symbol = [0_u8; 32];
+        symbol[..5].copy_from_slice(b"SYNTH");
+        HistoricalRecord120 {
+            struct_size: size_of::<HistoricalRecord120>() as u32,
+            abi_version: ABI_VERSION,
+            record_kind: match request.schema {
+                HISTORICAL_TRADES => HISTORICAL_RECORD_TRADE,
+                HISTORICAL_DEFINITION => HISTORICAL_RECORD_DEFINITION,
+                HISTORICAL_STATISTICS => HISTORICAL_RECORD_STATISTIC,
+                _ => HISTORICAL_RECORD_OHLCV,
+            },
+            schema: request.schema,
+            instrument_id: 1000 + ordinal as u32,
+            publisher_id: 7,
+            condition_flags: 0,
+            event_ts_ns: request.start_ts_ns + ordinal as i64 * 60_000_000_000,
+            source_sequence: ordinal as i64 + 1,
+            open_price: price,
+            high_price: price + 2_000_000,
+            low_price: price - 2_000_000,
+            close_or_trade_price: price + 500_000,
+            volume_or_size: 10 + ordinal,
+            action: b'T',
+            side: if ordinal % 2 == 0 { b'B' } else { b'A' },
+            reserved8: [0; 6],
+            symbol,
+        }
     }
 
     #[unsafe(no_mangle)]
@@ -986,6 +1092,458 @@ mod exports {
             {
                 NOT_SUPPORTED
             }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_estimate(
+        request: *const HistoricalRequestV1,
+        symbols: *const Utf8SliceV1,
+        utf8_blob: *const u8,
+        utf8_blob_bytes: u32,
+        estimate: *mut HistoricalEstimateV1,
+    ) -> Status {
+        ffi_status(|| {
+            if estimate.is_null() {
+                return ABI_MISMATCH;
+            }
+            let estimate_ref = unsafe { &mut *estimate };
+            if !valid_struct(
+                estimate_ref.struct_size,
+                size_of::<HistoricalEstimateV1>(),
+                estimate_ref.abi_version,
+            ) {
+                return ABI_MISMATCH;
+            }
+            if !valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes) {
+                return INVALID_ARGUMENT;
+            }
+            let request = unsafe { &*request };
+            if request.flags & HISTORICAL_SYNTHETIC != 0 {
+                let duration_minutes =
+                    ((request.end_ts_ns - request.start_ts_ns) / 60_000_000_000).max(0) as u64;
+                let records = duration_minutes.clamp(1, 10_000) * request.symbol_count as u64;
+                estimate_ref.estimated_records = records;
+                estimate_ref.estimated_bytes = records * size_of::<HistoricalRecord120>() as u64;
+                estimate_ref.estimated_cost_usd = 0.0;
+                return OK;
+            }
+            #[cfg(feature = "live")]
+            {
+                let Ok((dataset, requested)) =
+                    historical_inputs(request, symbols, utf8_blob, utf8_blob_bytes)
+                else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_estimate(*request, dataset, requested) {
+                    Ok(value) => {
+                        *estimate_ref = value;
+                        OK
+                    }
+                    Err((status, _)) => status,
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_batch_submit(
+        request: *const HistoricalRequestV1,
+        symbols: *const Utf8SliceV1,
+        utf8_blob: *const u8,
+        utf8_blob_bytes: u32,
+        output: *mut *mut HistoricalResult,
+    ) -> Status {
+        ffi_status(|| {
+            if output.is_null() {
+                return INVALID_ARGUMENT;
+            }
+            unsafe { output.write(ptr::null_mut()) };
+            if !valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes) {
+                return INVALID_ARGUMENT;
+            }
+            let request = unsafe { &*request };
+            if request.flags & HISTORICAL_SYNTHETIC != 0 {
+                let result = historical_result(
+                    br#"{"providerJobId":"synthetic-job","state":"Completed","costUsd":0,"recordCount":2,"billedBytes":240,"progressPercent":100}"#,
+                );
+                unsafe { output.write(Box::into_raw(result)) };
+                return OK;
+            }
+            #[cfg(feature = "live")]
+            {
+                let Ok((dataset, requested)) =
+                    historical_inputs(request, symbols, utf8_blob, utf8_blob_bytes)
+                else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_batch_submit(*request, dataset, requested) {
+                    Ok(payload) => {
+                        unsafe { output.write(Box::into_raw(historical_result(&payload))) };
+                        OK
+                    }
+                    Err((status, message)) => {
+                        let mut result = historical_result(&[]);
+                        result.error = message.into_bytes();
+                        unsafe { output.write(Box::into_raw(result)) };
+                        status
+                    }
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_batch_get_status(
+        provider_job_id: *const u8,
+        provider_job_id_bytes: u32,
+        output: *mut *mut HistoricalResult,
+    ) -> Status {
+        ffi_status(|| {
+            if output.is_null() || provider_job_id.is_null() || provider_job_id_bytes == 0 {
+                return INVALID_ARGUMENT;
+            }
+            unsafe { output.write(ptr::null_mut()) };
+            let job =
+                unsafe { slice::from_raw_parts(provider_job_id, provider_job_id_bytes as usize) };
+            if job == b"synthetic-job" {
+                let result = historical_result(
+                    br#"{"providerJobId":"synthetic-job","state":"Completed","costUsd":0,"recordCount":2,"billedBytes":240,"progressPercent":100}"#,
+                );
+                unsafe { output.write(Box::into_raw(result)) };
+                return OK;
+            }
+            #[cfg(feature = "live")]
+            {
+                let Ok(job_id) = std::str::from_utf8(job).map(str::to_owned) else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_batch_status(job_id, 60_000) {
+                    Ok(payload) => {
+                        unsafe { output.write(Box::into_raw(historical_result(&payload))) };
+                        OK
+                    }
+                    Err((status, message)) => {
+                        let mut result = historical_result(&[]);
+                        result.error = message.into_bytes();
+                        unsafe { output.write(Box::into_raw(result)) };
+                        status
+                    }
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_batch_list_files(
+        provider_job_id: *const u8,
+        provider_job_id_bytes: u32,
+        output: *mut *mut HistoricalResult,
+    ) -> Status {
+        ffi_status(|| {
+            if output.is_null() || provider_job_id.is_null() || provider_job_id_bytes == 0 {
+                return INVALID_ARGUMENT;
+            }
+            unsafe { output.write(ptr::null_mut()) };
+            let job =
+                unsafe { slice::from_raw_parts(provider_job_id, provider_job_id_bytes as usize) };
+            if job == b"synthetic-job" {
+                let result = historical_result(
+                    br#"{"files":[{"providerFileId":"synthetic.csv","fileName":"synthetic.csv","schema":2}]}"#,
+                );
+                unsafe { output.write(Box::into_raw(result)) };
+                return OK;
+            }
+            #[cfg(feature = "live")]
+            {
+                let Ok(job_id) = std::str::from_utf8(job).map(str::to_owned) else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_batch_files(job_id, 60_000) {
+                    Ok(payload) => {
+                        unsafe { output.write(Box::into_raw(historical_result(&payload))) };
+                        OK
+                    }
+                    Err((status, message)) => {
+                        let mut result = historical_result(&[]);
+                        result.error = message.into_bytes();
+                        unsafe { output.write(Box::into_raw(result)) };
+                        status
+                    }
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_batch_download_file(
+        provider_job_id: *const u8,
+        provider_job_id_bytes: u32,
+        file_name: *const u8,
+        file_name_bytes: u32,
+        destination_path: *const u8,
+        destination_path_bytes: u32,
+    ) -> Status {
+        ffi_status(|| {
+            if provider_job_id.is_null()
+                || provider_job_id_bytes == 0
+                || file_name.is_null()
+                || file_name_bytes == 0
+                || destination_path.is_null()
+                || destination_path_bytes == 0
+            {
+                return INVALID_ARGUMENT;
+            }
+            let job =
+                unsafe { slice::from_raw_parts(provider_job_id, provider_job_id_bytes as usize) };
+            let path_bytes =
+                unsafe { slice::from_raw_parts(destination_path, destination_path_bytes as usize) };
+            let Ok(path_text) = std::str::from_utf8(path_bytes) else {
+                return OS_ERROR;
+            };
+            let path = std::path::Path::new(path_text);
+            if job == b"synthetic-job" {
+                if let Some(parent) = path.parent()
+                    && std::fs::create_dir_all(parent).is_err()
+                {
+                    return OS_ERROR;
+                }
+                let payload = b"2,SYNTH,1000,7,1770000000000000000,1,5000000000,5002000000,4998000000,5000500000,10,T,B,0\n2,SYNTH,1001,7,1770000060000000000,2,5001000000,5003000000,4999000000,5001500000,11,T,A,0\n";
+                return if std::fs::write(path, payload).is_err() {
+                    OS_ERROR
+                } else {
+                    OK
+                };
+            }
+            #[cfg(feature = "live")]
+            {
+                let file = unsafe { slice::from_raw_parts(file_name, file_name_bytes as usize) };
+                let (Ok(job_id), Ok(file_name)) = (
+                    std::str::from_utf8(job).map(str::to_owned),
+                    std::str::from_utf8(file).map(str::to_owned),
+                ) else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_batch_download(
+                    job_id,
+                    file_name,
+                    path.to_path_buf(),
+                    60_000,
+                ) {
+                    Ok(()) => OK,
+                    Err((status, _)) => status,
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_range_open(
+        request: *const HistoricalRequestV1,
+        symbols: *const Utf8SliceV1,
+        utf8_blob: *const u8,
+        utf8_blob_bytes: u32,
+        output: *mut *mut HistoricalResult,
+    ) -> Status {
+        ffi_status(|| {
+            if output.is_null() {
+                return INVALID_ARGUMENT;
+            }
+            unsafe { output.write(ptr::null_mut()) };
+            if !valid_historical_request(request, symbols, utf8_blob, utf8_blob_bytes) {
+                return INVALID_ARGUMENT;
+            }
+            let request = unsafe { &*request };
+            if request.flags & HISTORICAL_SYNTHETIC != 0 {
+                let mut result = historical_result(&[]);
+                result.records.push(synthetic_historical_record(request, 0));
+                result.records.push(synthetic_historical_record(request, 1));
+                unsafe { output.write(Box::into_raw(result)) };
+                return OK;
+            }
+            #[cfg(feature = "live")]
+            {
+                let Ok((dataset, requested)) =
+                    historical_inputs(request, symbols, utf8_blob, utf8_blob_bytes)
+                else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_range_records(*request, dataset, requested) {
+                    Ok(records) => {
+                        let mut result = historical_result(&[]);
+                        result.records = records;
+                        unsafe { output.write(Box::into_raw(result)) };
+                        OK
+                    }
+                    Err((status, message)) => {
+                        let mut result = historical_result(&[]);
+                        result.error = message.into_bytes();
+                        unsafe { output.write(Box::into_raw(result)) };
+                        status
+                    }
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_file_open(
+        file_path: *const u8,
+        file_path_bytes: u32,
+        schema: u32,
+        output: *mut *mut HistoricalResult,
+    ) -> Status {
+        ffi_status(|| {
+            if output.is_null()
+                || file_path.is_null()
+                || file_path_bytes == 0
+                || !(HISTORICAL_DEFINITION..=HISTORICAL_OHLCV_1D).contains(&schema)
+            {
+                return INVALID_ARGUMENT;
+            }
+            unsafe { output.write(ptr::null_mut()) };
+            #[cfg(feature = "live")]
+            {
+                let path = unsafe { slice::from_raw_parts(file_path, file_path_bytes as usize) };
+                let Ok(path) = std::str::from_utf8(path) else {
+                    return DATABENTO_ERROR;
+                };
+                match crate::live::historical_file_records(std::path::Path::new(path), schema) {
+                    Ok(records) => {
+                        let mut result = historical_result(&[]);
+                        result.records = records;
+                        unsafe { output.write(Box::into_raw(result)) };
+                        OK
+                    }
+                    Err((status, message)) => {
+                        let mut result = historical_result(&[]);
+                        result.error = message.into_bytes();
+                        unsafe { output.write(Box::into_raw(result)) };
+                        status
+                    }
+                }
+            }
+            #[cfg(not(feature = "live"))]
+            {
+                NOT_SUPPORTED
+            }
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_result_get_payload(
+        result: *const HistoricalResult,
+        utf8_buffer: *mut u8,
+        utf8_buffer_capacity: u32,
+        required_bytes: *mut u32,
+    ) -> Status {
+        ffi_status(|| {
+            if result.is_null() {
+                return INVALID_ARGUMENT;
+            }
+            copy_error(
+                &unsafe { &*result }.payload,
+                utf8_buffer,
+                utf8_buffer_capacity,
+                required_bytes,
+            )
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_result_get_next_batch(
+        result: *mut HistoricalResult,
+        records: *mut HistoricalRecord120,
+        record_capacity: u32,
+        batch: *mut HistoricalBatchV1,
+    ) -> Status {
+        ffi_status(|| {
+            if result.is_null() || records.is_null() || record_capacity == 0 || batch.is_null() {
+                return INVALID_ARGUMENT;
+            }
+            let batch_ref = unsafe { &mut *batch };
+            if !valid_struct(
+                batch_ref.struct_size,
+                size_of::<HistoricalBatchV1>(),
+                batch_ref.abi_version,
+            ) {
+                return INVALID_ARGUMENT;
+            }
+            let result = unsafe { &mut *result };
+            let remaining = result.records.len().saturating_sub(result.cursor);
+            let count = remaining.min(record_capacity as usize);
+            if count != 0 {
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        result.records.as_ptr().add(result.cursor),
+                        records,
+                        count,
+                    )
+                };
+            }
+            result.cursor += count;
+            batch_ref.records_read = count as u32;
+            batch_ref.more_available = u32::from(result.cursor < result.records.len());
+            batch_ref.batch_ordinal = result.batch_ordinal;
+            result.batch_ordinal += 1;
+            OK
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_result_get_error(
+        result: *const HistoricalResult,
+        utf8_buffer: *mut u8,
+        utf8_buffer_capacity: u32,
+        required_bytes: *mut u32,
+    ) -> Status {
+        ffi_status(|| {
+            if result.is_null() {
+                return INVALID_ARGUMENT;
+            }
+            copy_error(
+                &unsafe { &*result }.error,
+                utf8_buffer,
+                utf8_buffer_capacity,
+                required_bytes,
+            )
+        })
+    }
+
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn dbf_historical_result_destroy(
+        result: *mut HistoricalResult,
+    ) -> Status {
+        ffi_status(|| {
+            if result.is_null() {
+                return INVALID_ARGUMENT;
+            }
+            unsafe { drop(Box::from_raw(result)) };
+            OK
         })
     }
 }

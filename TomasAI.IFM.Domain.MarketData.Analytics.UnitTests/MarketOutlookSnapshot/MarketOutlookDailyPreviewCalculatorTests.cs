@@ -126,6 +126,31 @@ public sealed class MarketOutlookDailyPreviewCalculatorTests
     }
 
     [Fact]
+    public void DiagnosticLineage_IsNotRequiredForAValidLatestArrivalPreview()
+    {
+        const string contractId = "ESN00";
+        SeedBaseline(contractId);
+        var source = Trade(contractId, 7_125m, 1);
+        source = source with
+        {
+            Price = source.Price with
+            {
+                Trade = source.Price.Trade!.Value with
+                {
+                    StreamEpochId = Guid.Empty,
+                    TradeOrdinal = 0
+                }
+            }
+        };
+
+        MarketOutlookDailyPreviewCalculator.TryCalculate(source, out var ema, out var bb)
+            .Should().BeTrue();
+        ema.IsProvisional.Should().BeTrue();
+        bb.IsProvisional.Should().BeTrue();
+        ema.LivePriceAsOfUtc.Should().Be(source.Price.Trade!.Value.EventTimestamp.ToUniversalTime());
+    }
+
+    [Fact]
     public void TenThousandLiveRecalculations_DoNotGrowOrMutateTheCommittedDailyCheckpoint()
     {
         const string contractId = "ESM00";

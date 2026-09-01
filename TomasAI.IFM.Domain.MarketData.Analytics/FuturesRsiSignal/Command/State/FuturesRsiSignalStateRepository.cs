@@ -39,13 +39,11 @@ public class FuturesRsiSignalStateRepository(
                     FuturesRsiSignalCommandState,
                     FuturesRsiDailySignalGeneratedEvent>(command, dailyCommand.EntityId.PeriodLength, cancellationToken),
             ICommand<FuturesRsiSignalEntityId> rsiCommand
-                => await LoadStateFromSnapshotLastNRangeAsync<
+                => await LoadStateAsync<
                     FuturesRsiSignalCommandState,
-                    FuturesRsiSignalStartedEvent,
                     FuturesRsiSignalGeneratedEvent>(command, StateWindow(rsiCommand.EntityId), cancellationToken),
-            _ => await LoadStateFromSnapshotLastNRangeAsync<
+            _ => await LoadStateAsync<
                 FuturesRsiSignalCommandState,
-                FuturesRsiSignalStartedEvent,
                 FuturesRsiSignalGeneratedEvent>(command, 0, cancellationToken)
         };
 

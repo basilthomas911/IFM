@@ -1,13 +1,22 @@
-use std::time::Duration;
+use std::{
+    num::NonZeroU64,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use databento::{
     HistoricalClient, LiveClient,
     dbn::{
-        BboMsg, ErrorCode, ErrorMsg, InstrumentDefMsg, MboMsg, Mbp1Msg, Record, RecordHeader,
-        RecordRef, SType, Schema, StatMsg, SymbolMappingMsg, SystemCode, SystemMsg, TradeMsg,
-        UNDEF_PRICE, UNDEF_TIMESTAMP,
+        BboMsg, Compression, Encoding, ErrorCode, ErrorMsg, InstrumentDefMsg, MboMsg, Mbp1Msg,
+        OhlcvMsg, Record, RecordHeader, RecordRef, SType, Schema, StatMsg, SymbolMappingMsg,
+        SystemCode, SystemMsg, TradeMsg, UNDEF_PRICE, UNDEF_TIMESTAMP, VersionUpgradePolicy,
+        decode::{DbnMetadata, DecodeRecordRef, DynDecoder},
     },
-    historical::timeseries::GetRangeParams,
+    historical::{
+        batch::{Delivery, DownloadParams, JobState, SplitDuration, SubmitJobParams},
+        metadata::GetQueryParams,
+        timeseries::GetRangeParams,
+    },
     live::{SlowReaderBehavior, Subscription, TimeoutConf},
 };
 
@@ -19,6 +28,10 @@ use time::OffsetDateTime;
 struct LiveFailure {
     status: Status,
     message: String,
+}
+
+fn keeps_live_session_open(code: SystemCode) -> bool {
+    matches!(code, SystemCode::SlowReaderWarning)
 }
 
 pub(crate) struct ContractData {
@@ -331,10 +344,14 @@ fn process_record(
                 }
             }
             SystemCode::SlowReaderWarning => {
-                return Err(failure(
-                    DATABENTO_ERROR,
-                    "Databento reported a slow-reader warning",
-                ));
+                // Advisory only. Keep draining the live transport; health and
+                // watchdog telemetry may report the warning independently.
+                if !keeps_live_session_open(SystemCode::SlowReaderWarning) {
+                    return Err(failure(
+                        DATABENTO_ERROR,
+                        "Databento reported a terminal system message",
+                    ));
+                }
             }
             _ => {}
         }
@@ -1016,6 +1033,415 @@ fn select_quote(quote: &BboMsg, policy: u32, result: &mut LatestPriceResult64) -
     true
 }
 
+fn historical_schema(schema: u32) -> Result<Schema, Status> {
+    match schema {
+        HISTORICAL_DEFINITION => Ok(Schema::Definition),
+        HISTORICAL_OHLCV_1M => Ok(Schema::Ohlcv1M),
+        HISTORICAL_TRADES => Ok(Schema::Trades),
+        HISTORICAL_STATISTICS => Ok(Schema::Statistics),
+        HISTORICAL_OHLCV_1D => Ok(Schema::Ohlcv1D),
+        _ => Err(INVALID_ARGUMENT),
+    }
+}
+
+fn historical_stype(stype: u32) -> Result<SType, Status> {
+    match stype {
+        1 => Ok(SType::RawSymbol),
+        2 => Ok(SType::Continuous),
+        3 => Ok(SType::InstrumentId),
+        _ => Err(INVALID_ARGUMENT),
+    }
+}
+
+fn historical_schema_id(schema: Schema) -> u32 {
+    match schema {
+        Schema::Definition => HISTORICAL_DEFINITION,
+        Schema::Ohlcv1M => HISTORICAL_OHLCV_1M,
+        Schema::Trades => HISTORICAL_TRADES,
+        Schema::Statistics => HISTORICAL_STATISTICS,
+        Schema::Ohlcv1D => HISTORICAL_OHLCV_1D,
+        _ => 0,
+    }
+}
+
+fn historical_range(
+    request: &HistoricalRequestV1,
+) -> Result<std::ops::Range<OffsetDateTime>, Status> {
+    let start = OffsetDateTime::from_unix_timestamp_nanos(request.start_ts_ns.into())
+        .map_err(|_| INVALID_ARGUMENT)?;
+    let end = OffsetDateTime::from_unix_timestamp_nanos(request.end_ts_ns.into())
+        .map_err(|_| INVALID_ARGUMENT)?;
+    Ok(start..end)
+}
+
+fn json_escape(value: &str) -> String {
+    value.chars().fold(String::new(), |mut output, character| {
+        match character {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            other => output.push(other),
+        }
+        output
+    })
+}
+
+fn job_state(state: JobState) -> &'static str {
+    match state {
+        JobState::Queued => "Queued",
+        JobState::Processing => "Processing",
+        JobState::Done => "Completed",
+        JobState::Expired => "Expired",
+    }
+}
+
+fn job_payload(job: &databento::historical::batch::BatchJob) -> Vec<u8> {
+    format!(
+        "{{\"providerJobId\":\"{}\",\"state\":\"{}\",\"costUsd\":{},\"recordCount\":{},\"billedBytes\":{},\"progressPercent\":{}}}",
+        json_escape(&job.id),
+        job_state(job.state),
+        job.cost_usd.unwrap_or(0.0),
+        job.record_count.unwrap_or(0),
+        job.billed_size.unwrap_or(0),
+        job.progress.unwrap_or(u8::from(job.state == JobState::Done) * 100),
+    ).into_bytes()
+}
+
+fn run_historical<T>(
+    timeout_ms: u32,
+    operation: impl std::future::Future<Output = Result<T, LiveFailure>>,
+) -> Result<T, (Status, String)> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| (OS_ERROR, error.to_string()))?;
+    runtime.block_on(async {
+        match tokio::time::timeout(Duration::from_millis(u64::from(timeout_ms)), operation).await {
+            Err(_) => Err((
+                TIMEOUT,
+                "Databento historical request timed out".to_string(),
+            )),
+            Ok(Err(error)) => Err((error.status, error.message)),
+            Ok(Ok(value)) => Ok(value),
+        }
+    })
+}
+
+pub(crate) fn historical_estimate(
+    request: HistoricalRequestV1,
+    dataset: String,
+    symbols: Vec<String>,
+) -> Result<HistoricalEstimateV1, (Status, String)> {
+    run_historical(request.timeout_ms, async move {
+        let mut client = HistoricalClient::builder()
+            .key_from_env()
+            .map_err(LiveFailure::from)?
+            .build()
+            .map_err(LiveFailure::from)?;
+        let params = GetQueryParams::builder()
+            .dataset(dataset)
+            .symbols(symbols)
+            .schema(
+                historical_schema(request.schema)
+                    .map_err(|status| failure(status, "Invalid historical schema"))?,
+            )
+            .stype_in(
+                historical_stype(request.input_symbology)
+                    .map_err(|status| failure(status, "Invalid historical symbology"))?,
+            )
+            .date_time_range(
+                historical_range(&request)
+                    .map_err(|status| failure(status, "Invalid historical range"))?,
+            )
+            .maybe_limit(NonZeroU64::new(request.record_limit))
+            .build();
+        let estimated_cost_usd = client
+            .metadata()
+            .get_cost(&params)
+            .await
+            .map_err(LiveFailure::from)?;
+        let estimated_bytes = client
+            .metadata()
+            .get_billable_size(&params)
+            .await
+            .map_err(LiveFailure::from)?;
+        let estimated_records = client
+            .metadata()
+            .get_record_count(&params)
+            .await
+            .map_err(LiveFailure::from)?;
+        Ok(HistoricalEstimateV1 {
+            struct_size: std::mem::size_of::<HistoricalEstimateV1>() as u32,
+            abi_version: ABI_VERSION,
+            estimated_cost_usd,
+            estimated_bytes,
+            estimated_records,
+        })
+    })
+}
+
+pub(crate) fn historical_batch_submit(
+    request: HistoricalRequestV1,
+    dataset: String,
+    symbols: Vec<String>,
+) -> Result<Vec<u8>, (Status, String)> {
+    run_historical(request.timeout_ms, async move {
+        let mut client = HistoricalClient::builder()
+            .key_from_env()
+            .map_err(LiveFailure::from)?
+            .build()
+            .map_err(LiveFailure::from)?;
+        let params = SubmitJobParams::builder()
+            .dataset(dataset)
+            .symbols(symbols)
+            .schema(
+                historical_schema(request.schema)
+                    .map_err(|status| failure(status, "Invalid historical schema"))?,
+            )
+            .date_time_range(
+                historical_range(&request)
+                    .map_err(|status| failure(status, "Invalid historical range"))?,
+            )
+            .encoding(Encoding::Dbn)
+            .compression(Compression::Zstd)
+            .split_duration(SplitDuration::Month)
+            .delivery(Delivery::Download)
+            .stype_in(
+                historical_stype(request.input_symbology)
+                    .map_err(|status| failure(status, "Invalid historical symbology"))?,
+            )
+            .stype_out(SType::InstrumentId)
+            .maybe_limit(NonZeroU64::new(request.record_limit))
+            .build();
+        let job = client
+            .batch()
+            .submit_job(&params)
+            .await
+            .map_err(LiveFailure::from)?;
+        Ok(job_payload(&job))
+    })
+}
+
+pub(crate) fn historical_batch_status(
+    job_id: String,
+    timeout_ms: u32,
+) -> Result<Vec<u8>, (Status, String)> {
+    run_historical(timeout_ms, async move {
+        let mut client = HistoricalClient::builder()
+            .key_from_env()
+            .map_err(LiveFailure::from)?
+            .build()
+            .map_err(LiveFailure::from)?;
+        let job = client
+            .batch()
+            .get_job_details(&job_id)
+            .await
+            .map_err(LiveFailure::from)?;
+        Ok(job_payload(&job))
+    })
+}
+
+pub(crate) fn historical_batch_files(
+    job_id: String,
+    timeout_ms: u32,
+) -> Result<Vec<u8>, (Status, String)> {
+    run_historical(timeout_ms, async move {
+        let mut client = HistoricalClient::builder()
+            .key_from_env()
+            .map_err(LiveFailure::from)?
+            .build()
+            .map_err(LiveFailure::from)?;
+        let job = client
+            .batch()
+            .get_job_details(&job_id)
+            .await
+            .map_err(LiveFailure::from)?;
+        let schema = historical_schema_id(job.schema);
+        let files = client
+            .batch()
+            .list_files(&job_id)
+            .await
+            .map_err(LiveFailure::from)?;
+        let entries = files.into_iter()
+            .filter(|file| file.filename.ends_with(".dbn") || file.filename.ends_with(".dbn.zst"))
+            .map(|file| format!(
+                "{{\"providerFileId\":\"{}\",\"fileName\":\"{}\",\"schema\":{},\"sizeBytes\":{},\"sha256\":\"{}\"}}",
+                json_escape(&file.filename), json_escape(&file.filename), schema, file.size,
+                json_escape(file.hash.strip_prefix("sha256:").unwrap_or(&file.hash))))
+            .collect::<Vec<_>>().join(",");
+        Ok(format!("{{\"files\":[{entries}]}}").into_bytes())
+    })
+}
+
+pub(crate) fn historical_batch_download(
+    job_id: String,
+    file_name: String,
+    destination: PathBuf,
+    timeout_ms: u32,
+) -> Result<(), (Status, String)> {
+    run_historical(timeout_ms, async move {
+        let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+        std::fs::create_dir_all(parent).map_err(|error| failure(OS_ERROR, error.to_string()))?;
+        let mut client = HistoricalClient::builder()
+            .key_from_env()
+            .map_err(LiveFailure::from)?
+            .build()
+            .map_err(LiveFailure::from)?;
+        let params = DownloadParams::builder()
+            .output_dir(parent)
+            .job_id(&job_id)
+            .filename_to_download(&file_name)
+            .build();
+        let downloaded = client
+            .batch()
+            .download(&params)
+            .await
+            .map_err(LiveFailure::from)?;
+        let source = downloaded
+            .into_iter()
+            .next()
+            .ok_or_else(|| failure(DATABENTO_ERROR, "Databento returned no downloaded file"))?;
+        if source != destination {
+            if destination.exists() {
+                std::fs::remove_file(&destination)
+                    .map_err(|error| failure(OS_ERROR, error.to_string()))?;
+            }
+            std::fs::rename(source, destination)
+                .map_err(|error| failure(OS_ERROR, error.to_string()))?;
+        }
+        Ok(())
+    })
+}
+
+fn historical_record(
+    source: RecordRef<'_>,
+    schema: u32,
+    symbol: &str,
+    ordinal: u64,
+) -> Option<HistoricalRecord120> {
+    let mut record = HistoricalRecord120 {
+        struct_size: std::mem::size_of::<HistoricalRecord120>() as u32,
+        abi_version: ABI_VERSION,
+        schema,
+        ..HistoricalRecord120::default()
+    };
+    if let Some(value) = source.get::<OhlcvMsg>() {
+        record.record_kind = HISTORICAL_RECORD_OHLCV;
+        record.instrument_id = value.hd.instrument_id;
+        record.publisher_id = value.hd.publisher_id;
+        record.event_ts_ns = value.hd.ts_event as i64;
+        record.source_sequence = ordinal as i64 + 1;
+        record.open_price = value.open;
+        record.high_price = value.high;
+        record.low_price = value.low;
+        record.close_or_trade_price = value.close;
+        record.volume_or_size = value.volume;
+    } else if let Some(value) = source.get::<TradeMsg>() {
+        record.record_kind = HISTORICAL_RECORD_TRADE;
+        record.instrument_id = value.hd.instrument_id;
+        record.publisher_id = value.hd.publisher_id;
+        record.event_ts_ns = value.hd.ts_event as i64;
+        record.source_sequence = i64::from(value.sequence);
+        record.close_or_trade_price = value.price;
+        record.volume_or_size = u64::from(value.size);
+        record.action = value.action as u8;
+        record.side = value.side as u8;
+    } else {
+        return None;
+    }
+    let bytes = symbol.as_bytes();
+    let length = bytes.len().min(record.symbol.len() - 1);
+    record.symbol[..length].copy_from_slice(&bytes[..length]);
+    Some(record)
+}
+
+pub(crate) fn historical_range_records(
+    request: HistoricalRequestV1,
+    dataset: String,
+    symbols: Vec<String>,
+) -> Result<Vec<HistoricalRecord120>, (Status, String)> {
+    run_historical(request.timeout_ms, async move {
+        let fallback = symbols.first().cloned().unwrap_or_default();
+        let mut client = HistoricalClient::builder()
+            .key_from_env()
+            .map_err(LiveFailure::from)?
+            .build()
+            .map_err(LiveFailure::from)?;
+        let params = GetRangeParams::builder()
+            .dataset(dataset)
+            .symbols(symbols)
+            .schema(
+                historical_schema(request.schema)
+                    .map_err(|status| failure(status, "Invalid historical schema"))?,
+            )
+            .stype_in(
+                historical_stype(request.input_symbology)
+                    .map_err(|status| failure(status, "Invalid historical symbology"))?,
+            )
+            .stype_out(SType::InstrumentId)
+            .date_time_range(
+                historical_range(&request)
+                    .map_err(|status| failure(status, "Invalid historical range"))?,
+            )
+            .maybe_limit(NonZeroU64::new(request.record_limit))
+            .build();
+        let mut decoder = client
+            .timeseries()
+            .get_range(&params)
+            .await
+            .map_err(LiveFailure::from)?;
+        let mut records = Vec::new();
+        while let Some(source) = decoder
+            .decode_record_ref()
+            .await
+            .map_err(|error| failure(DATABENTO_ERROR, error.to_string()))?
+        {
+            if let Some(record) =
+                historical_record(source, request.schema, &fallback, records.len() as u64)
+            {
+                records.push(record);
+            }
+        }
+        Ok(records)
+    })
+}
+
+pub(crate) fn historical_file_records(
+    path: &Path,
+    schema: u32,
+) -> Result<Vec<HistoricalRecord120>, (Status, String)> {
+    if !path.is_file() {
+        return Err((
+            INVALID_ARGUMENT,
+            "Historical DBN file does not exist".to_string(),
+        ));
+    }
+    let mut decoder = DynDecoder::from_file(path, VersionUpgradePolicy::AsIs)
+        .map_err(|error| (DATABENTO_ERROR, error.to_string()))?;
+    let fallback = decoder
+        .metadata()
+        .symbols
+        .first()
+        .cloned()
+        .or_else(|| {
+            path.file_stem()
+                .map(|value| value.to_string_lossy().into_owned())
+        })
+        .unwrap_or_default();
+    let mut records = Vec::new();
+    while let Some(source) = decoder
+        .decode_record_ref()
+        .map_err(|error| (DATABENTO_ERROR, error.to_string()))?
+    {
+        if let Some(record) = historical_record(source, schema, &fallback, records.len() as u64) {
+            records.push(record);
+        }
+    }
+    Ok(records)
+}
+
 #[cfg(test)]
 mod tests {
     use databento::dbn::{FlagSet, RecordRef, flags};
@@ -1024,6 +1450,7 @@ mod tests {
 
     #[test]
     fn normalizes_quote_trade_mbo_and_statistics_like_the_cpp_reference() {
+        assert!(keeps_live_session_open(SystemCode::SlowReaderWarning));
         assert_eq!(
             classify_replay_schema("Finished trades replay"),
             Some(Schema::Trades)

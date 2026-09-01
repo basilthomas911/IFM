@@ -14,6 +14,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 /// </summary>
 public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
+    private static readonly TimeSpan DefaultFeedUpTimeout = TimeSpan.FromSeconds(1);
     /// <inheritdoc />
     public bool TryGetCurrentlyTradedFuturesContract(
         string symbol,
@@ -143,6 +144,22 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             ? new DatabentoMarketDataApiHealth(false, null, null)
             : new DatabentoMarketDataApiHealth(
                 true, active.ValueDate, active.GetHealth());
+    }
+
+    /// <inheritdoc />
+    public bool IsDatabentoFeedUp(TimeSpan? timeout = null)
+    {
+        var effectiveTimeout = timeout ?? DefaultFeedUpTimeout;
+        if (effectiveTimeout <= TimeSpan.Zero)
+            return false;
+        try
+        {
+            return Volatile.Read(ref _epoch)?.IsFeedUp(effectiveTimeout) == true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <inheritdoc />

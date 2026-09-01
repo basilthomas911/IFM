@@ -610,9 +610,6 @@ public static class Startup
             services.AddSingleton<FuturesTradeSessionBarAccumulator>();
             services.AddHostedService<FuturesContractRolloverStartupService>();
             services.AddSingleton<IMarketOutlookHotCache>(MarketOutlookHotCache.Shared);
-            services.AddSingleton<IMarketDataGenerationAuthority,
-                DatabentoMarketDataGenerationAuthority>();
-            services.AddHostedService<MarketOutlookHotCacheService>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")
                 .Get<FmpImportScheduleOptions>() ?? new FmpImportScheduleOptions()).Validate();

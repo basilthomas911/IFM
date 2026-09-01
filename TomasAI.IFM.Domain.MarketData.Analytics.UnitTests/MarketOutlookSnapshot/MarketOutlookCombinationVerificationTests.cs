@@ -35,7 +35,6 @@ public sealed class MarketOutlookCombinationVerificationTests
     public void TenThousandAcceptedTrades_ReplacePreviewWithoutAdvancingCommittedDailyInput()
     {
         var cache = new MarketOutlookHotCache();
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
         var epoch = Guid.NewGuid();
         var baseline = SampleData.EodData with
         {
@@ -44,24 +43,26 @@ public sealed class MarketOutlookCombinationVerificationTests
             ValueDate = Id.ValueDate,
             OpenPrice = 5_000m
         };
-        cache.TryUpdateInput(Id, CacheComponentType.Eod,
-            new(Guid.NewGuid(), 1, DateTime.UtcNow.AddDays(-1)),
-            state => state with { FuturesEodData = baseline }, out _).Should().BeTrue();
+        cache.Write(Id,
+            [new(CacheComponentType.Eod, new(Guid.NewGuid(), 1, DateTime.UtcNow.AddDays(-1)))],
+            state => state with { FuturesEodData = baseline },
+            state => MarketOutlookComposer.Compose(
+                state, MarketOutlookRefreshTrigger.EodSession, DateTime.UtcNow));
 
         for (var ordinal = 1; ordinal <= 10_000; ordinal++)
         {
-            cache.TryUpdateInput(Id, CacheComponentType.EsTrade,
-                new(Guid.NewGuid(), 0, DateTime.UtcNow.AddTicks(ordinal), epoch, ordinal),
+            cache.Write(Id,
+                [new(CacheComponentType.EsTrade,
+                    new(Guid.NewGuid(), 0, DateTime.UtcNow.AddTicks(ordinal), epoch, ordinal))],
                 state => state with { CurrentEsPrice = 5_000m + ordinal / 100m },
-                out var inputs).Should().BeTrue();
-            cache.SetCurrent(MarketOutlookComposer.Compose(
-                inputs, MarketOutlookRefreshTrigger.EsTrade, DateTime.UtcNow));
+                state => MarketOutlookComposer.Compose(
+                    state, MarketOutlookRefreshTrigger.EsTrade, DateTime.UtcNow));
         }
 
         cache.TryGetInputs(Id, out var finalInputs).Should().BeTrue();
         finalInputs.FuturesEodData.Should().BeSameAs(baseline);
         finalInputs.Positions[CacheComponentType.EsTrade].StreamOrdinal.Should().Be(10_000);
-        cache.GetMetrics().ProjectionUpdates.Should().Be(10_000);
+        cache.GetMetrics().ComposedSnapshots.Should().Be(10_001);
     }
 
     static MarketOutlookInputState State(int mask)

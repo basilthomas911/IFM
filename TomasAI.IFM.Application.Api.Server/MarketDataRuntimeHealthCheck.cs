@@ -22,6 +22,7 @@ public sealed class MarketDataRuntimeHealthCheck(
         var epoch = health.Epoch;
         var now = timeProvider.GetUtcNow();
         var marketState = marketSessionAuthority.Current.State;
+        var databentoFeedUp = marketDataApi.IsDatabentoFeedUp();
         var easternNow = TimeZoneInfo.ConvertTime(
             now,
             FuturesTradingValueDate.MarketTimeZone);
@@ -29,6 +30,7 @@ public sealed class MarketDataRuntimeHealthCheck(
         {
             ["marketTimeEastern"] = easternNow.ToString("O"),
             ["marketState"] = marketState.ToString(),
+            ["databentoFeedUp"] = databentoFeedUp,
             ["running"] = health.Running,
             ["valueDate"] = health.ValueDate?.ToString("yyyy-MM-dd") ?? string.Empty,
             ["aggregationRunning"] = epoch?.AggregationRunning ?? false,
@@ -39,7 +41,8 @@ public sealed class MarketDataRuntimeHealthCheck(
             ["publicationFailures"] = epoch?.PublicationFailures ?? 0,
             ["processingFailures"] = epoch?.ProcessingFailures ?? 0
         };
-        var infrastructureReady = health.Running
+        var infrastructureReady = databentoFeedUp
+            && health.Running
             && epoch is { Running: true, AggregationRunning: true, LastPriceStoreActive: true }
             && epoch.Value.ConfiguredContracts > 0;
 

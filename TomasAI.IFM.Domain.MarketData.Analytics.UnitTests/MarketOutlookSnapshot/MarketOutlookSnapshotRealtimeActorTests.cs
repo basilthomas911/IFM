@@ -108,8 +108,6 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         var trade = WithCurrentTimestamp(
             MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_100m, 1));
         var id = new MarketOutlookEntityId(trade.Price.ContractId, trade.Price.ValueDate);
-        MarketOutlookHotCache.Shared.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
-
         await actor.Receive(context, trade);
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
@@ -121,13 +119,11 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
     }
 
     [Fact]
-    public async Task DuplicateTrade_IsRejectedButOrdinalGapIsAccepted()
+    public async Task RepeatedAndOrdinalGapTrades_AreAllLatestArrivalWrites()
     {
         var context = Context();
         var actor = new TestActor(context);
         var first = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_100m, 1);
-        MarketOutlookHotCache.Shared.Activate(new(
-            first.Price.ContractId, first.Price.ValueDate, Guid.NewGuid()));
         var gap = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_102m, 3) with
         {
             Price = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_102m, 3).Price with
@@ -143,11 +139,34 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         await actor.Receive(context, first);
         await actor.Receive(context, gap);
 
-        await context.Received(2).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
+        await context.Received(3).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
             Arg.Any<MarketOutlookUpdatedNotifyEvent>());
         var id = new MarketOutlookEntityId(gap.Price.ContractId, gap.Price.ValueDate);
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.FuturesEodData.ClosePrice.Should().Be(7_102m);
+    }
+
+    [Fact]
+    public async Task EsTrade_DiagnosticLineageCannotSuppressLatestArrivalWrite()
+    {
+        var context = Context();
+        var actor = new TestActor(context);
+        var source = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_103m, 1);
+        var trade = source.Price.Trade!.Value with
+        {
+            StreamEpochId = Guid.Empty,
+            TradeOrdinal = 0
+        };
+        source = source with { Price = source.Price with { Trade = trade } };
+
+        await actor.Receive(context, source);
+
+        var id = new MarketOutlookEntityId(source.Price.ContractId, source.Price.ValueDate);
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.FuturesEodData.ClosePrice.Should().Be(7_103m);
+        current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.EsTrade);
+        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
+            Arg.Any<MarketOutlookUpdatedNotifyEvent>());
     }
 
     [Fact]
@@ -173,8 +192,6 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
             EventSource = "test-eod",
             FuturesEodData = eod
         };
-        MarketOutlookHotCache.Shared.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
-
         await actor.Receive(context, source);
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
@@ -206,7 +223,6 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
 
     static MarketOutlookComponentChangedRealtimeEvent Component(MarketOutlookEntityId id, long sequence)
     {
-        MarketOutlookHotCache.Shared.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
         return new()
         {
             Subject = Subject(MarketOutlookComponentChangedRealtimeEvent.Verb, id),

@@ -531,6 +531,8 @@ databento::RecordHeader make_dbn_header(databento::RType type,
 }
 
 void test_live_dbn_normalization() {
+    assert(dbf_live::keeps_live_session_open(
+        databento::SystemCode::SlowReaderWarning));
     assert(dbf_live::classify_replay_schema("Finished trades replay")
            == dbf_live::replay_schema::trades);
     assert(dbf_live::classify_replay_schema("Finished statistics replay")

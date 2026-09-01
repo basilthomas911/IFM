@@ -32,14 +32,13 @@ public sealed class MarketOutlookHotCacheScenarios
         CacheComponentType component)
     {
         var cache = new MarketOutlookHotCache();
-        cache.Activate(new(Id.ContractId, Id.ValueDate, Guid.NewGuid()));
         var timestamp = DateTime.UtcNow;
 
-        cache.TryUpdateInput(Id, component, new(Guid.NewGuid(), 1, timestamp),
-            state => Add(component, state), out var inputs).Should().BeTrue();
-        var projection = MarketOutlookComposer.Compose(
-            inputs, MarketOutlookRefreshTrigger.Component, timestamp);
-        cache.SetCurrent(projection);
+        cache.Write(Id,
+            [new(component, new(Guid.NewGuid(), 1, timestamp))],
+            state => Add(component, state),
+            state => MarketOutlookComposer.Compose(
+                state, MarketOutlookRefreshTrigger.Component, timestamp));
 
         cache.TryGetCurrent(Id, out var current).Should().BeTrue();
         current.IsValid.Should().BeTrue();

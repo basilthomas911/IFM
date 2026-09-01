@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -140,6 +141,32 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
     public bool IsTickDataStreamActive(string contractId) =>
         Volatile.Read(ref _aggregationByContractId)
             .GetValueOrDefault(contractId)?.IsTickDataStreamActive(contractId) == true;
+
+    public bool IsFeedUp(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero || Volatile.Read(ref _started) == 0)
+            return false;
+
+        var startedAt = Stopwatch.GetTimestamp();
+        try
+        {
+            var aggregations = Volatile.Read(ref _aggregationsByDataset).Values.ToArray();
+            if (aggregations.Length == 0)
+                return false;
+            foreach (var aggregation in aggregations)
+            {
+                if (Stopwatch.GetElapsedTime(startedAt) > timeout
+                    || !aggregation.IsFeedUp())
+                    return false;
+            }
+            return Volatile.Read(ref _started) != 0
+                && Stopwatch.GetElapsedTime(startedAt) <= timeout;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {

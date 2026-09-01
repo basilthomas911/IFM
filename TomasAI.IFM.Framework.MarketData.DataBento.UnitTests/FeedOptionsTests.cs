@@ -33,6 +33,17 @@ public sealed class FeedOptionsTests
         Assert.True(options.CpuAffinity.PinFeedThreads);
         Assert.True(options.CpuAffinity.RequirePerformanceCore);
         Assert.True(options.CpuAffinity.AllowAffinityFallback);
+        Assert.Equal(TimeSpan.FromSeconds(30), options.RingBackpressure.RingFullTimeout);
+    }
+
+    [Fact]
+    public void DevelopmentProfileAllowsReplayBurstsToDrainWithoutImmediateDisconnect()
+    {
+        var options = DatabentoFeedOptions.ForProfile(
+            FeedDeploymentProfile.Development,
+            "GLBX.MDP3");
+
+        Assert.Equal(TimeSpan.FromSeconds(30), options.RingBackpressure.RingFullTimeout);
     }
 
     [Fact]

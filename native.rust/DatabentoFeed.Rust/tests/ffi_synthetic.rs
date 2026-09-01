@@ -76,7 +76,7 @@ unsafe fn create_subscribed(
 
 #[test]
 fn layouts_and_version_match_the_c_header() {
-    assert_eq!(dbf_get_abi_version(), 2);
+    assert_eq!(dbf_get_abi_version(), 3);
     assert_eq!(size_of::<RecordHeader32>(), 32);
     assert_eq!(size_of::<StatisticsRecord64>(), 64);
     assert_eq!(size_of::<MarketRecord64>(), 64);
@@ -84,6 +84,94 @@ fn layouts_and_version_match_the_c_header() {
     assert_eq!(size_of::<StatsV1>(), 128);
     assert_eq!(size_of::<ContractDetailV1>(), 192);
     assert_eq!(size_of::<LatestPriceRequestV1>(), 88);
+    assert_eq!(size_of::<HistoricalRequestV1>(), 64);
+    assert_eq!(size_of::<HistoricalEstimateV1>(), 32);
+    assert_eq!(size_of::<HistoricalRecord120>(), 120);
+    assert_eq!(size_of::<HistoricalBatchV1>(), 24);
+}
+
+#[test]
+fn synthetic_historical_abi_matches_cpp_results() {
+    unsafe {
+        let blob = b"GLBX.MDP3ES.c.0";
+        let request = HistoricalRequestV1 {
+            struct_size: size_of::<HistoricalRequestV1>() as u32,
+            abi_version: ABI_VERSION,
+            schema: HISTORICAL_OHLCV_1D,
+            input_symbology: 2,
+            flags: HISTORICAL_SYNTHETIC,
+            symbol_count: 1,
+            dataset: Utf8SliceV1 {
+                offset: 0,
+                length: 9,
+            },
+            start_ts_ns: 1_770_000_000_000_000_000,
+            end_ts_ns: 1_770_086_400_000_000_000,
+            record_limit: 10,
+            timeout_ms: 1_000,
+            ..HistoricalRequestV1::default()
+        };
+        let symbol = Utf8SliceV1 {
+            offset: 9,
+            length: 6,
+        };
+        let mut estimate = HistoricalEstimateV1 {
+            struct_size: size_of::<HistoricalEstimateV1>() as u32,
+            abi_version: ABI_VERSION,
+            ..HistoricalEstimateV1::default()
+        };
+        assert_eq!(
+            dbf_historical_estimate(
+                &request,
+                &symbol,
+                blob.as_ptr(),
+                blob.len() as u32,
+                &mut estimate,
+            ),
+            OK
+        );
+        assert!(estimate.estimated_records > 0);
+        assert_eq!(
+            estimate.estimated_bytes,
+            estimate.estimated_records * size_of::<HistoricalRecord120>() as u64
+        );
+        assert_eq!(estimate.estimated_cost_usd, 0.0);
+
+        let mut result = ptr::null_mut();
+        assert_eq!(
+            dbf_historical_range_open(
+                &request,
+                &symbol,
+                blob.as_ptr(),
+                blob.len() as u32,
+                &mut result,
+            ),
+            OK
+        );
+        let mut records = [HistoricalRecord120::default(); 2];
+        let mut batch = HistoricalBatchV1 {
+            struct_size: size_of::<HistoricalBatchV1>() as u32,
+            abi_version: ABI_VERSION,
+            ..HistoricalBatchV1::default()
+        };
+        assert_eq!(
+            dbf_historical_result_get_next_batch(
+                result,
+                records.as_mut_ptr(),
+                records.len() as u32,
+                &mut batch,
+            ),
+            OK
+        );
+        assert_eq!(batch.records_read, 2);
+        assert_eq!(batch.more_available, 0);
+        assert_eq!(records[0].abi_version, ABI_VERSION);
+        assert_eq!(records[0].record_kind, HISTORICAL_RECORD_OHLCV);
+        assert_eq!(records[0].instrument_id, 1000);
+        assert_eq!(&records[0].symbol[..5], b"SYNTH");
+        assert_eq!(records[1].source_sequence, 2);
+        assert_eq!(dbf_historical_result_destroy(result), OK);
+    }
 }
 
 #[test]

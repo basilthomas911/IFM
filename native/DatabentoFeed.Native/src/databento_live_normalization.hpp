@@ -17,6 +17,14 @@ enum class replay_schema {
     statistics,
 };
 
+// Databento emits this warning when the client temporarily falls behind. It is
+// an operational signal for health/telemetry, not a terminal transport error.
+// The live session must remain open so the consumer can catch up.
+inline bool keeps_live_session_open(
+    databento::SystemCode code) noexcept {
+    return code == databento::SystemCode::SlowReaderWarning;
+}
+
 inline replay_schema classify_replay_schema(
     std::string_view message) noexcept {
     if (message.find("trades") != std::string_view::npos) {

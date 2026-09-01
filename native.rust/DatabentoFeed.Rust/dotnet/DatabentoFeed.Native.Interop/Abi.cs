@@ -4,7 +4,7 @@ namespace DatabentoFeed.Native.Interop;
 
 public static class Dbf
 {
-    public const uint AbiVersion = 2;
+    public const uint AbiVersion = 3;
     public const int Ok = 0;
     public const int InvalidArgument = 1;
     public const int InvalidState = 2;
@@ -23,6 +23,8 @@ public static class Dbf
     public const uint WaitFault = 4;
     public const uint StateStopped = 7;
     public const uint StateFaulted = 8;
+    public const uint HistoricalOhlcv1D = 5;
+    public const uint HistoricalSynthetic = 1;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -138,6 +140,34 @@ public unsafe struct LatestPriceRequestV1
 
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct LatestPriceResult64 { public fixed byte Bytes[64]; }
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HistoricalRequestV1
+{
+    public uint StructSize, AbiVersion, Schema, InputSymbology, Flags, SymbolCount;
+    public Utf8SliceV1 Dataset;
+    public long StartTimestampNanoseconds, EndTimestampNanoseconds;
+    public ulong RecordLimit;
+    public uint TimeoutMilliseconds, Reserved32;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HistoricalEstimateV1
+{
+    public uint StructSize, AbiVersion;
+    public double EstimatedCostUsd;
+    public ulong EstimatedBytes, EstimatedRecords;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public unsafe struct HistoricalRecord120 { public fixed byte Bytes[120]; }
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HistoricalBatchV1
+{
+    public uint StructSize, AbiVersion, RecordsRead, MoreAvailable;
+    public ulong BatchOrdinal;
+}
 
 [StructLayout(LayoutKind.Explicit, Size = 64)]
 public struct MarketRecord64

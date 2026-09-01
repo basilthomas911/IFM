@@ -2,7 +2,9 @@
 
 > Historical implementation record. Historical EMA/Bollinger ownership remains valid, but warmup
 > now seeds the versionless Market Outlook hot cache directly and does not publish a Market Outlook
-> command or persisted snapshot.
+> command or persisted snapshot. The `MOSC` correction additionally makes that handoff
+> unconditional: it can occur before, during or after live-feed startup, and same-day local replay
+> repairs an empty process cache even when no new durable signal event is required.
 
 | Item | Value |
 | --- | --- |
@@ -59,6 +61,12 @@ startup path.
     another valid component from updating.
 12. Disabling automatic warm-up does not delete history, reset Analytics state,
     or stop normal live-market-data processing.
+13. The ordered local replay always publishes its final warm EMA/Bollinger checkpoints into the
+    Regime Discovery signal cache and Market Outlook cache. Durable command/event idempotency cannot
+    suppress this process-local handoff.
+14. EMA and Bollinger are written together as one cache transaction. A live ES trade arriving
+    before the baseline remains visible; baseline arrival then immediately composes the indicators
+    against that latest price.
 
 ## 3. Configuration contract
 
@@ -101,8 +109,9 @@ UI startup
   -> ordered local Daily replay
      -> EMA10/20/50/200 actor
      -> same-observation BB10/20 actor
-  -> typed EMA and BB Market Outlook component updates
-  -> snapshot persistence and Notify publication
+  -> unconditional process-local EMA/BB baseline handoff
+  -> one atomic Market Outlook partial-state merge and whole-snapshot publication
+  -> typed Notify publication (no Market Outlook persistence)
   -> UI shows EMA50/EMA200 and BB20 values
 ```
 

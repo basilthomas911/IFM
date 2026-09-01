@@ -70,6 +70,7 @@ public sealed class DatabentoProductionEpochTests
             api.GetFuturesLastPriceReader("ES-202609"));
         var health = api.GetHealth();
         Assert.True(health.Running);
+        Assert.True(api.IsDatabentoFeedUp());
         Assert.Equal(2, health.Epoch!.Value.ConfiguredContracts);
         Assert.Equal(2, health.Epoch.Value.LastPriceSlots);
         Assert.True(await api.StartStreamingFuturesTickDataAsync("ES-202609"));
@@ -82,6 +83,7 @@ public sealed class DatabentoProductionEpochTests
 
         await api.StopAsync(valueDate);
 
+        Assert.False(api.IsDatabentoFeedUp());
         Assert.Null(api.ActiveValueDate);
         Assert.Equal(1, provider.Feed.StartCount);
         Assert.Equal(1, provider.Feed.StopCount);
@@ -156,6 +158,25 @@ public sealed class DatabentoProductionEpochTests
             options.TradeReplayStartTimestampNanoseconds));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("ES20260918"));
         Assert.True(await api.StartStreamingFuturesTickDataAsync("VX20260916"));
+        Assert.True(api.IsDatabentoFeedUp());
+
+        provider.Feeds["GLBX.MDP3"].HealthState = FeedState.Faulted;
+        Assert.False(api.IsDatabentoFeedUp());
+        provider.Feeds["GLBX.MDP3"].HealthState = FeedState.Running;
+        provider.Feeds["GLBX.MDP3"].TerminalStatus = DatabentoFeedStatus.ConnectionHung;
+        Assert.False(api.IsDatabentoFeedUp());
+        provider.Feeds["GLBX.MDP3"].TerminalStatus = DatabentoFeedStatus.Ok;
+        Assert.True(api.IsDatabentoFeedUp());
+
+        provider.Feeds["XCBF.PITCH"].ThrowOnHealth = true;
+        Assert.False(api.IsDatabentoFeedUp());
+        provider.Feeds["XCBF.PITCH"].ThrowOnHealth = false;
+        provider.Feeds["XCBF.PITCH"].HealthDelay = TimeSpan.FromMilliseconds(20);
+        Assert.False(api.IsDatabentoFeedUp(TimeSpan.FromMilliseconds(1)));
+        provider.Feeds["XCBF.PITCH"].HealthDelay = TimeSpan.Zero;
+        Assert.False(api.IsDatabentoFeedUp(TimeSpan.Zero));
+        Assert.False(api.IsDatabentoFeedUp(TimeSpan.FromTicks(-1)));
+        Assert.True(api.IsDatabentoFeedUp(TimeSpan.FromSeconds(1)));
 
         await api.StopAsync(valueDate);
 
@@ -303,11 +324,19 @@ public sealed class DatabentoProductionEpochTests
         internal int StopCount { get; private set; }
         internal TimeSpan? StopTimeout { get; private set; }
         internal bool Disposed { get; private set; }
+        internal FeedState HealthState { get; set; } = FeedState.Created;
+        internal DatabentoFeedStatus TerminalStatus { get; set; } = DatabentoFeedStatus.Ok;
+        internal bool ThrowOnHealth { get; set; }
+        internal TimeSpan HealthDelay { get; set; }
         internal IReadOnlyList<TickerSubscription> Subscriptions => _subscriptions;
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) =>
             _subscriptions = subscriptions.ToArray();
-        public void Start(TimeSpan timeout) => StartCount++;
+        public void Start(TimeSpan timeout)
+        {
+            StartCount++;
+            HealthState = FeedState.Running;
+        }
         public void Stop(TimeSpan timeout)
         {
             StopCount++;
@@ -318,6 +347,7 @@ public sealed class DatabentoProductionEpochTests
                 if (!stopBarrier.Wait(TimeSpan.FromSeconds(2)))
                     throw new TimeoutException("Dataset feeds were not stopped concurrently.");
             }
+            HealthState = FeedState.Stopped;
             _reader.Complete();
         }
         public ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey instrument) =>
@@ -334,10 +364,38 @@ public sealed class DatabentoProductionEpochTests
                         ? new InstrumentKey(1, checked((uint)index + 1))
                         : detail.Instrument);
             }).ToArray();
-        public FeedHealthSnapshot GetHealth() => throw new NotSupportedException();
+        public FeedHealthSnapshot GetHealth()
+        {
+            if (HealthDelay > TimeSpan.Zero)
+                Thread.Sleep(HealthDelay);
+            if (ThrowOnHealth)
+                throw new InvalidOperationException("Injected feed-health failure.");
+            var transportReady = HealthState == FeedState.Running
+                && TerminalStatus == DatabentoFeedStatus.Ok;
+            return new FeedHealthSnapshot(
+                HealthState,
+                TerminalStatus,
+                1024,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                null)
+            {
+                TransportReady = transportReady,
+                TradingReady = transportReady,
+                InstrumentCount = _subscriptions.Length,
+                BaselineReadyInstrumentCount = transportReady ? _subscriptions.Length : 0
+            };
+        }
         public void Dispose()
         {
             Disposed = true;
+            HealthState = FeedState.Stopped;
             _reader.Complete();
         }
     }

@@ -3,6 +3,7 @@ using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
+using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -32,7 +33,6 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
             .Select(index => Observation(series, firstDate.AddDays(index), index + 1))
             .ToArray();
         var targetValueDate = observations[^1].ValueDate.AddDays(1);
-        MarketOutlookHotCache.Shared.Activate(new("ES-ACTIVE", targetValueDate, Guid.NewGuid()));
         var publisher = new FuturesEmaBbHistoricalDailyReplayPublisher(actorService);
 
         await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
@@ -52,6 +52,24 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
             reconcile.FuturesBbSignal.Ema20Center + 2m * reconcile.FuturesBbSignal.StandardDeviation20);
         reconcile.FuturesBbSignal.Lower20.Should().Be(
             reconcile.FuturesBbSignal.Ema20Center - 2m * reconcile.FuturesBbSignal.StandardDeviation20);
+        RegimeDiscoverySignalCacheAdapter.TryGetLatestEsDailyBaseline(
+                "ES-ACTIVE",
+                out var emaBaseline,
+                out var bbBaseline,
+                out var committedEma,
+                out var committedBb)
+            .Should().BeTrue();
+        emaBaseline.Should().NotBeNull();
+        bbBaseline.Should().NotBeNull();
+        committedEma.Should().BeEquivalentTo(reconcile.FuturesEmaSignal);
+        committedBb.Should().BeEquivalentTo(reconcile.FuturesBbSignal);
+
+        MarketOutlookHotCache.Shared.Clear();
+        await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var repaired).Should().BeTrue();
+        repaired.FuturesEmaSignal.Should().BeEquivalentTo(reconcile.FuturesEmaSignal);
+        repaired.FuturesBbSignal.Should().BeEquivalentTo(reconcile.FuturesBbSignal);
         MarketOutlookHotCache.Shared.Clear();
     }
 

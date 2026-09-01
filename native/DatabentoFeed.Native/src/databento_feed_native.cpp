@@ -1378,8 +1378,14 @@ bool process_live_record(dbf_feed* feed,
             break;
         case databento::SystemCode::SlowReaderWarning:
             feed->slow_reader_warnings.fetch_add(1, std::memory_order_relaxed);
-            return fail_live(feed, DBF_DATABENTO_ERROR,
-                             "Databento reported a slow-reader warning");
+            // Advisory only. Keep the transport alive and continue draining.
+            // Feed health/watchdog telemetry can surface the warning without
+            // converting transient backpressure into a permanent disconnect.
+            if (!dbf_live::keeps_live_session_open(system->code)) {
+                return fail_live(feed, DBF_DATABENTO_ERROR,
+                                 "Databento reported a terminal system message");
+            }
+            break;
         default:
             break;
         }

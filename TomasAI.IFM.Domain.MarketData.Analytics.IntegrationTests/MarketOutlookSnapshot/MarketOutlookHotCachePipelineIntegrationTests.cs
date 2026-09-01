@@ -1,7 +1,5 @@
 using FluentAssertions;
 using MessagePack;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -20,13 +18,11 @@ public sealed class MarketOutlookHotCachePipelineIntegrationTests
     {
         var id = new MarketOutlookEntityId("ESZ26", new DateOnly(2026, 9, 1));
         var cache = new MarketOutlookHotCache();
-        cache.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
-        cache.TryUpdateInput(id, CacheComponentType.Vx,
-            new(Guid.NewGuid(), 1, DateTime.UtcNow),
-            state => state with { VixFuturesPrice = 22.75m }, out var inputs).Should().BeTrue();
-        var current = MarketOutlookComposer.Compose(
-            inputs, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow);
-        cache.SetCurrent(current);
+        var current = cache.Write(id,
+            [new(CacheComponentType.Vx, new(Guid.NewGuid(), 1, DateTime.UtcNow))],
+            state => state with { VixFuturesPrice = 22.75m },
+            state => MarketOutlookComposer.Compose(
+                state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow)).Snapshot;
         var notification = new MarketOutlookUpdatedNotifyEvent
         {
             Subject = new(ActorType.Notify, MarketOutlookUpdatedNotifyEvent.Actor,
@@ -47,34 +43,20 @@ public sealed class MarketOutlookHotCachePipelineIntegrationTests
     }
 
     [Fact]
-    public async Task ApiHostedWorker_ActivatesGenerationFenceAndClearsDerivedStateOnStop()
+    public void Cache_IsImmediatelyWritableWithoutFeedActivationAndOnlyExplicitClearRemovesState()
     {
-        var fence = new MarketOutlookGenerationFence(
-            "ESZ26", new DateOnly(2026, 9, 1), Guid.NewGuid());
+        var id = new MarketOutlookEntityId("ESZ26", new DateOnly(2026, 9, 1));
         var cache = new MarketOutlookHotCache();
-        var authority = Substitute.For<IMarketDataGenerationAuthority>();
-        authority.TryGetActive(out Arg.Any<MarketOutlookGenerationFence>())
-            .Returns(call =>
-            {
-                call[0] = fence;
-                return true;
-            });
-        var worker = new MarketOutlookHotCacheService(
-            cache,
-            authority,
-            Substitute.For<ILogger<MarketOutlookHotCacheService>>());
+        cache.Write(id,
+            [new(CacheComponentType.Vx, new(Guid.NewGuid(), 1, DateTime.UtcNow))],
+            state => state with { VixFuturesPrice = 20m },
+            state => MarketOutlookComposer.Compose(
+                state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow));
 
-        await worker.StartAsync(CancellationToken.None);
-        await Task.Delay(50);
+        cache.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.VixFuturesPrice.Should().Be(20m);
 
-        cache.ActiveFence.Should().Be(fence);
-        cache.TryUpdateInput(new(fence.ContractId, fence.ValueDate), CacheComponentType.Vx,
-            new(Guid.NewGuid(), 1, DateTime.UtcNow),
-            state => state with { VixFuturesPrice = 20m }, out _).Should().BeTrue();
-
-        await worker.StopAsync(CancellationToken.None);
-
-        cache.ActiveFence.IsValid.Should().BeFalse();
-        cache.TryGetInputs(new(fence.ContractId, fence.ValueDate), out _).Should().BeFalse();
+        cache.Clear();
+        cache.TryGetInputs(id, out _).Should().BeFalse();
     }
 }
