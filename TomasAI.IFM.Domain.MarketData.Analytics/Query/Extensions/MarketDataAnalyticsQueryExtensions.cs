@@ -6,6 +6,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 
@@ -13,29 +14,38 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 /// Provides direct, in-process Market Data Analytics queries without actor messaging.
 /// </summary>
 /// <remarks>
-/// Signal and distribution data is read through <see cref="IDbContextFactory.MarketDataDb"/>. Every public
-/// operation owns its exception handling and returns a typed service result using the corresponding query
-/// error identifier. The operations use the readonly services exposed by the typed actor context.
+/// Durable signal and distribution data is read through <see cref="IDbContextFactory.MarketDataDb"/>;
+/// the derived Market Outlook is read from its process-local hot cache. Every public operation owns its
+/// exception handling and returns a typed service result using the corresponding query error identifier.
 /// </remarks>
 public static partial class MarketDataAnalyticsQueryExtensions
 {
 
     /// <summary>Executes the GetMarketOutlookSnapshotAsync operation.</summary>
-    public static async Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
+    public static Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
         string contractId,
         DateOnly valueDate)
     {
         try
         {
-            var result = await context.DbFactory.MarketDataDb
-                .GetMarketOutlookSnapshotAsync(contractId, valueDate)
-                .ConfigureAwait(false);
-            return new ServiceOk<MarketOutlookSnapshotReadModel>(result!);
+            MarketOutlookHotCache.Shared.TryGetCurrent(
+                new MarketOutlookEntityId(contractId, valueDate), out var result);
+            result ??= new MarketOutlookReadModel
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                UpdatedAtUtc = DateTime.UtcNow,
+                MissingInputs = "Market Outlook unavailable",
+                FeedHealth = "Unavailable"
+            };
+            return Task.FromResult<ServiceResult<MarketOutlookReadModel>>(
+                new ServiceOk<MarketOutlookReadModel>(result!));
         }
         catch (Exception ex)
         {
-            return new ServiceFailed<MarketOutlookSnapshotReadModel>(
-                GetMarketOutlookSnapshotQuery.ErrorId, ex.Message);
+            return Task.FromResult<ServiceResult<MarketOutlookReadModel>>(
+                new ServiceFailed<MarketOutlookReadModel>(
+                    GetMarketOutlookSnapshotQuery.ErrorId, ex.Message));
         }
     }
 

@@ -29,15 +29,6 @@ public interface IMarketDataDbReadContext
         DateOnly valueDate,
         string configurationId,
         CancellationToken cancellationToken = default);
-    Task<MarketOutlookSnapshotReadModel?> GetMarketOutlookSnapshotAsync(
-        string contractId,
-        DateOnly valueDate,
-        CancellationToken cancellationToken = default);
-    /// <summary>Gets the projected Market Outlook accumulation checkpoint for one entity.</summary>
-    Task<MarketOutlookWorkingStateReadModel?> GetMarketOutlookWorkingStateAsync(
-        string contractId,
-        DateOnly valueDate,
-        CancellationToken cancellationToken = default);
     Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId);
     Task<EconomicCalendarReadModel?> GetEconomicCalendarAsync(EconomicCalendarId economicCalendarId, CancellationToken cancellationToken);
     Task<ICollection<EconomicCalendarReadModel>> GetEconomicCalendarsAsync(DateTime eventDate, string countryCode);

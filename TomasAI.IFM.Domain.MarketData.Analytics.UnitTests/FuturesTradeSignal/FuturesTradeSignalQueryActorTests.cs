@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
@@ -14,6 +15,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSignal;
 
+[Collection(TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot.MarketOutlookHotCacheTestCollection.Name)]
 public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyticsTestFixture>
 {
     readonly MarketDataAnalyticsTestFixture _fixture;
@@ -206,7 +208,7 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
     // ReceiveAsync
 
     [Fact]
-    public async Task ReceiveAsync_GetMarketOutlookSnapshotQuery_RepliesWithPersistedComposite()
+    public async Task ReceiveAsync_GetMarketOutlookSnapshotQuery_RepliesWithCurrentHotCacheValue()
     {
         var scenario = CreateScenario();
         var entityId = new MarketOutlookEntityId(SampleData.ContractId, SampleData.ValueDate);
@@ -218,26 +220,56 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
                 GetMarketOutlookSnapshotQuery.Verb,
                 entityId.Format())
         };
-        var expected = new MarketOutlookSnapshotReadModel(
-            entityId.ContractId,
-            entityId.ValueDate,
-            7,
-            DateTime.UtcNow,
-            SampleData.EodData,
-            SampleData.TradeSignalReadModelFor(TimeFrameType.Daily),
-            string.Empty);
-        scenario.Db.GetMarketOutlookSnapshotAsync(entityId.ContractId, entityId.ValueDate)
-            .Returns(expected);
+        var expected = new MarketOutlookReadModel
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            UpdatedAtUtc = DateTime.UtcNow,
+            FuturesEodData = SampleData.EodData,
+            FuturesTradeSignal = SampleData.TradeSignalReadModelFor(TimeFrameType.Daily)
+        };
+        MarketOutlookHotCache.Shared.Clear();
+        MarketOutlookHotCache.Shared.Activate(new(
+            entityId.ContractId, entityId.ValueDate, Guid.NewGuid()));
+        MarketOutlookHotCache.Shared.SetCurrent(expected);
 
         await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
 
-        await scenario.Db.Received(1)
-            .GetMarketOutlookSnapshotAsync(entityId.ContractId, entityId.ValueDate);
         await scenario.Context.Received(1).ReplyAsync(
             query.Subject.ThreadId,
             GetMarketOutlookSnapshotQuery.Verb,
-            Arg.Is<ServiceResult<MarketOutlookSnapshotReadModel?>>(result =>
+            Arg.Is<ServiceResult<MarketOutlookReadModel>>(result =>
                 result.Success && result.Value == expected));
+        MarketOutlookHotCache.Shared.Clear();
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_GetMarketOutlookSnapshotQuery_EmptyCacheReturnsTypedUnavailableValue()
+    {
+        var scenario = CreateScenario();
+        var entityId = new MarketOutlookEntityId(SampleData.ContractId, SampleData.ValueDate);
+        var query = new GetMarketOutlookSnapshotQuery(entityId.ContractId, entityId.ValueDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketOutlookSnapshotQuery.Actor,
+                GetMarketOutlookSnapshotQuery.Verb,
+                entityId.Format())
+        };
+        MarketOutlookHotCache.Shared.Clear();
+
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetMarketOutlookSnapshotQuery.Verb,
+            Arg.Is<ServiceResult<MarketOutlookReadModel>>(result =>
+                result.Success
+                && result.Value != null
+                && result.Value.ContractId == entityId.ContractId
+                && result.Value.ValueDate == entityId.ValueDate
+                && result.Value.FeedHealth == "Unavailable"
+                && !result.Value.IsValid));
     }
 
     [Theory]

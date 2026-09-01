@@ -19,13 +19,6 @@ public interface IMarketDataDbWriteContext
     /// <summary>Persists one exact or explicitly invalid VWAP session projection.</summary>
     Task InsertFuturesVwapSignalAsync(FuturesVwapSignalReadModel signal,
         CancellationToken cancellationToken = default);
-    Task UpsertMarketOutlookSnapshotAsync(
-        MarketOutlookSnapshotReadModel snapshot,
-        CancellationToken cancellationToken = default);
-    /// <summary>Projects the current Market Outlook accumulation checkpoint.</summary>
-    Task UpsertMarketOutlookWorkingStateAsync(
-        MarketOutlookWorkingStateReadModel workingState,
-        CancellationToken cancellationToken = default);
     Task DeleteEconomicCalendarAsync(EconomicCalendarId id);
     Task InsertEconomicCalendarAsync(EconomicCalendarReadModel economicCalendar);
     Task InsertEconomicCalendarsAsync(EconomicCalendarReadModel[] economicCalendars);

@@ -3,6 +3,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 
@@ -10,15 +11,26 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 public static partial class MarketDataAnalyticsQueryExtensions
 {
     /// <summary>Executes the GetMarketOutlookSnapshotAsync operation.</summary>
-    public static Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
+    public static Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
         string contractId,
         DateOnly valueDate,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             GetMarketOutlookSnapshotQuery.ErrorId,
             cancellationToken,
-            async () => (await context.DbFactory.MarketDataDb.GetMarketOutlookSnapshotAsync(
-                contractId, valueDate, cancellationToken).ConfigureAwait(false))!);
+            () =>
+            {
+                MarketOutlookHotCache.Shared.TryGetCurrent(
+                    new MarketOutlookEntityId(contractId, valueDate), out var result);
+                return Task.FromResult(result ?? new MarketOutlookReadModel
+                {
+                    ContractId = contractId,
+                    ValueDate = valueDate,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                    MissingInputs = "Market Outlook unavailable",
+                    FeedHealth = "Unavailable"
+                });
+            });
 
     /// <summary>Executes the GetFuturesTradeSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(this IFuturesTradeSignalQueryContext context,

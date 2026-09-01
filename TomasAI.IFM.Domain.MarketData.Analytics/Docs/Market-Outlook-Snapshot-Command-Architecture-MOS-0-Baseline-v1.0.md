@@ -1,5 +1,9 @@
 # Market Outlook Snapshot Command Architecture — MOS-0 Baseline
 
+> Historical baseline only. The command actor, persisted working state, projector, revision DTO
+> and active database route described here were superseded and removed by the implemented
+> `Market-Outlook-Hot-Cache-Refactor-Implementation-Plan-v1.0`.
+
 ## Purpose
 
 This baseline defines the incremental migration of Market Outlook accumulation from

@@ -1,23 +1,25 @@
+using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
 
 /// <summary>
-/// Bridges Market Outlook realtime inputs to its command aggregate and publishes projected snapshot notifications.
+/// Owns the process-local, versionless Market Outlook projection. Every eligible component and
+/// every accepted ES last trade replaces the immutable current value and independently notifies UI clients.
 /// </summary>
-/// <remarks>
-/// PostgreSQL command events and ScyllaDB own durable state. This actor retains only bounded latest-value
-/// preview ordering and snapshot overlays; restart safely reconstructs them from the next epoch and projection.
-/// </remarks>
 public class MarketOutlookSnapshotRealtimeActor(
     IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> actorContext)
     : BaseEventActor<MarketOutlookSnapshotRealtimeActor>(actorContext, actorContext.Logger)
@@ -29,12 +31,9 @@ public class MarketOutlookSnapshotRealtimeActor(
         ActorType.Realtime,
         FuturesMarketPriceUpdatedRealtimeEvent.Actor,
         FuturesMarketPriceUpdatedRealtimeEvent.Verb);
-    readonly Dictionary<string, (Guid Epoch, long Ordinal, DateTimeOffset EventTime)> previewPositions =
-        new(StringComparer.Ordinal);
-    readonly Dictionary<string, Guid> invalidPreviewEpochs = new(StringComparer.Ordinal);
-    readonly Dictionary<MarketOutlookEntityId, MarketOutlookSnapshotReadModel> snapshots = [];
+    static readonly IMarketOutlookHotCache Cache = MarketOutlookHotCache.Shared;
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [MarketOutlookComponentChangedRealtimeEvent.Verb] =
@@ -42,126 +41,110 @@ public class MarketOutlookSnapshotRealtimeActor(
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
                 message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
             [MarketOutlookEodUpdatedRealtimeEvent.Verb] =
-                message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!,
-            [MarketOutlookComponentObservedCompleteEvent.Verb] =
-                message => message.AsEvent<MarketOutlookComponentObservedCompleteEvent>()!,
-            [MarketOutlookComponentObservedFailEvent.Verb] =
-                message => message.AsEvent<MarketOutlookComponentObservedFailEvent>()!,
-            [MarketOutlookSnapshotPublishedCompleteEvent.Verb] =
-                message => message.AsEvent<MarketOutlookSnapshotPublishedCompleteEvent>()!,
-            [MarketOutlookSnapshotPublishedFailEvent.Verb] =
-                message => message.AsEvent<MarketOutlookSnapshotPublishedFailEvent>()!
+                message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!
         };
 
-    /// <inheritdoc />
-    protected override ValueTask OnStartup(
-        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
+    protected override ValueTask OnStartup(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         context.AddRealtimeRouter(MarketPriceRoute, Id);
         return ValueTask.CompletedTask;
     }
 
-    /// <inheritdoc />
-    protected override ValueTask OnShutdown(
-        IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
+    protected override ValueTask OnShutdown(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         context.RemoveRealtimeRouter(MarketPriceRoute, Id);
-        previewPositions.Clear();
-        invalidPreviewEpochs.Clear();
-        snapshots.Clear();
         return ValueTask.CompletedTask;
     }
 
-    readonly IReadOnlyDictionary<Type, Func<IEvent, IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>>
-        _receiveMap = new Dictionary<Type, Func<IEvent, IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>>
-        {
-            [typeof(MarketOutlookComponentChangedRealtimeEvent)] = (@event, context) =>
-                ((MarketOutlookComponentChangedRealtimeEvent)@event).ObserveAsync(context),
-            [typeof(MarketOutlookEodUpdatedRealtimeEvent)] = (@event, context) =>
-                ((MarketOutlookEodUpdatedRealtimeEvent)@event).PublishAsync(context),
-            [typeof(MarketOutlookComponentObservedCompleteEvent)] = (@event, context) =>
-                ((MarketOutlookComponentObservedCompleteEvent)@event).CompleteAsync(context),
-            [typeof(MarketOutlookComponentObservedFailEvent)] = (@event, context) =>
-                ((MarketOutlookComponentObservedFailEvent)@event).FailAsync(context),
-            [typeof(MarketOutlookSnapshotPublishedCompleteEvent)] = (@event, context) =>
-                ((MarketOutlookSnapshotPublishedCompleteEvent)@event).CompleteAsync(context),
-            [typeof(MarketOutlookSnapshotPublishedFailEvent)] = (@event, context) =>
-                ((MarketOutlookSnapshotPublishedFailEvent)@event).FailAsync(context)
-        };
-
-    /// <inheritdoc />
     protected override IEvent ParseMessage(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
-        IActorMessage message)
-        => ParseMappedRealtimeEvent(context, message, _parseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
 
-    /// <inheritdoc />
     protected override async ValueTask ReceiveAsync(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         IEvent @event)
     {
-        ArgumentNullException.ThrowIfNull(context);
         var realtimeContext = (IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>)context;
-        if (@event is FuturesMarketPriceUpdatedRealtimeEvent marketPrice)
+        switch (@event)
         {
-            await PublishDailyPreviewAsync(marketPrice, realtimeContext).ConfigureAwait(false);
-            return;
+            case MarketOutlookComponentChangedRealtimeEvent component:
+                await ApplyComponentAsync(component, realtimeContext).ConfigureAwait(false);
+                break;
+            case MarketOutlookEodUpdatedRealtimeEvent eod:
+                await ApplyEodAsync(eod, realtimeContext).ConfigureAwait(false);
+                break;
+            case FuturesMarketPriceUpdatedRealtimeEvent price:
+                await ApplyEsTradeAsync(price, realtimeContext).ConfigureAwait(false);
+                break;
         }
-        if (@event is MarketOutlookComponentObservedCompleteEvent observed
-            && observed.WorkingState.PublishedSnapshot is { IsValid: true } observedSnapshot)
-            snapshots[observed.EntityId] = observedSnapshot;
-        else if (@event is MarketOutlookSnapshotPublishedCompleteEvent published)
-            snapshots[published.EntityId] = published.MarketOutlook;
-        var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        await handler(@event, realtimeContext)
-            .ConfigureAwait(false);
     }
 
-    async ValueTask PublishDailyPreviewAsync(
-        FuturesMarketPriceUpdatedRealtimeEvent source,
+    static async ValueTask ApplyComponentAsync(
+        MarketOutlookComponentChangedRealtimeEvent source,
         IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
-        if (!TryAcceptPreviewTrade(source)
-            || !MarketOutlookDailyPreviewCalculator.TryCalculate(source, out var ema, out var bb))
+        var eligible = MarketOutlookComponentEligibility.SelectEligible(source, out var rejectedReason);
+        var position = Position(source.Id, source.EventId, source.ReceivedOn);
+        var accepted = false;
+        accepted |= Update(eligible.EntityId, CacheComponentType.Rsi, position,
+            eligible.FuturesRsiSignal, static (state, value) => state with { FuturesRsiSignal = value });
+        accepted |= Update(eligible.EntityId, CacheComponentType.Tdi, position,
+            eligible.FuturesTdiSignal, static (state, value) => state with { FuturesTdiSignal = value });
+        accepted |= UpdateIti(eligible, position);
+        if (eligible.VixFuturesPrice > 0)
+            accepted |= Cache.TryUpdateInput(eligible.EntityId, CacheComponentType.Vx, position,
+                state => state with { VixFuturesPrice = eligible.VixFuturesPrice }, out _);
+        accepted |= Update(eligible.EntityId, CacheComponentType.Ema, position,
+            eligible.FuturesEmaSignal, static (state, value) => state with { FuturesEmaSignal = value });
+        accepted |= Update(eligible.EntityId, CacheComponentType.BollingerBand, position,
+            eligible.FuturesBbSignal, static (state, value) => state with { FuturesBbSignal = value });
+        accepted |= Update(eligible.EntityId, CacheComponentType.TradeSignal, position,
+            eligible.FuturesTradeSignal, static (state, value) => state with { FuturesTradeSignal = value });
+
+        if (!accepted)
+        {
+            if (!string.IsNullOrWhiteSpace(rejectedReason))
+                context.Logger.LogDebug(
+                    "Ignored Market Outlook component {EventSource} for {EntityId}: {Reason}",
+                    source.EventSource,
+                    source.EntityId.Format(),
+                    rejectedReason);
             return;
-        var entityId = new MarketOutlookEntityId(source.Price.ContractId, source.Price.ValueDate);
-        if (!snapshots.TryGetValue(entityId, out var current))
-        {
-            current = await ((IMarketOutlookSnapshotRealtimeContext)context).DbFactory.MarketDataDb
-                .GetMarketOutlookSnapshotAsync(entityId.ContractId, entityId.ValueDate)
-                .ConfigureAwait(false)
-                ?? new MarketOutlookSnapshotReadModel
-                {
-                    ContractId = entityId.ContractId,
-                    ValueDate = entityId.ValueDate
-                };
         }
-        var preview = current with
-        {
-            Revision = checked(Math.Max(0, current.Revision) + 1),
-            UpdatedOn = DateTime.UtcNow,
-            FuturesEmaSignal = ema,
-            FuturesBbSignal = bb
-        };
-        snapshots[entityId] = preview;
-        await context.SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(new()
-        {
-            Subject = new(
-                ActorType.Notify,
-                MarketOutlookUpdatedNotifyEvent.Actor,
-                MarketOutlookUpdatedNotifyEvent.Verb,
-                entityId.Format()),
-            Id = Guid.NewGuid(),
-            EntityId = entityId,
-            CommandId = source.CommandId == Guid.Empty ? source.Id : source.CommandId,
-            AggregateId = source.AggregateId,
-            EventSource = "MarketOutlookDailyLivePreview",
-            ReceivedOn = DateTime.UtcNow,
-            MarketOutlook = preview
-        }).ConfigureAwait(false);
+        await ComposeAndNotifyAsync(
+            eligible.EntityId,
+            MarketOutlookRefreshTrigger.Component,
+            source.CommandId == Guid.Empty ? source.Id : source.CommandId,
+            source.AggregateId,
+            source.EventSource,
+            context).ConfigureAwait(false);
     }
 
-    bool TryAcceptPreviewTrade(FuturesMarketPriceUpdatedRealtimeEvent source)
+    static async ValueTask ApplyEodAsync(
+        MarketOutlookEodUpdatedRealtimeEvent source,
+        IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
+    {
+        if (!string.Equals(source.FuturesEodData.Symbol, "ES", StringComparison.OrdinalIgnoreCase))
+            return;
+        if (!Cache.TryUpdateInput(
+                source.EntityId,
+                CacheComponentType.Eod,
+                Position(source.Id, source.EventId, source.ReceivedOn),
+                state => state with { FuturesEodData = source.FuturesEodData },
+                out _))
+            return;
+        await ComposeAndNotifyAsync(
+            source.EntityId,
+            MarketOutlookRefreshTrigger.EodSession,
+            source.CommandId == Guid.Empty ? source.Id : source.CommandId,
+            source.AggregateId,
+            source.EventSource,
+            context).ConfigureAwait(false);
+    }
+
+    static async ValueTask ApplyEsTradeAsync(
+        FuturesMarketPriceUpdatedRealtimeEvent source,
+        IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
     {
         if (source.UpdateSource != FuturesMarketPriceUpdateSource.Trade
             || source.Price.Trade is not { } trade
@@ -171,38 +154,124 @@ public class MarketOutlookSnapshotRealtimeActor(
             || trade.LastSize == 0
             || trade.StreamEpochId == Guid.Empty
             || trade.TradeOrdinal <= 0)
-            return false;
-        var contractId = source.Price.ContractId;
-        if (invalidPreviewEpochs.TryGetValue(contractId, out var invalidEpoch))
-        {
-            if (invalidEpoch == trade.StreamEpochId)
-                return false;
-            invalidPreviewEpochs.Remove(contractId);
-        }
-        if (previewPositions.TryGetValue(contractId, out var current)
-            && current.Epoch == trade.StreamEpochId)
-        {
-            if (trade.TradeOrdinal <= current.Ordinal
-                || trade.EventTimestamp < current.EventTime)
-                return false;
-            if (trade.TradeOrdinal != current.Ordinal + 1)
-            {
-                invalidPreviewEpochs[contractId] = trade.StreamEpochId;
-                previewPositions[contractId] = (
-                    trade.StreamEpochId,
-                    trade.TradeOrdinal,
-                    trade.EventTimestamp);
-                return false;
-            }
-        }
-        previewPositions[contractId] = (
+            return;
+
+        var entityId = new MarketOutlookEntityId(source.Price.ContractId, source.Price.ValueDate);
+        var position = new MarketOutlookSourcePosition(
+            source.Id,
+            source.EventId,
+            trade.EventTimestamp.UtcDateTime,
             trade.StreamEpochId,
-            trade.TradeOrdinal,
-            trade.EventTimestamp);
-        return true;
+            trade.TradeOrdinal);
+        MarketOutlookDailyPreviewCalculator.TryCalculate(source, out var liveEma, out var liveBb);
+        if (!Cache.TryUpdateInput(
+                entityId,
+                CacheComponentType.EsTrade,
+                position,
+                state => state with
+                {
+                    CurrentEsPrice = trade.LastPrice,
+                    FuturesEmaSignal = liveEma ?? state.FuturesEmaSignal,
+                    FuturesBbSignal = liveBb ?? state.FuturesBbSignal
+                },
+                out _))
+            return;
+        await ComposeAndNotifyAsync(
+            entityId,
+            MarketOutlookRefreshTrigger.EsTrade,
+            source.CommandId == Guid.Empty ? source.Id : source.CommandId,
+            source.AggregateId,
+            "MarketOutlookEsTradeRefresh",
+            context,
+            liveEma,
+            liveBb).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
+    static bool Update<T>(
+        MarketOutlookEntityId entityId,
+        CacheComponentType component,
+        MarketOutlookSourcePosition position,
+        T? value,
+        Func<MarketOutlookInputState, T, MarketOutlookInputState> update)
+        where T : class
+        => value is not null
+            && Cache.TryUpdateInput(entityId, component, position, state => update(state, value), out _);
+
+    static bool UpdateIti(
+        MarketOutlookComponentChangedRealtimeEvent source,
+        MarketOutlookSourcePosition position)
+    {
+        if (source.FuturesItiSignal is not { } iti)
+            return false;
+        var milestoneAccepted = iti.IntrinsicTimeMode switch
+        {
+            IntrinsicTimeModeType.TrendDirectionChanged => Cache.TryUpdateInput(
+                source.EntityId, CacheComponentType.ItiDirection, position,
+                state => state with { TrendDirectionChange = iti }, out _),
+            IntrinsicTimeModeType.TrendExtremeChanged => Cache.TryUpdateInput(
+                source.EntityId, CacheComponentType.ItiExtreme, position,
+                state => state with { TrendExtremeChange = iti }, out _),
+            IntrinsicTimeModeType.TrendReversalChanged => Cache.TryUpdateInput(
+                source.EntityId, CacheComponentType.ItiReversal, position,
+                state => state with { TrendReversalChange = iti }, out _),
+            _ => false
+        };
+        var latestAccepted = Cache.TryUpdateInput(
+            source.EntityId,
+            CacheComponentType.ItiLatest,
+            position,
+            state => state with { LatestItiTrendSignal = iti },
+            out _);
+        return milestoneAccepted || latestAccepted;
+    }
+
+    static async ValueTask ComposeAndNotifyAsync(
+        MarketOutlookEntityId entityId,
+        MarketOutlookRefreshTrigger trigger,
+        Guid commandId,
+        string aggregateId,
+        string eventSource,
+        IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context,
+        FuturesEmaSignalReadModel? liveEma = null,
+        FuturesBbSignalReadModel? liveBb = null)
+    {
+        if (!Cache.TryGetInputs(entityId, out var state))
+            return;
+        var projection = MarketOutlookComposer.Compose(state, trigger, DateTime.UtcNow, liveEma, liveBb);
+        Cache.SetCurrent(projection);
+        var notification = new MarketOutlookUpdatedNotifyEvent
+        {
+            Subject = new ActorSubject(
+                ActorType.Notify,
+                MarketOutlookUpdatedNotifyEvent.Actor,
+                MarketOutlookUpdatedNotifyEvent.Verb,
+                entityId.Format()),
+            Id = Guid.NewGuid(),
+            EntityId = entityId,
+            CommandId = commandId == Guid.Empty ? Guid.NewGuid() : commandId,
+            AggregateId = aggregateId,
+            EventSource = eventSource,
+            ReceivedOn = DateTime.UtcNow,
+            MarketOutlook = projection
+        };
+        try
+        {
+            await context.SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(notification)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            context.Logger.LogErrorEvent(
+                ActorName,
+                exception,
+                "Market Outlook notification failed after cache commit for {EntityId}",
+                entityId.Format());
+        }
+    }
+
+    static MarketOutlookSourcePosition Position(Guid id, long sequence, DateTime timestamp) =>
+        new(id, sequence, timestamp.Kind == DateTimeKind.Utc ? timestamp : timestamp.ToUniversalTime());
+
     protected override ValueTask OnExceptionAsync(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         ActorThreadId threadId,
@@ -212,7 +281,7 @@ public class MarketOutlookSnapshotRealtimeActor(
         actorContext.Logger.LogErrorEvent(
             ActorName,
             exception,
-            "Market Outlook realtime bridge failed for {EntityId}",
+            "Market Outlook hot-cache refresh failed for {EntityId}",
             @event.Subject.EntityId);
         return ValueTask.CompletedTask;
     }

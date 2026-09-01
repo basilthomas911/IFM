@@ -90,7 +90,7 @@ public sealed class G3EventCatalogContractTests
         var shell = Read("TomasAI.IFM.UI.Net.ViewModels/App/IFMAppViewModel.cs");
         shell.Should().Contain("OrderedBatchAsyncChannel<IEvent>");
         shell.Should().Contain("OrderedBatchAsyncChannel<StatusConsoleLogReadModel>");
-        shell.Should().Contain("LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>");
+        shell.Should().Contain("LatestValueAsyncChannel<MarketOutlookReadModel>");
         shell.Should().Contain("KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>");
         shell.Should().NotContain("LatestValueAsyncChannel<FuturesEodDataV2ReadModel>");
         shell.Should().NotContain("LatestValueAsyncChannel<FuturesTradeSignalV2ReadModel>");

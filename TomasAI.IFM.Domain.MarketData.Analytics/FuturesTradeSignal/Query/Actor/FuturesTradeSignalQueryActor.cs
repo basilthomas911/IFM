@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Extensions;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
 
@@ -49,7 +50,7 @@ public class FuturesTradeSignalQueryActor(
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetFuturesTradeSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>()!,
-        [GetMarketOutlookSnapshotQuery.Verb] = msg => msg.AsQuery<GetMarketOutlookSnapshotQuery, MarketOutlookSnapshotReadModel>()!,
+        [GetMarketOutlookSnapshotQuery.Verb] = msg => msg.AsQuery<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>()!,
         [GetLastFuturesTradeSignalQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>()!,
         [GetFuturesTradeSignalIdsQuery.Verb] = msg => msg.AsQuery<GetFuturesTradeSignalIdsQuery, FuturesTradeSignalId[]>()!
     };
@@ -85,11 +86,21 @@ public class FuturesTradeSignalQueryActor(
         [typeof(GetMarketOutlookSnapshotQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (GetMarketOutlookSnapshotQuery)q;
-            var result = await db.MarketDataDb.GetMarketOutlookSnapshotAsync(
-                query.ContractId, query.ValueDate, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            MarketOutlookHotCache.Shared.TryGetCurrent(
+                new MarketOutlookEntityId(query.ContractId, query.ValueDate),
+                out var result);
+            result ??= new MarketOutlookReadModel
+            {
+                ContractId = query.ContractId,
+                ValueDate = query.ValueDate,
+                UpdatedAtUtc = DateTime.UtcNow,
+                MissingInputs = "Market Outlook unavailable",
+                FeedHealth = "Unavailable"
+            };
             cancellationToken.ThrowIfCancellationRequested();
             await ctx.ReplyAsync(q.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb,
-                new ServiceResult<MarketOutlookSnapshotReadModel?>(result)).ConfigureAwait(false);
+                new ServiceResult<MarketOutlookReadModel>(result)).ConfigureAwait(false);
         },
         [typeof(GetFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
         {

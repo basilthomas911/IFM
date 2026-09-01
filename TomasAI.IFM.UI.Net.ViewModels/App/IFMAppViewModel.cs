@@ -117,7 +117,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     readonly Dictionary<string, FuturesBarDataReadModel[]> _futuresBarSnapshots = [];
     readonly Dictionary<string, LatestValueChannelMetrics> _futuresBarMetrics = [];
     KeyedLatestValueAsyncChannel<string, FuturesBarDataInsertedCompleteEvent>? _futuresBarChannels;
-    LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>? _compositeMarketOutlookChannel;
+    LatestValueAsyncChannel<MarketOutlookReadModel>? _compositeMarketOutlookChannel;
     OrderedBatchAsyncChannel<IEvent>? _tradePlacementChannel;
     OrderedBatchAsyncChannel<StatusConsoleLogReadModel>? _statusConsoleChannel;
     IUiEventSubscription? _economicCalendarStartupSubscription;
@@ -142,7 +142,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     OperationsViewModel? _operations;
     long _errorSequence;
     MarketDataFeedHealthState _marketDataFeedHealthState = MarketDataFeedHealthState.Inactive;
-    long _marketOutlookRevision;
     FuturesEodDataUIViewModel? _marketOutlook;
     string _marketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
     FuturesTradeSignalUIViewModel? _futuresTradeSignal;
@@ -741,7 +740,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
                     Operations = null;
                 }
 
-                Interlocked.Exchange(ref _marketOutlookRevision, 0);
                 MarketOutlook = null;
                 FuturesTradeSignal = null;
                 await StopMarketOutlookEventConsumer();
@@ -914,14 +912,13 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
     /// <summary>
-    /// Subscribes before loading the persisted composite snapshot. Revision checks
-    /// make the subscription/query overlap deterministic.
+    /// Subscribes before reading the current process-local composite value.
     /// </summary>
     async Task StartMarketOutlookEventConsumer(CancellationToken cancellationToken)
     {
         if (_compositeMarketOutlookChannel is not null)
             return;
-        var channel = new LatestValueAsyncChannel<MarketOutlookSnapshotReadModel>(
+        var channel = new LatestValueAsyncChannel<MarketOutlookReadModel>(
             ProcessMarketOutlookSnapshotAsync,
             minimumInterval: TimeSpan.FromMilliseconds(50),
             timeProvider: _timeProvider,
@@ -965,30 +962,27 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
     internal async ValueTask ProcessMarketOutlookSnapshotAsync(
-        MarketOutlookSnapshotReadModel snapshot,
+        MarketOutlookReadModel snapshot,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (snapshot.Revision <= Interlocked.Read(ref _marketOutlookRevision))
-            return;
-        Interlocked.Exchange(ref _marketOutlookRevision, snapshot.Revision);
         if (snapshot.FuturesEodData.IsValid)
             MarketOutlook = new FuturesEodDataUIViewModel(snapshot);
-        var updatedUtc = snapshot.UpdatedOn.Kind == DateTimeKind.Utc
-            ? snapshot.UpdatedOn
-            : DateTime.SpecifyKind(snapshot.UpdatedOn, DateTimeKind.Utc);
+        var updatedUtc = snapshot.UpdatedAtUtc.Kind == DateTimeKind.Utc
+            ? snapshot.UpdatedAtUtc
+            : DateTime.SpecifyKind(snapshot.UpdatedAtUtc, DateTimeKind.Utc);
         var age = _timeProvider.GetUtcNow() - new DateTimeOffset(updatedUtc);
         var freshness = IsLiveMarketSessionOpen && age > TimeSpan.FromMinutes(5)
             ? "STALE"
-            : IsLiveMarketSessionOpen ? "live" : "stored";
+            : IsLiveMarketSessionOpen ? "live" : "current";
         var completeness = string.IsNullOrWhiteSpace(snapshot.MissingInputs)
             ? "complete"
             : $"missing {snapshot.MissingInputs}";
         MarketOutlookSnapshotStatus =
-            $"Market Outlook r{snapshot.Revision} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}";
+            $"Market Outlook {snapshot.RefreshTrigger} | {snapshot.ValueDate:yyyy-MM-dd} | {freshness} | {completeness}";
         FuturesTradeSignal = new FuturesTradeSignalUIViewModel(snapshot);
         await WriteStatusConsoleAsync(
-            $"{snapshot.ContractId} Market Outlook revision {snapshot.Revision}",
+            $"{snapshot.ContractId} Market Outlook refreshed by {snapshot.RefreshTrigger}",
             LogSourceType.MarketDataFeedEvent);
     }
 

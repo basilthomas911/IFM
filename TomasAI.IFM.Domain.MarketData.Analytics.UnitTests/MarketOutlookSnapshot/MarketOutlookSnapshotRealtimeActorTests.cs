@@ -1,436 +1,246 @@
+using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using FluentAssertions;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Application.Storage.MarketDataDb;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared.Queries;
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.Queries;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot;
 
-public sealed class MarketOutlookSnapshotRealtimeActorTests
+[Collection(MarketOutlookHotCacheTestCollection.Name)]
+public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
 {
-    sealed class TestableMarketOutlookSnapshotRealtimeActor(
-        IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
+    sealed class TestActor(IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> context)
         : MarketOutlookSnapshotRealtimeActor(context)
     {
-        internal ValueTask InvokeReceiveAsync(
-            IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
-            IEvent @event) => ReceiveAsync(context, @event);
+        internal ValueTask Receive(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context, IEvent value) =>
+            ReceiveAsync(context, value);
+    }
+
+    public MarketOutlookSnapshotRealtimeActorTests() => MarketOutlookHotCache.Shared.Clear();
+    public void Dispose() => MarketOutlookHotCache.Shared.Clear();
+
+    [Fact]
+    public async Task EligibleComponent_ReplacesCacheAndNotifiesImmediately()
+    {
+        var context = Context();
+        var actor = new TestActor(context);
+        var id = Id();
+        var rsi = SampleData.AtrRsiSignals[0] with
+        {
+            ContractId = id.ContractId,
+            ValueDate = id.ValueDate,
+            TimePeriod = TimeFrameType.FifteenSeconds,
+            PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
+            IsWarm = true
+        };
+
+        await actor.Receive(context, Component(id, 1) with { FuturesRsiSignal = rsi });
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.FuturesRsiSignal.Should().Be(rsi);
+        current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.Component);
+        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
+            Arg.Is<MarketOutlookUpdatedNotifyEvent>(value => value.MarketOutlook == current));
     }
 
     [Fact]
-    public async Task ComponentChange_ForwardsOneCommandWithoutPublishingFrontendNotification()
+    public async Task InvalidItiSibling_DoesNotSuppressValidVx()
     {
         var context = Context();
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
-        var changed = new MarketOutlookComponentChangedRealtimeEvent
+        var actor = new TestActor(context);
+        var id = Id();
+        var invalidIti = SampleData.StartOfDayEvent.FuturesItiSignal! with
         {
-            Subject = RealtimeSubject(MarketOutlookComponentChangedRealtimeEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            EventId = 23,
-            ReceivedOn = DateTime.UtcNow,
-            EventSource = "test",
-            FuturesRsiSignal = SampleData.AtrRsiSignals[0] with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate,
-                TimePeriod = TimeFrameType.FifteenSeconds,
-                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
-                IsWarm = true
-            }
+            ContractId = id.ContractId,
+            ValueDate = id.ValueDate,
+            TimePeriod = TimeFrameType.Daily,
+            IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
         };
 
-        await actor.InvokeReceiveAsync(context, changed);
+        await actor.Receive(context, Component(id, 1) with
+        {
+            FuturesItiSignal = invalidIti,
+            VixFuturesPrice = 22.25m
+        });
 
-        await context.Received(1).RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(
-            Arg.Is<ObserveMarketOutlookComponentCommand>(command =>
-                command.CommandId == changed.Id
-                && command.SourceEventId == changed.Id
-                && command.SourceEventSequence == changed.EventId
-                && command.FuturesRsiSignal == changed.FuturesRsiSignal));
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.VixFuturesPrice.Should().Be(22.25m);
+        current.LatestItiTrendSignal.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UnsupportedComponentAlone_IsIgnoredWithoutExceptionOrNotification()
+    {
+        var context = Context();
+        var actor = new TestActor(context);
+        var id = Id();
+        var invalidIti = SampleData.StartOfDayEvent.FuturesItiSignal! with
+        {
+            ContractId = id.ContractId,
+            ValueDate = id.ValueDate,
+            TimePeriod = TimeFrameType.Daily,
+            IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
+        };
+
+        var action = () => actor.Receive(context, Component(id, 1) with
+        {
+            FuturesItiSignal = invalidIti
+        }).AsTask();
+
+        await action.Should().NotThrowAsync();
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out _).Should().BeFalse();
         await context.DidNotReceiveWithAnyArgs()
             .SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(default!);
     }
 
     [Fact]
-    public async Task RejectedComponentCommand_IsLoggedWithoutThrowingOrPublishingNotification()
+    public async Task EsTrade_RefreshesEvenWhenDailyAnalyticsAreNotWarm()
     {
         var context = Context();
-        context.RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(
-                Arg.Any<ObserveMarketOutlookComponentCommand>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceFailed<GuidResult>(ObserveMarketOutlookComponentCommand.ErrorId, "rejected")));
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
-        var changed = new MarketOutlookComponentChangedRealtimeEvent
-        {
-            Subject = RealtimeSubject(MarketOutlookComponentChangedRealtimeEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            EventId = 25,
-            ReceivedOn = DateTime.UtcNow,
-            EventSource = "rejected-test",
-            FuturesRsiSignal = SampleData.AtrRsiSignals[0] with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate,
-                TimePeriod = TimeFrameType.FifteenSeconds,
-                PeriodLength = FuturesIntradaySignalActivationProfile.RsiPeriodLength,
-                IsWarm = true
-            }
-        };
+        var actor = new TestActor(context);
+        var trade = WithCurrentTimestamp(
+            MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_100m, 1));
+        var id = new MarketOutlookEntityId(trade.Price.ContractId, trade.Price.ValueDate);
+        MarketOutlookHotCache.Shared.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
 
-        Func<Task> receive = () => actor.InvokeReceiveAsync(context, changed).AsTask();
+        await actor.Receive(context, trade);
 
-        await receive.Should().NotThrowAsync();
-        await context.DidNotReceiveWithAnyArgs()
-            .SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(default!);
-    }
-
-    [Fact]
-    public async Task UnsupportedItiComponent_IsIgnoredWithoutRequestOrException()
-    {
-        var context = Context();
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
-        var changed = new MarketOutlookComponentChangedRealtimeEvent
-        {
-            Subject = RealtimeSubject(MarketOutlookComponentChangedRealtimeEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            EventId = 24,
-            ReceivedOn = DateTime.UtcNow,
-            EventSource = "ineligible-iti-test",
-            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate,
-                TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
-            }
-        };
-        Func<Task> receive = () => actor.InvokeReceiveAsync(context, changed).AsTask();
-
-        await receive.Should().NotThrowAsync();
-
-        await context.DidNotReceiveWithAnyArgs()
-            .RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(default!);
-    }
-
-    [Fact]
-    public async Task UnsupportedItiCompletion_DoesNotPublishRealtimeComponentEvent()
-    {
-        var context = Context();
-        var valueDate = new DateOnly(2026, 8, 21);
-        var entityId = new FuturesItiSignalEntityId("ESU26", valueDate, TimeFrameType.Daily);
-        var source = SampleData.CreateItiSignalGeneratedCompleteEvent() with
-        {
-            EntityId = entityId,
-            VixFuturesPrice = 0,
-            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate,
-                TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
-            }
-        };
-
-        await context.PublishMarketOutlookComponentAsync(source);
-
-        await context.DidNotReceiveWithAnyArgs()
-            .SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(default!);
-    }
-
-    [Fact]
-    public async Task UnsupportedItiCompletion_StillPublishesValidVixSibling()
-    {
-        var context = Context();
-        var valueDate = new DateOnly(2026, 8, 21);
-        var entityId = new FuturesItiSignalEntityId("ESU26", valueDate, TimeFrameType.Daily);
-        var source = SampleData.CreateItiSignalGeneratedCompleteEvent() with
-        {
-            EntityId = entityId,
-            VixFuturesPrice = 22.25,
-            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate,
-                TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.PredictedIntervalChanged
-            }
-        };
-
-        await context.PublishMarketOutlookComponentAsync(source);
-
-        await context.Received(1)
-            .SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(
-                Arg.Is<MarketOutlookComponentChangedRealtimeEvent>(changed =>
-                    changed.FuturesItiSignal == null
-                    && changed.VixFuturesPrice == 22.25m));
-    }
-
-    [Fact]
-    public async Task EligibleItiCompletion_PublishesRealtimeComponentEvent()
-    {
-        var context = Context();
-        var valueDate = new DateOnly(2026, 8, 21);
-        var entityId = new FuturesItiSignalEntityId("ESU26", valueDate, TimeFrameType.Daily);
-        var source = SampleData.CreateItiSignalGeneratedCompleteEvent() with
-        {
-            EntityId = entityId,
-            FuturesItiSignal = SampleData.StartOfDayEvent.FuturesItiSignal! with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate,
-                TimePeriod = TimeFrameType.Daily,
-                IntrinsicTimeMode = IntrinsicTimeModeType.TrendDirectionChanged
-            }
-        };
-
-        await context.PublishMarketOutlookComponentAsync(source);
-
-        await context.Received(1)
-            .SendAsync<MarketOutlookComponentChangedRealtimeEvent, MarketOutlookEntityId>(
-                Arg.Is<MarketOutlookComponentChangedRealtimeEvent>(changed =>
-                    changed.EntityId.ContractId == entityId.ContractId
-                    && changed.EntityId.ValueDate == entityId.ValueDate
-                    && changed.FuturesItiSignal == source.FuturesItiSignal));
-    }
-
-    [Fact]
-    public async Task NonEsEod_DoesNotSendPublicationCommand()
-    {
-        var context = Context();
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var valueDate = new DateOnly(2026, 8, 21);
-        var entityId = new MarketOutlookEntityId("NQU26", valueDate);
-        var eod = new MarketOutlookEodUpdatedRealtimeEvent
-        {
-            Subject = RealtimeSubject(MarketOutlookEodUpdatedRealtimeEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            ReceivedOn = DateTime.UtcNow,
-            FuturesEodData = new FuturesEodDataV2ReadModel(
-                entityId.ContractId,
-                valueDate,
-                "NQ",
-                20_000m,
-                20_100m,
-                19_900m,
-                20_050m,
-                100_000)
-        };
-
-        await actor.InvokeReceiveAsync(context, eod);
-
-        await context.DidNotReceiveWithAnyArgs()
-            .RequestAsync<PublishMarketOutlookSnapshotCommand, MarketOutlookEntityId>(default!);
-    }
-
-    [Fact]
-    public async Task EsEod_ReconcilesInputsAndForwardsPublicationCommand()
-    {
-        var db = Substitute.For<IMarketDataDbContext>();
-        var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(db);
-        var context = Context(dbFactory);
-        context.RequestAsync<FuturesEodDataV2ReadModel, GetLastFuturesEodDataQuery>(
-                Arg.Any<GetLastFuturesEodDataQuery>())
-            .Returns(ValueTask.FromResult<ServiceResult<FuturesEodDataV2ReadModel>>(
-                new ServiceOk<FuturesEodDataV2ReadModel>(null!)));
-        context.RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(
-                Arg.Any<GetCurrentlyTradedFuturesContractsQuery>())
-            .Returns(ValueTask.FromResult<ServiceResult<FuturesContractV2ReadModel[]>>(
-                new ServiceOk<FuturesContractV2ReadModel[]>([])));
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var valueDate = new DateOnly(2026, 8, 21);
-        var entityId = new MarketOutlookEntityId("ESU26", valueDate);
-        var source = new MarketOutlookEodUpdatedRealtimeEvent
-        {
-            Subject = RealtimeSubject(MarketOutlookEodUpdatedRealtimeEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            EventId = 41,
-            ReceivedOn = DateTime.UtcNow,
-            FuturesEodData = new FuturesEodDataV2ReadModel(
-                entityId.ContractId,
-                valueDate,
-                "ES",
-                6_400m,
-                6_450m,
-                6_350m,
-                6_425m,
-                100_000)
-        };
-
-        await actor.InvokeReceiveAsync(context, source);
-
-        await context.Received(1).RequestAsync<PublishMarketOutlookSnapshotCommand, MarketOutlookEntityId>(
-            Arg.Is<PublishMarketOutlookSnapshotCommand>(command =>
-                command.CommandId == source.Id
-                && command.SourceEventId == source.Id
-                && command.SourceEventSequence == source.EventId
-                && command.FuturesEodData == source.FuturesEodData));
-        await db.DidNotReceiveWithAnyArgs().UpsertMarketOutlookSnapshotAsync(default!);
-    }
-
-    [Fact]
-    public async Task SnapshotProjectionComplete_PublishesExactlyOneFrontendNotification()
-    {
-        var context = Context();
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
-        var snapshot = new MarketOutlookSnapshotReadModel
-        {
-            ContractId = entityId.ContractId,
-            ValueDate = entityId.ValueDate,
-            Revision = 3,
-            UpdatedOn = DateTime.UtcNow,
-            FuturesEodData = SampleData.EodData with
-            {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate
-            }
-        };
-        var completed = new MarketOutlookSnapshotPublishedCompleteEvent
-        {
-            Subject = RealtimeSubject(MarketOutlookSnapshotPublishedCompleteEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            MarketOutlook = snapshot
-        };
-
-        await actor.InvokeReceiveAsync(context, completed);
-
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.EsTrade);
+        current.FuturesEodData.ClosePrice.Should().Be(7_100m);
+        current.EsPriceAvailability.Should().Be(MarketOutlookInputAvailability.Available);
         await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Is<MarketOutlookUpdatedNotifyEvent>(notification =>
-                notification.EntityId == entityId
-                && notification.CommandId == completed.CommandId
-                && notification.MarketOutlook == snapshot));
+            Arg.Is<MarketOutlookUpdatedNotifyEvent>(value => value.MarketOutlook == current));
     }
 
     [Fact]
-    public async Task ComponentProjectionComplete_PublishesReprojectedFrontendSnapshot()
+    public async Task DuplicateTrade_IsRejectedButOrdinalGapIsAccepted()
     {
         var context = Context();
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var entityId = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 8, 21));
-        var snapshot = new MarketOutlookSnapshotReadModel
+        var actor = new TestActor(context);
+        var first = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_100m, 1);
+        MarketOutlookHotCache.Shared.Activate(new(
+            first.Price.ContractId, first.Price.ValueDate, Guid.NewGuid()));
+        var gap = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_102m, 3) with
         {
-            ContractId = entityId.ContractId,
-            ValueDate = entityId.ValueDate,
-            Revision = 4,
-            UpdatedOn = DateTime.UtcNow,
-            FuturesEodData = SampleData.EodData with
+            Price = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_102m, 3).Price with
             {
-                ContractId = entityId.ContractId,
-                ValueDate = entityId.ValueDate
-            }
-        };
-        var completed = new MarketOutlookComponentObservedCompleteEvent
-        {
-            Subject = RealtimeSubject(MarketOutlookComponentObservedCompleteEvent.Verb, entityId),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
-            EntityId = entityId,
-            WorkingState = new MarketOutlookWorkingStateReadModel
-            {
-                EntityId = entityId,
-                Revision = 7,
-                PublishedSnapshot = snapshot,
-                Status = MarketOutlookStateStatus.Published
+                Trade = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_102m, 3).Price.Trade!.Value with
+                {
+                    StreamEpochId = first.Price.Trade!.Value.StreamEpochId
+                }
             }
         };
 
-        await actor.InvokeReceiveAsync(context, completed);
-
-        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Is<MarketOutlookUpdatedNotifyEvent>(notification =>
-                notification.EntityId == entityId
-                && notification.CommandId == completed.CommandId
-                && notification.MarketOutlook == snapshot));
-    }
-
-    [Fact]
-    public async Task LiveTradePreview_AcceptsOrderedNewTrades_FencesDuplicatesAndGaps_ThenRecoversOnNewEpoch()
-    {
-        const string contractId = "ESZ00";
-        var valueDate = new DateOnly(2026, 8, 31);
-        MarketOutlookDailyPreviewCalculatorTests.SeedBaseline(contractId);
-        var database = Substitute.For<IMarketDataDbContext>();
-        database.GetMarketOutlookSnapshotAsync(contractId, valueDate, Arg.Any<CancellationToken>())
-            .Returns((MarketOutlookSnapshotReadModel?)null);
-        var dbFactory = Substitute.For<IDbContextFactory>();
-        dbFactory.MarketDataDb.Returns(database);
-        var context = Context(dbFactory);
-        var actor = new TestableMarketOutlookSnapshotRealtimeActor(context);
-        var first = MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_100m, 1);
-
-        await actor.InvokeReceiveAsync(context, first);
-        await actor.InvokeReceiveAsync(context, first);
-        await actor.InvokeReceiveAsync(context,
-            MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_102m, 3));
-        await actor.InvokeReceiveAsync(context,
-            MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_103m, 4));
-
-        var newEpoch = MarketOutlookDailyPreviewCalculatorTests.Trade(contractId, 7_104m, 1);
-        newEpoch = newEpoch with
-        {
-            Price = newEpoch.Price with
-            {
-                Trade = newEpoch.Price.Trade!.Value with { StreamEpochId = Guid.NewGuid() }
-            }
-        };
-        await actor.InvokeReceiveAsync(context, newEpoch);
+        await actor.Receive(context, first);
+        await actor.Receive(context, first);
+        await actor.Receive(context, gap);
 
         await context.Received(2).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Is<MarketOutlookUpdatedNotifyEvent>(notification =>
-                notification.MarketOutlook.FuturesEmaSignal!.IsProvisional
-                && notification.MarketOutlook.FuturesBbSignal!.IsProvisional));
-        await database.Received(1).GetMarketOutlookSnapshotAsync(
-            contractId, valueDate, Arg.Any<CancellationToken>());
+            Arg.Any<MarketOutlookUpdatedNotifyEvent>());
+        var id = new MarketOutlookEntityId(gap.Price.ContractId, gap.Price.ValueDate);
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.FuturesEodData.ClosePrice.Should().Be(7_102m);
     }
 
-    static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context(
-        IDbContextFactory? dbFactory = null)
+    [Fact]
+    public async Task EodUpdate_IsAnIndependentRefresh()
+    {
+        var context = Context();
+        var actor = new TestActor(context);
+        var id = Id();
+        var eod = SampleData.EodData with
+        {
+            Symbol = "ES",
+            ContractId = id.ContractId,
+            ValueDate = id.ValueDate
+        };
+        var source = new MarketOutlookEodUpdatedRealtimeEvent
+        {
+            Subject = Subject(MarketOutlookEodUpdatedRealtimeEvent.Verb, id),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            EventId = 1,
+            ReceivedOn = DateTime.UtcNow,
+            EventSource = "test-eod",
+            FuturesEodData = eod
+        };
+        MarketOutlookHotCache.Shared.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
+
+        await actor.Receive(context, source);
+
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.EodSession);
+        current.FuturesEodData.Should().Be(eod);
+    }
+
+    [Fact]
+    public async Task NotificationFailure_DoesNotRollbackCacheOrEscapeActorHandler()
+    {
+        var context = Context();
+        context.SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
+                Arg.Any<MarketOutlookUpdatedNotifyEvent>())
+            .Returns(_ => ValueTask.FromException(new IOException("injected transport failure")));
+        var actor = new TestActor(context);
+        var id = Id();
+
+        var action = () => actor.Receive(context, Component(id, 1) with
+        {
+            VixFuturesPrice = 19.5m
+        }).AsTask();
+
+        await action.Should().NotThrowAsync();
+        MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
+        current.VixFuturesPrice.Should().Be(19.5m);
+    }
+
+    static MarketOutlookEntityId Id() => new("ESU26", new DateOnly(2026, 9, 1));
+
+    static MarketOutlookComponentChangedRealtimeEvent Component(MarketOutlookEntityId id, long sequence)
+    {
+        MarketOutlookHotCache.Shared.Activate(new(id.ContractId, id.ValueDate, Guid.NewGuid()));
+        return new()
+        {
+            Subject = Subject(MarketOutlookComponentChangedRealtimeEvent.Verb, id),
+            Id = Guid.NewGuid(),
+            CommandId = Guid.NewGuid(),
+            EntityId = id,
+            EventId = sequence,
+            ReceivedOn = DateTime.UtcNow.AddTicks(sequence),
+            EventSource = "unit-test"
+        };
+    }
+
+    static TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent
+        WithCurrentTimestamp(
+            TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events.FuturesMarketPriceUpdatedRealtimeEvent source) =>
+        source with
+        {
+            Price = source.Price with
+            {
+                Trade = source.Price.Trade!.Value with { EventTimestamp = DateTimeOffset.UtcNow }
+            }
+        };
+
+    static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context()
     {
         var context = Substitute.For<
             IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>,
             IMarketOutlookSnapshotRealtimeContext>();
         var typed = (IMarketOutlookSnapshotRealtimeContext)context;
-        typed.DbFactory.Returns(dbFactory ?? Substitute.For<IDbContextFactory>());
+        typed.DbFactory.Returns(Substitute.For<IDbContextFactory>());
         typed.Logger.Returns(Substitute.For<ILogger<MarketOutlookSnapshotRealtimeActor>>());
-        context.RequestAsync<ObserveMarketOutlookComponentCommand, MarketOutlookEntityId>(
-                Arg.Any<ObserveMarketOutlookComponentCommand>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()))));
-        context.RequestAsync<PublishMarketOutlookSnapshotCommand, MarketOutlookEntityId>(
-                Arg.Any<PublishMarketOutlookSnapshotCommand>())
-            .Returns(ValueTask.FromResult<ServiceResult<GuidResult>>(
-                new ServiceOk<GuidResult>(new GuidResult(Guid.NewGuid()))));
         return context;
     }
 
-    static ActorSubject RealtimeSubject(string verb, MarketOutlookEntityId entityId)
-        => new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName, verb, entityId.Format());
+    static ActorSubject Subject(string verb, MarketOutlookEntityId id) =>
+        new(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName, verb, id.Format());
 }

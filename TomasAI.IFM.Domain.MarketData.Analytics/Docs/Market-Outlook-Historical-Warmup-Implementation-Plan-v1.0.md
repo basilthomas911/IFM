@@ -1,5 +1,9 @@
 # Market Outlook Historical Analytics Warm-up Implementation Plan v1.0
 
+> Historical implementation record. Historical EMA/Bollinger ownership remains valid, but warmup
+> now seeds the versionless Market Outlook hot cache directly and does not publish a Market Outlook
+> command or persisted snapshot.
+
 | Item | Value |
 | --- | --- |
 | Plan ID | `MOHW` |

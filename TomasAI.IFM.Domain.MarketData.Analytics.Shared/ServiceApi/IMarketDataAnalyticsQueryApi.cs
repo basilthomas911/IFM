@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 
 public interface IMarketDataAnalyticsQueryApi
 {
-    Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+    Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
         string contractId,
         DateOnly valueDate);
     Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(string contractId, DateOnly valueDate);

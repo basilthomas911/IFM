@@ -29,6 +29,7 @@ public sealed record MarketOutlookComponentChangedRealtimeEvent : IEvent<MarketO
     [Key(11)] public decimal VixFuturesPrice { get; init; }
     [Key(12)] public FuturesEmaSignalReadModel? FuturesEmaSignal { get; init; }
     [Key(13)] public FuturesBbSignalReadModel? FuturesBbSignal { get; init; }
+    [Key(14)] public FuturesTradeSignalV2ReadModel? FuturesTradeSignal { get; init; }
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(MarketOutlookComponentChangedRealtimeEvent);
@@ -72,7 +73,7 @@ public sealed record MarketOutlookUpdatedNotifyEvent : IEvent<MarketOutlookEntit
     [Key(5)] public string AggregateId { get; init; } = string.Empty;
     [Key(6)] public string EventSource { get; init; } = string.Empty;
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public MarketOutlookSnapshotReadModel MarketOutlook { get; init; } = new();
+    [Key(8)] public MarketOutlookReadModel MarketOutlook { get; init; } = new();
 
     [IgnoreMember] public string UserName => string.Empty;
     [IgnoreMember] public string EventName => nameof(MarketOutlookUpdatedNotifyEvent);

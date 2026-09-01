@@ -155,7 +155,7 @@ public class FuturesTradeSignalUIViewModel
     /// Builds a display from an OR-composite snapshot. Values backed by an absent component are
     /// shown as unavailable instead of retaining a stale sibling composite or displaying zero.
     /// </summary>
-    public FuturesTradeSignalUIViewModel(MarketOutlookSnapshotReadModel snapshot)
+    public FuturesTradeSignalUIViewModel(MarketOutlookReadModel snapshot)
         : this(snapshot.FuturesTradeSignal ?? new FuturesTradeSignalV2ReadModel
         {
             ContractId = snapshot.ContractId,

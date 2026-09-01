@@ -16,7 +16,7 @@ public class MarketDataAnalyticsQueryService(IMarketDataAnalyticsQueryApi queryA
     public async Task GetMarketOutlookSnapshotAsync(
         string contractId,
         DateOnly valueDate,
-        Action<MarketOutlookSnapshotReadModel> onCompleted)
+        Action<MarketOutlookReadModel> onCompleted)
         => await ExecuteAsync(
             () => _queryApi.GetMarketOutlookSnapshotAsync(contractId, valueDate),
             onCompleted);

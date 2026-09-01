@@ -18,6 +18,7 @@ using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
@@ -608,6 +609,10 @@ public static class Startup
                     }));
             services.AddSingleton<FuturesTradeSessionBarAccumulator>();
             services.AddHostedService<FuturesContractRolloverStartupService>();
+            services.AddSingleton<IMarketOutlookHotCache>(MarketOutlookHotCache.Shared);
+            services.AddSingleton<IMarketDataGenerationAuthority,
+                DatabentoMarketDataGenerationAuthority>();
+            services.AddHostedService<MarketOutlookHotCacheService>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")
                 .Get<FmpImportScheduleOptions>() ?? new FmpImportScheduleOptions()).Validate();

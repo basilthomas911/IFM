@@ -91,7 +91,7 @@ public class FuturesEodDataUIViewModel
     }
 
     /// <summary>Builds the EOD display while sourcing Bollinger values from typed Analytics.</summary>
-    public FuturesEodDataUIViewModel(MarketOutlookSnapshotReadModel snapshot)
+    public FuturesEodDataUIViewModel(MarketOutlookReadModel snapshot)
         : this(snapshot.FuturesEodData)
     {
         var bb = snapshot.FuturesBbSignal;

@@ -14,12 +14,11 @@ public sealed class FuturesTradeSignalUIViewModelTests
     [Fact]
     public void PartialSnapshot_DisplaysAvailableRsiAndMarksMissingSiblingsUnavailable()
     {
-        var snapshot = new MarketOutlookSnapshotReadModel
+        var snapshot = new MarketOutlookReadModel
         {
             ContractId = "ESU26",
             ValueDate = new DateOnly(2026, 8, 21),
-            Revision = 1,
-            UpdatedOn = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
             FuturesRsiSignal = new FuturesRsiSignalReadModel
             {
                 ContractId = "ESU26",
@@ -44,12 +43,11 @@ public sealed class FuturesTradeSignalUIViewModelTests
     public void PartialSnapshot_UsesEachItiModeOnlyForItsOwnDisplayField()
     {
         var valueDate = new DateOnly(2026, 8, 21);
-        var snapshot = new MarketOutlookSnapshotReadModel
+        var snapshot = new MarketOutlookReadModel
         {
             ContractId = "ESU26",
             ValueDate = valueDate,
-            Revision = 2,
-            UpdatedOn = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
             TrendExtremeChange = new FuturesItiSignalV2ReadModel
             {
                 ContractId = "ESU26",
@@ -70,12 +68,11 @@ public sealed class FuturesTradeSignalUIViewModelTests
     public void TypedDailyAnalyticsSupplyEmaAndBollingerDisplayValues()
     {
         var metadata = Metadata();
-        var snapshot = new MarketOutlookSnapshotReadModel
+        var snapshot = new MarketOutlookReadModel
         {
             ContractId = metadata.ContractId,
             ValueDate = metadata.ValueDate,
-            Revision = 3,
-            UpdatedOn = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
             FuturesEmaSignal = new FuturesEmaSignalReadModel
             {
                 Metadata = metadata,
@@ -151,11 +148,11 @@ public sealed class FuturesTradeSignalUIViewModelTests
         string expectedTrend)
     {
         var metadata = Metadata();
-        var snapshot = new MarketOutlookSnapshotReadModel
+        var snapshot = new MarketOutlookReadModel
         {
             ContractId = metadata.ContractId,
             ValueDate = metadata.ValueDate,
-            Revision = 1,
+            UpdatedAtUtc = DateTime.UtcNow,
             FuturesBbSignal = new FuturesBbSignalReadModel
             {
                 Metadata = metadata,

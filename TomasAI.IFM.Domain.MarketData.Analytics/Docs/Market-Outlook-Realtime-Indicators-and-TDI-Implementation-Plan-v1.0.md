@@ -1,5 +1,9 @@
 # Market Outlook Realtime Indicators and TDI Implementation Plan v1.0
 
+> Historical implementation record. Its Market Outlook revision/persistence mechanics were
+> superseded by the versionless hot-cache implementation. Its signal calculations and UI field
+> requirements remain applicable.
+
 | Item | Value |
 | --- | --- |
 | Plan ID | `MOR` |

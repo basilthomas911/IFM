@@ -618,7 +618,7 @@ public static class MarketDataAnalyticsQueries
                     GetMarketOutlookSnapshotQuery.Verb,
                     query.EntityId.Format())
             };
-            return await e.RequestAsync<MarketOutlookSnapshotReadModel, GetMarketOutlookSnapshotQuery>(query);
+            return await e.RequestAsync<MarketOutlookReadModel, GetMarketOutlookSnapshotQuery>(query);
         });
 
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetFuturesTradeSignal, async (

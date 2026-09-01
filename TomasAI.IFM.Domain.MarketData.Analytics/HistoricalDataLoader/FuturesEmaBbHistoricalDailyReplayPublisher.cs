@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesBbSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -9,6 +10,9 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 
@@ -85,28 +89,28 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(IActorService act
         if (string.IsNullOrWhiteSpace(resolvedTargetContractId))
             return;
         var outlookEntityId = new MarketOutlookEntityId(resolvedTargetContractId, targetValueDate);
-        var sourceEventId = latestEsEma.Metadata.ObservationId.Value;
-        var reconcile = new ObserveMarketOutlookComponentCommand(
-            outlookEntityId,
-            sourceEventId,
+        var position = new MarketOutlookSourcePosition(
+            latestEsEma.Metadata.ObservationId.Value,
             latestEsEma.Metadata.SourceSequence,
-            latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime,
-            "HistoricalAnalyticsWarmup",
-            futuresEmaSignal: latestEsEma,
-            futuresBbSignal: latestEsBb)
-        {
-            CommandId = Guid.NewGuid(),
-            Subject = new(
-                ActorType.Command,
-                ObserveMarketOutlookComponentCommand.Actor,
-                ObserveMarketOutlookComponentCommand.Verb,
-                outlookEntityId.Format())
-        };
-        var reconcileResult = await actorService.RequestAsync<ObserveMarketOutlookComponentCommand,
-            MarketOutlookEntityId>(reconcile).ConfigureAwait(false);
-        if (!reconcileResult.Success)
-            throw new InvalidOperationException(
-                $"Market Outlook historical Analytics reconciliation was rejected: {reconcileResult.ErrorMessage}");
+            latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime);
+        var cache = MarketOutlookHotCache.Shared;
+        var emaAccepted = cache.TryUpdateInput(
+            outlookEntityId,
+            CacheComponentType.Ema,
+            position,
+            state => state with { FuturesEmaSignal = latestEsEma },
+            out _);
+        var bbAccepted = cache.TryUpdateInput(
+            outlookEntityId,
+            CacheComponentType.BollingerBand,
+            position with { SourceId = latestEsBb.Metadata.ObservationId.Value },
+            state => state with { FuturesBbSignal = latestEsBb },
+            out var state);
+        if (emaAccepted || bbAccepted)
+            cache.SetCurrent(MarketOutlookComposer.Compose(
+                state,
+                MarketOutlookRefreshTrigger.Warmup,
+                DateTime.UtcNow));
     }
 
     static bool IsEsSeries(MarketSeriesIdentity series) =>

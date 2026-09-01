@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Extensions;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Event.Actor;
 
@@ -27,6 +28,7 @@ public class FuturesTradeSignalEventActor(
         [typeof(FuturesTradeSignalUpdatedCompleteEvent)] = async (evt, context, statusConsoleWriter, logger) =>
         {
             var e = (evt as FuturesTradeSignalUpdatedCompleteEvent)!;
+            await context.PublishMarketOutlookComponentAsync(e).ConfigureAwait(false);
             return await e.ExecuteAsync(context, statusConsoleWriter, logger);
         },
         [typeof(FuturesItiSignalHoldTradeChangedEvent)] = async (evt, context, statusConsoleWriter, logger) =>

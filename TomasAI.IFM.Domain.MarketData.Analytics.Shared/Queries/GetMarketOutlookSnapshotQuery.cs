@@ -8,7 +8,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 
 [MessagePackObject(AllowPrivate = true)]
-public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookSnapshotReadModel>
+public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookReadModel>
 {
     [IgnoreMember] public const string Actor = "FuturesTradeSignalQuery";
     [IgnoreMember] public const string Verb = "GetMarketOutlookSnapshot";

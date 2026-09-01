@@ -54,6 +54,10 @@ internal static class MarketOutlookComponentEligibility
             && signal.Metadata.TimeFrame == TimeFrameType.Daily
             && signal.Metadata.IsValid;
 
+    internal static bool IsEligible(MarketOutlookEntityId entityId, FuturesTradeSignalV2ReadModel signal)
+        => signal.ContractId == entityId.ContractId
+            && signal.ValueDate == entityId.ValueDate;
+
     internal static bool IsEligibleAtPublicationBoundary(
         MarketOutlookEntityId entityId,
         FuturesEmaSignalReadModel signal) =>
@@ -86,7 +90,8 @@ internal static class MarketOutlookComponentEligibility
             || eligible.FuturesItiSignal is not null
             || eligible.VixFuturesPrice > 0
             || eligible.FuturesEmaSignal is not null
-            || eligible.FuturesBbSignal is not null;
+            || eligible.FuturesBbSignal is not null
+            || eligible.FuturesTradeSignal is not null;
     }
 
     /// <summary>
@@ -135,6 +140,12 @@ internal static class MarketOutlookComponentEligibility
             rejected.Add("bb-profile");
             bb = null;
         }
+        var tradeSignal = source.FuturesTradeSignal;
+        if (tradeSignal is not null && !IsEligible(source.EntityId, tradeSignal))
+        {
+            rejected.Add("trade-signal-identity");
+            tradeSignal = null;
+        }
         reason = rejected.Count == 0 ? string.Empty : string.Join(", ", rejected);
         return source with
         {
@@ -143,7 +154,8 @@ internal static class MarketOutlookComponentEligibility
             FuturesItiSignal = iti,
             VixFuturesPrice = vix,
             FuturesEmaSignal = ema,
-            FuturesBbSignal = bb
+            FuturesBbSignal = bb,
+            FuturesTradeSignal = tradeSignal
         };
     }
 }

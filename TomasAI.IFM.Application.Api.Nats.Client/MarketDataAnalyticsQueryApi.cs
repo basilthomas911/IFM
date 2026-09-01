@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Application.Api.Nats.Client;
 public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataAnalyticsQueryApi
 {
-    public async Task<ServiceResult<MarketOutlookSnapshotReadModel>> GetMarketOutlookSnapshotAsync(
+    public async Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
         string contractId,
         DateOnly valueDate)
     {
@@ -33,7 +33,7 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
                 GetMarketOutlookSnapshotQuery.Verb,
                 entityId.Format())
         };
-        return await RequestAsync<GetMarketOutlookSnapshotQuery, MarketOutlookSnapshotReadModel>(
+        return await RequestAsync<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>(
             query.Subject, query);
     }
 
