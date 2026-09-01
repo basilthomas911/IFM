@@ -1,17 +1,17 @@
 # Databento Market Data Service Resiliency System Design v0.1
 
-**Status:** Proposed for review  
+**Status:** Approved design baseline for immediate implementation
 **Date:** 2026-09-01  
-**Scope:** System-wide detailed design; implementation is not authorized by this document  
+**Scope:** System-wide detailed design and implementation authority
 **Current deployment:** API-server-hosted market-data runtime  
 **Target deployment:** Dedicated Databento Market Data service orchestrated by .NET Aspire
-**Related projection authority:** `TomasAI.IFM.Domain.MarketData.Analytics/Docs/Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md`
+**Related projection baseline:** `TomasAI.IFM.Domain.MarketData.Analytics/Docs/Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md`
 
-> The `MOSC` correction supersedes every Market Outlook activation, native-generation admission
-> fence, source-order rejection, generation-driven cache clear and dedicated hot-cache worker
-> statement retained later in this historical design. Databento generation fencing remains valid
-> for native lifecycle ownership and feed diagnostics, but it never gates a routed Market Outlook
-> partial write.
+> The `MOSC` correction continues to supersede every Market Outlook activation,
+> native-generation admission fence, source-order rejection and generation-driven cache clear.
+> This revision adds an approved local `Channel<MarketOutlookUpdate>` and single-reader processor;
+> it does not turn Market Outlook updates into actor messages or make Databento generation a cache
+> admission rule.
 
 ## 1. Purpose
 
@@ -27,8 +27,10 @@ The design establishes one lifecycle owner for:
 - automatic three-attempt recovery;
 - actor-requested full reset;
 - terminal feed shutdown and UI readiness fencing;
-- persisted watchdog history; and
-- lifecycle coordination for the versionless Market Outlook hot-cache worker.
+- persisted watchdog history;
+- a typed local Market Outlook update channel and sole cache-write processor; and
+- one independent, process-local operational-health service that aggregates native, managed,
+  analytics, Market Outlook and publication measurements.
 
 The initial implementation remains hosted by the existing API server. The public contracts and component boundaries must allow the same service to move into a dedicated Aspire-hosted process without redesigning callers.
 
@@ -61,9 +63,34 @@ The following decisions are authoritative for this design.
 18. Every native feed or watchdog API change must be implemented in both backends and pass the same ABI, behavioral, failure, and performance qualification before the managed application may consume it.
 19. A deployment selects exactly one native backend before process startup. Managed market-data code uses the same exported functions, structs, status values, and normalized record layout regardless of that selection.
 20. The Market Data Service boundary hosts the versionless Market Outlook singleton because the projection is assembled from current market-data and analytics hot caches. Contract ID and value date select an identity; feed generation never controls write admission.
-21. `DatabentoMarketDataWatchdogService` remains the sole Databento lifecycle owner. Market Outlook is an immediately writable singleton projection/cache used by the realtime actor and query actor, not a second lifecycle worker, and it cannot start, stop, reset, replace, or roll Databento.
+21. `DatabentoMarketDataWatchdogService` remains the sole Databento lifecycle owner. The local
+    Market Outlook channel processor owns only projection mutation and publication; it cannot start,
+    stop, reset, replace or roll Databento.
 22. The watchdog reports explicit `Up`, `Resetting`, or `Down` feed truth and its reason as an independent partial input. That status cannot clear analytics, reject a cache write or roll back a published snapshot. Market Outlook calculation or notification failure never initiates a Databento reset.
 23. Market Outlook is non-authoritative, versionless, process-local and rebuildable. It is not persisted in `MarketDataServiceDbContext`, `MarketDataDbContext`, or any other database. Its authoritative inputs retain their existing owners and persistence rules.
+24. Every Market Outlook partial update is a local, strongly typed subtype of
+    `MarketOutlookUpdate`. These update objects are not actor commands, events, queries or NATS
+    payloads.
+25. One process-local `Channel<MarketOutlookUpdate>` accepts updates from multiple producers and
+    has exactly one reader. `MarketOutlookUpdateProcessor` is the only production component allowed
+    to mutate Market Outlook input state, replace the immutable snapshot or initiate its UI
+    publication.
+26. `MarketDataOperationsHealthService` is the independent central authority for current
+    operational measurements across native transport, interop, normalization, aggregation, event
+    publication, analytics, Market Outlook processing and UI publication. It remains queryable when
+    the Market Outlook processor is stalled or failed.
+27. `MarketOutlookUpdateProcessor` owns and reports Market Outlook-specific measurements to the
+    central health service; it does not own or infer authoritative upstream measurements.
+28. Metric recording is non-blocking, bounded in cardinality and unable to throw into the
+    market-data path. Unique update IDs belong in traces and diagnostic records, not metric labels.
+29. Market-data producers never wait for Market Outlook composition or UI delivery. Queue
+    saturation, coalescing, failure and latency are explicit health facts; no loss is silent.
+30. On-demand operations support both an immediate health-snapshot query and a Market Outlook
+    recompose/republish from its current inputs. Refresh never fabricates a missing source signal or
+    resets Databento implicitly.
+31. Every registered operational stage has a typed on-demand refresh handler with stage-specific
+    semantics. The central health service routes and observes a refresh but never steals lifecycle or
+    calculation ownership from that stage.
 
 ## 3. Verified baseline
 
@@ -128,6 +155,18 @@ For this design, references to the existing Market Data contract catalog mean th
 
 The existing Scylla `futures_contract_rollover` row is no longer authoritative after this design is implemented. It may remain for compatibility or later removal, but the new service must not read it as an operational decision source.
 
+### 3.6 Current operational metrics are fragmented
+
+The implemented Databento runtime exposes aggregate source-record, processing-failure and
+publication-failure measurements plus the interim synchronous `IsDatabentoFeedUp` result. The
+implemented Market Outlook cache exposes only aggregate received, written, composed, query and
+notification-failure counts with last component and last ES refresh times.
+
+The current measurements cannot independently identify RSI, TDI, ITI, EMA, Bollinger, VX, EOD or
+trade-signal progress. They also cannot trace one update through enqueue, application, immutable
+snapshot replacement and UI publication. This is an operational gap for a mission-critical realtime
+feed and is corrected by the channel and central health authority defined below.
+
 ## 4. System context
 
 ### 4.1 Current deployment
@@ -139,7 +178,9 @@ UI and actor clients
         v
 API Server
   +-- DatabentoMarketDataWatchdogService (single lifecycle owner)
-  +-- Market Outlook singleton cache (realtime/query actor projection)
+  +-- MarketOutlookUpdateProcessor (single local channel reader/cache writer)
+  +-- Market Outlook immutable singleton cache (lock-free reads)
+  +-- MarketDataOperationsHealthService (central operational-health authority)
   +-- MarketDataServiceDbContext (PostgreSQL)
   +-- Existing contract catalog reader (read-only)
   +-- Databento managed application/framework layer
@@ -158,7 +199,9 @@ UI / strategy / trading / administration services
                         v
 Dedicated Databento Market Data service
   +-- lifecycle/watchdog coordinator
-  +-- Market Outlook singleton cache
+  +-- local Market Outlook update channel and single-reader processor
+  +-- Market Outlook immutable singleton cache
+  +-- central operational-health service
   +-- PostgreSQL authority and history
   +-- contract-catalog adapter
   +-- managed aggregation and hot caches
@@ -170,29 +213,90 @@ Dedicated Databento Market Data service
        dependencies, telemetry, and orchestration
 ```
 
-The current implementation must use interfaces for lifecycle control, contract authority, watchdog persistence, Market Outlook hot-cache projection, notification publishing, and time/session authority so those components can move into the dedicated service without changing actor payloads.
+The current implementation must use interfaces for lifecycle control, contract authority, watchdog
+persistence, local Market Outlook update submission, immutable cache projection, central operations
+health, notification publishing and time/session authority so those components can move into the
+dedicated service without changing actor payloads.
 
 ### 4.3 Market Outlook hosting boundary
 
 Market Outlook belongs inside the Market Data Service hosting boundary, but it is not part of the
-native Databento lifecycle state machine. The boundary contains one lifecycle worker and one
-immediately available cache service:
+native Databento lifecycle state machine. The boundary contains one lifecycle worker, one local
+Market Outlook processor, one immutable cache and one independent operational-health service:
 
 - `DatabentoMarketDataWatchdogService` owns contracts, startup, native feeds, managed aggregation,
   watchdog polling, reset, rollover, readiness and shutdown; and
-- `MarketOutlookHotCache` consumes routed market-data/analytics events through its realtime actor, maintains
-  immutable latest-value input and display caches, answers typed queries and publishes UI updates.
+- `MarketOutlookUpdateProcessor` is the sole reader of the local update channel, sole cache writer,
+  snapshot composer and initiator of Market Outlook UI publication;
+- `MarketOutlookHotCache` exposes the latest immutable input and display references for lock-free
+  queries; and
+- `MarketDataOperationsHealthService` aggregates current measurements from every market-data stage
+  independently of both workers.
 
-The cache is writable before, during and after Databento startup/reset. A routed update always
-overwrites only the fields it owns. `(contract ID, value date)` prevents cross-instrument/session
-mixing; source sequence, event time, stream epoch and native generation are diagnostics only. The
-watchdog may publish feed health, but cannot activate, fence, clear or reject Market Outlook state.
+The update channel accepts writes before, during and after Databento startup/reset once its hosted
+processor is ready. A routed update always overwrites only the fields it owns. `(contract ID, value
+date)` prevents cross-instrument/session mixing; source sequence, event time, stream epoch and native
+generation are diagnostics only. The watchdog may submit feed health, but cannot activate, fence,
+clear or reject Market Outlook state.
 
 This is hosting and lifecycle coordination, not shared calculation ownership. The watchdog never
 calculates RSI, TDI, ITI, EMA, Bollinger, MDI or a Futures Trade Signal. The Market Outlook realtime
 actor and cache never interpret transport heartbeat as market data and never mutate Databento lifecycle state.
-Market Outlook cache failure is a derived-view degradation; Databento recovery continues to depend
-only on authoritative native/managed feed evidence.
+Market Outlook cache or processor failure is a derived-view degradation; Databento recovery
+continues to depend only on authoritative native/managed feed evidence.
+
+### 4.4 Local Market Outlook update channel
+
+`MarketOutlookUpdate` is an abstract local record with an `UpdateId`, `UpdateKind`, entity identity,
+receipt time and market-data-as-of time. Derived records carry strongly typed payloads for RSI, TDI,
+ITI, EMA, Bollinger, ES trade, VX price, EOD, Futures Trade Signal, feed health and historical
+warmup. The base or derived records implement no actor-message interface and require no NATS or
+wire serialization.
+
+The channel is configured for multiple writers and exactly one reader. Realtime actors remain
+external-message adapters: they validate and translate routed events into local updates. Historical
+warmup and other in-process producers enqueue local updates directly. No producer retains a direct
+cache-write method.
+
+The processor performs this sequence for each accepted update:
+
+1. record receipt and queue latency;
+2. pattern-match the derived update type;
+3. merge only that payload's owned fields into immutable input state;
+4. compose a complete immutable Market Outlook snapshot;
+5. atomically replace the readable input and display references;
+6. record applied/changed/composed measurements; and
+7. publish the existing typed UI notification independently of the committed cache write.
+
+One malformed update is recorded and isolated; it cannot terminate the reader loop. Notification
+failure cannot roll back the cache. The bounded-capacity and overload policy must protect native and
+analytics producers from UI projection delays. Saturation or any intentional latest-value
+coalescing is counted, timed and reported; it is never silent and never changes authoritative source
+analytics.
+
+### 4.5 Central market-data operational health
+
+`MarketDataOperationsHealthService` is a process-local singleton that accepts low-cost measurements
+from these bounded stages:
+
+- native connection and provider heartbeat;
+- native callback and managed P/Invoke boundary;
+- normalization and tick aggregation;
+- market-data event publication;
+- RSI, TDI, ITI, EMA, Bollinger, VX, EOD and trade-signal calculation/publication;
+- Market Outlook channel, composition, cache replacement and notification; and
+- UI delivery when an acknowledgement is available.
+
+Each stage/contract cell maintains received, completed, failed and recovered counters; last receipt,
+completion and failure times; current and aggregate latency; pending depth; freshness; current
+status and bounded reason text. Fixed enums and the small active-contract set bound metric
+cardinality. `UpdateId` and trace/correlation IDs remain diagnostic fields rather than metric
+dimensions.
+
+Metric updates use atomic counters and immutable snapshot replacement. They perform no database or
+network access and cannot throw into the caller. The current operational snapshot remains available
+through a typed local/API query even if the Market Outlook channel, processor or notification path
+has failed.
 
 ## 5. PostgreSQL MarketDataServiceDbContext
 
@@ -425,10 +529,10 @@ If one native dataset connection contains any core role, that connection is core
 
 Only `DatabentoMarketDataWatchdogService` may mutate the Databento lifecycle. Existing startup services and actor handlers become request adapters. Direct calls to start, stop, or reset from other production components are prohibited by architecture tests.
 
-The process-local `MarketOutlookHotCache` is available immediately and is not lifecycle-coordinated
-by the watchdog. The watchdog may write feed-health facts as one independent partial input, but it
-cannot activate, clear, fence or reject Market Outlook state. The cache has no Databento start,
-stop, reset or rollover capability.
+The process-local Market Outlook channel, processor and cache are hosted independently from the
+watchdog lifecycle. The watchdog may enqueue feed-health facts as one independent partial input,
+but it cannot activate, clear, fence or reject Market Outlook state. The channel, processor and cache
+have no Databento start, stop, reset or rollover capability.
 
 ### 8.2 Serialized operation queue
 
@@ -466,9 +570,10 @@ When the API starts:
 15. Publish authoritative readiness.
 16. Publish the active value date, currently traded contracts and explicit feed-health facts to
     their consumers; native generation remains feed-lifecycle diagnostics only.
-17. Confirm the immediately available Market Outlook cache can answer typed current or unavailable
-    queries. No cache activation or current-generation admission check exists.
-18. Begin the one-minute timer after startup reaches Up or a terminal Down result.
+17. Confirm the Market Outlook update processor and independent operations-health service are ready.
+18. Confirm the Market Outlook cache can answer typed current or unavailable queries. No cache
+    activation or current-generation admission check exists.
+19. Begin the one-minute timer after startup reaches Up or a terminal Down result.
 
 Market records are not required to prove connectivity during quiet periods. A valid provider heartbeat plus acknowledged subscriptions proves transport health. Live-data freshness remains a separate managed signal.
 
@@ -504,31 +609,61 @@ Native terminal signaling may request an immediate out-of-cycle watchdog evaluat
 
 During OffTrading, absent market records do not trigger recovery while provider heartbeats remain current. During LiveTrading, a core route with no accepted current data for more than 15 minutes is a recovery trigger even if the transport appears open. A native Stopped/Faulted state or missing heartbeat initiates Orange recovery immediately in any active value-date period.
 
-### 8.6 Market Outlook cache coordination
+### 8.6 Market Outlook update processing and cache coordination
 
-The Market Outlook realtime actor and immediately available singleton cache implement the two
-refresh behaviours defined by the `MOSC` correction plan:
+The Market Outlook realtime adapter, local update channel, single-reader processor and immutable
+singleton cache implement the two refresh behaviours defined by the `MOSC` correction plan:
 
-1. every eligible component event updates its input slot, atomically refreshes the projection and
-   publishes a UI notification; and
-2. every structurally valid, correctly routed ES `New` trade captures all current input slots, recalculates all
-   price-derived values, atomically replaces the projection and publishes a UI notification.
+1. every eligible component event becomes a typed local update that updates its input slot,
+   atomically refreshes the projection and publishes a UI notification; and
+2. every structurally valid, correctly routed ES `New` trade becomes a typed local update that
+   captures all current input slots, recalculates all price-derived values, atomically replaces the
+   projection and publishes a UI notification.
 
-The cache is available as soon as the Market Data Service process constructs its singleton and remains
-available for typed queries even when the Databento runtime is Resetting or Down. In those states it returns
-the last immutable value with explicit stale/red health, or a typed unavailable result if no value
-exists. A timer or watchdog observation never advances `UpdatedAtUtc` or `MarketDataAsOfUtc`.
+The cache is available for lock-free typed queries as soon as its singleton is constructed and the
+processor becomes ready. It remains queryable when the Databento runtime is Resetting or Down. In
+those states it returns the last immutable value with explicit stale/red health, or a typed
+unavailable result if no value exists. A timer or watchdog observation never advances `UpdatedAtUtc`
+or `MarketDataAsOfUtc`.
 
 Coordination rules are:
 
 - startup/value-date/rollover/reset changes native lifecycle and health diagnostics only;
+- every producer writes through `IMarketOutlookUpdateWriter`; direct production cache mutation is
+  prohibited by architecture tests;
+- `MarketOutlookUpdateProcessor` is the sole cache writer and UI snapshot publisher;
 - every structurally valid, correctly routed partial update is latest-arrival-wins;
 - contract/value-date identities remain isolated without activation or eviction side effects;
 - cache replacement is process-local and is not written to either PostgreSQL or ScyllaDB;
 - the first component may rebuild partial output under OR semantics;
+- source processing never waits for Market Outlook composition or UI delivery;
+- queue saturation, processing failure, no-change application and publication failure have distinct
+  counters and health reasons;
 - notification failure leaves the committed cache readable and does not affect feed readiness; and
 - projection/calculator failure reports Market Outlook degradation but cannot request or trigger a
   Databento reset.
+
+### 8.7 On-demand refresh operations
+
+Two base operations are distinct and independently callable:
+
+1. `GetMarketDataOperationsHealth` returns the current immutable central health snapshot without
+   polling every source or waiting for the Market Outlook channel; and
+2. `RefreshMarketOutlook` enqueues a typed local control update that recomposes and republishes the
+   latest complete cached inputs for one contract/value date.
+
+Every operational stage also registers a typed refresh handler. Stage-specific refresh means:
+
+- native connection: immediate watchdog probe; a reset remains an explicit authorized reset;
+- interop/aggregation/publication: re-evaluate the worker and route state, then restart only through
+  its owning lifecycle service when policy authorizes it;
+- analytics component: requery/reseed/recalculate through that component's owner;
+- Market Outlook: recompose and republish current input state; and
+- UI: requery the current health and Market Outlook snapshots.
+
+The central health service records requested, started, completed and failed refresh outcomes but
+does not execute ownership-specific recovery itself. A Market Outlook refresh never fabricates a
+missing signal, calls native code, resets a feed or clears operational counters.
 
 ## 9. Rollover design
 
@@ -705,6 +840,8 @@ The detailed specification must define stable typed contracts for:
 
 - create/update/delete current-contract assignment;
 - request market-data start/stop/reset;
+- request a typed operational-stage refresh;
+- request Market Outlook recompose/republish;
 - future request futures rollover;
 - create/update/delete watchdog log administration.
 
@@ -718,6 +855,7 @@ The detailed specification must define stable typed contracts for:
 - future futures rollover started/completed/failed;
 - core readiness changed;
 - market-data generation activated/fenced; and
+- operational-stage refresh requested/completed/failed; and
 - versionless Market Outlook updated or became unavailable/stale.
 
 ### Queries
@@ -728,13 +866,20 @@ The detailed specification must define stable typed contracts for:
 - get latest watchdog observation;
 - get watchdog observation by ID;
 - list watchdog history by time/value date/status;
-- get complete feed detail for one observation; and
+- get complete feed detail for one observation;
+- get the current combined market-data operational-health snapshot;
+- get one operational stage/contract detail; and
 - get current versionless Market Outlook hot-cache value/availability for a contract and value
   date.
 
-All commands are idempotent and correlated. Queries do not call native code directly; they read the latest committed service state/history.
+All commands are idempotent and correlated. Queries do not call native code directly; they read the
+latest committed service state/history or immutable process-local operational snapshot.
 
-## 13. Observability and persistence
+`MarketOutlookUpdate` and its derived types are intentionally absent from actor contracts. They are
+private in-process channel payloads. An external Market Outlook refresh request may be an actor
+command at the service boundary, but its handler translates the accepted request into a local update.
+
+## 13. Operational observability and persistence
 
 Each persisted observation identifies one of:
 
@@ -747,14 +892,39 @@ Each persisted observation identifies one of:
 - `RequestedStop`;
 - `ApplicationShutdown`.
 
-The latest in-memory service diagnostics additionally expose Market Outlook cache availability,
-last component refresh, last ES full refresh, received/written/composed/query counts and notification
-failure counts. No accepted/rejected or active-generation cache counters exist. These fields help
-correlate feed health with the derived UI projection but are not
-persisted as Market Outlook state. Watchdog history may record the worker's health/status as
-diagnostic detail; it must not serialize the Market Outlook payload.
+`MarketDataOperationsHealthService` is the current in-memory authority for end-to-end operational
+health. Its immutable snapshot contains overall readiness plus independently addressable entries for
+each bounded stage, active contract/feed and `MarketOutlookUpdateKind`.
 
-Status console and structured logs include observation/correlation IDs rather than duplicating the entire JSON detail. Distributed trace context is propagated through actor requests and lifecycle operations.
+At minimum, each Market Outlook kind exposes:
+
+- received, enqueued, applied, changed, composed, published, failed and coalesced counts;
+- last received, enqueued, applied, changed and published times;
+- last market-data-as-of time and last update ID;
+- current queue depth and oldest queued-update age;
+- queue, processing and publication latency; and
+- Green, Yellow, Orange, Red or Inactive status with a bounded reason.
+
+At minimum, upstream stages expose received, completed, failed and recovered counts; last activity
+and failure times; processing/backlog latency; pending depth; freshness and status. The central
+snapshot makes it possible to distinguish native silence, interop failure, aggregation backlog,
+indicator inactivity, Market Outlook channel backlog, composition failure and UI publication
+failure without reconstructing state from logs.
+
+The current central snapshot is queryable and refreshable on demand and can be exported through
+standard .NET metrics instruments. Metric dimensions are limited to fixed stage/update enums,
+dataset/feed role and the small active-contract set. Per-update GUIDs are carried by traces and
+bounded diagnostic detail only.
+
+The central operational snapshot and derived Market Outlook cache are not persisted as authoritative
+state. Watchdog history may include a bounded copy of the relevant central-health summary at each
+durable observation, but it must not serialize the Market Outlook payload or unbounded metric series.
+Future production retention can add sampled operational time-series persistence without changing
+the realtime recording API.
+
+Status console and structured logs include observation, update and correlation IDs rather than
+duplicating entire payloads. Distributed trace context is propagated through actor requests,
+lifecycle operations and the local channel envelope.
 
 Initial persistence has no automatic deletion. Production work must add retention, partitioning/archive strategy, administrative authorization, and capacity alerts. At one row per minute plus lifecycle transitions, ordinary volume is modest, but JSONB size and option-feed count must be measured before setting retention.
 
@@ -814,6 +984,17 @@ Development and paper-trading soak evidence informs the eventual backend decisio
 - Core versus optional exhausted-failure decisions.
 - Exact three-attempt recovery timing under `FakeTimeProvider`.
 - Menu readiness policy, including planned Closed versus unexpected Down.
+- Every `MarketOutlookUpdate` derived type maps to exactly one stable update kind and owns only its
+  declared input fields.
+- The single reader applies mixed producer updates sequentially and atomically replaces complete
+  immutable snapshots without an application cache-write lock.
+- Per-kind received/enqueued/applied/changed/published/failed/coalesced counters and latency samples
+  are accurate.
+- A malformed update records failure and does not terminate the processor loop.
+- Metric recording cannot throw into a producer and unique update IDs never become metric labels.
+- Health evaluation identifies stale, failed, backlogged and healthy stages independently.
+- Every registered stage refresh delegates to its owner and records requested, started, completed
+  and failed outcomes without changing another stage's lifecycle.
 
 ### 15.4 PostgreSQL integration tests
 
@@ -839,6 +1020,11 @@ Development and paper-trading soak evidence informs the eventual backend decisio
 - Market Outlook queries return the same immutable cache value represented by the latest
   notification.
 - Reset and rollover health changes never suppress a correctly routed Market Outlook input.
+- Actor events are translated into local derived updates without serializing those updates through
+  NATS.
+- The operations-health query returns the same immutable central snapshot observed by the processor.
+- An external refresh request is translated to a local refresh update and republishes the current
+  snapshot without calling Databento or fabricating missing inputs.
 
 ### 15.6 Runtime/process tests
 
@@ -851,13 +1037,22 @@ Development and paper-trading soak evidence informs the eventual backend decisio
 - PostgreSQL unavailable at startup fails closed.
 - PostgreSQL watchdog insert failure after startup leaves feeds Up but health Orange.
 - Value-date rollover cannot race reset or a watchdog poll.
-- Market Outlook cache is immediately available with the Market Data Service process and requires no hosted-worker activation.
+- The Market Outlook processor reaches Ready before producers are released, and the cache remains
+  lock-free and queryable throughout processing.
 - Market Outlook calculator or notification failure does not stop/reset Databento or alter native
   feed status.
 - Databento reset changes health independently; correctly routed events continue rebuilding partial
   then complete display state without a generation admission fence.
 - API restart rebuilds Market Outlook from authoritative component caches without reading a
   persisted Market Outlook snapshot.
+- Concurrent RSI, TDI, ITI, EMA, Bollinger, ES, VX, EOD, trade-signal, health and warmup producers
+  have exactly one cache writer.
+- Databento bursts do not block native callbacks or analytics on Market Outlook composition/UI
+  publication; saturation and any coalescing are visible and the latest projection converges.
+- The central health service remains queryable and reports the failure when the Market Outlook
+  processor is paused, fault-injected or unable to publish.
+- Graceful shutdown stops producers, drains accepted updates within the configured bound, publishes
+  the final committed snapshot and reports any undrained count.
 
 ### 15.7 UI verification
 
@@ -874,6 +1069,10 @@ Development and paper-trading soak evidence informs the eventual backend decisio
   EMA/Bollinger and MDI presentation.
 - Feed Resetting/Down leaves the last Market Outlook values visibly stale/orange or stale/red and
   never presents a watchdog tick as a market-data refresh.
+- Operational detail shows independent native, interop, aggregation, indicator, channel,
+  composition, cache and publication health with per-component counters and latency.
+- Refreshing operational status does not restart a feed; refreshing Market Outlook recomposes and
+  republishes the current inputs and clearly retains unavailable/stale source status.
 
 ## 16. Acceptance criteria
 
@@ -903,6 +1102,24 @@ The design is successfully implemented only when:
     depends on successful Market Outlook calculation or UI notification.
 20. Reset, rollover and native-generation replacement update explicit feed health independently,
     while typed Market Outlook queries remain available with current, stale or unavailable analytics.
+21. Every production Market Outlook producer submits a strongly typed local
+    `MarketOutlookUpdate`; no producer directly mutates the cache and these updates never traverse
+    NATS.
+22. `MarketOutlookUpdateProcessor` is the sole cache writer and snapshot publisher, and cache reads
+    require no application-level lock.
+23. Every Market Outlook update kind has independently queryable counters, freshness and latency,
+    including distinct received, applied, changed, published, failed and coalesced outcomes.
+24. `MarketDataOperationsHealthService` provides one immutable end-to-end operational snapshot and
+    remains available when Market Outlook processing or publication fails.
+25. Native, interop, aggregation, analytics, channel, composition, cache and publication stages can
+    be distinguished without log reconstruction.
+26. Market-data producers do not wait for Market Outlook composition or UI delivery; overload and
+    recovery are explicit and no loss is silent.
+27. On-demand health refresh and Market Outlook recompose/republish are independently callable and
+    neither operation fabricates market data or implicitly resets Databento.
+28. Every registered operational stage can be refreshed on demand through a typed handler while its
+    existing lifecycle/calculation owner remains authoritative, and every refresh outcome is visible
+    in the central health snapshot.
 
 ## 17. Explicit non-goals for the initial implementation
 
@@ -915,15 +1132,24 @@ The design is successfully implemented only when:
 - Making option-feed availability critical to global Databento readiness.
 - Persisting raw credentials, secrets, or unbounded native error payloads.
 - Persisting the derived Market Outlook cache or making it authoritative for any source signal.
+- Persisting the high-frequency central operational metric snapshot in the initial implementation;
+  only bounded summaries may accompany watchdog history.
+- Sending local `MarketOutlookUpdate` channel payloads over NATS or treating them as actor messages.
 - Allowing Market Outlook calculation, query or notification failures to initiate Databento
   recovery.
 
 ## 18. Follow-on documents
 
-After approval, create:
+This design is approved. Create immediately:
 
-1. a detailed implementation specification defining PostgreSQL DDL, DTOs, actor subjects, P/Invoke ABI structs, service interfaces, state machines, and migrations;
-2. a gated implementation plan covering native C++, native Rust, managed storage, lifecycle service, actors, UI, and all qualification suites;
-3. retain the completed `Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md`
-   model when the cache is moved to this service boundary; and
-4. an Aspire extraction specification when the dedicated Market Data service is scheduled.
+1. a detailed implementation specification defining PostgreSQL DDL, DTOs, actor subjects, P/Invoke
+   ABI structs, service interfaces, state machines, local update contracts, channel policy,
+   operations-health schema and migrations;
+2. a gated implementation plan covering native C++, native Rust, managed storage, lifecycle service,
+   local Market Outlook processing, central operational health, actors, UI and all qualification
+   suites. The authoritative staged plan is
+   `Documents/system/Market-Data-Reliability-Three-Stage-Implementation-Plan-v1.0.md`;
+3. supersede the direct-write mechanics in
+   `Market-Outlook-Simple-Hot-Cache-Correction-Implementation-Plan-v1.0.md` while retaining its
+   versionless, unconditional partial-write and whole-snapshot-read semantics; and
+4. create an Aspire extraction specification when the dedicated Market Data service is scheduled.
