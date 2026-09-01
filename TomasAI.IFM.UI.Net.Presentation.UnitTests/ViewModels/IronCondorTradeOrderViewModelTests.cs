@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Reflection;
 using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ServiceApi;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -138,6 +139,75 @@ public class IronCondorTradeOrderViewModelTests
         await FluentActions.Awaiting(viewModel.TurnLiveFeedOn)
             .Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Historical trade orders are read-only.");
+    }
+
+    [Fact]
+    public async Task HistoricalReadOnly_ReattachesDetachedPersistedLegDataWithoutNullReference()
+    {
+        OptionTradeLegReadModel[] legs =
+        [
+            Leg("put-short", OptionType.Put, OptionLegAction.Short, 4500m),
+            Leg("put-long", OptionType.Put, OptionLegAction.Long, 4450m),
+            Leg("call-short", OptionType.Call, OptionLegAction.Short, 5000m),
+            Leg("call-long", OptionType.Call, OptionLegAction.Long, 5050m),
+        ];
+        var historicalTrade = new OptionTradeReadModel
+        {
+            OrderId = 101,
+            TradeId = 7,
+            TradeDate = ValueDate,
+            MaturityDate = new DateOnly(2026, 9, 18),
+            TradeType = TradeType.ShortIronCondor,
+            TradeState = TradeState.NewTrade,
+            TradeAction = TradeAction.Sell,
+        };
+        historicalTrade.AddOptionLegs(legs);
+        historicalTrade.AddTradePosition(
+        [
+            Position(TradeType.PutCreditSpread, legs[0], legs[1]),
+            Position(TradeType.CallCreditSpread, legs[2], legs[3]),
+        ]);
+        var viewModel = CreateViewModel(
+            historicalReadOnly: true,
+            historicalTrade: historicalTrade,
+            historicalFundBalance: 250_000m);
+
+        await viewModel.LoadIronCondorTradeOrders();
+
+        viewModel.IsLoaded.Should().BeTrue();
+        foreach (var leg in legs)
+        {
+            var spreadType = leg.OptionLegType == OptionType.Put
+                ? TradeType.PutCreditSpread
+                : TradeType.CallCreditSpread;
+            viewModel.GetOptionLegData(
+                    spreadType,
+                    TradeStatus.Open,
+                    leg.OptionLegAction,
+                    leg.OptionLegType)
+                .OptionLeg.Should().BeSameAs(leg);
+        }
+
+        static OptionTradeLegReadModel Leg(
+            string contractId,
+            OptionType optionType,
+            OptionLegAction action,
+            decimal strikePrice)
+            => OptionTradeLegReadModel.Default(101, 7, contractId, optionType, action) with
+            {
+                Quantity = 1,
+                StrikePrice = strikePrice,
+            };
+
+        static TradePositionReadModel Position(
+            TradeType tradeType,
+            params OptionTradeLegReadModel[] positionLegs)
+            => TradePositionReadModel.Default(101, 7, tradeType, ValueDate, 38, TradeStatus.Open)
+                .AddOptionLegData(positionLegs.Select(leg =>
+                    OptionTradeLegDataReadModel.Default(101, 7, tradeType, ValueDate, 38, TradeStatus.Open) with
+                    {
+                        OptionLegId = leg.ContractId,
+                    }).ToArray());
     }
 
     [Fact]

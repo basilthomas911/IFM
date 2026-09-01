@@ -209,7 +209,9 @@ public record OptionTradeLegDataReadModel
     /// <summary>Attaches an OptionLeg and updates the OptionLegId accordingly.</summary>
     public OptionTradeLegDataReadModel SetOptionLeg(OptionTradeLegReadModel? optionLeg)
     {
-        OptionLeg = optionLeg!;
-        return this with { OptionLegId = OptionLeg.ContractId };
+        OptionLeg = optionLeg;
+        return optionLeg is null
+            ? this
+            : this with { OptionLegId = optionLeg.ContractId };
     }
 }

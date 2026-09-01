@@ -673,10 +673,20 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
                 if (!_tradePositionMap.ContainsKey((e.EntityId.ValueDate, e.EntityId.TradeType, e.EntityId.TradeStatus)))
                     _tradePositionMap.Add((e.EntityId.ValueDate, e.EntityId.TradeType, e.EntityId.TradeStatus), e);
                 foreach (var o in e.OptionLegData)
-                    if (!_optionLegDataMap.ContainsKey((e.EntityId.ValueDate, e.EntityId.TradeType, e.EntityId.TradeStatus, o.OptionLeg!.OptionLegAction, o.OptionLeg.OptionLegType)))
+                {
+                    var optionLeg = o.OptionLeg
+                        ?? _ironCondorTrade.OptionLegs?.FirstOrDefault(candidate =>
+                            string.Equals(candidate.ContractId, o.OptionLegId, StringComparison.Ordinal));
+                    if (optionLeg is null)
+                        continue;
+                    var mappedLegData = o.OptionLeg is null ? o.SetOptionLeg(optionLeg) : o;
+                    var key = (e.EntityId.ValueDate, e.EntityId.TradeType, e.EntityId.TradeStatus,
+                        optionLeg.OptionLegAction, optionLeg.OptionLegType);
+                    if (!_optionLegDataMap.ContainsKey(key))
                         _optionLegDataMap.Add(
-                            key: (e.EntityId.ValueDate, e.EntityId.TradeType, e.EntityId.TradeStatus, o.OptionLeg.OptionLegAction, o.OptionLeg.OptionLegType),
-                            value: o);
+                            key,
+                            mappedLegData);
+                }
             }
     }
 
@@ -1292,9 +1302,11 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     }
 
     public OptionTradeLegDataReadModel GetOptionLegData(TradeType tradeType, TradeStatus tradeStatus, OptionLegAction optionLegAction, OptionType optionType)
-        => _optionLegDataMap.ContainsKey((_valueDate, tradeType, tradeStatus, optionLegAction, optionType))
-            ? _optionLegDataMap[(_ironCondorTrade.TradeDate, tradeType, tradeStatus, optionLegAction, optionType)]
-            : default!;
+        => _optionLegDataMap.TryGetValue(
+            (_valueDate, tradeType, tradeStatus, optionLegAction, optionType),
+            out var optionLegData)
+                ? optionLegData
+                : default!;
 
     public void SetOptionLegData(TradeType tradeType, TradeStatus tradeStatus, OptionLegAction optionLegAction, OptionType optionType, OptionTradeLegDataReadModel optionLegData)
     {
@@ -1332,7 +1344,9 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     public decimal GetStrikePrice(OptionLegAction optionLegAction, OptionType optionType)
     {
         if (_optionPriceMap == null || _optionPriceMap.Count == 0 || !_optionPriceMap.ContainsKey((optionLegAction, optionType)))
-            return _optionLegMap[(optionLegAction, optionType)]?.StrikePrice ?? 0m;
+            return _optionLegMap.TryGetValue((optionLegAction, optionType), out var optionLeg)
+                ? optionLeg.StrikePrice
+                : 0m;
         return _optionPriceMap[(optionLegAction, optionType)];
     }
 

@@ -18,13 +18,21 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
 {
     const int MinimumTradeBlotterWidth = 640;
     const int MinimumChartWidth = 220;
-    const int MinimumRealtimeHeight = 300;
+    const int MinimumGraphPaneHeight = 180;
+    const int RealtimeDataPaneHeight = 169;
+    const int InitialContractIdsPaneHeight = 120;
+    const int TradeLimitPaneHeight = 79;
+    const int LogPaneHeightDivisor = 3;
+    const int VisibleContractIdCount = 4;
     readonly Control _parentControl;
     readonly IronCondorViewModel _viewModel;
     readonly Dictionary<ActionState, Color> _tradePlanStateMap;
+    readonly TabControl _graphTabs;
+    readonly TableLayoutPanel _primaryTopLayout;
     bool _closed;
     bool _renderingLiveFeed;
     long _lastErrorSequence;
+    int _contractIdsPaneHeight = InitialContractIdsPaneHeight;
 
     /// <summary>Gets whether this blotter is permanently constrained to historical query-only behavior.</summary>
     public bool IsHistoricalReadOnly => _viewModel.IsHistoricalReadOnly;
@@ -41,6 +49,9 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
     public IronCondorView(Control parentControl, IronCondorViewModel viewModel)
     {
         InitializeComponent();
+        _graphTabs = ConfigureGraphTabs();
+        _primaryTopLayout = ConfigurePrimaryLayout();
+        TradeOrderTypography.Apply(this);
         Dock = DockStyle.Fill;
         _parentControl = parentControl;
         _viewModel = viewModel;
@@ -65,6 +76,132 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
     }
 
+    TabControl ConfigureGraphTabs()
+    {
+        var futuresTitle = graphEodData.Titles.Cast<System.Windows.Forms.DataVisualization.Charting.Title>()
+            .Select(title => title.Text)
+            .FirstOrDefault(text => !string.IsNullOrWhiteSpace(text))
+            ?? "Futures Bollinger Bands";
+        var ironCondorTitle = graphSpreadDistribution.Titles.Cast<System.Windows.Forms.DataVisualization.Charting.Title>()
+            .Select(title => title.Text)
+            .FirstOrDefault(text => !string.IsNullOrWhiteSpace(text))
+            ?? "Iron Condor Net Spread Path";
+
+        graphEodData.Titles.Clear();
+        graphSpreadDistribution.Titles.Clear();
+        graphEodData.Dock = DockStyle.Fill;
+        graphSpreadDistribution.Dock = DockStyle.Fill;
+
+        var ironCondorPage = new TabPage(ironCondorTitle)
+        {
+            Name = "tabIronCondorGraph",
+            BackColor = Color.Black,
+            Padding = Padding.Empty,
+        };
+        var futuresPage = new TabPage(futuresTitle)
+        {
+            Name = "tabFuturesGraph",
+            BackColor = Color.Black,
+            Padding = Padding.Empty,
+        };
+        ironCondorPage.Controls.Add(graphSpreadDistribution);
+        futuresPage.Controls.Add(graphEodData);
+
+        var tabs = new TabControl
+        {
+            Name = "tabGraphs",
+            AccessibleName = "Iron Condor graphs",
+            Dock = DockStyle.Fill,
+            BackColor = Color.Black,
+            Padding = new Point(12, 4),
+        };
+        tabs.TabPages.Add(ironCondorPage);
+        tabs.TabPages.Add(futuresPage);
+        tabs.SelectedTab = ironCondorPage;
+        pnlRealTimeData.Panel1.Controls.Add(tabs);
+        tabs.BringToFront();
+        return tabs;
+    }
+
+    TableLayoutPanel ConfigurePrimaryLayout()
+    {
+        var topLayout = new TableLayoutPanel
+        {
+            Name = "pnlIronCondorTopLayout",
+            AccessibleName = "Trade history and graphs",
+            BackColor = Color.FromArgb(64, 64, 64),
+            ColumnCount = 2,
+            RowCount = 1,
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+        };
+        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        topLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, graphEodData.Width / 2F));
+        topLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        pnlIronCondorTrade.Dock = DockStyle.Fill;
+        pnlIronCondorTrade.Margin = Padding.Empty;
+        _graphTabs.Dock = DockStyle.Fill;
+        _graphTabs.Margin = Padding.Empty;
+        topLayout.Controls.Add(pnlIronCondorTrade, 0, 0);
+        topLayout.Controls.Add(_graphTabs, 1, 0);
+        pnlRealTimeData.Panel1.Controls.Add(topLayout);
+
+        pnlRealTimeData.Dock = DockStyle.Fill;
+        pnlRealTimeData.Margin = Padding.Empty;
+        pnlAssetSplitter.Panel1.Controls.Add(pnlRealTimeData);
+        pnlRealTimeData.BringToFront();
+
+        ConfigureRealTimeVerticalSpacing();
+        pnlTradeHistory.MinimumSize = new Size(0, _contractIdsPaneHeight);
+        pnlTradeHistory.MaximumSize = new Size(0, _contractIdsPaneHeight);
+        pnlTradeLimit.Height = TradeLimitPaneHeight;
+        lstTradeLimit.Dock = DockStyle.Fill;
+        MakeHeaderTableFullWidth(tableLayoutPanel1);
+        MakeHeaderTableFullWidth(pnlRt);
+        MakeHeaderTableFullWidth(pnlIronCondorTradeDataRt);
+        return topLayout;
+
+        void MakeHeaderTableFullWidth(TableLayoutPanel table)
+        {
+            table.AutoSize = false;
+            var weights = table.ColumnStyles.Cast<ColumnStyle>()
+                .Select(style => Math.Max(style.Width, 1F))
+                .ToArray();
+            var total = weights.Sum();
+            for (var index = 0; index < table.ColumnStyles.Count; index++)
+            {
+                table.ColumnStyles[index].SizeType = SizeType.Percent;
+                table.ColumnStyles[index].Width = weights[index] / total * 100F;
+            }
+
+            table.Width = Math.Max(1, pnlRealTimeHeaderData.ClientSize.Width - table.Left - 4);
+            table.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        }
+    }
+
+    void ConfigureRealTimeVerticalSpacing()
+    {
+        tableLayoutPanel1.AutoSize = false;
+        tableLayoutPanel1.Height = 36;
+        tableLayoutPanel1.RowStyles[0].SizeType = SizeType.Absolute;
+        tableLayoutPanel1.RowStyles[0].Height = 34F;
+
+        pnlRt.Top = tableLayoutPanel1.Bottom;
+        pnlRt.Height = 32;
+
+        pnlIronCondorTradeDataRt.Top = pnlRt.Bottom + 3;
+        pnlIronCondorTradeDataRt.RowStyles[0].SizeType = SizeType.Absolute;
+        pnlIronCondorTradeDataRt.RowStyles[0].Height = 36F;
+        pnlIronCondorTradeDataRt.RowStyles[1].SizeType = SizeType.Absolute;
+        pnlIronCondorTradeDataRt.RowStyles[1].Height = 25F;
+        pnlIronCondorTradeDataRt.RowStyles[2].SizeType = SizeType.Absolute;
+        pnlIronCondorTradeDataRt.RowStyles[2].Height = 25F;
+        pnlIronCondorTradeDataRt.Height = 86;
+        pnlRealTimeHeaderData.Height = pnlIronCondorTradeDataRt.Bottom + 4;
+    }
+
     /// <summary>
     /// Adjusts the size and layout of the control based on the specified parent control.
     /// </summary>
@@ -78,7 +215,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         var parentSize = parentControl.ClientSize;
         if (parentSize.Width <= 0 || parentSize.Height <= 0)
         {
-            pnlRealTimeData.Visible = false;
+            _graphTabs.Visible = false;
             return;
         }
 
@@ -86,44 +223,47 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         try
         {
             Size = parentSize;
-            SetSplitterDistance(pnlAssetSplitter, 680);
-            var realtimeWidth = Width - MinimumTradeBlotterWidth - 10;
-            var chartsAreSafe = realtimeWidth >= MinimumChartWidth * 2
-                && Height >= MinimumRealtimeHeight;
-            if (!chartsAreSafe)
-            {
-                // A hidden or narrow tab can transiently report a zero-sized chart
-                // surface. WinForms Chart throws while laying out that state, so the
-                // optional analytics region remains excluded from layout until it
-                // has a genuinely drawable surface.
-                pnlRealTimeData.Visible = false;
-                return;
-            }
-
-            pnlRealTimeData.Width = realtimeWidth;
-            SetSplitterDistance(pnlRealTimeData, 495);
-            SetSplitterDistance(pnlTradeSplitter, 495);
-            var graphWidth = Math.Max(MinimumChartWidth,
-                (pnlRealTimeData.Panel1.ClientSize.Width - 7) / 2);
-            graphSpreadDistribution.Width = graphWidth;
-            graphEodData.Width = graphWidth;
+            var logPaneHeight = Math.Max(pnlAssetSplitter.Panel2MinSize,
+                (pnlAssetSplitter.ClientSize.Height - pnlAssetSplitter.SplitterWidth)
+                / LogPaneHeightDivisor);
+            SetSplitterDistance(pnlAssetSplitter,
+                pnlAssetSplitter.ClientSize.Height
+                - pnlAssetSplitter.SplitterWidth
+                - logPaneHeight);
+            var formerGraphWidth = Math.Max(0, Width - MinimumTradeBlotterWidth - 10);
+            var graphWidth = formerGraphWidth / 2;
+            var maximumTopHeight = pnlRealTimeData.ClientSize.Height
+                - pnlRealTimeData.SplitterWidth
+                - RealtimeDataPaneHeight;
+            var graphPaneHeight = Math.Max(pnlRealTimeData.Panel1MinSize, maximumTopHeight);
+            var chartsAreSafe = graphWidth >= MinimumChartWidth
+                && graphPaneHeight >= MinimumGraphPaneHeight;
+            _primaryTopLayout.ColumnStyles[1].Width = chartsAreSafe ? graphWidth : 0F;
+            _graphTabs.Visible = chartsAreSafe;
             pnlRealTimeData.Visible = true;
+            SetSplitterDistance(pnlRealTimeData, graphPaneHeight);
+            _primaryTopLayout.PerformLayout();
+            SetSplitterDistance(pnlTradeSplitter,
+                pnlTradeSplitter.ClientSize.Height
+                - pnlTradeSplitter.SplitterWidth
+                - _contractIdsPaneHeight
+                - TradeLimitPaneHeight);
         }
         finally
         {
             ResumeLayout(performLayout: true);
         }
+    }
 
-        static void SetSplitterDistance(SplitContainer splitter, int preferredDistance)
-        {
-            var length = splitter.Orientation == Orientation.Vertical
-                ? splitter.ClientSize.Width
-                : splitter.ClientSize.Height;
-            var maximum = length - splitter.SplitterWidth - splitter.Panel2MinSize;
-            if (maximum < splitter.Panel1MinSize)
-                return;
-            splitter.SplitterDistance = Math.Clamp(preferredDistance, splitter.Panel1MinSize, maximum);
-        }
+    static void SetSplitterDistance(SplitContainer splitter, int preferredDistance)
+    {
+        var length = splitter.Orientation == Orientation.Vertical
+            ? splitter.ClientSize.Width
+            : splitter.ClientSize.Height;
+        var maximum = length - splitter.SplitterWidth - splitter.Panel2MinSize;
+        if (maximum < splitter.Panel1MinSize)
+            return;
+        splitter.SplitterDistance = Math.Clamp(preferredDistance, splitter.Panel1MinSize, maximum);
     }
 
     /// <summary>
@@ -421,6 +561,29 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         lstOptionContractIds.Items.Clear();
         foreach (var contractId in _viewModel.GetOptionLegContractIds())
             lstOptionContractIds.Items.Add(contractId);
+        FitContractIdPaneToFourRows();
+    }
+
+    void FitContractIdPaneToFourRows()
+    {
+        if (lstOptionContractIds.Items.Count == 0)
+            return;
+
+        lstOptionContractIds.CreateControl();
+        var firstRow = lstOptionContractIds.GetItemRect(0);
+        if (firstRow.Height <= 0)
+            return;
+
+        _contractIdsPaneHeight = firstRow.Top
+            + firstRow.Height * VisibleContractIdCount
+            + 3;
+        pnlTradeHistory.MinimumSize = new Size(0, _contractIdsPaneHeight);
+        pnlTradeHistory.MaximumSize = new Size(0, _contractIdsPaneHeight);
+        SetSplitterDistance(pnlTradeSplitter,
+            pnlTradeSplitter.ClientSize.Height
+            - pnlTradeSplitter.SplitterWidth
+            - _contractIdsPaneHeight
+            - TradeLimitPaneHeight);
     }
 
     /// <summary>

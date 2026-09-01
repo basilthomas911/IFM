@@ -24,6 +24,18 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 public partial class TradeOrderEditorForm 
     : Form, IForm<TradeOrderEditorForm>, IFormControl
 {
+    const int LeftLabelLeft = 30;
+    const int ContentLeft = 112;
+    const int ContentToCommandGap = 16;
+    const int CommandRightMargin = 21;
+    const int CommandButtonWidth = 140;
+    const int CommandButtonHeight = 32;
+    const int CommandButtonGap = 8;
+    const int DefaultClientHeight = 1080;
+    const int EmptyTradeBlotterHeight = 280;
+    const int HostedControlBottomPadding = 8;
+    const int TradeBlotterBottomPadding = 12;
+
     readonly IAppRoot _appRoot;
     readonly IReferenceDataService _referenceDataService;
     TradeOrderEditorViewModel _viewModel = null!;
@@ -36,9 +48,11 @@ public partial class TradeOrderEditorForm
     readonly ComboBox _portfolioSelector = new() { Name = "ddlPortfolio", AccessibleName = "Portfolio selector", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(93, 8), Size = new Size(720, 28) };
     readonly ComboBox _sourceFilter = new() { Name = "ddlCompositionSource", AccessibleName = "Composition source filter", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(1010, 8), Size = new Size(220, 28) };
     readonly ComboBox _historyModeSelector = new() { Name = "ddlTradeHistoryMode", AccessibleName = "Trade history mode", DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Color.FromArgb(64, 64, 64), ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 10F), Location = new Point(1300, 8), Size = new Size(140, 28) };
+    readonly Label _portfolioLabel = new() { Text = "Portfolio:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(LeftLabelLeft, 14) };
     bool _canonicalOrderSelected;
     bool _legacyOrderSelected;
     LegacyFundOrderHistoryReadModel? _selectedLegacyOrder;
+    bool _adjustingTradeBlotterLayout;
     Control? _embeddedLegacyTradeEditor;
     long _legacyViewerGeneration;
 
@@ -52,6 +66,7 @@ public partial class TradeOrderEditorForm
     {
         InitializeComponent();
         ConfigurePortfolioScope();
+        TradeOrderTypography.Apply(this);
         ConfigureCompactLayout();
         ddlTradeState.SelectedIndexChanged += ddlTradeState_SelectedIndexChanged;
         _appRoot = appRoot;
@@ -90,9 +105,10 @@ public partial class TradeOrderEditorForm
     void ConfigurePortfolioScope()
     {
         pnlFundSelector.Height = 100;
-        ddlFund.Location = new Point(93, 58); lblFundSelector.Location = new Point(29, 64);
+        ddlFund.Location = new Point(ContentLeft, 58); lblFundSelector.Location = new Point(LeftLabelLeft, 64);
         btnCreateFund.Visible = false; btnCreateFund.Enabled = false; pnlFundSelector.Controls.Remove(btnCreateFund);
-        pnlFundSelector.Controls.Add(new Label { Text = "Portfolio:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(8, 14) });
+        _portfolioSelector.Left = ContentLeft;
+        pnlFundSelector.Controls.Add(_portfolioLabel);
         pnlFundSelector.Controls.Add(_portfolioSelector);
         pnlFundSelector.Controls.Add(new Label { Text = "Source:", AutoSize = true, ForeColor = Color.White, Font = new Font("Microsoft Sans Serif", 12F), Location = new Point(935, 14) });
         _sourceFilter.Items.AddRange(["All", "Manual", "Strategy Workflow"]); _sourceFilter.SelectedIndex = 0; pnlFundSelector.Controls.Add(_sourceFilter);
@@ -132,21 +148,193 @@ public partial class TradeOrderEditorForm
 
     void ConfigureCompactLayout()
     {
-        MinimumSize = new Size(1200, 780);
+        ClientSize = new Size(
+            ContentLeft + ddlFund.Width + ContentToCommandGap + CommandButtonWidth + CommandRightMargin,
+            DefaultClientHeight);
+        MinimumSize = SizeFromClientSize(new Size(1200, DefaultClientHeight));
         pnlTradeOrders.Height = 270;
         lstTradeOrders.Height = pnlTradeOrders.ClientSize.Height - lstTradeOrders.Top - 6;
+        pnlTradePosition.Controls.Add(lblTradeStateTarget);
+        pnlTradePosition.Controls.Add(ddlTradeState);
+        AlignLeftColumnAndCalendarFilters();
+        AlignTradePositionHeader();
         lstTradeOrders.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         lstTrades.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        pnlTradeControl.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        pnlTradeControl.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         foreach (var button in new[] { btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder,
             btnAddTrade, btnRemoveTrade, btnChangeTradeState, btnOpenTrade, btnSubmitOrder, btnEndOfDay })
+        {
+            button.AutoSize = false;
+            button.Size = new Size(CommandButtonWidth, CommandButtonHeight);
             button.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        }
+
+        PositionButtonsAcrossContentHeight(pnlTradeOrders, lstTradeOrders,
+            btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
+        PositionButtonColumn(pnlTrades, 12,
+            btnAddTrade, btnRemoveTrade, btnChangeTradeState);
+        btnOpenTrade.Location = btnAddTrade.Location;
+        PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top,
+            btnSubmitOrder, btnEndOfDay);
+        AlignTargetStateUnderEndOfDay();
+
+        pnlFundSelector.Resize += (_, _) => ddlFund.Width = CalculateMainContentWidth(pnlFundSelector);
+        pnlTradeOrders.Resize += (_, _) =>
+        {
+            LayoutMainContent(pnlTradeOrders, lstTradeOrders);
+            PositionButtonsAcrossContentHeight(pnlTradeOrders, lstTradeOrders,
+                btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
+        };
+        pnlTrades.Resize += (_, _) =>
+        {
+            LayoutMainContent(pnlTrades, lstTrades);
+            PositionButtonColumn(pnlTrades, 12,
+                btnAddTrade, btnRemoveTrade, btnChangeTradeState);
+            btnOpenTrade.Location = btnAddTrade.Location;
+        };
         pnlTradePosition.Resize += (_, _) =>
         {
-            pnlTradeControl.Height = Math.Max(80, pnlTradePosition.ClientSize.Height - pnlTradeControl.Top - 10);
-            pnlTradeControl.Width = Math.Max(300, pnlTradePosition.ClientSize.Width - pnlTradeControl.Left - 211);
+            LayoutTradeBlotterHeight();
+            LayoutMainContent(pnlTradePosition, pnlTradeControl);
+            PositionButtonColumn(pnlTradePosition, pnlTradeControl.Top,
+                btnSubmitOrder, btnEndOfDay);
+            AlignTargetStateUnderEndOfDay();
         };
+        pnlTradeControl.ControlAdded += (_, _) => LayoutTradeBlotterHeight();
+        pnlTradeControl.ControlRemoved += (_, _) => LayoutTradeBlotterHeight();
+
+        ddlFund.Width = CalculateMainContentWidth(pnlFundSelector);
+        LayoutMainContent(pnlTradeOrders, lstTradeOrders);
+        LayoutMainContent(pnlTrades, lstTrades);
+        LayoutMainContent(pnlTradePosition, pnlTradeControl);
+        LayoutTradeBlotterHeight();
+        PositionButtonsAcrossContentHeight(pnlTradeOrders, lstTradeOrders,
+            btnLoadOrder, btnCreateOrder, btnDeleteOrder, btnCompleteOrder);
     }
+
+    void AlignLeftColumnAndCalendarFilters()
+    {
+        foreach (var label in new[]
+                 {
+                     _portfolioLabel, lblFundSelector, lblFrom, lblTradeOrders,
+                     label1, lblTrades, lblTradeType,
+                 })
+            label.Left = LeftLabelLeft;
+
+        _portfolioSelector.Left = ContentLeft;
+        ddlFund.Left = ContentLeft;
+        dtpFrom.Left = ContentLeft;
+        lblTo.Left = dtpFrom.Right + 24;
+        dtpTo.Left = lblTo.Right + 8;
+        txtTradeType.Left = ContentLeft;
+        lblTradeType.Left = 8;
+    }
+
+    void AlignTradePositionHeader()
+    {
+        lblOrderAction.Left = txtDaysToExpiry.Right + 16;
+        ddlOrderActionType.Left = lblOrderAction.Right + 8;
+        cbLiveFeed.Left = ddlOrderActionType.Right + 16;
+        cbLiveFeed.Top = ddlOrderActionType.Top + 1;
+    }
+
+    void AlignTargetStateUnderEndOfDay()
+    {
+        lblTradeStateTarget.AutoSize = false;
+        lblTradeStateTarget.SetBounds(
+            btnEndOfDay.Left,
+            btnEndOfDay.Bottom + CommandButtonGap,
+            btnEndOfDay.Width,
+            20);
+        lblTradeStateTarget.TextAlign = ContentAlignment.MiddleLeft;
+        ddlTradeState.SetBounds(
+            btnEndOfDay.Left,
+            lblTradeStateTarget.Bottom + 4,
+            btnEndOfDay.Width,
+            ddlTradeState.Height);
+        lblTradeStateTarget.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        ddlTradeState.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+    }
+
+    void LayoutTradeBlotterHeight()
+    {
+        if (_adjustingTradeBlotterLayout)
+            return;
+
+        _adjustingTradeBlotterLayout = true;
+        try
+        {
+            var contentHeight = pnlTradeControl.Controls.Cast<Control>()
+                .Select(MeasureHostedControlHeight)
+                .DefaultIfEmpty(EmptyTradeBlotterHeight)
+                .Max();
+            pnlTradeControl.Height = Math.Max(EmptyTradeBlotterHeight, contentHeight);
+
+            var overflow = pnlTradeControl.Bottom + TradeBlotterBottomPadding
+                           - pnlTradePosition.ClientSize.Height;
+            if (overflow <= 0)
+                return;
+
+            ClientSize = new Size(ClientSize.Width, ClientSize.Height + overflow);
+            PerformLayout();
+        }
+        finally
+        {
+            _adjustingTradeBlotterLayout = false;
+        }
+    }
+
+    static int MeasureHostedControlHeight(Control control)
+    {
+        control.PerformLayout();
+        var contentBottom = control.Controls.Cast<Control>()
+            .Select(child => child.Bottom)
+            .DefaultIfEmpty(0)
+            .Max();
+        return Math.Max(
+            control.MinimumSize.Height,
+            contentBottom + HostedControlBottomPadding);
+    }
+
+    static void PositionButtonColumn(Control parent, int top, params Button[] buttons)
+    {
+        var left = Math.Max(ContentLeft, parent.ClientSize.Width - CommandRightMargin - CommandButtonWidth);
+        for (var index = 0; index < buttons.Length; index++)
+            buttons[index].Location = new Point(
+                left,
+                top + index * (CommandButtonHeight + CommandButtonGap));
+    }
+
+    static void PositionButtonsAcrossContentHeight(
+        Control parent,
+        Control content,
+        params Button[] buttons)
+    {
+        if (buttons.Length == 0)
+            return;
+
+        var left = Math.Max(ContentLeft, parent.ClientSize.Width - CommandRightMargin - CommandButtonWidth);
+        var verticalRange = Math.Max(0, content.Height - CommandButtonHeight);
+        for (var index = 0; index < buttons.Length; index++)
+        {
+            var top = content.Top + (buttons.Length == 1
+                ? 0
+                : (int)Math.Round((double)verticalRange * index / (buttons.Length - 1)));
+            buttons[index].Location = new Point(left, top);
+        }
+    }
+
+    static void LayoutMainContent(Control parent, Control content)
+    {
+        content.Left = ContentLeft;
+        content.Width = CalculateMainContentWidth(parent);
+    }
+
+    static int CalculateMainContentWidth(Control parent)
+        => Math.Max(
+            300,
+            parent.Width - CommandRightMargin - CommandButtonWidth
+            - ContentToCommandGap - ContentLeft);
 
     void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
         => this.Post(() =>

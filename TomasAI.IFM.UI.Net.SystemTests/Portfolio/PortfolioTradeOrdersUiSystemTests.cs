@@ -24,6 +24,31 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 public sealed class PortfolioTradeOrdersUiSystemTests
 {
     [Fact]
+    [Trait("Category", "TradeOrdersTypography")]
+    public void Trade_Orders_uses_one_font_family_and_point_size_for_existing_and_embedded_controls()
+    {
+        using var form = new TradeOrderEditorForm(Substitute.For<IAppRoot>(), Substitute.For<IReferenceDataService>());
+
+        var tradeControlPanel = Field<Panel>(form, "pnlTradeControl");
+        using var embeddedPanel = new Panel();
+        using var embeddedValue = new Label
+        {
+            Font = new Font("Segoe UI", 15F, FontStyle.Bold),
+            Text = "Embedded value",
+        };
+        embeddedPanel.Controls.Add(embeddedValue);
+        tradeControlPanel.Controls.Add(embeddedPanel);
+
+        ControlsAndSelf(form).Should().OnlyContain(control =>
+            control.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(control.Font.Size - 10F) < 0.01F);
+        embeddedValue.Font.Style.Should().HaveFlag(FontStyle.Bold);
+        ControlsAndSelf(form).OfType<DateTimePicker>().Should().OnlyContain(picker =>
+            picker.CalendarFont.Name == "Microsoft Sans Serif"
+            && Math.Abs(picker.CalendarFont.Size - 10F) < 0.01F);
+    }
+
+    [Fact]
     [Trait("Gate", "PF-28")]
     [Trait("Gate", "PF-29")]
     [Trait("Category", "Portfolio")]
@@ -38,19 +63,133 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         var mode = Field<ComboBox>(form, "_historyModeSelector");
         var openLegacy = Field<Button>(form, "btnOpenTrade");
         var tradesPanel = Field<Panel>(form, "pnlTrades");
+        var orders = Field<ListView>(form, "lstTradeOrders");
+        var trades = Field<ListView>(form, "lstTrades");
+        var tradeControl = Field<Panel>(form, "pnlTradeControl");
+        var fromCalendar = Field<DateTimePicker>(form, "dtpFrom");
+        var orderLabel = Field<Label>(form, "lblTradeOrders");
+        var tradesLabel = Field<Label>(form, "label1");
+        var tradeTypeLabel = Field<Label>(form, "lblTradeType");
+        var daysToExpiry = Field<TextBox>(form, "txtDaysToExpiry");
+        var orderActionLabel = Field<Label>(form, "lblOrderAction");
+        var orderAction = Field<ComboBox>(form, "ddlOrderActionType");
+        var liveFeed = Field<CheckBox>(form, "cbLiveFeed");
+        var loadOrder = Field<Button>(form, "btnLoadOrder");
+        var completeOrder = Field<Button>(form, "btnCompleteOrder");
+        var submitOrder = Field<Button>(form, "btnSubmitOrder");
+        var endOfDay = Field<Button>(form, "btnEndOfDay");
+        var targetStateLabel = Field<Label>(form, "lblTradeStateTarget");
+        var targetState = Field<ComboBox>(form, "ddlTradeState");
+        var tradePositionPanel = Field<Panel>(form, "pnlTradePosition");
+        var portfolioLabel = ControlsAndSelf(form).OfType<Label>().Single(label => label.Text == "Portfolio:");
+        var fundLabel = Field<Label>(form, "lblFundSelector");
+        var fromLabel = Field<Label>(form, "lblFrom");
 
         portfolio.AccessibleName.Should().Be("Portfolio selector");
         portfolio.Top.Should().BeLessThan(fund.Top);
+        portfolioLabel.Left.Should().Be(fromLabel.Left);
+        fundLabel.Left.Should().Be(fromLabel.Left);
+        orderLabel.Left.Should().Be(fromLabel.Left);
+        tradesLabel.Left.Should().Be(fromLabel.Left);
+        tradeTypeLabel.Left.Should().BeLessThan(fromLabel.Left);
+        fromCalendar.Left.Should().Be(orders.Left);
+        orderActionLabel.Left.Should().Be(daysToExpiry.Right + 16);
+        liveFeed.Left.Should().Be(orderAction.Right + 16);
+        liveFeed.Top.Should().Be(orderAction.Top + 1);
         source.Items.Cast<string>().Should().Equal("All", "Manual", "Strategy Workflow");
         mode.Items.Cast<string>().Should().Equal("Current", "Legacy History");
         mode.AccessibleName.Should().Be("Trade history mode");
-        form.ClientSize.Height.Should().Be(900);
+        form.ClientSize.Height.Should().Be(1080);
+        form.ClientSize.Width.Should().Be(1440);
         form.FormBorderStyle.Should().Be(FormBorderStyle.Sizable);
         openLegacy.Parent.Should().BeSameAs(tradesPanel);
         openLegacy.Text.Should().Be("View Legacy Trade...");
+        trades.Width.Should().Be(orders.Width);
+        tradeControl.Width.Should().Be(orders.Width);
+        tradeControl.Height.Should().Be(280);
+        tradeControl.Bottom.Should().BeLessThanOrEqualTo(
+            Field<Panel>(form, "pnlTradePosition").ClientSize.Height);
+        fund.Width.Should().Be(orders.Width);
+        loadOrder.Top.Should().Be(orders.Top);
+        completeOrder.Bottom.Should().Be(orders.Bottom);
+        submitOrder.Top.Should().Be(tradeControl.Top);
+        endOfDay.Top.Should().Be(submitOrder.Bottom + 8);
+        targetStateLabel.Parent.Should().BeSameAs(tradePositionPanel);
+        targetState.Parent.Should().BeSameAs(tradePositionPanel);
+        targetStateLabel.Left.Should().Be(endOfDay.Left);
+        targetStateLabel.Top.Should().Be(endOfDay.Bottom + 8);
+        targetStateLabel.Width.Should().Be(endOfDay.Width);
+        targetState.Left.Should().Be(endOfDay.Left);
+        targetState.Top.Should().Be(targetStateLabel.Bottom + 4);
+        targetState.Width.Should().Be(endOfDay.Width);
+        ControlsAndSelf(form).OfType<Button>().Should().OnlyContain(button =>
+            button.Width == 140 && button.Height == 32);
+        form.ClientSize = new Size(1300, 800);
+        form.PerformLayout();
+        trades.Width.Should().Be(orders.Width);
+        tradeControl.Width.Should().Be(orders.Width);
+        fund.Width.Should().Be(orders.Width);
         createFund.Visible.Should().BeFalse();
         createFund.Enabled.Should().BeFalse();
         Field<ListView>(form, "lstTradeOrders").Columns.Cast<ColumnHeader>().Select(x => x.Text).Should().Contain("Source");
+    }
+
+    static IEnumerable<Control> ControlsAndSelf(Control root)
+    {
+        yield return root;
+        foreach (Control child in root.Controls)
+        foreach (var descendant in ControlsAndSelf(child))
+            yield return descendant;
+    }
+
+    static int BottomWithin(Control control, Control root)
+    {
+        var bottom = control.Bottom;
+        for (var parent = control.Parent; parent is not null && parent != root; parent = parent.Parent)
+            bottom += parent.Top;
+        return bottom;
+    }
+
+    static bool FitsWithinTableCell(TableLayoutPanel table, Control control)
+    {
+        var row = table.GetRow(control);
+        var rowSpan = table.GetRowSpan(control);
+        var rowHeights = table.GetRowHeights();
+        var cellTop = rowHeights.Take(row).Sum();
+        var cellBottom = cellTop + rowHeights.Skip(row).Take(rowSpan).Sum();
+
+        return control.Top >= cellTop && control.Bottom <= cellBottom;
+    }
+
+    [Fact]
+    [Trait("Category", "TradeOrdersLayout")]
+    public void Loaded_trade_blotter_measures_scaled_content_and_grows_the_dialog_to_keep_it_visible()
+    {
+        using var form = new TradeOrderEditorForm(
+            Substitute.For<IAppRoot>(),
+            Substitute.For<IReferenceDataService>());
+        var originalClientHeight = form.ClientSize.Height;
+        var host = Field<Panel>(form, "pnlTradeControl");
+        var outer = Field<Panel>(form, "pnlTradePosition");
+        using var blotter = new Panel
+        {
+            Dock = DockStyle.Fill,
+            MinimumSize = new Size(0, 291),
+        };
+        using var scaledBottomRow = new Panel
+        {
+            Top = 470,
+            Height = 30,
+            Visible = true,
+        };
+        blotter.Controls.Add(scaledBottomRow);
+
+        host.Controls.Add(blotter);
+        form.PerformLayout();
+
+        host.Height.Should().BeGreaterThanOrEqualTo(scaledBottomRow.Bottom + 8);
+        (outer.ClientSize.Height - host.Bottom).Should().BeGreaterThanOrEqualTo(12);
+        form.ClientSize.Height.Should().BeGreaterThan(originalClientHeight);
     }
 
     [Fact]
@@ -148,18 +287,136 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         ironCondor.IsHistoricalReadOnly.Should().BeTrue();
         ironCondor.Dock.Should().Be(DockStyle.Fill);
         Field<ComboBox>(ironCondor, "ddlLiveFeed").Enabled.Should().BeFalse();
-        Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphEodData").Should().NotBeNull();
-        Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphSpreadDistribution").Should().NotBeNull();
+        var charts = new[]
+        {
+            Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphEodData"),
+            Field<System.Windows.Forms.DataVisualization.Charting.Chart>(ironCondor, "graphSpreadDistribution"),
+        };
+        ControlsAndSelf(ironCondor).Should().OnlyContain(control =>
+            control.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(control.Font.Size - 10F) < 0.01F);
+        charts.Should().OnlyContain(chart => ChartUsesTradeTypography(chart));
+        charts.Should().OnlyContain(chart => chart.Titles.Count == 0 && chart.Dock == DockStyle.Fill);
+        var graphTabs = Field<TabControl>(ironCondor, "_graphTabs");
+        graphTabs.Dock.Should().Be(DockStyle.Fill);
+        graphTabs.TabPages.Cast<TabPage>().Select(page => page.Text).Should().Equal(
+            "Iron Condor Net Spread Path",
+            "Futures Bollinger Bands");
+        graphTabs.SelectedTab.Should().BeSameAs(graphTabs.TabPages[0]);
+        graphTabs.SelectedTab!.Controls.Cast<Control>().Should().ContainSingle()
+            .Which.Should().BeSameAs(charts[1]);
 
         host.Controls.Add(ironCondor);
+        host.Size = new Size(1800, 900);
+        ((IFormControl)ironCondor).Resize(host);
+        var realTimeData = Field<SplitContainer>(ironCondor, "pnlRealTimeData");
+        var history = Field<Panel>(ironCondor, "pnlIronCondorTrade");
+        var historySplitter = Field<SplitContainer>(ironCondor, "pnlTradeSplitter");
+        var historyList = Field<ListView>(ironCondor, "lstTradeHistory");
+        var contractIds = Field<ListView>(ironCondor, "lstOptionContractIds");
+        var contractDetails = Field<Panel>(ironCondor, "pnlTradeHistory");
+        var topLayout = Field<TableLayoutPanel>(ironCondor, "_primaryTopLayout");
+        var realTimeHeader = Field<Panel>(ironCondor, "pnlRealTimeHeaderData");
+        var realTimeGrid = Field<DataGridView>(ironCondor, "gridRealTimeOptionData");
+        var spreadRows = Field<TableLayoutPanel>(ironCondor, "pnlIronCondorTradeDataRt");
+        var realTimeSummary = Field<TableLayoutPanel>(ironCondor, "tableLayoutPanel1");
+        var realTimeStatus = Field<TableLayoutPanel>(ironCondor, "pnlRt");
+        var assetSplitter = Field<SplitContainer>(ironCondor, "pnlAssetSplitter");
+        var logTabs = Field<TabControl>(ironCondor, "tabActionData");
+        realTimeData.Visible.Should().BeTrue();
+        realTimeData.Dock.Should().Be(DockStyle.Fill);
+        graphTabs.SelectedTab.Should().BeSameAs(graphTabs.TabPages[0]);
+        graphTabs.Width.Should().Be((ironCondor.Width - 640 - 10) / 2);
+        history.Height.Should().Be(graphTabs.Height);
+        history.Right.Should().Be(graphTabs.Left);
+        topLayout.Width.Should().Be(realTimeData.Panel1.ClientSize.Width);
+        realTimeHeader.Width.Should().Be(realTimeData.Panel2.ClientSize.Width);
+        realTimeGrid.Width.Should().Be(realTimeData.Panel2.ClientSize.Width);
+        realTimeData.Panel2.ClientSize.Height.Should().Be(169);
+        realTimeHeader.Bottom.Should().BeLessThanOrEqualTo(realTimeData.Panel2.ClientSize.Height);
+        (realTimeData.Panel2.ClientSize.Height - realTimeHeader.Bottom).Should().BeLessThanOrEqualTo(10);
+        realTimeStatus.Top.Should().Be(realTimeSummary.Bottom);
+        spreadRows.Top.Should().Be(realTimeStatus.Bottom + 3);
+        spreadRows.RowStyles.Cast<RowStyle>().Select(row => row.Height).Should().Equal(36F, 25F, 25F);
+        (realTimeHeader.ClientSize.Height - spreadRows.Bottom).Should().Be(2);
+        spreadRows.Bottom.Should().BeLessThanOrEqualTo(realTimeHeader.ClientSize.Height);
+        new[]
+            {
+                Field<TextBox>(ironCondor, "txtPutSpreadType"),
+                Field<TextBox>(ironCondor, "txtCallSpreadType"),
+            }
+            .Should().OnlyContain(control =>
+                control.Visible && control.Bottom <= spreadRows.ClientSize.Height);
+        realTimeGrid.ClientSize.Height.Should().BeGreaterThan(0);
+        new[]
+            {
+                realTimeSummary,
+                realTimeStatus,
+                spreadRows,
+            }
+            .Should().OnlyContain(table =>
+                table.Right >= realTimeHeader.ClientSize.Width - 5
+                && table.ColumnStyles.Cast<ColumnStyle>().All(column => column.SizeType == SizeType.Percent));
+        charts[1].ClientSize.Width.Should().BeGreaterThan(0);
+        charts[1].ClientSize.Height.Should().BeGreaterThan(0);
+        logTabs.Height.Should().BeInRange(
+            (assetSplitter.ClientSize.Height - assetSplitter.SplitterWidth) / 3 - 1,
+            (assetSplitter.ClientSize.Height - assetSplitter.SplitterWidth) / 3 + 1);
+        contractIds.Items.AddRange(Enumerable.Range(1, 5)
+            .Select(index => new ListViewItem($"Contract {index}"))
+            .ToArray());
+        contractIds.CreateControl();
+        Invoke(ironCondor, "FitContractIdPaneToFourRows");
+        var fixedContractHeight = contractIds.GetItemRect(0).Top
+            + contractIds.GetItemRect(0).Height * 4
+            + 3;
+        historySplitter.Panel2.ClientSize.Height.Should().Be(fixedContractHeight + 79);
+        contractDetails.ClientSize.Height.Should().Be(fixedContractHeight);
+        contractIds.GetItemRect(3).Bottom.Should().BeLessThanOrEqualTo(contractIds.ClientSize.Height);
+        contractIds.GetItemRect(4).Bottom.Should().BeGreaterThan(contractIds.ClientSize.Height);
+
+        var initialHistoryListHeight = historyList.Height;
+        var initialGraphHeight = graphTabs.Height;
+        host.Size = new Size(1800, 1200);
+        ((IFormControl)ironCondor).Resize(host);
+        historySplitter.Panel2.ClientSize.Height.Should().Be(fixedContractHeight + 79);
+        contractDetails.ClientSize.Height.Should().Be(fixedContractHeight);
+        historyList.Height.Should().BeGreaterThan(initialHistoryListHeight);
+        graphTabs.Height.Should().BeGreaterThan(initialGraphHeight);
+        realTimeData.Panel2.ClientSize.Height.Should().Be(169);
+        (realTimeData.Panel2.ClientSize.Height - realTimeHeader.Bottom).Should().BeLessThanOrEqualTo(10);
+        spreadRows.Bottom.Should().BeLessThanOrEqualTo(realTimeHeader.ClientSize.Height);
+        new[]
+            {
+                Field<TextBox>(ironCondor, "txtPutSpreadType"),
+                Field<TextBox>(ironCondor, "txtCallSpreadType"),
+            }
+            .Should().OnlyContain(control => control.Visible);
+
         host.Size = new Size(800, 600);
         ((IFormControl)ironCondor).Resize(host);
-        Field<SplitContainer>(ironCondor, "pnlRealTimeData").Visible.Should().BeFalse();
+        realTimeData.Visible.Should().BeTrue();
+        graphTabs.Visible.Should().BeFalse();
 
         host.Size = Size.Empty;
         ((IFormControl)ironCondor).Resize(host);
-        Field<SplitContainer>(ironCondor, "pnlRealTimeData").Visible.Should().BeFalse();
+        graphTabs.Visible.Should().BeFalse();
     }
+
+    static bool ChartUsesTradeTypography(System.Windows.Forms.DataVisualization.Charting.Chart chart)
+        => chart.ChartAreas.Cast<System.Windows.Forms.DataVisualization.Charting.ChartArea>()
+               .SelectMany(area => new[] { area.AxisX, area.AxisX2, area.AxisY, area.AxisY2 })
+               .All(axis => IsTradeFont(axis.LabelStyle.Font) && IsTradeFont(axis.TitleFont))
+           && chart.Legends.Cast<System.Windows.Forms.DataVisualization.Charting.Legend>()
+               .All(legend => IsTradeFont(legend.Font))
+           && chart.Titles.Cast<System.Windows.Forms.DataVisualization.Charting.Title>()
+               .All(title => IsTradeFont(title.Font))
+           && chart.Series.Cast<System.Windows.Forms.DataVisualization.Charting.Series>()
+               .All(series => IsTradeFont(series.Font)
+                   && series.Points.All(point => IsTradeFont(point.Font)));
+
+    static bool IsTradeFont(Font font)
+        => font.Name == "Microsoft Sans Serif" && Math.Abs(font.Size - 10F) < 0.01F;
 
     [Fact]
     [Trait("Gate", "PF-31")]
@@ -225,7 +482,45 @@ public sealed class PortfolioTradeOrdersUiSystemTests
 
         var panel = Field<Panel>(form, "pnlTradeControl");
         panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<IronCondorTradeOrderView>();
-        ((IronCondorTradeOrderView)panel.Controls[0]).IsHistoricalReadOnly.Should().BeTrue();
+        var editor = (IronCondorTradeOrderView)panel.Controls[0];
+        editor.IsHistoricalReadOnly.Should().BeTrue();
+        var legGrid = Field<TableLayoutPanel>(editor, "pnlTradeStrategy");
+        var riskGrid = Field<TableLayoutPanel>(editor, "tableLayoutPanel1");
+        var fundBalance = Field<TextBox>(editor, "txtFundBalance");
+        legGrid.Dock.Should().Be(DockStyle.Top);
+        legGrid.Width.Should().Be(editor.ClientSize.Width);
+        legGrid.Height.Should().Be(160);
+        riskGrid.Bottom.Should().BeLessThanOrEqualTo(editor.ClientSize.Height);
+        var fundBalanceBottom = riskGrid.Top + fundBalance.Bottom;
+        (editor.ClientSize.Height - fundBalanceBottom).Should().BeGreaterThanOrEqualTo(6);
+        panel.Height.Should().Be(editor.MinimumSize.Height);
+        panel.Bottom.Should().BeLessThanOrEqualTo(
+            Field<Panel>(form, "pnlTradePosition").ClientSize.Height);
+        (Field<Panel>(form, "pnlTradePosition").ClientSize.Height - panel.Bottom)
+            .Should().BeGreaterThanOrEqualTo(12);
+        ControlsAndSelf(editor).Skip(1).Should().OnlyContain(control =>
+            BottomWithin(control, editor) <= editor.ClientSize.Height);
+        riskGrid.Controls.Cast<Control>().Should().OnlyContain(control =>
+            FitsWithinTableCell(riskGrid, control));
+        legGrid.ColumnStyles.Cast<ColumnStyle>().Should().OnlyContain(column =>
+            column.SizeType == SizeType.Percent && Math.Abs(column.Width - 10F) < 0.01F);
+        var legColumnWidths = legGrid.GetColumnWidths();
+        (legColumnWidths.Max() - legColumnWidths.Min()).Should().BeLessThanOrEqualTo(10);
+        new[] { "panel2", "panel3", "panel9", "panel10" }
+            .Select(name => Field<Panel>(editor, name))
+            .Should().OnlyContain(panel =>
+                panel.Margin.Top == 0
+                && panel.Margin.Bottom == 0
+                && panel.Controls.Cast<Control>().All(control => control.Bottom <= panel.ClientSize.Height));
+        new[]
+            {
+                "lblAction", "lblLastTradeDate", "lblStrikePrice", "lblOptionType",
+                "lblBid", "lblAsk", "lblNetSpread", "lblSpread", "lblTradeValue",
+                "label4", "lblOTMProbability", "label5", "label6", "lblTradeLimits",
+                "label7", "label8",
+            }
+            .Select(name => Field<Label>(editor, name))
+            .Should().OnlyContain(label => label.TextAlign == ContentAlignment.MiddleCenter);
 
         await InvokeTask(form, "ShowLegacyTradeEditorAsync", history with { TradeDbTrade = null });
 
@@ -376,6 +671,13 @@ public sealed class PortfolioTradeOrdersUiSystemTests
     static Task InvokeTask(object owner, string name, params object[] arguments)
         => (Task)(owner.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(owner, arguments)
             ?? throw new InvalidOperationException($"Missing {name} on {owner.GetType().Name}."));
+
+    static void Invoke(object owner, string name, params object[] arguments)
+    {
+        var method = owner.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Missing {name} on {owner.GetType().Name}.");
+        method.Invoke(owner, arguments);
+    }
 
     sealed class HistoricalTradeViewerStub : UserControl, IFormControl
     {

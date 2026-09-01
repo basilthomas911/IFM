@@ -39,9 +39,183 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         IronCondorTradeOrderViewModel viewModel)
     {
         InitializeComponent();
+        ConfigureResponsiveLegLayout();
         _parentControl = parentControl ?? throw new ArgumentNullException(nameof(parentControl));
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
+    }
+
+    void ConfigureResponsiveLegLayout()
+    {
+        ConfigureCompactVerticalLayout();
+        pnlTradeStrategy.Dock = DockStyle.Top;
+        foreach (ColumnStyle column in pnlTradeStrategy.ColumnStyles)
+        {
+            column.SizeType = SizeType.Percent;
+            column.Width = 10F;
+        }
+
+        foreach (var heading in new[]
+                 {
+                     lblAction, lblLastTradeDate, lblStrikePrice,
+                     lblOptionType, lblBid, lblAsk,
+                 })
+            CenterHeading(heading);
+
+        ConfigureStackedHeading(pnlNetSpread, lblNetSpread, lblSpread);
+        ConfigureStackedHeading(pnlTradeValue, lblTradeValue, label4);
+        ConfigureSplitHeading(pnlOTMProbability, lblOTMProbability, label5, label6);
+        ConfigureSplitHeading(panel8, lblTradeLimits, label7, label8);
+
+        pnlOTMProbability.Dock = DockStyle.Fill;
+        panel8.Dock = DockStyle.Fill;
+        panel9.Dock = DockStyle.Fill;
+        panel10.Dock = DockStyle.Fill;
+        ConfigureSplitValues(panel2, txtLeg1ExpectedOTMProbability, txtLeg1ActualOTMProbability);
+        ConfigureSplitValues(panel3, txtLeg3ExpectedOTMProbability, txtLeg3ActualOTMProbability);
+        ConfigureSplitValues(panel9, txtLeg1MaxLossLimit, txtLeg1MinProfitLimit);
+        ConfigureSplitValues(panel10, txtLeg3MaxLossLimit, txtLeg3MinProfitLimit);
+    }
+
+    void ConfigureCompactVerticalLayout()
+    {
+        const int bottomContentPadding = 6;
+        const int headingHeight = 40;
+        const int legRowHeight = 30;
+        const int orderRowTop = headingHeight + 4 * legRowHeight + 4;
+        const int riskTableTop = orderRowTop + 32;
+        const int riskRowHeight = 28;
+
+        pnlTradeStrategy.Height = headingHeight + 4 * legRowHeight;
+        var legRowHeights = new[] { headingHeight, legRowHeight, legRowHeight, legRowHeight, legRowHeight };
+        for (var index = 0; index < pnlTradeStrategy.RowStyles.Count; index++)
+        {
+            pnlTradeStrategy.RowStyles[index].SizeType = SizeType.Absolute;
+            pnlTradeStrategy.RowStyles[index].Height = legRowHeights[index];
+        }
+
+        foreach (var control in new Control[]
+                 {
+                     ddlOrderType, nudQuantity, ddlPrice, btnBid, btnMid, btnAsk, txtAssetPrice,
+                 })
+            control.Top = orderRowTop;
+        foreach (var label in new[] { lblOrderType, lblQuantity, lblPrice, lblAssetPrice })
+            label.Top = orderRowTop + 3;
+
+        ConfigureRiskCells();
+        tableLayoutPanel1.Top = riskTableTop;
+        var minimumRiskRowHeights = new[] { riskRowHeight + 4, riskRowHeight + 3, riskRowHeight + 4 };
+        var riskTableHeight = 0;
+        for (var index = 0; index < 3; index++)
+        {
+            var rowHeight = RequiredRowHeight(tableLayoutPanel1, index, minimumRiskRowHeights[index]);
+            tableLayoutPanel1.RowStyles[index].SizeType = SizeType.Absolute;
+            tableLayoutPanel1.RowStyles[index].Height = rowHeight;
+            riskTableHeight += rowHeight;
+        }
+        tableLayoutPanel1.Height = riskTableHeight;
+        tableLayoutPanel1.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
+        var nonClientHeight = Height - ClientSize.Height;
+        MinimumSize = new Size(
+            0,
+            tableLayoutPanel1.Bottom + bottomContentPadding + nonClientHeight);
+    }
+
+    void ConfigureRiskCells()
+    {
+        foreach (var panel in new[]
+                 {
+                     pnlFundBalance, pnlRiskMargin, pnlMaxProfit,
+                     panel4, panel5, panel6, panel7,
+                 })
+            panel.Dock = DockStyle.Fill;
+
+        foreach (var heading in new[]
+                 {
+                     lblFundBalance, lblRiskMargin, lblMaxProfit, lblMaxReturn,
+                     lblMaxLossLimit, lblMinProfitLimit, lblMinProfitTarget,
+                 })
+            CenterHeading(heading);
+
+        txtFundBalance.Dock = DockStyle.Fill;
+        txtMinProfitTarget.Dock = DockStyle.Fill;
+    }
+
+    static int RequiredRowHeight(TableLayoutPanel table, int row, int minimumHeight)
+        => Math.Max(
+            minimumHeight,
+            table.Controls.Cast<Control>()
+                .Where(control => table.GetRow(control) == row)
+                .Select(control => Math.Max(control.Height, control.PreferredSize.Height) + control.Margin.Vertical)
+                .DefaultIfEmpty(minimumHeight)
+                .Max());
+
+    static void CenterHeading(Label heading)
+    {
+        heading.AutoSize = false;
+        heading.Dock = DockStyle.Fill;
+        heading.Margin = Padding.Empty;
+        heading.TextAlign = ContentAlignment.MiddleCenter;
+    }
+
+    static void ConfigureStackedHeading(Panel panel, Label first, Label second)
+    {
+        PrepareCenteredHeading(first);
+        PrepareCenteredHeading(second);
+        panel.Resize += (_, _) => LayoutStackedHeading(panel, first, second);
+        LayoutStackedHeading(panel, first, second);
+    }
+
+    static void LayoutStackedHeading(Panel panel, Label first, Label second)
+    {
+        var firstHeight = panel.ClientSize.Height / 2;
+        first.SetBounds(0, 0, panel.ClientSize.Width, firstHeight);
+        second.SetBounds(0, firstHeight, panel.ClientSize.Width, panel.ClientSize.Height - firstHeight);
+    }
+
+    static void ConfigureSplitHeading(Panel panel, Label title, Label left, Label right)
+    {
+        PrepareCenteredHeading(title);
+        PrepareCenteredHeading(left);
+        PrepareCenteredHeading(right);
+        panel.Resize += (_, _) => LayoutSplitHeading(panel, title, left, right);
+        LayoutSplitHeading(panel, title, left, right);
+    }
+
+    static void LayoutSplitHeading(Panel panel, Label title, Label left, Label right)
+    {
+        var titleHeight = panel.ClientSize.Height / 2;
+        var leftWidth = panel.ClientSize.Width / 2;
+        title.SetBounds(0, 0, panel.ClientSize.Width, titleHeight);
+        left.SetBounds(0, titleHeight, leftWidth, panel.ClientSize.Height - titleHeight);
+        right.SetBounds(leftWidth, titleHeight, panel.ClientSize.Width - leftWidth, panel.ClientSize.Height - titleHeight);
+    }
+
+    static void PrepareCenteredHeading(Label heading)
+    {
+        heading.AutoSize = false;
+        heading.Dock = DockStyle.None;
+        heading.Margin = Padding.Empty;
+        heading.TextAlign = ContentAlignment.MiddleCenter;
+    }
+
+    static void ConfigureSplitValues(Panel panel, Control left, Control right)
+    {
+        panel.Margin = new Padding(panel.Margin.Left, 0, panel.Margin.Right, 0);
+        left.Dock = DockStyle.None;
+        right.Dock = DockStyle.None;
+        panel.Resize += (_, _) => LayoutSplitValues(panel, left, right);
+        LayoutSplitValues(panel, left, right);
+    }
+
+    static void LayoutSplitValues(Panel panel, Control left, Control right)
+    {
+        const int gap = 4;
+        var leftWidth = Math.Max(1, (panel.ClientSize.Width - gap) / 2);
+        var rightLeft = leftWidth + gap;
+        left.SetBounds(0, 0, leftWidth, panel.ClientSize.Height);
+        right.SetBounds(rightLeft, 0, Math.Max(1, panel.ClientSize.Width - rightLeft), panel.ClientSize.Height);
     }
 
     public bool IsHistoricalReadOnly => _viewModel.IsHistoricalReadOnly;
