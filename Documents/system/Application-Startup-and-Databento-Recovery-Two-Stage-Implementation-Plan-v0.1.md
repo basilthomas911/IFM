@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Plan ID | `ASDR` |
-| Status | Approved scope; Stage 1 not started |
+| Status | Stage 1 complete (ASR-01 through ASR-11); Stage 2 not started |
 | Date | 2026-09-02 |
 | Design authority | `Documents/system/Application-Startup-and-Databento-Recovery-Actor-System-Design-v0.1.md` |
 | Stage 1 | Actor-owned `StartApplicationAsync` refactor |
@@ -57,6 +57,14 @@ an attempt limit until Healthy or API process cancellation during this developme
     preserved so later authorization can be added at the boundary.
 20. Every changed behavior receives failing-first characterization and unit, BDD, integration,
     verification, and UI/system coverage proportional to its scope.
+21. Startup activities execute strictly sequentially; Stage 1 contains no parallel startup groups.
+22. Every activity owns a non-cancellation exception boundary, logs structured error detail, writes
+    the bounded error to `IStatusConsoleWriter`, and returns a typed result.
+23. Activity failure does not terminate the sequence. Dependent activities return
+    `SkippedDependency`, while later independent activities are still attempted.
+24. The aggregate terminal event is emitted only after every declared activity has returned a
+    result. Any required `Failed` or `SkippedDependency` result makes the aggregate Failed; optional
+    failures make it Degraded.
 
 ## 3. Execution controls
 
@@ -75,6 +83,9 @@ an attempt limit until Healthy or API process cancellation during this developme
   approved plan revision.
 
 ## 4. Verified starting baseline
+
+This section is the historical baseline captured before Stage 1. The completed implementation and
+qualification record is in Section 9.
 
 The starting system has the following relevant behavior:
 
@@ -177,9 +188,11 @@ Failed-to-Resetting recovery remains disabled until Stage 2.
 - Evolve the Application actor from its startup no-op into a lifecycle coordinator.
 - Add startup states `Bootstrapped`, `Starting`, `Running`, `Degraded`, `Failed`, and
   `ScheduledStopped`.
-- Store value date, process boot ID, command/correlation IDs, timestamps, and participant outcomes.
-- Add startup-started, participant-terminal, startup-complete/degraded/fail event contracts.
-- Add current/last startup workflow and participant-status queries with typed DTOs.
+- Store the current process-boot value date, boot ID, command/correlation IDs, timestamps, and
+  activity outcomes.
+- Add a Starting snapshot, typed activity-terminal results, and startup-complete/degraded/fail
+  event contracts.
+- Add a typed current-startup status query; the activity collection is the participant-detail view.
 - Preserve command acceptance as distinct from workflow completion.
 
 **Exit verification**
@@ -188,14 +201,15 @@ Failed-to-Resetting recovery remains disabled until Stage 2.
 - Required failure produces Failed; optional failure produces Degraded.
 - Missed notifications can be reconstructed by query.
 - MessagePack/NATS contract compatibility and serialization round trips pass.
-- Command/event correlation is stable under delayed and reordered participant results.
+- Command/event correlation is stable while queued commands are serialized by the actor mailbox.
 
 ### ASR-05 - Participant orchestration and idempotency
 
 **Deliverables**
 
-- Define the participant registry, criticality, dependencies, timeouts, and safe parallel groups.
-- Implement dependency-ordered execution phases from authority through final qualification.
+- Define the participant registry, criticality, dependencies, timeouts, and one explicit sequential
+  activity order.
+- Implement dependency-ordered sequential execution from authority through final qualification.
 - Implement `Started`, `AlreadySatisfied`, `ScheduledStopped`, `Degraded`, and `Failed` outcomes.
 - Coalesce or observe duplicate commands while reconciliation is active.
 - Probe actual participant state before performing a side effect.
@@ -204,11 +218,13 @@ Failed-to-Resetting recovery remains disabled until Stage 2.
 
 **Exit verification**
 
-- Deterministic tests prove ordering and permitted concurrency.
+- Deterministic tests prove exact ordering and prohibit parallel activity execution.
 - Repeated same-date commands create no duplicate side effects.
 - Concurrent commands converge to one coherent result.
 - A new value date cannot mix contracts or runtime state from the previous date.
 - Participant timeout is isolated, reported, and reflected in aggregate state.
+- A failed activity does not prevent every later activity from returning a result.
+- A blocked dependent result is `SkippedDependency`, while later independent work is attempted.
 
 ### ASR-06 - Market Data startup participant and lifecycle ownership cutover
 
@@ -301,8 +317,9 @@ Failed-to-Resetting recovery remains disabled until Stage 2.
 
 **Deliverables**
 
-- Add BDD scenarios for healthy startup, optional degradation, required failure, duplicate command,
-  restart reconciliation, scheduled-stop reconciliation, and UI-independent startup.
+- Add BDD scenarios for healthy ordering, optional degradation, required failure/dependency skip,
+  and scheduled-stop aggregation. Cover duplicate commands and continuation after failure at the
+  workflow unit boundary, and UI-independent ownership with architecture/system tests.
 - Add actor/NATS integration tests for command-to-participant-to-terminal-result flow.
 - Add API process tests for bootstrap-health handoff.
 - Add UI system tests for observer-only initialization, late attachment, and close/reopen behavior.
@@ -313,8 +330,8 @@ Failed-to-Resetting recovery remains disabled until Stage 2.
 
 - All new tests pass deterministically.
 - Full affected-project suites pass or unrelated baselines are documented with evidence.
-- A development API-only run reaches terminal startup state without launching the UI.
-- A UI launched afterward hydrates the same application and Market Outlook state.
+- An API-only composition can execute terminal startup without any UI dependency.
+- A UI launched afterward can retrieve the current Application status and hydrate Market Outlook.
 - No duplicate native generation, subscription, or hosted operation is observed.
 
 ### ASR-11 - Stage 1 acceptance boundary
@@ -576,7 +593,7 @@ At minimum, execute the affected portions and then the complete suites for:
 
 - `TomasAI.IFM.Domain.Application.Actor.UnitTests`
 - `TomasAI.IFM.Domain.Application.Actor.BDDTests`
-- `TomasAI.IFM.Domain.Application.Actor.IntegratedTests`
+- `TomasAI.IFM.Application.Actor.IntegrationTests` (actor-host composition build)
 - `TomasAI.IFM.Application.Api.IntegrationTests`
 - `TomasAI.IFM.Domain.MarketData.Feed.UnitTests`
 - `TomasAI.IFM.Domain.MarketData.Feed.BDDTests`
@@ -590,21 +607,21 @@ Build and test filters must be recorded with duration, result counts, skips, and
 baseline failures. Native qualification records the backend artifact, ABI version, and capability
 manifest hash.
 
-## 9. Execution record template
+## 9. Execution record
 
 | Gate | Status | Commit/worktree evidence | Automated tests | Runtime/UI evidence | Notes |
 | --- | --- | --- | --- | --- | --- |
-| ASR-01 | Not started | | | | |
-| ASR-02 | Not started | | | | |
-| ASR-03 | Not started | | | | |
-| ASR-04 | Not started | | | | |
-| ASR-05 | Not started | | | | |
-| ASR-06 | Not started | | | | |
-| ASR-07 | Not started | | | | |
-| ASR-08 | Not started | | | | |
-| ASR-09 | Not started | | | | |
-| ASR-10 | Not started | | | | |
-| ASR-11 | Not started | | | | |
+| ASR-01 | Complete | Startup ownership source audit and characterization tests | Application and UI architecture tests | Historical ownership inventory recorded | Baseline section retained as historical evidence |
+| ASR-02 | Complete | `ApplicationBootstrapReadiness`; health tags; `/health/bootstrap` | Dispatcher/architecture tests; API build | Bootstrap evaluation excludes application/Databento health | No HTTP self-probe |
+| ASR-03 | Complete | `ApplicationStartupCommandDispatcher`; Development configuration | Exact-once, disabled, and post-`ApplicationStarted` unit tests | Typed NATS command dispatch; bounded bootstrap wait | Dispatcher has no participant operations |
+| ASR-04 | Complete | Lifecycle DTOs, status store, terminal events, typed NATS status query | Contract round-trip and query-route tests | Late UI observer queries current status | Stage 1 status is process-local; API restart initiates fresh reconciliation |
+| ASR-05 | Complete | Authoritative seven-activity plan and coordinator | Ordering, dependency skip, required/optional failure, duplicate tests | Every declared activity reaches a typed result | Actor mailbox serialization coalesces queued duplicates |
+| ASR-06 | Complete | Contract reconciliation and actor-command feed activation; legacy hosted owner removed | Application workflow plus 502 Feed unit, 319 Feed BDD, 48/52 Feed integration | Bounded Databento qualification probe | Four Feed integration cases are intentionally skipped |
+| ASR-07 | Complete | Reference import, historical warmup, realtime analytics, and final qualification adapters | 1,000 Analytics unit and 50 Analytics integration tests | Startup mutations are issued through typed actor APIs | Historical warmup remains optional/degrading |
+| ASR-08 | Complete | Automatic lifecycle calls removed from `IFMAppViewModel`; status-query UI service | 289 UI presentation and 75 UI system tests | UI close has presentation-only cleanup | Explicit operator command services remain available |
+| ASR-09 | Complete | Per-activity structured logs and `IStatusConsoleWriter` reporting | Workflow and UI architecture tests | Status Console failure is isolated from activity outcome | No lifecycle modal-error publication |
+| ASR-10 | Complete | BDD, unit, integration, architecture and native regression coverage | 14 Application unit; 4 Application BDD; all recorded suites green | API composition reaches container validation | Live external-store run is environment-dependent |
+| ASR-11 | Complete | API owns dispatch and participants; UI is observer | API/UI builds: 0 warnings, 0 errors | API-only composition verified without UI startup dependencies | Stage 2 recovery remains disabled/deferred |
 | DRC-01 | Not started | | | | |
 | DRC-02 | Not started | | | | |
 | DRC-03 | Not started | | | | |
@@ -616,6 +633,53 @@ manifest hash.
 | DRC-09 | Not started | | | | |
 | DRC-10 | Not started | | | | |
 | DRC-11 | Not started | | | | |
+
+### 9.1 Stage 1 implementation record (2026-09-02)
+
+The implemented startup order is authoritative and strictly sequential:
+
+1. resolve market-session/value-date authority;
+2. reconcile optional reference data;
+3. reconcile quarterly ES plus front/second VX contracts;
+4. start or qualify Market Data through its typed actor API;
+5. request optional historical Analytics warmup;
+6. start configured realtime Analytics signals through typed actor APIs; and
+7. qualify Market Outlook processor and Databento operational state.
+
+Each invocation owns a non-cancellation exception boundary. A failed prerequisite produces
+`SkippedDependency`; independent activities continue. Only after all seven results are available is
+the status aggregated to Running, ScheduledStopped, Degraded, or Failed and a terminal event sent.
+The event projector no longer fabricates startup or shutdown completion before the corresponding
+Application event-family handler performs the work.
+
+The status store deliberately remains process-local in Stage 1. This is sufficient for UI restarts:
+the UI subscribes first and then retrieves the current typed snapshot over NATS. An API restart
+creates a new boot identity and runs reconciliation again. Cross-process lifecycle-history
+persistence is not claimed by this stage.
+
+### 9.2 Qualification evidence
+
+| Suite/build | Result |
+| --- | --- |
+| Application actor unit | 14 passed, 0 failed |
+| Application actor BDD | 4 passed, 0 failed |
+| Market Data Feed unit | 502 passed, 0 failed |
+| Market Data Feed BDD | 319 passed, 0 failed |
+| Market Data Feed integration | 48 passed, 4 intentionally skipped, 0 failed |
+| Databento unit (including native C++ build) | 133 passed, 0 failed |
+| Databento integration | 7 passed, 0 failed |
+| Market Data Analytics unit | 1,000 passed, 0 failed |
+| Market Data Analytics integration | 50 passed, 0 failed |
+| UI presentation unit/architecture | 289 passed, 0 failed |
+| UI system | 75 passed, 0 failed |
+| API Server build | succeeded, 0 warnings, 0 errors |
+| UI SystemTests composition build | succeeded, 0 warnings, 0 errors |
+| Application actor integration-host composition | succeeded, 0 warnings, 0 errors |
+
+An API process bootstrap probe passed configuration and dependency-injection/container validation,
+then encountered the pre-existing local-environment absence of Scylla keyspace `reference_db` in
+the unrelated Trade Strategy Family bootstrapper. That external data-store condition is recorded
+separately and is not counted as successful Stage 1 runtime evidence.
 
 ## 10. Definition of complete
 
@@ -629,4 +693,3 @@ The plan is not complete when code merely compiles or a command is accepted. Com
 - all retry, cancellation, concurrency, and native parity conditions are proven;
 - no startup/recovery modal dialog remains; and
 - the execution record contains reproducible automated and runtime evidence for every gate.
-

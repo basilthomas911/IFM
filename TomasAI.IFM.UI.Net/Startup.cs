@@ -133,6 +133,7 @@ namespace TomasAI.IFM.UI.Net
 
         static void RegisterQueryServices()
         {
+            _container!.RegisterSingleton<IApplicationQueryApi, ApplicationQueryApi>();
             _container!.RegisterSingleton<IOptionPricerQueryApi, OptionPricerQueryApi>();
             _container!.RegisterSingleton<IPortfolioQueryApi, PortfolioQueryApi>();
             _container!.RegisterSingleton<IPortfolioIdentityApi, PortfolioIdentityApi>();
@@ -274,6 +275,7 @@ namespace TomasAI.IFM.UI.Net
         {
             _container!.RegisterSingleton<CommandResponseEventService>();
             _container.RegisterSingleton<ApplicationEventService>();
+            _container.RegisterSingleton<ApplicationQueryService>();
             _container.RegisterSingleton<StatusConsoleService>();
             _container.RegisterSingleton<FundCommandService>();
             _container.RegisterSingleton<FundQueryService>();

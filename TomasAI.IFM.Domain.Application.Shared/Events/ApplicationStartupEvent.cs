@@ -160,6 +160,29 @@ public record ApplicationStartupCompleteEvent : ICompleteEvent<ApplicationEntity
     }
 }
 
+/// <summary>Terminal notification indicating startup completed with optional degradation.</summary>
+[MessagePackObject(AllowPrivate = true)]
+public record ApplicationStartupDegradedEvent : ICompleteEvent<ApplicationEntityId>
+{
+    [IgnoreMember] public const string Actor = "ApplicationEvent";
+    [IgnoreMember] public const string Verb = "StartupDegraded";
+    [Key(0)] public ActorSubject Subject { get; init; }
+    [Key(1)] public ApplicationEntityId EntityId { get; init; }
+    [Key(2)] public Guid Id { get; init; }
+    [Key(3)] public long EventId { get; init; }
+    [Key(4)] public Guid CommandId { get; init; }
+    [Key(5)] public string AggregateId { get; init; } = string.Empty;
+    [Key(6)] public string EventSource { get; init; } = string.Empty;
+    [Key(7)] public DateTime ReceivedOn { get; init; }
+    [Key(8)] public DateTime CreatedOn { get; init; }
+    [Key(9)] public string CreatedBy { get; init; } = string.Empty;
+    [Key(10)] public string Reason { get; init; } = string.Empty;
+
+    [IgnoreMember] public string UserName => $"{Environment.UserDomainName}\\{Environment.UserName}";
+    [IgnoreMember] public string EventName => GetType().Name;
+    [IgnoreMember] public EventType EventType => EventType.DomainEvent;
+}
+
 [MessagePackObject(AllowPrivate = true)]
 public record ApplicationStartupFailEvent : IErrorEvent<ApplicationEntityId>
 {

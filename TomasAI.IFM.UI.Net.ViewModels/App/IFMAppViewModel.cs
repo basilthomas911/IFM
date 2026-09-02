@@ -586,10 +586,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await StopMarketOutlookEventConsumer();
         await StopFuturesBarDataEventConsumer();
         await StopTradePlacementEventConsumer();
-        await StopFuturesIntradaySignalServices();
-        await DisableMarketDataFeedResetListener();
-        if (IsMarketDataFeedActive)
-            await DisableTradeLiveFeed(cancellationToken: cancellationToken);
         await StopMarketDataFeedStatusListener();
         await _appRoot.Services.ApplicationEvents.StopApplicationEventConsumerAsync();
         await StopStatusConsoleListener();
@@ -611,14 +607,23 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     Task StartApplicationCoreAsync(CancellationToken cancellationToken)
         => _appRoot.Services.MarketDataQueries.ExecuteAsync(async model =>
         {
-            model.OnError((errorCode, errorMsg) => PublishError(
-                errorCode,
-                $"Unable to connect to IFM servers {Environment.NewLine}{errorMsg}",
-                "Market Data Error"));
+            await _appRoot.Services.ApplicationQueries.ExecuteAsync(async application =>
+            {
+                application.OnError((errorCode, errorMessage) =>
+                    _ = WriteStatusConsoleAsync(
+                        $"Application lifecycle status query failed ({errorCode}): {errorMessage}"));
+                var status = await application.GetStartupStatusAsync().ConfigureAwait(false);
+                if (status is not null)
+                    await WriteStatusConsoleAsync(
+                        $"Application lifecycle: {status.State}. {status.Summary}")
+                        .ConfigureAwait(false);
+            }).ConfigureAwait(false);
+            model.OnError((errorCode, errorMsg) =>
+                _ = WriteStatusConsoleAsync(
+                    $"Unable to query API Market Data state ({errorCode}): {errorMsg}"));
             ICollection<FuturesContractV2ReadModel>? futuresContracts = null;
             await model.GetCurrentlyTradedFuturesContractsAsync(values => futuresContracts = values);
             BaseContracts = futuresContracts?.ToArray() ?? [];
-            await ImportReferenceDataAtStartupAsync(cancellationToken);
 
             MarketSessionReadModel? marketSession = null;
             await model.GetMarketSessionAsync(value =>
@@ -646,20 +651,12 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
             await GetLastFuturesBarData(ValueDate.Value);
             await StartMarketOutlookEventConsumer(cancellationToken);
-            _ = _lifecycle.RunAsync(EnsureHistoricalAnalyticsWarmupAsync);
             await StartFuturesBarDataEventConsumer(cancellationToken);
             await StartTradePlacementEventConsumer(cancellationToken);
-            await EnableMarketDataFeedResetListener(cancellationToken);
-            if (marketSession.IsMarketOpen)
-            {
-                await EnableTradeLiveFeed(cancellationToken);
-                await StartFuturesIntradaySignalServices(cancellationToken);
-            }
-            _lifecycle.RunAsync(MonitorMarketDataFeedHealthAsync);
             await WriteStatusConsoleAsync(marketSession.IsMarketOpen
-                ? $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete"
+                ? $"IFMApp v{_appVersion} - {_appEnvironment}...presentation initialization complete; backend lifecycle is API-owned."
                 : $"IFMApp v{_appVersion} - {_appEnvironment}...initialization complete. "
-                  + $"Futures session closed; read-only data is available for {ValueDate:yyyy-MM-dd} and live market-data APIs remain stopped.");
+                  + $"Futures session closed; read-only data is available for {ValueDate:yyyy-MM-dd}.");
             _ = _lifecycle.RunAsync(MonitorMarketSessionAsync);
             StartupOperation.NotifyCanExecuteChanged();
             ShutdownOperation.NotifyCanExecuteChanged();
@@ -723,14 +720,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             }
 
             ApplyMarketSessionSnapshot(refreshed);
-            if (previousState == FuturesMarketState.Closed
-                && refreshed.IsMarketOpen
-                && !IsMarketDataFeedActive)
-                await EnableTradeLiveFeed(cancellationToken);
-            else if (previousState != FuturesMarketState.Closed
-                     && !refreshed.IsMarketOpen
-                     && IsMarketDataFeedActive)
-                await DisableTradeLiveFeed(cancellationToken: cancellationToken);
             if (previousValueDate != refreshed.OperationalValueDate)
             {
                 if (Operations is not null)
@@ -760,7 +749,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
                 await GetLastFuturesBarData(refreshed.OperationalValueDate);
                 await StartMarketOutlookEventConsumer(cancellationToken);
-                _ = _lifecycle.RunAsync(EnsureHistoricalAnalyticsWarmupAsync);
             }
 
             await WriteStatusConsoleAsync(
@@ -811,28 +799,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
 
     void OperationsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
         => OnPropertyChanged(nameof(Operations));
-
-    async Task EnsureHistoricalAnalyticsWarmupAsync(CancellationToken cancellationToken)
-    {
-        if (!ValueDate.HasValue)
-            return;
-        var targetContractId = GetMarketOutlookContract()?.ContractId;
-        if (string.IsNullOrWhiteSpace(targetContractId))
-        {
-            await WriteStatusConsoleAsync("Historical Analytics warm-up skipped: no active ES contract is available.");
-            return;
-        }
-        await _appRoot.Services.AnalyticsCommands.ExecuteAsync(async model =>
-        {
-            await WriteStatusConsoleAsync("Checking ES historical Analytics coverage...");
-            var result = await model.EnsureHistoricalAnalyticsWarmupAsync(ValueDate.Value, targetContractId)
-                .ConfigureAwait(false);
-            await WriteStatusConsoleAsync(result?.Success == true
-                ? "Historical Analytics coverage request accepted."
-                : $"Historical Analytics coverage request failed: {result?.ErrorMessage ?? "No command result."}");
-        }).ConfigureAwait(false);
-    }
-
 
     /// <summary>
     /// start console listener
@@ -889,7 +855,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     Task StartApplicationEventsListener()
         => _appRoot.Services.ApplicationEvents.ExecuteAsync(async model => {
             model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Application Events Listener Error"));
+                _ = WriteStatusConsoleAsync(
+                    $"Application lifecycle event listener error ({errorCode}): {errorMessage}"));
             await model.StartApplicationEventConsumerAsync(
                 startupAction: _ =>
                 {
@@ -1729,7 +1696,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         => _appRoot.Services.FeedCommands.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Market Data Feed Status Listener Error"));
+                _ = WriteStatusConsoleAsync(
+                    $"Market Data Feed status listener error ({errorCode}): {errorMessage}"));
             await model.StartMarketDataFeedStatusListenerAsync(@event =>
             {
                 _marketDataFeedTerminalCorrelation.TryPublish(@event);
@@ -1755,42 +1723,6 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         => _appRoot.Services.FeedCommands.ExecuteAsync(
             model => model.StopMarketDataFeedStatusListenerAsync());
 
-    /// <summary>
-    /// enable market data feed reset listener
-    /// </summary>
-    Task EnableMarketDataFeedResetListener(CancellationToken cancellationToken)
-        => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Enable MarketData Feed Reset Listener Error"));
-            await WriteStatusConsoleAsync("Starting Market Data Feed Reset Listener...");
-            await DelayStartupAsync(cancellationToken);
-            await model.StartMarketDataFeedResetListenerAsync(
-                _ => new ValueTask(EnableTradeLiveFeed()));
-        });
-
-    /// <summary>
-    /// disable market data feed reset listener
-    /// </summary>
-    Task DisableMarketDataFeedResetListener()
-        => _appRoot.Services.FeedCommands.ExecuteAsync(async model => {
-            model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Disable MarketData Feed Reset Listener Error"));
-            await model.StopMarketDataFeedResetListenerAsync();
-        });
-
-    /// <summary>
-    /// Evaluates downstream updates for the current futures contracts until shutdown.
-    /// </summary>
-    async Task MonitorMarketDataFeedHealthAsync(CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            await Task.Delay(TimeSpan.FromSeconds(1), _timeProvider, cancellationToken).ConfigureAwait(false);
-            await ApplyMarketDataFeedHealthAsync(
-                _marketDataFeedHealthMonitor.Evaluate(_timeProvider.GetUtcNow()));
-        }
-    }
-
     void ApplyMarketDataFeedHealth(MarketDataFeedHealthSnapshot snapshot)
         => MarketDataFeedHealthState = snapshot.State;
 
@@ -1803,9 +1735,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         var contracts = snapshot.StaleContractIds.Count == 0
             ? "currently traded contracts"
             : string.Join(", ", snapshot.StaleContractIds);
-        var message = $"Currently traded market-data feeds have failed ({contracts}). "
-            + "Select Stop Market Feeds, then Start Market Feeds to reconnect.";
-        PublishError(0, message, "Market Data Feed Problem");
+        var message = $"UI observation: currently traded market-data feeds appear failed ({contracts}). "
+            + "The API-owned lifecycle remains responsible for feed operation.";
         await WriteStatusConsoleAsync(message);
     }
 

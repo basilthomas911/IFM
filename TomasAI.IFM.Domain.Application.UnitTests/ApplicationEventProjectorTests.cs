@@ -26,11 +26,13 @@ public sealed class ApplicationEventProjectorTests
             {
                 Assert.Equal(typeof(ApplicationShutdownEvent), descriptor.SourceEventType);
                 Assert.False(descriptor.UseDurableReplay);
+                Assert.False(descriptor.PublishTerminalEvent);
             },
             descriptor =>
             {
                 Assert.Equal(typeof(ApplicationStartupEvent), descriptor.SourceEventType);
                 Assert.False(descriptor.UseDurableReplay);
+                Assert.False(descriptor.PublishTerminalEvent);
             });
         Assert.Equal(
             projector.ProjectionDescriptors.Select(item => item.SourceEventType).OrderBy(type => type.Name),

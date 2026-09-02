@@ -1,6 +1,6 @@
 # Application Startup and Databento Recovery Actor System Design v0.1
 
-**Status:** Proposed implementation-ready design  
+**Status:** Stage 1 implemented and qualified; Stage 2 proposed
 **Date:** 2026-09-02  
 **Scope:** API bootstrap handoff, actor-owned application startup, UI startup removal, System Console reporting, and continuous Databento recovery  
 **Current host:** `TomasAI.IFM.Application.Api.Server`  
@@ -11,6 +11,10 @@
 > `ShutdownApplicationAsync` orchestration, including the scheduled 17:01 market-close workflow,
 > is intentionally deferred to a later design revision. API process cancellation must still dispose
 > process-local resources safely, but it is not the production market-close design.
+
+> **Implementation record (2026-09-02):** Stage 1 now runs from the API host through the typed
+> Application command/event/query actors. The UI is an observer. Stage 2 Databento reset and
+> watchdog behavior in Sections 10 onward remains design-only.
 
 ## 1. Purpose
 
@@ -69,6 +73,13 @@ workflows never require a modal operator response.
     for display as a modal dialog, or wait for UI interaction.
 20. Every startup and recovery transition is published to the System Console and structured server
     log with correlation, value date, participant, attempt, and outcome information.
+21. Startup activities execute strictly in their declared order. Every activity is attempted even
+    after an earlier activity fails, unless process cancellation has been requested.
+22. Each activity catches its own non-cancellation exception, writes a structured error and a
+    System Console error, and returns a typed `Failed` result instead of terminating the sequence.
+23. An activity whose prerequisite failed is still evaluated and returns
+    `SkippedDependency`; it does not attempt an invalid side effect and does not prevent later
+    independent activities from running.
 
 ## 3. Relationship to existing designs
 
@@ -93,7 +104,10 @@ The official futures value-date boundary remains 18:00 through 17:00 Toronto/New
 The existing Market Outlook local-channel, versionless cache, unconditional partial-write, and
 whole-snapshot-read decisions remain unchanged.
 
-## 4. Verified current baseline
+## 4. Verified pre-Stage-1 baseline
+
+This section preserves the conditions that motivated the refactor. It is not a description of the
+current Stage 1 implementation.
 
 The current implementation is divided across three owners.
 
@@ -157,7 +171,7 @@ API process bootstrap
                   | one StartApplicationCommand after bootstrap is Healthy
                   v
 ApplicationLifecycleActor
-  durable/reconcilable startup state
+  queryable/reconcilable process-boot startup state
   dependency-ordered participant orchestration
   correlated completion/failure summary
                   |
@@ -301,7 +315,8 @@ ID, participant results, start time, completion time, and failure summary.
 - A new value date first fences or stops the previous value-date resources before starting new ones.
 - Only one startup reconciliation executes at a time.
 - Actor redelivery uses command/event identity and cannot duplicate side effects.
-- A process restart reconstructs durable intent and probes actual process-local state before acting.
+- A process restart reconstructs desired intent from configured/data-store authorities and probes
+  actual process-local state before acting.
 
 ### 7.4 Participant dependency graph
 
@@ -311,6 +326,12 @@ The initial workflow is:
 Phase A: authority
   value date and market-session authority
   required schema/reference readiness
+
+The Stage 1 implementation maps these conceptual phases to seven concrete sequential activities.
+Internal activity transitions are typed results retained in the lifecycle status snapshot and
+reported to structured logging and the System Console; they are not additional actor messages.
+Actor messages are retained at lifecycle and participant service boundaries, avoiding needless
+in-process message hops inside the Application event actor.
 
 Phase B: reference and contracts
   scheduled reference imports that are operational prerequisites
@@ -340,8 +361,14 @@ Phase G: qualification
   publish ApplicationStartupComplete or ApplicationStartupFail/Degraded
 ```
 
-Independent participants within a phase may run concurrently. A phase does not release dependent
-participants until required predecessors report completion.
+Activities and participants execute strictly sequentially in the documented order. Parallel
+startup groups are prohibited in this version so that operational ordering, System Console output,
+and failure diagnosis are deterministic.
+
+Every activity returns one of `Started`, `AlreadySatisfied`, `ScheduledStopped`, `Degraded`,
+`SkippedDependency`, or `Failed`. A failure is retained in the aggregate result while execution
+continues to every later activity. Dependent work returns `SkippedDependency`; independent work is
+still attempted.
 
 ### 7.5 Participant contract
 
@@ -366,13 +393,18 @@ Each result includes:
 - bounded error code and reason; and
 - status details suitable for queries and System Console messages.
 
+Every activity method owns its exception boundary. Requested cancellation is rethrown so API
+process termination remains prompt. Other exceptions are logged with `ILogger`, sent through
+`IStatusConsoleWriter`, and converted into a typed failed activity result. A failure of the System
+Console notification is logged separately and cannot replace the original activity outcome.
+
 ### 7.6 Completion semantics
 
 Command acceptance and workflow completion are different facts.
 
 - `StartApplicationAsync` initially returns the accepted command ID.
-- `ApplicationStartupStartedEvent` identifies the workflow correlation.
-- Participant terminal events report individual outcomes.
+- the Starting status snapshot identifies the workflow correlation and process boot;
+- typed activity results report each individual outcome in the queryable status snapshot;
 - `ApplicationStartupCompleteEvent` is emitted only after all required participants are satisfied or
   intentionally scheduled stopped.
 - Required participant failure produces `ApplicationStartupFailEvent`.
@@ -680,7 +712,8 @@ production start and close delivery. Tests use `TimeProvider` and do not wait in
 - bootstrap health excludes application-managed Databento readiness;
 - dispatcher posts exactly once per process boot after bootstrap becomes Healthy;
 - dispatcher never posts before actor command intake is ready;
-- startup participant dependency ordering and safe parallel groups;
+- strictly sequential startup ordering, including continuation after failed activities;
+- dependent activity `SkippedDependency` results and later independent activity execution;
 - required versus optional participant aggregation;
 - duplicate startup commands reconcile without duplicate side effects;
 - boot reconciliation inside enabled, daily-close, and weekend states;
@@ -732,7 +765,7 @@ production start and close delivery. Tests use `TimeProvider` and do not wait in
 ## 15. Implementation sequence
 
 1. Split bootstrap and application health tags and add the post-bootstrap command dispatcher.
-2. Convert `ApplicationEventActor` from a no-op into the lifecycle coordinator with durable,
+2. Convert `ApplicationEventActor` from a no-op into the lifecycle coordinator with process-boot,
    queryable participant state.
 3. Add participant contracts, correlation, idempotency, status aggregation, and System Console
    reporting.

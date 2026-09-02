@@ -364,7 +364,7 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-018", "Observe required consumer startup",
-                "Composite market-outlook, bar, placement, and feed-reset startup statuses each appear once.",
+                "The UI starts only composite market-outlook, bar, and placement presentation consumers.",
                 async token =>
                 {
                     RequireDesktop(desktop);
@@ -373,8 +373,7 @@ public sealed class G0StartupAuditTests
                     [
                         "Starting Market Outlook Event Consumer",
                         "Starting Futures Bar Data Event Consumer",
-                        "Starting Trade Placement Event Consumer",
-                        "Starting Market Data Feed Reset Listener"
+                        "Starting Trade Placement Event Consumer"
                     ];
                     var events = await observer!.WaitForAsync(
                         rows => expectedMessages.All(expected => CountStatus(rows, expected) >= 1),
@@ -386,7 +385,7 @@ public sealed class G0StartupAuditTests
                         if (count != 1)
                             throw new InvalidOperationException($"Status '{expected}' appeared {count} times; expected exactly once.");
                     }
-                    return Observation("All four required consumer startup statuses appeared exactly once.");
+                    return Observation("All three presentation-consumer startup statuses appeared exactly once; no UI reset listener is owned.");
                 });
 
             await Step("G0-019", "Start the current futures feed",
@@ -426,14 +425,14 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-021", "Reach initialized shell state",
-                "The 24-signal and initialization-complete statuses appear and shell actions are enabled.",
+                "The actor-owned Analytics activity and presentation initialization statuses appear and shell actions are enabled.",
                 async token =>
                 {
                     RequireObserver(observer);
                     RequireAutomation(automation);
                     var events = await observer!.WaitForAsync(
-                        rows => CountStatus(rows, "Started all 24 intraday signal actors") == 1
-                            && CountStatus(rows, "initialization complete") == 1,
+                        rows => CountStatus(rows, "StartRealtimeAnalytics => Started") == 1
+                            && CountStatus(rows, "presentation initialization complete") == 1,
                         configuration.StartupTimeout,
                         token);
                     var controls = await WaitForEnabledToolbarAsync(
@@ -441,7 +440,7 @@ public sealed class G0StartupAuditTests
                         configuration.StartupTimeout,
                         token);
                     return Observation(
-                        $"Initialization completed after the 24-signal status; toolbar={string.Join(",", controls.Select(pair => $"{pair.Key}:{pair.Value}"))}.");
+                        $"Presentation initialized after actor-owned Analytics startup; toolbar={string.Join(",", controls.Select(pair => $"{pair.Key}:{pair.Value}"))}.");
                 });
 
             await SyncStep("G0-022", "Request normal main-window close",
@@ -455,48 +454,32 @@ public sealed class G0StartupAuditTests
                 });
 
             await Step("G0-023", "Observe analytics and transport shutdown",
-                "The same 24 signal identities stop exactly once and the desktop exits within the threshold.",
+                "The desktop exits within the threshold without stopping API-owned analytics.",
                 async token =>
                 {
                     RequireObserver(observer);
                     RequireContract(esContract);
                     RequireValueDate(valueDate);
                     RequireDesktop(desktop);
-                    var expected = ExpectedSignalIdentities(esContract!.ContractId, valueDate!.Value);
-                    var events = await observer!.WaitForAsync(
-                        rows => SignalEvents(rows, "Stopped").Count >= expected.Count,
-                        configuration.ShutdownTimeout,
-                        token);
-                    AssertExactSignalProfile(expected, SignalEvents(events, "Stopped"), "Stopped");
                     var exited = await desktop!.WaitForExitAsync(configuration.ShutdownTimeout, token);
                     if (!exited)
                         throw new TimeoutException($"Desktop did not exit within {configuration.ShutdownTimeout}.");
                     if (desktop.ForcedTermination)
                         throw new InvalidOperationException("Desktop required forced termination.");
-                    return Observation("All 24 signals stopped exactly once and the desktop exited normally.");
+                    if (SignalEvents(observer!.Events, "Stopped").Count != 0)
+                        throw new InvalidOperationException("Closing the UI stopped API-owned Analytics actors.");
+                    return Observation("Desktop exited normally and API-owned Analytics actors were not stopped.");
                 });
 
-            await Step("G0-024", "Observe conditional feed stop",
-                "A started feed has one matching successful stop terminal event.",
+            await Step("G0-024", "Verify feed remains API-owned",
+                "Closing the UI does not submit a market-data feed stop command.",
                 async token =>
                 {
                     RequireObserver(observer);
-                    var started = observer!.Events.Any(row => row.Family == "MarketDataFeed" && row.Verb == "StartedComplete" && row.Success == true);
-                    if (!started)
-                        return new G0StepObservation(
-                            "No feed was started, so no feed stop is required.",
-                            "Feed stop is not applicable because no successful feed start was observed.");
-                    var events = await observer.WaitForAsync(
-                        rows => rows.Any(row => row.Family == "MarketDataFeed" && row.Verb == "StoppedComplete"),
-                        configuration.ShutdownTimeout,
-                        token);
-                    var request = events.SingleOrDefault(row => row.Family == "MarketDataFeed" && row.Verb == "Stopped")
-                        ?? throw new InvalidOperationException("Feed Stopped event was not observed exactly once.");
-                    var terminal = events.SingleOrDefault(row => row.Family == "MarketDataFeed" && row.Verb == "StoppedComplete")
-                        ?? throw new InvalidOperationException("Feed StoppedComplete event was not observed exactly once.");
-                    if (request.CommandId != terminal.CommandId || terminal.Success != true)
-                        throw new InvalidOperationException("Feed stop terminal correlation failed.");
-                    return Observation($"Market-data feed stopped; commandId={request.CommandId}.");
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), token);
+                    if (observer!.Events.Any(row => row.Family == "MarketDataFeed" && row.Verb is "Stopped" or "StoppedComplete"))
+                        throw new InvalidOperationException("Closing the UI submitted a market-data feed stop operation.");
+                    return Observation("No feed stop operation was observed after UI close.");
                 });
 
             await Step("G0-025", "Verify bounded exit and cleanup",

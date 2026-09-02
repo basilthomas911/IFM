@@ -73,6 +73,8 @@ using TomasAI.IFM.TradePlan.HostedService;
 using TomasAI.IFM.Service.TradePosition;
 using TomasAI.IFM.Service.TradePosition.HostedService;
 using TomasAI.IFM.Domain.Application.Shared.ServiceApi;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Domain.Application.Actor.Event;
 using DomainApplicationActorAssembly = TomasAI.IFM.Domain.Application.Actor.ApplicationActorAssembly;
 using TomasAI.IFM.Shared.Caching;
 using TomasAI.IFM.Shared.Domain;
@@ -253,6 +255,8 @@ public static class Startup
             services.AddSingleton(siContainer);
             services.AddSimpleInjector(siContainer);
             services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
+            services.AddSingleton<IApplicationStartupActivities, IntegrationApplicationStartupActivities>();
             services.AddSingleton<FuturesMarketSessionAuthority>();
             services.AddSingleton<IFuturesMarketSessionAuthority>(provider =>
                 provider.GetRequiredService<FuturesMarketSessionAuthority>());

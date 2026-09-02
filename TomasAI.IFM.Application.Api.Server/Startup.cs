@@ -3,6 +3,7 @@ using Hazelcast;
 using Hazelcast.Caching;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Events;
 using SimpleInjector;
@@ -47,6 +48,8 @@ using TomasAI.IFM.Application.Storage.TradeDb.Schema;
 using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
+using TomasAI.IFM.Domain.Application.Shared;
+using TomasAI.IFM.Domain.Application.Actor.Event;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Application.Storage.SystemAdminDb.Schema;
 using TomasAI.IFM.Domain.Fund;
@@ -229,11 +232,18 @@ public static class Startup
                 .Get<PortfolioOperationalOptions>() ?? new PortfolioOperationalOptions();
             services.AddSingleton(portfolioOperations.Validate());
             services.AddSingleton<IPortfolioOperationalGuard, PortfolioOperationalGuard>();
+            var applicationStartup = config.GetSection(ApplicationStartupOptions.SectionName)
+                .Get<ApplicationStartupOptions>() ?? new ApplicationStartupOptions();
+            services.AddSingleton(applicationStartup.Validate());
+            services.AddSingleton<IApplicationStartupStatusStore, ApplicationStartupStatusStore>();
+            services.AddSingleton<IApplicationStartupActivities, ApiApplicationStartupActivities>();
+            services.AddSingleton<IApplicationBootstrapReadiness, ApplicationBootstrapReadiness>();
             services.AddHealthChecks()
-                .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["ready"])
-                .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["ready"])
-                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["ready"])
-                .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["ready"]);
+                .AddCheck<ActorRuntimeHealthCheck>("actor_runtime", tags: ["bootstrap", "ready"])
+                .AddCheck<FmpConfigurationHealthCheck>("fmp_configuration", tags: ["application", "ready"])
+                .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])
+                .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["bootstrap", "ready"])
+                .AddCheck<ApplicationLifecycleHealthCheck>("application_lifecycle", tags: ["application", "ready"]);
             var dataProtectionKeyPath = config.GetValue<string>("DataProtection:KeyPath");
             if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
             {
@@ -386,7 +396,8 @@ public static class Startup
             logger.LogInformationEvent("ApiServer", "registering command api services...");
             services.AddSingleton<ICommandServiceApiOptions>(_ => new CommandServiceApiOptions(config.GetValue<string>("AppSettings:CommandServerBaseUri")!));
             services.AddSingleton<ICommandServiceApi, CommandServiceApiClient>();
-            services.AddSingleton<IApplicationCommandApi, ApplicationCommandApi>();
+            services.AddSingleton<IApplicationCommandApi,
+                TomasAI.IFM.Application.Api.Nats.Client.ApplicationCommandApi>();
             services.AddSingleton<IFundCommandApi, FundCommandApi>();
             services.AddSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
             services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
@@ -408,6 +419,8 @@ public static class Startup
             logger.LogInformationEvent("ApiServer", "register query API services...");
             services.AddSingleton<IQueryServiceApiOptions>(_ => new QueryServiceApiOptions(config.GetValue<string>("AppSettings:QueryServerBaseUri")!));
             services.AddSingleton<IQueryServiceApi, QueryServiceApiClient>();
+            services.AddSingleton<IApplicationQueryApi,
+                TomasAI.IFM.Application.Api.Nats.Client.ApplicationQueryApi>();
             services.AddSingleton<IFundQueryApi, FundQueryApi>();
             services.AddSingleton<IMarketDataAnalyticsQueryApi, MarketDataAnalyticsQueryApi>();
             services.AddSingleton<IMarketDataFeedQueryApi, MarketDataFeedQueryApi>();
@@ -609,7 +622,6 @@ public static class Startup
                             new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1))
                     }));
             services.AddSingleton<FuturesTradeSessionBarAccumulator>();
-            services.AddHostedService<FuturesContractRolloverStartupService>();
             services.AddSingleton(MarketOutlookHotCache.Shared);
             services.AddSingleton<IMarketOutlookHotCache>(provider =>
                 provider.GetRequiredService<MarketOutlookHotCache>());
@@ -629,6 +641,7 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            services.AddHostedService<ApplicationStartupCommandDispatcher>();
             services.AddSingleton<IMarketOutlookSnapshotHydrator, MarketOutlookSnapshotHydrator>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")
@@ -753,30 +766,37 @@ public static class Startup
         }
         app.UseAuthentication();
         app.UseAuthorization();
+        app.MapHealthChecks("/health/bootstrap", new HealthCheckOptions
+        {
+            Predicate = registration => registration.Tags.Contains("bootstrap"),
+            ResponseWriter = WriteHealthResponseAsync
+        });
         app.MapHealthChecks("/health/ready", new HealthCheckOptions
         {
             Predicate = registration => registration.Tags.Contains("ready"),
-            ResponseWriter = static async (context, report) =>
-            {
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    status = report.Status.ToString(),
-                    totalDurationMilliseconds = report.TotalDuration.TotalMilliseconds,
-                    entries = report.Entries.ToDictionary(
-                        entry => entry.Key,
-                        entry => new
-                        {
-                            status = entry.Value.Status.ToString(),
-                            entry.Value.Description,
-                            durationMilliseconds = entry.Value.Duration.TotalMilliseconds,
-                            entry.Value.Data
-                        })
-                });
-            }
+            ResponseWriter = WriteHealthResponseAsync
         });
         logger.LogInformationEvent("ApiServer", "web app configuration completed");
         return app;
+
+        static async Task WriteHealthResponseAsync(HttpContext context, HealthReport report)
+        {
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                status = report.Status.ToString(),
+                totalDurationMilliseconds = report.TotalDuration.TotalMilliseconds,
+                entries = report.Entries.ToDictionary(
+                    entry => entry.Key,
+                    entry => new
+                    {
+                        status = entry.Value.Status.ToString(),
+                        entry.Value.Description,
+                        durationMilliseconds = entry.Value.Duration.TotalMilliseconds,
+                        entry.Value.Data
+                    })
+            });
+        }
     }
 
     static IReadOnlyList<DatabentoHistoricalSeriesProfile> CreateHistoricalSeriesProfiles(string dataset)

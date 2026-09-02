@@ -19,6 +19,7 @@ public sealed class UiServiceCatalog(
     TomasAI.IFM.Domain.Reference.Shared.ServiceApi.IReferenceQueryApi referenceQueries,
     CommandResponseEventService commandResponses,
     ApplicationEventService applicationEvents,
+    ApplicationQueryService applicationQueries,
     StatusConsoleService statusConsole,
     FundCommandService fundCommands,
     FundQueryService fundQueries,
@@ -56,6 +57,8 @@ public sealed class UiServiceCatalog(
     public CommandResponseEventService CommandResponses { get; } = commandResponses;
     /// <inheritdoc />
     public ApplicationEventService ApplicationEvents { get; } = applicationEvents;
+    /// <inheritdoc />
+    public ApplicationQueryService ApplicationQueries { get; } = applicationQueries;
     /// <inheritdoc />
     public StatusConsoleService StatusConsole { get; } = statusConsole;
     /// <inheritdoc />

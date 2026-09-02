@@ -7,6 +7,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
 
 using TomasAI.IFM.Domain.Application.Actor.Event.Extensions;
+using TomasAI.IFM.Domain.Application.Actor.Event;
 
 namespace TomasAI.IFM.Domain.Application.Actor.Event.Actor;
 
@@ -30,14 +31,26 @@ public sealed class ApplicationEventActor(
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [ApplicationStartupEvent.Verb] = static message => ParseApplicationEvent<ApplicationStartupEvent>(message),
-            [ApplicationShutdownEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownEvent>(message)
+            [ApplicationStartupCompleteEvent.Verb] = static message => ParseApplicationEvent<ApplicationStartupCompleteEvent>(message),
+            [ApplicationStartupDegradedEvent.Verb] = static message => ParseApplicationEvent<ApplicationStartupDegradedEvent>(message),
+            [ApplicationStartupFailEvent.Verb] = static message => ParseApplicationEvent<ApplicationStartupFailEvent>(message),
+            [ApplicationShutdownEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownEvent>(message),
+            [ApplicationShutdownCompleteEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownCompleteEvent>(message),
+            [ApplicationShutdownFailEvent.Verb] = static message => ParseApplicationEvent<ApplicationShutdownFailEvent>(message)
         };
 
     static readonly IReadOnlyDictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ValueTask>>
         _receiveMap = new Dictionary<Type, Func<IEvent, IEventActorContext<ApplicationEventActor>, ValueTask>>
         {
-            [typeof(ApplicationStartupEvent)] = static (_, _) => ValueTask.CompletedTask,
-            [typeof(ApplicationShutdownEvent)] = static (_, _) => ValueTask.CompletedTask
+            [typeof(ApplicationStartupEvent)] = static (value, context) =>
+                ((ApplicationStartupEvent)value).ExecuteAsync(context.DomainContext, CancellationToken.None),
+            [typeof(ApplicationStartupCompleteEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(ApplicationStartupDegradedEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(ApplicationStartupFailEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(ApplicationShutdownEvent)] = static (value, context) =>
+                ((ApplicationShutdownEvent)value).ExecuteAsync(context.DomainContext, CancellationToken.None),
+            [typeof(ApplicationShutdownCompleteEvent)] = static (_, _) => ValueTask.CompletedTask,
+            [typeof(ApplicationShutdownFailEvent)] = static (_, _) => ValueTask.CompletedTask
         };
 
     /// <summary>
@@ -72,6 +85,24 @@ public sealed class ApplicationEventActor(
         IsArgumentNull.Check(@event);
         var receive = ResolveMappedEventHandler(@event, _receiveMap);
         return receive(@event, context);
+    }
+
+    /// <inheritdoc/>
+    protected override ValueTask ReceiveAsync(
+        IEventActorContext<ApplicationEventActor> context,
+        IEvent @event,
+        CancellationToken cancellationToken)
+    {
+        IsArgumentNull.Check(context);
+        IsArgumentNull.Check(@event);
+        return @event switch
+        {
+            ApplicationStartupEvent startup => startup.ExecuteAsync(context.DomainContext, cancellationToken),
+            ApplicationShutdownEvent shutdown => shutdown.ExecuteAsync(context.DomainContext, cancellationToken),
+            ApplicationStartupCompleteEvent or ApplicationStartupDegradedEvent or ApplicationStartupFailEvent
+                or ApplicationShutdownCompleteEvent or ApplicationShutdownFailEvent => ValueTask.CompletedTask,
+            _ => throw new InvalidOperationException($"Unsupported Application event {@event.GetType().Name}.")
+        };
     }
 
     /// <summary>

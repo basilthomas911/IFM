@@ -23,11 +23,9 @@ public sealed class ApplicationEventProjector(
 {
     readonly ImmutableArray<EventProjectionDescriptor> _descriptors =
     [
-        Describe<ApplicationStartupEvent, ApplicationStartupCompleteEvent, ApplicationStartupFailEvent, ApplicationEntityId>(
-            static _ => Task.CompletedTask,
+        DescribeNotification<ApplicationStartupEvent, ApplicationEntityId>(
             useDurableReplay: false),
-        Describe<ApplicationShutdownEvent, ApplicationShutdownCompleteEvent, ApplicationShutdownFailEvent, ApplicationEntityId>(
-            static _ => Task.CompletedTask,
+        DescribeNotification<ApplicationShutdownEvent, ApplicationEntityId>(
             useDurableReplay: false)
     ];
 

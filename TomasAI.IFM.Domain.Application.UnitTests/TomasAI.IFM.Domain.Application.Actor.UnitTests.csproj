@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TomasAI.IFM.Domain.Application\TomasAI.IFM.Domain.Application.Actor.csproj" />
+    <ProjectReference Include="..\TomasAI.IFM.Application.Api.Server\TomasAI.IFM.Application.Api.Server.csproj" />
   </ItemGroup>
 
 </Project>

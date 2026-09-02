@@ -25,6 +25,8 @@ public interface IUiServiceCatalog
 
     /// <summary>Gets the application-event service.</summary>
     ApplicationEventService ApplicationEvents { get; }
+    /// <summary>Gets the read-only Application lifecycle query service.</summary>
+    ApplicationQueryService ApplicationQueries { get; }
 
     /// <summary>Gets the status-console service.</summary>
     StatusConsoleService StatusConsole { get; }

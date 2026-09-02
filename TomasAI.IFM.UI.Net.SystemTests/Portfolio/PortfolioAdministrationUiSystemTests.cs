@@ -27,7 +27,7 @@ public sealed class PortfolioAdministrationUiSystemTests
         form.BackColor.Should().Be(Color.FromArgb(64, 64, 64));
         form.ForeColor.Should().Be(Color.White);
         form.Font.Name.Should().Be("Microsoft Sans Serif");
-        form.Font.Size.Should().Be(12F);
+        form.Font.Size.Should().Be(10F);
 
         var menuBar = Field<FlowLayoutPanel>(form, "_menuBar");
         menuBar.BackColor.Should().Be(Color.Black);
