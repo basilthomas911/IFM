@@ -21,7 +21,9 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.ActorExists(Source.ActorId).Returns(true);
         supervisor.GetRealtimeRoutes(Source.ActorTypeId).Returns(
-            ImmutableHashSet.Create(Source.ActorId, routedMailbox));
+            ImmutableArray.Create(
+                new RealtimeActorRoute(Source.ActorId),
+                new RealtimeActorRoute(routedMailbox)));
 
         var destinations = NatsActorConsumer.BuildPubSubDestinations(
             supervisor,
@@ -34,6 +36,30 @@ public sealed class NatsActorConsumerRealtimeRoutingTests
             subject.ActorId == routedMailbox
             && subject.Verb == Source.Verb
             && subject.EntityId == Source.EntityId);
+    }
+
+    [Fact]
+    public void Realtime_RouteCanOverrideOnlyDestinationSchedulingEntity()
+    {
+        var routedMailbox = new ActorMailboxId(
+            ActorType.Realtime,
+            "FuturesTradeSessionBarSignal");
+        var supervisor = Substitute.For<IActorSupervisor>();
+        supervisor.ActorExists(Source.ActorId).Returns(true);
+        supervisor.GetRealtimeRoutes(Source.ActorTypeId).Returns(
+            ImmutableArray.Create(new RealtimeActorRoute(routedMailbox, _ => "2026-09-02")));
+
+        var destinations = NatsActorConsumer.BuildPubSubDestinations(
+            supervisor,
+            ActorType.Realtime,
+            Source);
+
+        destinations.Should().HaveCount(2);
+        destinations.Should().ContainSingle(subject => subject == Source);
+        destinations.Should().ContainSingle(subject =>
+            subject.ActorId == routedMailbox
+            && subject.Verb == Source.Verb
+            && subject.EntityId == "2026-09-02");
     }
 
     [Fact]

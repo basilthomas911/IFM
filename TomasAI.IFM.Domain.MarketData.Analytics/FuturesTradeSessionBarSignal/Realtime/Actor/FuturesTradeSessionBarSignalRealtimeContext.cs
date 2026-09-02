@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -13,7 +14,9 @@ public interface IFuturesTradeSessionBarSignalRealtimeContext
     /// <summary>Gets the actor supervisor.</summary>
     IActorSupervisor Supervisor { get; }
     /// <summary>Gets the actor-centric model that builds ephemeral open bars.</summary>
-    FuturesTradeSessionBarAccumulator Accumulator { get; }
+    FuturesTradeSessionBarAccumulatorRegistry Accumulators { get; }
+    /// <summary>Gets the authoritative futures session calendar.</summary>
+    IMarketSessionCalendar Calendar { get; }
     /// <summary>Gets the server clock.</summary>
     TimeProvider TimeProvider { get; }
     /// <summary>Gets the typed logger.</summary>
@@ -29,13 +32,15 @@ public sealed class FuturesTradeSessionBarSignalRealtimeContext
     /// <summary>Initializes the readonly context.</summary>
     public FuturesTradeSessionBarSignalRealtimeContext(
         IActorSupervisor supervisor,
-        FuturesTradeSessionBarAccumulator accumulator,
+        FuturesTradeSessionBarAccumulatorRegistry accumulators,
+        IMarketSessionCalendar calendar,
         TimeProvider timeProvider,
         ILogger<FuturesTradeSessionBarSignalRealtimeActor> logger)
         : base(supervisor, new(ActorType.Realtime, FuturesTradeSessionBarSignalRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
-        Accumulator = IsArgumentNull.Set(accumulator);
+        Accumulators = IsArgumentNull.Set(accumulators);
+        Calendar = IsArgumentNull.Set(calendar);
         TimeProvider = IsArgumentNull.Set(timeProvider);
         Logger = IsArgumentNull.Set(logger);
     }
@@ -43,7 +48,9 @@ public sealed class FuturesTradeSessionBarSignalRealtimeContext
     /// <inheritdoc />
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc />
-    public FuturesTradeSessionBarAccumulator Accumulator { get; }
+    public FuturesTradeSessionBarAccumulatorRegistry Accumulators { get; }
+    /// <inheritdoc />
+    public IMarketSessionCalendar Calendar { get; }
     /// <inheritdoc />
     public TimeProvider TimeProvider { get; }
     /// <inheritdoc />

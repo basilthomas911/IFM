@@ -8,6 +8,21 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.UnitTests.TickAggregation;
 public sealed class TickAggregationContractTests
 {
     [Fact]
+    public void Tick_data_entity_identity_round_trips_formatted_contract_and_value_date()
+    {
+        var expected = new TickDataEntityId(
+            "ES:U6/TEST",
+            new DateOnly(2026, 9, 2),
+            AssetTypeId.Futures);
+
+        var result = TickDataEntityId.Parse(expected.Format());
+
+        Assert.Equal(expected, result);
+        Assert.False(TickDataEntityId.TryParse("1:20260230:ESU6", out _));
+        Assert.False(TickDataEntityId.TryParse("0:20260902:ESU6", out _));
+    }
+
+    [Fact]
     public void Quote_segment_serializes_only_active_prefix()
     {
         var buffer = new FuturesTickQuoteData[64];

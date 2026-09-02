@@ -183,6 +183,15 @@ public class EventActorContext(IActorSupervisor supervisor, ActorMailboxId actor
         => _supervisor.AddRealtimeRouter(fromActorTypeId, toMailboxId);
 
     /// <summary>
+    /// Registers a realtime route whose destination scheduling identity is projected from the source subject.
+    /// </summary>
+    public void AddRealtimeRouter(
+        ActorTypeId fromActorTypeId,
+        ActorMailboxId toMailboxId,
+        Func<ActorSubject, string> entityIdProjection)
+        => _supervisor.AddRealtimeRouter(fromActorTypeId, toMailboxId, entityIdProjection);
+
+    /// <summary>
     /// Removes a realtime mailbox route previously registered for the source event.
     /// </summary>
     /// <param name="fromActorTypeId">The realtime source actor name and verb.</param>

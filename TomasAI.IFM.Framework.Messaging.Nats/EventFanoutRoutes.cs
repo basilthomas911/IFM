@@ -25,4 +25,24 @@ internal static class EventFanoutRoutes
         }
         return destinations;
     }
+
+    internal static IReadOnlyList<ActorSubject> BuildRealtime(
+        ActorSubject source,
+        ImmutableArray<RealtimeActorRoute> routes,
+        bool includePrimary)
+    {
+        var routeCount = routes.IsDefault ? 0 : routes.Length;
+        var destinations = new List<ActorSubject>(routeCount + (includePrimary ? 1 : 0));
+        if (includePrimary)
+            destinations.Add(source);
+        if (routes.IsDefaultOrEmpty)
+            return destinations;
+        foreach (var route in routes)
+        {
+            if (includePrimary && route.Destination == source.ActorId)
+                continue;
+            destinations.Add(route.Resolve(source));
+        }
+        return destinations;
+    }
 }

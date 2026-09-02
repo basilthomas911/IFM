@@ -18,7 +18,7 @@ public static class FuturesTradeSessionBarSignalRealtimeExtensions
             context as IFuturesTradeSessionBarSignalRealtimeContext
             ?? throw new InvalidOperationException("The trade-session bar signal requires its typed context.");
         /// <summary>Gets the actor-centric bar accumulation model.</summary>
-        public FuturesTradeSessionBarAccumulator BarAccumulator => context.DomainContext.Accumulator;
+        public FuturesTradeSessionBarAccumulatorRegistry BarAccumulators => context.DomainContext.Accumulators;
         /// <summary>Gets the server clock.</summary>
         public TimeProvider TimeProvider => context.DomainContext.TimeProvider;
         /// <summary>Gets the typed actor logger.</summary>

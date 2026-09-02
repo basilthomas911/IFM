@@ -91,8 +91,6 @@ using TomasAI.IFM.Framework.Messaging.RestApi;
 using TomasAI.IFM.Framework.MarketData.Contracts.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.DataBento;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
-using Microsoft.AspNetCore.Authentication.Negotiate;
-using Microsoft.AspNetCore.DataProtection;
 using TomasAI.IFM.Framework.MarketData.TickAggregation;
 using TomasAI.IFM.Framework.SequenceId;
 using TomasAI.IFM.Framework.SequenceId.Postgres;
@@ -247,17 +245,6 @@ public static class Startup
                 .AddCheck<MarketDataRuntimeHealthCheck>("market_data_runtime", tags: ["application", "ready"])
                 .AddCheck<PortfolioOperationalHealthCheck>("portfolio_operations", tags: ["bootstrap", "ready"])
                 .AddCheck<ApplicationLifecycleHealthCheck>("application_lifecycle", tags: ["application", "ready"]);
-            var dataProtectionKeyPath = config.GetValue<string>("DataProtection:KeyPath");
-            if (!string.IsNullOrWhiteSpace(dataProtectionKeyPath))
-            {
-                Directory.CreateDirectory(dataProtectionKeyPath);
-                services.AddDataProtection()
-                    .SetApplicationName("TomasAI.IFM.Application.Api.Server")
-                    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath));
-            }
-            services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
-            services.AddAuthorization();
-
             var fmpEnabled = config.GetValue("AppSettings:Fmp:Enabled", true);
             services.AddFinancialModelingPrepMarketData(options =>
             {
@@ -626,7 +613,7 @@ public static class Startup
                         ["ES"] = MarketSeriesIdentity.ForFuturesSeries(
                             new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1))
                     }));
-            services.AddSingleton<FuturesTradeSessionBarAccumulator>();
+            services.AddSingleton<FuturesTradeSessionBarAccumulatorRegistry>();
             services.AddSingleton(MarketOutlookHotCache.Shared);
             services.AddSingleton<IMarketOutlookHotCache>(provider =>
                 provider.GetRequiredService<MarketOutlookHotCache>());
@@ -769,7 +756,6 @@ public static class Startup
         {
             app.UseHttpsRedirection();
         }
-        app.UseAuthentication();
         app.UseAuthorization();
         app.MapHealthChecks("/health/bootstrap", new HealthCheckOptions
         {

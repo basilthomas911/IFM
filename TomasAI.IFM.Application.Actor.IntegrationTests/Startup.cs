@@ -514,7 +514,7 @@ public static class Startup
                                 "unadjusted",
                                 1))
                     }));
-            services.AddSingleton<FuturesTradeSessionBarAccumulator>();
+            services.AddSingleton<FuturesTradeSessionBarAccumulatorRegistry>();
             services.AddSingleton(MarketOutlookHotCache.Shared);
             services.AddSingleton<IMarketOutlookHotCache>(provider =>
                 provider.GetRequiredService<MarketOutlookHotCache>());

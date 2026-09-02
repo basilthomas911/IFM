@@ -297,13 +297,19 @@ public sealed class DatabentoProductionEpochTests
             details.Values.Where(item => item.Ticker == ticker).ToArray();
         public IReadOnlyList<ContractDetail?> GetContractDetails(
             string[] contractNames,
+            TimeSpan? timeout = null) =>
+            throw new InvalidOperationException(
+                "Epoch catalog startup must use status-based definition queries.");
+
+        public DatabentoContractDetailsQueryResult TryGetContractDetails(
+            string[] contractNames,
             TimeSpan? timeout = null)
         {
             catalogQueries.Attempts++;
             if (catalogQueries.FailuresRemaining > 0)
             {
                 catalogQueries.FailuresRemaining--;
-                throw new DatabentoFeedException(
+                return DatabentoContractDetailsQueryResult.Failure(
                     DatabentoFeedStatus.DatabentoError,
                     "Transient catalog read failure.");
             }
@@ -313,7 +319,8 @@ public sealed class DatabentoProductionEpochTests
                 if (!catalogQueryBarrier.Wait(TimeSpan.FromSeconds(2)))
                     throw new TimeoutException("Dataset catalogs were not queried concurrently.");
             }
-            return contractNames.Select(name => details.GetValueOrDefault(name)).ToArray();
+            return DatabentoContractDetailsQueryResult.Success(
+                contractNames.Select(name => details.GetValueOrDefault(name)).ToArray());
         }
     }
 

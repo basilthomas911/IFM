@@ -25,11 +25,30 @@ public sealed class RealtimeRouteRegistryTests
         supervisor.AddRealtimeRouter(Source, destination);
 
         supervisor.GetRealtimeRoutes(Source)
-            .Should().ContainSingle().Which.Should().Be(destination);
+            .Should().ContainSingle().Which.Destination.Should().Be(destination);
 
         supervisor.RemoveRealtimeRouter(Source, destination);
 
         supervisor.GetRealtimeRoutes(Source).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Supervisor_ReplacesDestinationRouteWithSchedulingEntityProjection()
+    {
+        await using var supervisor = CreateSupervisor();
+        var destination = new ActorMailboxId(ActorType.Realtime, "FuturesTradeSessionBarSignal");
+        var source = new ActorSubject(ActorType.Realtime, "FuturesMarketPrice", "Updated", "ESZ26");
+
+        supervisor.AddRealtimeRouter(Source, destination);
+        supervisor.AddRealtimeRouter(Source, destination, _ => "2026-09-02");
+
+        var route = supervisor.GetRealtimeRoutes(Source).Should().ContainSingle().Which;
+        route.Destination.Should().Be(destination);
+        route.Resolve(source).Should().Be(new ActorSubject(
+            ActorType.Realtime,
+            destination.Name,
+            source.Verb,
+            "2026-09-02"));
     }
 
     [Theory]

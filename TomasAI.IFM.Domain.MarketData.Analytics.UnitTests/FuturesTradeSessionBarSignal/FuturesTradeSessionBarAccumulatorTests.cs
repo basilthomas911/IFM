@@ -17,6 +17,23 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
         new FuturesSeriesId("ES", "calendar-front", "unadjusted", 1));
 
     [Fact]
+    public void RegistrySharesOneAccumulatorWithinValueDateAndIsolatesDifferentDates()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2026, 8, 25, 12, 0, 0, TimeSpan.Zero));
+        var registry = CreateRegistry(clock);
+        var firstDate = new FuturesTradeSessionBarAccumulatorEntityId(new DateOnly(2026, 8, 25));
+        var nextDate = new FuturesTradeSessionBarAccumulatorEntityId(new DateOnly(2026, 8, 26));
+
+        var first = registry.Get(firstDate);
+        var sameDate = registry.Get(firstDate);
+        var next = registry.Get(nextDate);
+
+        Assert.Same(first, sameDate);
+        Assert.NotSame(first, next);
+        Assert.Equal(2, registry.Count);
+    }
+
+    [Fact]
     public void SessionBarrierClosesSixIntradaySchedulesAndDailyExactlyOnce()
     {
         var valueDate = new DateOnly(2026, 8, 25);
@@ -121,6 +138,15 @@ public sealed class FuturesTradeSessionBarAccumulatorTests
     }
 
     static FuturesTradeSessionBarAccumulator CreateAccumulator(TimeProvider timeProvider) => new(
+        Calendar,
+        new PrefixFuturesTradeSessionBarSeriesResolver(
+            new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ES"] = Series
+            }),
+        timeProvider);
+
+    static FuturesTradeSessionBarAccumulatorRegistry CreateRegistry(TimeProvider timeProvider) => new(
         Calendar,
         new PrefixFuturesTradeSessionBarSeriesResolver(
             new Dictionary<string, MarketSeriesIdentity>(StringComparer.OrdinalIgnoreCase)

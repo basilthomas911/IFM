@@ -26,7 +26,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     readonly ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>> _threadStateByMailbox;
     readonly ConcurrentDictionary<ActorMailboxId, IActor> _children;
     readonly EventRouteRegistry _eventRouters;
-    readonly EventRouteRegistry _realtimeRouters;
+    readonly RealtimeRouteRegistry _realtimeRouters;
     readonly ILogger<ActorSupervisor> _logger;
     readonly IContainerInstance _container;
     readonly ActorAdmissionOptions _admissionOptions;
@@ -79,7 +79,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
         _threadStateByMailbox = new ConcurrentDictionary<ActorMailboxId, ConcurrentDictionary<ActorThreadId, IActorState>>();
         _children = new ConcurrentDictionary<ActorMailboxId, IActor>();
         _eventRouters = new EventRouteRegistry();
-        _realtimeRouters = new EventRouteRegistry();
+        _realtimeRouters = new RealtimeRouteRegistry();
 
         // Initialize thread pool with one thread per logical processor.
         //var pool = new ActorThreadPool(this, _logger);
@@ -525,7 +525,23 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     public void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId)
     {
         EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
-        _realtimeRouters.Add(fromActorTypeId, toMailboxId);
+        _realtimeRouters.Add(fromActorTypeId, new RealtimeActorRoute(toMailboxId));
+    }
+
+    /// <summary>
+    /// Registers an additional realtime actor mailbox with a destination-only scheduling entity projection.
+    /// The serialized source event retains its original typed entity identity and payload.
+    /// </summary>
+    public void AddRealtimeRouter(
+        ActorTypeId fromActorTypeId,
+        ActorMailboxId toMailboxId,
+        Func<ActorSubject, string> entityIdProjection)
+    {
+        EnsureRealtimeRoute(fromActorTypeId, toMailboxId);
+        ArgumentNullException.ThrowIfNull(entityIdProjection);
+        _realtimeRouters.Add(
+            fromActorTypeId,
+            new RealtimeActorRoute(toMailboxId, entityIdProjection));
     }
 
     /// <summary>
@@ -540,7 +556,7 @@ public class ActorSupervisor : IActorSupervisor, IAsyncDisposable
     /// <summary>
     /// Returns a stable, deduplicated route snapshot for one realtime source event.
     /// </summary>
-    public ImmutableHashSet<ActorMailboxId> GetRealtimeRoutes(ActorTypeId fromActorTypeId)
+    public ImmutableArray<RealtimeActorRoute> GetRealtimeRoutes(ActorTypeId fromActorTypeId)
     {
         if (fromActorTypeId.ActorType != ActorType.Realtime)
         {

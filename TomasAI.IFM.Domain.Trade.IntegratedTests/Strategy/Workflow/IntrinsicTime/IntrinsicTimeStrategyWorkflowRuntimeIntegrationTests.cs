@@ -235,7 +235,7 @@ public sealed class IntrinsicTimeStrategyWorkflowRuntimeIntegrationTests(
                 ActorType.Realtime,
                 FuturesItiSignalGeneratedEvent.RealtimeActor,
                 FuturesItiSignalGeneratedEvent.Verb))
-            .Should().Contain(workflowMailbox);
+            .Select(route => route.Destination).Should().Contain(workflowMailbox);
 
         var publisher = factory.Services.GetRequiredService<IActorProducer>();
         await publisher.StartAsync(new ActorMailboxId(ActorType.Realtime, "ItswRuntimeTestPublisher"));

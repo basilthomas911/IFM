@@ -130,45 +130,54 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
     {
         for (var attempt = 1; ; attempt++)
         {
-            try
+            var result = await operations.RunAsync(
+                    queries =>
+                    {
+                        // This batch is the authoritative provider definition snapshot
+                        // for the epoch. Native feed startup independently validates its
+                        // copied symbol/instrument mappings before consumer readiness.
+                        return queries.TryGetContractDetails(
+                            names,
+                            options.ProviderQueryTimeout);
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsSuccess)
             {
-                return await operations.RunAsync(
-                        queries =>
-                        {
-                            // This batch is the authoritative provider definition snapshot
-                            // for the epoch. Native feed startup independently validates its
-                            // copied symbol/instrument mappings before consumer readiness.
-                            return queries.GetContractDetails(
-                                names,
-                                options.ProviderQueryTimeout);
-                        },
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                return result.Details;
             }
-            catch (Exception exception) when (
-                attempt < options.CatalogQueryAttempts
-                && IsTransientCatalogFailure(exception))
+            if (attempt >= options.CatalogQueryAttempts
+                || !IsTransientCatalogFailure(result.Status))
             {
-                var delay = TimeSpan.FromTicks(checked(
-                    options.CatalogQueryRetryDelay.Ticks * attempt));
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                ThrowCatalogQueryFailure(result);
             }
+            var delay = TimeSpan.FromTicks(checked(
+                options.CatalogQueryRetryDelay.Ticks * attempt));
+            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private static bool IsTransientCatalogFailure(Exception exception) => exception switch
+    private static bool IsTransientCatalogFailure(DatabentoFeedStatus status) => status is
+        DatabentoFeedStatus.DatabentoError
+        or DatabentoFeedStatus.OsError
+        or DatabentoFeedStatus.Timeout
+        or DatabentoFeedStatus.ConnectionLimit
+        or DatabentoFeedStatus.RateLimit
+        or DatabentoFeedStatus.IncompleteDefinitions
+        or DatabentoFeedStatus.ConnectionHung;
+
+    private static void ThrowCatalogQueryFailure(
+        DatabentoContractDetailsQueryResult result)
     {
-        DatabentoFeedTimeoutException => true,
-        DatabentoFeedException feedException => feedException.Status is
-            DatabentoFeedStatus.DatabentoError
-            or DatabentoFeedStatus.OsError
-            or DatabentoFeedStatus.Timeout
-            or DatabentoFeedStatus.ConnectionLimit
-            or DatabentoFeedStatus.RateLimit
-            or DatabentoFeedStatus.IncompleteDefinitions
-            or DatabentoFeedStatus.ConnectionHung,
-        _ => false
-    };
+        if (result.Status == DatabentoFeedStatus.Timeout)
+        {
+            throw new DatabentoFeedTimeoutException(
+                result.ErrorMessage ?? "Catalog definition query timed out.");
+        }
+        throw new DatabentoFeedException(
+            result.Status,
+            result.ErrorMessage ?? $"Catalog definition query failed with {result.Status}.");
+    }
 
     private static DatabentoMarketDataCatalog CreateSyntheticFuturesCatalog(
         IReadOnlyList<DatabentoContractRegistration> registrations,

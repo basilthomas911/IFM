@@ -16,7 +16,7 @@ public static class FuturesTradeSessionBarSignalBarrier
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(logger);
-        foreach (var bar in context.Accumulator.CloseThrough(@event.BarrierUtc))
+        foreach (var bar in context.Accumulators.Get(@event.EntityId).CloseThrough(@event.BarrierUtc))
             _ = await context.PublishFuturesTradeSessionBarAsync(bar).ConfigureAwait(false);
         return true;
     }

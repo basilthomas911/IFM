@@ -40,7 +40,7 @@ public sealed class NatsRealtimeRoutingIntegrationTests
         var supervisor = Substitute.For<IActorSupervisor>();
         supervisor.ActorExists(source.ActorId).Returns(true);
         supervisor.GetRealtimeRoutes(source.ActorTypeId)
-            .Returns(ImmutableHashSet.Create(routedMailbox));
+            .Returns(ImmutableArray.Create(new RealtimeActorRoute(routedMailbox)));
         supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor>
         {
             [source.ActorId] = primaryActor,

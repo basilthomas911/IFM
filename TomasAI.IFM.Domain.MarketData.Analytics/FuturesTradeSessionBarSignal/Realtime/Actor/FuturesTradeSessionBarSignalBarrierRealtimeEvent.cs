@@ -1,3 +1,4 @@
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -6,13 +7,11 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.R
 /// <summary>
 /// Carries the server clock through the publisher mailbox so interval closure is serialized with trades.
 /// </summary>
-public sealed record FuturesTradeSessionBarSignalBarrierRealtimeEvent : IEvent<ActorEntityId>
+public sealed record FuturesTradeSessionBarSignalBarrierRealtimeEvent
+    : IEvent<FuturesTradeSessionBarAccumulatorEntityId>
 {
     /// <summary>Gets the private actor verb.</summary>
     internal const string Verb = "Barrier";
-
-    /// <summary>Gets the fixed private clock identity.</summary>
-    internal static readonly ActorEntityId ClockEntityId = new("server-clock");
 
     /// <inheritdoc />
     public ActorSubject Subject { get; init; }
@@ -21,7 +20,7 @@ public sealed record FuturesTradeSessionBarSignalBarrierRealtimeEvent : IEvent<A
     public Guid Id { get; init; }
 
     /// <inheritdoc />
-    public ActorEntityId EntityId { get; init; }
+    public FuturesTradeSessionBarAccumulatorEntityId EntityId { get; init; }
 
     /// <inheritdoc />
     public long EventId { get; init; }
@@ -54,16 +53,18 @@ public sealed record FuturesTradeSessionBarSignalBarrierRealtimeEvent : IEvent<A
     public EventType EventType => EventType.DomainEvent;
 
     /// <summary>Creates one private server-owned clock event.</summary>
-    internal static FuturesTradeSessionBarSignalBarrierRealtimeEvent Create(DateTimeOffset barrierUtc) => new()
+    internal static FuturesTradeSessionBarSignalBarrierRealtimeEvent Create(
+        DateTimeOffset barrierUtc,
+        FuturesTradeSessionBarAccumulatorEntityId entityId) => new()
     {
         Subject = new ActorSubject(
             ActorType.Realtime,
             FuturesTradeSessionBarSignalRealtimeActor.ActorName,
             Verb,
-            ClockEntityId.Format()),
+            entityId.Format()),
         Id = Guid.NewGuid(),
-        EntityId = ClockEntityId,
-        AggregateId = ClockEntityId.Format(),
+        EntityId = entityId,
+        AggregateId = entityId.Format(),
         EventSource = nameof(FuturesTradeSessionBarSignalRealtimeActor),
         ReceivedOn = barrierUtc.UtcDateTime,
         BarrierUtc = barrierUtc.ToUniversalTime()

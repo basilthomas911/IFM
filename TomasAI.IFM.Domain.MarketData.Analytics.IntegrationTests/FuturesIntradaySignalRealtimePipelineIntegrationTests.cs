@@ -20,6 +20,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.State;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesEmaSignal.Command.State;
+using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
@@ -56,7 +57,7 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
                 FuturesTradeSessionBarClosedRealtimeEvent.Actor,
                 FuturesTradeSessionBarClosedRealtimeEvent.Verb));
-        routes.Should().Contain([
+        routes.Select(route => route.Destination).Should().Contain([
             new ActorMailboxId(ActorType.Realtime, FuturesRsiSignalRealtimeActor.ActorName),
             new ActorMailboxId(ActorType.Realtime, FuturesAtrSignalRealtimeActor.ActorName),
             new ActorMailboxId(ActorType.Realtime, FuturesAdxSignalRealtimeActor.ActorName),
@@ -66,13 +67,50 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
     }
 
     [Fact]
+    public void TradeSessionBarRoute_UsesOneMailboxPerValueDate()
+    {
+        var routes = factory.Services.GetRequiredService<IActorSupervisor>()
+            .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
+                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb));
+        var route = routes.Single(candidate => candidate.Destination == new ActorMailboxId(
+            ActorType.Realtime, FuturesTradeSessionBarSignalRealtimeActor.ActorName));
+
+        var sameDateFirst = Resolve("ESU6", ValueDate);
+        var sameDateSecond = Resolve("NQU6", ValueDate);
+        var nextDate = Resolve("ESU6", ValueDate.AddDays(1));
+
+        sameDateFirst.EntityId.Should().Be(
+            new FuturesTradeSessionBarAccumulatorEntityId(ValueDate).Format());
+        sameDateFirst.ThreadId.Should().Be(sameDateSecond.ThreadId);
+        nextDate.ThreadId.Should().NotBe(sameDateFirst.ThreadId);
+
+        var barrier = new ActorSubject(
+            ActorType.Realtime,
+            FuturesTradeSessionBarSignalRealtimeActor.ActorName,
+            "Barrier",
+            new FuturesTradeSessionBarAccumulatorEntityId(ValueDate).Format());
+        barrier.ThreadId.Should().Be(sameDateFirst.ThreadId);
+
+        ActorSubject Resolve(string contractId, DateOnly valueDate)
+        {
+            var sourceEntityId = new TickDataEntityId(contractId, valueDate, AssetTypeId.Futures);
+            return route.Resolve(new ActorSubject(
+                ActorType.Realtime,
+                FuturesMarketPriceUpdatedRealtimeEvent.Actor,
+                FuturesMarketPriceUpdatedRealtimeEvent.Verb,
+                sourceEntityId.Format()));
+        }
+    }
+
+    [Fact]
     public void VxTermStructureRealtimeActor_RegistersMarketPriceRoute()
     {
         var routes = factory.Services.GetRequiredService<IActorSupervisor>()
             .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
                 FuturesMarketPriceUpdatedRealtimeEvent.Actor,
                 FuturesMarketPriceUpdatedRealtimeEvent.Verb));
-        routes.Should().Contain(new ActorMailboxId(
+        routes.Select(route => route.Destination).Should().Contain(new ActorMailboxId(
             ActorType.Realtime, FuturesVxTermStructureSignalRealtimeActor.ActorName));
     }
 
@@ -83,7 +121,7 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
             .GetRealtimeRoutes(new ActorTypeId(ActorType.Realtime,
                 FuturesMarketPriceUpdatedRealtimeEvent.Actor,
                 FuturesMarketPriceUpdatedRealtimeEvent.Verb));
-        routes.Should().Contain(new ActorMailboxId(
+        routes.Select(route => route.Destination).Should().Contain(new ActorMailboxId(
             ActorType.Realtime, FuturesVwapSignalRealtimeActor.ActorName));
     }
 

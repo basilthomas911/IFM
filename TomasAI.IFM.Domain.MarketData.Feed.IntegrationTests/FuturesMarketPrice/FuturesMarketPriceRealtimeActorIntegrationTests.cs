@@ -40,7 +40,7 @@ public sealed class FuturesMarketPriceRealtimeActorIntegrationTests
                 Substitute.For<ILogger<FuturesMarketPriceRealtimeActor>>()));
         supervisor.ActorExists(actor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
-            .Returns(System.Collections.Immutable.ImmutableHashSet<ActorMailboxId>.Empty);
+            .Returns(System.Collections.Immutable.ImmutableArray<RealtimeActorRoute>.Empty);
         supervisor.Children.Returns(
             new Dictionary<ActorMailboxId, IActor> { [actor.Id] = actor });
         queues.TryAdmitAsync(

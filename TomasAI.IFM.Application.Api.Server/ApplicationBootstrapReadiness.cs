@@ -15,9 +15,13 @@ public sealed class ApplicationBootstrapReadiness(
 {
     public async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
     {
+        if (!actorSupervisor.IsReady)
+        {
+            return false;
+        }
         var report = await healthChecks.CheckHealthAsync(
             registration => registration.Tags.Contains("bootstrap"),
             cancellationToken).ConfigureAwait(false);
-        return report.Status == HealthStatus.Healthy && actorSupervisor.IsReady;
+        return report.Status == HealthStatus.Healthy;
     }
 }

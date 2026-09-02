@@ -17,6 +17,20 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSessionB
 /// <summary>Verifies the durable futures trade-session bar publication boundary.</summary>
 public sealed class FuturesTradeSessionBarSignalContractTests
 {
+    [Fact]
+    public void AccumulatorEntityId_RoundTripsValueDateAndStableFormat()
+    {
+        var expected = new FuturesTradeSessionBarAccumulatorEntityId(new DateOnly(2026, 9, 2));
+
+        var serialized = MessagePackSerializer.Serialize(expected);
+        var result = MessagePackSerializer.Deserialize<FuturesTradeSessionBarAccumulatorEntityId>(serialized);
+
+        Assert.Equal(expected, result);
+        Assert.Equal("2026-09-02", result.Format());
+        Assert.Equal(expected, FuturesTradeSessionBarAccumulatorEntityId.Parse(result.Format()));
+        Assert.False(FuturesTradeSessionBarAccumulatorEntityId.TryParse("2026-02-30", out _));
+    }
+
     /// <summary>Round-trips the deterministic command and complete bar payload.</summary>
     [Fact]
     public void PublishCommand_RoundTripsCompletedBar()

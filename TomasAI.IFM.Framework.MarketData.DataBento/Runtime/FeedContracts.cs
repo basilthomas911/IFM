@@ -147,6 +147,23 @@ public sealed record ContractDetail
     public required string UnitOfMeasure { get; init; }
 }
 
+public sealed record DatabentoContractDetailsQueryResult(
+    DatabentoFeedStatus Status,
+    IReadOnlyList<ContractDetail?> Details,
+    string? ErrorMessage)
+{
+    public bool IsSuccess => Status == DatabentoFeedStatus.Ok;
+
+    public static DatabentoContractDetailsQueryResult Success(
+        IReadOnlyList<ContractDetail?> details) =>
+        new(DatabentoFeedStatus.Ok, details, null);
+
+    public static DatabentoContractDetailsQueryResult Failure(
+        DatabentoFeedStatus status,
+        string errorMessage) =>
+        new(status, [], errorMessage);
+}
+
 public interface IDatabentoMarketDataQueries
 {
     OptionChainDefinitions GetChainDefinitions(
@@ -172,6 +189,29 @@ public interface IDatabentoMarketDataQueries
     IReadOnlyList<ContractDetail?> GetContractDetails(
         string[] contractNames,
         TimeSpan? timeout = null);
+
+    DatabentoContractDetailsQueryResult TryGetContractDetails(
+        string[] contractNames,
+        TimeSpan? timeout = null)
+    {
+        try
+        {
+            return DatabentoContractDetailsQueryResult.Success(
+                GetContractDetails(contractNames, timeout));
+        }
+        catch (DatabentoFeedTimeoutException exception)
+        {
+            return DatabentoContractDetailsQueryResult.Failure(
+                DatabentoFeedStatus.Timeout,
+                exception.Message);
+        }
+        catch (DatabentoFeedException exception)
+        {
+            return DatabentoContractDetailsQueryResult.Failure(
+                exception.Status,
+                exception.Message);
+        }
+    }
 }
 
 [Flags]

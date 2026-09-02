@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -54,8 +56,12 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
     protected override ValueTask OnStartup(
         IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext)
     {
-        actorContext.AddRealtimeRouter(MarketPriceRoute, Id);
-        barrierLoop = RunBarrierLoopAsync(actorContext, context.TimeProvider, barrierStopping.Token);
+        actorContext.AddRealtimeRouter(MarketPriceRoute, Id, ResolveAccumulatorEntityId);
+        barrierLoop = RunBarrierLoopAsync(
+            actorContext,
+            context.Calendar,
+            context.TimeProvider,
+            barrierStopping.Token);
         return ValueTask.CompletedTask;
     }
 
@@ -92,6 +98,7 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
 
     static async Task RunBarrierLoopAsync(
         IEventActorContext<FuturesTradeSessionBarSignalRealtimeActor> actorContext,
+        IMarketSessionCalendar calendar,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -101,10 +108,21 @@ public sealed class FuturesTradeSessionBarSignalRealtimeActor(
         {
             if (!actorContext.IsReady)
                 return;
-            await actorContext.SendAsync<FuturesTradeSessionBarSignalBarrierRealtimeEvent, ActorEntityId>(
-                FuturesTradeSessionBarSignalBarrierRealtimeEvent.Create(timeProvider.GetUtcNow()))
+            var barrierUtc = timeProvider.GetUtcNow();
+            var entityId = new FuturesTradeSessionBarAccumulatorEntityId(
+                calendar.GetValueDate(barrierUtc));
+            await actorContext.SendAsync<
+                    FuturesTradeSessionBarSignalBarrierRealtimeEvent,
+                    FuturesTradeSessionBarAccumulatorEntityId>(
+                    FuturesTradeSessionBarSignalBarrierRealtimeEvent.Create(barrierUtc, entityId))
                 .ConfigureAwait(false);
         }
+    }
+
+    static string ResolveAccumulatorEntityId(ActorSubject source)
+    {
+        var sourceEntityId = TickDataEntityId.Parse(source.EntityId);
+        return new FuturesTradeSessionBarAccumulatorEntityId(sourceEntityId.ValueDate).Format();
     }
 
     /// <inheritdoc />

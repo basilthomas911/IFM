@@ -46,6 +46,10 @@ public interface IEventActorContext
     public void AddEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
     public void RemoveEventRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
     public void AddRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
+    public void AddRealtimeRouter(
+        ActorTypeId fromActorTypeId,
+        ActorMailboxId toMailboxId,
+        Func<ActorSubject, string> entityIdProjection);
     public void RemoveRealtimeRouter(ActorTypeId fromActorTypeId, ActorMailboxId toMailboxId);
 
 }

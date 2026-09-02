@@ -427,7 +427,7 @@ public class NatsActorConsumer(
         if (!supervisor.ActorExists(source.ActorId))
             return [];
 
-        return EventFanoutRoutes.Build(
+        return EventFanoutRoutes.BuildRealtime(
             source,
             supervisor.GetRealtimeRoutes(source.ActorTypeId),
             includePrimary: true);

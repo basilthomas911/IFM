@@ -251,20 +251,23 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             var attemptTimeout = remaining < DefinitionAttemptTimeout
                 ? remaining
                 : DefinitionAttemptTimeout;
-            try
+            var result = TryQuery(
+                [ticker],
+                NativeContractQueryKind.Ticker,
+                attemptTimeout);
+            if (result.IsSuccess)
             {
-                return Query([ticker], NativeContractQueryKind.Ticker, attemptTimeout)
+                return result.Details
                     .Select(static detail => detail!)
                     .ToArray();
             }
-            catch (Exception exception) when (
-                attempt < DefinitionQueryAttempts
-                && IsProviderQueryFailure(exception)
-                && deadline.Remaining > TimeSpan.Zero)
+            if (attempt >= DefinitionQueryAttempts
+                || deadline.Remaining <= TimeSpan.Zero)
             {
-                // Retry within the caller's original deadline. Definition range
-                // requests occasionally receive transient provider 504s.
+                ThrowQueryFailure(result);
             }
+            // Retry within the caller's original deadline. Definition range
+            // requests occasionally receive transient provider 504s.
         }
     }
 
@@ -272,19 +275,44 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         string[] contractNames,
         TimeSpan? timeout = null)
     {
+        var result = TryGetContractDetails(contractNames, timeout);
+        if (!result.IsSuccess)
+        {
+            ThrowQueryFailure(result);
+        }
+        return result.Details;
+    }
+
+    public DatabentoContractDetailsQueryResult TryGetContractDetails(
+        string[] contractNames,
+        TimeSpan? timeout = null)
+    {
         ArgumentNullException.ThrowIfNull(contractNames);
         if (contractNames.Length == 0)
         {
-            return [];
+            return DatabentoContractDetailsQueryResult.Success([]);
         }
         foreach (var contractName in contractNames)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(contractName);
         }
-        return Query(contractNames, NativeContractQueryKind.Exact, timeout);
+        return TryQuery(contractNames, NativeContractQueryKind.Exact, timeout);
     }
 
     private unsafe ContractDetail?[] Query(
+        IReadOnlyList<string> symbols,
+        NativeContractQueryKind queryKind,
+        TimeSpan? requestedTimeout)
+    {
+        var result = TryQuery(symbols, queryKind, requestedTimeout);
+        if (!result.IsSuccess)
+        {
+            ThrowQueryFailure(result);
+        }
+        return result.Details as ContractDetail?[] ?? result.Details.ToArray();
+    }
+
+    private unsafe DatabentoContractDetailsQueryResult TryQuery(
         IReadOnlyList<string> symbols,
         NativeContractQueryKind queryKind,
         TimeSpan? requestedTimeout)
@@ -340,32 +368,40 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
             : new SafeContractDetailsResultHandle(nativeResult);
         if (status != DatabentoFeedStatus.Ok)
         {
-            ThrowQueryFailure(status, result);
+            return DatabentoContractDetailsQueryResult.Failure(
+                status,
+                FormatQueryFailure(status, ReadQueryError(result)));
         }
 
-        NativeStatus.ThrowIfFailed(
-            NativeMethods.ContractDetailsResultGetCounts(
-                result!, out var detailCount, out var utf8Bytes),
-            null,
-            "Read contract-detail result counts");
+        status = NativeMethods.ContractDetailsResultGetCounts(
+            result!, out var detailCount, out var utf8Bytes);
+        if (status != DatabentoFeedStatus.Ok)
+        {
+            return DatabentoContractDetailsQueryResult.Failure(
+                status,
+                $"Read contract-detail result counts failed with {status}.");
+        }
         var nativeDetails = new NativeContractDetail[checked((int)detailCount)];
         var resultBlob = new byte[checked((int)utf8Bytes)];
         fixed (NativeContractDetail* detailsPointer = nativeDetails)
         fixed (byte* resultBlobPointer = resultBlob)
         {
-            NativeStatus.ThrowIfFailed(
-                NativeMethods.ContractDetailsResultCopy(
-                    result!, detailsPointer, detailCount,
-                    resultBlobPointer, utf8Bytes),
-                null,
-                "Copy contract-detail results");
+            status = NativeMethods.ContractDetailsResultCopy(
+                result!, detailsPointer, detailCount,
+                resultBlobPointer, utf8Bytes);
+        }
+        if (status != DatabentoFeedStatus.Ok)
+        {
+            return DatabentoContractDetailsQueryResult.Failure(
+                status,
+                $"Copy contract-detail results failed with {status}.");
         }
         var managed = new ContractDetail?[nativeDetails.Length];
         for (var index = 0; index < nativeDetails.Length; ++index)
         {
             managed[index] = Convert(nativeDetails[index], resultBlob);
         }
-        return managed;
+        return DatabentoContractDetailsQueryResult.Success(managed);
     }
 
     private ContractDetail? Convert(NativeContractDetail source, byte[] utf8Blob)
@@ -774,8 +810,20 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
         ContractKind Kind,
         long? StrikePrice);
 
-    private static unsafe void ThrowQueryFailure(
-        DatabentoFeedStatus status,
+    private static void ThrowQueryFailure(
+        DatabentoContractDetailsQueryResult result)
+    {
+        if (result.Status == DatabentoFeedStatus.Timeout)
+        {
+            throw new DatabentoFeedTimeoutException(
+                result.ErrorMessage ?? "Query contract details timed out.");
+        }
+        throw new DatabentoFeedException(
+            result.Status,
+            result.ErrorMessage ?? $"Query contract details failed with {result.Status}.");
+    }
+
+    private static unsafe string? ReadQueryError(
         SafeContractDetailsResultHandle? result)
     {
         string? detail = null;
@@ -798,13 +846,13 @@ internal sealed class DatabentoMarketDataQueries : IDatabentoMarketDataQueries
                 }
             }
         }
-        var message = string.IsNullOrWhiteSpace(detail)
+        return detail;
+    }
+
+    private static string FormatQueryFailure(
+        DatabentoFeedStatus status,
+        string? detail) =>
+        string.IsNullOrWhiteSpace(detail)
             ? $"Query contract details failed with {status}."
             : $"Query contract details failed with {status}: {detail}";
-        if (status == DatabentoFeedStatus.Timeout)
-        {
-            throw new DatabentoFeedTimeoutException(message);
-        }
-        throw new DatabentoFeedException(status, message);
-    }
 }

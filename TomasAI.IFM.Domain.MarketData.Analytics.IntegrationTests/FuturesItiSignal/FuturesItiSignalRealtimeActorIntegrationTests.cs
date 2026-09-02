@@ -78,7 +78,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
             Substitute.For<ILogger<FuturesItiSignalRealtimeActor>>()));
         supervisor.ActorExists(primaryActor.Id).Returns(true);
         supervisor.GetRealtimeRoutes(Arg.Any<ActorTypeId>())
-            .Returns(ImmutableHashSet.Create(itiActor.Id));
+            .Returns(ImmutableArray.Create(new RealtimeActorRoute(itiActor.Id)));
         supervisor.Children.Returns(new Dictionary<ActorMailboxId, IActor>
         {
             [primaryActor.Id] = primaryActor,
