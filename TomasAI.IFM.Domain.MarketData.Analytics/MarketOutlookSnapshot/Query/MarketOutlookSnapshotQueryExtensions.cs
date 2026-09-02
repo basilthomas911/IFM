@@ -14,7 +14,7 @@ public static class MarketOutlookSnapshotQueryExtensions
         CancellationToken cancellationToken = default)
         => GetLatestAsync(context, contractId, valueDate, cancellationToken);
 
-    static async Task<ServiceResult<MarketOutlookReadModel>> GetLatestAsync(
+    internal static async Task<ServiceResult<MarketOutlookReadModel>> GetLatestAsync(
         IMarketOutlookSnapshotQueryContext context,
         string contractId,
         DateOnly valueDate,
@@ -22,13 +22,20 @@ public static class MarketOutlookSnapshotQueryExtensions
     {
         try
         {
-            var snapshot = await context.DbFactory.MarketDataDb.GetMarketOutlookSnapshotAsync(
-                contractId, valueDate, cancellationToken).ConfigureAwait(false);
-            return snapshot is null
-                ? new ServiceFailed<MarketOutlookReadModel>(
-                    GetMarketOutlookSnapshotQuery.ErrorId,
-                    $"No Market Outlook snapshot is available for {contractId} on or before {valueDate:yyyy-MM-dd}.")
-                : new ServiceOk<MarketOutlookReadModel>(snapshot);
+            var cutoff = valueDate;
+            while (true)
+            {
+                var snapshot = await context.DbFactory.MarketDataDb.GetMarketOutlookSnapshotAsync(
+                    contractId, cutoff, cancellationToken).ConfigureAwait(false);
+                if (snapshot is null)
+                    return Missing(contractId, valueDate);
+                if (!context.Policy.RejectSyntheticSnapshots
+                    || snapshot.SnapshotSource != MarketOutlookSnapshotSource.Synthetic)
+                    return new ServiceOk<MarketOutlookReadModel>(snapshot);
+                if (snapshot.ValueDate == DateOnly.MinValue)
+                    return Missing(contractId, valueDate);
+                cutoff = snapshot.ValueDate.AddDays(-1);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -40,4 +47,10 @@ public static class MarketOutlookSnapshotQueryExtensions
                 GetMarketOutlookSnapshotQuery.ErrorId, exception.Message);
         }
     }
+
+    static ServiceFailed<MarketOutlookReadModel> Missing(
+        string contractId,
+        DateOnly valueDate) => new(
+            GetMarketOutlookSnapshotQuery.ErrorId,
+            $"No Market Outlook snapshot is available for {contractId} on or before {valueDate:yyyy-MM-dd}.");
 }

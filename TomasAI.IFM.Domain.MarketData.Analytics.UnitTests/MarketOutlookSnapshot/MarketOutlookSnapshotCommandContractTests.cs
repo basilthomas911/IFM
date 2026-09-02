@@ -129,6 +129,41 @@ public sealed class MarketOutlookSnapshotCommandContractTests(MarketDataAnalytic
     }
 
     [Fact]
+    public async Task CommandWriter_StampsTheConfiguredFeedSourceOnTheDurableSnapshot()
+    {
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var producer = Substitute.For<IActorProducer>();
+        supervisor.GetProducer(Arg.Any<ActorMailboxId>()).Returns(producer);
+        InsertMarketOutlookSnapshotCommand? captured = null;
+        producer.RequestAsync<InsertMarketOutlookSnapshotCommand, MarketOutlookEntityId, GuidResult>(
+                Arg.Any<ActorSubject>(),
+                Arg.Do<InsertMarketOutlookSnapshotCommand>(command => captured = command),
+                Arg.Any<MarketOutlookEntityId>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<ServiceResult<GuidResult>>(
+                new ServiceOk<GuidResult>(new(Guid.NewGuid()))));
+        var writer = new ActorMarketOutlookSnapshotCommandWriter(
+            supervisor,
+            new(MarketOutlookSnapshotSource.Synthetic));
+        var snapshot = Snapshot();
+        var update = new EodMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = new(snapshot.ContractId, snapshot.ValueDate),
+            ReceivedAtUtc = DateTime.UtcNow,
+            MarketDataAsOfUtc = snapshot.MarketDataAsOfUtc,
+            Eod = snapshot.FuturesEodData
+        };
+
+        await writer.PublishAsync(update, snapshot, CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.MarketOutlook.SnapshotSource.Should()
+            .Be(MarketOutlookSnapshotSource.Synthetic);
+        snapshot.SnapshotSource.Should().Be(MarketOutlookSnapshotSource.Unknown);
+    }
+
+    [Fact]
     public void PersistabilityValidation_AcceptsValidEodWithOptionalAnalyticsMissing()
     {
         var command = new InsertMarketOutlookSnapshotCommand(Snapshot() with

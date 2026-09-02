@@ -612,3 +612,42 @@ The external Databento-live variant could not complete in the restricted develop
 because the vendor endpoint was unreachable. The deterministic synthetic-feed host was used for
 the local-service acceptance run; Databento availability is an environment/deployment check and
 does not change the completed durable snapshot design.
+
+## 16. Post-acceptance source-isolation hardening
+
+The synthetic acceptance run exposed two independent operational hazards and was followed by a
+hardening pass:
+
+1. A synthetic API host had been pointed at the ordinary development event-source and Market Data
+   stores. Its exact Market Outlook stream and projected ES/VX rows for `2026-09-03` were removed.
+2. Every newly persisted snapshot now carries `MarketOutlookSnapshotSource` provenance in the full
+   event/read-model payload. Legacy snapshots deserialize as `Unknown`.
+3. The API derives that provenance from the configured feed source. A live query rejects a
+   `Synthetic` latest row and continues to the preceding value date; synthetic integration hosts
+   may query their own synthetic rows.
+4. Synthetic API startup now fails before hosted services start unless the deployment profile is
+   `SyntheticCi` and both the event-source database and ScyllaDB keyspace explicitly identify
+   isolated synthetic stores.
+5. Databento live mapping resolution now treats `(publisher_id, instrument_id)` as the identity.
+   Instrument IDs that collide across publishers no longer reject the correct publisher mapping;
+   records for a nonmatching pair are discarded while startup waits for the requested pair. A
+   genuine symbol-mapping remap remains fatal and reports the requested symbol plus actual and
+   expected IDs.
+
+The observed synthetic run created 1,289 inserted snapshot events in approximately 193 seconds.
+That rate is consistent with the binding decision to persist every valid composed display
+snapshot through `InsertMarketOutlookSnapshotCommand`. This hardening pass deliberately does not
+throttle, coalesce, or replace that command path. Any future cadence reduction is a separate data
+retention/product decision because it changes the audited snapshot semantics.
+
+Hardening verification:
+
+- Analytics unit suite: 1,023 passed;
+- Application Market Data unit suite: 121 passed;
+- Databento framework unit suite: 133 passed;
+- native synthetic and live-enabled C++ suites: passed;
+- API Server build: zero warnings and zero errors; and
+- Actor integration host build: zero warnings and zero errors;
+- serialized full-solution build: zero warnings and zero errors; and
+- real Databento-live startup: authenticated, completed publisher-scoped mapping, and returned a
+  persisted `DatabentoLive` Market Outlook snapshot with non-zero ES OHLC and VX price.

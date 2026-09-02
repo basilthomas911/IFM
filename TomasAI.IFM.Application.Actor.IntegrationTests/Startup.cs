@@ -52,7 +52,9 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
 using TomasAI.IFM.Framework.Messaging;
@@ -470,12 +472,16 @@ public static class Startup
             var contracts = config
                 .GetSection("AppSettings:Databento:Contracts")
                 .Get<DatabentoContractRegistration[]>() ?? [];
+            var feedOptions = DatabentoFeedOptions.ForProfile(
+                deploymentProfile, dataset);
             var runtimeOptions = new DatabentoMarketDataRuntimeOptions
             {
-                FeedOptions = DatabentoFeedOptions.ForProfile(
-                    deploymentProfile, dataset),
+                FeedOptions = feedOptions,
                 Contracts = contracts
             };
+            services.AddSingleton(new MarketOutlookSnapshotPersistencePolicy(
+                MarketOutlookSnapshotSource.Synthetic));
+            services.AddSingleton(MarketOutlookSnapshotQueryPolicy.AllowAll);
             services.AddDatabentoMarketDataServices();
             services.AddSingleton<IDatabentoFeedFactory,
                 IntegrationDatabentoFeedFactory>();

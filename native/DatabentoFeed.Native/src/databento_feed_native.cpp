@@ -1,5 +1,6 @@
 #include "databento_feed_native.h"
 #include "latest_price_session_guard.hpp"
+#include "publisher_mapping_selector.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1314,13 +1315,23 @@ bool resolve_mapping(dbf_feed* feed,
         }
         found = true;
         if (mapping.instrument_id != 0 && mapping.instrument_id != instrument_id) {
-            return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
-                             "A resolved symbol remapped to a different instrument");
+            return fail_live(
+                feed,
+                DBF_SYMBOL_RESOLUTION_FAILED,
+                "A resolved symbol remapped to a different instrument: requested_symbol="
+                    + requested + ", expected_instrument_id="
+                    + std::to_string(mapping.instrument_id)
+                    + ", actual_instrument_id=" + std::to_string(instrument_id));
         }
         if (mapping.publisher_id != 0 && message.hd.publisher_id != 0
             && mapping.publisher_id != message.hd.publisher_id) {
-            return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
-                             "A resolved symbol remapped to a different publisher");
+            return fail_live(
+                feed,
+                DBF_SYMBOL_RESOLUTION_FAILED,
+                "A resolved symbol remapped to a different publisher: requested_symbol="
+                    + requested + ", instrument_id=" + std::to_string(instrument_id)
+                    + ", expected_publisher_id=" + std::to_string(mapping.publisher_id)
+                    + ", actual_publisher_id=" + std::to_string(message.hd.publisher_id));
         }
         mapping.instrument_id = instrument_id;
         if (message.hd.publisher_id != 0) {
@@ -1338,24 +1349,26 @@ bool resolve_mapping(dbf_feed* feed,
     return true;
 }
 
-bool resolve_mapping_publisher(dbf_feed* feed,
-                               const databento::RecordHeader& header) {
+dbf_live::publisher_match_status resolve_mapping_publisher(
+    dbf_feed* feed,
+    const databento::RecordHeader& header) {
     if (header.instrument_id == 0 || header.publisher_id == 0) {
-        return true;
+        return dbf_live::publisher_match_status::unrelated;
+    }
+    dbf_live::publisher_mapping_selector selector{
+        header.instrument_id,
+        header.publisher_id};
+    for (const auto& mapping : feed->mappings) {
+        selector.observe(mapping.instrument_id, mapping.publisher_id);
     }
     for (auto& mapping : feed->mappings) {
-        if (mapping.instrument_id != header.instrument_id) {
+        if (!selector.selects(mapping.instrument_id, mapping.publisher_id)) {
             continue;
-        }
-        if (mapping.publisher_id != 0
-            && mapping.publisher_id != header.publisher_id) {
-            return fail_live(feed, DBF_SYMBOL_RESOLUTION_FAILED,
-                             "A resolved instrument produced data from a different publisher");
         }
         mapping.publisher_id = header.publisher_id;
         mapping.resolved = true;
     }
-    return true;
+    return selector.status();
 }
 
 bool all_mappings_resolved(const dbf_feed* feed) noexcept {
@@ -1424,13 +1437,21 @@ bool process_live_record(dbf_feed* feed,
     if (const auto* mapping = source.GetIf<databento::SymbolMappingMsg>()) {
         return resolve_mapping(feed, *mapping, initial_mapping);
     }
-    if (initial_mapping && !resolve_mapping_publisher(feed, source.Header())) {
-        return false;
+    if (initial_mapping) {
+        const auto match = resolve_mapping_publisher(feed, source.Header());
+        if (match == dbf_live::publisher_match_status::unrelated
+            || match == dbf_live::publisher_match_status::conflict) {
+            // Databento instrument IDs are publisher-scoped. A record with the
+            // same numeric instrument ID under another publisher belongs to a
+            // different instrument and must not resolve or enter this feed.
+            return true;
+        }
     }
     const auto trade_replay = trade_replay_pending
         && std::any_of(feed->mappings.begin(), feed->mappings.end(),
                        [&source](const mapping_entry& mapping) {
                            return mapping.instrument_id == source.Header().instrument_id
+                               && mapping.publisher_id == source.Header().publisher_id
                                && (mapping.data_kinds
                                    & DBF_MARKET_DATA_SESSION_VOLUME) != 0;
                        });

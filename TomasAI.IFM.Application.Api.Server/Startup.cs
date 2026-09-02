@@ -67,7 +67,9 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realt
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
 using TomasAI.IFM.Domain.MarketData.Securities;
@@ -569,6 +571,17 @@ public static class Startup
                     Synthetic = configuredSynthetic
                 };
             }
+            SyntheticPersistenceIsolationGuard.Validate(
+                feedOptions,
+                config.GetConnectionString("EventSourceActorDbConnection"),
+                config.GetConnectionString("MarketDataDbConnection"));
+            var snapshotSource = feedOptions.DataSource == FeedDataSourceMode.Synthetic
+                ? MarketOutlookSnapshotSource.Synthetic
+                : MarketOutlookSnapshotSource.DatabentoLive;
+            services.AddSingleton(new MarketOutlookSnapshotPersistencePolicy(snapshotSource));
+            services.AddSingleton(new MarketOutlookSnapshotQueryPolicy(
+                RejectSyntheticSnapshots:
+                    feedOptions.DataSource == FeedDataSourceMode.DatabentoLive));
             var runtimeOptions = new DatabentoMarketDataRuntimeOptions
             {
                 FeedOptions = feedOptions,

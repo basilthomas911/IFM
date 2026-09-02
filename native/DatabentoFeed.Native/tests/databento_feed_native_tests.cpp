@@ -1,5 +1,6 @@
 #include "databento_feed_native.h"
 #include "latest_price_session_guard.hpp"
+#include "publisher_mapping_selector.hpp"
 
 #include <array>
 #if defined(NDEBUG)
@@ -57,6 +58,31 @@ void require(dbf_status actual, dbf_status expected = DBF_OK) {
         std::cerr << "Expected status " << expected << " but received " << actual << '\n';
         std::abort();
     }
+}
+
+void test_publisher_mapping_selector_uses_scoped_instrument_identity() {
+    dbf_live::publisher_mapping_selector exact{42, 7};
+    exact.observe(42, 5);
+    exact.observe(42, 7);
+    assert(exact.status() == dbf_live::publisher_match_status::exact);
+    assert(!exact.selects(42, 5));
+    assert(exact.selects(42, 7));
+
+    dbf_live::publisher_mapping_selector unresolved{42, 7};
+    unresolved.observe(42, 5);
+    unresolved.observe(42, 0);
+    assert(unresolved.status() == dbf_live::publisher_match_status::unresolved);
+    assert(!unresolved.selects(42, 5));
+    assert(unresolved.selects(42, 0));
+
+    dbf_live::publisher_mapping_selector conflict{42, 7};
+    conflict.observe(42, 5);
+    assert(conflict.status() == dbf_live::publisher_match_status::conflict);
+    assert(!conflict.selects(42, 5));
+
+    dbf_live::publisher_mapping_selector unrelated{42, 7};
+    unrelated.observe(99, 7);
+    assert(unrelated.status() == dbf_live::publisher_match_status::unrelated);
 }
 
 dbf_feed_t* create_subscribed_feed(std::uint32_t record_count,
@@ -636,6 +662,8 @@ void test_live_dbn_normalization() {
 int main() {
     std::cout << "test_layouts" << std::endl;
     test_layouts();
+    std::cout << "test_publisher_mapping_selector_uses_scoped_instrument_identity" << std::endl;
+    test_publisher_mapping_selector_uses_scoped_instrument_identity();
     std::cout << "test_latest_price_session_guard_closes_every_path" << std::endl;
     test_latest_price_session_guard_closes_every_path();
 #if !defined(DBF_ENABLE_LIVE)

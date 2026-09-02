@@ -26,6 +26,17 @@ public enum MarketOutlookInputAvailability : byte
     Invalid = 4
 }
 
+/// <summary>Identifies the market-data source that produced a durable snapshot.</summary>
+public enum MarketOutlookSnapshotSource : byte
+{
+    /// <summary>Legacy snapshot written before source provenance was captured.</summary>
+    Unknown = 0,
+    /// <summary>Snapshot derived from the Databento live feed.</summary>
+    DatabentoLive = 1,
+    /// <summary>Snapshot derived from the deterministic synthetic feed.</summary>
+    Synthetic = 2
+}
+
 /// <summary>
 /// Current non-authoritative Market Outlook display value. The record is an immutable hot-cache
 /// projection and deliberately has no aggregate revision or persistence lifecycle.
@@ -58,6 +69,7 @@ public sealed record MarketOutlookReadModel
     [Key(22)] public MarketOutlookInputAvailability DailyAnalyticsAvailability { get; init; }
     [Key(23)] public string FeedHealth { get; init; } = "Unknown";
     [Key(24)] public string FeedHealthReason { get; init; } = string.Empty;
+    [Key(25)] public MarketOutlookSnapshotSource SnapshotSource { get; init; }
 
     [IgnoreMember]
     public bool IsComplete => FuturesEodData.IsValid

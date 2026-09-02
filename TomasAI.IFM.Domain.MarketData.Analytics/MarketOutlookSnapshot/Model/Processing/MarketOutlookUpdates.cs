@@ -100,20 +100,40 @@ public interface IMarketOutlookSnapshotCommandWriter
 }
 
 /// <summary>Sends each complete local snapshot through the sole durable insert command.</summary>
-public sealed class ActorMarketOutlookSnapshotCommandWriter(IActorSupervisor supervisor)
+public sealed class ActorMarketOutlookSnapshotCommandWriter
     : IMarketOutlookSnapshotCommandWriter
 {
     static readonly ActorMailboxId PublisherId = new(
         ActorType.Command,
         InsertMarketOutlookSnapshotCommand.Actor);
     IActorProducer? producer;
+    readonly IActorSupervisor supervisor;
+    readonly MarketOutlookSnapshotPersistencePolicy persistencePolicy;
+
+    public ActorMarketOutlookSnapshotCommandWriter(IActorSupervisor supervisor)
+        : this(supervisor, MarketOutlookSnapshotPersistencePolicy.Legacy)
+    {
+    }
+
+    public ActorMarketOutlookSnapshotCommandWriter(
+        IActorSupervisor supervisor,
+        MarketOutlookSnapshotPersistencePolicy persistencePolicy)
+    {
+        this.supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
+        this.persistencePolicy = persistencePolicy
+            ?? throw new ArgumentNullException(nameof(persistencePolicy));
+    }
 
     public async ValueTask PublishAsync(
         MarketOutlookUpdate update,
         MarketOutlookReadModel snapshot,
         CancellationToken cancellationToken)
     {
-        var command = new InsertMarketOutlookSnapshotCommand(snapshot) with
+        var durableSnapshot = snapshot with
+        {
+            SnapshotSource = persistencePolicy.SnapshotSource
+        };
+        var command = new InsertMarketOutlookSnapshotCommand(durableSnapshot) with
         {
             CommandId = update.UpdateId == Guid.Empty ? Guid.NewGuid() : update.UpdateId
         };

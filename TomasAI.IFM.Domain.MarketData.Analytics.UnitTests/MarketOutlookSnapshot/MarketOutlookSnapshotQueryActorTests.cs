@@ -4,6 +4,7 @@ using NATS.Client.Core;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
@@ -78,6 +79,72 @@ public sealed class MarketOutlookSnapshotQueryActorTests(MarketDataAnalyticsTest
     }
 
     [Fact]
+    public async Task LiveQuery_SkipsSyntheticSnapshotAndReturnsEarlierLiveSnapshot()
+    {
+        var scenario = CreateScenario(new(RejectSyntheticSnapshots: true));
+        var query = Query();
+        var synthetic = new MarketOutlookReadModel
+        {
+            ContractId = query.ContractId,
+            ValueDate = query.ValueDate,
+            SnapshotSource = MarketOutlookSnapshotSource.Synthetic,
+            FuturesEodData = SampleData.EodData
+        };
+        var earlierCutoff = synthetic.ValueDate.AddDays(-1);
+        var live = synthetic with
+        {
+            ValueDate = earlierCutoff,
+            SnapshotSource = MarketOutlookSnapshotSource.DatabentoLive
+        };
+        scenario.Db.GetMarketOutlookSnapshotAsync(
+                query.ContractId, query.ValueDate, Arg.Any<CancellationToken>())
+            .Returns(synthetic);
+        scenario.Db.GetMarketOutlookSnapshotAsync(
+                query.ContractId, earlierCutoff, Arg.Any<CancellationToken>())
+            .Returns(live);
+
+        await scenario.Actor.Receive(scenario.ReceiveContext, query);
+
+        await scenario.ReceiveContext.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetMarketOutlookSnapshotQuery.Verb,
+            Arg.Is<ServiceResult<MarketOutlookReadModel>>(result =>
+                result.Success && result.Value == live));
+    }
+
+    [Fact]
+    public async Task LiveQuery_ReturnsTypedFailureWhenOnlySyntheticDataExists()
+    {
+        var scenario = CreateScenario(new(RejectSyntheticSnapshots: true));
+        var query = Query();
+        var synthetic = new MarketOutlookReadModel
+        {
+            ContractId = query.ContractId,
+            ValueDate = query.ValueDate,
+            SnapshotSource = MarketOutlookSnapshotSource.Synthetic,
+            FuturesEodData = SampleData.EodData
+        };
+        scenario.Db.GetMarketOutlookSnapshotAsync(
+                query.ContractId, query.ValueDate, Arg.Any<CancellationToken>())
+            .Returns(synthetic);
+        scenario.Db.GetMarketOutlookSnapshotAsync(
+                query.ContractId,
+                synthetic.ValueDate.AddDays(-1),
+                Arg.Any<CancellationToken>())
+            .Returns((MarketOutlookReadModel?)null);
+
+        await scenario.Actor.Receive(scenario.ReceiveContext, query);
+
+        await scenario.ReceiveContext.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetMarketOutlookSnapshotQuery.Verb,
+            Arg.Is<ServiceResult<MarketOutlookReadModel>>(result =>
+                !result.Success
+                && result.ErrorCode == GetMarketOutlookSnapshotQuery.ErrorId
+                && result.Value == null));
+    }
+
+    [Fact]
     public void UnknownQueryVerb_IsAVisibleStrictMappingError()
     {
         var scenario = CreateScenario();
@@ -89,7 +156,7 @@ public sealed class MarketOutlookSnapshotQueryActorTests(MarketDataAnalyticsTest
         action.Should().Throw<InvalidOperationException>();
     }
 
-    Scenario CreateScenario()
+    Scenario CreateScenario(MarketOutlookSnapshotQueryPolicy? policy = null)
     {
         var db = Substitute.For<IMarketDataDbContext>();
         var factory = Substitute.For<IDbContextFactory>();
@@ -97,7 +164,8 @@ public sealed class MarketOutlookSnapshotQueryActorTests(MarketDataAnalyticsTest
         var context = new MarketOutlookSnapshotQueryContext(
             Substitute.For<IActorSupervisor>(),
             factory,
-            Substitute.For<ILogger<MarketOutlookSnapshotQueryActor>>());
+            Substitute.For<ILogger<MarketOutlookSnapshotQueryActor>>(),
+            policy);
         var receive = Substitute.For<IQueryActorContext<MarketOutlookSnapshotQueryActor>>();
         receive.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
             .Returns(true);

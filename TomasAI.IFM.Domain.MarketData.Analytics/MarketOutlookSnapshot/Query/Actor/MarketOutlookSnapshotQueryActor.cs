@@ -1,4 +1,5 @@
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Query;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -29,12 +30,12 @@ public class MarketOutlookSnapshotQueryActor(
 
     static readonly IReadOnlyDictionary<Type, Func<
         IQueryActorContext<MarketOutlookSnapshotQueryActor>,
-        IDbContextFactory,
+        IMarketOutlookSnapshotQueryContext,
         IQuery,
         CancellationToken,
         ValueTask>> _receiveMap = new Dictionary<Type, Func<
             IQueryActorContext<MarketOutlookSnapshotQueryActor>,
-            IDbContextFactory,
+            IMarketOutlookSnapshotQueryContext,
             IQuery,
             CancellationToken,
             ValueTask>>
@@ -55,22 +56,17 @@ public class MarketOutlookSnapshotQueryActor(
         IQuery query,
         CancellationToken cancellationToken)
         => ResolveMappedQueryHandler(query, _receiveMap)(
-            context, DomainContext.DbFactory, query, cancellationToken);
+            context, DomainContext, query, cancellationToken);
 
     static async ValueTask ReceiveSnapshotAsync(
         IQueryActorContext<MarketOutlookSnapshotQueryActor> context,
-        IDbContextFactory dbFactory,
+        IMarketOutlookSnapshotQueryContext domainContext,
         IQuery query,
         CancellationToken cancellationToken)
     {
         var request = (GetMarketOutlookSnapshotQuery)query;
-        var snapshot = await dbFactory.MarketDataDb.GetMarketOutlookSnapshotAsync(
+        var result = await domainContext.GetMarketOutlookSnapshotAsync(
             request.ContractId, request.ValueDate, cancellationToken).ConfigureAwait(false);
-        ServiceResult<MarketOutlookReadModel> result = snapshot is null
-            ? new ServiceFailed<MarketOutlookReadModel>(
-                GetMarketOutlookSnapshotQuery.ErrorId,
-                $"No Market Outlook snapshot is available for {request.ContractId} on or before {request.ValueDate:yyyy-MM-dd}.")
-            : new ServiceOk<MarketOutlookReadModel>(snapshot);
         await context.ReplyAsync(
             query.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb, result).ConfigureAwait(false);
     }
