@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -29,7 +29,7 @@ public record MarketDataFeedResetEvent : IEvent<MarketDataFeedId>
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public FuturesContractV2ReadModel[] FuturesContracts { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel[] FuturesContracts { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public DateTime ResetOn { get; init; }
     [Key(11)] public string ResetBy { get; init; }
@@ -53,7 +53,7 @@ public record MarketDataFeedResetEvent : IEvent<MarketDataFeedId>
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel[] futuresContracts,
+        FuturesContractV3ReadModel[] futuresContracts,
         DateOnly valueDate,
         DateTime resetOn,
         string resetBy)
@@ -150,7 +150,7 @@ public record MarketDataFeedResetCompleteEvent : ICompleteEvent<MarketDataFeedId
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
-    [Key(8)] public FuturesContractV2ReadModel[] FuturesContracts { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel[] FuturesContracts { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public DateTime ResetOn { get; init; }
     [Key(11)] public string ResetBy { get; init; }
@@ -171,7 +171,7 @@ public record MarketDataFeedResetCompleteEvent : ICompleteEvent<MarketDataFeedId
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel[] futuresContracts,
+        FuturesContractV3ReadModel[] futuresContracts,
         DateOnly valueDate,
         DateTime resetOn,
         string resetBy)

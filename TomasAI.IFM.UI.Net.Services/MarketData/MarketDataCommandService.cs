@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -51,7 +51,7 @@ public class MarketDataCommandService(IMarketDataCommandApi commandApi)
     /// <param name="futuresContract"></param>
     /// <param name="overwrite"></param>
     /// <param name="setCommandId"></param>
-    public async Task<Guid> AddFuturesContractAsync(FuturesContractV2ReadModel futuresContract, bool overwrite)
+    public async Task<Guid> AddFuturesContractAsync(FuturesContractV3ReadModel futuresContract, bool overwrite)
         => await ExecuteCommandAsync(() => _commandApi.AddFuturesContractAsync(futuresContract, overwrite));
 
     /// <summary>
@@ -68,7 +68,7 @@ public class MarketDataCommandService(IMarketDataCommandApi commandApi)
     /// <param name="setCommandId">A callback action that receives the unique identifier of the command executed to perform the update.  This
     /// action is invoked after the command is successfully initiated.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task<Guid> ChangeFuturesContractAsync(FuturesContractId originalContractId, FuturesContractV2ReadModel changedFuturesContract, bool overwrite)
+    public async Task<Guid> ChangeFuturesContractAsync(FuturesContractId originalContractId, FuturesContractV3ReadModel changedFuturesContract, bool overwrite)
         => await ExecuteCommandAsync(() => _commandApi.ChangeFuturesContractAsync(originalContractId, changedFuturesContract, overwrite));
 
     /// <summary>

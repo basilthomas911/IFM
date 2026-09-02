@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -45,7 +45,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
            Size: 31285
         );
 
-        public static FuturesContractV2ReadModel FuturesContract => new FuturesContractV2ReadModel
+        public static FuturesContractV3ReadModel FuturesContract => new FuturesContractV3ReadModel
         (
             ContractId: "ES20190920",
             Description: "ES: e-mini S&P 500 futures 2019 Sep 20 @ GLOBEX",
@@ -56,7 +56,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SqlServer
             Exchange: "GLOBEX",
             Multiplier: "50",
             LastTradeDate: new DateTime(2019, 9, 20),
-            CurrentlyTraded: true
+            OnTheRun: true
         );
 
         public static FuturesTickDataViewModel[] FuturesTickData => new FuturesTickDataViewModel[]

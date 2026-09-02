@@ -3,6 +3,7 @@ using TomasAI.IFM.Application.Api.Server;
 using TomasAI.IFM.Application.Storage.PortfolioDb.Schema;
 using TomasAI.IFM.Application.Storage.ReferenceDb;
 using TomasAI.IFM.Application.Storage.ReferenceDb.Schema;
+using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Application.Storage.SequenceIdDb.Schema;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 
@@ -33,17 +34,26 @@ try
         await app.Services.GetRequiredService<PortfolioSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<ReferenceSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<SequenceIdSchemaDb>().CreateAllAsync();
+        await app.Services.GetRequiredService<SecuritiesSchemaDb>().CreateAllAsync();
         await app.Services.GetRequiredService<TradeStrategyFamilyBootstrapper>().EnsureV1Async();
-        await app.MapEventModelActorsAsync(logger);
         app.EnableServerManagerStandardInputShutdown(args, logger);
+        // Bind the HTTP endpoint and start hosted infrastructure before exposing
+        // any NATS actor subscriptions. If Kestrel cannot bind (for example, a
+        // duplicate API host owns the port), no actor can consume messages from
+        // a service provider that is immediately torn down.
+        await app.StartAsync();
         var actorSupervisor = app.Services.GetRequiredService<IActorSupervisor>();
+        var actorsStarted = false;
         try
         {
-            await app.RunAsync();
+            await app.MapEventModelActorsAsync(logger);
+            actorsStarted = true;
+            await app.WaitForShutdownAsync();
         }
         finally
         {
-            await actorSupervisor.ShutdownAsync(CancellationToken.None);
+            if (actorsStarted)
+                await actorSupervisor.ShutdownAsync(CancellationToken.None);
         }
     }
 }

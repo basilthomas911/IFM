@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.SystemTests.Infrastructure;
 
@@ -31,10 +31,10 @@ public sealed class MarketOutlookLiveHostAcceptanceTests
         await session.StartAsync(Guid.NewGuid().ToString("N"), timeout.Token, "MOSC");
 
         var esContracts = await session.MarketData
-            .GetCurrentlyTradedFuturesContractsAsync("ES");
+            .GetRolloverFuturesContractsAsync("ES");
         esContracts.Success.Should().BeTrue(esContracts.ErrorMessage);
         var vxContracts = await session.MarketData
-            .GetCurrentlyTradedFuturesContractsAsync("VX");
+            .GetRolloverFuturesContractsAsync("VX");
         vxContracts.Success.Should().BeTrue(vxContracts.ErrorMessage);
         var contracts = esContracts.Value
             .Concat(vxContracts.Value)

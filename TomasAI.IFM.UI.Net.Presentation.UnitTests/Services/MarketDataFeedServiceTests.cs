@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -30,7 +30,7 @@ public sealed class MarketDataFeedServiceTests
     public async Task StartDataFeed_ForwardsContractsAndValueDateExactlyOnce()
     {
         var model = CreateModel();
-        ICollection<FuturesContractV2ReadModel> contracts = [];
+        ICollection<FuturesContractV3ReadModel> contracts = [];
         var valueDate = new DateOnly(2026, 8, 11);
         var commandId = Guid.NewGuid();
         _commandApi.StartMarketDataFeedAsync(contracts, valueDate)
@@ -47,7 +47,7 @@ public sealed class MarketDataFeedServiceTests
     public async Task StartDataFeed_PreservesServiceFailureForTheViewModelBoundary()
     {
         var model = CreateModel();
-        ICollection<FuturesContractV2ReadModel> contracts = [];
+        ICollection<FuturesContractV3ReadModel> contracts = [];
         var valueDate = new DateOnly(2026, 8, 11);
         (int Code, string Message)? error = null;
         model.OnError((code, message) => error = (code, message));

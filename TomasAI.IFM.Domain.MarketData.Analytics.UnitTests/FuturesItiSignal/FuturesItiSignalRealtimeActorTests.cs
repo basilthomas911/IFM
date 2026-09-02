@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
@@ -201,9 +201,9 @@ public sealed class FuturesItiSignalRealtimeActorTests
         const string nextVxContractId = "VX20261021";
         var rolled = false;
         var marketDataApi = Substitute.For<IMarketDataApi>();
-        marketDataApi.TryGetCurrentlyTradedFuturesContract(
+        marketDataApi.TryGetOnTheRunFuturesContract(
                 "ES",
-                out Arg.Any<FuturesContractV2ReadModel>()!)
+                out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = rolled
@@ -211,9 +211,9 @@ public sealed class FuturesItiSignalRealtimeActorTests
                     : Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
                 return true;
             });
-        marketDataApi.TryGetCurrentlyTradedFuturesContract(
+        marketDataApi.TryGetOnTheRunFuturesContract(
                 "VX",
-                out Arg.Any<FuturesContractV2ReadModel>()!)
+                out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = rolled
@@ -412,13 +412,13 @@ public sealed class FuturesItiSignalRealtimeActorTests
         var api = Substitute.For<IMarketDataApi>();
         var es = Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
         var vx = Contract("VX", VxContractId, "VXU6", new DateOnly(2026, 9, 16));
-        api.TryGetCurrentlyTradedFuturesContract("ES", out Arg.Any<FuturesContractV2ReadModel>()!)
+        api.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = es;
                 return true;
             });
-        api.TryGetCurrentlyTradedFuturesContract("VX", out Arg.Any<FuturesContractV2ReadModel>()!)
+        api.TryGetOnTheRunFuturesContract("VX", out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = vx;
@@ -464,7 +464,7 @@ public sealed class FuturesItiSignalRealtimeActorTests
         };
     }
 
-    static FuturesContractV2ReadModel Contract(
+    static FuturesContractV3ReadModel Contract(
         string symbol,
         string contractId,
         string localSymbol,

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using FluentAssertions;
@@ -527,7 +527,7 @@ public class FuturesOptionTickDataStreamingParameterModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var contract = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var optionContract = new global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel();
         var expectedKey = "FuturesOptionTickDataStreamingParameter:123";
         var cachedJson = "{}";
@@ -564,7 +564,7 @@ public class FuturesOptionTickDataStreamingParameterModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var contract = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var optionContract = new global::TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel();
         var data = new global::TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesOptionTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), new DateOnly(2024, 12, 20), 0.05, contract, optionContract);
         var expectedKey = "FuturesOptionTickDataStreamingParameter:123";

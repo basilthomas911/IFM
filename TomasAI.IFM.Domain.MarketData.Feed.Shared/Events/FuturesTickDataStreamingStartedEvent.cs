@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -29,7 +29,7 @@ public record FuturesTickDataStreamingStartedEvent : IEvent<FuturesTickDataStrea
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public bool ResetStream { get; init; }
     [Key(11)] public DateTime StartedOn { get; init; }
@@ -54,7 +54,7 @@ public record FuturesTickDataStreamingStartedEvent : IEvent<FuturesTickDataStrea
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateOnly valueDate,
         bool resetStream,
         DateTime startedOn,
@@ -154,7 +154,7 @@ public record FuturesTickDataStreamingStartedCompleteEvent : ICompleteEvent<Futu
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public bool ResetStream { get; init; }
     [Key(11)] public DateTime StartedOn { get; init; }
@@ -176,7 +176,7 @@ public record FuturesTickDataStreamingStartedCompleteEvent : ICompleteEvent<Futu
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateOnly valueDate,
         bool resetStream,
         DateTime startedOn,

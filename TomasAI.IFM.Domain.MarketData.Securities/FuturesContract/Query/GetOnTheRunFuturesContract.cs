@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -8,7 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Query;
 
-public static class GetCurrentlyTradedFuturesContract
+public static class GetOnTheRunFuturesContract
 {
     /// <summary>
     /// 
@@ -17,11 +17,11 @@ public static class GetCurrentlyTradedFuturesContract
     /// <param name="context"></param>
     /// <param name="dbFactory"></param>
     /// <returns></returns>
-    public static ValueTask<FuturesContractV2ReadModel?> GetCurrentlyTradedFuturesContractAsync(
-        this GetCurrentlyTradedFuturesContractQuery q,
+    public static ValueTask<FuturesContractV3ReadModel?> GetOnTheRunFuturesContractAsync(
+        this GetOnTheRunFuturesContractQuery q,
         IDbContextFactory dbFactory,
         CancellationToken cancellationToken = default)
         => new(cancellationToken.CanBeCanceled
-            ? dbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractAsync(q.Symbol, cancellationToken)
-            : dbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractAsync(q.Symbol));
+            ? dbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(q.Symbol, cancellationToken)
+            : dbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(q.Symbol));
 }

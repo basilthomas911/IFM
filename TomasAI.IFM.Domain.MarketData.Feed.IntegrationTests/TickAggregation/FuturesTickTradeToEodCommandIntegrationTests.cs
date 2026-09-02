@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -46,7 +46,7 @@ public sealed class FuturesTickTradeToEodRealtimeIntegrationTests(
     {
         var valueDate = DateOnly.FromDateTime(DateTime.UtcNow)
             .AddDays(-Random.Shared.Next(10_001, 20_000));
-        var contract = new FuturesContractV2ReadModel(
+        var contract = new FuturesContractV3ReadModel(
             ContractId,
             "VX Futures Dec 2026",
             "VX",

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// Command to start streaming futures bar data for the specified set of contracts on a given value date.
 /// </summary>
 /// <remarks>
-/// Follows the MessagePack serialization pattern used by other commands (base command keys 0�5).
+/// Follows the MessagePack serialization pattern used by other commands (base command keys 0ï¿½5).
 /// Custom properties begin at key index 6. Routes to <see cref="BoundedContextName.FuturesBarDataBoundedContext"/>.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
@@ -38,7 +38,7 @@ public record StartFuturesBarDataStreamingCommand : ICommand<FuturesBarDataStrea
 
     /// <summary>Futures contracts to enable for bar data streaming.</summary>
     [Key(6)]
-    public FuturesContractV2ReadModel[] Contracts { get; init; }
+    public FuturesContractV3ReadModel[] Contracts { get; init; }
 
     /// <summary>The value (trading) date associated with the streaming session.</summary>
     [Key(7)]
@@ -54,7 +54,7 @@ public record StartFuturesBarDataStreamingCommand : ICommand<FuturesBarDataStrea
     /// </summary>
     /// <param name="contracts">Array of futures contracts (cannot be null).</param>
     /// <param name="valueDate">Value date for the streaming session.</param>
-    public StartFuturesBarDataStreamingCommand(FuturesContractV2ReadModel[] contracts, DateOnly valueDate)
+    public StartFuturesBarDataStreamingCommand(FuturesContractV3ReadModel[] contracts, DateOnly valueDate)
     {
         Contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
         ValueDate = valueDate;
@@ -65,7 +65,7 @@ public record StartFuturesBarDataStreamingCommand : ICommand<FuturesBarDataStrea
     }
 
     /// <summary>
-    /// Full deserializing constructor used by MessagePack. Parameters align with key order 0�7.
+    /// Full deserializing constructor used by MessagePack. Parameters align with key order 0ï¿½7.
     /// </summary>
     /// <param name="commandId">Command identifier (key 0).</param>
     /// <param name="subject">Actor subject for routing (key 1).</param>
@@ -83,7 +83,7 @@ public record StartFuturesBarDataStreamingCommand : ICommand<FuturesBarDataStrea
         FuturesBarDataStreamingId entityId,          // Key(3)
         int errorCode,                               // Key(4)
         BoundedContextName routeTo,                  // Key(5)
-        FuturesContractV2ReadModel[] contracts,      // Key(6)
+        FuturesContractV3ReadModel[] contracts,      // Key(6)
         DateOnly valueDate)                          // Key(7)
     {
         CommandId = commandId;

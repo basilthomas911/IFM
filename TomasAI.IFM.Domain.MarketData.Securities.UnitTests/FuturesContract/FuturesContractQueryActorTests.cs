@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
@@ -85,7 +85,7 @@ public class FuturesContractQueryActorTests : IClassFixture<SecuritiesFixture>
         var context = actor.FuturesContext;
         using var cancellation = new CancellationTokenSource();
         securitiesDb.GetFuturesContractAsync(query.ContractId, cancellation.Token)
-            .Returns(_ => Task.FromCanceled<FuturesContractV2ReadModel?>(cancellation.Token));
+            .Returns(_ => Task.FromCanceled<FuturesContractV3ReadModel?>(cancellation.Token));
         cancellation.Cancel();
 
         Func<Task> act = () => actor
@@ -98,7 +98,7 @@ public class FuturesContractQueryActorTests : IClassFixture<SecuritiesFixture>
         context.DidNotReceiveWithAnyArgs().ReplyAsync(
             default,
             default!,
-            default(ServiceResult<FuturesContractV2ReadModel?>)!);
+            default(ServiceResult<FuturesContractV3ReadModel?>)!);
     }
 
 }

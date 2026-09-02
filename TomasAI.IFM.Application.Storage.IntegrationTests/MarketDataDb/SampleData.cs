@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -185,8 +185,8 @@ public class SampleData
         reversalLevel: 0.50
     );
 
-    public static FuturesContractV2ReadModel FuturesContract1 = new ("SYM20251215", "Description1", "SYM", "LocalSymbol1", "SecurityType1", "Currency1", "Exchange1", "Multiplier1", new DateOnly(2025, 12, 15), true);
-    public static FuturesContractV2ReadModel FuturesContract2 = new ("SYM20251230", "Description2", "SYM", "LocalSymbol2", "SecurityType2", "Currency2", "Exchange2", "Multiplier2", new DateOnly(2025, 12,30), true);
+    public static FuturesContractV3ReadModel FuturesContract1 = new ("SYM20251215", "Description1", "SYM", "LocalSymbol1", "SecurityType1", "Currency1", "Exchange1", "Multiplier1", new DateOnly(2025, 12, 15), true);
+    public static FuturesContractV3ReadModel FuturesContract2 = new ("SYM20251230", "Description2", "SYM", "LocalSymbol2", "SecurityType2", "Currency2", "Exchange2", "Multiplier2", new DateOnly(2025, 12,30), true);
 
     public static FuturesItiTrendClassModelReadModel FuturesItiTrendClassModel => new 
     (

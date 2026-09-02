@@ -47,7 +47,11 @@ public static class MarketDataServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(options);
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton(options);
-        services.TryAddSingleton<IMarketSessionCalendar, CmeFuturesMarketSessionCalendar>();
+        services.TryAddSingleton<CmeFuturesMarketSessionCalendar>();
+        services.TryAddSingleton<IMarketSessionCalendar>(provider =>
+            provider.GetRequiredService<CmeFuturesMarketSessionCalendar>());
+        services.TryAddSingleton<IFuturesExchangeBusinessCalendar>(provider =>
+            provider.GetRequiredService<CmeFuturesMarketSessionCalendar>());
         services.TryAddSingleton<IHistoricalSeriesRequestResolver, ConfiguredHistoricalSeriesRequestResolver>();
         services.TryAddSingleton<DatabentoHistoricalApi>();
         services.TryAddSingleton<IMarketDataHistoricalApi>(provider =>

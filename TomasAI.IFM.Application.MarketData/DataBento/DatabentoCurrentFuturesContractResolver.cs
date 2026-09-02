@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -25,7 +25,7 @@ public sealed class DatabentoCurrentFuturesContractResolver(
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<FuturesContractV2ReadModel>> ResolveEligibleAsync(
+    public async Task<IReadOnlyList<FuturesContractV3ReadModel>> ResolveEligibleAsync(
         string symbol,
         DateOnly valueDate,
         int count,
@@ -46,26 +46,36 @@ public sealed class DatabentoCurrentFuturesContractResolver(
             .Where(static detail => detail.ContractKind == ContractKind.Future)
             .Select(detail => new { Detail = detail, Maturity = GetMaturity(detail) })
             .Where(candidate => candidate.Maturity is not null && candidate.Maturity.Value >= eligibleFrom)
+            .Where(candidate => normalizedSymbol != "ES"
+                || candidate.Maturity!.Value.Month is 3 or 6 or 9 or 12)
+            .GroupBy(candidate => (
+                candidate.Maturity!.Value,
+                candidate.Detail.RawSymbol),
+                EqualityComparer<(DateOnly, string)>.Default)
+            .Select(static group => group.First())
             .OrderBy(candidate => candidate.Maturity)
             .ThenBy(candidate => candidate.Detail.RawSymbol, StringComparer.Ordinal)
             .Take(count)
             .ToArray();
         if (selected.Length < count)
-            throw new CurrentlyTradedFuturesContractNotFoundException(normalizedSymbol, valueDate);
-        return selected.Select(candidate =>
+            throw new OnTheRunFuturesContractNotFoundException(normalizedSymbol, valueDate);
+        var result = selected.Select(candidate =>
         {
             var maturity = candidate.Maturity!.Value;
             var detail = candidate.Detail;
             var contractId = $"{normalizedSymbol}{maturity:yyyyMMdd}";
-            return new FuturesContractV2ReadModel(
+            return new FuturesContractV3ReadModel(
                 contractId, detail.RawSymbol, normalizedSymbol, detail.RawSymbol, "FUT",
                 DatabentoContractMetadata.ResolveCurrency(detail, contractId,
                     DatabentoContractMetadata.FindCurrencyFallback(options, normalizedSymbol)),
                 detail.Exchange,
                 (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
                 maturity,
+                false,
                 true);
         }).ToArray();
+        result[0] = result[0] with { OnTheRun = true };
+        return result;
     }
 
     private string ResolveDataset(string symbol)

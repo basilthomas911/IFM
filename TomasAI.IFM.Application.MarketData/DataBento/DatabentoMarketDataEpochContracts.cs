@@ -1,9 +1,10 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.DataBento.LastPrice;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.Framework.MarketData.DataBento;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
@@ -74,7 +75,16 @@ public readonly record struct DatabentoMarketDataEpochHealth(
     long SourceTradeRecords,
     long PublicationFailures,
     long ProcessingFailures = 0,
-    IReadOnlyList<TickAggregationContractStatus>? ContractStatuses = null);
+    IReadOnlyList<TickAggregationContractStatus>? ContractStatuses = null,
+    IReadOnlyList<DatabentoDatasetFeedHealth>? DatasetFeedStatuses = null);
+
+/// <summary>
+/// Native transport and managed-drain health for one Databento dataset. This preserves the
+/// terminal status and warning that explain why a completed aggregation reader stopped.
+/// </summary>
+public readonly record struct DatabentoDatasetFeedHealth(
+    string Dataset,
+    FeedHealthSnapshot Health);
 
 public readonly record struct DatabentoMarketDataApiHealth(
     bool Running,
@@ -83,7 +93,7 @@ public readonly record struct DatabentoMarketDataApiHealth(
 
 public interface IDatabentoMarketDataCatalog
 {
-    FuturesContractV2ReadModel? FindFutures(string contractId);
+    FuturesContractV3ReadModel? FindFutures(string contractId);
     FuturesOptionContractReadModel? FindFuturesOption(string contractId);
     string? FindOptionUnderlying(string futuresOptionContractId);
     Task<FuturesOptionContractReadModel[]> GetOptionChainAsync(

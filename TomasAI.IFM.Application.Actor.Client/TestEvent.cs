@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -20,7 +20,7 @@ public record TestEvent(string MsgString)
     public string AggregateId { get; init; } 
     public string EventSource { get; init; } = string.Empty;
     public DateTime ReceivedOn { get; init; }
-    public FuturesContractV2ReadModel Contract { get; init; } = default!;
+    public FuturesContractV3ReadModel Contract { get; init; } = default!;
     public DateTime CreatedOn { get; init; } = DateTime.Now;
     public string CreatedBy { get; init; } = string.Empty;
 

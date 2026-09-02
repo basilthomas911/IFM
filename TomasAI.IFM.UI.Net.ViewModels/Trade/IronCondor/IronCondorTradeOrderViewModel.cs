@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Fund.Shared;
+﻿using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -52,7 +52,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     OptionTradeReadModel _parentTrade = null!;
     DateOnly _valueDate;
     int _fundId;
-    FuturesContractV2ReadModel _baseContract;
+    FuturesContractV3ReadModel _baseContract;
     FundOrderReadModel _fundOrder;
     FundOrderTradeReadModel _fundOrderTrade;
     OrderActionType _orderActionType;
@@ -99,7 +99,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
         IAppRoot appRoot,
         DateOnly valueDate,
         int fundId,
-        FuturesContractV2ReadModel baseContract,
+        FuturesContractV3ReadModel baseContract,
         FundOrderReadModel fundOrder,
         FundOrderTradeReadModel fundOrderTrade,
         OrderActionType orderActionType,
@@ -154,7 +154,7 @@ public sealed class IronCondorTradeOrderViewModel : ObservableObject, IAsyncLife
     public DateOnly MaturityDate => _ironCondorTrade.MaturityDate;
     public TradeType TradeType => _ironCondorTrade?.TradeType ?? TradeType.Unknown;
     public int FundId => _fundId;
-    public FuturesContractV2ReadModel BaseContract => _baseContract;
+    public FuturesContractV3ReadModel BaseContract => _baseContract;
     public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade;
     public DefaultFuturesContractDefinitionsUiModel DefaultFuturesContractDefinitions => _defaultFuturesContractDefinitions;
     public double RiskFreeRate => _riskFreeRate;

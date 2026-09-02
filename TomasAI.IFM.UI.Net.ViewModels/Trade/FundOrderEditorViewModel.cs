@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Fund.Shared;
+﻿using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -38,7 +38,7 @@ public sealed class FundOrderEditorViewModel : ObservableObject, IAsyncDisposabl
     public FundOrderEditorViewModel(
         IAppRoot appRoot,
         DateOnly valueDate,
-        IEnumerable<FuturesContractV2ReadModel> baseContracts,
+        IEnumerable<FuturesContractV3ReadModel> baseContracts,
         int fundId,
         IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null,

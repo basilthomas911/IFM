@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// Command to start streaming futures tick data for a specific contract and value date.
 /// </summary>
 /// <remarks>
-/// Follows the MessagePack serialization pattern used by other commands (base command keys 0�5).
+/// Follows the MessagePack serialization pattern used by other commands (base command keys 0ï¿½5).
 /// Custom properties begin at key index 6. Routes to <see cref="BoundedContextName.FuturesTickDataBoundedContext"/>.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
@@ -40,7 +40,7 @@ public record StartFuturesTickDataStreamingCommand : ICommand<FuturesDataId>
 
     /// <summary>The futures contract for which tick data streaming is started.</summary>
     [Key(6)]
-    public FuturesContractV2ReadModel Contract { get; init; }
+    public FuturesContractV3ReadModel Contract { get; init; }
 
     /// <summary>The value (trading) date of the tick data stream.</summary>
     [Key(7)]
@@ -64,7 +64,7 @@ public record StartFuturesTickDataStreamingCommand : ICommand<FuturesDataId>
     /// <param name="valueDate">Value date of the stream.</param>
     /// <param name="resetStream">True to reset any existing stream; otherwise false.</param>
     public StartFuturesTickDataStreamingCommand(
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateOnly valueDate,
         bool resetStream)
     {
@@ -78,7 +78,7 @@ public record StartFuturesTickDataStreamingCommand : ICommand<FuturesDataId>
     }
 
     /// <summary>
-    /// Full deserializing constructor used by MessagePack. Parameters align with key order 0�8.
+    /// Full deserializing constructor used by MessagePack. Parameters align with key order 0ï¿½8.
     /// </summary>
     /// <param name="commandId">Command identifier (key 0).</param>
     /// <param name="subject">Actor subject for routing (key 1).</param>
@@ -97,7 +97,7 @@ public record StartFuturesTickDataStreamingCommand : ICommand<FuturesDataId>
         FuturesDataId entityId,                      // Key(3)
         int errorCode,                               // Key(4)
         BoundedContextName routeTo,                  // Key(5)
-        FuturesContractV2ReadModel contract,         // Key(6)
+        FuturesContractV3ReadModel contract,         // Key(6)
         DateOnly valueDate,                          // Key(7)
         bool resetStream)                            // Key(8)
     {

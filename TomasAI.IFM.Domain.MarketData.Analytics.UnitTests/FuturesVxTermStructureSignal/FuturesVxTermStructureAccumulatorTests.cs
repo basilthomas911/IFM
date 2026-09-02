@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVxTermStructureSignal.Command.Model;
@@ -168,7 +168,7 @@ public sealed class FuturesVxTermStructureAccumulatorTests
         return api;
     }
 
-    static FuturesContractV2ReadModel Contract(
+    static FuturesContractV3ReadModel Contract(
         string contractId,
         string localSymbol,
         DateOnly maturity) => new(

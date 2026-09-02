@@ -77,8 +77,8 @@ public static  class MapQueryExtension
         app.MapGet(MarketDataFeedQueryUriPath.GetRuntimeStatus, async (HttpResponse resp) => await MarketDataFeedQueryApiResult.FromGetRuntimeStatusAsync(resp));
 
         // map Market Data Query APIs
-        app.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContract, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetCurrentlyTradedFuturesContractAsync(resp));
-        app.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContracts, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetCurrentlyTradedFuturesContractsAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetOnTheRunFuturesContract, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetOnTheRunFuturesContractAsync(resp));
+        app.MapGet(MarketDataQueryUriPath.GetRolloverFuturesContracts, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetRolloverFuturesContractsAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetFuturesContract, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetFuturesContractAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetFuturesContractSymbol, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetFuturesContractSymbolAsync(resp));
         app.MapGet(MarketDataQueryUriPath.GetFuturesTradeSignal, async (HttpResponse resp) => await MarketDataQueryApiResult.FromGetFuturesTradeSignalAsync(resp));

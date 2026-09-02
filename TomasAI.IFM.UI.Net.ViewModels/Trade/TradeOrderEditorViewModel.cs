@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Fund.Shared;
+﻿using TomasAI.IFM.Domain.Fund.Shared;
 using TomasAI.IFM.Domain.Fund.Shared.Events;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -45,7 +45,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     readonly TimeProvider _timeProvider;
     readonly AsyncLifecycleCoordinator _lifecycle;
     readonly DateOnly? _valueDate;
-    readonly IReadOnlyList<FuturesContractV2ReadModel> _baseContracts;
+    readonly IReadOnlyList<FuturesContractV3ReadModel> _baseContracts;
     readonly FundQueryService _fundQueryModel;
     readonly FundCommandService _fundCommandModel;
     readonly IReferenceDataService _referenceDataService;
@@ -84,7 +84,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public TradeOrderEditorViewModel(
         IAppRoot appRoot,
         DateOnly? valueDate,
-        ICollection<FuturesContractV2ReadModel> baseContracts,
+        ICollection<FuturesContractV3ReadModel> baseContracts,
         IReferenceDataService referenceDataService,
         TimeProvider? timeProvider = null)
     {
@@ -138,7 +138,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
     public DateOnly? ValueDate => _valueDate;
 
     /// <summary>Gets available futures contracts.</summary>
-    public IReadOnlyList<FuturesContractV2ReadModel> BaseContracts => _baseContracts;
+    public IReadOnlyList<FuturesContractV3ReadModel> BaseContracts => _baseContracts;
 
     /// <summary>Gets the selected fund index, or -1 when no fund is selected.</summary>
     public int FundSelectedIndex => _fundSelectedIndex;
@@ -228,7 +228,7 @@ public sealed class TradeOrderEditorViewModel : ObservableObject, IAsyncLifecycl
 
     /// <summary>
     /// Gets whether the requested order action is permitted now. Closing positions is always
-    /// permitted; opening is limited to the weekday 03:00–16:00 Eastern entry window.
+    /// permitted; opening is limited to the weekday 03:00â€“16:00 Eastern entry window.
     /// </summary>
     public bool CanSubmitOrderAction(OrderActionType orderActionType)
         => orderActionType == OrderActionType.Close

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
@@ -15,18 +15,18 @@ internal sealed class DeterministicMarketDataApi(
     FakeMarketDataEpochFactory epochFactory,
     TimeSpan maximumLastPriceAge) : IMarketDataApi
 {
-    public bool TryGetCurrentlyTradedFuturesContract(
+    public bool TryGetOnTheRunFuturesContract(
         string symbol,
-        out FuturesContractV2ReadModel contract)
+        out FuturesContractV3ReadModel contract)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         contract = Volatile.Read(ref epoch)?.Catalog.Futures.Values
-            .SingleOrDefault(candidate => candidate.CurrentlyTraded
+            .SingleOrDefault(candidate => candidate.OnTheRun
                 && string.Equals(candidate.Symbol, symbol, StringComparison.OrdinalIgnoreCase))!;
         return contract is not null;
     }
 
-    public Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+    public Task<bool> UpdateOnTheRunFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
         CancellationToken cancellationToken = default,
@@ -134,7 +134,7 @@ internal sealed class DeterministicMarketDataApi(
         }
     }
 
-    public Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
+    public Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(
         string futuresContractId)
     {
         var active = GetRunningEpoch();
@@ -146,7 +146,7 @@ internal sealed class DeterministicMarketDataApi(
         return Task.FromResult(active.Catalog.FindFuture(futuresContractId));
     }
 
-    public async Task<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
+    public async Task<FuturesContractV3ReadModel[]> GetFuturesContractsAsync(
         string[] futuresContractIds)
     {
         ArgumentNullException.ThrowIfNull(futuresContractIds);
@@ -156,7 +156,7 @@ internal sealed class DeterministicMarketDataApi(
             return [];
         }
 
-        var results = new FuturesContractV2ReadModel[futuresContractIds.Length];
+        var results = new FuturesContractV3ReadModel[futuresContractIds.Length];
         var missing = new List<string>();
         for (var index = 0; index < futuresContractIds.Length; index++)
         {
@@ -419,7 +419,7 @@ internal sealed class DeterministicMarketDataApi(
         $"compatibility:{active.ValueDate:yyyy-MM-dd}",
         legId);
 
-    private static FuturesContractV2ReadModel RequireFuture(
+    private static FuturesContractV3ReadModel RequireFuture(
         FakeMarketDataEpoch active,
         string contractId)
     {

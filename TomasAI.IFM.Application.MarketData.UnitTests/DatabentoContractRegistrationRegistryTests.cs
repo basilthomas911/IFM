@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -16,13 +16,13 @@ public sealed class DatabentoContractRegistrationRegistryTests
         var registry = new DatabentoContractRegistrationRegistry([], options);
         var pair = new FuturesTermStructureContracts(
             Contract("VX", "VX20260916", "VXU6", new DateOnly(2026, 9, 16)),
-            Contract("VX", "VX20261021", "VXV6", new DateOnly(2026, 10, 21)));
+            Contract("VX", "VX20261021", "VXV6", new DateOnly(2026, 10, 21), false));
 
-        registry.ReplaceFuturesTermStructureContracts("VX", pair);
+        registry.ReplaceFuturesRolloverSet("VX", [pair.Front, pair.Back]);
 
         registry.TryGetFuturesTermStructureContracts("vx", out var actual).Should().BeTrue();
         actual.Should().Be(pair);
-        registry.TryGetCurrentlyTradedFuturesContract("VX", out var current).Should().BeTrue();
+        registry.TryGetOnTheRunFuturesContract("VX", out var current).Should().BeTrue();
         current.Should().Be(pair.Front);
         registry.Should().Contain(item => item.DomainContractId == pair.Front.ContractId);
         registry.Should().Contain(item => item.DomainContractId == pair.Back.ContractId);
@@ -37,9 +37,11 @@ public sealed class DatabentoContractRegistrationRegistryTests
             Registration("NQ20260918C25000", "NQU6 C25000", AssetTypeId.FuturesOption)]);
         var registry = new DatabentoContractRegistrationRegistry(options.Contracts, options);
 
-        registry.ReplaceCurrentFuturesContracts([
-            Contract("ES", "ES20260918", "ESU6", new DateOnly(2026, 9, 18)),
-            Contract("VX", "VX20260916", "VXU6", new DateOnly(2026, 9, 16))]);
+        registry.ReplaceFuturesRolloverSet("ES", [
+            Contract("ES", "ES20260918", "ESU6", new DateOnly(2026, 9, 18))]);
+        registry.ReplaceFuturesRolloverSet("VX", [
+            Contract("VX", "VX20260916", "VXU6", new DateOnly(2026, 9, 16)),
+            Contract("VX", "VX20261021", "VXV6", new DateOnly(2026, 10, 21), false)]);
 
         registry.Should().NotContain(item => item.DomainContractId == "ES20260619");
         registry.Should().Contain(item => item.DomainContractId == "NQ20260918");
@@ -48,10 +50,10 @@ public sealed class DatabentoContractRegistrationRegistryTests
             && item.Dataset == "GLBX.MDP3");
         registry.Should().Contain(item => item.DomainContractId == "VX20260916"
             && item.Dataset == "XCBF.PITCH");
-        registry.TryGetCurrentlyTradedFuturesContract("es", out var currentEs)
+        registry.TryGetOnTheRunFuturesContract("es", out var currentEs)
             .Should().BeTrue();
         currentEs.ContractId.Should().Be("ES20260918");
-        registry.TryGetCurrentlyTradedFuturesContract("VX", out var currentVx)
+        registry.TryGetOnTheRunFuturesContract("VX", out var currentVx)
             .Should().BeTrue();
         currentVx.ContractId.Should().Be("VX20260916");
     }
@@ -61,18 +63,50 @@ public sealed class DatabentoContractRegistrationRegistryTests
     {
         var options = Options([]);
         var registry = new DatabentoContractRegistrationRegistry([], options);
-        registry.ReplaceCurrentFuturesContracts([
+        registry.ReplaceFuturesRolloverSet("ES", [
             Contract("ES", "ES20260918", "ESU6", new DateOnly(2026, 9, 18))]);
         var epochSnapshot = registry.Snapshot();
 
-        registry.ReplaceCurrentFuturesContracts([
+        registry.ReplaceFuturesRolloverSet("ES", [
             Contract("ES", "ES20261218", "ESZ6", new DateOnly(2026, 12, 18))]);
 
         epochSnapshot.Should().ContainSingle(item => item.DomainContractId == "ES20260918");
         registry.Should().ContainSingle(item => item.DomainContractId == "ES20261218");
-        registry.TryGetCurrentlyTradedFuturesContract("ES", out var current)
+        registry.TryGetOnTheRunFuturesContract("ES", out var current)
             .Should().BeTrue();
         current.ContractId.Should().Be("ES20261218");
+    }
+
+    [Fact]
+    public void RejectsVxPairWithTwoOnTheRunContracts()
+    {
+        var registry = new DatabentoContractRegistrationRegistry([], Options([]));
+        var contracts = new[]
+        {
+            Contract("VX", "VX20260916", "VXU6", new DateOnly(2026, 9, 16)),
+            Contract("VX", "VX20261021", "VXV6", new DateOnly(2026, 10, 21))
+        };
+
+        var act = () => registry.ReplaceFuturesRolloverSet("VX", contracts);
+
+        act.Should().Throw<ArgumentException>();
+        registry.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void RejectsOnTheRunContractOutsideRolloverSet()
+    {
+        var registry = new DatabentoContractRegistrationRegistry([], Options([]));
+        var invalid = Contract(
+            "ES", "ES20260918", "ESU6", new DateOnly(2026, 9, 18)) with
+        {
+            Rollover = false
+        };
+
+        var act = () => registry.ReplaceFuturesRolloverSet("ES", [invalid]);
+
+        act.Should().Throw<ArgumentException>();
+        registry.Should().BeEmpty();
     }
 
     private static DatabentoMarketDataRuntimeOptions Options(
@@ -93,11 +127,12 @@ public sealed class DatabentoContractRegistrationRegistryTests
         AssetTypeId = assetTypeId
     };
 
-    private static FuturesContractV2ReadModel Contract(
+    private static FuturesContractV3ReadModel Contract(
         string symbol,
         string contractId,
         string localSymbol,
-        DateOnly maturity) => new(
+        DateOnly maturity,
+        bool onTheRun = true) => new(
             contractId,
             $"{symbol} future",
             symbol,
@@ -107,5 +142,6 @@ public sealed class DatabentoContractRegistrationRegistryTests
             symbol == "VX" ? "CFE" : "CME",
             symbol == "VX" ? "1000" : "50",
             maturity,
+            onTheRun,
             true);
 }

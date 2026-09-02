@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.ViewModels.MarketData;
@@ -105,8 +105,8 @@ public partial class FuturesContractEditorControl
                 ddlExchange.Enabled = true;
                 ddlMultiplier.SelectedIndex = 0;
                 ddlMultiplier.Enabled = true;
-                ddlCurrentlyTraded.SelectedIndex = 0;
-                ddlCurrentlyTraded.Enabled = true;
+                ddlOnTheRun.SelectedIndex = 0;
+                ddlOnTheRun.Enabled = true;
                 ddlSymbol.SelectedIndex = 0;
                 ddlSymbol.Enabled = true;
                 SetLocalSymbol(DateOnly.FromDateTime(dtmLastTradeDate.Value));
@@ -120,7 +120,7 @@ public partial class FuturesContractEditorControl
                 var symbol = _viewModel.GetSymbol(ddlSymbol.SelectedIndex);
                 var maturityDate = $"{dtmLastTradeDate.Value:yyyyMMdd}";
                 txtContractId.Text = $"{symbol}{maturityDate}";
-                var futuresContract = new FuturesContractV2ReadModel
+                var futuresContract = new FuturesContractV3ReadModel
                 (
                     contractId: txtContractId.Text,
                     description: txtDescription.Text,
@@ -131,7 +131,7 @@ public partial class FuturesContractEditorControl
                     exchange: _viewModel.GetExchange(ddlExchange.SelectedIndex),
                     currency: _viewModel.GetCurrency(ddlCurrency.SelectedIndex),
                     localSymbol: txtLocalSymbol.Text,
-                    currentlyTraded: ddlCurrentlyTraded.SelectedIndex == 0
+                    onTheRun: ddlOnTheRun.SelectedIndex == 0
                 );
                 _viewModel.PrepareAdd(futuresContract);
                 _ = AddPreparedContractAsync(futuresContract.ContractId);
@@ -182,7 +182,7 @@ public partial class FuturesContractEditorControl
                 ddlCurrency.Enabled = true;
                 ddlExchange.Enabled = true;
                 ddlMultiplier.Enabled = true;
-                ddlCurrentlyTraded.Enabled = true;
+                ddlOnTheRun.Enabled = true;
                 ddlSymbol.Enabled = true;
                 _lastContractIndex = lstFuturesContractIds.SelectedIndex;
                 _editMode = EditMode.Change;
@@ -194,7 +194,7 @@ public partial class FuturesContractEditorControl
                 var futuresContractId = _viewModel.GetFuturesContract(lstFuturesContractIds.SelectedIndex)!.Id;
                 var maturityDate = $"{dtmLastTradeDate.Value:yyyyMMdd}";
                 txtContractId.Text = $"{symbol}{maturityDate}";
-                var futuresContract = new FuturesContractV2ReadModel
+                var futuresContract = new FuturesContractV3ReadModel
                 (
                     contractId: txtContractId.Text,
                     description: txtDescription.Text,
@@ -205,7 +205,7 @@ public partial class FuturesContractEditorControl
                     exchange: _viewModel.GetExchange(ddlExchange.SelectedIndex),
                     currency: _viewModel.GetCurrency(ddlCurrency.SelectedIndex),
                     localSymbol: txtLocalSymbol.Text,
-                    currentlyTraded: ddlCurrentlyTraded.SelectedIndex == 0
+                    onTheRun: ddlOnTheRun.SelectedIndex == 0
                 );
                 _viewModel.PrepareChange(futuresContractId, futuresContract);
                 _ = ChangePreparedContractAsync(futuresContract.ContractId);
@@ -258,7 +258,7 @@ public partial class FuturesContractEditorControl
             BindLookup(ddlExchange, _viewModel.Exchanges.Select(value => value.Description));
             BindLookup(ddlMultiplier, _viewModel.Multipliers.Select(value => value.Description));
             BindLookup(ddlSymbol, _viewModel.Symbols.Select(value => value.Description));
-            BindLookup(ddlCurrentlyTraded, _viewModel.CurrentlyTraded);
+            BindLookup(ddlOnTheRun, _viewModel.OnTheRun);
             BindContracts();
             _dataLoaded?.Invoke(_viewModel.FuturesContracts.Count > 0);
         });
@@ -337,7 +337,7 @@ public partial class FuturesContractEditorControl
     /// name="futuresContracts"/>, the first item in the list will be selected by default.</remarks>
     /// <param name="contractId">The contract ID to select in the list. If null or whitespace, the first item will be selected.</param>
     /// <param name="futuresContracts">An array of futures contracts to populate the list. If null or empty, the list will remain empty.</param>
-    void LoadFuturesContractIds(string contractId, FuturesContractV2ReadModel[] futuresContracts)
+    void LoadFuturesContractIds(string contractId, FuturesContractV3ReadModel[] futuresContracts)
     {
         lstFuturesContractIds.Items.Clear();
         if (futuresContracts is null || futuresContracts.Length  == 0)
@@ -394,8 +394,8 @@ public partial class FuturesContractEditorControl
         ddlExchange.Enabled = false;
         ddlMultiplier.SelectedIndex = GetSelectedIndex(_viewModel.Multipliers, fc.Multiplier);
         ddlMultiplier.Enabled = false;
-        ddlCurrentlyTraded.SelectedIndex = fc.CurrentlyTraded ? 0 : 1;
-        ddlCurrentlyTraded.Enabled = false;
+        ddlOnTheRun.SelectedIndex = fc.OnTheRun ? 0 : 1;
+        ddlOnTheRun.Enabled = false;
         ddlSymbol.SelectedIndex = GetSelectedIndex(_viewModel.Symbols, fc.Symbol);
         ddlSymbol.Enabled = false;
         SetLocalSymbol(DateOnly.FromDateTime(dtmLastTradeDate.Value));

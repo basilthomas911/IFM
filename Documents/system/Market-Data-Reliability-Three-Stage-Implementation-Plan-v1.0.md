@@ -283,7 +283,7 @@ Stage 1 is complete only when:
 ### DBR-02 — PostgreSQL service authority
 
 - add `MarketDataServiceDbContext` and migrations;
-- implement full CRUD for `currently_traded_futures_contract` and `watchdog_status_log`;
+- implement full CRUD for `futures_rollover_contract_assignment` and `watchdog_status_log`;
 - require ES quarterly, VX front and VX second roles;
 - validate copied contracts against the read-only source catalog;
 - use sequence-generated integer IDs where required and transactional VX-pair updates.

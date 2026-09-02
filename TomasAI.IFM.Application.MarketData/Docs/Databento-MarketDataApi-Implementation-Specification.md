@@ -52,11 +52,21 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 public interface IMarketDataApi
 {
-    bool TryGetCurrentlyTradedFuturesContract(
+    bool TryGetOnTheRunFuturesContract(
         string symbol,
-        out FuturesContractV2ReadModel contract);
+        out FuturesContractV3ReadModel contract);
 
-    Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+    Task<bool> UpdateOnTheRunFuturesContractAsync(
+        string symbol,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default,
+        bool forceProviderRefresh = false);
+
+    bool TryGetFuturesTermStructureContracts(
+        string symbol,
+        out FuturesTermStructureContracts contracts);
+
+    Task<bool> UpdateFuturesTermStructureContractsAsync(
         string symbol,
         DateOnly valueDate,
         CancellationToken cancellationToken = default);
@@ -668,7 +678,7 @@ Resolution:
 
 Mapping:
 
-| `FuturesContractV2ReadModel` | Databento source |
+| `FuturesContractV3ReadModel` | Databento source |
 | --- | --- |
 | `ContractId` | requested canonical ID verified by reverse mapping |
 | `Description` | deterministic ticker/expiry description |
@@ -679,14 +689,14 @@ Mapping:
 | `Exchange` | `Exchange` |
 | `Multiplier` | invariant `ContractMultiplier` |
 | `LastTradeDate` | `MaturityDate`, otherwise validated expiration timestamp |
-| `CurrentlyTraded` | activation/expiration window evaluated at `TimeProvider` |
+| `OnTheRun`, `Rollover` | always `false/false`; operational selection is assigned only by rollover policy |
 
 Missing required fields are mapping failures and are never guessed.
 
 ### 9.4 `GetFuturesContractsAsync`
 
 ```csharp
-Task<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
+Task<FuturesContractV3ReadModel[]> GetFuturesContractsAsync(
     string[] futuresContractIds);
 ```
 
@@ -864,21 +874,30 @@ TickAggregation stores the same normalized combined snapshot used by `FuturesMar
 
 `IsTickDataStreamActive` checks the owner-keyed runtime registration pool. A client requiring live data checks it before using a cached snapshot, but this is not enforced by either price method. Therefore an inactive stream can still expose its last observation, while an active stream can temporarily have no snapshot before its first tick arrives.
 
-### 9.9b Currently traded futures registry
+### 9.9b On-the-run and rollover-set futures registry
 
 ```csharp
-bool TryGetCurrentlyTradedFuturesContract(
+bool TryGetOnTheRunFuturesContract(
     string symbol,
-    out FuturesContractV2ReadModel contract);
+    out FuturesContractV3ReadModel contract);
 
-Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+Task<bool> UpdateOnTheRunFuturesContractAsync(
     string symbol,
     DateOnly valueDate,
     CancellationToken cancellationToken = default,
     bool forceProviderRefresh = false);
+
+bool TryGetFuturesTermStructureContracts(
+    string symbol,
+    out FuturesTermStructureContracts contracts);
+
+Task<bool> UpdateFuturesTermStructureContractsAsync(
+    string symbol,
+    DateOnly valueDate,
+    CancellationToken cancellationToken = default);
 ```
 
-Startup reconciliation populates one atomic runtime state containing both DataBento registrations and the full persisted current-contract models. The synchronous `TryGet` operation is a case-insensitive in-memory symbol lookup with no provider or storage access; per-tick domain handlers use it to validate current ES/VX identity. Update calls, including startup, consult DataBento and persist a replacement only when the master rollover row is incomplete or due. This allows a healthy live feed to restart from a valid persisted assignment when the historical provider is temporarily unavailable. Explicit operator workflows may set `forceProviderRefresh` for early provider revalidation. See `Documents/system/Futures-Contract-Rollover-Startup.md` for the startup admission and persistence rules.
+Startup reconciliation publishes one immutable runtime state per root containing DataBento registrations and the complete verified rollover set. `TryGetOnTheRunFuturesContract` is a case-insensitive, allocation-free in-memory lookup of the singular primary contract. The VX term-structure lookup derives front and back from the same snapshot. ES has exactly one `true/true` row; VX has a `true/true` front and `false/true` back. Updates consult DataBento and atomically persist a replacement only when the authoritative rollover pointer is incomplete or due. This permits restart from a valid persisted assignment when the historical provider is temporarily unavailable. Explicit operator workflows may force early provider revalidation. See `Documents/system/Futures-Contract-Rollover-Startup.md` for preparation, admission, persistence and effective-value-date rules.
 
 The epoch builds tick mappings from the runtime feed mode. Live feeds use the
 publisher/instrument identities returned by DataBento definitions. Synthetic

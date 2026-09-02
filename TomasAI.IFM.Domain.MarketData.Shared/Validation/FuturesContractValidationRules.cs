@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -10,7 +10,7 @@ using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.Validation;
 
-public class FuturesContractValidationRules(IReferenceLookupService refLookupService) : BaseValidationRules, IValidationRules<FuturesContractV2ReadModel>
+public class FuturesContractValidationRules(IReferenceLookupService refLookupService) : BaseValidationRules, IValidationRules<FuturesContractV3ReadModel>
 {
     public const string InstanceErrorMessage = "FuturesContract instance is null";
     public const string ContractIdErrorMessage = "FuturesContractId: contractId is required";
@@ -25,9 +25,9 @@ public class FuturesContractValidationRules(IReferenceLookupService refLookupSer
 
     readonly IReferenceLookupService _refLookupService = refLookupService;
 
-    public ValidationError[] Execute(FuturesContractV2ReadModel futuresContract) => Validate(futuresContract, new FuturesContractValidator(_refLookupService));
+    public ValidationError[] Execute(FuturesContractV3ReadModel futuresContract) => Validate(futuresContract, new FuturesContractValidator(_refLookupService));
 
-    class FuturesContractValidator : AbstractValidator<FuturesContractV2ReadModel>
+    class FuturesContractValidator : AbstractValidator<FuturesContractV3ReadModel>
     {
         public FuturesContractValidator(IReferenceLookupService refLookupService)
         {
@@ -42,7 +42,7 @@ public class FuturesContractValidationRules(IReferenceLookupService refLookupSer
             RuleFor(x => x.LastTradeDate).NotEqual(DateOnly.MaxValue).WithMessage(MaxLastTradeDateErrorMessage);
         }
 
-        public override ValidationResult Validate(ValidationContext<FuturesContractV2ReadModel> context)
+        public override ValidationResult Validate(ValidationContext<FuturesContractV3ReadModel> context)
         {
             try
             {

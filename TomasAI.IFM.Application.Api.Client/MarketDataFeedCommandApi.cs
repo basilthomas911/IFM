@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
@@ -32,7 +32,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> StartMarketDataFeedAsync(
-        ICollection<FuturesContractV2ReadModel> futuresContracts, 
+        ICollection<FuturesContractV3ReadModel> futuresContracts,
         DateOnly valueDate) 
         => await new StartMarketDataFeedParameter([.. IsArgumentNull.Set(futuresContracts)], valueDate, false, StartMarketDataFeedCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.StartMarketDataFeed, e));
@@ -52,7 +52,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> ResetMarketDataFeedAsync(
-        ICollection<FuturesContractV2ReadModel> futuresContracts, 
+        ICollection<FuturesContractV3ReadModel> futuresContracts,
         DateOnly valueDate) 
         => await new ResetMarketDataFeedParameter([.. IsArgumentNull.Set(futuresContracts)], valueDate, ResetMarketDataFeedCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.ResetMarketDataFeed, e));
@@ -63,7 +63,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <param name="futuresContract"></param>
     /// <param name="futuresTickData"></param>
     public async Task<ServiceResult<Guid>> InsertFuturesTickDataAsync(
-        FuturesContractV2ReadModel futuresContract, 
+        FuturesContractV3ReadModel futuresContract,
         FuturesTickDataV2ReadModel futuresTickData)
         => await new InsertFuturesTickDataParameter(IsArgumentNull.Set(futuresContract), IsArgumentNull.Set(futuresTickData), InsertFuturesTickDataCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.InsertFuturesTickData, e));
@@ -74,7 +74,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <param name="futuresContract"></param>
     /// <param name="futuresOptionTickData"></param>
     public async Task<ServiceResult<Guid>> InsertFuturesOptionTickDataAsync(
-        FuturesContractV2ReadModel futuresContract, 
+        FuturesContractV3ReadModel futuresContract,
         FuturesOptionTickDataV2ReadModel futuresOptionTickData)
         => await new InsertFuturesOptionTickDataParameter(IsArgumentNull.Set(futuresContract), IsArgumentNull.Set(futuresOptionTickData), InsertFuturesOptionTickDataCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.InsertFuturesOptionTickData, e));
@@ -92,7 +92,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     public async Task<ServiceResult<Guid>> StartFuturesOptionTickDataStreamingAsync(
             FuturesOptionTickEntityId entityId,
             FuturesOptionContractReadModel optionContract, 
-            FuturesContractV2ReadModel baseContract, 
+            FuturesContractV3ReadModel baseContract,
             DateOnly valueDate, 
             DateOnly maturityDate, 
             double riskFreeRate)
@@ -126,7 +126,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> StartFuturesTickDataStreamingAsync(
-        FuturesContractV2ReadModel futuresContract, 
+        FuturesContractV3ReadModel futuresContract,
         DateOnly valueDate, 
         bool resetStream)
         => await new StartFuturesTickDataStreamingParameter(IsArgumentNull.Set(futuresContract), valueDate, resetStream, StartFuturesTickDataStreamingCommand.ErrorId)
@@ -148,7 +148,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     /// <param name="valueDate"></param>
     /// <returns></returns>
     public async Task<ServiceResult<Guid>> StartFuturesBarDataStreamingAsync(
-        FuturesContractV2ReadModel[] futuresContracts, 
+        FuturesContractV3ReadModel[] futuresContracts,
         DateOnly valueDate)
         => await new StartFuturesBarDataStreamingParameter(IsArgumentNull.Set(futuresContracts), valueDate, StartFuturesBarDataStreamingCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataFeedUriPath.StartFuturesBarDataStreaming, e));
@@ -237,7 +237,7 @@ public class MarketDataFeedCommandApi(ICommandServiceApi commandSvc) : IMarketDa
     public async Task<ServiceResult<Guid>> InsertFuturesEodDataAsync(
         DateOnly valueDate, 
         FuturesTickDataV2ReadModel futuresTickData, 
-        FuturesContractV2ReadModel contract, 
+        FuturesContractV3ReadModel contract,
         FuturesEodDataV2ReadModel eodDataToday, 
         ICollection<FuturesEodDataV2ReadModel> eodDataRange, 
         NormalCurveTableReadModel normCurveData, 

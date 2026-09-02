@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -22,16 +22,16 @@ public class FuturesContractQueryApiTests(WebApplicationFactory<Program> factory
     readonly ILogger<NatsActorEventListener> _logger = Substitute.For<ILogger<NatsActorEventListener>>();
 
     [Fact]
-    public async Task GetCurrentlyTradedFuturesContract_Ok()
+    public async Task GetOnTheRunFuturesContract_Ok()
     {
         // arrange...
-        var futuresContract = SampleData.NewFuturesContract with { CurrentlyTraded = true};
-        await dbFixture.Db.DeleteCurrentlyTradedFuturesContractAsync(futuresContract.Symbol);
+        var futuresContract = SampleData.NewFuturesContract with { OnTheRun = true};
+        await dbFixture.Db.DeleteOnTheRunFuturesContractAsync(futuresContract.Symbol);
         await dbFixture.Db.InsertFuturesContractAsync(futuresContract);
 
         // act...
         var marketDataApi = new MarketDataQueryApi(_actorProducer);
-        var response = await marketDataApi.GetCurrentlyTradedFuturesContractAsync(SampleData.NewFuturesContract.Symbol);
+        var response = await marketDataApi.GetOnTheRunFuturesContractAsync(SampleData.NewFuturesContract.Symbol);
 
         // assert...
         response.Should().NotBeNull();
@@ -46,27 +46,27 @@ public class FuturesContractQueryApiTests(WebApplicationFactory<Program> factory
         response.Value.Exchange.Should().Be(futuresContract.Exchange);
         response.Value.Multiplier.Should().Be(futuresContract.Multiplier);
         response.Value.LastTradeDate.Should().Be(futuresContract.LastTradeDate);
-        response.Value.CurrentlyTraded.Should().BeTrue();
+        response.Value.OnTheRun.Should().BeTrue();
     }
 
     [Fact]
-    public async Task GetCurrentlyTradedFuturesContracts_Ok()
+    public async Task GetRolloverFuturesContracts_Ok()
     {
         // arrange...
-        var futuresContract = SampleData.NewFuturesContract with { CurrentlyTraded = true };
-        await dbFixture.Db.DeleteCurrentlyTradedFuturesContractAsync(futuresContract.Symbol);
+        var futuresContract = SampleData.NewFuturesContract with { OnTheRun = true };
+        await dbFixture.Db.DeleteOnTheRunFuturesContractAsync(futuresContract.Symbol);
         await dbFixture.Db.InsertFuturesContractAsync(futuresContract);
 
         // act...
         var marketDataApi = new MarketDataQueryApi(_actorProducer);
-        var response = await marketDataApi.GetCurrentlyTradedFuturesContractsAsync(SampleData.NewFuturesContract.Symbol);
+        var response = await marketDataApi.GetRolloverFuturesContractsAsync(SampleData.NewFuturesContract.Symbol);
 
         // assert...
         response.Should().NotBeNull();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
         response.Value.Should().NotBeEmpty();
-        response.Value.Should().Contain(c => c.ContractId == futuresContract.ContractId && c.CurrentlyTraded);
+        response.Value.Should().Contain(c => c.ContractId == futuresContract.ContractId && c.OnTheRun);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class FuturesContractQueryApiTests(WebApplicationFactory<Program> factory
         response.Value.Exchange.Should().Be(futuresContract.Exchange);
         response.Value.Multiplier.Should().Be(futuresContract.Multiplier);
         response.Value.LastTradeDate.Should().Be(futuresContract.LastTradeDate);
-        response.Value.CurrentlyTraded.Should().Be(futuresContract.CurrentlyTraded);
+        response.Value.OnTheRun.Should().Be(futuresContract.OnTheRun);
     }
 
     [Fact]

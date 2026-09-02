@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
@@ -36,7 +36,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     /// <exception cref="ArgumentNullException">Thrown when required arguments are null.</exception>
     public async Task<ServiceResult<Guid>> StartMarketDataFeedAsync(
-        ICollection<FuturesContractV2ReadModel> futuresContracts,
+        ICollection<FuturesContractV3ReadModel> futuresContracts,
         DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
@@ -93,7 +93,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <param name="valueDate">The value date for the reset operation.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     public async Task<ServiceResult<Guid>> ResetMarketDataFeedAsync(
-        ICollection<FuturesContractV2ReadModel> futuresContracts,
+        ICollection<FuturesContractV3ReadModel> futuresContracts,
         DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
@@ -123,7 +123,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <param name="futuresTickData">The tick data to insert.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     public async Task<ServiceResult<Guid>> InsertFuturesTickDataAsync(
-        FuturesContractV2ReadModel futuresContract,
+        FuturesContractV3ReadModel futuresContract,
         FuturesTickDataV2ReadModel futuresTickData)
     {
         Guid cmdId = Guid.NewGuid();
@@ -153,7 +153,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <param name="futuresOptionTickData">The option tick data to insert.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     public async Task<ServiceResult<Guid>> InsertFuturesOptionTickDataAsync(
-        FuturesContractV2ReadModel futuresContract,
+        FuturesContractV3ReadModel futuresContract,
         FuturesOptionTickDataV2ReadModel futuresOptionTickData)
     {
         Guid cmdId = Guid.NewGuid();
@@ -189,7 +189,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     public async Task<ServiceResult<Guid>> StartFuturesOptionTickDataStreamingAsync(
             FuturesOptionTickEntityId entityId,
             FuturesOptionContractReadModel optionContract,
-            FuturesContractV2ReadModel baseContract,
+            FuturesContractV3ReadModel baseContract,
             DateOnly valueDate,
             DateOnly maturityDate,
             double riskFreeRate)
@@ -275,7 +275,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <param name="resetStream">Whether to reset the stream before starting.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     public async Task<ServiceResult<Guid>> StartFuturesTickDataStreamingAsync(
-        FuturesContractV2ReadModel futuresContract,
+        FuturesContractV3ReadModel futuresContract,
         DateOnly valueDate,
         bool resetStream)
     {
@@ -334,7 +334,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     /// <param name="valueDate">The value date for the bar data stream.</param>
     /// <returns>A <see cref="ServiceResult{Guid}"/> containing the command id if successful.</returns>
     public async Task<ServiceResult<Guid>> StartFuturesBarDataStreamingAsync(
-        FuturesContractV2ReadModel[] futuresContracts,
+        FuturesContractV3ReadModel[] futuresContracts,
         DateOnly valueDate)
     {
         Guid cmdId = Guid.NewGuid();
@@ -570,7 +570,7 @@ public class MarketDataFeedCommandApi(IActorProducer actorProducer)
     public async Task<ServiceResult<Guid>> InsertFuturesEodDataAsync(
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesEodDataV2ReadModel eodDataToday,
         ICollection<FuturesEodDataV2ReadModel> eodDataRange,
         NormalCurveTableReadModel normCurveData,

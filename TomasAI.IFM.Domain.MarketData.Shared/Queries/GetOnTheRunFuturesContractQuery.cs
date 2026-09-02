@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -19,10 +19,10 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Queries;
 /// - A parameterless constructor for serializers and a full constructor annotated with <see cref="SerializationConstructorAttribute"/>.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record GetCurrentlyTradedFuturesContractQuery : IQuery<FuturesContractV2ReadModel>
+public record GetOnTheRunFuturesContractQuery : IQuery<FuturesContractV3ReadModel>
 {
     [IgnoreMember] public const string Actor = "FuturesContractQuery";
-    [IgnoreMember] public const string Verb = "GetCurrentlyTradedFuturesContract";
+    [IgnoreMember] public const string Verb = "GetOnTheRunFuturesContract";
     [IgnoreMember] public const int ErrorId = 1234;
 
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -39,12 +39,12 @@ public record GetCurrentlyTradedFuturesContractQuery : IQuery<FuturesContractV2R
     /// <summary>
     /// Parameterless constructor for serializers.
     /// </summary>
-    public GetCurrentlyTradedFuturesContractQuery() { }
+    public GetOnTheRunFuturesContractQuery() { }
 
-    public GetCurrentlyTradedFuturesContractQuery(string symbol)
+    public GetOnTheRunFuturesContractQuery(string symbol)
     {
         Symbol = symbol;
-        EntityId = new GetCurrentlyTradedFuturesContractParameter(symbol);
+        EntityId = new GetOnTheRunFuturesContractParameter(symbol);
         ErrorCode = ErrorId;
     }
 
@@ -52,13 +52,13 @@ public record GetCurrentlyTradedFuturesContractQuery : IQuery<FuturesContractV2R
     /// MessagePack serialization constructor.
     /// </summary>
     [SerializationConstructor]
-    public GetCurrentlyTradedFuturesContractQuery(
+    public GetOnTheRunFuturesContractQuery(
         ActorSubject subject,         // Key(0)
         IActorEntityId entityId,      // Key(1)
         string symbol)                // Key(2)
     {
         Subject = subject;
-        EntityId = new GetCurrentlyTradedFuturesContractParameter(symbol);
+        EntityId = new GetOnTheRunFuturesContractParameter(symbol);
         Symbol = symbol;
         ErrorCode = ErrorId;
     }

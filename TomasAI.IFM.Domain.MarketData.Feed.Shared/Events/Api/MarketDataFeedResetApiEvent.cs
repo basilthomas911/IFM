@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
@@ -13,7 +13,7 @@ public record MarketDataFeedResetApiEvent : ServiceApiEvent
 {
     const int ErrorCode = 5012;
 
-    public FuturesContractV2ReadModel[] FuturesContracts { get; init; }
+    public FuturesContractV3ReadModel[] FuturesContracts { get; init; }
     public DateOnly ValueDate { get; init; }
     public string ResetBy { get; init; }
     public DateTime ResetOn { get; init; }
@@ -38,7 +38,7 @@ public record MarketDataFeedResetApiEvent : ServiceApiEvent
 
 public record MarketDataFeedResetCompleteApiEvent : CompleteEvent
 {
-    public FuturesContractV2ReadModel[] FuturesContracts { get; init; }
+    public FuturesContractV3ReadModel[] FuturesContracts { get; init; }
     public DateOnly ValueDate { get; init; }
     public DateTime ResetOn { get; init; }
     public string ResetBy { get; init; }

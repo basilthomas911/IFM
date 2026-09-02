@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -16,13 +16,13 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
 {
     private static readonly TimeSpan DefaultFeedUpTimeout = TimeSpan.FromSeconds(1);
     /// <inheritdoc />
-    public bool TryGetCurrentlyTradedFuturesContract(
+    public bool TryGetOnTheRunFuturesContract(
         string symbol,
-        out FuturesContractV2ReadModel contract)
+        out FuturesContractV3ReadModel contract)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(symbol);
         if (_contractRegistry is not null)
-            return _contractRegistry.TryGetCurrentlyTradedFuturesContract(symbol, out contract);
+            return _contractRegistry.TryGetOnTheRunFuturesContract(symbol, out contract);
         contract = default!;
         return false;
     }
@@ -49,12 +49,60 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         ValidateDate(valueDate, nameof(valueDate));
         var resolver = _currentContractResolver;
         var registry = _contractRegistry;
-        if (resolver is null || registry is null) return false;
+        var store = _rolloverStore;
+        if (resolver is null || store is null) return false;
+        var normalizedSymbol = symbol.Trim().ToUpperInvariant();
+        var rollover = await store.GetFuturesContractRolloverAsync(
+            normalizedSymbol, cancellationToken).ConfigureAwait(false);
+        if (rollover?.ContractId is { Length: > 0 }
+            && rollover.NextRolloverDate is { } rolloverDate
+            && valueDate < rolloverDate)
+        {
+            var persisted = (await store.GetFuturesRolloverSetAsync(
+                    normalizedSymbol, cancellationToken).ConfigureAwait(false))
+                .OrderBy(static contract => contract.LastTradeDate)
+                .ToArray();
+            if (persisted.Length == 2
+                && persisted.All(static contract => contract.Rollover)
+                && persisted.Count(static contract => contract.OnTheRun) == 1
+                && persisted[0].OnTheRun
+                && string.Equals(persisted[0].ContractId, rollover.ContractId, StringComparison.Ordinal))
+            {
+                registry?.ReplaceFuturesRolloverSet(normalizedSymbol, persisted);
+                return false;
+            }
+        }
+
         var resolved = await resolver.ResolveEligibleAsync(
-            symbol.Trim().ToUpperInvariant(), valueDate, 2, cancellationToken).ConfigureAwait(false);
+            normalizedSymbol, valueDate, 2, cancellationToken).ConfigureAwait(false);
         if (resolved.Count < 2) return false;
-        var pair = new FuturesTermStructureContracts(resolved[0], resolved[1]);
-        registry.ReplaceFuturesTermStructureContracts(symbol, pair);
+        var ordered = resolved
+            .Where(contract => string.Equals(contract.Symbol, normalizedSymbol, StringComparison.Ordinal))
+            .OrderBy(static contract => contract.LastTradeDate)
+            .DistinctBy(static contract => contract.ContractId, StringComparer.Ordinal)
+            .Take(2)
+            .ToArray();
+        if (ordered.Length != 2
+            || ordered.Any(static contract => !contract.Rollover)
+            || ordered.Count(static contract => contract.OnTheRun) != 1
+            || !ordered[0].OnTheRun)
+            return false;
+        if (rollover is null)
+        {
+            throw new FuturesContractRolloverConfigurationException(
+                $"The futures-contract rollover row for '{normalizedSymbol}' is missing.");
+        }
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var replacement = rollover with
+        {
+            ContractId = ordered[0].ContractId,
+            NextRolloverDate = ordered[0].LastTradeDate,
+            UpdatedOn = now,
+            UpdatedBy = nameof(DatabentoMarketDataApi)
+        };
+        await store.ReplaceFuturesRolloverSetAsync(
+            replacement, ordered, cancellationToken).ConfigureAwait(false);
+        registry?.ReplaceFuturesRolloverSet(normalizedSymbol, ordered);
         return true;
     }
 
@@ -210,7 +258,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+    public async Task<bool> UpdateOnTheRunFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
         CancellationToken cancellationToken = default,
@@ -238,7 +286,8 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
                 existing.ContractId,
                 cancellationToken).ConfigureAwait(false);
             if (persisted is not null
-                && persisted.CurrentlyTraded
+                && persisted.OnTheRun
+                && persisted.Rollover
                 && string.Equals(
                     persisted.ContractId,
                     existing.ContractId,
@@ -248,6 +297,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
                     normalizedSymbol,
                     StringComparison.Ordinal))
             {
+                _contractRegistry?.ReplaceFuturesRolloverSet(normalizedSymbol, [persisted]);
                 return false;
             }
         }
@@ -269,8 +319,9 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
             UpdatedOn = now,
             UpdatedBy = nameof(DatabentoMarketDataApi)
         };
-        await store.ReplaceCurrentlyTradedFuturesContractAsync(
+        await store.ReplaceOnTheRunFuturesContractAsync(
             replacement, resolved.Contract, cancellationToken).ConfigureAwait(false);
+        _contractRegistry?.ReplaceFuturesRolloverSet(normalizedSymbol, [resolved.Contract]);
         return existing.NextRolloverDate != resolved.NextRolloverDate;
     }
 
@@ -367,7 +418,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// <exception cref="MarketDataContractKindMismatchException">
     /// Thrown when the identifier belongs to a futures option.
     /// </exception>
-    public Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
+    public Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(
         string futuresContractId)
     {
         var active = GetRunningEpoch();
@@ -386,14 +437,14 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
     /// <exception cref="MarketDataBatchResolutionException">
     /// Thrown when any requested identifier cannot be resolved; no partial result is returned.
     /// </exception>
-    public async Task<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
+    public async Task<FuturesContractV3ReadModel[]> GetFuturesContractsAsync(
         string[] futuresContractIds)
     {
         ArgumentNullException.ThrowIfNull(futuresContractIds);
         GetRunningEpoch();
         if (futuresContractIds.Length == 0) return [];
 
-        var results = new FuturesContractV2ReadModel[futuresContractIds.Length];
+        var results = new FuturesContractV3ReadModel[futuresContractIds.Length];
         var missing = new List<string>();
         for (var index = 0; index < futuresContractIds.Length; index++)
         {
@@ -757,7 +808,7 @@ public sealed class DatabentoMarketDataApi : IMarketDataApi, IAsyncDisposable
         $"compatibility:{epoch.ValueDate:yyyy-MM-dd}",
         legId);
 
-    private static FuturesContractV2ReadModel RequireFutures(
+    private static FuturesContractV3ReadModel RequireFutures(
         IDatabentoMarketDataEpoch epoch,
         string contractId)
     {

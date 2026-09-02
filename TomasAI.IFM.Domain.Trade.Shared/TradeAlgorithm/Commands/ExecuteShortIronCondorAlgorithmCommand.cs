@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using MessagePack;
@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.Trade.Shared.TradeAlgorithm.Commands;
 /// supplying supporting futures contract, end-of-day data, and trade signal inputs.
 /// </summary>
 /// <remarks>
-/// MessagePack serialization pattern: base command keys 0�5; custom properties start at key 6.
+/// MessagePack serialization pattern: base command keys 0ï¿½5; custom properties start at key 6.
 /// Routes to <see cref="BoundedContextName.TradeAlgorithmBoundedContext"/> with error code 7002.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
@@ -60,7 +60,7 @@ public record ExecuteShortIronCondorAlgorithmCommand
 
     /// <summary>Futures contract metadata supporting the algorithm (optional).</summary>
     [Key(10)]
-    public FuturesContractV2ReadModel? FuturesContract { get; init; }
+    public FuturesContractV3ReadModel? FuturesContract { get; init; }
 
     /// <summary>Futures end-of-day data snapshot (optional).</summary>
     [Key(11)]
@@ -97,7 +97,7 @@ public record ExecuteShortIronCondorAlgorithmCommand
         TradeType tradeType,
         int orderId,
         int tradeId,
-        FuturesContractV2ReadModel? futuresContract,
+        FuturesContractV3ReadModel? futuresContract,
         FuturesEodDataV2ReadModel? futuresEodData,
         FuturesTradeSignalV2ReadModel? futuresTradeSignal,
         IOptionTradeCollection? optionTrades)
@@ -131,7 +131,7 @@ public record ExecuteShortIronCondorAlgorithmCommand
         TradeType tradeType,             // Key(7)
         int orderId,                     // Key(8)
         int tradeId,                     // Key(9)
-        FuturesContractV2ReadModel? futuresContract,    // Key(10)
+        FuturesContractV3ReadModel? futuresContract,    // Key(10)
         FuturesEodDataV2ReadModel? futuresEodData,      // Key(11)
         FuturesTradeSignalV2ReadModel? futuresTradeSignal) // Key(12)
     {

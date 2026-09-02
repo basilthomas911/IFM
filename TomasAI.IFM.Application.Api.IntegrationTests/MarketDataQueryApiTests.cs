@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
@@ -90,30 +90,30 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
     /// Tests retrieval of the currently traded futures contract.
     /// </summary>
     [Fact]
-    public async Task GetCurrentlyTradedFuturesContract_Ok()
+    public async Task GetOnTheRunFuturesContract_Ok()
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataQueryApi(queryServiceApi);
         // Ensure test data exists for a currently traded contract in the test DB or mock
-        var response = await queryApi.GetCurrentlyTradedFuturesContractAsync("ES");
+        var response = await queryApi.GetOnTheRunFuturesContractAsync("ES");
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
-        response.Value.Should().BeAssignableTo<FuturesContractV2ReadModel>();
+        response.Value.Should().BeAssignableTo<FuturesContractV3ReadModel>();
     }
 
     /// <summary>
     /// Tests retrieval of all currently traded futures contracts.
     /// </summary>
     [Fact]
-    public async Task GetCurrentlyTradedFuturesContracts_Ok()
+    public async Task GetRolloverFuturesContracts_Ok()
     {
         var queryServiceApi = new QueryServiceApiClient(_httpClientFactory, _jsonSerializer, new QueryServiceApiOptions("http://localhost"));
         var queryApi = new MarketDataQueryApi(queryServiceApi);
         // Ensure test data exists for multiple currently traded contracts
-        var response = await queryApi.GetCurrentlyTradedFuturesContractsAsync("ES");
+        var response = await queryApi.GetRolloverFuturesContractsAsync("ES");
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
-        response.Value.Should().BeAssignableTo<FuturesContractV2ReadModel[]>();
+        response.Value.Should().BeAssignableTo<FuturesContractV3ReadModel[]>();
         response.Value.Should().NotBeEmpty();
     }
 
@@ -130,7 +130,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetFuturesContractAsync(contractId);
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
-        response.Value.Should().BeAssignableTo<FuturesContractV2ReadModel>();
+        response.Value.Should().BeAssignableTo<FuturesContractV3ReadModel>();
     }
 
     /// <summary>
@@ -176,7 +176,7 @@ public class MarketDataQueryApiTests(WebApplicationFactory<Program> factory)
         var response = await queryApi.GetFuturesContractsAsync();
         response.Success.Should().BeTrue();
         response.Value.Should().NotBeNull();
-        response.Value.Should().BeAssignableTo<FuturesContractV2ReadModel[]>();
+        response.Value.Should().BeAssignableTo<FuturesContractV3ReadModel[]>();
         response.Value.Should().NotBeEmpty();
     }
 

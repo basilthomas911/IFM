@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -360,8 +360,15 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
 
     public DatabentoMarketDataEpochHealth GetHealth()
     {
-        var aggregations = Volatile.Read(ref _aggregationsByDataset).Values;
+        var aggregationsByDataset = Volatile.Read(ref _aggregationsByDataset);
+        var aggregations = aggregationsByDataset.Values;
         var metrics = aggregations.Select(static aggregation => aggregation.GetMetrics()).ToArray();
+        var datasetFeedStatuses = aggregationsByDataset
+            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static pair => new DatabentoDatasetFeedHealth(
+                pair.Key,
+                pair.Value.GetFeedHealth()))
+            .ToArray();
         var statuses = Volatile.Read(ref _aggregationByContractId).Keys
             .Order(StringComparer.Ordinal)
             .Select(GetAggregationStatus)
@@ -377,7 +384,8 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             metrics.Sum(static metric => metric.SourceTradeRecords),
             metrics.Sum(static metric => metric.PublicationFailures),
             metrics.Sum(static metric => metric.ProcessingFailures),
-            statuses);
+            statuses,
+            datasetFeedStatuses);
     }
 
     public bool StartFuturesRoute(
@@ -484,7 +492,7 @@ internal sealed class DatabentoMarketDataEpoch : IDatabentoMarketDataEpoch
             Exchange = detail.Exchange,
             ContractMultiplier = detail.ContractMultiplier ?? 1,
             MaturityDate = detail.MaturityDate ?? ValueDate,
-            IsCurrentlyTraded = resolved.Futures?.CurrentlyTraded ?? true,
+            IsOnTheRun = resolved.Futures?.OnTheRun ?? true,
             StrikePrice = detail.StrikePrice is { } strike
                 ? strike / 1_000_000_000m
                 : null,

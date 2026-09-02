@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -33,7 +33,7 @@ public record FuturesOptionTickDataInsertedEvent : IEvent<FuturesOptionTickEntit
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public FuturesOptionTickDataV2ReadModel TickData { get; init; }
     [Key(10)] public DateTime CreatedOn { get; init; }
     [Key(11)] public string CreatedBy { get; init; }
@@ -57,7 +57,7 @@ public record FuturesOptionTickDataInsertedEvent : IEvent<FuturesOptionTickEntit
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesOptionTickDataV2ReadModel tickData,
         DateTime createdOn,
         string createdBy)
@@ -154,7 +154,7 @@ public record FuturesOptionTickDataInsertedCompleteEvent : ICompleteEvent<Future
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public FuturesOptionTickDataV2ReadModel TickData { get; init; }
     [Key(10)] public DateTime CreatedOn { get; init; }
     [Key(11)] public string CreatedBy { get; init; }
@@ -175,7 +175,7 @@ public record FuturesOptionTickDataInsertedCompleteEvent : ICompleteEvent<Future
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesOptionTickDataV2ReadModel tickData,
         DateTime createdOn,
         string createdBy)

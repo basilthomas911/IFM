@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
@@ -11,12 +11,12 @@ public sealed class FuturesVwapStreamOwnership
     string? contractId;
 
     /// <summary>Resolves and idempotently leases the configured current contract.</summary>
-    public async ValueTask<FuturesContractV2ReadModel> EnsureAsync(
+    public async ValueTask<FuturesContractV3ReadModel> EnsureAsync(
         IMarketDataApi marketDataApi, string rootSymbol)
     {
         ArgumentNullException.ThrowIfNull(marketDataApi);
         ArgumentException.ThrowIfNullOrWhiteSpace(rootSymbol);
-        if (!marketDataApi.TryGetCurrentlyTradedFuturesContract(rootSymbol, out var contract))
+        if (!marketDataApi.TryGetOnTheRunFuturesContract(rootSymbol, out var contract))
             throw new FuturesContractRolloverConfigurationException(
                 $"The current {rootSymbol} futures contract is unavailable for VWAP.");
         var changed = !StringComparer.Ordinal.Equals(contractId, contract.ContractId);

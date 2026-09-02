@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -19,10 +19,10 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Queries;
 /// - A parameterless constructor for serializers and a full constructor annotated with <see cref="SerializationConstructorAttribute"/>.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record GetCurrentlyTradedFuturesContractsQuery : IQuery<FuturesContractV2ReadModel[]>
+public record GetRolloverFuturesContractsQuery : IQuery<FuturesContractV3ReadModel[]>
 {
     [IgnoreMember] public const string Actor = "FuturesContractQuery";
-    [IgnoreMember] public const string Verb = "GetCurrentlyTradedFuturesContracts";
+    [IgnoreMember] public const string Verb = "GetRolloverFuturesContracts";
     [IgnoreMember] public const int ErrorId = 1235;
 
     [Key(0)] public ActorSubject Subject { get; init; }
@@ -34,17 +34,17 @@ public record GetCurrentlyTradedFuturesContractsQuery : IQuery<FuturesContractV2
     /// </summary>
     [Key(2)] public string Symbol { get; init; }
 
-    public GetCurrentlyTradedFuturesContractsQuery()
+    public GetRolloverFuturesContractsQuery()
     { 
     }
 
     /// <summary>
     /// Parameterless constructor for serializers.
     /// </summary>
-    public GetCurrentlyTradedFuturesContractsQuery(string symbol)
+    public GetRolloverFuturesContractsQuery(string symbol)
     {
         Symbol = symbol;
-        EntityId = new GetCurrentlyTradedFuturesContractsParameter(symbol);
+        EntityId = new GetRolloverFuturesContractsParameter(symbol);
         ErrorCode = ErrorId;
     }
 
@@ -52,13 +52,13 @@ public record GetCurrentlyTradedFuturesContractsQuery : IQuery<FuturesContractV2
     /// MessagePack serialization constructor.
     /// </summary>
     [SerializationConstructor]
-    public GetCurrentlyTradedFuturesContractsQuery(
+    public GetRolloverFuturesContractsQuery(
         ActorSubject subject,         // Key(0)
         IActorEntityId entityId,
         string symbol)      // Key(1)
     {
         Subject = subject;
-        EntityId = new GetCurrentlyTradedFuturesContractsParameter(symbol);
+        EntityId = new GetRolloverFuturesContractsParameter(symbol);
         Symbol = symbol;
         ErrorCode = ErrorId;
     }

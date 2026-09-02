@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -334,7 +334,7 @@ internal sealed class FakeLifecycleStage(
 
 internal sealed class FakeMarketDataCatalog : IDatabentoMarketDataCatalog
 {
-    internal Dictionary<string, FuturesContractV2ReadModel> Futures { get; } =
+    internal Dictionary<string, FuturesContractV3ReadModel> Futures { get; } =
         new(StringComparer.Ordinal);
     internal Dictionary<string, FuturesOptionContractReadModel> Options { get; } =
         new(StringComparer.Ordinal);
@@ -342,7 +342,7 @@ internal sealed class FakeMarketDataCatalog : IDatabentoMarketDataCatalog
         new(StringComparer.Ordinal);
     internal int ProviderQueryCount;
 
-    internal FuturesContractV2ReadModel? FindFuture(string contractId)
+    internal FuturesContractV3ReadModel? FindFuture(string contractId)
     {
         Interlocked.Increment(ref ProviderQueryCount);
         return Futures.GetValueOrDefault(contractId);
@@ -354,7 +354,7 @@ internal sealed class FakeMarketDataCatalog : IDatabentoMarketDataCatalog
         return Options.GetValueOrDefault(contractId);
     }
 
-    public FuturesContractV2ReadModel? FindFutures(string contractId) =>
+    public FuturesContractV3ReadModel? FindFutures(string contractId) =>
         FindFuture(contractId);
 
     public FuturesOptionContractReadModel? FindFuturesOption(string contractId) =>

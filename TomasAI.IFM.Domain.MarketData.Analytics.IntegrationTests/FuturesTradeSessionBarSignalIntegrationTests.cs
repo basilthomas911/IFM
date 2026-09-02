@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -47,8 +47,8 @@ public sealed class FuturesTradeSessionBarSignalIntegrationTests(
         var sourceSequence = Random.Shared.NextInt64(10_000, long.MaxValue - 10);
         var marketDataApi = factory.Services.GetRequiredService<IMarketDataApi>();
         factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
-            .ReplaceCurrentFuturesContracts([
-                new FuturesContractV2ReadModel(
+            .ReplaceFuturesRolloverSet("ES", [
+                new FuturesContractV3ReadModel(
                     contractId,
                     "ES trade-session bar integration future",
                     "ES",

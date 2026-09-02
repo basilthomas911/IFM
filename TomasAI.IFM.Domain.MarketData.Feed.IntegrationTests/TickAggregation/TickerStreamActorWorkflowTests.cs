@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Blackboard;
@@ -172,7 +172,7 @@ public sealed class TickerStreamActorWorkflowTests
             CreateDetails(contractId, instrument, AssetTypeId.Futures));
         var marketDataApi = CreateMarketDataApi(aggregation);
         marketDataApi.GetFuturesContractAsync(contractId).Returns(
-            new FuturesContractV2ReadModel(
+            new FuturesContractV3ReadModel(
                 contractId, contractId, "ES", "ESU6", "FUT", "USD", "CME", "50",
                 new DateOnly(2026, 9, 18), true));
         var owner = new TickerStreamOwner("IntegrationWorkflow", "eod", "session-statistics");
@@ -319,7 +319,7 @@ public sealed class TickerStreamActorWorkflowTests
 
         var marketDataApi = CreateMarketDataApi(aggregation);
         var logger = Substitute.For<ILogger<global::TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Event.Actor.FuturesTickDataEventActor>>();
-        marketDataApi.GetFuturesContractAsync(contractId).Returns(new FuturesContractV2ReadModel(
+        marketDataApi.GetFuturesContractAsync(contractId).Returns(new FuturesContractV3ReadModel(
             contractId, contractId, "VX", contractId, "FUT", "USD", "CME", "50",
             new DateOnly(2026, 9, 18), true));
         var blackboard = new BlackboardService(
@@ -399,7 +399,7 @@ public sealed class TickerStreamActorWorkflowTests
         var marketDataApi = Substitute.For<IMarketDataApi>();
         marketDataApi.IsTickDataStreamActive(contractId).Returns(true);
         marketDataApi.GetFuturesContractAsync(contractId).Returns(
-            new FuturesContractV2ReadModel(
+            new FuturesContractV3ReadModel(
                 contractId, contractId, "VX", "VXQ6", "FUT", "USD", "CFE", "1000",
                 new DateOnly(2026, 8, 19), true));
         var projector = CreateEodProjector();
@@ -429,10 +429,10 @@ public sealed class TickerStreamActorWorkflowTests
     {
         const string esContractId = "ES20260918";
         const string vixContractId = "VX20260916";
-        var esContract = new FuturesContractV2ReadModel(
+        var esContract = new FuturesContractV3ReadModel(
             esContractId, esContractId, "ES", "ESU6", "FUT", "USD", "CME", "50",
             new DateOnly(2026, 9, 18), true);
-        var vixContract = new FuturesContractV2ReadModel(
+        var vixContract = new FuturesContractV3ReadModel(
             vixContractId, vixContractId, "VX", "VXU6", "FUT", "USD", "CFE", "1000",
             new DateOnly(2026, 9, 16), true);
         var marketDataApi = Substitute.For<IMarketDataApi>();
@@ -659,7 +659,7 @@ public sealed class TickerStreamActorWorkflowTests
         Exchange = "CME",
         ContractMultiplier = 50m,
         MaturityDate = new DateOnly(2026, 9, 18),
-        IsCurrentlyTraded = true,
+        IsOnTheRun = true,
         StrikePrice = assetTypeId == AssetTypeId.FuturesOption ? 6500m : null,
         OptionType = assetTypeId == AssetTypeId.FuturesOption ? "Call" : null,
         UnderlyingContractId = assetTypeId == AssetTypeId.FuturesOption ? "ES20260918" : null

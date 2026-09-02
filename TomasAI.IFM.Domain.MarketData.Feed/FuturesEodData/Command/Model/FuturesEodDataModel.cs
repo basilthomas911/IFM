@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -16,7 +16,7 @@ internal static class FuturesEodDataModel
     public static FuturesEodDataV2ReadModel CreateFuturesEodData(
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesEodDataV2ReadModel eodDataToday,
         ICollection<FuturesEodDataV2ReadModel> eodDataRange,
         NormalCurveTableReadModel normCurveData,

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -26,12 +26,12 @@ public class FuturesContractCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// </summary>
     /// <param name="futuresContractId"></param>
     /// <returns></returns>
-    public FuturesContractV2ReadModel? Get(FuturesContractId futuresContractId)
+    public FuturesContractV3ReadModel? Get(FuturesContractId futuresContractId)
     {
         var key = $"{CacheName}:{futuresContractId}";
         var value = _redisCache.Get(key);
         return !string.IsNullOrEmpty(value)
-            ? _jsonSerializer.Deserialize<FuturesContractV2ReadModel>(value)
+            ? _jsonSerializer.Deserialize<FuturesContractV3ReadModel>(value)
             : default;
     }
 
@@ -40,7 +40,7 @@ public class FuturesContractCacheModel(IRedisCache redisCache, IJsonSerializer j
     /// </summary>
     /// <param name="futuresContractId"></param>
     /// <param name="futuresContract"></param>
-    public void Set(FuturesContractId futuresContractId, FuturesContractV2ReadModel futuresContract)
+    public void Set(FuturesContractId futuresContractId, FuturesContractV3ReadModel futuresContract)
     {
         var key = $"{CacheName}:{futuresContractId}";
         var value = _jsonSerializer.Serialize(futuresContract);

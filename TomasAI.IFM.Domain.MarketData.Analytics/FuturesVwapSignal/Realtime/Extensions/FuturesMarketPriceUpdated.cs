@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Actor;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
@@ -15,7 +15,7 @@ public static class FuturesMarketPriceUpdated
     public static async ValueTask<bool> ExecuteAsync(
         this FuturesMarketPriceUpdatedRealtimeEvent @event,
         IFuturesVwapSignalRealtimeContext context,
-        FuturesContractV2ReadModel currentContract,
+        FuturesContractV3ReadModel currentContract,
         ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(@event);

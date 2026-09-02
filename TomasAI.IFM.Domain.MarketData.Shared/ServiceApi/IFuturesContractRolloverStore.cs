@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 
@@ -22,12 +22,25 @@ public interface IFuturesContractRolloverStore
         GetFuturesContractRolloversAsync(
             CancellationToken cancellationToken = default);
 
-    Task<FuturesContractV2ReadModel?> GetPersistedFuturesContractAsync(
+    Task<FuturesContractV3ReadModel?> GetPersistedFuturesContractAsync(
         string contractId,
         CancellationToken cancellationToken = default);
 
-    Task ReplaceCurrentlyTradedFuturesContractAsync(
+    Task<IReadOnlyCollection<FuturesContractV3ReadModel>> GetFuturesRolloverSetAsync(
+        string symbol,
+        CancellationToken cancellationToken = default);
+
+    Task ReplaceOnTheRunFuturesContractAsync(
         FuturesContractRolloverReadModel rollover,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces the complete currently-traded set for a root symbol and advances
+    /// its rollover authority to the front contract in that set.
+    /// </summary>
+    Task ReplaceFuturesRolloverSetAsync(
+        FuturesContractRolloverReadModel rollover,
+        IReadOnlyCollection<FuturesContractV3ReadModel> contracts,
         CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -22,7 +22,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.CommandParameters;
 public record InsertFuturesEodDataParameter(
     DateOnly ValueDate,
     FuturesTickDataV2ReadModel FuturesTickData,
-    FuturesContractV2ReadModel Contract,
+    FuturesContractV3ReadModel Contract,
     FuturesEodDataV2ReadModel EodDataToday,
     ICollection<FuturesEodDataV2ReadModel> EodDataRange,
     NormalCurveTableReadModel NormCurveData,

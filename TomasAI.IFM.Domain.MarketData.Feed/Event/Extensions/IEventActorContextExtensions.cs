@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Feed.Command.Extensions;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -42,17 +42,17 @@ public static class IEventActorContextExtensions
             : new();
     }
 
-    internal static async ValueTask<FuturesContractV2ReadModel> GetCurrentlyTradedFuturesContractAsync(this IEventActorContext context, string symbol)
+    internal static async ValueTask<FuturesContractV3ReadModel> GetOnTheRunFuturesContractAsync(this IEventActorContext context, string symbol)
     {
-        var entityId = new GetCurrentlyTradedFuturesContractParameter(symbol);
-        GetCurrentlyTradedFuturesContractQuery query = new(symbol)
+        var entityId = new GetOnTheRunFuturesContractParameter(symbol);
+        GetOnTheRunFuturesContractQuery query = new(symbol)
         {
-            Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractQuery.Actor, GetCurrentlyTradedFuturesContractQuery.Verb, entityId.Format()),
+            Subject = new ActorSubject(ActorType.Query, GetOnTheRunFuturesContractQuery.Actor, GetOnTheRunFuturesContractQuery.Verb, entityId.Format()),
             EntityId = entityId,
-            ErrorCode = GetCurrentlyTradedFuturesContractQuery.ErrorId,
+            ErrorCode = GetOnTheRunFuturesContractQuery.ErrorId,
             QueryParams = entityId.Format()
         };
-        var serviceResult = await context.RequestAsync<FuturesContractV2ReadModel, GetCurrentlyTradedFuturesContractQuery>(query);
+        var serviceResult = await context.RequestAsync<FuturesContractV3ReadModel, GetOnTheRunFuturesContractQuery>(query);
         return (serviceResult.Success && serviceResult.Value is not null)
             ? serviceResult.Value
             : new()!;
@@ -69,7 +69,7 @@ public static class IEventActorContextExtensions
     /// <param name="entityId"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    public static async ValueTask StartFuturesTickDataStreamingAsync(this IEventActorContext commandApi, IEvent e, FuturesContractV2ReadModel futuresContract, FuturesDataId entityId)
+    public static async ValueTask StartFuturesTickDataStreamingAsync(this IEventActorContext commandApi, IEvent e, FuturesContractV3ReadModel futuresContract, FuturesDataId entityId)
     {
         var (valueDate, resetStream) = e switch
         {
@@ -139,7 +139,7 @@ public static class IEventActorContextExtensions
             ? serviceResult.Value
             : new();
     }
-    internal static async ValueTask<FuturesContractV2ReadModel> GetFuturesContractAsync(this IEventActorContext context, string contractId)
+    internal static async ValueTask<FuturesContractV3ReadModel> GetFuturesContractAsync(this IEventActorContext context, string contractId)
     {
         var entityId = new GetFuturesContractParameter(contractId);
         GetFuturesContractQuery query = new(contractId)
@@ -149,7 +149,7 @@ public static class IEventActorContextExtensions
             ErrorCode = GetFuturesContractQuery.ErrorId,
             QueryParams = entityId.Format()
         };
-        var serviceResult = await context.RequestAsync<FuturesContractV2ReadModel, GetFuturesContractQuery>(query);
+        var serviceResult = await context.RequestAsync<FuturesContractV3ReadModel, GetFuturesContractQuery>(query);
         return (serviceResult.Success && serviceResult.Value is not null)
             ? serviceResult.Value
             : new();

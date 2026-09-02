@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.EventProjector.Realtime.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts;
@@ -106,7 +106,7 @@ internal static class FuturesTickTradeDataInserted
         IEventActorContext context,
         IMarketDataApi marketDataApi,
         IBlackboardService blackboardService,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesTickDataV2ReadModel tickData)
     {
         var valueDate = tickData.ValueDate;
@@ -221,7 +221,7 @@ internal static class FuturesTickTradeDataInserted
     }
 
     internal static FuturesEodDataV2ReadModel? CreateSessionBaseline(
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesTickDataV2ReadModel tickData,
         bool hasStatistics,
         FuturesSessionStatisticsSnapshot statistics)

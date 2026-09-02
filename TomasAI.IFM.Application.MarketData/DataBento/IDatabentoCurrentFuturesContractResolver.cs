@@ -1,9 +1,9 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Application.MarketData.Databento;
 
 public sealed record ResolvedCurrentFuturesContract(
-    FuturesContractV2ReadModel Contract,
+    FuturesContractV3ReadModel Contract,
     DateOnly NextRolloverDate);
 
 public interface IDatabentoCurrentFuturesContractResolver
@@ -14,7 +14,7 @@ public interface IDatabentoCurrentFuturesContractResolver
         CancellationToken cancellationToken = default);
 
     /// <summary>Resolves the requested number of eligible contracts in expiry order.</summary>
-    async Task<IReadOnlyList<FuturesContractV2ReadModel>> ResolveEligibleAsync(
+    async Task<IReadOnlyList<FuturesContractV3ReadModel>> ResolveEligibleAsync(
         string symbol,
         DateOnly valueDate,
         int count,

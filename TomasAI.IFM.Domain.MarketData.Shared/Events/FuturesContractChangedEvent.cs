@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -41,7 +41,7 @@ public record FuturesContractChangedEvent :
 
     // payload keys start after base event keys (8..)
     [Key(8)] public FuturesContractId OriginalContractId { get; init; }
-    [Key(9)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(9)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(10)] public DateTime UpdatedOn { get; init; }
     [Key(11)] public string? UpdatedBy { get; init; }
 
@@ -65,7 +65,7 @@ public record FuturesContractChangedEvent :
         string eventSource,
         DateTime receivedOn,
         FuturesContractId originalContractId,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateTime updatedOn,
         string? updatedBy)
     {
@@ -176,7 +176,7 @@ public record FuturesContractChangedCompleteEvent : ICompleteEvent<FuturesContra
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     [Key(8)] public FuturesContractId? OriginalContractId { get; init; }
-    [Key(9)] public FuturesContractV2ReadModel? Contract { get; init; }
+    [Key(9)] public FuturesContractV3ReadModel? Contract { get; init; }
     [Key(10)] public DateTime UpdatedOn { get; init; }
     [Key(11)] public string? UpdatedBy { get; init; }
 
@@ -197,7 +197,7 @@ public record FuturesContractChangedCompleteEvent : ICompleteEvent<FuturesContra
         string eventSource,
         DateTime receivedOn,
         FuturesContractId? originalContractId,
-        FuturesContractV2ReadModel? contract,
+        FuturesContractV3ReadModel? contract,
         DateTime updatedOn,
         string? updatedBy)
     {

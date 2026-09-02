@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -43,12 +43,17 @@ public sealed class FuturesContractRolloverStartupCheck(
 
         if (runtimeOptions.FeedOptions.DataSource != FeedDataSourceMode.Synthetic)
         {
-            foreach (var symbol in RequiredSymbols)
+            await marketDataApi.UpdateOnTheRunFuturesContractAsync(
+                "ES", valueDate, cancellationToken).ConfigureAwait(false);
+            var termStructureAvailable = await marketDataApi.UpdateFuturesTermStructureContractsAsync(
+                "VX", valueDate, cancellationToken).ConfigureAwait(false);
+            if (!termStructureAvailable)
             {
-                await marketDataApi.UpdateCurrentlyTradedFuturesContractAsync(
-                    symbol,
-                    valueDate,
-                    cancellationToken).ConfigureAwait(false);
+                var persistedVx = await store.GetFuturesRolloverSetAsync(
+                    "VX", cancellationToken).ConfigureAwait(false);
+                if (persistedVx.Count != 2)
+                    throw new FuturesContractRolloverConfigurationException(
+                        "DataBento did not resolve the required current-month and next-month VX contracts.");
             }
         }
         else
@@ -59,7 +64,7 @@ public sealed class FuturesContractRolloverStartupCheck(
 
         var validated = await store.GetFuturesContractRolloversAsync(cancellationToken)
             .ConfigureAwait(false);
-        List<FuturesContractV2ReadModel> currentContracts = [];
+        List<FuturesContractV3ReadModel> currentContracts = [];
         foreach (var requiredSymbol in RequiredSymbols)
         {
             var row = validated.SingleOrDefault(candidate =>
@@ -71,21 +76,33 @@ public sealed class FuturesContractRolloverStartupCheck(
                     $"The futures-contract rollover row for '{requiredSymbol}' is not valid.");
             }
 
-            var contract = await store.GetPersistedFuturesContractAsync(
-                row.ContractId, cancellationToken).ConfigureAwait(false);
-            if (contract is null || !contract.CurrentlyTraded
-                || !string.Equals(contract.Symbol, row.Symbol, StringComparison.Ordinal))
+            var contracts = (await store.GetFuturesRolloverSetAsync(
+                    requiredSymbol, cancellationToken).ConfigureAwait(false))
+                .OrderBy(static contract => contract.LastTradeDate)
+                .ToArray();
+            var requiredCount = requiredSymbol == "VX" ? 2 : 1;
+            if (contracts.Length != requiredCount
+                || contracts.Any(contract => !contract.Rollover
+                    || !string.Equals(contract.Symbol, row.Symbol, StringComparison.Ordinal))
+                || contracts.Count(static contract => contract.OnTheRun) != 1
+                || !contracts[0].OnTheRun
+                || !string.Equals(contracts[0].ContractId, row.ContractId, StringComparison.Ordinal))
             {
                 throw new FuturesContractRolloverConfigurationException(
-                    $"The rollover row for '{requiredSymbol}' does not identify a persisted currently traded contract.");
+                    $"The rollover row for '{requiredSymbol}' does not identify its required persisted rollover set.");
             }
-            currentContracts.Add(contract);
+            currentContracts.AddRange(contracts);
         }
-        registry?.ReplaceCurrentFuturesContracts(currentContracts);
-        if (runtimeOptions.FeedOptions.DataSource != FeedDataSourceMode.Synthetic)
+        if (registry is not null)
         {
-            _ = await marketDataApi.UpdateFuturesTermStructureContractsAsync(
-                "VX", valueDate, cancellationToken).ConfigureAwait(false);
+            foreach (var group in currentContracts.GroupBy(
+                         static contract => contract.Symbol,
+                         StringComparer.Ordinal))
+            {
+                registry.ReplaceFuturesRolloverSet(
+                    group.Key,
+                    group.OrderBy(static contract => contract.LastTradeDate).ToArray());
+            }
         }
         return validated;
     }
@@ -98,38 +115,51 @@ public sealed class FuturesContractRolloverStartupCheck(
         {
             var row = seeded.Single(candidate =>
                 string.Equals(candidate.Symbol, symbol, StringComparison.Ordinal));
-            var persisted = string.IsNullOrWhiteSpace(row.ContractId)
-                ? null
-                : await store.GetPersistedFuturesContractAsync(
-                    row.ContractId, cancellationToken).ConfigureAwait(false);
+            var requiredCount = symbol == "VX" ? 2 : 1;
+            var persisted = await store.GetFuturesRolloverSetAsync(
+                symbol, cancellationToken).ConfigureAwait(false);
             if (row.NextRolloverDate is not null
-                && persisted is not null
-                && persisted.CurrentlyTraded
-                && string.Equals(persisted.Symbol, symbol, StringComparison.Ordinal))
+                && persisted.Count == requiredCount
+                && persisted.All(contract => contract.Rollover
+                    && string.Equals(contract.Symbol, symbol, StringComparison.Ordinal))
+                && persisted.Count(static contract => contract.OnTheRun) == 1)
                 continue;
 
-            var registration = runtimeOptions.Contracts.FirstOrDefault(candidate =>
-                candidate.AssetTypeId == AssetTypeId.Futures
-                && string.Equals(
-                    string.IsNullOrWhiteSpace(candidate.RootSymbol)
-                        ? new FuturesContractIdParser(candidate.DomainContractId).Symbol
-                        : candidate.RootSymbol,
-                    symbol,
-                    StringComparison.OrdinalIgnoreCase));
-            if (registration is null)
-                continue;
+            var contracts = runtimeOptions.Contracts
+                .Where(candidate => candidate.AssetTypeId == AssetTypeId.Futures
+                    && string.Equals(
+                        string.IsNullOrWhiteSpace(candidate.RootSymbol)
+                            ? new FuturesContractIdParser(candidate.DomainContractId).Symbol
+                            : candidate.RootSymbol,
+                        symbol,
+                        StringComparison.OrdinalIgnoreCase))
+                .Select(SyntheticFuturesContractFactory.Create)
+                .OrderBy(static contract => contract.LastTradeDate)
+                .Take(requiredCount)
+                .ToArray();
+            if (contracts.Length != requiredCount)
+                throw new FuturesContractRolloverConfigurationException(
+                    $"Synthetic startup requires {requiredCount} configured '{symbol}' futures contract(s).");
+
+            for (var index = 0; index < contracts.Length; index++)
+            {
+                contracts[index] = contracts[index] with
+                {
+                    OnTheRun = index == 0,
+                    Rollover = true
+                };
+            }
 
             var now = timeProvider.GetUtcNow().UtcDateTime;
-            var contract = SyntheticFuturesContractFactory.Create(registration);
-            await store.ReplaceCurrentlyTradedFuturesContractAsync(
+            await store.ReplaceFuturesRolloverSetAsync(
                 row with
                 {
-                    ContractId = contract.ContractId,
-                    NextRolloverDate = contract.LastTradeDate,
+                    ContractId = contracts[0].ContractId,
+                    NextRolloverDate = contracts[0].LastTradeDate,
                     UpdatedOn = now,
                     UpdatedBy = nameof(FuturesContractRolloverStartupCheck)
                 },
-                contract,
+                contracts,
                 cancellationToken).ConfigureAwait(false);
         }
     }

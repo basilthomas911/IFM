@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Trade.Shared;
+﻿using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
@@ -39,12 +39,12 @@ internal class SecuritiesDbCql
         """;
 
     public const string DeleteFuturesContract = """
-        DELETE FROM futures_contract
+        DELETE FROM futures_contract_v3
         WHERE contractId = :contractId;
         """;
 
     public const string DeleteFuturesContractById = """
-        DELETE FROM futures_contract
+        DELETE FROM futures_contract_v3
         WHERE contractId = :contractId
         AND symbol = :symbol
         AND lastTradeDate = :lastTradeDate;
@@ -64,10 +64,11 @@ internal class SecuritiesDbCql
         AND strikePrice = :strikePrice;
         """;
 
-    public const string DeleteFuturesContractBySymbolV2 = """
-        DELETE FROM futures_contract_by_symbol_v2
+    public const string DeleteFuturesContractBySymbolV3 = """
+        DELETE FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol
-        AND currentlyTraded = :currentlyTraded
+        AND rollover = :rollover
+        AND onTheRun = :onTheRun
         AND lastTradeDate = :lastTradeDate
         AND contractId = :contractId;
         """;
@@ -81,8 +82,8 @@ internal class SecuritiesDbCql
         AND contractId = :contractId;
         """;
 
-    public const string DeleteFuturesContractBySymbolV2Partition = """
-        DELETE FROM futures_contract_by_symbol_v2
+    public const string DeleteFuturesContractBySymbolV3Partition = """
+        DELETE FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol;
         """;
 
@@ -105,19 +106,21 @@ internal class SecuritiesDbCql
     public const string GetFuturesContractProjectionSourceKeys = """
         SELECT
             symbol,
-            currentlyTraded,
+            rollover,
+            onTheRun,
             lastTradeDate,
             contractId
-        FROM futures_contract;
+        FROM futures_contract_v3;
         """;
 
     public const string GetFuturesContractProjectionTargetKeys = """
         SELECT
             symbol,
-            currentlyTraded,
+            rollover,
+            onTheRun,
             lastTradeDate,
             contractId
-        FROM futures_contract_by_symbol_v2;
+        FROM futures_contract_by_symbol_v3;
         """;
 
     public const string GetFuturesOptionContractProjectionSourceKeys = """
@@ -278,7 +281,7 @@ internal class SecuritiesDbCql
         AND activeOperations = :expectedActiveOperations;
         """;
 
-    public const string GetCurrentlyTradeFuturesContract = """
+    public const string GetOnTheRunFuturesContract = """
         SELECT 
             contractId AS "ContractId",
             description AS "Description",
@@ -289,15 +292,17 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract_by_symbol_v2
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol
-        AND currentlyTraded = true
-        ORDER BY lastTradeDate DESC, contractId ASC
+        AND rollover = true
+        AND onTheRun = true
+        ORDER BY lastTradeDate ASC, contractId ASC
         LIMIT 1;
         """;
 
-    public const string GetCurrentlyTradeFuturesContracts = """
+    public const string GetRolloverFuturesContracts = """
         SELECT 
             contractId AS "ContractId",
             description AS "Description",
@@ -308,10 +313,11 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract_by_symbol_v2
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol
-        AND currentlyTraded = true;
+        AND rollover = true;
         """;
 
     public const string GetFuturesContract = """
@@ -325,8 +331,9 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_v3
         WHERE contractId = :contractId;
         """;
 
@@ -341,8 +348,9 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_v3
         WHERE contractId = :contractId
         AND symbol = :symbol
         AND lastTradeDate = :lastTradeDate;
@@ -359,8 +367,9 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract;
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_v3;
         """;
 
     public const string GetFuturesContractsByIds = """
@@ -374,8 +383,9 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_v3
         WHERE contractId in :contractIds
         AND symbol = :symbol;
         """;
@@ -391,8 +401,9 @@ internal class SecuritiesDbCql
             exchange AS "Exchange",
             multiplier AS "Multiplier",
             lastTradeDate AS "LastTradeDate",
-            currentlyTraded AS "CurrentlyTraded"
-        FROM futures_contract_by_symbol_v2
+            onTheRun AS "OnTheRun",
+            rollover AS "Rollover"
+        FROM futures_contract_by_symbol_v3
         WHERE symbol = :symbol;
         """;
 
@@ -464,7 +475,7 @@ internal class SecuritiesDbCql
         """;
 
     public const string InsertFuturesContract = """
-        INSERT INTO futures_contract (
+        INSERT INTO futures_contract_v3 (
             contractId, 
             description, 
             symbol, 
@@ -474,7 +485,8 @@ internal class SecuritiesDbCql
             exchange, 
             multiplier, 
             lastTradeDate, 
-            currentlyTraded
+            onTheRun,
+            rollover
         )
         VALUES (
             :contractId, 
@@ -486,12 +498,13 @@ internal class SecuritiesDbCql
             :exchange, 
             :multiplier, 
             :lastTradeDate, 
-            :currentlyTraded
+            :onTheRun,
+            :rollover
         )
         """;
 
-    public const string InsertFuturesContractBySymbolV2 = """
-        INSERT INTO futures_contract_by_symbol_v2 (
+    public const string InsertFuturesContractBySymbolV3 = """
+        INSERT INTO futures_contract_by_symbol_v3 (
             contractId,
             description,
             symbol,
@@ -501,7 +514,8 @@ internal class SecuritiesDbCql
             exchange,
             multiplier,
             lastTradeDate,
-            currentlyTraded
+            onTheRun,
+            rollover
         )
         VALUES (
             :contractId,
@@ -513,7 +527,8 @@ internal class SecuritiesDbCql
             :exchange,
             :multiplier,
             :lastTradeDate,
-            :currentlyTraded
+            :onTheRun,
+            :rollover
         );
         """;
 

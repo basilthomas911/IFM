@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -22,7 +23,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
     IAsyncLifetime
 {
     private static readonly DateOnly ValueDate = new(2026, 8, 14);
-    private readonly List<(FuturesContractRolloverReadModel Rollover, FuturesContractV2ReadModel Contract)>
+    private readonly List<(FuturesContractRolloverReadModel Rollover, IReadOnlyCollection<FuturesContractV3ReadModel> Contracts)>
         _originalAssignments = [];
 
     [Fact]
@@ -76,10 +77,18 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
 
         var es = await fixture.Db.GetFuturesContractAsync("ES20260918");
         var vx = await fixture.Db.GetFuturesContractAsync("VX20260916");
+        var vxBack = await fixture.Db.GetFuturesContractAsync("VX20261021");
         es.Should().NotBeNull();
-        es!.CurrentlyTraded.Should().BeTrue();
+        es!.OnTheRun.Should().BeTrue();
         vx.Should().NotBeNull();
-        vx!.CurrentlyTraded.Should().BeTrue();
+        vx!.OnTheRun.Should().BeTrue();
+        vxBack.Should().NotBeNull();
+        vxBack!.OnTheRun.Should().BeFalse();
+        vxBack.Rollover.Should().BeTrue();
+        (await fixture.Db.GetRolloverFuturesContractsAsync("ES"))
+            .Should().ContainSingle();
+        (await fixture.Db.GetRolloverFuturesContractsAsync("VX"))
+            .Should().HaveCount(2);
         registry.Should().Contain(registration =>
             registration.DomainContractId == "ES20260918"
             && registration.ProviderContractName == "ESU6"
@@ -108,8 +117,8 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             resolver,
             fixture.Db);
 
-        var set = await api.UpdateCurrentlyTradedFuturesContractAsync("ES", ValueDate);
-        var skipped = await api.UpdateCurrentlyTradedFuturesContractAsync("ES", ValueDate);
+        var set = await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
+        var skipped = await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
 
         set.Should().BeTrue();
         skipped.Should().BeFalse();
@@ -131,18 +140,149 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             clock,
             resolver,
             fixture.Db);
-        await api.UpdateCurrentlyTradedFuturesContractAsync("ES", ValueDate);
+        await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
 
-        var advanced = await api.UpdateCurrentlyTradedFuturesContractAsync(
+        var advanced = await api.UpdateOnTheRunFuturesContractAsync(
             "ES", new DateOnly(2026, 9, 18));
 
         advanced.Should().BeTrue();
-        (await fixture.Db.GetFuturesContractAsync("ES20260918")).Should().BeNull();
+        var retired = await fixture.Db.GetFuturesContractAsync("ES20260918");
+        retired.Should().NotBeNull();
+        retired!.OnTheRun.Should().BeFalse();
+        retired.Rollover.Should().BeFalse();
         var replacement = await fixture.Db.GetFuturesContractAsync("ES20261218");
         replacement.Should().NotBeNull();
-        replacement!.CurrentlyTraded.Should().BeTrue();
+        replacement!.OnTheRun.Should().BeTrue();
         var row = await fixture.Db.GetFuturesContractRolloverAsync("ES");
         row!.NextRolloverDate.Should().Be(new DateOnly(2026, 12, 18));
+    }
+
+    [Fact]
+    public async Task DueDateReplacesBothVxContractsAndAdvancesTheFrontRollover()
+    {
+        await ResetAsync();
+        var resolver = new FakeResolver();
+        var clock = new FixedTimeProvider(
+            new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero));
+        await fixture.Db.EnsureFuturesContractRolloverRowsAsync(
+            ["VX"], clock.GetUtcNow().UtcDateTime, "integration-test");
+        var api = new DatabentoMarketDataApi(
+            Substitute.For<IDatabentoMarketDataEpochFactory>(),
+            new DatabentoMarketDataApiOptions(),
+            clock,
+            resolver,
+            fixture.Db);
+        await api.UpdateFuturesTermStructureContractsAsync("VX", ValueDate);
+
+        var advanced = await api.UpdateFuturesTermStructureContractsAsync(
+            "VX", new DateOnly(2026, 9, 16));
+
+        advanced.Should().BeTrue();
+        var retired = await fixture.Db.GetFuturesContractAsync("VX20260916");
+        retired.Should().NotBeNull();
+        retired!.OnTheRun.Should().BeFalse();
+        retired.Rollover.Should().BeFalse();
+        var current = (await fixture.Db.GetRolloverFuturesContractsAsync("VX"))
+            .OrderBy(contract => contract.LastTradeDate)
+            .ToArray();
+        current.Select(contract => contract.ContractId)
+            .Should().Equal("VX20261021", "VX20261118");
+        var row = await fixture.Db.GetFuturesContractRolloverAsync("VX");
+        row!.ContractId.Should().Be("VX20261021");
+        row.NextRolloverDate.Should().Be(new DateOnly(2026, 10, 21));
+    }
+
+    [Fact]
+    public async Task TwoConsecutiveRolloverCyclesKeepDurablePointersAndSetsCoherent()
+    {
+        await ResetAsync();
+        var resolver = new FakeResolver();
+        var clock = new FixedTimeProvider(
+            new DateTimeOffset(2026, 8, 14, 12, 0, 0, TimeSpan.Zero));
+        await fixture.Db.EnsureFuturesContractRolloverRowsAsync(
+            ["ES", "VX"], clock.GetUtcNow().UtcDateTime, "two-cycle-verification");
+        var api = new DatabentoMarketDataApi(
+            Substitute.For<IDatabentoMarketDataEpochFactory>(),
+            new DatabentoMarketDataApiOptions(),
+            clock,
+            resolver,
+            fixture.Db);
+
+        await api.UpdateOnTheRunFuturesContractAsync("ES", ValueDate);
+        await api.UpdateFuturesTermStructureContractsAsync("VX", ValueDate);
+        await api.UpdateOnTheRunFuturesContractAsync("ES", new DateOnly(2026, 9, 18));
+        await api.UpdateFuturesTermStructureContractsAsync("VX", new DateOnly(2026, 9, 16));
+        await api.UpdateOnTheRunFuturesContractAsync("ES", new DateOnly(2026, 12, 18));
+        await api.UpdateFuturesTermStructureContractsAsync("VX", new DateOnly(2026, 10, 21));
+
+        var esSet = await fixture.Db.GetRolloverFuturesContractsAsync("ES");
+        esSet.Should().ContainSingle()
+            .Which.Should().Match<FuturesContractV3ReadModel>(contract =>
+                contract.ContractId == "ES20270319"
+                && contract.OnTheRun
+                && contract.Rollover);
+        var esPointer = await fixture.Db.GetFuturesContractRolloverAsync("ES");
+        esPointer!.ContractId.Should().Be("ES20270319");
+        esPointer.NextRolloverDate.Should().Be(new DateOnly(2027, 3, 19));
+
+        var vxSet = (await fixture.Db.GetRolloverFuturesContractsAsync("VX"))
+            .OrderBy(contract => contract.LastTradeDate)
+            .ToArray();
+        vxSet.Select(contract => (contract.ContractId, contract.OnTheRun, contract.Rollover))
+            .Should().Equal(
+                ("VX20261118", true, true),
+                ("VX20261216", false, true));
+        var vxPointer = await fixture.Db.GetFuturesContractRolloverAsync("VX");
+        vxPointer!.ContractId.Should().Be("VX20261118");
+        vxPointer.NextRolloverDate.Should().Be(new DateOnly(2026, 11, 18));
+
+        (await fixture.Db.GetFuturesContractAsync("ES20260918"))!
+            .Rollover.Should().BeFalse();
+        (await fixture.Db.GetFuturesContractAsync("ES20261218"))!
+            .Rollover.Should().BeFalse();
+        (await fixture.Db.GetFuturesContractAsync("VX20260916"))!
+            .Rollover.Should().BeFalse();
+        (await fixture.Db.GetFuturesContractAsync("VX20261021"))!
+            .Rollover.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ConcurrentDuplicateReplacementConvergesToOneExactVxSet()
+    {
+        await ResetAsync();
+        var now = DateTime.UtcNow;
+        await fixture.Db.EnsureFuturesContractRolloverRowsAsync(
+            ["VX"], now, "concurrency-integration-test");
+        var front = new FuturesContractV3ReadModel(
+            "VX20260916", "VX front", "VX", "VX/U6", "FUT", "USD",
+            "CFE", "1000", new DateOnly(2026, 9, 16), true, true);
+        var back = new FuturesContractV3ReadModel(
+            "VX20261021", "VX back", "VX", "VX/V6", "FUT", "USD",
+            "CFE", "1000", new DateOnly(2026, 10, 21), false, true);
+        var pointer = new FuturesContractRolloverReadModel
+        {
+            Symbol = "VX",
+            ContractId = front.ContractId,
+            NextRolloverDate = front.LastTradeDate,
+            UpdatedOn = now,
+            UpdatedBy = "concurrency-integration-test",
+            CreatedOn = now,
+            CreatedBy = "concurrency-integration-test"
+        };
+
+        await Task.WhenAll(
+            fixture.Db.ReplaceFuturesRolloverSetAsync(pointer, [front, back]),
+            fixture.Db.ReplaceFuturesRolloverSetAsync(pointer, [back, front]));
+
+        var actual = (await fixture.Db.GetRolloverFuturesContractsAsync("VX"))
+            .OrderBy(contract => contract.LastTradeDate)
+            .ToArray();
+        actual.Select(contract => (contract.ContractId, contract.OnTheRun, contract.Rollover))
+            .Should().Equal(
+                (front.ContractId, true, true),
+                (back.ContractId, false, true));
+        (await fixture.Db.GetFuturesContractRolloverAsync("VX"))!.ContractId
+            .Should().Be(front.ContractId);
     }
 
     [Fact]
@@ -172,7 +312,7 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
 
         var act = () => check.ExecuteAsync(ValueDate);
 
-        await act.Should().ThrowAsync<CurrentlyTradedFuturesContractNotFoundException>();
+        await act.Should().ThrowAsync<OnTheRunFuturesContractNotFoundException>();
     }
 
     [Fact]
@@ -205,6 +345,14 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
                 AssetTypeId = AssetTypeId.Futures,
                 RootSymbol = "VX",
                 Dataset = "XCBF.PITCH"
+            },
+            new()
+            {
+                DomainContractId = "VX20261021",
+                ProviderContractName = "VX/V6",
+                AssetTypeId = AssetTypeId.Futures,
+                RootSymbol = "VX",
+                Dataset = "XCBF.PITCH"
             }
         ];
         var runtimeOptions = new DatabentoMarketDataRuntimeOptions
@@ -227,17 +375,20 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         rows.Should().Contain(row => row.Symbol == "VX"
             && row.ContractId == "VX20260916"
             && row.NextRolloverDate == new DateOnly(2026, 9, 16));
-        registry.TryGetCurrentlyTradedFuturesContract("ES", out var es).Should().BeTrue();
+        registry.TryGetOnTheRunFuturesContract("ES", out var es).Should().BeTrue();
         es.ContractId.Should().Be("ES20260918");
-        registry.TryGetCurrentlyTradedFuturesContract("VX", out var vx).Should().BeTrue();
+        registry.TryGetOnTheRunFuturesContract("VX", out var vx).Should().BeTrue();
         vx.ContractId.Should().Be("VX20260916");
+        registry.TryGetFuturesTermStructureContracts("VX", out var vxTermStructure).Should().BeTrue();
+        vxTermStructure.Front.ContractId.Should().Be("VX20260916");
+        vxTermStructure.Back.ContractId.Should().Be("VX20261021");
     }
 
     private async Task ResetAsync()
     {
         foreach (var symbol in FuturesContractRolloverStartupCheck.RequiredSymbols)
         {
-            var existing = await fixture.Db.GetCurrentlyTradedFuturesContractsAsync(symbol);
+            var existing = await fixture.Db.GetRolloverFuturesContractsAsync(symbol);
             foreach (var contract in existing)
                 await fixture.Db.DeleteFuturesContractAsync(contract.ContractId);
             await fixture.Db.Database
@@ -252,11 +403,12 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         foreach (var symbol in FuturesContractRolloverStartupCheck.RequiredSymbols)
         {
             var row = await fixture.Db.GetFuturesContractRolloverAsync(symbol);
-            if (row?.ContractId is not { Length: > 0 })
+            if (row is null)
                 continue;
-            var contract = await fixture.Db.GetPersistedFuturesContractAsync(row.ContractId);
-            if (contract is not null)
-                _originalAssignments.Add((row, contract));
+            var contracts = (await fixture.Db.GetRolloverFuturesContractsAsync(symbol))
+                .ToArray();
+            if (contracts.Length > 0)
+                _originalAssignments.Add((row, contracts));
         }
         await ResetAsync();
     }
@@ -270,9 +422,9 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
             nameof(FuturesContractRolloverStartupIntegrationTests));
         foreach (var assignment in _originalAssignments)
         {
-            await fixture.Db.ReplaceCurrentlyTradedFuturesContractAsync(
+            await fixture.Db.ReplaceFuturesRolloverSetAsync(
                 assignment.Rollover,
-                assignment.Contract);
+                assignment.Contracts);
         }
     }
 
@@ -287,17 +439,23 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
         {
             CallCount++;
             if (failVx && symbol == "VX")
-                throw new CurrentlyTradedFuturesContractNotFoundException(symbol, valueDate);
+                throw new OnTheRunFuturesContractNotFoundException(symbol, valueDate);
             var maturity = symbol == "VX"
                 ? new DateOnly(2026, 9, 16)
-                : valueDate >= new DateOnly(2026, 9, 18)
-                    ? new DateOnly(2026, 12, 18)
-                    : new DateOnly(2026, 9, 18);
-            var contract = new FuturesContractV2ReadModel(
+                : valueDate >= new DateOnly(2026, 12, 18)
+                    ? new DateOnly(2027, 3, 19)
+                    : valueDate >= new DateOnly(2026, 9, 18)
+                        ? new DateOnly(2026, 12, 18)
+                        : new DateOnly(2026, 9, 18);
+            var contract = new FuturesContractV3ReadModel(
                 $"{symbol}{maturity:yyyyMMdd}",
                 $"{symbol} integration contract",
                 symbol,
-                symbol == "VX" ? "VX/U6" : maturity.Month == 12 ? "ESZ6" : "ESU6",
+                symbol == "VX"
+                    ? "VX/U6"
+                    : maturity.Year == 2027
+                        ? "ESH7"
+                        : maturity.Month == 12 ? "ESZ6" : "ESU6",
                 "FUT",
                 "USD",
                 symbol == "VX" ? "CFE" : "CME",
@@ -306,6 +464,56 @@ public sealed class FuturesContractRolloverStartupIntegrationTests(
                 true);
             return Task.FromResult(new ResolvedCurrentFuturesContract(contract, maturity));
         }
+
+        public Task<IReadOnlyList<FuturesContractV3ReadModel>> ResolveEligibleAsync(
+            string symbol,
+            DateOnly valueDate,
+            int count,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            if (failVx && symbol == "VX")
+                throw new OnTheRunFuturesContractNotFoundException(symbol, valueDate);
+            if (symbol != "VX" || count != 2)
+                throw new InvalidOperationException("The integration resolver only supplies the VX term structure.");
+
+            IReadOnlyList<FuturesContractV3ReadModel> contracts =
+                valueDate >= new DateOnly(2026, 10, 21)
+                    ?
+                    [
+                        CreateVx(new DateOnly(2026, 11, 18), "VX/X6", true),
+                        CreateVx(new DateOnly(2026, 12, 16), "VX/Z6", false)
+                    ]
+                    : valueDate >= new DateOnly(2026, 9, 16)
+                    ?
+                    [
+                        CreateVx(new DateOnly(2026, 10, 21), "VX/V6", true),
+                        CreateVx(new DateOnly(2026, 11, 18), "VX/X6", false)
+                    ]
+                    :
+                    [
+                        CreateVx(new DateOnly(2026, 9, 16), "VX/U6", true),
+                        CreateVx(new DateOnly(2026, 10, 21), "VX/V6", false)
+                    ];
+            return Task.FromResult(contracts);
+        }
+
+        private static FuturesContractV3ReadModel CreateVx(
+            DateOnly maturity,
+            string localSymbol,
+            bool onTheRun)
+            => new(
+                $"VX{maturity:yyyyMMdd}",
+                "VX integration contract",
+                "VX",
+                localSymbol,
+                "FUT",
+                "USD",
+                "CFE",
+                "1000",
+                maturity,
+                onTheRun,
+                true);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

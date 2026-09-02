@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -11,7 +11,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// Command to start the market data feed for the specified futures contracts on a given value date.
 /// </summary>
 /// <remarks>
-/// Follows the MessagePack serialization pattern used by other commands (base command keys 0�5).
+/// Follows the MessagePack serialization pattern used by other commands (base command keys 0ï¿½5).
 /// Custom properties begin at key index 6. Routes to <see cref="BoundedContextName.MarketDataFeedBoundedContext"/>.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
@@ -40,7 +40,7 @@ public record StartMarketDataFeedCommand : ICommand<MarketDataFeedId>
     /// The futures contracts for which the market data feed should be started.
     /// </summary>
     [Key(6)]
-    public FuturesContractV2ReadModel[] FuturesContracts { get; init; }
+    public FuturesContractV3ReadModel[] FuturesContracts { get; init; }
 
     /// <summary>
     /// The value (trading) date for which the market data feed is relevant.
@@ -66,7 +66,7 @@ public record StartMarketDataFeedCommand : ICommand<MarketDataFeedId>
     /// <param name="valueDate">The value date for the market data feed.</param>
     /// <param name="resetStream">True to reset any existing stream; otherwise false.</param>
     public StartMarketDataFeedCommand(
-        FuturesContractV2ReadModel[] futuresContracts,
+        FuturesContractV3ReadModel[] futuresContracts,
         DateOnly valueDate,
         bool resetStream)
     {
@@ -80,7 +80,7 @@ public record StartMarketDataFeedCommand : ICommand<MarketDataFeedId>
     }
 
     /// <summary>
-    /// Full deserializing constructor used by MessagePack. Parameters align with key order 0�8.
+    /// Full deserializing constructor used by MessagePack. Parameters align with key order 0ï¿½8.
     /// </summary>
     /// <param name="commandId">Command identifier (key 0).</param>
     /// <param name="subject">Actor subject for routing (key 1).</param>
@@ -99,7 +99,7 @@ public record StartMarketDataFeedCommand : ICommand<MarketDataFeedId>
         MarketDataFeedId entityId,                   // Key(3)
         int errorCode,                               // Key(4)
         BoundedContextName routeTo,                  // Key(5)
-        FuturesContractV2ReadModel[] futuresContracts, // Key(6)
+        FuturesContractV3ReadModel[] futuresContracts, // Key(6)
         DateOnly valueDate,                          // Key(7)
         bool resetStream)                            // Key(8)
     {

@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -232,7 +232,7 @@ public sealed class G1UiAutomationSession : IDisposable
         SetCombo(window, "ddlCurrency", fixture.CurrencyIndex);
         SetCombo(window, "ddlExchange", fixture.ExchangeIndex);
         SetCombo(window, "ddlMultiplier", fixture.MultiplierIndex);
-        SetCombo(window, "ddlCurrentlyTraded", 1);
+        SetCombo(window, "ddlOnTheRun", 1);
         ClickEnabled(window, "btnAdd");
         return await WaitForSecuritiesStateAsync(
             window,

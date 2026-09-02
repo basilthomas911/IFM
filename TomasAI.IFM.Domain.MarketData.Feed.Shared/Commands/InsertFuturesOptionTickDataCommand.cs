@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// <remarks>
 /// Follows the MessagePack serialization pattern used by other commands. Routes to
 /// <see cref="BoundedContextName.FuturesOptionTickDataBoundedContext"/>. Custom properties begin at key index 6
-/// because base command members occupy keys 0�5.
+/// because base command members occupy keys 0ï¿½5.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record InsertFuturesOptionTickDataCommand
@@ -44,7 +44,7 @@ public record InsertFuturesOptionTickDataCommand
 
     /// <summary>Futures contract metadata associated with the option tick data.</summary>
     [Key(6)]
-    public FuturesContractV2ReadModel Contract { get; init; }
+    public FuturesContractV3ReadModel Contract { get; init; }
 
     /// <summary>Option tick data payload to insert.</summary>
     [Key(7)]
@@ -61,7 +61,7 @@ public record InsertFuturesOptionTickDataCommand
     /// <param name="contract">Futures contract metadata (cannot be null).</param>
     /// <param name="optionTickData">Option tick data payload (cannot be null).</param>
     public InsertFuturesOptionTickDataCommand(
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesOptionTickDataV2ReadModel optionTickData)
     {
         Contract = contract ?? throw new ArgumentNullException(nameof(contract));
@@ -81,7 +81,7 @@ public record InsertFuturesOptionTickDataCommand
         FuturesOptionTickEntityId entityId,       // Key(3)
         int errorCode,                            // Key(4)
         BoundedContextName routeTo,               // Key(5)
-        FuturesContractV2ReadModel contract,      // Key(6)
+        FuturesContractV3ReadModel contract,      // Key(6)
         FuturesOptionTickDataV2ReadModel data)    // Key(7)
     {
         CommandId = commandId;

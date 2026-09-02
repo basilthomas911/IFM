@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -28,7 +28,7 @@ public static class SampleData
 
     public static readonly FuturesEodDataId VixFuturesEodDataEntityId = new("VX", ValueDate);
 
-    public static readonly FuturesContractV2ReadModel EsContract = new(
+    public static readonly FuturesContractV3ReadModel EsContract = new(
         contractId: "ES",
         description: "E-Mini S&P 500",
         symbol: "ES",
@@ -38,7 +38,7 @@ public static class SampleData
         exchange: "CME",
         multiplier: "50",
         lastTradeDate: new DateOnly(2025, 06, 20),
-        currentlyTraded: true);
+        onTheRun: true);
 
     public static readonly FuturesTickDataV2ReadModel EsTickData = new(
         contractId: "ES",
@@ -123,9 +123,9 @@ public static class SampleData
         price: 18.75m,
         size: 5);
 
-    public static readonly FuturesContractV2ReadModel[] FuturesContracts =
+    public static readonly FuturesContractV3ReadModel[] FuturesContracts =
     [
-        new FuturesContractV2ReadModel(
+        new FuturesContractV3ReadModel(
             contractId: "ES",
             description: "E-Mini S&P 500",
             symbol: "ES",
@@ -135,8 +135,8 @@ public static class SampleData
             exchange: "CME",
             multiplier: "50",
             lastTradeDate: new DateOnly(2025, 06, 20),
-            currentlyTraded: true),
-        new FuturesContractV2ReadModel(
+            onTheRun: true),
+        new FuturesContractV3ReadModel(
             contractId: "NQ",
             description: "E-Mini Nasdaq 100",
             symbol: "NQ",
@@ -146,7 +146,7 @@ public static class SampleData
             exchange: "CME",
             multiplier: "20",
             lastTradeDate: new DateOnly(2025, 06, 20),
-            currentlyTraded: true)
+            onTheRun: true)
     ];
 
     public static readonly FuturesBarDataReadModel FuturesBarData = new(

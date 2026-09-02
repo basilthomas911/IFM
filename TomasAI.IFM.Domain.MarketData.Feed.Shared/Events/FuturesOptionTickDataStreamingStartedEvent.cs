@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -32,7 +32,7 @@ public record FuturesOptionTickDataStreamingStartedEvent : IEvent<FuturesOptionT
 
     // payload (keys 8..)
     [Key(8)] public FuturesOptionContractReadModel Contract { get; init; }
-    [Key(10)] public FuturesContractV2ReadModel BaseContract { get; init; }
+    [Key(10)] public FuturesContractV3ReadModel BaseContract { get; init; }
     [Key(11)] public DateOnly ValueDate { get; init; }
     [Key(12)] public DateOnly MaturityDate { get; init; }
     [Key(13)] public double RiskFreeRate { get; init; }
@@ -59,7 +59,7 @@ public record FuturesOptionTickDataStreamingStartedEvent : IEvent<FuturesOptionT
         string eventSource,
         DateTime receivedOn,
         FuturesOptionContractReadModel contract,
-        FuturesContractV2ReadModel baseContract,
+        FuturesContractV3ReadModel baseContract,
         DateOnly valueDate,
         DateOnly maturityDate,
         double riskFreeRate,
@@ -165,7 +165,7 @@ public record FuturesOptionTickDataStreamingStartedCompleteEvent : ICompleteEven
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     [Key(8)] public FuturesOptionContractReadModel Contract { get; init; }
-    [Key(9)] public FuturesContractV2ReadModel BaseContract { get; init; }
+    [Key(9)] public FuturesContractV3ReadModel BaseContract { get; init; }
     [Key(10)] public DateOnly ValueDate { get; init; }
     [Key(11)] public DateOnly MaturityDate { get; init; }
     [Key(12)] public double RiskFreeRate { get; init; }
@@ -189,7 +189,7 @@ public record FuturesOptionTickDataStreamingStartedCompleteEvent : ICompleteEven
         string eventSource,
         DateTime receivedOn,
         FuturesOptionContractReadModel contract,
-        FuturesContractV2ReadModel baseContract,
+        FuturesContractV3ReadModel baseContract,
         DateOnly valueDate,
         DateOnly maturityDate,
         double riskFreeRate,

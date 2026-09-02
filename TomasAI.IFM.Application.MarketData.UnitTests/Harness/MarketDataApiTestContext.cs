@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Application.MarketData.Databento;
 
@@ -133,7 +133,7 @@ internal sealed class MarketDataApiTestContext
             Now.AddMilliseconds(-10),
             Now.AddMilliseconds(-9));
 
-    private static FuturesContractV2ReadModel Future(
+    private static FuturesContractV3ReadModel Future(
         string contractId,
         string symbol,
         string localSymbol) => new(

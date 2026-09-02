@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -35,7 +35,7 @@ public record ChangeFuturesContractCommand : ICommand<FuturesContractId>
     [Key(4)] public int ErrorCode { get; init; }
     [Key(5)] public BoundedContextName RouteTo { get; init; }
     [Key(6)] public FuturesContractId ContractId { get; init; }   
-    [Key(7)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(7)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(8)] public bool Overwrite { get; init; }
 
     // Ignored / derived members
@@ -58,7 +58,7 @@ public record ChangeFuturesContractCommand : ICommand<FuturesContractId>
     /// <param name="overwrite">Set true to overwrite existing contract data.</param>
     public ChangeFuturesContractCommand(
         FuturesContractId contractId,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         bool overwrite = false)
     {
         ContractId = IsArgumentNull.Set(contractId);
@@ -84,7 +84,7 @@ public record ChangeFuturesContractCommand : ICommand<FuturesContractId>
         int errorCode,                // Key(4)
         BoundedContextName routeTo,   // Key(5)
         FuturesContractId contractId, // Key(6)
-        FuturesContractV2ReadModel contract, // Key(7)
+        FuturesContractV3ReadModel contract, // Key(7)
         bool overwrite)               // Key(8)
     {
         CommandId = commandId;

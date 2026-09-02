@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.UI.Net.Contracts;
@@ -496,7 +496,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
             new ServiceOk<LegacyFundHistoryReadModel[]>([new() { Fund = legacyFund, OrderCount = 1, CompositionTradeCount = 1 }]));
         queries.GetLegacyFundOrdersAsync(1004, Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), 1000, Arg.Any<CancellationToken>()).Returns(
             new ServiceOk<LegacyFundOrderHistoryReadModel[]>([orderHistory]));
-        FuturesContractV2ReadModel[] contracts =
+        FuturesContractV3ReadModel[] contracts =
         [
             new()
             {

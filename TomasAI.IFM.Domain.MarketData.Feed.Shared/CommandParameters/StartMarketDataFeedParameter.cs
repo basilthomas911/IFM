@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -12,5 +12,5 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.CommandParameters;
 /// <param name="ValueDate">The value (trading) date for the market data feed.</param>
 /// <param name="ResetStream">True to reset any existing stream before starting; otherwise false.</param>
 /// <param name="ErrorCode">The error code associated with the operation.</param>
-public record StartMarketDataFeedParameter(FuturesContractV2ReadModel[] FuturesContracts, DateOnly ValueDate, bool ResetStream, int ErrorCode)
+public record StartMarketDataFeedParameter(FuturesContractV3ReadModel[] FuturesContracts, DateOnly ValueDate, bool ResetStream, int ErrorCode)
     : ICommandParameter;

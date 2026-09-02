@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -342,13 +342,13 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
         var api = Substitute.For<IMarketDataApi>();
         var es = Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
         var vx = Contract("VX", VxContractId, "VXU6", new DateOnly(2026, 9, 16));
-        api.TryGetCurrentlyTradedFuturesContract("ES", out Arg.Any<FuturesContractV2ReadModel>()!)
+        api.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = es;
                 return true;
             });
-        api.TryGetCurrentlyTradedFuturesContract("VX", out Arg.Any<FuturesContractV2ReadModel>()!)
+        api.TryGetOnTheRunFuturesContract("VX", out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = vx;
@@ -397,7 +397,7 @@ public sealed class FuturesItiSignalRealtimePipelineIntegrationTests(
         };
     }
 
-    static FuturesContractV2ReadModel Contract(
+    static FuturesContractV3ReadModel Contract(
         string symbol,
         string contractId,
         string localSymbol,

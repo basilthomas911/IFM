@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
@@ -10,25 +10,25 @@ public static partial class MarketDataQueryExtensions
 {
     extension(IMarketDataQueryContext context)
     {
-    public Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(
+    public Task<ServiceResult<FuturesContractV3ReadModel>> GetOnTheRunFuturesContractAsync(
         string symbol,
         CancellationToken cancellationToken)
         => ExecuteAsync(
-            GetCurrentlyTradedFuturesContractQuery.ErrorId,
+            GetOnTheRunFuturesContractQuery.ErrorId,
             cancellationToken,
             async () => (await context.DbFactory.SecuritiesDb
-                .GetCurrentlyTradedFuturesContractAsync(symbol, cancellationToken))!);
+                .GetOnTheRunFuturesContractAsync(symbol, cancellationToken))!);
 
-    public Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(
+    public Task<ServiceResult<FuturesContractV3ReadModel[]>> GetRolloverFuturesContractsAsync(
         string symbol,
         CancellationToken cancellationToken)
-        => ExecuteAsync<FuturesContractV2ReadModel[]>(
-            GetCurrentlyTradedFuturesContractsQuery.ErrorId,
+        => ExecuteAsync<FuturesContractV3ReadModel[]>(
+            GetRolloverFuturesContractsQuery.ErrorId,
             cancellationToken,
             async () => [.. await context.DbFactory.SecuritiesDb
-                .GetCurrentlyTradedFuturesContractsAsync(symbol, cancellationToken)]);
+                .GetRolloverFuturesContractsAsync(symbol, cancellationToken)]);
 
-    public Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(
+    public Task<ServiceResult<FuturesContractV3ReadModel>> GetFuturesContractAsync(
         string contractId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
@@ -55,9 +55,9 @@ public static partial class MarketDataQueryExtensions
             async () => (await context.DbFactory.SecuritiesDb
                 .GetFuturesOptionContractAsync(contractId, cancellationToken))!);
 
-    public Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync(
+    public Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync(
         CancellationToken cancellationToken)
-        => ExecuteAsync<FuturesContractV2ReadModel[]>(
+        => ExecuteAsync<FuturesContractV3ReadModel[]>(
             GetFuturesContractsQuery.ErrorId,
             cancellationToken,
             async () => [.. await context.DbFactory.SecuritiesDb

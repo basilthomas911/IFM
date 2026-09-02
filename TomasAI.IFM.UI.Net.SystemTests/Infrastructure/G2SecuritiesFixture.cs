@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -46,7 +46,7 @@ public sealed record G2SecuritiesFixture(
             "futures contracts");
         var underlying = contracts
             .Where(contract => string.Equals(contract.Symbol, configuration.SecuritiesSymbol, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(contract => contract.CurrentlyTraded)
+            .OrderByDescending(contract => contract.OnTheRun)
             .ThenByDescending(contract => contract.LastTradeDate)
             .FirstOrDefault()
             ?? throw new G0DependencyException(

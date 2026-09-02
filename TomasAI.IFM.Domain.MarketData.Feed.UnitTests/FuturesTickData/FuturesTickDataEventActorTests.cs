@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NSubstitute;
@@ -149,7 +149,7 @@ public sealed class FuturesTickDataEventActorTests : IClassFixture<MarketDataFee
         var projector = CreateProjector();
         var actor = CreateRealtimeActor(projector, out var marketDataApi);
         marketDataApi.IsTickDataStreamActive(ContractId).Returns(true);
-        marketDataApi.GetFuturesContractAsync(ContractId).Returns(new FuturesContractV2ReadModel(
+        marketDataApi.GetFuturesContractAsync(ContractId).Returns(new FuturesContractV3ReadModel(
             ContractId,
             "VIX Futures",
             "VX",

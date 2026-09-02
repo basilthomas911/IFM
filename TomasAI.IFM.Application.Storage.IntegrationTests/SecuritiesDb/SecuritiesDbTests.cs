@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System;
@@ -154,7 +154,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         }
     }
 
-    static InsertFuturesContract ToInsertParameters(FuturesContractV2ReadModel contract)
+    static InsertFuturesContract ToInsertParameters(FuturesContractV3ReadModel contract)
         => new(
             contract.ContractId,
             contract.Description,
@@ -165,7 +165,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             contract.Exchange,
             contract.Multiplier,
             contract.LastTradeDate,
-            contract.CurrentlyTraded);
+            contract.OnTheRun,
+            contract.Rollover);
 
     static InsertFuturesOptionContract ToInsertParameters(FuturesOptionContractReadModel contract)
         => new(
@@ -485,7 +486,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
     }
 
     [Fact]
-    public async Task GetCurrentlyTradedFuturesContractAsync_ReturnsLatestCurrentContractOnly()
+    public async Task OnTheRunAndRolloverQueriesReturnDistinctOperationalRoles()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var symbol = $"CURRENT_{suffix}";
@@ -496,47 +497,50 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
                 ContractId = $"CURRENT_OLD_{suffix}",
                 Symbol = symbol,
                 LastTradeDate = new DateOnly(2026, 3, 20),
-                CurrentlyTraded = true
+                OnTheRun = false,
+                Rollover = false
             },
             SampleData.FuturesContract with
             {
                 ContractId = $"CURRENT_NEW_{suffix}",
                 Symbol = symbol,
                 LastTradeDate = new DateOnly(2026, 6, 19),
-                CurrentlyTraded = true
+                OnTheRun = true,
+                Rollover = true
             },
             SampleData.FuturesContract with
             {
                 ContractId = $"NOT_CURRENT_{suffix}",
                 Symbol = symbol,
                 LastTradeDate = new DateOnly(2026, 12, 18),
-                CurrentlyTraded = false
+                OnTheRun = false,
+                Rollover = true
             },
             SampleData.FuturesContract with
             {
                 ContractId = $"DISTRACTOR_{suffix}",
                 Symbol = $"OTHER_{suffix}",
                 LastTradeDate = new DateOnly(2027, 3, 19),
-                CurrentlyTraded = true
+                OnTheRun = true,
+                Rollover = true
             }
         };
 
         await _testFixture.Db.InsertFuturesContractsAsync(contracts);
 
-        var latest = await _testFixture.Db.GetCurrentlyTradedFuturesContractAsync(symbol);
-        var allCurrent = await _testFixture.Db.GetCurrentlyTradedFuturesContractsAsync(symbol);
+        var latest = await _testFixture.Db.GetOnTheRunFuturesContractAsync(symbol);
+        var allCurrent = await _testFixture.Db.GetRolloverFuturesContractsAsync(symbol);
 
         latest.Should().NotBeNull();
         latest!.ContractId.Should().Be($"CURRENT_NEW_{suffix}");
         allCurrent.Select(contract => contract.ContractId).Should().Equal(
             $"CURRENT_NEW_{suffix}",
-            $"CURRENT_OLD_{suffix}");
+            $"NOT_CURRENT_{suffix}");
 
-        await _testFixture.Db.DeleteCurrentlyTradedFuturesContractAsync(symbol);
+        await _testFixture.Db.DeleteOnTheRunFuturesContractAsync(symbol);
 
-        var nextLatest = await _testFixture.Db.GetCurrentlyTradedFuturesContractAsync(symbol);
-        nextLatest.Should().NotBeNull();
-        nextLatest!.ContractId.Should().Be($"CURRENT_OLD_{suffix}");
+        var nextLatest = await _testFixture.Db.GetOnTheRunFuturesContractAsync(symbol);
+        nextLatest.Should().BeNull();
     }
 
     [Fact]
@@ -548,13 +552,13 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             ContractId = $"MOVE_{suffix}",
             Symbol = $"OLD_{suffix}",
             LastTradeDate = new DateOnly(2026, 9, 18),
-            CurrentlyTraded = true
+            OnTheRun = true
         };
         var updated = original with
         {
             Symbol = $"NEW_{suffix}",
             LastTradeDate = new DateOnly(2026, 12, 18),
-            CurrentlyTraded = false
+            OnTheRun = false
         };
 
         await _testFixture.Db.InsertFuturesContractAsync(original);
@@ -672,7 +676,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
                 .ExecuteCommandAsync();
 
             // A non-empty target is deliberately incomplete. Contents alone must not authorize reads.
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesContractBySymbolV2)
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
                 .SetParameters(ToInsertParameters(futuresContracts[0]))
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)
@@ -714,8 +718,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContract)}", SecuritiesDbCql.DeleteFuturesOptionContract)
                 .SetParameters(optionContracts.Select(static contract => new DeleteFuturesOptionContract(contract.ContractId)))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
-                .SetParameters(new DeleteFuturesContractBySymbolV2Partition(futuresSymbol))
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
+                .SetParameters(new DeleteFuturesContractBySymbolV3Partition(futuresSymbol))
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)
                 .SetParameters(new DeleteFuturesOptionContractBySymbolV2Partition(optionSymbol))
@@ -758,8 +762,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
         }
         finally
         {
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
-                .SetParameters(new DeleteFuturesContractBySymbolV2Partition(symbol))
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
+                .SetParameters(new DeleteFuturesContractBySymbolV3Partition(symbol))
                 .ExecuteCommandAsync();
             await DeleteProjectionStateAsync(db, SecuritiesDbContext.FuturesContractSymbolProjection, symbol);
             await DeleteProjectionStateAsync(db, SecuritiesDbContext.FuturesContractSymbolProjection);
@@ -862,8 +866,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContract)}", SecuritiesDbCql.DeleteFuturesContract)
                 .SetParameters(new DeleteFuturesContract(contract.ContractId))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
-                .SetParameters(new DeleteFuturesContractBySymbolV2Partition(contract.Symbol))
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
+                .SetParameters(new DeleteFuturesContractBySymbolV3Partition(contract.Symbol))
                 .ExecuteCommandAsync();
             await DeleteProjectionStateAsync(
                 db,
@@ -903,7 +907,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContract)}", SecuritiesDbCql.InsertFuturesContract)
                 .SetParameters(ToInsertParameters(canonical))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesContractBySymbolV2)
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
                 .SetParameters(ToInsertParameters(staleProjection))
                 .ExecuteCommandAsync();
 
@@ -959,8 +963,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContract)}", SecuritiesDbCql.DeleteFuturesContract)
                 .SetParameters(new DeleteFuturesContract(canonical.ContractId))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
-                .SetParameters(new DeleteFuturesContractBySymbolV2Partition(canonical.Symbol))
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
+                .SetParameters(new DeleteFuturesContractBySymbolV3Partition(canonical.Symbol))
                 .ExecuteCommandAsync();
             await DeleteProjectionStateAsync(
                 db,
@@ -1017,8 +1021,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
                 .ExecuteCommandAsync();
             foreach (var contract in contracts)
             {
-                await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
-                    .SetParameters(new DeleteFuturesContractBySymbolV2Partition(contract.Symbol))
+                await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
+                    .SetParameters(new DeleteFuturesContractBySymbolV3Partition(contract.Symbol))
                     .ExecuteCommandAsync();
                 await DeleteProjectionStateAsync(
                     db,
@@ -1062,7 +1066,7 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContract)}", SecuritiesDbCql.InsertFuturesOptionContract)
                 .SetParameters(ToInsertParameters(optionContract))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesContractBySymbolV2)
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesContractBySymbolV3)}", SecuritiesDbCql.InsertFuturesContractBySymbolV3)
                 .SetParameters(ToInsertParameters(staleFutures))
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)}", SecuritiesDbCql.InsertFuturesOptionContractBySymbolV2)
@@ -1101,11 +1105,11 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContract)}", SecuritiesDbCql.DeleteFuturesOptionContract)
                 .SetParameters(new DeleteFuturesOptionContract(optionContract.ContractId))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
                 .SetParameters(new[]
                 {
-                    new DeleteFuturesContractBySymbolV2Partition(futuresContract.Symbol),
-                    new DeleteFuturesContractBySymbolV2Partition(staleFutures.Symbol)
+                    new DeleteFuturesContractBySymbolV3Partition(futuresContract.Symbol),
+                    new DeleteFuturesContractBySymbolV3Partition(staleFutures.Symbol)
                 })
                 .ExecuteCommandAsync();
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition)
@@ -1275,8 +1279,8 @@ public class SecuritiesDbTests(SecuritiesDatabaseFixture testFixture) : IClassFi
             await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContract)}", SecuritiesDbCql.DeleteFuturesContract)
                 .SetParameters(new DeleteFuturesContract(contract.ContractId))
                 .ExecuteCommandAsync();
-            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition)
-                .SetParameters(new DeleteFuturesContractBySymbolV2Partition(contract.Symbol))
+            await db.Use($"{nameof(SecuritiesDbCql)}.{nameof(SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)}", SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition)
+                .SetParameters(new DeleteFuturesContractBySymbolV3Partition(contract.Symbol))
                 .ExecuteCommandAsync();
             await DeleteProjectionStateAsync(
                 db,
@@ -1418,7 +1422,7 @@ public class SecuritiesCqlTests
     [Fact]
     public void ProjectionOperationJournalBindValues_FollowCqlMarkerOrder()
     {
-        const string projectionName = "futures_contract_by_symbol_v2";
+        const string projectionName = "futures_contract_by_symbol_v3";
         const string symbol = "ES";
         var operationId = Guid.Parse("7a5733ab-374c-412f-bde8-75618ba91db6");
         var startedOn = new DateTime(2026, 8, 3, 14, 30, 0, DateTimeKind.Utc);
@@ -1474,7 +1478,7 @@ public class SecuritiesCqlTests
     [Fact]
     public void ProjectionRepairCql_CanResetAWholeSymbolPartition()
     {
-        SecuritiesDbCql.DeleteFuturesContractBySymbolV2Partition
+        SecuritiesDbCql.DeleteFuturesContractBySymbolV3Partition
             .Should().Contain("WHERE symbol = :symbol")
             .And.NotContain("contractId");
         SecuritiesDbCql.DeleteFuturesOptionContractBySymbolV2Partition

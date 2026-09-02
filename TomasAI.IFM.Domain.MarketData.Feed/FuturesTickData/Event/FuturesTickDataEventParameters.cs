@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Shared.StatusConsole.ServiceApi;
 using ApplicationMarketDataApi = TomasAI.IFM.Application.MarketData.Contracts.IMarketDataApi;
@@ -12,7 +12,7 @@ public record FuturesTickDataEventParameters
     public IBlackboardService BlackboardService { get; init; }
     public IStatusConsoleWriter StatusConsoleWriter { get; init; }
     public ILogger Logger { get; init; }
-    internal ActiveTickerStreamRegistry<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV2ReadModel> Streams { get; } = new();
+    internal ActiveTickerStreamRegistry<TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesContractV3ReadModel> Streams { get; } = new();
 
     public FuturesTickDataEventParameters(
         ApplicationMarketDataApi marketDataApi,

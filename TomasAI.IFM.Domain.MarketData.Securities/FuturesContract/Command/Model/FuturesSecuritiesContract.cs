@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -19,7 +19,8 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.FuturesContract.Command.Model
 /// <param name="exchange"></param>
 /// <param name="multiplier"></param>
 /// <param name="lastTradeDate"></param>
-/// <param name="currentlyTraded"></param>
+/// <param name="onTheRun"></param>
+/// <param name="rollover"></param>
 public class FuturesSecuritiesContract(
     string contractId,
     string description,
@@ -30,7 +31,8 @@ public class FuturesSecuritiesContract(
     string exchange,
     string multiplier,
     DateOnly lastTradeDate,
-    bool currentlyTraded)
+    bool onTheRun,
+    bool rollover)
 {
 
     // public properties...
@@ -43,15 +45,16 @@ public class FuturesSecuritiesContract(
     public string Exchange { get; } = exchange;
     public string Multiplier { get; } = multiplier;
     public DateOnly LastTradeDate { get; } = lastTradeDate;
-    public bool CurrentlyTraded { get; } = currentlyTraded;
+    public bool OnTheRun { get; } = onTheRun;
+    public bool Rollover { get; } = rollover;
 
-    public FuturesSecuritiesContract(FuturesContractV2ReadModel model)
+    public FuturesSecuritiesContract(FuturesContractV3ReadModel model)
         :this(model.ContractId, model.Description, model.Symbol, model.LocalSymbol, model.SecurityType, model.Currency,
-             model.Exchange, model.Multiplier, model.LastTradeDate, model.CurrentlyTraded)
+             model.Exchange, model.Multiplier, model.LastTradeDate, model.OnTheRun, model.Rollover)
     {
     }
 
-    public FuturesContractV2ReadModel ToViewModel()
+    public FuturesContractV3ReadModel ToViewModel()
         => new (
             contractId: ContractId,
             description: Description,
@@ -62,7 +65,8 @@ public class FuturesSecuritiesContract(
             exchange: Exchange,
             currency: Currency,
             localSymbol: LocalSymbol,
-            currentlyTraded: CurrentlyTraded
+            onTheRun: OnTheRun,
+            rollover: Rollover
         );
 }
 

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Shared.EventSourcing;
 
@@ -12,12 +12,12 @@ public interface IMarketDataQueryApi
     Task<ServiceResult<EconomicCalendarReadModel[]>> GetEconomicCalendarsAsync();
     Task<ServiceResult<string>> GetEconomicCalendarDateAsync(DateTime todaysDate, EconomicCalendarViewType calendarType);
     Task<ServiceResult<EconomicCalendarCountryCodeReadModel[]>> GetEconomicCalendarCountryCodesAsync();
-    Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol);
-    Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(string symbol);
-    Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId);
+    Task<ServiceResult<FuturesContractV3ReadModel>> GetOnTheRunFuturesContractAsync(string symbol);
+    Task<ServiceResult<FuturesContractV3ReadModel[]>> GetRolloverFuturesContractsAsync(string symbol);
+    Task<ServiceResult<FuturesContractV3ReadModel>> GetFuturesContractAsync(string contractId);
     Task<ServiceResult<string>> GetFuturesContractSymbolAsync(string contractId);
     Task<ServiceResult<FuturesOptionContractReadModel>> GetFuturesOptionContractAsync(string contractId);
-    Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync();
+    Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync();
     Task<ServiceResult<FuturesOptionContractReadModel[]>> GetFuturesOptionContractsAsync(string symbol);
     Task<ServiceResult<string[]>> GetFuturesOptionContractIdsAsync(string[] contractIds);
     Task<ServiceResult<YieldCurveRateReadModel>> GetLastYieldCurveRateAsync();

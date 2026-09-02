@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -136,15 +136,15 @@ internal static class ApplicationPriceBenchmark
 
     private sealed class BenchmarkCatalog : IDatabentoMarketDataCatalog
     {
-        private readonly FuturesContractV2ReadModel _future;
+        private readonly FuturesContractV3ReadModel _future;
 
         internal BenchmarkCatalog(DateOnly maturity)
         {
-            _future = new FuturesContractV2ReadModel(
+            _future = new FuturesContractV3ReadModel(
                 "ESU6", "ES", "ES", "ESU6", "FUT", "USD", "CME", "50",
                 maturity, true);
         }
-        public FuturesContractV2ReadModel? FindFutures(string contractId) =>
+        public FuturesContractV3ReadModel? FindFutures(string contractId) =>
             contractId == "ESU6" ? _future : null;
         public FuturesOptionContractReadModel? FindFuturesOption(string contractId) => null;
         public string? FindOptionUnderlying(string futuresOptionContractId) => null;

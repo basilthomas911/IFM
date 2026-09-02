@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -29,7 +29,7 @@ public record FuturesBarDataStreamingStartedEvent : IEvent<FuturesBarDataStreami
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public FuturesContractV2ReadModel[]? Contracts { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel[]? Contracts { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public DateTime StartedOn { get; init; }
     [Key(11)] public string StartedBy { get; init; }
@@ -53,7 +53,7 @@ public record FuturesBarDataStreamingStartedEvent : IEvent<FuturesBarDataStreami
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel[]? contracts,
+        FuturesContractV3ReadModel[]? contracts,
         DateOnly valueDate,
         DateTime startedOn,
         string startedBy)
@@ -150,7 +150,7 @@ public record FuturesBarDataStreamingStartedCompleteEvent : ICompleteEvent<Futur
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
-    [Key(8)] public FuturesContractV2ReadModel[]? Contracts { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel[]? Contracts { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public DateTime StartedOn { get; init; }
     [Key(11)] public string StartedBy { get; init; }
@@ -171,7 +171,7 @@ public record FuturesBarDataStreamingStartedCompleteEvent : ICompleteEvent<Futur
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel[]? contracts,
+        FuturesContractV3ReadModel[]? contracts,
         DateOnly valueDate,
         DateTime startedOn,
         string startedBy)

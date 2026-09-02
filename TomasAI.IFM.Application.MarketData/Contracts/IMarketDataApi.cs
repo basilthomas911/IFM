@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -8,8 +8,8 @@ namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 /// <summary>Identifies the first two eligible contracts in one futures term structure.</summary>
 public readonly record struct FuturesTermStructureContracts(
-    FuturesContractV2ReadModel Front,
-    FuturesContractV2ReadModel Back)
+    FuturesContractV3ReadModel Front,
+    FuturesContractV3ReadModel Back)
 {
     /// <summary>Gets whether both ordered contracts form a valid term-structure pair.</summary>
     public bool IsValid => Front.IsValid && Back.IsValid
@@ -51,15 +51,15 @@ public interface IMarketDataApi
         };
 
     /// <summary>
-    /// Reads the startup-validated currently traded futures contract for a root symbol
+    /// Reads the startup-validated on-the-run futures contract for a root symbol
     /// from the in-memory rollover registry.
     /// </summary>
     /// <param name="symbol">The futures root symbol, such as <c>ES</c> or <c>VX</c>.</param>
     /// <param name="contract">The current contract when the symbol is registered.</param>
     /// <returns><see langword="true"/> when a current contract is available.</returns>
-    bool TryGetCurrentlyTradedFuturesContract(
+    bool TryGetOnTheRunFuturesContract(
         string symbol,
-        out FuturesContractV2ReadModel contract);
+        out FuturesContractV3ReadModel contract);
 
     /// <summary>Reads the startup-resolved front and immediately following futures contracts.</summary>
     bool TryGetFuturesTermStructureContracts(
@@ -80,7 +80,7 @@ public interface IMarketDataApi
         CancellationToken cancellationToken = default) => Task.FromResult(false);
 
     /// <summary>
-    /// Resolves and persists the currently traded futures contract when the
+    /// Resolves and persists the on-the-run futures contract when the
     /// symbol's rollover configuration is incomplete, due, or explicitly
     /// refreshed by startup reconciliation.
     /// </summary>
@@ -88,7 +88,7 @@ public interface IMarketDataApi
     /// <see langword="true"/> when the stored next-rollover date was first set
     /// or changed; otherwise <see langword="false"/>.
     /// </returns>
-    Task<bool> UpdateCurrentlyTradedFuturesContractAsync(
+    Task<bool> UpdateOnTheRunFuturesContractAsync(
         string symbol,
         DateOnly valueDate,
         CancellationToken cancellationToken = default,
@@ -129,10 +129,10 @@ public interface IMarketDataApi
         CancellationToken cancellationToken = default);
     Task StopAsync(DateOnly valueDate);
 
-    Task<FuturesContractV2ReadModel?> GetFuturesContractAsync(
+    Task<FuturesContractV3ReadModel?> GetFuturesContractAsync(
         string futuresContractId);
 
-    Task<FuturesContractV2ReadModel[]> GetFuturesContractsAsync(
+    Task<FuturesContractV3ReadModel[]> GetFuturesContractsAsync(
         string[] futuresContractIds);
 
     Task<FuturesOptionContractReadModel?> GetFuturesOptionContractAsync(

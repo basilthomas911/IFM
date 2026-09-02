@@ -30,34 +30,51 @@ public sealed class FmpMarketDataImportHostedService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!options.Enabled)
-            return;
-
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            await Task.Delay(options.Interval, timeProvider, stoppingToken).ConfigureAwait(false);
-            var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
-            try
+            if (!options.Enabled)
+                return;
+
+            while (!stoppingToken.IsCancellationRequested)
             {
-                var result = await coordinator.ImportAsync(
-                    new FmpMarketDataImportRequest(
-                        today.AddDays(-options.LookbackDays),
-                        today.AddDays(options.ForwardDays),
-                        CountryCodes: options.CountryCodes),
-                    stoppingToken).ConfigureAwait(false);
-                logger.LogInformation(
-                    "Scheduled FMP import submitted {SubmittedCommands} commands; {RejectedSubmissions} submissions were rejected. Terminal import outcomes are recorded by their correlated events.",
-                    result.SubmittedCommands,
-                    result.RejectedSubmissions);
+                if (!await HostedServiceLifecycle.DelayAsync(
+                        options.Interval, timeProvider, stoppingToken).ConfigureAwait(false))
+                {
+                    return;
+                }
+                var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+                try
+                {
+                    var result = await coordinator.ImportAsync(
+                        new FmpMarketDataImportRequest(
+                            today.AddDays(-options.LookbackDays),
+                            today.AddDays(options.ForwardDays),
+                            CountryCodes: options.CountryCodes),
+                        stoppingToken).ConfigureAwait(false);
+                    logger.LogInformation(
+                        "Scheduled FMP import submitted {SubmittedCommands} commands; {RejectedSubmissions} submissions were rejected. Terminal import outcomes are recorded by their correlated events.",
+                        result.SubmittedCommands,
+                        result.RejectedSubmissions);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Scheduled FMP market-data import failed; scheduling continues.");
+                }
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(exception, "Scheduled FMP market-data import failed.");
-            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            logger.LogInformation("Scheduled FMP market-data import stopped during API shutdown.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Scheduled FMP market-data import worker failed unexpectedly; the API host will remain running.");
         }
     }
 }

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Domain;
 using TomasAI.IFM.Shared.Validation;
@@ -17,7 +17,7 @@ namespace TomasAI.IFM.Domain.Trade.Option.Algorithm.Decorators;
 
 public class OptionTradeAlgorithmCommandDecorator(
     IValidationRules<OptionTradeReadModel> optionTradeValidationRules,
-    IValidationRules<FuturesContractV2ReadModel> futuresContractValidationRules,
+    IValidationRules<FuturesContractV3ReadModel> futuresContractValidationRules,
     IValidationRules<FuturesTradeSignalV2ReadModel> futuresTradeSignalValidationRules,
     IReferenceLookupService refLookupService)
     : BaseValidationDecorator<OptionTradeAlgorithmBoundedContextState>,
@@ -25,7 +25,7 @@ public class OptionTradeAlgorithmCommandDecorator(
     IValidate<ExecuteShortIronCondorAlgorithmCommand>
 {
     readonly IValidationRules<OptionTradeReadModel> _optionTradeValidationRules = IsArgumentNull.Set(optionTradeValidationRules);
-    readonly IValidationRules<FuturesContractV2ReadModel> _futuresContractValidationRules = IsArgumentNull.Set(futuresContractValidationRules);
+    readonly IValidationRules<FuturesContractV3ReadModel> _futuresContractValidationRules = IsArgumentNull.Set(futuresContractValidationRules);
     readonly IValidationRules<FuturesTradeSignalV2ReadModel> _futuresTradeSignalValidationRules = IsArgumentNull.Set(futuresTradeSignalValidationRules);
 
     /// <summary>
@@ -81,7 +81,7 @@ public class OptionTradeAlgorithmCommandDecorator(
     /// </summary>
     /// <param name="validationErrors"></param>
     /// <param name="futuresContract"></param>
-    void ValidateFuturesContract(List<ValidationError> validationErrors, FuturesContractV2ReadModel? futuresContract)
+    void ValidateFuturesContract(List<ValidationError> validationErrors, FuturesContractV3ReadModel? futuresContract)
     {
         if (futuresContract is null)
         {

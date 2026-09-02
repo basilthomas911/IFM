@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.Events;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -88,7 +88,7 @@ public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory
         savedContract.Exchange.Should().Be(futuresContract.Exchange);
         savedContract.Multiplier.Should().Be(futuresContract.Multiplier);
         savedContract.LastTradeDate.Should().Be(futuresContract.LastTradeDate);
-        savedContract.CurrentlyTraded.Should().Be(futuresContract.CurrentlyTraded);
+        savedContract.OnTheRun.Should().Be(futuresContract.OnTheRun);
         
         await eventListener.StopAsync();
 
@@ -210,7 +210,7 @@ public class FuturesContractFuturesContractCommandApiTests(WebApplicationFactory
                 updatedContract.Exchange.Should().Be(changedContract.Exchange);
                 updatedContract.Multiplier.Should().Be(changedContract.Multiplier);
                 updatedContract.LastTradeDate.Should().Be(changedContract.LastTradeDate);
-                updatedContract.CurrentlyTraded.Should().Be(changedContract.CurrentlyTraded);
+                updatedContract.OnTheRun.Should().Be(changedContract.OnTheRun);
 
                 await eventListener.StopAsync();
 

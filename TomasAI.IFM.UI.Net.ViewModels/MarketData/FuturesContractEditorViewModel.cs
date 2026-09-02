@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.Events;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -51,9 +51,9 @@ public sealed class FuturesContractEditorViewModel
     IReadOnlyList<LookupTypeUiModel> _currencies = [];
     IReadOnlyList<LookupTypeUiModel> _exchanges = [];
     IReadOnlyList<LookupTypeUiModel> _multipliers = [];
-    IReadOnlyList<FuturesContractV2ReadModel> _futuresContracts = [];
+    IReadOnlyList<FuturesContractV3ReadModel> _futuresContracts = [];
     string _lastStatusMessage = string.Empty;
-    FuturesContractV2ReadModel? _pendingAdd;
+    FuturesContractV3ReadModel? _pendingAdd;
     PendingChange? _pendingChange;
     FuturesContractId? _pendingRemove;
 
@@ -123,10 +123,10 @@ public sealed class FuturesContractEditorViewModel
     }
 
     /// <summary>Gets the values shown by the currently-traded selector.</summary>
-    public IReadOnlyList<string> CurrentlyTraded { get; } = ["Yes", "No"];
+    public IReadOnlyList<string> OnTheRun { get; } = ["Yes", "No"];
 
     /// <summary>Gets the current coherent futures-contract snapshot.</summary>
-    public IReadOnlyList<FuturesContractV2ReadModel> FuturesContracts
+    public IReadOnlyList<FuturesContractV3ReadModel> FuturesContracts
     {
         get => _futuresContracts;
         private set => SetProperty(ref _futuresContracts, value);
@@ -163,7 +163,7 @@ public sealed class FuturesContractEditorViewModel
         Symbols.Count > 0;
 
     /// <summary>Prepares a contract for the next add operation.</summary>
-    public void PrepareAdd(FuturesContractV2ReadModel futuresContract)
+    public void PrepareAdd(FuturesContractV3ReadModel futuresContract)
     {
         _pendingAdd = futuresContract ?? throw new ArgumentNullException(nameof(futuresContract));
         AddOperation.NotifyCanExecuteChanged();
@@ -172,7 +172,7 @@ public sealed class FuturesContractEditorViewModel
     /// <summary>Prepares an original identifier and replacement contract for the next change operation.</summary>
     public void PrepareChange(
         FuturesContractId originalContractId,
-        FuturesContractV2ReadModel futuresContract)
+        FuturesContractV3ReadModel futuresContract)
     {
         ArgumentNullException.ThrowIfNull(originalContractId);
         ArgumentNullException.ThrowIfNull(futuresContract);
@@ -211,7 +211,7 @@ public sealed class FuturesContractEditorViewModel
         => ContractMonthMap.TryGetValue(month, out var code) ? code : "<empty>";
 
     /// <summary>Gets a contract by presentation index, or <see langword="null"/> for an invalid index.</summary>
-    public FuturesContractV2ReadModel? GetFuturesContract(int index)
+    public FuturesContractV3ReadModel? GetFuturesContract(int index)
         => index >= 0 && index < FuturesContracts.Count ? FuturesContracts[index] : null;
 
     static LookupTypeUiModel GetLookup(IReadOnlyList<LookupTypeUiModel> values, int index)
@@ -243,10 +243,10 @@ public sealed class FuturesContractEditorViewModel
         => (await _referenceDataService.GetLookupTypesAsync(lookupTypeName, cancellationToken))
             .RequireValue();
 
-    async Task<IReadOnlyList<FuturesContractV2ReadModel>> QueryFuturesContractsAsync(
+    async Task<IReadOnlyList<FuturesContractV3ReadModel>> QueryFuturesContractsAsync(
         CancellationToken cancellationToken)
     {
-        FuturesContractV2ReadModel[] result = [];
+        FuturesContractV3ReadModel[] result = [];
         await _queryModel.ExecuteObservableAsync(
             model => model.GetFuturesContractsAsync(loaded => result = loaded ?? []),
             cancellationToken);
@@ -378,5 +378,5 @@ public sealed class FuturesContractEditorViewModel
 
     sealed record PendingChange(
         FuturesContractId OriginalContractId,
-        FuturesContractV2ReadModel Contract);
+        FuturesContractV3ReadModel Contract);
 }

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Framework.MarketData.DataBento;
@@ -20,7 +20,8 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
 
         result.Contract.ContractId.Should().Be("ES20260918");
         result.Contract.LocalSymbol.Should().Be("ESU6");
-        result.Contract.CurrentlyTraded.Should().BeTrue();
+        result.Contract.OnTheRun.Should().BeTrue();
+        result.Contract.Rollover.Should().BeTrue();
         result.NextRolloverDate.Should().Be(new DateOnly(2026, 9, 18));
         factory.LastDataset.Should().Be("GLBX.MDP3");
         factory.LastTicker.Should().Be("ES.FUT");
@@ -54,7 +55,39 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
         result.Select(contract => contract.ContractId).Should().Equal(
             "VX20260916", "VX20261021");
         result[0].LastTradeDate.Should().BeBefore(result[1].LastTradeDate);
+        result.Select(contract => contract.OnTheRun).Should().Equal(true, false);
+        result.Should().OnlyContain(contract => contract.Rollover);
         factory.LastDataset.Should().Be("XCBF.PITCH");
+    }
+
+    [Fact]
+    public async Task DeduplicatesProviderResultsBeforeSelectingVxPair()
+    {
+        var front = Detail("VX/U6", "VX", new DateOnly(2026, 9, 16), "CFE");
+        var factory = new FakeFeedFactory([
+            front,
+            front,
+            Detail("VX/V6", "VX", new DateOnly(2026, 10, 21), "CFE")]);
+        var resolver = new DatabentoCurrentFuturesContractResolver(factory, Options());
+
+        var result = await resolver.ResolveEligibleAsync(
+            "VX", new DateOnly(2026, 8, 26), 2);
+
+        result.Select(contract => contract.ContractId).Should().Equal(
+            "VX20260916", "VX20261021");
+    }
+
+    [Fact]
+    public async Task EsSelectsQuarterlyMaturityAndIgnoresSerialMonth()
+    {
+        var factory = new FakeFeedFactory([
+            Detail("ESV6", "ES", new DateOnly(2026, 10, 16)),
+            Detail("ESZ6", "ES", new DateOnly(2026, 12, 18))]);
+        var resolver = new DatabentoCurrentFuturesContractResolver(factory, Options());
+
+        var result = await resolver.ResolveAsync("ES", new DateOnly(2026, 9, 18));
+
+        result.Contract.ContractId.Should().Be("ES20261218");
     }
 
     [Fact]
@@ -127,7 +160,7 @@ public sealed class DatabentoCurrentFuturesContractResolverTests
 
         var act = () => resolver.ResolveAsync("ES", new DateOnly(2026, 8, 14));
 
-        await act.Should().ThrowAsync<CurrentlyTradedFuturesContractNotFoundException>();
+        await act.Should().ThrowAsync<OnTheRunFuturesContractNotFoundException>();
     }
 
     private static DatabentoMarketDataRuntimeOptions Options() => new()

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Framework.Storage;
+﻿using TomasAI.IFM.Framework.Storage;
 
 namespace TomasAI.IFM.Application.Storage.SecuritiesDb;
 
@@ -31,9 +31,9 @@ internal readonly record struct UpdateFuturesContractRollover(
         { contractId, nextRolloverDate, updatedOn, updatedBy, symbol };
 }
 
-internal readonly record struct InsertFuturesContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly lastTradeDate, bool currentlyTraded) : IBindValue
+internal readonly record struct InsertFuturesContract(string contractId, string description, string symbol, string localSymbol, string securityType, string currency, string exchange, string multiplier, DateOnly lastTradeDate, bool onTheRun, bool rollover) : IBindValue
 {
-    public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, currentlyTraded };
+    public object Bind() => new object?[] { contractId, description, symbol, localSymbol, securityType, currency, exchange, multiplier, lastTradeDate, onTheRun, rollover };
 }
 internal readonly record struct DeleteFuturesContract(string contractId) : IBindValue
 {
@@ -47,11 +47,11 @@ internal readonly record struct DeleteFuturesOptionContractById(string contractI
 {
     public object Bind() => new object?[] { contractId, contractMonth, symbol, optionType, strikePrice };
 }
-internal readonly record struct DeleteFuturesContractBySymbolV2(string symbol, bool currentlyTraded, DateOnly lastTradeDate, string contractId) : IBindValue
+internal readonly record struct DeleteFuturesContractBySymbolV3(string symbol, bool rollover, bool onTheRun, DateOnly lastTradeDate, string contractId) : IBindValue
 {
-    public object Bind() => new object?[] { symbol, currentlyTraded, lastTradeDate, contractId };
+    public object Bind() => new object?[] { symbol, rollover, onTheRun, lastTradeDate, contractId };
 }
-internal readonly record struct DeleteFuturesContractBySymbolV2Partition(string symbol) : IBindValue
+internal readonly record struct DeleteFuturesContractBySymbolV3Partition(string symbol) : IBindValue
 {
     public object Bind() => new object?[] { symbol };
 }
@@ -63,11 +63,11 @@ internal readonly record struct DeleteSecuritiesSymbolProjectionStateV3(string p
 {
     public object Bind() => new object?[] { projectionName, symbol };
 }
-internal readonly record struct GetCurrentlyTradeFuturesContract(string symbol) : IBindValue
+internal readonly record struct GetOnTheRunFuturesContract(string symbol) : IBindValue
 {
     public object Bind() => new object?[] { symbol };
 }
-internal readonly record struct GetCurrentlyTradeFuturesContracts(string symbol) : IBindValue
+internal readonly record struct GetRolloverFuturesContracts(string symbol) : IBindValue
 {
     public object Bind() => new object?[] { symbol };
 }

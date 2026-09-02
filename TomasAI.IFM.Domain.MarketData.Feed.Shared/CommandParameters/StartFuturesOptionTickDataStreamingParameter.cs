@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -20,7 +20,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.CommandParameters;
 public record StartFuturesOptionTickDataStreamingParameter(
     FuturesOptionTickEntityId EntityId,
     FuturesOptionContractReadModel OptionContract,
-    FuturesContractV2ReadModel BaseContract,
+    FuturesContractV3ReadModel BaseContract,
     DateOnly ValueDate,
     DateOnly MaturityDate,
     double RiskFreeRate,

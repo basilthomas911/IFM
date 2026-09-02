@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -9,9 +9,9 @@ public record struct FuturesTickDataStreamingParameter
 {
         public int RequestId { get; init; }
         public DateOnly ValueDate { get; init; }
-        public FuturesContractV2ReadModel FuturesContract { get; init; } 
+        public FuturesContractV3ReadModel FuturesContract { get; init; }
         
-        public FuturesTickDataStreamingParameter(int requestId, DateOnly valueDate, FuturesContractV2ReadModel futuresContract)
+        public FuturesTickDataStreamingParameter(int requestId, DateOnly valueDate, FuturesContractV3ReadModel futuresContract)
         {
                 RequestId = requestId;
                 ValueDate = valueDate;

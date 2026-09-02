@@ -81,6 +81,12 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
     public bool IsRunning => Volatile.Read(ref _running) != 0;
 
     /// <summary>
+    /// Returns the native transport and managed-drain health snapshot, including terminal
+    /// status and warning details when the dataset reader has completed.
+    /// </summary>
+    public FeedHealthSnapshot GetFeedHealth() => _feed.GetHealth();
+
+    /// <summary>
     /// Synchronously reports whether the managed reader and its native Databento transport are
     /// both running. Expected lifecycle and interop failures are represented as
     /// <see langword="false"/>.

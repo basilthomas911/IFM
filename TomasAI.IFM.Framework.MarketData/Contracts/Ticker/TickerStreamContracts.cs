@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Framework.MarketData.Contracts.LastPrice;
 
 namespace TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
@@ -41,7 +41,7 @@ public sealed record TickerContractDetails
     public string Exchange { get; init; } = string.Empty;
     public decimal ContractMultiplier { get; init; } = 1m;
     public DateOnly MaturityDate { get; init; }
-    public bool IsCurrentlyTraded { get; init; }
+    public bool IsOnTheRun { get; init; }
     public decimal? StrikePrice { get; init; }
     public string? OptionType { get; init; }
     public string? UnderlyingContractId { get; init; }

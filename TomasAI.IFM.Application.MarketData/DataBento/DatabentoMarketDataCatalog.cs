@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using System.Globalization;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
@@ -100,7 +100,9 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                         ? MapFutures(
                             registration.DomainContractId,
                             detail,
-                            DatabentoContractMetadata.FindCurrencyFallback(options, detail.Ticker))
+                            DatabentoContractMetadata.FindCurrencyFallback(options, detail.Ticker),
+                            registration.OnTheRun,
+                            registration.Rollover)
                         : null,
                     registration.AssetTypeId == AssetTypeId.FuturesOption
                         ? MapOption(
@@ -212,7 +214,7 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             resolved, operationsByDataset, options);
     }
 
-    public FuturesContractV2ReadModel? FindFutures(string contractId) =>
+    public FuturesContractV3ReadModel? FindFutures(string contractId) =>
         _resolved.GetValueOrDefault(contractId)?.Futures;
 
     public FuturesOptionContractReadModel? FindFuturesOption(string contractId) =>
@@ -275,15 +277,17 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
     private string? ResolveUnderlyingDomainId(string dataset, string providerIdentity) =>
         _futureDomainIdByProviderIdentity.GetValueOrDefault((dataset, providerIdentity));
 
-    private static FuturesContractV2ReadModel MapFutures(
+    private static FuturesContractV3ReadModel MapFutures(
         string domainContractId,
         ContractDetail detail,
-        string? currencyFallback)
+        string? currencyFallback,
+        bool onTheRun,
+        bool rollover)
     {
         var maturity = detail.MaturityDate ?? ToDate(detail.ExpirationTimestampNanoseconds)
             ?? throw new MarketDataContractMappingException(
                 domainContractId, "the futures maturity is missing");
-        return new FuturesContractV2ReadModel(
+        return new FuturesContractV3ReadModel(
             domainContractId,
             detail.RawSymbol,
             detail.Ticker,
@@ -296,7 +300,8 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
             detail.Exchange,
             (detail.ContractMultiplier ?? 1).ToString(CultureInfo.InvariantCulture),
             maturity,
-            IsCurrentlyTraded(detail));
+            onTheRun,
+            rollover);
     }
 
     private static FuturesOptionContractReadModel MapOption(
@@ -336,15 +341,6 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
                 domainContractId,
                 $"strike {exact} cannot be represented by the existing double domain property without loss");
         return mapped;
-    }
-
-    private static bool IsCurrentlyTraded(ContractDetail detail)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var activation = ToTimestamp(detail.ActivationTimestampNanoseconds);
-        var expiration = ToTimestamp(detail.ExpirationTimestampNanoseconds);
-        return (activation is null || activation <= now)
-            && (expiration is null || expiration >= now);
     }
 
     private static DateOnly? ToDate(ulong? nanoseconds) =>
@@ -399,6 +395,6 @@ internal sealed class DatabentoMarketDataCatalog : IDatabentoMarketDataCatalog
         DatabentoContractRegistration Registration,
         string Dataset,
         ContractDetail Detail,
-        FuturesContractV2ReadModel? Futures,
+        FuturesContractV3ReadModel? Futures,
         FuturesOptionContractReadModel? Option);
 }

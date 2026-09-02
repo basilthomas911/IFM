@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -18,7 +18,7 @@ internal static class MarketDataFeedValidation
     /// <param name="validationErrors">A list to which validation errors will be added.</param>
     /// <param name="futuresContracts">An array of futures contracts to validate.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV2ReadModel[] futuresContracts)
+    public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV3ReadModel[] futuresContracts)
     {
         if (futuresContracts is null || futuresContracts.Length == 0)
         {

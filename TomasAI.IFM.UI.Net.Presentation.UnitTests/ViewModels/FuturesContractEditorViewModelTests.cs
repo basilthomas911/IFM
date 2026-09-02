@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using System.ComponentModel;
 using System.Reflection;
@@ -34,7 +34,7 @@ public class FuturesContractEditorViewModelTests
         subject.ViewModel.Exchanges.Should().ContainSingle();
         subject.ViewModel.Multipliers.Should().ContainSingle();
         subject.ViewModel.Symbols.Should().ContainSingle();
-        subject.ViewModel.CurrentlyTraded.Should().Equal("Yes", "No");
+        subject.ViewModel.OnTheRun.Should().Equal("Yes", "No");
         subject.ViewModel.FuturesContracts.Should().Equal(contract);
         subject.ViewModel.GetFuturesContract(-1).Should().BeNull();
         subject.ViewModel.GetContractMonth(12).Should().Be("Z");
@@ -49,8 +49,8 @@ public class FuturesContractEditorViewModelTests
         var added = CreateContract("ES20261218");
         var subject = CreateSubject([existing]);
         subject.QueryApi.GetFuturesContractsAsync().Returns(
-            new ServiceOk<FuturesContractV2ReadModel[]>([existing]),
-            new ServiceOk<FuturesContractV2ReadModel[]>([existing, added]));
+            new ServiceOk<FuturesContractV3ReadModel[]>([existing]),
+            new ServiceOk<FuturesContractV3ReadModel[]>([existing, added]));
         var commandId = Guid.NewGuid();
         subject.CommandApi.AddFuturesContractAsync(added, true).Returns(
             new ServiceOk<Guid>(commandId));
@@ -146,7 +146,7 @@ public class FuturesContractEditorViewModelTests
         callbacks.Should().BeEmpty();
     }
 
-    static Subject CreateSubject(FuturesContractV2ReadModel[] contracts)
+    static Subject CreateSubject(FuturesContractV3ReadModel[] contracts)
     {
         var referenceApi = Substitute.For<IReferenceQueryApi>();
         ConfigureLookup(referenceApi, "SecurityType", "FUT");
@@ -157,7 +157,7 @@ public class FuturesContractEditorViewModelTests
 
         var queryApi = Substitute.For<IMarketDataQueryApi>();
         queryApi.GetFuturesContractsAsync().Returns(
-            new ServiceOk<FuturesContractV2ReadModel[]>(contracts));
+            new ServiceOk<FuturesContractV3ReadModel[]>(contracts));
         var commandApi = Substitute.For<IMarketDataCommandApi>();
         var feedQueryApi = Substitute.For<IMarketDataFeedQueryApi>();
         var eventConsumer = Substitute.For<IMarketDataUIEventConsumer>();
@@ -183,7 +183,7 @@ public class FuturesContractEditorViewModelTests
             new ServiceOk<LookupTypeCollection>(new LookupTypeCollection([lookup])));
     }
 
-    static FuturesContractV2ReadModel CreateContract(string contractId)
+    static FuturesContractV3ReadModel CreateContract(string contractId)
         => new(
             contractId,
             $"{contractId} contract",

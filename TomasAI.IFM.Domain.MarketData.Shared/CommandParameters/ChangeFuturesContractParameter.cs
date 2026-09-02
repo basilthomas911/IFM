@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.CommandParameters;
 /// <param name="Contract">The updated futures contract details. Cannot be null.</param>
 /// <param name="Overwrite">True to overwrite the existing contract data; otherwise false.</param>
 /// <param name="ErrorCode">The error code associated with the change futures contract operation.</param>
-public record ChangeFuturesContractParameter(FuturesContractId ContractId, FuturesContractV2ReadModel Contract, bool Overwrite, int ErrorCode)
+public record ChangeFuturesContractParameter(FuturesContractId ContractId, FuturesContractV3ReadModel Contract, bool Overwrite, int ErrorCode)
     : ICommandParameter
 {
 }

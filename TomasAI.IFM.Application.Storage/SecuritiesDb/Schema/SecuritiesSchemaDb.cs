@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage.Schema;
 using TomasAI.IFM.Framework.Storage;
 using TomasAI.IFM.Shared.Storage;
@@ -11,9 +11,9 @@ public sealed class SecuritiesSchemaDb(IDbConnectionSettings connectionSettings,
     static readonly SchemaObjectDefinition[] Objects =
     [
         new("futures_contract_rollover", SecuritiesSchemaCql.CreateFuturesContractRolloverTable, "DROP TABLE IF EXISTS futures_contract_rollover;"),
-        new("futures_contract", SecuritiesSchemaCql.CreateFuturesContractTable, "DROP TABLE IF EXISTS futures_contract;"),
+        new("futures_contract_v3", SecuritiesSchemaCql.CreateFuturesContractTable, "DROP TABLE IF EXISTS futures_contract_v3;"),
         new("futures_option_contract", SecuritiesSchemaCql.CreateFuturesOptionContractTable, "DROP TABLE IF EXISTS futures_option_contract;"),
-        new("futures_contract_by_symbol_v2", SecuritiesSchemaCql.CreateFuturesContractBySymbolV2Table, "DROP TABLE IF EXISTS futures_contract_by_symbol_v2;"),
+        new("futures_contract_by_symbol_v3", SecuritiesSchemaCql.CreateFuturesContractBySymbolV3Table, "DROP TABLE IF EXISTS futures_contract_by_symbol_v3;"),
         new("futures_option_contract_by_symbol_v2", SecuritiesSchemaCql.CreateFuturesOptionContractBySymbolV2Table, "DROP TABLE IF EXISTS futures_option_contract_by_symbol_v2;"),
         new("securities_projection_state_v3", SecuritiesSchemaCql.CreateSecuritiesProjectionStateV3Table, "DROP TABLE IF EXISTS securities_projection_state_v3;"),
         new("securities_symbol_projection_state_v3", SecuritiesSchemaCql.CreateSecuritiesSymbolProjectionStateV3Table, "DROP TABLE IF EXISTS securities_symbol_projection_state_v3;"),

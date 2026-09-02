@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -29,7 +29,7 @@ public class StreamingRequestIdModelTests
     private static StreamingRequestId CreateStreamingRequestId()
     {
         var optionContract = new FuturesOptionContractReadModel("ES20241220C5000", "ES Dec 2024 C5000", "ES", "ESZ4_C5000", "OPT", "USD", "CME", "50", new DateOnly(2024, 12, 20), 5000, "Call");
-        var underlyingContract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var underlyingContract = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         return new StreamingRequestId
         {
             RequestId = 100,
@@ -145,7 +145,7 @@ public class FuturesTickDataStreamingParameterModelTests
     public void Get_WhenCacheHit_ReturnsDeserializedValue()
     {
         // Arrange
-        var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var contract = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var expected = new FuturesTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), contract);
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(expected, Newtonsoft.Json.Formatting.None);
         const string key = "FuturesTickDataStreamingParameter:123";
@@ -192,7 +192,7 @@ public class FuturesTickDataStreamingParameterModelTests
     public void Set_SerializesAndCachesValue()
     {
         // Arrange
-        var contract = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var contract = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         var data = new FuturesTickDataStreamingParameter(100, new DateOnly(2024, 12, 1), contract);
 
         // Act
@@ -422,9 +422,9 @@ public class FuturesContractModelTests
         // Arrange
         var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
         var key = $"FuturesContract:{contractId}";
-        var expected = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var expected = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         _redisCache.Get(key).Returns("{}");
-        _jsonSerializer.Deserialize<FuturesContractV2ReadModel>("{}").Returns(expected);
+        _jsonSerializer.Deserialize<FuturesContractV3ReadModel>("{}").Returns(expected);
 
         // Act
         var result = _sut.Get(contractId);
@@ -454,7 +454,7 @@ public class FuturesContractModelTests
         // Arrange
         var contractId = new FuturesContractId("ESZ4", "ES", new DateOnly(2024, 12, 20));
         var key = $"FuturesContract:{contractId}";
-        var data = new FuturesContractV2ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
+        var data = new FuturesContractV3ReadModel("ESZ4", "ES Dec 2024", "ES", "ESZ4", "FUT", "USD", "CME", "50", new DateOnly(2024, 12, 20), true);
         _jsonSerializer.Serialize(data).Returns("value");
 
         // Act

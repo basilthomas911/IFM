@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,7 +30,7 @@ public record FuturesTickDataInsertedEvent : IEvent<FuturesTickDataId>
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public FuturesTickDataV2ReadModel TickData { get; init; }
     [Key(10)] public DateTime CreatedOn { get; init; }
     [Key(11)] public string CreatedBy { get; init; }
@@ -54,7 +54,7 @@ public record FuturesTickDataInsertedEvent : IEvent<FuturesTickDataId>
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesTickDataV2ReadModel tickData,
         DateTime createdOn,
         string createdBy)
@@ -151,7 +151,7 @@ public record FuturesTickDataInsertedCompleteEvent : ICompleteEvent<FuturesTickD
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public FuturesTickDataV2ReadModel TickData { get; init; }
     [Key(10)] public DateTime CreatedOn { get; init; }
     [Key(11)] public string CreatedBy { get; init; }
@@ -172,7 +172,7 @@ public record FuturesTickDataInsertedCompleteEvent : ICompleteEvent<FuturesTickD
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesTickDataV2ReadModel tickData,
         DateTime createdOn,
         string createdBy)

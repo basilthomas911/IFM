@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MessagePack;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -86,7 +86,7 @@ public sealed class FuturesItiSignalGeneratedCompleteTests
             Arg.Is<GetFuturesItiSignalDataQuery>(query =>
                 query.TimePeriod == TimeFrameType.Daily));
         await context.DidNotReceiveWithAnyArgs()
-            .RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(default!);
+            .RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(default!);
         await context.DidNotReceiveWithAnyArgs()
             .RequestAsync<VixFuturesEodDataReadModel, GetLastVixFuturesEodDataQuery>(default!);
         await context.Received(1)

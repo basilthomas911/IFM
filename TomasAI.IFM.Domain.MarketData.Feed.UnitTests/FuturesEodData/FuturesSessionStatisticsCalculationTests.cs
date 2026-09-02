@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Command.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Model;
 using TomasAI.IFM.Domain.MarketData.Feed.FuturesEodData.Realtime;
@@ -131,7 +131,7 @@ public sealed class FuturesSessionStatisticsCalculationTests
     public void CompleteSessionStatistics_BootstrapTheFirstLiveEodRow()
     {
         var valueDate = new DateOnly(2026, 8, 21);
-        var contract = new FuturesContractV2ReadModel(
+        var contract = new FuturesContractV3ReadModel(
             "ES20260918",
             "E-mini S&P 500",
             "ES",
@@ -177,7 +177,7 @@ public sealed class FuturesSessionStatisticsCalculationTests
         Assert.Equal(PriceDirectionType.Rising, baseline.PriceDirection);
     }
 
-    static FuturesContractV2ReadModel Contract() => new(
+    static FuturesContractV3ReadModel Contract() => new(
         "ES20260918",
         "E-mini S&P 500",
         "ES",

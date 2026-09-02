@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -12,28 +12,28 @@ namespace TomasAI.IFM.UI.Net.Presentation.UnitTests.Services;
 public sealed class MarketDataQueryServiceTests
 {
     [Fact]
-    public async Task GetCurrentlyTradedFuturesContractsAsync_LoadsBothDashboardSymbols()
+    public async Task GetRolloverFuturesContractsAsync_LoadsBothDashboardSymbols()
     {
         var queryApi = Substitute.For<IMarketDataQueryApi>();
         var feedApi = Substitute.For<IMarketDataFeedQueryApi>();
         var es = Contract("ES20260918", "ES");
         var vx = Contract("VX20260819", "VX");
-        queryApi.GetCurrentlyTradedFuturesContractsAsync("ES")
-            .Returns(new ServiceOk<FuturesContractV2ReadModel[]>([es]));
-        queryApi.GetCurrentlyTradedFuturesContractsAsync("VX")
-            .Returns(new ServiceOk<FuturesContractV2ReadModel[]>([vx]));
+        queryApi.GetRolloverFuturesContractsAsync("ES")
+            .Returns(new ServiceOk<FuturesContractV3ReadModel[]>([es]));
+        queryApi.GetRolloverFuturesContractsAsync("VX")
+            .Returns(new ServiceOk<FuturesContractV3ReadModel[]>([vx]));
         var model = new MarketDataQueryService(queryApi, feedApi);
-        ICollection<FuturesContractV2ReadModel>? published = null;
+        ICollection<FuturesContractV3ReadModel>? published = null;
 
-        await model.GetCurrentlyTradedFuturesContractsAsync(values => published = values);
+        await model.GetRolloverFuturesContractsAsync(values => published = values);
 
         published.Should().NotBeNull();
         published!.Select(contract => contract.Symbol).Should().Equal("ES", "VX");
-        await queryApi.Received(1).GetCurrentlyTradedFuturesContractsAsync("ES");
-        await queryApi.Received(1).GetCurrentlyTradedFuturesContractsAsync("VX");
+        await queryApi.Received(1).GetRolloverFuturesContractsAsync("ES");
+        await queryApi.Received(1).GetRolloverFuturesContractsAsync("VX");
     }
 
-    static FuturesContractV2ReadModel Contract(string contractId, string symbol)
+    static FuturesContractV3ReadModel Contract(string contractId, string symbol)
         => new(
             contractId,
             $"{contractId} contract",

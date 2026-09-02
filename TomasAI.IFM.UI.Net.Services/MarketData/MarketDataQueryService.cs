@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -80,39 +80,39 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     /// <param name="contractId"></param>
     /// <param name="onCompleted"></param>
     /// <returns></returns>
-    public async Task GetFuturesContractAsync(string contractId, Action<FuturesContractV2ReadModel> onCompleted)
+    public async Task GetFuturesContractAsync(string contractId, Action<FuturesContractV3ReadModel> onCompleted)
         => await ExecuteAsync(() => _queryApi.GetFuturesContractAsync(contractId), onCompleted);
 
     /// <summary>Executes or exposes a documented UI service operation.</summary>
-    public Task GetFuturesContractAsync(string contractId, Func<FuturesContractV2ReadModel, Task> onCompleted)
+    public Task GetFuturesContractAsync(string contractId, Func<FuturesContractV3ReadModel, Task> onCompleted)
         => ExecuteAsync(() => _queryApi.GetFuturesContractAsync(contractId), onCompleted);
 
     /// <summary>
     /// load futures contract
     /// </summary>
     /// <param name="onCompleted"></param>
-    public async Task GetFuturesContractsAsync(Action<FuturesContractV2ReadModel[]> onCompleted)
+    public async Task GetFuturesContractsAsync(Action<FuturesContractV3ReadModel[]> onCompleted)
         => await ExecuteAsync(_queryApi.GetFuturesContractsAsync, onCompleted);
 
     /// <summary>
     /// load currently traded futures contract
     /// </summary>
     /// <param name="onCompleted"></param>
-    public async Task GetCurrentlyTradedFuturesContractAsync(Action<FuturesContractV2ReadModel> onCompleted)
-        => await ExecuteAsync(() => _queryApi.GetCurrentlyTradedFuturesContractAsync("ES"), onCompleted);
+    public async Task GetOnTheRunFuturesContractAsync(Action<FuturesContractV3ReadModel> onCompleted)
+        => await ExecuteAsync(() => _queryApi.GetOnTheRunFuturesContractAsync("ES"), onCompleted);
 
     /// <summary>
     /// load currently traded futures contract
     /// </summary>
     /// <param name="onCompleted"></param>
-    public async Task GetCurrentlyTradedFuturesContractsAsync(Action<ICollection<FuturesContractV2ReadModel>> onCompleted)
+    public async Task GetRolloverFuturesContractsAsync(Action<ICollection<FuturesContractV3ReadModel>> onCompleted)
     {
         ArgumentNullException.ThrowIfNull(onCompleted);
-        List<FuturesContractV2ReadModel> contracts = [];
+        List<FuturesContractV3ReadModel> contracts = [];
         foreach (var symbol in DashboardSymbols)
         {
             await ExecuteAsync(
-                () => _queryApi.GetCurrentlyTradedFuturesContractsAsync(symbol),
+                () => _queryApi.GetRolloverFuturesContractsAsync(symbol),
                 values => contracts.AddRange(values));
         }
         onCompleted(contracts
@@ -121,11 +121,11 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     }
 
     /// <summary>Executes or exposes a documented UI service operation.</summary>
-    public async Task GetCurrentlyTradedFuturesContractsAsync(Func<ICollection<FuturesContractV2ReadModel>, Task> onCompleted)
+    public async Task GetRolloverFuturesContractsAsync(Func<ICollection<FuturesContractV3ReadModel>, Task> onCompleted)
     {
         ArgumentNullException.ThrowIfNull(onCompleted);
-        ICollection<FuturesContractV2ReadModel> contracts = [];
-        await GetCurrentlyTradedFuturesContractsAsync(values => contracts = values);
+        ICollection<FuturesContractV3ReadModel> contracts = [];
+        await GetRolloverFuturesContractsAsync(values => contracts = values);
         await onCompleted(contracts);
     }
 
@@ -254,7 +254,7 @@ public class MarketDataQueryService(IMarketDataQueryApi queryApi, IMarketDataFee
     /// <returns></returns>
     public async Task GetCurrentFuturesEodDataAsync(DateOnly valueDate, Action<FuturesEodDataV2ReadModel> onCompleted)
     {
-        var serviceResult = await _queryApi.GetCurrentlyTradedFuturesContractAsync("ES");
+        var serviceResult = await _queryApi.GetOnTheRunFuturesContractAsync("ES");
         if (serviceResult.Success)
         {
             var contractId = serviceResult.Value!.ContractId;

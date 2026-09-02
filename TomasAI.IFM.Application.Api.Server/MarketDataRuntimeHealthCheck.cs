@@ -1,6 +1,8 @@
-using Microsoft.Extensions.Diagnostics.HealthChecks;
+﻿using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TomasAI.IFM.Application.MarketData.Databento;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Shared;
+using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Framework.MarketData.DataBento.TickAggregation.Contracts;
 
 namespace TomasAI.IFM.Application.Api.Server;
@@ -12,9 +14,11 @@ namespace TomasAI.IFM.Application.Api.Server;
 public sealed class MarketDataRuntimeHealthCheck(
     DatabentoMarketDataApi marketDataApi,
     IFuturesMarketSessionAuthority marketSessionAuthority,
+    IFuturesContractRolloverStore rolloverStore,
+    IFuturesExchangeBusinessCalendar businessCalendar,
     TimeProvider timeProvider) : IHealthCheck
 {
-    public Task<HealthCheckResult> CheckHealthAsync(
+    public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
@@ -41,6 +45,44 @@ public sealed class MarketDataRuntimeHealthCheck(
             ["publicationFailures"] = epoch?.PublicationFailures ?? 0,
             ["processingFailures"] = epoch?.ProcessingFailures ?? 0
         };
+        foreach (var datasetFeed in epoch?.DatasetFeedStatuses ?? [])
+        {
+            var key = datasetFeed.Dataset
+                .Replace(".", "_", StringComparison.Ordinal)
+                .Replace("-", "_", StringComparison.Ordinal)
+                .ToLowerInvariant();
+            var feed = datasetFeed.Health;
+            data[$"{key}NativeState"] = feed.State.ToString();
+            data[$"{key}NativeTerminalStatus"] = feed.TerminalStatus.ToString();
+            data[$"{key}NativeWarning"] = feed.Warning ?? string.Empty;
+            data[$"{key}TransportReady"] = feed.TransportReady;
+            data[$"{key}TradingReady"] = feed.TradingReady;
+            data[$"{key}RingCapacityRecords"] = feed.RingCapacityRecords;
+            data[$"{key}RingUsedRecords"] = feed.RingUsedRecords;
+            data[$"{key}RingHighWaterRecords"] = feed.RingHighWaterRecords;
+            data[$"{key}RecordsProduced"] = feed.RecordsProduced;
+            data[$"{key}RecordsConsumed"] = feed.RecordsConsumed;
+            data[$"{key}ChannelFullCount"] = feed.ChannelFullCount;
+            data[$"{key}PoolMissCount"] = feed.PoolMissCount;
+        }
+        data["sourceValueDateRevision"] = marketSessionAuthority.Current.Revision;
+        foreach (var symbol in new[] { "ES", "VX" })
+        {
+            var key = symbol.ToLowerInvariant();
+            var rollover = await rolloverStore.GetFuturesContractRolloverAsync(
+                symbol, cancellationToken).ConfigureAwait(false);
+            data[$"{key}NextRolloverValueDate"] =
+                rollover?.NextRolloverDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+            data[$"{key}RolloverPreparationDate"] = rollover?.NextRolloverDate is { } effective
+                ? businessCalendar.GetPreparationDate(effective).ToString("yyyy-MM-dd")
+                : string.Empty;
+            var set = marketDataApi.TryGetFuturesTermStructureContracts(symbol, out var pair)
+                ? new[] { pair.Front.ContractId, pair.Back.ContractId }
+                : marketDataApi.TryGetOnTheRunFuturesContract(symbol, out var onTheRun)
+                    ? new[] { onTheRun.ContractId }
+                    : [];
+            data[$"{key}RolloverSet"] = string.Join(",", set);
+        }
         var infrastructureReady = databentoFeedUp
             && health.Running
             && epoch is { Running: true, AggregationRunning: true, LastPriceStoreActive: true }
@@ -49,7 +91,7 @@ public sealed class MarketDataRuntimeHealthCheck(
         var currentContractsLive = AddRoute("ES") & AddRoute("VX");
         data["currentContractsLive"] = currentContractsLive;
 
-        return Task.FromResult(marketState == FuturesMarketState.Closed
+        return marketState == FuturesMarketState.Closed
                 ? HealthCheckResult.Healthy(
                     "Futures market is closed; live feed health is inactive and core services remain ready.",
                     data)
@@ -67,12 +109,12 @@ public sealed class MarketDataRuntimeHealthCheck(
                     marketState == FuturesMarketState.LiveTrading
                         ? "One or more current futures contracts are not green during live trading."
                         : "One or more current futures contracts have received no accepted off-hours update for over fifteen minutes; feeds remain live.",
-                    data: data));
+                    data: data);
 
         bool AddRoute(string symbol)
         {
             var key = symbol.ToLowerInvariant();
-            if (!marketDataApi.TryGetCurrentlyTradedFuturesContract(symbol, out var contract))
+            if (!marketDataApi.TryGetOnTheRunFuturesContract(symbol, out var contract))
             {
                 data[$"{key}ContractId"] = string.Empty;
                 data[$"{key}RouteActive"] = false;

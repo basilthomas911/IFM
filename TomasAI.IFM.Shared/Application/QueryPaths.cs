@@ -94,8 +94,8 @@ public class FuturesBarDataQueryUriPath
     /// The URIs are intended to be used as part of HTTP requests to the API.</remarks>
     public class MarketDataQueryUriPath
 {
-    public const string GetCurrentlyTradedFuturesContract = "/api/marketdata/futures/currentlytraded";
-    public const string GetCurrentlyTradedFuturesContracts = "/api/marketdata/futures/currentlytraded/all";
+    public const string GetOnTheRunFuturesContract = "/api/marketdata/futures/on-the-run";
+    public const string GetRolloverFuturesContracts = "/api/marketdata/futures/rollover-set";
     public const string GetFuturesContract = "/api/marketdata/futures/contract";
     public const string GetFuturesContractSymbol = "/api/marketdata/futures/contract/symbol";
     public const string GetFuturesTradeSignal = "/api/marketdata/futures/tradesignal";

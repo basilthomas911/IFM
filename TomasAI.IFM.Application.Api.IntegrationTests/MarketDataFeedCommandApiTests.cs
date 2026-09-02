@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -30,7 +30,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var contracts = new[]
         {
-            new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true)
+            new FuturesContractV3ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true)
         };
         var response = await api.StartMarketDataFeedAsync(contracts, DateOnly.FromDateTime(DateTime.Now));
         response.Success.Should().BeTrue();
@@ -54,7 +54,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var contracts = new[]
         {
-            new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true)
+            new FuturesContractV3ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true)
         };
         var response = await api.ResetMarketDataFeedAsync(contracts, DateOnly.FromDateTime(DateTime.Now));
         response.Success.Should().BeTrue();
@@ -66,7 +66,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var contract = new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
+        var contract = new FuturesContractV3ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
         var tickData = new FuturesTickDataV2ReadModel("TEST1", DateOnly.FromDateTime(DateTime.Now), 1L, TimeOnly.MinValue, 1m, 1);
         var response = await api.InsertFuturesTickDataAsync(contract, tickData);
         response.Success.Should().BeTrue();
@@ -78,7 +78,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var contract = new FuturesContractV2ReadModel("SYM20251010C3456", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
+        var contract = new FuturesContractV3ReadModel("SYM20251010C3456", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
         var optionTickData = new FuturesOptionTickDataV2ReadModel("SYM20251010C3456", DateOnly.FromDateTime(DateTime.Now), 1L, TimeOnly.MinValue, 1.0, 1.0, 1.0, 1, 1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
         var response = await api.InsertFuturesOptionTickDataAsync(contract, optionTickData);
         response.Success.Should().BeTrue();
@@ -92,7 +92,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var feedId = new FeedId(1);
         var optionContract = new FuturesOptionContractReadModel("SYM20251010C3456", "SYM", "SYM1", "FUT", "USD", "CME", "50", "OPT", DateOnly.FromDateTime(DateTime.Now), 1.0, "CALL");
-        var baseContract = new FuturesContractV2ReadModel("SYM20251010C3456", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
+        var baseContract = new FuturesContractV3ReadModel("SYM20251010C3456", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
         var valueDate = DateOnly.FromDateTime(DateTime.Now);
         var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, valueDate);
         var maturityDate = DateOnly.FromDateTime(DateTime.Now.AddDays(30));
@@ -132,7 +132,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var contract = new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
+        var contract = new FuturesContractV3ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true);
         var valueDate = DateOnly.FromDateTime(DateTime.Now);
         var resetStream = false;
         var response = await api.StartFuturesTickDataStreamingAsync(contract, valueDate, resetStream);
@@ -156,7 +156,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
     {
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var api = new MarketDataFeedCommandApi(commandServiceApi);
-        var contracts = new[] { new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true) };
+        var contracts = new[] { new FuturesContractV3ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", DateOnly.FromDateTime(DateTime.Now), true) };
         var valueDate = DateOnly.FromDateTime(DateTime.Now);
         var response = await api.StartFuturesBarDataStreamingAsync(contracts, valueDate);
         response.Success.Should().BeTrue();
@@ -254,7 +254,7 @@ public class MarketDataFeedCommandApiTests(WebApplicationFactory<Program> factor
         var api = new MarketDataFeedCommandApi(commandServiceApi);
         var valueDate = DateOnly.FromDateTime(DateTime.Now);
         var tickData = new FuturesTickDataV2ReadModel("TEST1", valueDate, 1L, TimeOnly.MinValue, 1m, 1);
-        var contract = new FuturesContractV2ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", valueDate, true);
+        var contract = new FuturesContractV3ReadModel("TEST1", "desc", "SYM", "SYM1", "FUT", "USD", "CME", "50", valueDate, true);
         var eodDataToday = new FuturesEodDataV2ReadModel(
             "TEST1", valueDate, "SYM", 1m, 1m, 1m, 1m, 1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
             TomasAI.IFM.Domain.MarketData.Shared.MarketDirectionType.NeutralDown,

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -27,6 +27,7 @@ public sealed class MarketOutlookSnapshotHydrator(
     IMarketOutlookUpdateWriter writer,
     IMarketOutlookOperations operations,
     IMarketOutlookHotCache cache,
+    TimeProvider timeProvider,
     ILogger<MarketOutlookSnapshotHydrator> logger)
     : IMarketOutlookSnapshotHydrator
 {
@@ -99,9 +100,19 @@ public sealed class MarketOutlookSnapshotHydrator(
         var bb = await bbTask.ConfigureAwait(false);
         var vixBaseline = await vixBaselineTask.ConfigureAwait(false);
 
-        var asOfUtc = LatestTimestamp(
+        var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+        var persistedAsOfUtc = LatestTimestamp(
             entityId.ValueDate, rsi, tdi, itiLatest, itiDirection, itiExtreme,
             itiReversal, ema, bb);
+        var asOfUtc = persistedAsOfUtc > nowUtc ? nowUtc : persistedAsOfUtc;
+        if (persistedAsOfUtc > nowUtc)
+        {
+            logger.LogWarning(
+                "Clamped future persisted Market Outlook timestamp {PersistedAsOfUtc} to {NowUtc} for {EntityId}",
+                persistedAsOfUtc,
+                nowUtc,
+                entityId.Format());
+        }
         var baseline = new MarketOutlookInputState
         {
             EntityId = entityId,
@@ -134,7 +145,7 @@ public sealed class MarketOutlookSnapshotHydrator(
         {
             UpdateId = updateId,
             EntityId = entityId,
-            ReceivedAtUtc = DateTime.UtcNow,
+            ReceivedAtUtc = nowUtc,
             MarketDataAsOfUtc = asOfUtc,
             CommandId = updateId,
             AggregateId = entityId.Format(),
@@ -186,10 +197,10 @@ public sealed class MarketOutlookSnapshotHydrator(
         CancellationToken cancellationToken)
     {
         var contracts = await dbFactory.SecuritiesDb
-            .GetCurrentlyTradedFuturesContractsAsync("VX", cancellationToken)
+            .GetRolloverFuturesContractsAsync("VX", cancellationToken)
             .ConfigureAwait(false);
         var contractId = contracts.FirstOrDefault(value =>
-            value.CurrentlyTraded
+            value.OnTheRun
             && string.Equals(value.Symbol, "VX", StringComparison.OrdinalIgnoreCase))?.ContractId;
         if (string.IsNullOrWhiteSpace(contractId))
             return null;

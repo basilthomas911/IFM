@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
@@ -318,25 +318,25 @@ public static class MarketDataQueries
     public static IEndpointRouteBuilder MapMarketDataQueries(this IEndpointRouteBuilder endpoints)
     {
         // FuturesContractQueryActor queries
-        endpoints.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContract, async (IActorService e, string symbol) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetOnTheRunFuturesContract, async (IActorService e, string symbol) =>
         {
-            var entityId = new GetCurrentlyTradedFuturesContractParameter(symbol);
-            GetCurrentlyTradedFuturesContractQuery query = new GetCurrentlyTradedFuturesContractQuery(symbol)
+            var entityId = new GetOnTheRunFuturesContractParameter(symbol);
+            GetOnTheRunFuturesContractQuery query = new GetOnTheRunFuturesContractQuery(symbol)
             {
-                Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractQuery.Actor, GetCurrentlyTradedFuturesContractQuery.Verb,entityId.Format())
+                Subject = new ActorSubject(ActorType.Query, GetOnTheRunFuturesContractQuery.Actor, GetOnTheRunFuturesContractQuery.Verb,entityId.Format())
             };
-            return await e.RequestAsync<FuturesContractV2ReadModel, GetCurrentlyTradedFuturesContractQuery>(query);
+            return await e.RequestAsync<FuturesContractV3ReadModel, GetOnTheRunFuturesContractQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContracts, async (IActorService e, string symbol) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetRolloverFuturesContracts, async (IActorService e, string symbol) =>
         {
-            var entityId = new GetCurrentlyTradedFuturesContractsParameter(symbol); 
-            GetCurrentlyTradedFuturesContractsQuery query = new (symbol)
+            var entityId = new GetRolloverFuturesContractsParameter(symbol);
+            GetRolloverFuturesContractsQuery query = new (symbol)
             {
-                Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractsQuery.Actor, GetCurrentlyTradedFuturesContractsQuery.Verb, entityId.Format()),
+                Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, entityId.Format()),
                 EntityId = entityId,
             };
-            return await e.RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(query);
+            return await e.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesContract, async (IActorService e, string contractId) =>
@@ -347,7 +347,7 @@ public static class MarketDataQueries
                 Subject = new ActorSubject(ActorType.Query, GetFuturesContractQuery.Actor, GetFuturesContractQuery.Verb, entityId.Format()),
                 EntityId = entityId,
             };
-            return await e.RequestAsync<FuturesContractV2ReadModel, GetFuturesContractQuery>(query);
+            return await e.RequestAsync<FuturesContractV3ReadModel, GetFuturesContractQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesContracts, async (IActorService e) =>
@@ -358,7 +358,7 @@ public static class MarketDataQueries
                 Subject = new ActorSubject(ActorType.Query, GetFuturesContractsQuery.Actor, GetFuturesContractsQuery.Verb, entityId.Format()),
                 EntityId = entityId,
             };
-            return await e.RequestAsync<FuturesContractV2ReadModel[], GetFuturesContractsQuery>(query);
+            return await e.RequestAsync<FuturesContractV3ReadModel[], GetFuturesContractsQuery>(query);
         });
 
         // FuturesOptionContractQueryActor queries

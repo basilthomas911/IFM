@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -73,6 +73,11 @@ public sealed class DatabentoProductionEpochTests
         Assert.True(api.IsDatabentoFeedUp());
         Assert.Equal(2, health.Epoch!.Value.ConfiguredContracts);
         Assert.Equal(2, health.Epoch.Value.LastPriceSlots);
+        var datasetHealth = Assert.Single(health.Epoch.Value.DatasetFeedStatuses!);
+        Assert.Equal("GLBX.MDP3", datasetHealth.Dataset);
+        Assert.Equal(FeedState.Running, datasetHealth.Health.State);
+        Assert.Equal(DatabentoFeedStatus.Ok, datasetHealth.Health.TerminalStatus);
+        Assert.True(datasetHealth.Health.TransportReady);
         Assert.True(await api.StartStreamingFuturesTickDataAsync("ES-202609"));
         Assert.False(await api.StartStreamingFuturesTickDataAsync("ES-202609"));
         Assert.True(await api.StartStreamingFuturesOptionTickDataAsync("ES20260918C6500"));
@@ -103,8 +108,12 @@ public sealed class DatabentoProductionEpochTests
             "VXU6", "VX", new InstrumentKey(8, 84), ContractKind.Future,
             new DateOnly(2026, 9, 16), null, "VXU6",
             "XCBF.PITCH", "CFE");
+        var vxBack = Detail(
+            "VXV6", "VX", new InstrumentKey(8, 85), ContractKind.Future,
+            new DateOnly(2026, 10, 21), null, "VXV6",
+            "XCBF.PITCH", "CFE");
         using var concurrentStopBarrier = new CountdownEvent(2);
-        var provider = new FakeFeedFactory([es, vx])
+        var provider = new FakeFeedFactory([es, vx, vxBack])
         {
             StopBarrier = concurrentStopBarrier
         };
@@ -115,16 +124,20 @@ public sealed class DatabentoProductionEpochTests
             Contracts = [],
             QueryConcurrency = 1,
             QueryQueueCapacity = 4,
-            LastPriceCapacity = 2
+            LastPriceCapacity = 3
         };
         var registry = new DatabentoContractRegistrationRegistry([], configuredOptions);
-        registry.ReplaceCurrentFuturesContracts([
-            new FuturesContractV2ReadModel(
+        registry.ReplaceFuturesRolloverSet("ES", [
+            new FuturesContractV3ReadModel(
                 "ES20260918", "ES future", "ES", "ESU6", "FUT", "USD",
-                "CME", "50", new DateOnly(2026, 9, 18), true),
-            new FuturesContractV2ReadModel(
+                "CME", "50", new DateOnly(2026, 9, 18), true, true)]);
+        registry.ReplaceFuturesRolloverSet("VX", [
+            new FuturesContractV3ReadModel(
                 "VX20260916", "VX future", "VX", "VXU6", "FUT", "USD",
-                "CFE", "1000", new DateOnly(2026, 9, 16), true)]);
+                "CFE", "1000", new DateOnly(2026, 9, 16), true, true),
+            new FuturesContractV3ReadModel(
+                "VX20261021", "VX future", "VX", "VXV6", "FUT", "USD",
+                "CFE", "1000", new DateOnly(2026, 10, 21), false, true)]);
         var runtimeOptions = configuredOptions with { Contracts = registry };
         var publisher = new NoOpPublisher();
         var epochFactory = new DatabentoMarketDataEpochFactory(
@@ -143,10 +156,11 @@ public sealed class DatabentoProductionEpochTests
             MarketDataKinds.Quote | MarketDataKinds.Trade
                 | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume,
             provider.Feeds["GLBX.MDP3"].Subscriptions.Single().DataKinds);
-        Assert.Equal(
+        Assert.Equal(2, provider.Feeds["XCBF.PITCH"].Subscriptions.Count);
+        Assert.All(provider.Feeds["XCBF.PITCH"].Subscriptions, subscription => Assert.Equal(
             MarketDataKinds.Quote | MarketDataKinds.Trade
                 | MarketDataKinds.Statistics | MarketDataKinds.SessionVolume,
-            provider.Feeds["XCBF.PITCH"].Subscriptions.Single().DataKinds);
+            subscription.DataKinds));
         var expectedReplayStart = checked((ulong)(
             FuturesTradingValueDate.GetSessionStartUtc(valueDate).UtcTicks
             - DateTimeOffset.UnixEpoch.UtcTicks) * 100UL);

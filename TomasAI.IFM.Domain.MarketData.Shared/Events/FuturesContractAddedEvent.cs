@@ -1,4 +1,4 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -27,7 +27,7 @@ public record FuturesContractAddedEvent :
     [Key(5)] public string AggregateId { get; init; }
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesContractV2ReadModel Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel Contract { get; init; }
     [Key(9)] public DateTime CreatedOn { get; init; }
     [Key(10)] public string CreatedBy { get; init; }
 
@@ -50,7 +50,7 @@ public record FuturesContractAddedEvent :
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateTime createdOn,
         string createdBy)
     {
@@ -144,7 +144,7 @@ public record FuturesContractAddedCompleteEvent : ICompleteEvent<FuturesContract
     [Key(5)] public string AggregateId { get; init; }
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
-    [Key(8)] public FuturesContractV2ReadModel? Contract { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel? Contract { get; init; }
     [Key(9)] public DateTime CreatedOn { get; init; }
     [Key(10)] public string? CreatedBy { get; init; }
 
@@ -172,7 +172,7 @@ public record FuturesContractAddedCompleteEvent : ICompleteEvent<FuturesContract
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel? contract,
+        FuturesContractV3ReadModel? contract,
         DateTime createdOn,
         string? createdBy)
     {

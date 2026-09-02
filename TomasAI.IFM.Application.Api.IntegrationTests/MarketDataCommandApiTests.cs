@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -93,7 +93,7 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
         var commandServiceApi = new CommandServiceApiClient(_httpClientFactory, _jsonSerializer, new CommandServiceApiOptions("http://localhost"));
         var marketDataApi = new MarketDataCommandApi(commandServiceApi);
 
-        var contract = new FuturesContractV2ReadModel(
+        var contract = new FuturesContractV3ReadModel(
             contractId: "TEST1",
             description: "Test Futures Contract",
             symbol: "SYM",
@@ -103,7 +103,7 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
             exchange: "CME",
             multiplier: "50",
             lastTradeDate: DateOnly.FromDateTime(DateTime.Now.AddMonths(1)),
-            currentlyTraded: true
+            onTheRun: true
         );
         var response = await marketDataApi.AddFuturesContractAsync(contract, overwrite: true);
 
@@ -118,7 +118,7 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
         var marketDataApi = new MarketDataCommandApi(commandServiceApi);
 
         var contractId = new FuturesContractId("TEST1", "SYM", DateOnly.FromDateTime(DateTime.Now.AddMonths(1)));
-        var contract = new FuturesContractV2ReadModel(
+        var contract = new FuturesContractV3ReadModel(
             contractId: "TEST1",
             description: "Updated Futures Contract",
             symbol: "SYM",
@@ -128,7 +128,7 @@ public class MarketDataCommandApiTests(WebApplicationFactory<Program> factory)
             exchange: "CME",
             multiplier: "50",
             lastTradeDate: DateOnly.FromDateTime(DateTime.Now.AddMonths(1)),
-            currentlyTraded: false
+            onTheRun: false
         );
         var response = await marketDataApi.ChangeFuturesContractAsync(contractId, contract, overwrite: true);
 

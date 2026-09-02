@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -30,7 +30,7 @@ public partial class MarketDataCommandApi(ICommandServiceApi commandSvc) : IMark
     /// <param name="overwrite">A value indicating whether to overwrite an existing contract with the same identifier.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="ServiceResult{T}"/>
     /// with the unique identifier of the added futures contract.</returns>
-    public async Task<ServiceResult<Guid>> AddFuturesContractAsync(FuturesContractV2ReadModel futuresContract, bool overwrite)
+    public async Task<ServiceResult<Guid>> AddFuturesContractAsync(FuturesContractV3ReadModel futuresContract, bool overwrite)
         => await new AddFuturesContractParameter(IsArgumentNull.Set(futuresContract), overwrite, AddFuturesContractCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataUriPath.AddFuturesContract, e));
 
@@ -41,7 +41,7 @@ public partial class MarketDataCommandApi(ICommandServiceApi commandSvc) : IMark
     /// <param name="futuresContract">The updated details of the futures contract. Cannot be null.</param>
     /// <param name="overwrite">A value indicating whether to overwrite the existing contract details.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the updated futures contract.</returns>
-    public async Task<ServiceResult<Guid>> ChangeFuturesContractAsync(FuturesContractId contractId, FuturesContractV2ReadModel futuresContract, bool overwrite)
+    public async Task<ServiceResult<Guid>> ChangeFuturesContractAsync(FuturesContractId contractId, FuturesContractV3ReadModel futuresContract, bool overwrite)
         => await new ChangeFuturesContractParameter(IsArgumentNull.Set(contractId), IsArgumentNull.Set(futuresContract), overwrite, ChangeFuturesContractCommand.ErrorId)
             .ExecuteAsync(e => _commandSvc.ExecuteCommandAsync(MarketDataUriPath.ChangeFuturesContract, e));
 

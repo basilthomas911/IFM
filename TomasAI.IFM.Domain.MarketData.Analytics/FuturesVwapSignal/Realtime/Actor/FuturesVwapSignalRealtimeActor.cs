@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Realtime.Model;
@@ -32,9 +32,9 @@ public sealed class FuturesVwapSignalRealtimeActor(
         actorContext as IFuturesVwapSignalRealtimeContext, nameof(actorContext))!;
     readonly FuturesVwapStreamOwnership streamOwnership = new();
     readonly IReadOnlyDictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
-        FuturesContractV2ReadModel, ILogger, ValueTask<bool>>> _receiveMap =
+        FuturesContractV3ReadModel, ILogger, ValueTask<bool>>> _receiveMap =
         new Dictionary<Type, Func<IEvent, IFuturesVwapSignalRealtimeContext,
-            FuturesContractV2ReadModel, ILogger, ValueTask<bool>>>
+            FuturesContractV3ReadModel, ILogger, ValueTask<bool>>>
     {
         [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = async (@event, context, contract, eventLogger) =>
             await ((FuturesMarketPriceUpdatedRealtimeEvent)@event)
@@ -46,7 +46,7 @@ public sealed class FuturesVwapSignalRealtimeActor(
     {
         context.AddRealtimeRouter(Route, Id);
         var configuration = FuturesVwapConfiguration.Standard;
-        if (TypedContext.MarketDataApi.TryGetCurrentlyTradedFuturesContract(
+        if (TypedContext.MarketDataApi.TryGetOnTheRunFuturesContract(
             configuration.RootSymbol, out _))
             _ = await streamOwnership.EnsureAsync(
                 TypedContext.MarketDataApi, configuration.RootSymbol).ConfigureAwait(false);
@@ -70,7 +70,7 @@ public sealed class FuturesVwapSignalRealtimeActor(
     {
         ArgumentNullException.ThrowIfNull(context);
         var handler = ResolveMappedEventHandler(@event, _receiveMap);
-        FuturesContractV2ReadModel contract;
+        FuturesContractV3ReadModel contract;
         try
         {
             contract = await streamOwnership.EnsureAsync(TypedContext.MarketDataApi,

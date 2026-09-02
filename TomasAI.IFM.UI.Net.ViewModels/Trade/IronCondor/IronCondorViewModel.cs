@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
@@ -70,11 +70,11 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     FundOrderTradeReadModel _fundOrderTrade;
     List<FundOrderTradeReadModel> _fundOrderTrades;
     DateOnly? _valueDate;
-    ICollection<FuturesContractV2ReadModel> _baseContracts;
+    ICollection<FuturesContractV3ReadModel> _baseContracts;
     OptionTradeReadModel _optionTrade = null!;
     List<TradeHistoryReadModel> _tradeHistory = [];
     List<TradeInfoReadModel> _tradeInfo = [];
-    FuturesContractV2ReadModel _futuresContract = null!;
+    FuturesContractV3ReadModel _futuresContract = null!;
     List<FuturesEodDataV2ReadModel> _futuresEodData;
     LatestValueAsyncChannel<FuturesEodDataV2ReadModel>? _futuresEodChannel;
     KeyedLatestValueAsyncChannel<string, OptionTradeTickPriceDataUpdatedEvent>? _futuresOptionTickChannels;
@@ -131,7 +131,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     /// <param name="valueDate"></param>
     /// <param name="baseContracts"></param>
     public IronCondorViewModel(IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate,
-        ICollection<FuturesContractV2ReadModel> baseContracts,
+        ICollection<FuturesContractV3ReadModel> baseContracts,
         TimeProvider? timeProvider = null,
         bool historicalReadOnly = false)
     {
@@ -162,7 +162,7 @@ public sealed class IronCondorViewModel : ObservableObject, IAsyncLifecycle, IAs
     public FundOrderReadModel FundOrder => _fundOrder;
     public FundOrderTradeReadModel FundOrderTrade => _fundOrderTrade;
     public DateOnly? ValueDate => _valueDate;
-    public ICollection<FuturesContractV2ReadModel> BaseContracts => _baseContracts;
+    public ICollection<FuturesContractV3ReadModel> BaseContracts => _baseContracts;
     public int OrderId => _fundOrder.OrderId;
     public int TradeId => _fundOrderTrade.TradeId;
     /// <summary>

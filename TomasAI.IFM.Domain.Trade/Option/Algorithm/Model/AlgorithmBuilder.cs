@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
@@ -350,14 +350,14 @@ public class AlgorithmBuilder(
 
         async Task<IronCondorForwardDeltaDataModel?> GetIronCondorForwardDeltaAsync(DateOnly valueDate, TradeType tradeType, RiskPositionType riskPositionType)
         {
-            FuturesContractV2ReadModel[] futuresContracts = default!;
-            var serviceResult = await _marketDataQueryApi.GetCurrentlyTradedFuturesContractsAsync("ES").ConfigureAwait(false);
+            FuturesContractV3ReadModel[] futuresContracts = default!;
+            var serviceResult = await _marketDataQueryApi.GetRolloverFuturesContractsAsync("ES").ConfigureAwait(false);
             if (serviceResult.Success && serviceResult.Value is not null)
             {
                 futuresContracts = serviceResult.Value;
                 if (futuresContracts is not null)
                 {
-                    var vixContractId = futuresContracts?.FirstOrDefault(x => x.Symbol == "VX" && x.CurrentlyTraded)?.ContractId;
+                    var vixContractId = futuresContracts?.FirstOrDefault(x => x.Symbol == "VX" && x.OnTheRun)?.ContractId;
                     if (vixContractId is not null)
                     {
                         var serviceResult2 = await _tradePlan_query_api.GetIronCondorForwardDeltaAsync(vixContractId, valueDate, tradeType, riskPositionType).ConfigureAwait(false);

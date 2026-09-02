@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TomasAI.IFM.Application.Blackboard;
 using TomasAI.IFM.Application.Storage.FundDb;
@@ -38,7 +38,7 @@ internal static class Program
 
     static readonly string[] SecuritiesProjectionObjects =
     [
-        "futures_contract_by_symbol_v2",
+        "futures_contract_by_symbol_v3",
         "futures_option_contract_by_symbol_v2",
         "securities_projection_state_v3",
         "securities_symbol_projection_state_v3",

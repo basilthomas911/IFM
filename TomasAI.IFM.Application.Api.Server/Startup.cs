@@ -227,6 +227,9 @@ public static class Startup
         {
             // add web app services...
             logger.LogInformationEvent("ApiServer", "register base services...");
+            services.Configure<HostOptions>(options =>
+                options.BackgroundServiceExceptionBehavior =
+                    BackgroundServiceExceptionBehavior.Ignore);
             services.AddIfmMetrics(config, "TomasAI.IFM.Application.Api.Server");
             var portfolioOperations = config.GetSection(PortfolioOperationalOptions.SectionName)
                 .Get<PortfolioOperationalOptions>() ?? new PortfolioOperationalOptions();
@@ -401,7 +404,8 @@ public static class Startup
             services.AddSingleton<IFundCommandApi, FundCommandApi>();
             services.AddSingleton<IMarketDataCommandApi, MarketDataCommandApi>();
             services.AddSingleton<IMarketDataFeedCommandApi, MarketDataFeedCommandApi>();
-            services.AddSingleton<IMarketDataAnalyticsCommandApi, MarketDataAnalyticsCommandApi>();
+            services.AddSingleton<IMarketDataAnalyticsCommandApi,
+                TomasAI.IFM.Application.Api.Nats.Client.MarketDataAnalyticsCommandApi>();
             services.AddSingleton<IOptionPricerCommandApi, OptionPricerCommandApi>();
             services.AddSingleton<IReferenceCommandApi, ReferenceCommandApi>();
             services.AddSingleton<ITradeCommandApi, OptionTradeCommandApi>();
@@ -601,6 +605,7 @@ public static class Startup
                 UseSyntheticProvider = feedOptions.DataSource == FeedDataSourceMode.Synthetic
             });
             services.AddApplicationMarketDataHistoricalApi(historicalOptions);
+            services.AddHostedService<FuturesRolloverPreparationHostedService>();
             services.AddSingleton<IHistoricalReplayPublisher, FuturesVwapHistoricalReplayPublisher>();
             services.AddSingleton<IHistoricalDailyReplayPublisher, FuturesEmaBbHistoricalDailyReplayPublisher>();
             services.AddSingleton(provider =>

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -13,7 +13,7 @@ public record StreamingRequestId
 {
     [Key(0)] public int RequestId { get; init; }
     [Key(1)] public FuturesOptionContractReadModel OptionContract { get; init; }
-    [Key(2)] public FuturesContractV2ReadModel UnderlyingContract { get; init; }
+    [Key(2)] public FuturesContractV3ReadModel UnderlyingContract { get; init; }
     [Key(3)] public DateOnly ValueDate { get; init; }
     [Key(4)] public DateOnly MaturityDate { get; init; }
     [Key(5)] public double RiskFreeRate { get; init; }
@@ -29,7 +29,7 @@ public record StreamingRequestId
     public StreamingRequestId(
         int requestId, 
         FuturesOptionContractReadModel optionContract,
-        FuturesContractV2ReadModel underlyingContract,
+        FuturesContractV3ReadModel underlyingContract,
         DateOnly valueDate,
         DateOnly maturityDate,
         double riskFreeRate)

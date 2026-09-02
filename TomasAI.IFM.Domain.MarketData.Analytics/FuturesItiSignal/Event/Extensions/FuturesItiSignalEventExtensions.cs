@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -380,10 +380,10 @@ public static class FuturesItiSignalEventExtensions
         where TActor : IActor
     {
         var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var futuresContracts = await context.GetCurrentlyTradedFuturesContractsAsync("VX");
+        var futuresContracts = await context.GetRolloverFuturesContractsAsync("VX");
         if (futuresContracts is not null)
         {
-            var vixContractId = futuresContracts.FirstOrDefault(x => x.Symbol == "VX" && x.CurrentlyTraded)?.ContractId;
+            var vixContractId = futuresContracts.FirstOrDefault(x => x.Symbol == "VX" && x.OnTheRun)?.ContractId;
             if (vixContractId is not null)
                 vixFuturesEodData = await context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate);
         }
@@ -403,10 +403,10 @@ public static class FuturesItiSignalEventExtensions
     public static async ValueTask<VixFuturesEodDataReadModel> GetVixFuturesEodDataAsync(this IEventActorContext context, DateOnly valueDate)
     {
         var vixFuturesEodData = default(VixFuturesEodDataReadModel);
-        var futuresContracts = await context.GetCurrentlyTradedFuturesContractsAsync("VX");
+        var futuresContracts = await context.GetRolloverFuturesContractsAsync("VX");
         if (futuresContracts is not null)
         {
-            var vixContractId = futuresContracts.FirstOrDefault(x => x.Symbol == "VX" && x.CurrentlyTraded)?.ContractId;
+            var vixContractId = futuresContracts.FirstOrDefault(x => x.Symbol == "VX" && x.OnTheRun)?.ContractId;
             if (vixContractId is not null)
                 vixFuturesEodData = await context.GetLastVixFuturesEodDataAsync(vixContractId, valueDate);
         }
@@ -446,19 +446,19 @@ public static class FuturesItiSignalEventExtensions
     /// <param name="symbol">The symbol representing the futures contract for which currently traded contracts are requested. Cannot be null
     /// or empty.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains an array of
-    /// FuturesContractV2ReadModel objects representing the currently traded futures contracts for the specified symbol,
+    /// FuturesContractV3ReadModel objects representing the currently traded futures contracts for the specified symbol,
     /// or null if no contracts are found.</returns>
-    static async ValueTask<FuturesContractV2ReadModel[]?> GetCurrentlyTradedFuturesContractsAsync(this IEventActorContext context, string symbol)
+    static async ValueTask<FuturesContractV3ReadModel[]?> GetRolloverFuturesContractsAsync(this IEventActorContext context, string symbol)
     {
-        var futuresContracts = default(FuturesContractV2ReadModel[]);
-        var entityId = new GetCurrentlyTradedFuturesContractsParameter(symbol);
-        GetCurrentlyTradedFuturesContractsQuery query = new(symbol)
+        var futuresContracts = default(FuturesContractV3ReadModel[]);
+        var entityId = new GetRolloverFuturesContractsParameter(symbol);
+        GetRolloverFuturesContractsQuery query = new(symbol)
         {
-            Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractsQuery.Actor, GetCurrentlyTradedFuturesContractsQuery.Verb, entityId.Format()),
+            Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, entityId.Format()),
             EntityId = entityId,
-            ErrorCode = GetCurrentlyTradedFuturesContractsQuery.ErrorId
+            ErrorCode = GetRolloverFuturesContractsQuery.ErrorId
         };
-        var serviceResult = await context.RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(query);
+        var serviceResult = await context.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query);
         if (serviceResult.Success && serviceResult.Value is not null)
             futuresContracts = serviceResult.Value;
         return futuresContracts;

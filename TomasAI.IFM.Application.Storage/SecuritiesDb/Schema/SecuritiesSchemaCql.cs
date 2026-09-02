@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
+﻿namespace TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 
 internal static class SecuritiesSchemaCql
 {
@@ -15,7 +15,7 @@ internal static class SecuritiesSchemaCql
     """;
 
     public const string CreateFuturesContractTable = """
-    CREATE TABLE IF NOT EXISTS futures_contract (
+    CREATE TABLE IF NOT EXISTS futures_contract_v3 (
     contractId text,
     description text,
     symbol text,
@@ -25,7 +25,8 @@ internal static class SecuritiesSchemaCql
     exchange text,
     multiplier text,
     lastTradeDate date,
-    currentlyTraded boolean,
+    onTheRun boolean,
+    rollover boolean,
     PRIMARY KEY ((contractId), symbol, lastTradeDate)
     )
     WITH CLUSTERING ORDER BY (symbol ASC, lastTradeDate DESC);
@@ -50,10 +51,11 @@ internal static class SecuritiesSchemaCql
 
     // Explicit query tables are used instead of materialized views so projection writes,
     // backfill progress, validation, and rollback can be controlled by the application.
-    public const string CreateFuturesContractBySymbolV2Table = """
-    CREATE TABLE IF NOT EXISTS futures_contract_by_symbol_v2 (
+    public const string CreateFuturesContractBySymbolV3Table = """
+    CREATE TABLE IF NOT EXISTS futures_contract_by_symbol_v3 (
     symbol text,
-    currentlyTraded boolean,
+    rollover boolean,
+    onTheRun boolean,
     lastTradeDate date,
     contractId text,
     description text,
@@ -62,9 +64,9 @@ internal static class SecuritiesSchemaCql
     currency text,
     exchange text,
     multiplier text,
-    PRIMARY KEY ((symbol), currentlyTraded, lastTradeDate, contractId)
+    PRIMARY KEY ((symbol), rollover, onTheRun, lastTradeDate, contractId)
     )
-    WITH CLUSTERING ORDER BY (currentlyTraded DESC, lastTradeDate DESC, contractId ASC);
+    WITH CLUSTERING ORDER BY (rollover DESC, onTheRun DESC, lastTradeDate ASC, contractId ASC);
     """;
 
     public const string CreateFuturesOptionContractBySymbolV2Table = """

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.Storage;
@@ -15,7 +15,7 @@ public sealed class MarketConditionFuturesQuoteAdapter(IMarketDataApi marketData
     public async ValueTask<MarketConditionRawFuturesQuote> ReadOnceAsync(string instrumentRoot,
         DateTime evaluationTimestampUtc, CancellationToken cancellationToken)
     {
-        if (!marketData.TryGetCurrentlyTradedFuturesContract(instrumentRoot, out var contract) ||
+        if (!marketData.TryGetOnTheRunFuturesContract(instrumentRoot, out var contract) ||
             !marketData.TryGetLastTickPrice(contract.ContractId, out var price) ||
             price.Quote is not { } quote || price.Trade is not { } trade ||
             quote.BidPrice is not { } bid || quote.AskPrice is not { } ask)
@@ -221,7 +221,7 @@ public sealed class MarketConditionVolatilityAdapter(IMarketDataApi marketData, 
         DateTime evaluationTimestampUtc, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!marketData.TryGetCurrentlyTradedFuturesContract("VX", out var contract) ||
+        if (!marketData.TryGetOnTheRunFuturesContract("VX", out var contract) ||
             !marketData.TryGetLastTickPrice(contract.ContractId, out var current) || current.Trade is not { } trade)
             throw Invalid("The current VX futures trade is unavailable.");
         var target = evaluationTimestampUtc.AddMinutes(-5);

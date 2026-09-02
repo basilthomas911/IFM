@@ -165,9 +165,9 @@ public sealed class MarketOutlookUpdateProcessor(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        metrics.SetProcessorReady(true);
         try
         {
+            metrics.SetProcessorReady(true);
             await foreach (var update in reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
             {
                 Interlocked.Increment(ref processing);
@@ -202,6 +202,12 @@ public sealed class MarketOutlookUpdateProcessor(
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Normal host shutdown.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Market Outlook update processor failed unexpectedly; the API host will remain running");
         }
         finally
         {
@@ -260,12 +266,22 @@ public sealed class MarketOutlookUpdateProcessor(
         {
             await base.StopAsync(boundedStop.Token).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation("Market Outlook processor stopped at the API shutdown deadline");
+        }
         catch (OperationCanceledException) when (
             boundedStop.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(
                 "Market Outlook processor exceeded its bounded shutdown deadline with {UndrainedCount} updates outstanding",
                 reader.PendingCount);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Market Outlook processor shutdown failed unexpectedly; API shutdown will continue");
         }
     }
 

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Diagnostics;
 using FluentAssertions;
 using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
@@ -518,11 +518,11 @@ public sealed class G1NavigationAndQueryAuditTests
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        var es = RequireValue(await queries.MarketData.GetCurrentlyTradedFuturesContractAsync("ES")
+        var es = RequireValue(await queries.MarketData.GetOnTheRunFuturesContractAsync("ES")
             .WaitAsync(timeout, cancellationToken), "current ES contract");
-        var vx = RequireValue(await queries.MarketData.GetCurrentlyTradedFuturesContractAsync("VX")
+        var vx = RequireValue(await queries.MarketData.GetOnTheRunFuturesContractAsync("VX")
             .WaitAsync(timeout, cancellationToken), "current VX contract");
-        if (!es.IsValid || !es.CurrentlyTraded || !vx.IsValid || !vx.CurrentlyTraded)
+        if (!es.IsValid || !es.OnTheRun || !vx.IsValid || !vx.OnTheRun)
             throw new G0DependencyException("Current ES/VX contracts are not valid and currently traded.");
 
         if (string.IsNullOrWhiteSpace(es.Currency) || string.IsNullOrWhiteSpace(vx.Currency))
@@ -735,9 +735,9 @@ public sealed class G1NavigationAndQueryAuditTests
     }
 
     sealed record G1ExpectedState(
-        FuturesContractV2ReadModel EsContract,
-        FuturesContractV2ReadModel VxContract,
-        FuturesContractV2ReadModel[] Contracts,
+        FuturesContractV3ReadModel EsContract,
+        FuturesContractV3ReadModel VxContract,
+        FuturesContractV3ReadModel[] Contracts,
         TomasAI.IFM.Domain.MarketData.Shared.ViewModels.FuturesOptionContractReadModel[] EsOptionContracts,
         LookupTypeReadModel[] MarketDataDefinitions,
         LookupTypeReadModel[] ReferenceDefinitions,

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Domain.MarketData.Securities.UnitTests;
 
 public class SampleData
 {
-    public static FuturesContractV2ReadModel FuturesContract
+    public static FuturesContractV3ReadModel FuturesContract
          => new(
              contractId: "ES20251010",
              description: "Test Description",
@@ -29,7 +29,7 @@ public class SampleData
              exchange: "NYSE",
              multiplier: "100",
              lastTradeDate: DateOnly.FromDateTime(DateTime.UtcNow),
-             currentlyTraded: true);
+             onTheRun: true);
 
     public static FuturesOptionContractReadModel FuturesOptionContract
         => new(
@@ -208,8 +208,8 @@ public class SampleData
         tradeState: IntrinsicTimeTradeState.Ready
     );
 
-    public static FuturesContractV2ReadModel FuturesContract1 = new ("SYM20251215", "Description1", "SYM", "LocalSymbol1", "FUT", "USD", "CME", "50", new DateOnly(2025, 12, 15), true);
-    public static FuturesContractV2ReadModel FuturesContract2 = new ("SYM20251230", "Description2", "SYM", "LocalSymbol2", "FUT", "USD", "CME", "50", new DateOnly(2025, 12,30), true);
+    public static FuturesContractV3ReadModel FuturesContract1 = new ("SYM20251215", "Description1", "SYM", "LocalSymbol1", "FUT", "USD", "CME", "50", new DateOnly(2025, 12, 15), true);
+    public static FuturesContractV3ReadModel FuturesContract2 = new ("SYM20251230", "Description2", "SYM", "LocalSymbol2", "FUT", "USD", "CME", "50", new DateOnly(2025, 12,30), true);
 
     public static FuturesOptionContractReadModel FuturesOptionContract1 = new (
         contractId: "ES20251215C5000",

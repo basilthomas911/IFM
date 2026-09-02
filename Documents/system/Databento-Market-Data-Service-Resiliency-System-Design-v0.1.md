@@ -22,7 +22,7 @@ The design establishes one lifecycle owner for:
 - authoritative current-contract assignment;
 - value-date startup and rollover;
 - native C++ or Rust feed startup;
-- currently traded feed activation;
+- on-the-run and rollover-set feed activation;
 - one-minute watchdog observations;
 - automatic three-attempt recovery;
 - actor-requested full reset;
@@ -158,8 +158,13 @@ The existing Scylla `futures_contract_rollover` row is no longer authoritative a
 ### 3.6 Current operational metrics are fragmented
 
 The implemented Databento runtime exposes aggregate source-record, processing-failure and
-publication-failure measurements plus the interim synchronous `IsDatabentoFeedUp` result. The
-implemented Market Outlook cache exposes only aggregate received, written, composed, query and
+publication-failure measurements plus the interim synchronous `IsDatabentoFeedUp` result. API
+readiness also exposes each dataset's native state, terminal status, warning, transport/trading
+readiness, ring occupancy/high-water mark, produced/consumed counts, channel-full count and pool
+miss count. Tick notifications cross a non-blocking process-local MPSC queue to one ordered NATS
+publisher worker, so downstream publication latency cannot stop the native drain or hot-cache
+ingestion. Queue-depth and publisher-latency authority remains part of Stage 3 operations health.
+The implemented Market Outlook cache exposes aggregate received, written, composed, query and
 notification-failure counts with last component and last ES refresh times.
 
 The current measurements cannot independently identify RSI, TDI, ITI, EMA, Bollinger, VX, EOD or
@@ -312,7 +317,7 @@ Add a dedicated PostgreSQL context and connection:
 
 PostgreSQL is chosen for row locking, transactional replacement of coupled VX roles, uniqueness constraints, optimistic concurrency, JSONB snapshots, and reliable ordered history.
 
-### 5.2 `currently_traded_futures_contract`
+### 5.2 `futures_rollover_contract_assignment`
 
 This table stores a complete copied contract for each required operational role. The role, not the root symbol alone, is the stable key because VX requires two simultaneous rows.
 
@@ -357,9 +362,9 @@ Required constraints:
 - second-month VX maturity must be later than front-month VX maturity;
 - both VX assignments must be replaced in one transaction when their ordering changes.
 
-The table's membership is the authority for current status. A legacy `CurrentlyTraded` flag on the source contract is not a second authority. Runtime models derived from these rows are marked currently traded by the Market Data Service.
+The service-owned assignment is the authority for operational selection. The canonical v3 contract stores `OnTheRun` and `Rollover`; provider active/unexpired status is not a second authority. Runtime registrations are derived only from the verified rollover set.
 
-### 5.3 Current-contract CRUD
+### 5.3 Rollover-assignment CRUD
 
 All create and update requests accept an assignment identity, contract ID, rollover date, expected row version, actor identity, and correlation identity. The service performs the following transaction boundary:
 
@@ -377,9 +382,9 @@ Deleting any of the three minimum roles is permitted by the full CRUD contract b
 
 Required typed actor APIs:
 
-- create current-contract assignment;
-- update current-contract assignment;
-- delete current-contract assignment;
+- create rollover-contract assignment;
+- update rollover-contract assignment;
+- delete rollover-contract assignment;
 - get assignment by role;
 - list all assignments;
 - validate the complete minimum assignment set.
@@ -568,7 +573,7 @@ When the API starts:
 13. Confirm native transport, subscription acknowledgements, provider heartbeat, workers, routes, and hot-cache authority.
 14. Persist the startup observation.
 15. Publish authoritative readiness.
-16. Publish the active value date, currently traded contracts and explicit feed-health facts to
+16. Publish the active value date, on-the-run identities, rollover sets and explicit feed-health facts to
     their consumers; native generation remains feed-lifecycle diagnostics only.
 17. Confirm the Market Outlook update processor and independent operations-health service are ready.
 18. Confirm the Market Outlook cache can answer typed current or unavailable queries. No cache
@@ -776,7 +781,7 @@ Event-carried contracts are audit inputs, not authority. PostgreSQL committed as
 
 ### 11.1 Core readiness
 
-`CurrentlyTradedMarketDataReady` is true only when:
+`OnTheRunMarketDataReady` is true only when:
 
 - all three required role rows exist and validate;
 - ES quarterly, VX front, and VX second source contracts exist;
@@ -1127,7 +1132,7 @@ The design is successfully implemented only when:
 - Building Market Data administrative tools under the System menu.
 - Automating production watchdog retention or archival.
 - Moving or rewriting the existing complete futures-contract catalog.
-- Mutating legacy source `CurrentlyTraded` flags from the new service.
+- Maintaining compatibility with the retired `CurrentlyTraded` schema or query contracts.
 - Implementing the on-demand `MarketDataFuturesRolloverEvent` workflow; only its contract and ownership are designed here.
 - Making option-feed availability critical to global Databento readiness.
 - Persisting raw credentials, secrets, or unbounded native error payloads.

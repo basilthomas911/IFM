@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Application.MarketData.UnitTests.Harness;
 
@@ -15,14 +15,14 @@ public sealed class MarketDataApiContractApprovalTests
         methods.Select(method => method.Name).Should().BeEquivalentTo(
             "IsDatabentoFeedUp",
             "GetRuntimeStatus",
-            "TryGetCurrentlyTradedFuturesContract",
+            "TryGetOnTheRunFuturesContract",
             "TryGetFuturesTermStructureContracts",
             "UpdateFuturesTermStructureContractsAsync",
             "TryGetLastTickPrice",
             "TryGetLastOptionTickPrice",
             "TryGetFuturesSessionStatistics",
             "IsTickDataStreamActive",
-            "UpdateCurrentlyTradedFuturesContractAsync",
+            "UpdateOnTheRunFuturesContractAsync",
             "StartAsync",
             "StopAsync",
             "GetFuturesContractAsync",
@@ -91,7 +91,7 @@ public sealed class MarketDataApiContractApprovalTests
     [InlineData(typeof(MarketDataCapacityExceededException))]
     [InlineData(typeof(MarketDataPricingInputUnavailableException))]
     [InlineData(typeof(FuturesContractRolloverConfigurationException))]
-    [InlineData(typeof(CurrentlyTradedFuturesContractNotFoundException))]
+    [InlineData(typeof(OnTheRunFuturesContractNotFoundException))]
     public void PublicFailuresUseTypedApplicationExceptions(Type exceptionType)
     {
         exceptionType.Should().BeDerivedFrom<MarketDataApiException>();

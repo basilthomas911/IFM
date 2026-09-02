@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -154,7 +154,7 @@ public class FundOrderEditorViewModelTests
         return new Subject(viewModel, referenceApi, marketDataApi);
     }
 
-    static FuturesContractV2ReadModel Contract(string contractId, string symbol)
+    static FuturesContractV3ReadModel Contract(string contractId, string symbol)
         => new(
             contractId,
             contractId,

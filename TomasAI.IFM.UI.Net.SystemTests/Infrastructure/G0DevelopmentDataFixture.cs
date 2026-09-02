@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -16,7 +16,7 @@ public static class G0DevelopmentDataFixture
 
     public static async Task<G0DevelopmentSeedResult> EnsureAsync(
         G0QuerySession session,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
@@ -31,7 +31,7 @@ public static class G0DevelopmentDataFixture
     /// </summary>
     public static Task<bool> EnsureBarAsync(
         G0QuerySession session,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         TimeSpan timeout,
         CancellationToken cancellationToken)
         => EnsureBarCoreAsync(
@@ -43,7 +43,7 @@ public static class G0DevelopmentDataFixture
 
     public static async Task<bool> EnsureEodAsync(
         G0QuerySession session,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateOnly valueDate,
         TimeSpan timeout,
         CancellationToken cancellationToken)
@@ -94,7 +94,7 @@ public static class G0DevelopmentDataFixture
 
     static async Task<bool> EnsureBarCoreAsync(
         G0QuerySession session,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateOnly valueDate,
         TimeSpan timeout,
         CancellationToken cancellationToken)
@@ -176,7 +176,7 @@ public static class G0DevelopmentDataFixture
         };
 
     static FuturesEodDataV2ReadModel CreateEod(
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         DateOnly valueDate,
         decimal close)
         => new(

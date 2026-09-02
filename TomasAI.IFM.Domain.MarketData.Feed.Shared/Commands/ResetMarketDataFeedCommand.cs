@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -13,7 +13,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// <remarks>
 /// Follows the MessagePack serialization pattern used by other commands. Routes to
 /// <see cref="BoundedContextName.MarketDataFeedBoundedContext"/>. Custom properties begin at key index 6
-/// because base command members occupy keys 0�5.
+/// because base command members occupy keys 0ï¿½5.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record ResetMarketDataFeedCommand : ICommand<MarketDataFeedId>
@@ -41,7 +41,7 @@ public record ResetMarketDataFeedCommand : ICommand<MarketDataFeedId>
     /// The collection of futures contracts to reset in the market data feed.
     /// </summary>
     [Key(6)]
-    public FuturesContractV2ReadModel[] FuturesContracts { get; init; }
+    public FuturesContractV3ReadModel[] FuturesContracts { get; init; }
 
     /// <summary>
     /// The target value date for which the feed reset should be applied.
@@ -59,7 +59,7 @@ public record ResetMarketDataFeedCommand : ICommand<MarketDataFeedId>
     /// </summary>
     /// <param name="futuresContracts">Array of futures contracts (cannot be null).</param>
     /// <param name="valueDate">The target value date.</param>
-    public ResetMarketDataFeedCommand(FuturesContractV2ReadModel[] futuresContracts, DateOnly valueDate)
+    public ResetMarketDataFeedCommand(FuturesContractV3ReadModel[] futuresContracts, DateOnly valueDate)
     {
         FuturesContracts = futuresContracts ?? throw new ArgumentNullException(nameof(futuresContracts));
         ValueDate = valueDate;
@@ -78,7 +78,7 @@ public record ResetMarketDataFeedCommand : ICommand<MarketDataFeedId>
         MarketDataFeedId entityId,               // Key(3)
         int errorCode,                           // Key(4)
         BoundedContextName routeTo,              // Key(5)
-        FuturesContractV2ReadModel[] contracts,  // Key(6)
+        FuturesContractV3ReadModel[] contracts,  // Key(6)
         DateOnly valueDate)                      // Key(7)
     {
         CommandId = commandId;

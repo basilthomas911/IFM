@@ -204,6 +204,19 @@ public interface IMarketSessionCalendar
     bool IsTradingDate(DateOnly valueDate);
 }
 
+/// <summary>
+/// Deterministic exchange-business-day operations used by futures rollover.
+/// Implementations include weekends and explicitly configured exchange closures;
+/// they never infer preparation dates with calendar-day subtraction.
+/// </summary>
+public interface IFuturesExchangeBusinessCalendar
+{
+    bool IsBusinessDay(DateOnly valueDate);
+    DateOnly PreviousBusinessDay(DateOnly valueDate);
+    DateOnly NextBusinessDay(DateOnly valueDate);
+    DateOnly GetPreparationDate(DateOnly effectiveValueDate);
+}
+
 /// <summary>Provides the exact UTC boundaries of one futures session.</summary>
 public readonly record struct MarketSessionBounds(
     DateOnly ValueDate,

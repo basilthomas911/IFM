@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.MarketData.Contracts.Ticker;
 
@@ -102,11 +102,11 @@ public sealed class FuturesItiSignalStreamOwnership
             await TryReleaseAsync(marketDataApi, esContractId, EsOwner).ConfigureAwait(false);
     }
 
-    static FuturesContractV2ReadModel ResolveCurrentContract(
+    static FuturesContractV3ReadModel ResolveCurrentContract(
         IMarketDataApi marketDataApi,
         string symbol)
     {
-        if (marketDataApi.TryGetCurrentlyTradedFuturesContract(symbol, out var contract))
+        if (marketDataApi.TryGetOnTheRunFuturesContract(symbol, out var contract))
             return contract;
 
         throw new FuturesContractRolloverConfigurationException(
@@ -136,5 +136,5 @@ public sealed class FuturesItiSignalStreamOwnership
 
 /// <summary>Current futures contracts owned by the realtime ITI workflow.</summary>
 public readonly record struct FuturesItiSignalStreamContracts(
-    FuturesContractV2ReadModel Es,
-    FuturesContractV2ReadModel Vx);
+    FuturesContractV3ReadModel Es,
+    FuturesContractV3ReadModel Vx);

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Application.Storage.MarketDataDb;
@@ -81,7 +81,7 @@ public class ActorMarketDataQueryApiTests
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.SecuritiesDb.Returns(securitiesDb);
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        var underlyingSource = new TaskCompletionSource<FuturesContractV2ReadModel?>(
+        var underlyingSource = new TaskCompletionSource<FuturesContractV3ReadModel?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var optionsSource = new TaskCompletionSource<ICollection<FuturesOptionContractReadModel>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -112,7 +112,7 @@ public class ActorMarketDataQueryApiTests
             Arg.Any<DateOnly>(), Arg.Any<DateOnly>(),
             MarketType.Futures, CurrencyType.USD);
 
-        underlyingSource.SetResult(new FuturesContractV2ReadModel { ContractId = "U" });
+        underlyingSource.SetResult(new FuturesContractV3ReadModel { ContractId = "U" });
         optionsSource.SetResult(
         [
             new FuturesOptionContractReadModel { ContractId = "SP" },
@@ -136,7 +136,7 @@ public class ActorMarketDataQueryApiTests
         var marketDataDb = Substitute.For<IMarketDataDbContext>();
         dbFactory.SecuritiesDb.Returns(securitiesDb);
         dbFactory.MarketDataDb.Returns(marketDataDb);
-        var underlyingSource = new TaskCompletionSource<FuturesContractV2ReadModel?>(
+        var underlyingSource = new TaskCompletionSource<FuturesContractV3ReadModel?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var optionsSource = new TaskCompletionSource<ICollection<FuturesOptionContractReadModel>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -172,7 +172,7 @@ public class ActorMarketDataQueryApiTests
             MarketType.Futures, CurrencyType.USD, cancellation.Token);
 
         cancellation.Cancel();
-        underlyingSource.SetResult(new FuturesContractV2ReadModel { ContractId = "U" });
+        underlyingSource.SetResult(new FuturesContractV3ReadModel { ContractId = "U" });
         optionsSource.SetResult(
         [
             new FuturesOptionContractReadModel { ContractId = "SP" },

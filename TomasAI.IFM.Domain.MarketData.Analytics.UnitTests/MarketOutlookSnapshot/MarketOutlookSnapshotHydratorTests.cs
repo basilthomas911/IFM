@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.Storage;
@@ -27,15 +27,15 @@ public sealed class MarketOutlookSnapshotHydratorTests
         factory.MarketDataDb.Returns(db);
         var securities = Substitute.For<ISecuritiesDbContext>();
         factory.SecuritiesDb.Returns(securities);
-        var vxContract = new FuturesContractV2ReadModel
+        var vxContract = new FuturesContractV3ReadModel
         {
             ContractId = "VXU26",
             Symbol = "VX",
             LastTradeDate = new DateOnly(2026, 9, 16),
-            CurrentlyTraded = true
+            OnTheRun = true
         };
-        securities.GetCurrentlyTradedFuturesContractsAsync("VX", Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<ICollection<FuturesContractV2ReadModel>>([vxContract]));
+        securities.GetRolloverFuturesContractsAsync("VX", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ICollection<FuturesContractV3ReadModel>>([vxContract]));
         db.GetLastVixFuturesEodDataAsync(vxContract.ContractId, id.ValueDate)
             .Returns(new VixFuturesEodDataReadModel(
                 vxContract.ContractId, id.ValueDate, 17m, 19m, 16m, 18.5m, 1_000));
@@ -68,6 +68,7 @@ public sealed class MarketOutlookSnapshotHydratorTests
             runtime.Channel,
             runtime.Processor,
             runtime.Cache,
+            TimeProvider.System,
             Substitute.For<ILogger<MarketOutlookSnapshotHydrator>>());
 
         var result = await hydrator.HydrateAsync(id);
@@ -93,8 +94,8 @@ public sealed class MarketOutlookSnapshotHydratorTests
         factory.MarketDataDb.Returns(db);
         var securities = Substitute.For<ISecuritiesDbContext>();
         factory.SecuritiesDb.Returns(securities);
-        securities.GetCurrentlyTradedFuturesContractsAsync("VX", Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<ICollection<FuturesContractV2ReadModel>>([]));
+        securities.GetRolloverFuturesContractsAsync("VX", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ICollection<FuturesContractV3ReadModel>>([]));
         db.GetLastFuturesTradeSignalAsync(
                 id.ContractId, id.ValueDate, Arg.Any<CancellationToken>())
             .Returns(new FuturesTradeSignalV2ReadModel
@@ -122,10 +123,54 @@ public sealed class MarketOutlookSnapshotHydratorTests
             runtime.Channel,
             runtime.Processor,
             runtime.Cache,
+            TimeProvider.System,
             Substitute.For<ILogger<MarketOutlookSnapshotHydrator>>());
 
         var result = await hydrator.HydrateAsync(id);
 
         result!.FuturesTradeSignal!.FuturesPrice.Should().Be(6_100d);
+    }
+
+    [Fact]
+    public async Task HydrateAsync_ClampsFutureSameDayPersistedTimestampToCurrentTime()
+    {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var id = new MarketOutlookEntityId("ESU26", new DateOnly(2026, 9, 2));
+        var db = Substitute.For<IMarketDataDbContext>();
+        var factory = Substitute.For<IDbContextFactory>();
+        factory.MarketDataDb.Returns(db);
+        factory.SecuritiesDb.Returns(Substitute.For<ISecuritiesDbContext>());
+        db.GetLastFuturesTdiSignalAsync(
+                id.ContractId,
+                id.ValueDate,
+                TimeFrameType.FifteenSeconds,
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new FuturesTdiSignalReadModel
+            {
+                ContractId = id.ContractId,
+                ValueDate = id.ValueDate,
+                TimePeriod = TimeFrameType.FifteenSeconds,
+                Timestamp = new TimeOnly(23, 59, 45),
+                ConfigurationId = "TDI-13-2-7-34-34-1.6185-SMA-v1"
+            });
+        var now = new DateTimeOffset(2026, 9, 2, 16, 30, 0, TimeSpan.Zero);
+        var hydrator = new MarketOutlookSnapshotHydrator(
+            factory,
+            runtime.Channel,
+            runtime.Processor,
+            runtime.Cache,
+            new FixedTimeProvider(now),
+            Substitute.For<ILogger<MarketOutlookSnapshotHydrator>>());
+
+        var result = await hydrator.HydrateAsync(id);
+
+        result.Should().NotBeNull();
+        result!.MarketDataAsOfUtc.Should().Be(now.UtcDateTime);
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 }

@@ -14,7 +14,6 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
 {
     private readonly IActorSupervisor _supervisor;
     private IActorProducer? _realtimeProducer;
-    private readonly int _capacity;
     private Channel<Publication>? _channel;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private Task? _worker;
@@ -25,7 +24,6 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         ArgumentNullException.ThrowIfNull(supervisor);
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
         _supervisor = supervisor;
-        _capacity = capacity;
     }
 
     public bool IsRunning => Volatile.Read(ref _running) != 0;
@@ -58,22 +56,14 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
     {
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        return (_realtimeProducer ?? throw new InvalidOperationException(
-                "The tick aggregation publisher is not running."))
-            .SendAsync<
-            FuturesMarketPriceUpdatedRealtimeEvent,
-            TickDataEntityId>(@event.Subject, @event);
+        return _channel!.Writer.WriteAsync(new Publication(@event, null));
     }
 
     public ValueTask PublishAsync(FuturesSessionStatisticsUpdatedRealtimeEvent @event)
     {
         EnsureRunning();
         ArgumentNullException.ThrowIfNull(@event);
-        return (_realtimeProducer ?? throw new InvalidOperationException(
-                "The tick aggregation publisher is not running."))
-            .SendAsync<
-                FuturesSessionStatisticsUpdatedRealtimeEvent,
-                FuturesEodDataId>(@event.Subject, @event);
+        return _channel!.Writer.WriteAsync(new Publication(@event, null));
     }
 
     public async ValueTask PublishAsync(FuturesTickQuoteDataChangedEvent @event, ITickQuoteBufferLease lease)
@@ -130,6 +120,12 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
                         case FuturesTickQuoteDataChangedEvent quote:
                             await _realtimeProducer!.SendAsync<FuturesTickQuoteDataChangedEvent, TickDataEntityId>(quote.Subject, quote).ConfigureAwait(false);
                             break;
+                        case FuturesMarketPriceUpdatedRealtimeEvent price:
+                            await _realtimeProducer!.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(price.Subject, price).ConfigureAwait(false);
+                            break;
+                        case FuturesSessionStatisticsUpdatedRealtimeEvent statistics:
+                            await _realtimeProducer!.SendAsync<FuturesSessionStatisticsUpdatedRealtimeEvent, FuturesEodDataId>(statistics.Subject, statistics).ConfigureAwait(false);
+                            break;
                     }
                 }
                 finally
@@ -155,12 +151,12 @@ public sealed class TickAggregationEventPublisher : ITickAggregationEventPublish
         if (!IsRunning) throw new InvalidOperationException("The tick aggregation publisher is not running.");
     }
 
-    private Channel<Publication> CreateChannel() =>
-        Channel.CreateBounded<Publication>(new BoundedChannelOptions(_capacity)
+    private static Channel<Publication> CreateChannel() =>
+        Channel.CreateUnbounded<Publication>(new UnboundedChannelOptions
         {
             SingleReader = true,
-            SingleWriter = true,
-            FullMode = BoundedChannelFullMode.Wait,
+            // One shared publisher receives ES and VX writes concurrently.
+            SingleWriter = false,
             AllowSynchronousContinuations = false
         });
 

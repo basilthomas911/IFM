@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -19,7 +19,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.Queries;
 /// - A parameterless constructor for serializers and a full constructor annotated with <see cref="SerializationConstructorAttribute"/>.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record GetFuturesContractQuery : IQuery<FuturesContractV2ReadModel>
+public record GetFuturesContractQuery : IQuery<FuturesContractV3ReadModel>
 {
     [IgnoreMember] public const string Actor = "FuturesContractQuery";
     [IgnoreMember] public const string Verb = "GetFuturesContract";

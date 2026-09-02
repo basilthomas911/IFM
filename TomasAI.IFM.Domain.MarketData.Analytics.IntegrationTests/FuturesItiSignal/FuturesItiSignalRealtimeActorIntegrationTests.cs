@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NATS.Net;
@@ -167,13 +167,13 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         var api = Substitute.For<IMarketDataApi>();
         var es = Contract("ES", EsContractId, "ESU6", new DateOnly(2026, 9, 18));
         var vx = Contract("VX", VxContractId, "VXU6", new DateOnly(2026, 9, 16));
-        api.TryGetCurrentlyTradedFuturesContract("ES", out Arg.Any<FuturesContractV2ReadModel>()!)
+        api.TryGetOnTheRunFuturesContract("ES", out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = es;
                 return true;
             });
-        api.TryGetCurrentlyTradedFuturesContract("VX", out Arg.Any<FuturesContractV2ReadModel>()!)
+        api.TryGetOnTheRunFuturesContract("VX", out Arg.Any<FuturesContractV3ReadModel>()!)
             .Returns(call =>
             {
                 call[1] = vx;
@@ -237,7 +237,7 @@ public sealed class FuturesItiSignalRealtimeActorIntegrationTests
         };
     }
 
-    static FuturesContractV2ReadModel Contract(
+    static FuturesContractV3ReadModel Contract(
         string symbol,
         string contractId,
         string localSymbol,

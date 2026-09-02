@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.Application.MarketData.Contracts;
+﻿namespace TomasAI.IFM.Application.MarketData.Contracts;
 
 /// <summary>
 /// Base type for failures reported by the application market-data boundary.
@@ -32,9 +32,9 @@ public sealed class FuturesContractRolloverConfigurationException : MarketDataAp
     }
 }
 
-public sealed class CurrentlyTradedFuturesContractNotFoundException : MarketDataApiException
+public sealed class OnTheRunFuturesContractNotFoundException : MarketDataApiException
 {
-    public CurrentlyTradedFuturesContractNotFoundException(string symbol, DateOnly valueDate)
+    public OnTheRunFuturesContractNotFoundException(string symbol, DateOnly valueDate)
         : base($"DataBento did not return an eligible currently traded futures contract for " +
                $"'{symbol}' at {valueDate:yyyy-MM-dd}.")
     {

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -35,7 +35,7 @@ public class SecuritiesDbLoadTests(SecuritiesDatabaseFixture testFixture) : ICla
     {
         var db = _testFixture.Db;
         var futuresContractDataFromCsv = await db.UseTest(new Uri("C:\\TomasAI\\data\\SqlServer\\futures_contract.csv"))
-           .ReadAsync<FuturesContractV2ReadModel>(MapToFuturesContract);
+           .ReadAsync<FuturesContractV3ReadModel>(MapToFuturesContract);
         futuresContractDataFromCsv.Should().NotBeNull();
         futuresContractDataFromCsv.Count.Should().BeGreaterThan(0);
         await db.UseTest($"truncate futures_contract").ExecuteCommandAsync();
@@ -46,7 +46,7 @@ public class SecuritiesDbLoadTests(SecuritiesDatabaseFixture testFixture) : ICla
         resultSet.Count.Should().Be(futuresContractDataFromCsv.Count);
         return;
 
-        static FuturesContractV2ReadModel MapToFuturesContract(IObjectDataRecord o)
+        static FuturesContractV3ReadModel MapToFuturesContract(IObjectDataRecord o)
              => new(
                 o.GetString(0),
                 o.GetString(1),

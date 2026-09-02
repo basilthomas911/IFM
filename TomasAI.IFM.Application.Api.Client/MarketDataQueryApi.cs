@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Framework.Messaging;
 using TomasAI.IFM.Shared.Application;
@@ -22,24 +22,24 @@ public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketData
     readonly IQueryServiceApi _querySvc = IsArgumentNull.Set(querySvc);
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol)
+    public async Task<ServiceResult<FuturesContractV3ReadModel>> GetOnTheRunFuturesContractAsync(string symbol)
     {
-        var qryParam = new GetCurrentlyTradedFuturesContractParameter(symbol);
-        return await _querySvc.ExecuteQueryAsync<FuturesContractV2ReadModel>(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContract, qryParam, GetCurrentlyTradedFuturesContractQuery.ErrorId);
+        var qryParam = new GetOnTheRunFuturesContractParameter(symbol);
+        return await _querySvc.ExecuteQueryAsync<FuturesContractV3ReadModel>(MarketDataQueryUriPath.GetOnTheRunFuturesContract, qryParam, GetOnTheRunFuturesContractQuery.ErrorId);
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(string symbol)
+    public async Task<ServiceResult<FuturesContractV3ReadModel[]>> GetRolloverFuturesContractsAsync(string symbol)
     {
-        var qryParam = new GetCurrentlyTradedFuturesContractsParameter(symbol);
-        return await _querySvc.ExecuteQueryAsync<FuturesContractV2ReadModel[]>(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContracts, qryParam, GetCurrentlyTradedFuturesContractsQuery.ErrorId);
+        var qryParam = new GetRolloverFuturesContractsParameter(symbol);
+        return await _querySvc.ExecuteQueryAsync<FuturesContractV3ReadModel[]>(MarketDataQueryUriPath.GetRolloverFuturesContracts, qryParam, GetRolloverFuturesContractsQuery.ErrorId);
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId)
+    public async Task<ServiceResult<FuturesContractV3ReadModel>> GetFuturesContractAsync(string contractId)
     {
         var qryParam = new GetFuturesContractParameter(contractId);
-        return await _querySvc.ExecuteQueryAsync<FuturesContractV2ReadModel>(MarketDataQueryUriPath.GetFuturesContract, qryParam, GetFuturesContractQuery.ErrorId);
+        return await _querySvc.ExecuteQueryAsync<FuturesContractV3ReadModel>(MarketDataQueryUriPath.GetFuturesContract, qryParam, GetFuturesContractQuery.ErrorId);
     }
 
     /// <inheritdoc />
@@ -57,10 +57,10 @@ public partial class MarketDataQueryApi(IQueryServiceApi querySvc) : IMarketData
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync()
+    public async Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync()
     {
         var qryParam = new GetFuturesContractsParameter();
-        return await _querySvc.ExecuteQueryAsync<FuturesContractV2ReadModel[]>(MarketDataQueryUriPath.GetFuturesContracts, qryParam, GetFuturesContractsQuery.ErrorId);
+        return await _querySvc.ExecuteQueryAsync<FuturesContractV3ReadModel[]>(MarketDataQueryUriPath.GetFuturesContracts, qryParam, GetFuturesContractsQuery.ErrorId);
     }
 
     /// <inheritdoc />

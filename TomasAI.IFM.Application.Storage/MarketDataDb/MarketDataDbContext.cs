@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.Exceptions;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -1696,7 +1696,7 @@ public partial class MarketDataDbContext(
         };
     }
 
-    static FuturesContractV2ReadModel MapToFuturesContract(IObjectDataRecord o)
+    static FuturesContractV3ReadModel MapToFuturesContract(IObjectDataRecord o)
             => new(
                o.GetString(0),
                o.GetString(1),

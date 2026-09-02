@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using TomasAI.IFM.Application.Actor.IntegrationTests;
@@ -95,11 +95,11 @@ public sealed class FuturesIntradaySignalRealtimePipelineIntegrationTests(
         var valueDate = new DateOnly(2030, 1, 1).AddDays(offset);
         while (valueDate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
             valueDate = valueDate.AddDays(1);
-        var contract = new FuturesContractV2ReadModel(
+        var contract = new FuturesContractV3ReadModel(
             "ES20251010", "ES VWAP integration future", "ES", "ESZ5",
             "FUT", "USD", "CME", "50", new DateOnly(2025, 10, 10), true);
         factory.Services.GetRequiredService<IDatabentoContractRegistrationRegistry>()
-            .ReplaceCurrentFuturesContracts([contract]);
+            .ReplaceFuturesRolloverSet("ES", [contract]);
         await marketDataApi.StartAsync(valueDate);
         try
         {

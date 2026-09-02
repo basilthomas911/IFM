@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -63,7 +63,7 @@ public class MarketDataFeedCommandService(
     /// </summary>
     /// <param name="futuresContracts"></param>
     /// <param name="valueDate"></param>
-    public async Task<Guid> StartDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
+    public async Task<Guid> StartDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate)
         => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.StartMarketDataFeedAsync(futuresContracts, valueDate));
 
     /// <summary>
@@ -84,7 +84,7 @@ public class MarketDataFeedCommandService(
     /// </summary>
     /// <param name="futuresContracts"></param>
     /// <param name="valueDate"></param>
-    public async Task ResetDataFeedAsync(ICollection<FuturesContractV2ReadModel> futuresContracts, DateOnly valueDate)
+    public async Task ResetDataFeedAsync(ICollection<FuturesContractV3ReadModel> futuresContracts, DateOnly valueDate)
         => await ExecuteCommandAsync( () => _marketDataFeedCommandApi.ResetMarketDataFeedAsync(futuresContracts, valueDate));
 
     /// <summary>
@@ -107,7 +107,7 @@ public class MarketDataFeedCommandService(
     /// <param name="riskFreeRate">The risk-free interest rate used in calculations.</param>
     /// <param name="onCompleted">An action to be invoked upon successful completion of the streaming process.</param>
     /// <returns></returns>
-    public async Task StartStreamingFuturesOptionTickDataAsync(Dictionary<FuturesOptionTickEntityId, string> feedIds, FuturesContractV2ReadModel baseContract, DateOnly valueDate, DateOnly maturityDate, double riskFreeRate, Action onCompleted)
+    public async Task StartStreamingFuturesOptionTickDataAsync(Dictionary<FuturesOptionTickEntityId, string> feedIds, FuturesContractV3ReadModel baseContract, DateOnly valueDate, DateOnly maturityDate, double riskFreeRate, Action onCompleted)
         => await ExecuteAsync(async () => {
             foreach (var e in feedIds)
             {

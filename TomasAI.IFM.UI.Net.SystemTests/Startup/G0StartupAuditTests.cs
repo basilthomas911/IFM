@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 using FluentAssertions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
@@ -45,7 +45,7 @@ public sealed class G0StartupAuditTests
         G0EventObserver? observer = null;
         G0QuerySession? queries = null;
         G0UiAutomationSession? automation = null;
-        FuturesContractV2ReadModel? esContract = null;
+        FuturesContractV3ReadModel? esContract = null;
         DateOnly? valueDate = null;
         int? importedYieldCurveRows = null;
         int? importedEconomicCalendarRows = null;
@@ -236,9 +236,9 @@ public sealed class G0StartupAuditTests
                     RequirePassed(recorder, "G0-005", "Queries require a ready backend.");
                     queries = new G0QuerySession(configuration.NatsUri);
                     await queries.StartAsync(configuration.RunId, token);
-                    var result = await queries.MarketData.GetCurrentlyTradedFuturesContractAsync("ES")
+                    var result = await queries.MarketData.GetOnTheRunFuturesContractAsync("ES")
                         .WaitAsync(configuration.ReadinessTimeout, token);
-                    if (!result.Success || result.Value is null || !result.Value.IsValid || !result.Value.CurrentlyTraded)
+                    if (!result.Success || result.Value is null || !result.Value.IsValid || !result.Value.OnTheRun)
                         throw new G0DependencyException(
                             $"Current ES contract is unavailable: code={result.ErrorCode}; message={result.ErrorMessage}");
                     esContract = result.Value;
@@ -640,7 +640,7 @@ public sealed class G0StartupAuditTests
             throw new G0DependencyException("The main-window UI Automation session is unavailable.", G0StepStatus.SkippedDependency);
     }
 
-    static void RequireContract(FuturesContractV2ReadModel? contract)
+    static void RequireContract(FuturesContractV3ReadModel? contract)
     {
         if (contract is null)
             throw new G0DependencyException("A current ES contract is unavailable.", G0StepStatus.SkippedDependency);

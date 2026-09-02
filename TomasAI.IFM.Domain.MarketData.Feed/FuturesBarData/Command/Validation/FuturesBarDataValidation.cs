@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
@@ -59,7 +59,7 @@ internal static class FuturesBarDataValidation
     }
 
     /// <summary>
-    /// Validates the FuturesContractV2ReadModel array and adds any validation errors to the provided list.
+    /// Validates the FuturesContractV3ReadModel array and adds any validation errors to the provided list.
     /// </summary>
     /// <remarks>
     /// This method validates that the contracts array is not null or empty, and performs basic validation 
@@ -67,11 +67,11 @@ internal static class FuturesBarDataValidation
     /// IReferenceLookupService which is not available in this static context.
     /// </remarks>
     /// <param name="validationErrors">The list to which validation errors will be added. This list must not be null.</param>
-    /// <param name="contracts">The array of <see cref="FuturesContractV2ReadModel"/> instances to validate.</param>
+    /// <param name="contracts">The array of <see cref="FuturesContractV3ReadModel"/> instances to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of <see cref="ValidationError"/> objects, including any errors found during 
     /// validation of the <paramref name="contracts"/>.</returns>
-    public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV2ReadModel[] contracts, string commandName)
+    public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV3ReadModel[] contracts, string commandName)
     {
         // Validate array is not null
         if (contracts is null)

@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using Microsoft.AspNetCore.Http;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -39,18 +39,18 @@ public static class MarketDataQueryApiResult
             new EconomicCalendarCountryCodeReadModel("GB")
         });
 
-    public static Task FromGetCurrentlyTradedFuturesContractAsync(HttpResponse resp)
-        => resp.SetResult(new FuturesContractV2ReadModel(
+    public static Task FromGetOnTheRunFuturesContractAsync(HttpResponse resp)
+        => resp.SetResult(new FuturesContractV3ReadModel(
             "ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true));
 
-    public static Task FromGetCurrentlyTradedFuturesContractsAsync(HttpResponse resp)
+    public static Task FromGetRolloverFuturesContractsAsync(HttpResponse resp)
         => resp.SetResult(new[] {
-            new FuturesContractV2ReadModel("ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true),
-            new FuturesContractV2ReadModel("ES20251011", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 11), true)
+            new FuturesContractV3ReadModel("ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true),
+            new FuturesContractV3ReadModel("ES20251011", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 11), true)
         });
 
     public static Task FromGetFuturesContractAsync(HttpResponse resp)
-        => resp.SetResult(new FuturesContractV2ReadModel(
+        => resp.SetResult(new FuturesContractV3ReadModel(
             "ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true));
 
     public static Task FromGetFuturesContractSymbolAsync(HttpResponse resp)
@@ -82,8 +82,8 @@ public static class MarketDataQueryApiResult
 
     public static Task FromGetFuturesContractsAsync(HttpResponse resp)
         => resp.SetResult(new[] {
-            new FuturesContractV2ReadModel("ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true),
-            new FuturesContractV2ReadModel("ES20251011", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 11), true)
+            new FuturesContractV3ReadModel("ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true),
+            new FuturesContractV3ReadModel("ES20251011", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 11), true)
         });
 
     public static Task FromGetFuturesOptionContractsAsync(HttpResponse resp)
@@ -125,7 +125,7 @@ public static class MarketDataQueryApiResult
 
     public static Task FromGetIronCondorMarketDataAsync(HttpResponse resp)
         => resp.SetResult(new IronCondorMarketDataReadModel(
-            new FuturesContractV2ReadModel("ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true),
+            new FuturesContractV3ReadModel("ES20251010", "ES", "ES", "FUT", "USD", "GLOBEX", "50", "Active", new System.DateOnly(2025, 10, 10), true),
             new FuturesOptionContractReadModel("ES20251010C4500", "OptionDesc", "ES", "ESOPT", "OPT", "USD", "GLOBEX", "50", new System.DateOnly(2025, 10, 10), 4500, "CALL"),
             new FuturesOptionContractReadModel("ES20251010C4600", "OptionDesc", "ES", "ESOPT", "OPT", "USD", "GLOBEX", "50", new System.DateOnly(2025, 10, 10), 4600, "CALL"),
             new FuturesOptionContractReadModel("ES20251010C4700", "OptionDesc", "ES", "ESOPT", "OPT", "USD", "GLOBEX", "50", new System.DateOnly(2025, 10, 10), 4700, "CALL"),

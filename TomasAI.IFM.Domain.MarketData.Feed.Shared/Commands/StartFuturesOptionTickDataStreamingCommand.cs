@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -15,7 +15,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// <remarks>
 /// Follows the MessagePack serialization pattern used across commands. Routes to
 /// <see cref="BoundedContextName.FuturesOptionTickDataBoundedContext"/>. Custom properties begin at key index 6
-/// because base command members occupy keys 0�5.
+/// because base command members occupy keys 0ï¿½5.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record StartFuturesOptionTickDataStreamingCommand
@@ -46,7 +46,7 @@ public record StartFuturesOptionTickDataStreamingCommand
 
     /// <summary>The base futures contract associated with the specified option contract.</summary>
     [Key(7)]
-    public FuturesContractV2ReadModel BaseContract { get; init; }
+    public FuturesContractV3ReadModel BaseContract { get; init; }
 
     /// <summary>The value date for the futures option contract.</summary>
     [Key(8)]
@@ -77,7 +77,7 @@ public record StartFuturesOptionTickDataStreamingCommand
     public StartFuturesOptionTickDataStreamingCommand(
         FuturesOptionTickEntityId entityId,
         FuturesOptionContractReadModel contract,
-        FuturesContractV2ReadModel baseContract,
+        FuturesContractV3ReadModel baseContract,
         DateOnly valueDate,
         DateOnly maturityDate,
         double riskFreeRate)
@@ -102,7 +102,7 @@ public record StartFuturesOptionTickDataStreamingCommand
         int errorCode,                          // Key(4)
         BoundedContextName routeTo,             // Key(5)
         FuturesOptionContractReadModel contract,// Key(7)
-        FuturesContractV2ReadModel baseContract,// Key(8)
+        FuturesContractV3ReadModel baseContract,// Key(8)
         DateOnly valueDate,                     // Key(9)
         DateOnly maturityDate,                  // Key(10)
         double riskFreeRate)                    // Key(11)

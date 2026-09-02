@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
@@ -33,7 +33,7 @@ public sealed class ApiApplicationStartupActivities(
     TimeProvider timeProvider,
     ILogger<ApiApplicationStartupActivities> logger) : IApplicationStartupActivities
 {
-    readonly ConcurrentDictionary<DateOnly, FuturesContractV2ReadModel[]> contractsByValueDate = new();
+    readonly ConcurrentDictionary<DateOnly, FuturesContractV3ReadModel[]> contractsByValueDate = new();
 
     public ValueTask<ApplicationStartupActivityOutcome> ResolveAuthorityAsync(
         ApplicationStartupContext context,
@@ -70,9 +70,9 @@ public sealed class ApiApplicationStartupActivities(
         _ = await rolloverCheck.ExecuteAsync(context.ValueDate, cancellationToken)
             .ConfigureAwait(false);
 
-        var es = await marketDataQueryApi.GetCurrentlyTradedFuturesContractsAsync("ES")
+        var es = await marketDataQueryApi.GetRolloverFuturesContractsAsync("ES")
             .ConfigureAwait(false);
-        var vx = await marketDataQueryApi.GetCurrentlyTradedFuturesContractsAsync("VX")
+        var vx = await marketDataQueryApi.GetRolloverFuturesContractsAsync("VX")
             .ConfigureAwait(false);
         if (!es.Success || !vx.Success)
             throw new InvalidOperationException(
@@ -83,10 +83,10 @@ public sealed class ApiApplicationStartupActivities(
             .Where(contract => !string.IsNullOrWhiteSpace(contract.ContractId))
             .DistinctBy(contract => contract.ContractId, StringComparer.Ordinal)
             .ToArray();
-        if (!contracts.Any(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "ES"))
-            || contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "VX")) < 2)
+        if (contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "ES")) != 1
+            || contracts.Count(contract => StringComparer.OrdinalIgnoreCase.Equals(contract.Symbol, "VX")) != 2)
             throw new InvalidOperationException(
-                "The current-contract set must contain quarterly ES plus current-month and next-month VX.");
+                "The current-contract set must contain exactly one quarterly ES plus current-month and next-month VX.");
 
         contractsByValueDate[context.ValueDate] = contracts;
         return ApplicationStartupActivityOutcome.Started;
@@ -212,7 +212,7 @@ public sealed class ApiApplicationStartupActivities(
         return ValueTask.FromResult(ApplicationStartupActivityOutcome.AlreadySatisfied);
     }
 
-    FuturesContractV2ReadModel RequiredEsContract(DateOnly valueDate)
+    FuturesContractV3ReadModel RequiredEsContract(DateOnly valueDate)
     {
         if (contractsByValueDate.TryGetValue(valueDate, out var contracts))
         {

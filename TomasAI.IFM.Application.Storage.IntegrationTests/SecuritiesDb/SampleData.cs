@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -7,7 +7,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb
 {
     public static class SampleData
     {
-        public static FuturesContractV2ReadModel FuturesContract
+        public static FuturesContractV3ReadModel FuturesContract
             => new (
                 contractId: "ES20251010",
                 description: "Test Description",
@@ -18,7 +18,7 @@ namespace TomasAI.IFM.Application.Storage.IntegrationTests.SecuritiesDb
                 exchange: "NYSE",
                 multiplier: "100",
                 lastTradeDate: DateOnly.FromDateTime(DateTime.UtcNow),
-                currentlyTraded: true);
+                onTheRun: true);
 
         public static FuturesOptionContractReadModel FuturesOptionContract
             => new (

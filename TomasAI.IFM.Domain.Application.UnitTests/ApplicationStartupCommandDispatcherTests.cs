@@ -65,6 +65,23 @@ public sealed class ApplicationStartupCommandDispatcherTests
         await dispatcher.StopAsync(CancellationToken.None);
     }
 
+    [Fact]
+    public async Task Shutdown_before_application_started_completes_without_cancellation()
+    {
+        var dispatcher = Create(
+            new TestLifetime(),
+            new ConstantReadiness(true),
+            new RecordingCommandApi(),
+            enabled: true);
+
+        await dispatcher.StartAsync(CancellationToken.None);
+        await Task.Delay(50);
+        await dispatcher.StopAsync(CancellationToken.None);
+        await dispatcher.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(dispatcher.ExecuteTask.IsCompletedSuccessfully);
+    }
+
     static ApplicationStartupCommandDispatcher Create(
         IHostApplicationLifetime lifetime,
         IApplicationBootstrapReadiness readiness,

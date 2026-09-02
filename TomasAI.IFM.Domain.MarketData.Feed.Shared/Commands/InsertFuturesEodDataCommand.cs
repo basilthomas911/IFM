@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -16,7 +16,7 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 /// <remarks>
 /// Follows the MessagePack serialization pattern used by other commands. Routes to
 /// <see cref="BoundedContextName.FuturesEodDataBoundedContext"/>. Custom properties begin at key index 6
-/// because base command members occupy keys 0�5.
+/// because base command members occupy keys 0ï¿½5.
 /// </remarks>
 [MessagePackObject(AllowPrivate = true)]
 public record InsertFuturesEodDataCommand : ICommand<FuturesEodDataId>
@@ -50,7 +50,7 @@ public record InsertFuturesEodDataCommand : ICommand<FuturesEodDataId>
 
     /// <summary>Contract metadata for the futures instrument.</summary>
     [Key(8)]
-    public FuturesContractV2ReadModel Contract { get; init; }
+    public FuturesContractV3ReadModel Contract { get; init; }
 
     /// <summary>Today's EOD data snapshot.</summary>
     [Key(9)]
@@ -91,7 +91,7 @@ public record InsertFuturesEodDataCommand : ICommand<FuturesEodDataId>
     public InsertFuturesEodDataCommand(
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
-        FuturesContractV2ReadModel contract,
+        FuturesContractV3ReadModel contract,
         FuturesEodDataV2ReadModel eodDataToday,
         ICollection<FuturesEodDataV2ReadModel> eodDataRange,
         NormalCurveTableReadModel normCurveData,
@@ -123,7 +123,7 @@ public record InsertFuturesEodDataCommand : ICommand<FuturesEodDataId>
         BoundedContextName routeTo,                       // Key(5)
         DateOnly valueDate,                               // Key(6)
         FuturesTickDataV2ReadModel futuresTickData,       // Key(7)
-        FuturesContractV2ReadModel contract,              // Key(8)
+        FuturesContractV3ReadModel contract,              // Key(8)
         FuturesEodDataV2ReadModel eodDataToday,           // Key(9)
         ICollection<FuturesEodDataV2ReadModel> eodDataRange, // Key(10)
         NormalCurveTableReadModel normCurveData,          // Key(11)

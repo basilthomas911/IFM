@@ -1,26 +1,24 @@
-using MessagePack;
+﻿using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 
 namespace TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 
 /// <summary>
-/// Represents the parameters required to retrieve the currently traded futures contract for a specific symbol.
+/// Represents the parameters required to retrieve all currently traded futures contracts.
 /// </summary>
-/// <remarks>Use this type to specify the symbol when requesting the currently traded futures contract.
+/// <remarks>Use this type when requesting all currently traded futures contracts.
 /// This record is typically used as a data transfer object in service or actor-based APIs.</remarks>
 [MessagePackObject(false)]
-public record GetCurrentlyTradedFuturesContractParameter : IActorEntityId, IQueryParameter
+public record GetRolloverFuturesContractsParameter : IActorEntityId, IQueryParameter
 {
     [Key(0)] public string Symbol { get; init; } = string.Empty;
 
     [IgnoreMember]
     public string? QueryParams { get; private set; }
 
-    public GetCurrentlyTradedFuturesContractParameter() { }
-
     [SerializationConstructor]
-    public GetCurrentlyTradedFuturesContractParameter(string symbol)
+    public GetRolloverFuturesContractsParameter(string symbol)
     {
         Symbol = symbol;
         QueryParams = $"symbol={Symbol}";

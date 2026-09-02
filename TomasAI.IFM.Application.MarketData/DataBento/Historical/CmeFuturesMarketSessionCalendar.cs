@@ -5,7 +5,9 @@ namespace TomasAI.IFM.Application.MarketData.Databento.Historical;
 /// <summary>
 /// Resolves CME-style futures value dates using America/New_York timezone rules, holidays, and early closes.
 /// </summary>
-public sealed class CmeFuturesMarketSessionCalendar : IMarketSessionCalendar
+public sealed class CmeFuturesMarketSessionCalendar :
+    IMarketSessionCalendar,
+    IFuturesExchangeBusinessCalendar
 {
     readonly TimeZoneInfo _marketTimeZone;
     readonly HashSet<DateOnly> _holidays;
@@ -55,6 +57,31 @@ public sealed class CmeFuturesMarketSessionCalendar : IMarketSessionCalendar
     public bool IsTradingDate(DateOnly valueDate) =>
         valueDate.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday)
         && !_holidays.Contains(valueDate);
+
+    public bool IsBusinessDay(DateOnly valueDate) => IsTradingDate(valueDate);
+
+    public DateOnly PreviousBusinessDay(DateOnly valueDate)
+    {
+        if (valueDate == default)
+            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        var candidate = valueDate.AddDays(-1);
+        while (!IsBusinessDay(candidate))
+            candidate = candidate.AddDays(-1);
+        return candidate;
+    }
+
+    public DateOnly NextBusinessDay(DateOnly valueDate)
+    {
+        if (valueDate == default)
+            throw new ArgumentOutOfRangeException(nameof(valueDate));
+        var candidate = valueDate.AddDays(1);
+        while (!IsBusinessDay(candidate))
+            candidate = candidate.AddDays(1);
+        return candidate;
+    }
+
+    public DateOnly GetPreparationDate(DateOnly effectiveValueDate) =>
+        PreviousBusinessDay(effectiveValueDate);
 
     static TimeZoneInfo ResolveNewYorkTimeZone()
     {

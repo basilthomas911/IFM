@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.TickAggregation.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Events;
@@ -1012,7 +1012,7 @@ public sealed class TickAggregationServiceTests
         Exchange = "CME",
         ContractMultiplier = 50m,
         MaturityDate = new DateOnly(2026, 9, 18),
-        IsCurrentlyTraded = true
+        IsOnTheRun = true
     };
 
     private sealed class CapturingStreamRoutes : ITickerStreamRouteController

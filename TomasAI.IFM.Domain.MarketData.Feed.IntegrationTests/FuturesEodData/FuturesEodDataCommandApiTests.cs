@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -382,6 +382,6 @@ public class FuturesEodDataCommandApiTests(WebApplicationFactory<Program> factor
         string ContractId,
         DateOnly ValueDate,
         FuturesTickDataV2ReadModel TickData,
-        FuturesContractV2ReadModel Contract,
+        FuturesContractV3ReadModel Contract,
         FuturesEodDataV2ReadModel[] EodDataRange);
 }

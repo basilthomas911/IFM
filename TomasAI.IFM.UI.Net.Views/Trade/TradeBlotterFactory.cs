@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
@@ -9,7 +9,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade;
 
 public static class TradeBlotterFactory
 {
-    public static Control? Create(Control parentControl, IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate, ICollection<FuturesContractV2ReadModel> baseContracts, bool historicalReadOnly = false)
+    public static Control? Create(Control parentControl, IAppRoot appRoot, FundReadModel fund,  FundOrderReadModel fundOrder, FundOrderTradeReadModel fundOrderTrade, DateOnly? valueDate, ICollection<FuturesContractV3ReadModel> baseContracts, bool historicalReadOnly = false)
     {
         var blotter = default(Control);
         switch(fundOrderTrade.TradeType)

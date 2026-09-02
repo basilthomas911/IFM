@@ -1,4 +1,4 @@
-namespace TomasAI.IFM.UI.Net.Views.MarketData
+﻿namespace TomasAI.IFM.UI.Net.Views.MarketData
 {
     partial class FuturesContractEditorControl
     {
@@ -60,9 +60,9 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             pnlMultiplier = new Panel();
             lblMultiplier = new Label();
             ddlMultiplier = new ComboBox();
-            ddlCurrentlyTraded = new ComboBox();
-            pnlCurrentlyTraded = new Panel();
-            lblCurrentlyTraded = new Label();
+            ddlOnTheRun = new ComboBox();
+            pnlOnTheRun = new Panel();
+            lblOnTheRun = new Label();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
             splitContainer1.Panel2.SuspendLayout();
@@ -78,21 +78,21 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             pnlCurrency.SuspendLayout();
             pnlExchange.SuspendLayout();
             pnlMultiplier.SuspendLayout();
-            pnlCurrentlyTraded.SuspendLayout();
+            pnlOnTheRun.SuspendLayout();
             SuspendLayout();
-            // 
+            //
             // splitContainer1
-            // 
+            //
             splitContainer1.Dock = DockStyle.Fill;
             splitContainer1.Location = new Point(0, 0);
             splitContainer1.Margin = new Padding(2);
             splitContainer1.Name = "splitContainer1";
-            // 
+            //
             // splitContainer1.Panel1
-            // 
+            //
             splitContainer1.Panel1.Controls.Add(lstFuturesContractIds);
             splitContainer1.Panel1.Controls.Add(pnlFuturesContractIds);
-            // 
+            //
             // splitContainer1.Panel2
             // 
             splitContainer1.Panel2.Controls.Add(tlpFuturesOptionContract);
@@ -163,8 +163,8 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             tlpFuturesOptionContract.Controls.Add(ddlExchange, 1, 7);
             tlpFuturesOptionContract.Controls.Add(pnlMultiplier, 0, 8);
             tlpFuturesOptionContract.Controls.Add(ddlMultiplier, 1, 8);
-            tlpFuturesOptionContract.Controls.Add(ddlCurrentlyTraded, 1, 9);
-            tlpFuturesOptionContract.Controls.Add(pnlCurrentlyTraded, 0, 9);
+            tlpFuturesOptionContract.Controls.Add(ddlOnTheRun, 1, 9);
+            tlpFuturesOptionContract.Controls.Add(pnlOnTheRun, 0, 9);
             tlpFuturesOptionContract.Dock = DockStyle.Fill;
             tlpFuturesOptionContract.Location = new Point(0, 0);
             tlpFuturesOptionContract.Margin = new Padding(2);
@@ -524,42 +524,42 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             ddlMultiplier.Name = "ddlMultiplier";
             ddlMultiplier.Size = new Size(229, 24);
             ddlMultiplier.TabIndex = 21;
-            // 
-            // ddlCurrentlyTraded
-            // 
-            ddlCurrentlyTraded.BackColor = Color.Black;
-            ddlCurrentlyTraded.DropDownStyle = ComboBoxStyle.DropDownList;
-            ddlCurrentlyTraded.Enabled = false;
-            ddlCurrentlyTraded.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            ddlCurrentlyTraded.ForeColor = Color.White;
-            ddlCurrentlyTraded.FormattingEnabled = true;
-            ddlCurrentlyTraded.Location = new Point(165, 320);
-            ddlCurrentlyTraded.Margin = new Padding(4, 3, 4, 3);
-            ddlCurrentlyTraded.Name = "ddlCurrentlyTraded";
-            ddlCurrentlyTraded.Size = new Size(228, 24);
-            ddlCurrentlyTraded.TabIndex = 22;
-            // 
-            // pnlCurrentlyTraded
-            // 
-            pnlCurrentlyTraded.Controls.Add(lblCurrentlyTraded);
-            pnlCurrentlyTraded.Dock = DockStyle.Fill;
-            pnlCurrentlyTraded.Location = new Point(2, 319);
-            pnlCurrentlyTraded.Margin = new Padding(2);
-            pnlCurrentlyTraded.Name = "pnlCurrentlyTraded";
-            pnlCurrentlyTraded.Size = new Size(157, 28);
-            pnlCurrentlyTraded.TabIndex = 23;
-            // 
-            // lblCurrentlyTraded
-            // 
-            lblCurrentlyTraded.AutoSize = true;
-            lblCurrentlyTraded.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            lblCurrentlyTraded.ForeColor = Color.White;
-            lblCurrentlyTraded.Location = new Point(14, 0);
-            lblCurrentlyTraded.Margin = new Padding(4, 0, 4, 0);
-            lblCurrentlyTraded.Name = "lblCurrentlyTraded";
-            lblCurrentlyTraded.Size = new Size(110, 16);
-            lblCurrentlyTraded.TabIndex = 0;
-            lblCurrentlyTraded.Text = "Currently Traded:";
+            //
+            // ddlOnTheRun
+            //
+            ddlOnTheRun.BackColor = Color.Black;
+            ddlOnTheRun.DropDownStyle = ComboBoxStyle.DropDownList;
+            ddlOnTheRun.Enabled = false;
+            ddlOnTheRun.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            ddlOnTheRun.ForeColor = Color.White;
+            ddlOnTheRun.FormattingEnabled = true;
+            ddlOnTheRun.Location = new Point(165, 320);
+            ddlOnTheRun.Margin = new Padding(4, 3, 4, 3);
+            ddlOnTheRun.Name = "ddlOnTheRun";
+            ddlOnTheRun.Size = new Size(228, 24);
+            ddlOnTheRun.TabIndex = 22;
+            //
+            // pnlOnTheRun
+            //
+            pnlOnTheRun.Controls.Add(lblOnTheRun);
+            pnlOnTheRun.Dock = DockStyle.Fill;
+            pnlOnTheRun.Location = new Point(2, 319);
+            pnlOnTheRun.Margin = new Padding(2);
+            pnlOnTheRun.Name = "pnlOnTheRun";
+            pnlOnTheRun.Size = new Size(157, 28);
+            pnlOnTheRun.TabIndex = 23;
+            //
+            // lblOnTheRun
+            //
+            lblOnTheRun.AutoSize = true;
+            lblOnTheRun.Font = new Font("Microsoft Sans Serif", 9.75F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            lblOnTheRun.ForeColor = Color.White;
+            lblOnTheRun.Location = new Point(14, 0);
+            lblOnTheRun.Margin = new Padding(4, 0, 4, 0);
+            lblOnTheRun.Name = "lblOnTheRun";
+            lblOnTheRun.Size = new Size(110, 16);
+            lblOnTheRun.TabIndex = 0;
+            lblOnTheRun.Text = "On The Run:";
             // 
             // FuturesContractEditorControl
             // 
@@ -596,8 +596,8 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
             pnlExchange.PerformLayout();
             pnlMultiplier.ResumeLayout(false);
             pnlMultiplier.PerformLayout();
-            pnlCurrentlyTraded.ResumeLayout(false);
-            pnlCurrentlyTraded.PerformLayout();
+            pnlOnTheRun.ResumeLayout(false);
+            pnlOnTheRun.PerformLayout();
             ResumeLayout(false);
 
         }
@@ -633,9 +633,9 @@ namespace TomasAI.IFM.UI.Net.Views.MarketData
         private System.Windows.Forms.Panel pnlMultiplier;
         private System.Windows.Forms.Label lblMultiplier;
         private System.Windows.Forms.ComboBox ddlMultiplier;
-        private System.Windows.Forms.ComboBox ddlCurrentlyTraded;
-        private System.Windows.Forms.Panel pnlCurrentlyTraded;
-        private System.Windows.Forms.Label lblCurrentlyTraded;
+        private System.Windows.Forms.ComboBox ddlOnTheRun;
+        private System.Windows.Forms.Panel pnlOnTheRun;
+        private System.Windows.Forms.Label lblOnTheRun;
         private System.Windows.Forms.Panel pnlFuturesContractIds;
         private System.Windows.Forms.ListBox lstFuturesContractIds;
         private System.Windows.Forms.Label lblFuturesContractIds;

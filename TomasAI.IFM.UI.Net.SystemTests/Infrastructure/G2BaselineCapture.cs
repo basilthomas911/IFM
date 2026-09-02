@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.Fund.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
@@ -12,9 +12,9 @@ public sealed record G2BaselineSnapshot(
     DateOnly ValueDate,
     DateOnly ImportDate,
     string[] ImportCountryCodes,
-    FuturesContractV2ReadModel[] RunOwnedFuturesContracts,
+    FuturesContractV3ReadModel[] RunOwnedFuturesContracts,
     FuturesOptionContractReadModel[] RunOwnedFuturesOptions,
-    FuturesContractV2ReadModel? SecuritiesFixtureContract,
+    FuturesContractV3ReadModel? SecuritiesFixtureContract,
     FuturesOptionContractReadModel? SecuritiesFixtureOption,
     YieldCurveRateReadModel[] YieldCurveManualDateRows,
     YieldCurveRateReadModel[] YieldCurveImportDateRows,

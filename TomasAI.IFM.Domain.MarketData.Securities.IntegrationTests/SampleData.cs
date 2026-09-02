@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Securities.IntegrationTests;
 
@@ -10,7 +10,7 @@ public static class SampleData
     static readonly DateOnly _lastTradeDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3));
     static readonly DateOnly _optionContractMonth = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3));
 
-    public static FuturesContractV2ReadModel NewFuturesContract => new(
+    public static FuturesContractV3ReadModel NewFuturesContract => new(
         contractId: "ES20251010",
         description: "Test Futures Contract",
         symbol: "ES",
@@ -20,10 +20,10 @@ public static class SampleData
         exchange: "CME",
         multiplier: "50",
         lastTradeDate: _lastTradeDate,
-        currentlyTraded: true
+        onTheRun: true
     );
 
-    public static FuturesContractV2ReadModel ChangedFuturesContract => new(
+    public static FuturesContractV3ReadModel ChangedFuturesContract => new(
         contractId: "ES20251010",
         description: "Changed Test Futures Contract",
         symbol: "ES",
@@ -33,7 +33,7 @@ public static class SampleData
         exchange: "GLOBEX",
         multiplier: "50",
         lastTradeDate: _lastTradeDate,
-        currentlyTraded: false
+        onTheRun: false
     );
 
     public static FuturesOptionContractReadModel NewFuturesOptionContract => new(

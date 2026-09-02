@@ -43,6 +43,47 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         }
     }
 
+    sealed class ThrowingUpdateReader : IMarketOutlookUpdateReader
+    {
+        public TaskCompletionSource Invoked { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int PendingCount => 0;
+        public DateTime? OldestPendingUtc => null;
+
+        public async IAsyncEnumerable<MarketOutlookUpdate> ReadAllAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken cancellationToken)
+        {
+            Invoked.TrySetResult();
+            await Task.Yield();
+            throw new InvalidOperationException("Injected channel-reader failure.");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
+        }
+    }
+
+    [Fact]
+    public async Task Reader_failure_is_contained_without_faulting_the_hosted_service()
+    {
+        var reader = new ThrowingUpdateReader();
+        using var processor = new MarketOutlookUpdateProcessor(
+            Substitute.For<IMarketOutlookUpdateWriter>(),
+            reader,
+            Substitute.For<IMarketOutlookHotCache>(),
+            Substitute.For<IMarketOutlookHotCacheWriter>(),
+            Substitute.For<IMarketOutlookSnapshotPublisher>(),
+            new MarketOutlookProcessorMetrics(),
+            Substitute.For<Microsoft.Extensions.Logging.ILogger<MarketOutlookUpdateProcessor>>());
+
+        await processor.StartAsync(CancellationToken.None);
+        await reader.Invoked.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await processor.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(2));
+
+        processor.ExecuteTask.IsCompletedSuccessfully.Should().BeTrue();
+        processor.IsReady.Should().BeFalse();
+    }
+
     [Fact]
     public void LocalUpdateContracts_AreNotActorMessages()
     {

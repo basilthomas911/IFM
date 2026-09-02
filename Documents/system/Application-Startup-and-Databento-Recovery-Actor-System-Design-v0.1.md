@@ -133,7 +133,7 @@ effects rather than as application-startup participants.
 
 `IFMAppViewModel.StartApplicationCoreAsync` currently performs or initiates:
 
-- currently traded contract loading;
+- on-the-run and rollover-set contract loading;
 - automatic reference-data imports;
 - market-session loading and transition monitoring;
 - Market Outlook hydration/listeners;
@@ -143,6 +143,23 @@ effects rather than as application-startup participants.
 - market-data feed and futures stream startup;
 - intraday signal service startup; and
 - market-data feed-health monitoring.
+
+### 4.4 API hosted-service exception boundary
+
+Every `IHostedService` and `BackgroundService` registered by the API owns a final exception
+boundary around its startup, execution, and explicit shutdown work. Operational exceptions are
+written as structured errors and must not escape into `Host.TryExecuteBackgroundServiceAsync`,
+because an escaped background-service exception can terminate the entire API process.
+
+Normal process shutdown uses normal-completion lifecycle signals for timer and bootstrap waits;
+it does not create `TaskCanceledException` merely to leave a wait. Dependencies that report
+cancellation or throw unexpectedly are still caught at the worker boundary. A contained failure
+does not imply that the affected capability is healthy: its readiness/metrics remain unavailable
+or degraded and the error remains observable, while unrelated API and actor capabilities continue
+running. Per-operation loops additionally catch individual failures so later scheduled work can
+continue when retrying is safe. As defense in depth, the API host sets
+`BackgroundServiceExceptionBehavior.Ignore`; therefore a future missed worker boundary is logged
+by the generic host but cannot terminate the API process.
 
 The UI shutdown path can stop the feed. This creates dual ownership between the API-hosted rollover
 service and the UI.
@@ -336,7 +353,7 @@ in-process message hops inside the Application event actor.
 Phase B: reference and contracts
   scheduled reference imports that are operational prerequisites
   futures rollover reconciliation
-  authoritative currently traded contracts
+  authoritative on-the-run identities and rollover sets
 
 Phase C: local processors
   Market Outlook update processor readiness
@@ -568,7 +585,7 @@ Every minute while enabled, one evaluation reads a coherent snapshot containing:
 - the bounded synchronous Databento up/down probe;
 - native lifecycle/terminal state available from the selected C++ or Rust backend;
 - managed aggregation-worker state;
-- required currently traded contract route state;
+- required on-the-run route and rollover-set state;
 - last accepted cache update for required feeds;
 - processing/publication failure counters; and
 - current session state.

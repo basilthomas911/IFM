@@ -43,7 +43,12 @@ public sealed class ApplicationStartupCommandDispatcher(
             return;
         }
 
-        await WaitForApplicationStartedAsync(lifetime, stoppingToken).ConfigureAwait(false);
+        if (!await HostedServiceLifecycle.WaitForSignalAsync(
+                lifetime.ApplicationStarted, stoppingToken).ConfigureAwait(false))
+        {
+            logger.LogInformation("Application startup dispatch stopped before API bootstrap completed.");
+            return;
+        }
         var started = timeProvider.GetTimestamp();
         while (timeProvider.GetElapsedTime(started) < options.BootstrapTimeout)
         {
@@ -58,8 +63,13 @@ public sealed class ApplicationStartupCommandDispatcher(
                 await ReportAsync(message, result.Success ? null : result.ErrorCode).ConfigureAwait(false);
                 return;
             }
-            await Task.Delay(TimeSpan.FromMilliseconds(250), timeProvider, stoppingToken)
-                .ConfigureAwait(false);
+            if (!await HostedServiceLifecycle.DelayAsync(
+                    TimeSpan.FromMilliseconds(250), timeProvider, stoppingToken)
+                .ConfigureAwait(false))
+            {
+                logger.LogInformation("Application startup dispatch stopped during bootstrap qualification.");
+                return;
+            }
         }
 
         await ReportAsync(
@@ -86,20 +96,6 @@ public sealed class ApplicationStartupCommandDispatcher(
         {
             logger.LogWarning(exception, "Unable to publish bootstrap dispatch status to the System Console.");
         }
-    }
-
-    static Task WaitForApplicationStartedAsync(
-        IHostApplicationLifetime lifetime,
-        CancellationToken cancellationToken)
-    {
-        if (lifetime.ApplicationStarted.IsCancellationRequested)
-            return Task.CompletedTask;
-        var source = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        lifetime.ApplicationStarted.Register(static state =>
-            ((TaskCompletionSource)state!).TrySetResult(), source);
-        cancellationToken.Register(static state =>
-            ((TaskCompletionSource)state!).TrySetCanceled(), source);
-        return source.Task;
     }
 
     static string Bound(string? value)

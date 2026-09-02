@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.ScheduledTask.Shared;
+﻿using TomasAI.IFM.Application.ScheduledTask.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Shared.ServiceApi;
@@ -47,7 +47,7 @@ public sealed class Worker(
             foreach (var symbol in symbols.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var contractsResult = await marketDataQueryApi.GetCurrentlyTradedFuturesContractsAsync(symbol).ConfigureAwait(false);
+                var contractsResult = await marketDataQueryApi.GetRolloverFuturesContractsAsync(symbol).ConfigureAwait(false);
                 if (!contractsResult.Success || contractsResult.Value is null || contractsResult.Value.Length == 0)
                 {
                     failures.Add($"{symbol}: no traded contracts ({contractsResult.ErrorMessage})");

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using FlaUI.Core.AutomationElements;
@@ -2088,7 +2088,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
                     var designatedFund = fund ?? throw new InvalidOperationException("G2 fund is unavailable.");
 
                     var currentEs = RequireQueryValue(
-                        await querySession.MarketData.GetCurrentlyTradedFuturesContractAsync("ES")
+                        await querySession.MarketData.GetOnTheRunFuturesContractAsync("ES")
                             .WaitAsync(process.ReadinessTimeout, token),
                         "current ES futures contract");
                     _ = await G0DevelopmentDataFixture.EnsureEodAsync(
@@ -3771,7 +3771,7 @@ public sealed class G2PrerequisiteAndStartupAuditTests
         throw new InvalidOperationException($"Could not parse displayed currency value '{value}'.");
     }
 
-    static async Task<FuturesContractV2ReadModel?> WaitForFuturesContractAsync(
+    static async Task<FuturesContractV3ReadModel?> WaitForFuturesContractAsync(
         G0QuerySession queries,
         string contractId,
         string? expectedDescription,

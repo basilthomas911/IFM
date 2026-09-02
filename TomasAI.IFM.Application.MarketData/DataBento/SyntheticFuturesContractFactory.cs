@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.MarketData.Contracts;
+﻿using TomasAI.IFM.Application.MarketData.Contracts;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
@@ -6,7 +6,7 @@ namespace TomasAI.IFM.Application.MarketData.Databento;
 
 internal static class SyntheticFuturesContractFactory
 {
-    public static FuturesContractV2ReadModel Create(
+    public static FuturesContractV3ReadModel Create(
         DatabentoContractRegistration registration)
     {
         ArgumentNullException.ThrowIfNull(registration);
@@ -20,7 +20,7 @@ internal static class SyntheticFuturesContractFactory
                 $"The configured synthetic contract '{registration.DomainContractId}' does not match '{symbol}'.");
         }
 
-        return new FuturesContractV2ReadModel(
+        return new FuturesContractV3ReadModel(
             registration.DomainContractId,
             $"Synthetic {symbol} futures contract",
             symbol,
@@ -30,6 +30,7 @@ internal static class SyntheticFuturesContractFactory
             symbol == "VX" ? "CFE" : "CME",
             symbol == "VX" ? "1000" : "50",
             parsed.MaturityDate,
-            true);
+            registration.OnTheRun,
+            registration.Rollover);
     }
 }

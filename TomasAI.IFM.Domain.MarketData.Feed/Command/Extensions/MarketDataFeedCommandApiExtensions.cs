@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Feed.Shared;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -133,7 +133,7 @@ public static class MarketDataFeedCommandApiExtensions
     /// <param name="entityId">The target actor entity identifier.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StartFuturesTickDataStreamingAsync(
-        FuturesContractV2ReadModel futuresContract,
+        FuturesContractV3ReadModel futuresContract,
         DateOnly valueDate,
         bool resetStream,
         FuturesDataId entityId)
@@ -158,7 +158,7 @@ public static class MarketDataFeedCommandApiExtensions
     /// <param name="entityId">The target actor entity identifier.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> StartFuturesBarDataStreamingAsync(
-        FuturesContractV2ReadModel[] futuresContracts,
+        FuturesContractV3ReadModel[] futuresContracts,
         DateOnly valueDate,
         FuturesBarDataStreamingId entityId)
     {
@@ -189,7 +189,7 @@ public static class MarketDataFeedCommandApiExtensions
         Guid commandId,
         FuturesOptionTickEntityId entityId,
         FuturesOptionContractReadModel contract,
-        FuturesContractV2ReadModel baseContract,
+        FuturesContractV3ReadModel baseContract,
         DateOnly valueDate,
         DateOnly maturityDate,
         double riskFreeRate)
@@ -267,7 +267,7 @@ public static class MarketDataFeedCommandApiExtensions
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesEodDataAsync(
         DateOnly valueDate,
         FuturesTickDataV2ReadModel futuresTickData,
-        FuturesContractV2ReadModel futuresContract,
+        FuturesContractV3ReadModel futuresContract,
         FuturesEodDataV2ReadModel eodDataToday,
         ICollection<FuturesEodDataV2ReadModel> eodDataRange,
         NormalCurveTableReadModel normalCurveData,
@@ -323,7 +323,7 @@ public static class MarketDataFeedCommandApiExtensions
     /// <param name="futuresTickData">The futures tick data used by the operation.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesTickDataAsync(
-        FuturesContractV2ReadModel futuresContract,
+        FuturesContractV3ReadModel futuresContract,
         FuturesTickDataV2ReadModel futuresTickData)
     {
         var entityId = new FuturesDataId(futuresContract.ContractId, futuresTickData.ValueDate);
@@ -346,7 +346,7 @@ public static class MarketDataFeedCommandApiExtensions
     /// <param name="optionContract">The futures-option tick data.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionTickPriceDataAsync(
-        FuturesContractV2ReadModel underlyingContract,
+        FuturesContractV3ReadModel underlyingContract,
         FuturesOptionTickDataV2ReadModel optionContract)
     {
         var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, optionContract.ValueDate);
@@ -369,7 +369,7 @@ public static class MarketDataFeedCommandApiExtensions
     /// <param name="optionContract">The futures-option tick data.</param>
     /// <returns>A value task containing the typed command result returned by the target actor.</returns>
     public ValueTask<ServiceResult<GuidResult>> InsertFuturesOptionTickDataAsync(
-        FuturesContractV2ReadModel underlyingContract,
+        FuturesContractV3ReadModel underlyingContract,
         FuturesOptionTickDataV2ReadModel optionContract)
     {
         var entityId = new FuturesOptionTickEntityId(optionContract.ContractId, optionContract.ValueDate);

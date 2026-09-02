@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -27,7 +27,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="overwrite">A value indicating whether to overwrite an existing contract with the same identifier.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains a <see cref="ServiceResult{T}"/>
     /// with the unique identifier of the added futures contract.</returns>
-    public async Task<ServiceResult<Guid>> AddFuturesContractAsync(FuturesContractV2ReadModel futuresContract, bool overwrite)
+    public async Task<ServiceResult<Guid>> AddFuturesContractAsync(FuturesContractV3ReadModel futuresContract, bool overwrite)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;
@@ -55,7 +55,7 @@ public partial class MarketDataCommandApi(IActorProducer actorProducer)
     /// <param name="futuresContract">The updated details of the futures contract. Cannot be null.</param>
     /// <param name="overwrite">A value indicating whether to overwrite the existing contract details.</param>
     /// <returns>A <see cref="ServiceResult{T}"/> containing the unique identifier of the updated futures contract.</returns>
-    public async Task<ServiceResult<Guid>> ChangeFuturesContractAsync(FuturesContractId contractId, FuturesContractV2ReadModel futuresContract, bool overwrite)
+    public async Task<ServiceResult<Guid>> ChangeFuturesContractAsync(FuturesContractId contractId, FuturesContractV3ReadModel futuresContract, bool overwrite)
     {
         Guid cmdId = Guid.NewGuid();
         ServiceResult<Guid> serviceResult;

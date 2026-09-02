@@ -28,6 +28,9 @@ public sealed class TickAggregationEventPublisherRealtimeTests
         var @event = CreateEvent();
 
         await publisher.PublishAsync(@event);
+        Assert.True(SpinWait.SpinUntil(
+            () => realtimeProducer.ReceivedCalls().Any(),
+            TimeSpan.FromSeconds(2)));
 
         await realtimeProducer.Received(1).SendAsync<
             FuturesMarketPriceUpdatedRealtimeEvent,
@@ -37,6 +40,43 @@ public sealed class TickAggregationEventPublisherRealtimeTests
         await publisher.StopAsync();
         await realtimeProducer.DidNotReceive().StartAsync(Arg.Any<ActorMailboxId>());
         await realtimeProducer.DidNotReceive().StopAsync();
+    }
+
+    [Fact]
+    public async Task Slow_nats_delivery_does_not_backpressure_market_data_ingestion()
+    {
+        var supervisor = Substitute.For<IActorSupervisor>();
+        var realtimeProducer = Substitute.For<IActorProducer>();
+        var primaryId = new ActorMailboxId(
+            ActorType.Realtime,
+            FuturesTickTradeDataChangedEvent.Actor);
+        supervisor.GetProducer(primaryId).Returns(realtimeProducer);
+        var releaseDelivery = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        realtimeProducer.SendAsync<FuturesMarketPriceUpdatedRealtimeEvent, TickDataEntityId>(
+                Arg.Any<ActorSubject>(),
+                Arg.Any<FuturesMarketPriceUpdatedRealtimeEvent>())
+            .Returns(_ => new ValueTask(releaseDelivery.Task));
+
+        await using var publisher = new TickAggregationEventPublisher(supervisor, capacity: 2);
+        await publisher.StartAsync();
+        await publisher.PublishAsync(CreateEvent());
+        Assert.True(SpinWait.SpinUntil(
+            () => realtimeProducer.ReceivedCalls().Any(),
+            TimeSpan.FromSeconds(2)));
+
+        var enqueueBurst = Task.Run(async () =>
+        {
+            for (var index = 0; index < 2_048; index++)
+                await publisher.PublishAsync(CreateEvent());
+        });
+        Assert.Same(enqueueBurst, await Task.WhenAny(
+            enqueueBurst,
+            Task.Delay(TimeSpan.FromSeconds(2))));
+        await enqueueBurst;
+
+        releaseDelivery.TrySetResult();
+        await publisher.StopAsync();
     }
 
     private static FuturesMarketPriceUpdatedRealtimeEvent CreateEvent()

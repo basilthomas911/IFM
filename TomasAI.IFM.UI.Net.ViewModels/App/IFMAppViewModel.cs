@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared;
@@ -125,7 +125,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     bool _isLiveMarketSessionOpen;
     FuturesMarketState _marketState = FuturesMarketState.Closed;
     MarketSessionReadModel? _marketSession;
-    IReadOnlyList<FuturesContractV2ReadModel> _baseContracts = [];
+    IReadOnlyList<FuturesContractV3ReadModel> _baseContracts = [];
     IReadOnlyList<StatusConsoleLogReadModel> _statusLogs = [];
     StatusConsoleLogReadModel? _latestStatusLog;
     string _statusLine = string.Empty;
@@ -251,7 +251,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     public bool IsMarketOpen => MarketState != FuturesMarketState.Closed;
 
     /// <summary>Gets the currently traded base futures contracts.</summary>
-    public IReadOnlyList<FuturesContractV2ReadModel> BaseContracts
+    public IReadOnlyList<FuturesContractV3ReadModel> BaseContracts
     {
         get => _baseContracts;
         private set => SetProperty(ref _baseContracts, value);
@@ -362,19 +362,19 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         => IsMarketDataFeedOperationInProgress
             ? "Market Feed: Changing"
             : ValueDate.HasValue && !IsMarketOpen && !IsMarketDataFeedActive
-                ? "Market Feed: Session Closed — read-only application features remain available"
+                ? "Market Feed: Session Closed â€” read-only application features remain available"
             : MarketDataFeedHealthState switch
             {
                 MarketDataFeedHealthState.Healthy
-                    => "Market Feed: Healthy — accepted updates within 5 minutes",
+                    => "Market Feed: Healthy â€” accepted updates within 5 minutes",
                 MarketDataFeedHealthState.Intermittent
-                    => "Market Feed: Intermittent — a current contract update is overdue",
+                    => "Market Feed: Intermittent â€” a current contract update is overdue",
                 MarketDataFeedHealthState.Critical
-                    => "Market Feed: Critical — stop and restart the market feed",
+                    => "Market Feed: Critical â€” stop and restart the market feed",
                 MarketDataFeedHealthState.OffHoursActive
-                    => "Market Feed: Active — off-hours data received within 15 minutes; exits only",
+                    => "Market Feed: Active â€” off-hours data received within 15 minutes; exits only",
                 MarketDataFeedHealthState.OffHoursDegraded
-                    => "Market Feed: Degraded — no accepted off-hours update for over 15 minutes; feed remains live",
+                    => "Market Feed: Degraded â€” no accepted off-hours update for over 15 minutes; feed remains live",
                 _ => "Market Feed: Inactive"
             };
 
@@ -621,8 +621,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             model.OnError((errorCode, errorMsg) =>
                 _ = WriteStatusConsoleAsync(
                     $"Unable to query API Market Data state ({errorCode}): {errorMsg}"));
-            ICollection<FuturesContractV2ReadModel>? futuresContracts = null;
-            await model.GetCurrentlyTradedFuturesContractsAsync(values => futuresContracts = values);
+            ICollection<FuturesContractV3ReadModel>? futuresContracts = null;
+            await model.GetRolloverFuturesContractsAsync(values => futuresContracts = values);
             BaseContracts = futuresContracts?.ToArray() ?? [];
 
             MarketSessionReadModel? marketSession = null;
@@ -1746,7 +1746,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     internal void PublishMarketOutlook(FuturesEodDataV2ReadModel futuresEodData)
         => MarketOutlook = new FuturesEodDataUIViewModel(futuresEodData);
 
-    FuturesContractV2ReadModel? GetMarketOutlookContract()
+    FuturesContractV3ReadModel? GetMarketOutlookContract()
         => _baseContracts.FirstOrDefault(contract =>
             string.Equals(contract.Id.Symbol, MarketOutlookSymbol, StringComparison.Ordinal));
 

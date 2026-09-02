@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using MessagePack;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -30,7 +30,7 @@ public record MarketDataFeedStartedEvent : IEvent<MarketDataFeedId>
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
     // payload (keys 8..)
-    [Key(8)] public FuturesContractV2ReadModel[]? FuturesContracts { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel[]? FuturesContracts { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public bool ResetStream { get; init; }
     [Key(11)] public DateTime StartedOn { get; init; }
@@ -55,7 +55,7 @@ public record MarketDataFeedStartedEvent : IEvent<MarketDataFeedId>
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel[]? futuresContracts,
+        FuturesContractV3ReadModel[]? futuresContracts,
         DateOnly valueDate,
         bool resetStream,
         DateTime startedOn,
@@ -155,7 +155,7 @@ public record MarketDataFeedStartedCompleteEvent : ICompleteEvent<MarketDataFeed
     [Key(6)] public string EventSource { get; init; }
     [Key(7)] public DateTime ReceivedOn { get; init; }
 
-    [Key(8)] public FuturesContractV2ReadModel[]? FuturesContracts { get; init; }
+    [Key(8)] public FuturesContractV3ReadModel[]? FuturesContracts { get; init; }
     [Key(9)] public DateOnly ValueDate { get; init; }
     [Key(10)] public bool ResetStream { get; init; }
     [Key(11)] public DateTime StartedOn { get; init; }
@@ -177,7 +177,7 @@ public record MarketDataFeedStartedCompleteEvent : ICompleteEvent<MarketDataFeed
         string aggregateId,
         string eventSource,
         DateTime receivedOn,
-        FuturesContractV2ReadModel[]? futuresContracts,
+        FuturesContractV3ReadModel[]? futuresContracts,
         DateOnly valueDate,
         bool resetStream,
         DateTime startedOn,

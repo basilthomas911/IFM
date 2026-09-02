@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -26,7 +26,7 @@ public static class MarketDataValidationExtensions
     /// <param name="refLookupService">A service used to retrieve reference data required for validation rules.</param>
     /// <returns>The updated list of validation errors, including any errors found during the validation of the provided
     /// contracts.</returns>
-    public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV2ReadModel[] contracts, IReferenceLookupService refLookupService)
+    public static List<ValidationError> ValidateFuturesContracts(this List<ValidationError> validationErrors, FuturesContractV3ReadModel[] contracts, IReferenceLookupService refLookupService)
     {
         if (contracts is null || contracts.Length == 0)
         {
@@ -56,7 +56,7 @@ public static class MarketDataValidationExtensions
     /// <param name="refLookupService">A reference lookup service used to retrieve validation rules and reference data. This parameter must not be
     /// null.</param>
     /// <returns>The original list of validation errors, with any additional errors from the validation process appended.</returns>
-    public static List<ValidationError> ValidateFuturesContract(this List<ValidationError> validationErrors, FuturesContractV2ReadModel contract, IReferenceLookupService refLookupService)
+    public static List<ValidationError> ValidateFuturesContract(this List<ValidationError> validationErrors, FuturesContractV3ReadModel contract, IReferenceLookupService refLookupService)
     {
         var ruleErrors = new FuturesContractValidationRules().Execute(contract);
         if (ruleErrors is not null)

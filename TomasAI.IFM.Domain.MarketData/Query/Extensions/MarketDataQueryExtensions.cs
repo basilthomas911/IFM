@@ -1,4 +1,4 @@
-using TomasAI.IFM.Application.Storage;
+﻿using TomasAI.IFM.Application.Storage;
 using TomasAI.IFM.Domain.MarketData.Query.Actor;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.Queries;
@@ -28,19 +28,19 @@ public static partial class MarketDataQueryExtensions
     /// </summary>
     /// <param name="symbol">The market symbol.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(
+    public async Task<ServiceResult<FuturesContractV3ReadModel>> GetOnTheRunFuturesContractAsync(
         string symbol)
     {
         try
         {
-            FuturesContractV2ReadModel result =
-                (await context.DbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractAsync(symbol))!;
-            return new ServiceOk<FuturesContractV2ReadModel>(result);
+            FuturesContractV3ReadModel result =
+                (await context.DbFactory.SecuritiesDb.GetOnTheRunFuturesContractAsync(symbol))!;
+            return new ServiceOk<FuturesContractV3ReadModel>(result);
         }
         catch (Exception ex)
         {
-            return new ServiceFailed<FuturesContractV2ReadModel>(
-                GetCurrentlyTradedFuturesContractQuery.ErrorId,
+            return new ServiceFailed<FuturesContractV3ReadModel>(
+                GetOnTheRunFuturesContractQuery.ErrorId,
                 ex.Message);
         }
     }
@@ -50,19 +50,19 @@ public static partial class MarketDataQueryExtensions
     /// </summary>
     /// <param name="symbol">The market symbol.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(
+    public async Task<ServiceResult<FuturesContractV3ReadModel[]>> GetRolloverFuturesContractsAsync(
         string symbol)
     {
         try
         {
-            FuturesContractV2ReadModel[] result =
-                [.. await context.DbFactory.SecuritiesDb.GetCurrentlyTradedFuturesContractsAsync(symbol)];
-            return new ServiceOk<FuturesContractV2ReadModel[]>(result);
+            FuturesContractV3ReadModel[] result =
+                [.. await context.DbFactory.SecuritiesDb.GetRolloverFuturesContractsAsync(symbol)];
+            return new ServiceOk<FuturesContractV3ReadModel[]>(result);
         }
         catch (Exception ex)
         {
-            return new ServiceFailed<FuturesContractV2ReadModel[]>(
-                GetCurrentlyTradedFuturesContractsQuery.ErrorId,
+            return new ServiceFailed<FuturesContractV3ReadModel[]>(
+                GetRolloverFuturesContractsQuery.ErrorId,
                 ex.Message);
         }
     }
@@ -72,17 +72,17 @@ public static partial class MarketDataQueryExtensions
     /// </summary>
     /// <param name="contractId">The contract identifier.</param>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId)
+    public async Task<ServiceResult<FuturesContractV3ReadModel>> GetFuturesContractAsync(string contractId)
     {
         try
         {
-            FuturesContractV2ReadModel result =
+            FuturesContractV3ReadModel result =
                 (await context.DbFactory.SecuritiesDb.GetFuturesContractAsync(contractId))!;
-            return new ServiceOk<FuturesContractV2ReadModel>(result);
+            return new ServiceOk<FuturesContractV3ReadModel>(result);
         }
         catch (Exception ex)
         {
-            return new ServiceFailed<FuturesContractV2ReadModel>(GetFuturesContractQuery.ErrorId, ex.Message);
+            return new ServiceFailed<FuturesContractV3ReadModel>(GetFuturesContractQuery.ErrorId, ex.Message);
         }
     }
 
@@ -131,17 +131,17 @@ public static partial class MarketDataQueryExtensions
     /// Gets futures contracts.
     /// </summary>
     /// <returns>A task containing the typed success result or the operation-specific failure result.</returns>
-    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync()
+    public async Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync()
     {
         try
         {
-            FuturesContractV2ReadModel[] result =
+            FuturesContractV3ReadModel[] result =
                 [.. await context.DbFactory.SecuritiesDb.GetFuturesContractsAsync()];
-            return new ServiceOk<FuturesContractV2ReadModel[]>(result);
+            return new ServiceOk<FuturesContractV3ReadModel[]>(result);
         }
         catch (Exception ex)
         {
-            return new ServiceFailed<FuturesContractV2ReadModel[]>(GetFuturesContractsQuery.ErrorId, ex.Message);
+            return new ServiceFailed<FuturesContractV3ReadModel[]>(GetFuturesContractsQuery.ErrorId, ex.Message);
         }
     }
 

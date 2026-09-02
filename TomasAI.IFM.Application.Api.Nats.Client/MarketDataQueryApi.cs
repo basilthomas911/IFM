@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Shared.Application;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -16,36 +16,36 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
     : NatsClientApi(actorProducer), IMarketDataQueryApi
 {
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetCurrentlyTradedFuturesContractAsync(string symbol)
+    public async Task<ServiceResult<FuturesContractV3ReadModel>> GetOnTheRunFuturesContractAsync(string symbol)
     {
-        var entityId = new GetCurrentlyTradedFuturesContractParameter(symbol);
-        GetCurrentlyTradedFuturesContractQuery query = new(symbol)
+        var entityId = new GetOnTheRunFuturesContractParameter(symbol);
+        GetOnTheRunFuturesContractQuery query = new(symbol)
         {
-            Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractQuery.Actor, GetCurrentlyTradedFuturesContractQuery.Verb, entityId.Format()),
+            Subject = new ActorSubject(ActorType.Query, GetOnTheRunFuturesContractQuery.Actor, GetOnTheRunFuturesContractQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetCurrentlyTradedFuturesContractQuery, FuturesContractV2ReadModel>(query.Subject, query);
+        return await RequestAsync<GetOnTheRunFuturesContractQuery, FuturesContractV3ReadModel>(query.Subject, query);
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetCurrentlyTradedFuturesContractsAsync(string symbol)
+    public async Task<ServiceResult<FuturesContractV3ReadModel[]>> GetRolloverFuturesContractsAsync(string symbol)
     {
-        var entityId = new GetCurrentlyTradedFuturesContractsParameter(symbol);
-        GetCurrentlyTradedFuturesContractsQuery query = new(symbol)
+        var entityId = new GetRolloverFuturesContractsParameter(symbol);
+        GetRolloverFuturesContractsQuery query = new(symbol)
         {
-            Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractsQuery.Actor, GetCurrentlyTradedFuturesContractsQuery.Verb, entityId.Format()),
+            Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetCurrentlyTradedFuturesContractsQuery, FuturesContractV2ReadModel[]>(query.Subject, query);
+        return await RequestAsync<GetRolloverFuturesContractsQuery, FuturesContractV3ReadModel[]>(query.Subject, query);
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel>> GetFuturesContractAsync(string contractId)
+    public async Task<ServiceResult<FuturesContractV3ReadModel>> GetFuturesContractAsync(string contractId)
     {
         var entityId = new GetFuturesContractParameter(contractId);
         GetFuturesContractQuery query = new(contractId)
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesContractQuery.Actor, GetFuturesContractQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesContractQuery, FuturesContractV2ReadModel>(query.Subject, query);
+        return await RequestAsync<GetFuturesContractQuery, FuturesContractV3ReadModel>(query.Subject, query);
     }
 
     /// <inheritdoc />
@@ -71,14 +71,14 @@ public partial class MarketDataQueryApi(IActorProducer actorProducer)
     }
 
     /// <inheritdoc />
-    public async Task<ServiceResult<FuturesContractV2ReadModel[]>> GetFuturesContractsAsync()
+    public async Task<ServiceResult<FuturesContractV3ReadModel[]>> GetFuturesContractsAsync()
     {
         var entityId = new GetFuturesContractsParameter();
         GetFuturesContractsQuery query = new()
         {
             Subject = new ActorSubject(ActorType.Query, GetFuturesContractsQuery.Actor, GetFuturesContractsQuery.Verb, entityId.Format()),
         };
-        return await RequestAsync<GetFuturesContractsQuery, FuturesContractV2ReadModel[]>(query.Subject, query);
+        return await RequestAsync<GetFuturesContractsQuery, FuturesContractV3ReadModel[]>(query.Subject, query);
     }
 
     /// <inheritdoc />

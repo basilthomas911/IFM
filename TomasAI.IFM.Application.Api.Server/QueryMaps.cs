@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.Trade.Shared;
 using TomasAI.IFM.Domain.Reference.Shared.Queries;
@@ -325,32 +325,32 @@ public static class MarketDataQueries
     public static IEndpointRouteBuilder MapMarketDataQueries(this IEndpointRouteBuilder endpoints)
     {
         // FuturesContractQueryActor queries
-        endpoints.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContract, async (IActorService e, string symbol) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetOnTheRunFuturesContract, async (IActorService e, string symbol) =>
         {
-            var query = new GetCurrentlyTradedFuturesContractQuery(symbol);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractQuery.Actor, GetCurrentlyTradedFuturesContractQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FuturesContractV2ReadModel, GetCurrentlyTradedFuturesContractQuery>(query);
+            var query = new GetOnTheRunFuturesContractQuery(symbol);
+            query = query with { Subject = new ActorSubject(ActorType.Query, GetOnTheRunFuturesContractQuery.Actor, GetOnTheRunFuturesContractQuery.Verb, query.EntityId.Format()) };
+            return await e.RequestAsync<FuturesContractV3ReadModel, GetOnTheRunFuturesContractQuery>(query);
         });
 
-        endpoints.MapGet(MarketDataQueryUriPath.GetCurrentlyTradedFuturesContracts, async (IActorService e, string symbol) =>
+        endpoints.MapGet(MarketDataQueryUriPath.GetRolloverFuturesContracts, async (IActorService e, string symbol) =>
         {
-            var query = new GetCurrentlyTradedFuturesContractsQuery(symbol);
-            query = query with { Subject = new ActorSubject(ActorType.Query, GetCurrentlyTradedFuturesContractsQuery.Actor, GetCurrentlyTradedFuturesContractsQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FuturesContractV2ReadModel[], GetCurrentlyTradedFuturesContractsQuery>(query);
+            var query = new GetRolloverFuturesContractsQuery(symbol);
+            query = query with { Subject = new ActorSubject(ActorType.Query, GetRolloverFuturesContractsQuery.Actor, GetRolloverFuturesContractsQuery.Verb, query.EntityId.Format()) };
+            return await e.RequestAsync<FuturesContractV3ReadModel[], GetRolloverFuturesContractsQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesContract, async (IActorService e, string contractId) =>
         {
             var query = new GetFuturesContractQuery(contractId);
             query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesContractQuery.Actor, GetFuturesContractQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FuturesContractV2ReadModel, GetFuturesContractQuery>(query);
+            return await e.RequestAsync<FuturesContractV3ReadModel, GetFuturesContractQuery>(query);
         });
 
         endpoints.MapGet(MarketDataQueryUriPath.GetFuturesContracts, async (IActorService e) =>
         {
             var query = new GetFuturesContractsQuery();
             query = query with { Subject = new ActorSubject(ActorType.Query, GetFuturesContractsQuery.Actor, GetFuturesContractsQuery.Verb, query.EntityId.Format()) };
-            return await e.RequestAsync<FuturesContractV2ReadModel[], GetFuturesContractsQuery>(query);
+            return await e.RequestAsync<FuturesContractV3ReadModel[], GetFuturesContractsQuery>(query);
         });
 
         // FuturesOptionContractQueryActor queries

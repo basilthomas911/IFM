@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared;
+﻿using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
@@ -160,7 +160,7 @@ public static class SampleData
 
     public static readonly string FuturesContractId = "ES20251010";
 
-    public static FuturesContractV2ReadModel FuturesContract => new(
+    public static FuturesContractV3ReadModel FuturesContract => new(
         contractId: FuturesContractId,
         description: "E-mini S&P 500 Dec 2025",
         symbol: Symbol,
@@ -170,7 +170,7 @@ public static class SampleData
         exchange: "CME",
         multiplier: "50",
         lastTradeDate: new DateOnly(2025, 12, 19),
-        currentlyTraded: true);
+        onTheRun: true);
 
     public static FuturesTickDataV2ReadModel UnderlyingFuturesTickData => new(
         contractId: FuturesContractId,

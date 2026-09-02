@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -29,12 +29,12 @@ internal static class FuturesEodDataValidation
     }
 
     /// <summary>
-    /// Validates the FuturesContractV2ReadModel and adds any validation errors to the provided list.
+    /// Validates the FuturesContractV3ReadModel and adds any validation errors to the provided list.
     /// </summary>
     /// <param name="validationErrors">The list to which validation errors will be added.</param>
     /// <param name="contract">The futures contract to validate.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateContract(this List<ValidationError> validationErrors, FuturesContractV2ReadModel contract)
+    public static List<ValidationError> ValidateContract(this List<ValidationError> validationErrors, FuturesContractV3ReadModel contract)
     {
         var validator = new FuturesContractValidationRules();
         var ruleErrors = validator.Execute(contract);

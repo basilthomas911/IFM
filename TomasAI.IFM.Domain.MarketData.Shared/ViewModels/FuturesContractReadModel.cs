@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using FluentValidation.Results;
 using MessagePack;
 using Newtonsoft.Json;
@@ -14,7 +14,7 @@ namespace TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 /// identifiers, trading symbol, security type, currency, exchange, and other relevant details. It also provides a
 /// derived property to generate a composite identifier for the contract.</remarks>
 [MessagePackObject(AllowPrivate = true)]
-public record FuturesContractV2ReadModel
+public record FuturesContractV3ReadModel
 {
     [Key(0)]
     public string ContractId { get; init; } 
@@ -35,21 +35,22 @@ public record FuturesContractV2ReadModel
     [Key(8)]
     public DateOnly LastTradeDate { get; init; }
     [Key(9)]
-    public bool CurrentlyTraded { get; init; }
+    public bool OnTheRun { get; init; }
+    [Key(10)]
+    public bool Rollover { get; init; }
 
     [JsonIgnore]
     [IgnoreMember]
     public FuturesContractId Id =>  new (ContractId, Symbol, LastTradeDate);
 
-    public FuturesContractV2ReadModel() 
+    public FuturesContractV3ReadModel()
     {
         ContractId = default!;
         Symbol = default!;
         LastTradeDate = DateOnly.MinValue;
     }
 
-    [SerializationConstructor]
-    public FuturesContractV2ReadModel(
+    public FuturesContractV3ReadModel(
         string contractId,
         string description,
         string symbol,
@@ -59,7 +60,35 @@ public record FuturesContractV2ReadModel
         string exchange,
         string multiplier,
         DateOnly lastTradeDate,
-        bool currentlyTraded)
+        bool onTheRun)
+        : this(
+            contractId,
+            description,
+            symbol,
+            localSymbol,
+            securityType,
+            currency,
+            exchange,
+            multiplier,
+            lastTradeDate,
+            onTheRun,
+            onTheRun)
+    {
+    }
+
+    [SerializationConstructor]
+    public FuturesContractV3ReadModel(
+        string contractId,
+        string description,
+        string symbol,
+        string localSymbol,
+        string securityType,
+        string currency,
+        string exchange,
+        string multiplier,
+        DateOnly lastTradeDate,
+        bool onTheRun,
+        bool rollover)
     {
         ContractId = contractId;
         Description = description;
@@ -70,37 +99,41 @@ public record FuturesContractV2ReadModel
         Exchange = exchange;
         Multiplier = multiplier;
         LastTradeDate = lastTradeDate;
-        CurrentlyTraded = currentlyTraded;
+        OnTheRun = onTheRun;
+        Rollover = rollover;
     }
 
     [IgnoreMember]
     public bool IsValid
-        => !string.IsNullOrEmpty(ContractId ) && !string.IsNullOrEmpty(Symbol) && LastTradeDate > DateOnly.MinValue;
+        => !string.IsNullOrEmpty(ContractId)
+            && !string.IsNullOrEmpty(Symbol)
+            && LastTradeDate > DateOnly.MinValue
+            && (!OnTheRun || Rollover);
 }
 
 /// <summary>
-/// Provides FluentValidation rules for <see cref="FuturesContractV2ReadModel"/> instances.
+/// Provides FluentValidation rules for <see cref="FuturesContractV3ReadModel"/> instances.
 /// </summary>
 /// <remarks>
 /// Validates futures contract read model ensuring all required fields are present, valid, and consistent
 /// with business rules for futures contracts.
 /// </remarks>
-public class FuturesContractValidationRules : BaseValidationRules, IValidationRules<FuturesContractV2ReadModel>
+public class FuturesContractValidationRules : BaseValidationRules, IValidationRules<FuturesContractV3ReadModel>
 {
     /// <summary>
-    /// Executes validation rules against the specified FuturesContractV2ReadModel instance.
+    /// Executes validation rules against the specified FuturesContractV3ReadModel instance.
     /// </summary>
     /// <param name="futuresContract">The futures contract read model to validate.</param>
     /// <returns>An array of validation errors, or an empty array if validation passes.</returns>
-    public ValidationError[] Execute(FuturesContractV2ReadModel futuresContract) 
-        => Validate(futuresContract, new FuturesContractV2ReadModelValidator());
+    public ValidationError[] Execute(FuturesContractV3ReadModel futuresContract)
+        => Validate(futuresContract, new FuturesContractV3ReadModelValidator());
 
     /// <summary>
-    /// Internal FluentValidation validator for FuturesContractV2ReadModel.
+    /// Internal FluentValidation validator for FuturesContractV3ReadModel.
     /// </summary>
-    private class FuturesContractV2ReadModelValidator : AbstractValidator<FuturesContractV2ReadModel>
+    private class FuturesContractV3ReadModelValidator : AbstractValidator<FuturesContractV3ReadModel>
     {
-        public FuturesContractV2ReadModelValidator()
+        public FuturesContractV3ReadModelValidator()
         {
             // ContractId validation
             RuleFor(x => x.ContractId)
@@ -143,6 +176,11 @@ public class FuturesContractValidationRules : BaseValidationRules, IValidationRu
                 .Must(lastTradeDate => lastTradeDate != DateOnly.MinValue && lastTradeDate != DateOnly.MaxValue)
                 .WithMessage("FuturesContract.LastTradeDate is invalid");
 
+            RuleFor(x => x.Rollover)
+                .Equal(true)
+                .When(x => x.OnTheRun)
+                .WithMessage("An on-the-run futures contract must belong to the rollover set");
+
             // Description validation (optional but if provided should not be whitespace only)
             RuleFor(x => x.Description)
                 .Must(description => description == null || !string.IsNullOrWhiteSpace(description))
@@ -154,7 +192,7 @@ public class FuturesContractValidationRules : BaseValidationRules, IValidationRu
         /// </summary>
         /// <param name="context">The validation context.</param>
         /// <returns>The validation result.</returns>
-        public override ValidationResult Validate(ValidationContext<FuturesContractV2ReadModel> context)
+        public override ValidationResult Validate(ValidationContext<FuturesContractV3ReadModel> context)
         {
             try
             {

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using NSubstitute;
 using System.ComponentModel;
 using System.Reflection;
@@ -208,7 +208,7 @@ public class IronCondorMonitorViewModelTests
             null,
             "test");
 
-    static FuturesContractV2ReadModel Contract()
+    static FuturesContractV3ReadModel Contract()
         => new(
             "ESZ26",
             "ESZ26",

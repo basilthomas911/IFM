@@ -1,4 +1,4 @@
-using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
+﻿using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -13,13 +13,13 @@ namespace TomasAI.IFM.Domain.MarketData.Feed.FuturesTickData.Command.Validation;
 internal static class FuturesTickDataValidation
 {
     /// <summary>
-    /// Validates a FuturesContractV2ReadModel instance and adds any validation errors to the provided list.
+    /// Validates a FuturesContractV3ReadModel instance and adds any validation errors to the provided list.
     /// </summary>
     /// <param name="validationErrors">The list to which validation errors will be added.</param>
     /// <param name="contract">The futures contract to validate.</param>
     /// <param name="commandName">The name of the command for error reporting.</param>
     /// <returns>The updated list of validation errors.</returns>
-    public static List<ValidationError> ValidateContract(this List<ValidationError> validationErrors, FuturesContractV2ReadModel contract, string commandName)
+    public static List<ValidationError> ValidateContract(this List<ValidationError> validationErrors, FuturesContractV3ReadModel contract, string commandName)
     {
         var validator = new FuturesContractValidationRules();
         var ruleErrors = validator.Execute(contract);
