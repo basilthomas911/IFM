@@ -25,7 +25,7 @@ public sealed class FeedLifecycleTests
                 new TickerSubscription("ESM6", DatabentoInputSymbology.RawSymbol, MarketDataKinds.Quote),
                 new TickerSubscription("NQM6", DatabentoInputSymbology.RawSymbol, MarketDataKinds.Quote)
             ], TimeSpan.FromSeconds(2));
-            feed.Start(TimeSpan.FromSeconds(5));
+            feed.Start(TimeSpan.FromSeconds(5), static _ => { });
 
             Assert.True(SpinWait.SpinUntil(
                 () => feed.GetHealth().ChannelFullCount > 0,
@@ -90,8 +90,10 @@ public sealed class FeedLifecycleTests
                         DatabentoInputSymbology.RawSymbol,
                         MarketDataKinds.Quote | MarketDataKinds.Trade)
                 ], TimeSpan.FromSeconds(1));
-                feed.Start(TimeSpan.FromSeconds(2));
-                Assert.Equal(256, DrainCount(feed.GetReader(feed.GetInstruments()[0].Instrument)));
+                ISynchronousBatchReader<MarketDataBatch64>? reader = null;
+                feed.Start(TimeSpan.FromSeconds(2), _ =>
+                    reader = feed.GetReader(feed.GetInstruments()[0].Instrument));
+                Assert.Equal(256, DrainCount(reader!));
                 feed.Stop(TimeSpan.FromSeconds(2));
                 stopped = true;
                 Assert.Equal(256ul, feed.GetHealth().RecordsConsumed);

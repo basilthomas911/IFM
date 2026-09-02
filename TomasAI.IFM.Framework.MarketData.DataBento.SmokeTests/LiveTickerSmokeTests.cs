@@ -28,10 +28,15 @@ public sealed class LiveTickerSmokeTests(DatabentoSmokeFixture fixture)
                 DatabentoInputSymbology.RawSymbol,
                 MarketDataKinds.Quote)
         ], TimeSpan.FromSeconds(5));
-        feed.Start(TimeSpan.FromSeconds(45));
-        var registration = Assert.Single(feed.GetInstruments());
+        TickerInstrumentRegistration registration = null!;
+        ISynchronousBatchReader<MarketDataBatch64>? reader = null;
+        feed.Start(TimeSpan.FromSeconds(45), _ =>
+        {
+            registration = Assert.Single(feed.GetInstruments());
+            reader = feed.GetReader(registration.Instrument);
+        });
         var drain = LiveTestGate.DrainUntilCompletedAsync(
-            feed.GetReader(registration.Instrument));
+            reader!);
         try
         {
             Assert.Equal(currentFuture.RawSymbol, registration.RequestedSymbol);

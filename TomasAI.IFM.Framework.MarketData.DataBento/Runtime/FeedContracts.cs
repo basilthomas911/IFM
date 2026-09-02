@@ -49,7 +49,11 @@ public interface IMultiplexedTickerBatchReader : IDisposable
 public interface IDatabentoTickerFeed : IDisposable
 {
     void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout);
-    void Start(TimeSpan timeout);
+    /// <summary>
+    /// Prepares the feed, invokes <paramref name="startConsumer"/> after readers exist,
+    /// and activates native ring publication only after that callback returns.
+    /// </summary>
+    void Start(TimeSpan timeout, Action<TimeSpan> startConsumer);
     void Stop(TimeSpan timeout);
     ISynchronousBatchReader<MarketDataBatch64> GetReader(InstrumentKey instrument);
     IMultiplexedTickerBatchReader GetMultiplexedReader();
@@ -242,7 +246,11 @@ public sealed record OptionChainSubscription
 public interface IDatabentoOptionChainFeed : IDisposable
 {
     void Subscribe(OptionChainSubscription subscription, TimeSpan timeout);
-    void Start(TimeSpan timeout);
+    /// <summary>
+    /// Prepares the feed, invokes <paramref name="startConsumer"/> after the reader exists,
+    /// and activates native ring publication only after that callback returns.
+    /// </summary>
+    void Start(TimeSpan timeout, Action<TimeSpan> startConsumer);
     void Stop(TimeSpan timeout);
     ISynchronousBatchReader<MarketDataBatch64> Reader { get; }
     FeedHealthSnapshot GetHealth();

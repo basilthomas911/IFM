@@ -558,18 +558,13 @@ mod exports {
     #[unsafe(no_mangle)]
     pub unsafe extern "C" fn dbf_feed_set_consumer_ready(
         feed: *mut Feed,
-        _timeout_ms: u32,
+        timeout_ms: u32,
     ) -> Status {
         ffi_status(|| {
             let Some(feed) = (unsafe { feed_ref(feed) }) else {
                 return INVALID_ARGUMENT;
             };
-            if feed.state.load(Ordering::Acquire) != STATE_CONSUMER_SETUP {
-                return INVALID_STATE;
-            }
-            feed.state.store(STATE_RUNNING, Ordering::Release);
-            feed.notify_control();
-            OK
+            feed.set_consumer_ready(timeout_ms)
         })
     }
 

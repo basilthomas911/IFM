@@ -107,6 +107,10 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
         && mappings
             .iter()
             .any(|mapping| mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0);
+    let mut startup_records = Vec::new();
+    startup_records
+        .try_reserve_exact(feed.startup_record_capacity())
+        .map_err(|_| failure(NO_MEMORY, "Unable to allocate startup replay staging"))?;
     for input_symbology in [1u32, 2u32] {
         subscribe_group(
             &mut client,
@@ -214,12 +218,26 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
                 &mut acknowledgements,
                 &mut statistics_replay_pending,
                 &mut trade_replay_pending,
+                Some(&mut startup_records),
             )?;
         }
     }
 
     feed.enter_consumer_setup();
     feed.wait_for_consumer();
+    if !feed.stop_requested() {
+        for record in startup_records.drain(..) {
+            if !feed.publish_live(record) {
+                let _ = client.close().await;
+                return Err(failure(
+                    feed.terminal_status(),
+                    "Native ring publication failed while releasing startup replay",
+                ));
+            }
+        }
+        drop(startup_records);
+        feed.enter_running();
+    }
     while !feed.stop_requested()
         && feed.state.load(std::sync::atomic::Ordering::Acquire) != STATE_FAULTED
     {
@@ -231,6 +249,7 @@ async fn run_feed_async(feed: &Feed) -> Result<(), LiveFailure> {
                 &mut acknowledgements,
                 &mut statistics_replay_pending,
                 &mut trade_replay_pending,
+                None,
             )?;
         }
     }
@@ -320,6 +339,7 @@ fn process_record(
     acknowledgements: &mut u32,
     statistics_replay_pending: &mut bool,
     trade_replay_pending: &mut bool,
+    mut startup_records: Option<&mut Vec<MarketRecord64>>,
 ) -> Result<(), LiveFailure> {
     if let Some(error) = source.get::<ErrorMsg>() {
         return Err(failure(
@@ -334,11 +354,11 @@ fn process_record(
                 match classify_replay_schema(system.msg().unwrap_or_default()) {
                     Some(Schema::Statistics) if *statistics_replay_pending => {
                         *statistics_replay_pending = false;
-                        publish_statistics_replay_complete(feed)?;
+                        publish_statistics_replay_complete(feed, startup_records.as_deref_mut())?;
                     }
                     Some(Schema::Trades) if *trade_replay_pending => {
                         *trade_replay_pending = false;
-                        publish_trade_replay_complete(feed)?;
+                        publish_trade_replay_complete(feed, startup_records.as_deref_mut())?;
                     }
                     _ => {}
                 }
@@ -377,9 +397,28 @@ fn process_record(
     }
     let trade_replay =
         *trade_replay_pending && feed.is_session_volume_instrument(source.header().instrument_id);
-    if let Some(record) = normalize(source, *statistics_replay_pending, trade_replay)
-        && !feed.publish_live(record)
-    {
+    if let Some(record) = normalize(source, *statistics_replay_pending, trade_replay) {
+        publish_or_stage(feed, record, startup_records)?;
+    }
+    Ok(())
+}
+
+fn publish_or_stage(
+    feed: &Feed,
+    record: MarketRecord64,
+    startup_records: Option<&mut Vec<MarketRecord64>>,
+) -> Result<(), LiveFailure> {
+    if let Some(records) = startup_records {
+        if records.len() >= feed.startup_record_capacity() {
+            return Err(failure(
+                BUFFER_TOO_SMALL,
+                "Startup replay exceeded the configured pre-activation record capacity",
+            ));
+        }
+        records.push(record);
+        return Ok(());
+    }
+    if !feed.publish_live(record) {
         return Err(failure(
             feed.terminal_status(),
             "Native ring publication failed",
@@ -398,7 +437,10 @@ fn classify_replay_schema(message: &str) -> Option<Schema> {
     }
 }
 
-fn publish_statistics_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
+fn publish_statistics_replay_complete(
+    feed: &Feed,
+    mut startup_records: Option<&mut Vec<MarketRecord64>>,
+) -> Result<(), LiveFailure> {
     for mapping in feed.mappings_snapshot().into_iter().filter(|mapping| {
         mapping.data_kinds & MARKET_DATA_STATISTICS != 0
             && mapping.instrument_id != 0
@@ -413,17 +455,15 @@ fn publish_statistics_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
                 ..RecordHeader32::default()
             },
         };
-        if !feed.publish_live(record) {
-            return Err(failure(
-                feed.terminal_status(),
-                "Native ring publication failed",
-            ));
-        }
+        publish_or_stage(feed, record, startup_records.as_deref_mut())?;
     }
     Ok(())
 }
 
-fn publish_trade_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
+fn publish_trade_replay_complete(
+    feed: &Feed,
+    mut startup_records: Option<&mut Vec<MarketRecord64>>,
+) -> Result<(), LiveFailure> {
     for mapping in feed.mappings_snapshot().into_iter().filter(|mapping| {
         mapping.data_kinds & MARKET_DATA_SESSION_VOLUME != 0
             && mapping.instrument_id != 0
@@ -438,12 +478,7 @@ fn publish_trade_replay_complete(feed: &Feed) -> Result<(), LiveFailure> {
                 ..RecordHeader32::default()
             },
         };
-        if !feed.publish_live(record) {
-            return Err(failure(
-                feed.terminal_status(),
-                "Native ring publication failed",
-            ));
-        }
+        publish_or_stage(feed, record, startup_records.as_deref_mut())?;
     }
     Ok(())
 }

@@ -4,9 +4,9 @@ using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
+namespace TomasAI.IFM.Domain.Application.Actor.Command;
 
-internal static class ShutdownApplicationCommandHandler
+internal static class ShutdownApplication
 {
     /// <summary>
     /// Handle a <see cref="ShutdownApplicationCommand"/> by building the corresponding

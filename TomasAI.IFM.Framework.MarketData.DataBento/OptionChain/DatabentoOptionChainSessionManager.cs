@@ -101,15 +101,23 @@ public sealed class DatabentoOptionChainSessionManager :
             try
             {
                 feed.Subscribe(request.Subscription, _startTimeout);
-                feed.Start(_startTimeout);
-                var session = new Session(key, request.ValueDate, feed, routes);
-                _state.Create(key, request.Routes);
-                _sessions.Add(key, session);
-                session.Worker = Task.Run(() => ProcessAsync(session));
+                Session? session = null;
+                using var consumerReady = new ManualResetEventSlim(false);
+                feed.Start(_startTimeout, remaining =>
+                {
+                    session = new Session(key, request.ValueDate, feed, routes);
+                    _state.Create(key, request.Routes);
+                    _sessions.Add(key, session);
+                    session.Worker = Task.Run(() => ProcessAsync(session, consumerReady));
+                    if (!consumerReady.Wait(remaining))
+                        throw new TimeoutException(
+                            "The option-chain consumer did not become ready before feed activation.");
+                });
                 return Task.FromResult(true);
             }
             catch
             {
+                _sessions.Remove(key);
                 feed.Dispose();
                 _state.Remove(key);
                 throw;
@@ -150,11 +158,14 @@ public sealed class DatabentoOptionChainSessionManager :
         return true;
     }
 
-    private async Task ProcessAsync(Session session)
+    private async Task ProcessAsync(
+        Session session,
+        ManualResetEventSlim? startupReady = null)
     {
         try
         {
             var reader = session.Feed.Reader;
+            startupReady?.Set();
             while (true)
             {
                 if (!reader.TryRead(_pollTimeout, out var batch))

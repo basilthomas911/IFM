@@ -948,8 +948,9 @@ public sealed class TickerStreamActorWorkflowTests
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
 
-        public void Start(TimeSpan timeout)
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
+            startConsumer(timeout);
             var batch = _channel.RentBatch(static () => false);
             foreach (var record in records)
                 batch.Add(record);
@@ -988,7 +989,11 @@ public sealed class TickerStreamActorWorkflowTests
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
 
-        public void Start(TimeSpan timeout) => State = FeedState.Running;
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
+        {
+            startConsumer(timeout);
+            State = FeedState.Running;
+        }
 
         public void Stop(TimeSpan timeout)
         {

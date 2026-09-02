@@ -1173,8 +1173,9 @@ public sealed class TickAggregationServiceTests
         private bool _leased;
         public FakeFeed(InstrumentKey instrument, params MarketRecord64[] records) { _instrument = instrument; _records = records; }
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
-        public void Start(TimeSpan timeout)
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
+            startConsumer(timeout);
             var batch = _channel.RentBatch(static () => false);
             foreach (var record in _records) batch.Add(record);
             Assert.True(_channel.Publish(batch, static () => false));
@@ -1200,7 +1201,8 @@ public sealed class TickAggregationServiceTests
         private bool _leased;
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
-        public void Start(TimeSpan timeout) { }
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer) =>
+            startConsumer(timeout);
         public void Publish(MarketRecord64 record)
         {
             var batch = _channel.RentBatch(static () => false);
@@ -1228,7 +1230,8 @@ public sealed class TickAggregationServiceTests
         private int _stopAttempts;
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) { }
-        public void Start(TimeSpan timeout) { }
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer) =>
+            startConsumer(timeout);
         public void Stop(TimeSpan timeout)
         {
             if (Interlocked.Increment(ref _stopAttempts) == 1)

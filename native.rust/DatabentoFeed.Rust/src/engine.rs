@@ -100,6 +100,7 @@ pub struct Feed {
     producer: Mutex<Option<JoinHandle<()>>>,
     stop_requested: AtomicBool,
     producer_done: AtomicBool,
+    consumer_ready: AtomicBool,
     pub state: AtomicU32,
     terminal_status: AtomicI32,
     pub mappings: Mutex<Vec<Mapping>>,
@@ -172,6 +173,7 @@ impl Feed {
             producer: Mutex::new(None),
             stop_requested: AtomicBool::new(false),
             producer_done: AtomicBool::new(false),
+            consumer_ready: AtomicBool::new(false),
             state: AtomicU32::new(STATE_CREATED),
             terminal_status: AtomicI32::new(OK),
             mappings: Mutex::new(Vec::new()),
@@ -367,11 +369,14 @@ impl Feed {
         drop(
             self.control_cv
                 .wait_while(guard, |_| {
-                    self.state.load(Ordering::Acquire) != STATE_RUNNING
+                    !self.consumer_ready.load(Ordering::Acquire)
                         && !self.stop_requested.load(Ordering::Acquire)
                 })
                 .unwrap_or_else(|error| error.into_inner()),
         );
+        if !self.stop_requested.load(Ordering::Acquire) {
+            self.enter_running();
+        }
         let record_count = if self.config.synthetic_record_count == 0 {
             100_000
         } else {
@@ -584,10 +589,57 @@ impl Feed {
         drop(
             self.control_cv
                 .wait_while(guard, |_| {
-                    self.state.load(Ordering::Acquire) != STATE_RUNNING && !self.stop_requested()
+                    !self.consumer_ready.load(Ordering::Acquire) && !self.stop_requested()
                 })
                 .unwrap_or_else(|error| error.into_inner()),
         );
+    }
+
+    pub(crate) fn enter_running(&self) {
+        self.state.store(STATE_RUNNING, Ordering::Release);
+        self.control_cv.notify_all();
+    }
+
+    #[cfg(feature = "live")]
+    pub(crate) fn startup_record_capacity(&self) -> usize {
+        self.ring_capacity as usize
+    }
+
+    pub fn set_consumer_ready(&self, timeout_ms: u32) -> Status {
+        if self.state.load(Ordering::Acquire) != STATE_CONSUMER_SETUP {
+            return INVALID_STATE;
+        }
+        self.consumer_ready.store(true, Ordering::Release);
+        self.control_cv.notify_all();
+        let guard = lock(&self.control);
+        let ready = |_: &mut ()| {
+            matches!(
+                self.state.load(Ordering::Acquire),
+                STATE_RUNNING | STATE_FAULTED
+            ) || self.stop_requested.load(Ordering::Acquire)
+        };
+        if timeout_ms == WAIT_INFINITE {
+            drop(
+                self.control_cv
+                    .wait_while(guard, |unit| !ready(unit))
+                    .unwrap_or_else(|error| error.into_inner()),
+            );
+        } else {
+            let (_guard, timeout) = self
+                .control_cv
+                .wait_timeout_while(guard, Duration::from_millis(timeout_ms.into()), |unit| {
+                    !ready(unit)
+                })
+                .unwrap_or_else(|error| error.into_inner());
+            if timeout.timed_out() && !ready(&mut ()) {
+                return TIMEOUT;
+            }
+        }
+        if self.state.load(Ordering::Acquire) == STATE_FAULTED {
+            self.terminal_status.load(Ordering::Acquire)
+        } else {
+            OK
+        }
     }
 
     #[inline(always)]

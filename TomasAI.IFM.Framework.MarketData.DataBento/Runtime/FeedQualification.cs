@@ -170,8 +170,9 @@ public static class DatabentoSyntheticQualificationProbe
         var stopped = false;
         try
         {
-            feed.Start(timeout);
-            var reader = feed.GetReader(feed.GetInstruments()[0].Instrument);
+            ISynchronousBatchReader<MarketDataBatch64>? reader = null;
+            feed.Start(timeout, _ =>
+                reader = feed.GetReader(feed.GetInstruments()[0].Instrument));
             var expectedSequence = checked((uint)options.Synthetic.StartSequence);
             var received = 0L;
             var lost = 0L;
@@ -181,7 +182,7 @@ public static class DatabentoSyntheticQualificationProbe
             var allocationBaseline = -1L;
             while (received < options.Synthetic.RecordCount)
             {
-                using var batch = reader.Read(timeout);
+                using var batch = reader!.Read(timeout);
                 if (started == 0)
                 {
                     started = Stopwatch.GetTimestamp();

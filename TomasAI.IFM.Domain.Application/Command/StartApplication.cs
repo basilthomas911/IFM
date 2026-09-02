@@ -4,9 +4,9 @@ using TomasAI.IFM.Domain.Application.Shared.Events;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventSourcing;
 
-namespace TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
+namespace TomasAI.IFM.Domain.Application.Actor.Command;
 
-internal static class StartApplicationCommandHandler
+internal static class StartApplication
 {
 
     /// <summary>

@@ -240,8 +240,9 @@ public sealed class DatabentoOptionChainSessionManagerTests
         internal bool Disposed { get; private set; }
         public ISynchronousBatchReader<MarketDataBatch64> Reader => _channel;
         public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout) { }
-        public void Start(TimeSpan timeout)
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
+            startConsumer(timeout);
             if (records.Length == 0) return;
             var batch = _channel.RentBatch(static () => false);
             foreach (var record in records) batch.Add(record);

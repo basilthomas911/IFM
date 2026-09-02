@@ -1,10 +1,12 @@
 ﻿using System.Collections.Concurrent;
+using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.Storage.SecuritiesDb.Schema;
 using TomasAI.IFM.Domain.Application.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ServiceApi;
@@ -27,6 +29,7 @@ public sealed class ApiApplicationStartupActivities(
     IMarketDataFeedCommandApi marketDataFeedCommandApi,
     IMarketDataFeedQueryApi marketDataFeedQueryApi,
     IMarketDataAnalyticsCommandApi analyticsCommandApi,
+    IHistoricalDataLoaderStore historicalDataLoaderStore,
     DatabentoMarketDataApi marketDataApi,
     MarketOutlookUpdateProcessor marketOutlookProcessor,
     ApplicationStartupOptions options,
@@ -164,6 +167,12 @@ public sealed class ApiApplicationStartupActivities(
         if (!accepted.Success)
             throw new InvalidOperationException(
                 $"Historical Analytics warm-up was rejected ({accepted.ErrorCode}): {accepted.ErrorMessage}");
+        if (accepted.Value == Guid.Empty)
+            throw new InvalidOperationException(
+                "Historical Analytics warm-up was accepted without an attempt identity.");
+
+        await WaitForHistoricalAnalyticsWarmupAsync(accepted.Value, cancellationToken)
+            .ConfigureAwait(false);
         return ApplicationStartupActivityOutcome.Started;
     }
 
@@ -175,9 +184,10 @@ public sealed class ApiApplicationStartupActivities(
             return ApplicationStartupActivityOutcome.ScheduledStopped;
 
         var es = RequiredEsContract(context.ValueDate);
-        foreach (var activation in FuturesIntradaySignalActivationProfile.Create(
+        var activations = FuturesIntradaySignalActivationProfile.Create(
             es.ContractId,
-            context.ValueDate))
+            context.ValueDate);
+        foreach (var activation in activations)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await RequireAcceptedAsync(
@@ -193,6 +203,9 @@ public sealed class ApiApplicationStartupActivities(
                 analyticsCommandApi.StartFuturesMacdSignalAsync(activation.Macd),
                 $"MACD {activation.TimeFrame}").ConfigureAwait(false);
         }
+
+        await WaitForRealtimeAnalyticsAttachmentsAsync(activations, cancellationToken)
+            .ConfigureAwait(false);
         return ApplicationStartupActivityOutcome.Started;
     }
 
@@ -246,6 +259,57 @@ public sealed class ApiApplicationStartupActivities(
         }
         throw new TimeoutException(
             $"Market Data did not reach the qualified {operation} state within {options.ParticipantTimeout}.");
+    }
+
+    async Task WaitForHistoricalAnalyticsWarmupAsync(
+        Guid attemptId,
+        CancellationToken cancellationToken)
+    {
+        var startedAt = timeProvider.GetTimestamp();
+        while (timeProvider.GetElapsedTime(startedAt) < options.ParticipantTimeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var state = await historicalDataLoaderStore.GetAsync(attemptId, cancellationToken)
+                .ConfigureAwait(false);
+            if (state?.Status == HistoricalDataLoaderStatus.Completed)
+                return;
+            if (state?.Status == HistoricalDataLoaderStatus.Failed)
+                throw new InvalidOperationException(
+                    $"Historical Analytics warm-up {attemptId} failed: {state.ErrorMessage}");
+            await Task.Delay(TimeSpan.FromMilliseconds(250), timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        throw new TimeoutException(
+            $"Historical Analytics warm-up {attemptId} did not complete within {options.ParticipantTimeout}.");
+    }
+
+    async Task WaitForRealtimeAnalyticsAttachmentsAsync(
+        IReadOnlyCollection<FuturesIntradaySignalActivation> activations,
+        CancellationToken cancellationToken)
+    {
+        var expectedRsi = activations.Select(value => value.Rsi).ToHashSet();
+        var expectedAtr = activations.Select(value => value.Atr).ToHashSet();
+        var expectedAdx = activations.Select(value => value.Adx).ToHashSet();
+        var expectedMacd = activations.Select(value => value.Macd).ToHashSet();
+        var startedAt = timeProvider.GetTimestamp();
+
+        while (timeProvider.GetElapsedTime(startedAt) < options.ParticipantTimeout)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (expectedRsi.IsSubsetOf(
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesRsiSignalEntityId>.Snapshot())
+                && expectedAtr.IsSubsetOf(
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesAtrSignalEntityId>.Snapshot())
+                && expectedAdx.IsSubsetOf(
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesAdxSignalEntityId>.Snapshot())
+                && expectedMacd.IsSubsetOf(
+                    FuturesTradeSessionBarAttachmentRegistry<FuturesMacdSignalEntityId>.Snapshot()))
+                return;
+            await Task.Delay(TimeSpan.FromMilliseconds(250), timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        throw new TimeoutException(
+            $"Realtime Analytics consumers did not attach within {options.ParticipantTimeout}.");
     }
 
     static async Task RequireAcceptedAsync(

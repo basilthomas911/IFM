@@ -55,13 +55,25 @@ public sealed class SyntheticTickerFeedTests
                     MarketDataKinds.Quote | MarketDataKinds.Trade | MarketDataKinds.MboOrderUpdate)
             ], TimeSpan.FromSeconds(2));
 
-            feed.Start(TimeSpan.FromSeconds(5));
-            var registrations = feed.GetInstruments();
+            IReadOnlyList<TickerInstrumentRegistration> registrations = null!;
+            ISynchronousBatchReader<MarketDataBatch64>? firstReader = null;
+            ISynchronousBatchReader<MarketDataBatch64>? secondReader = null;
+            feed.Start(TimeSpan.FromSeconds(5), _ =>
+            {
+                var preActivation = feed.GetHealth();
+                Assert.Equal(FeedState.ConsumerSetup, preActivation.State);
+                Assert.Equal(0ul, preActivation.RecordsProduced);
+                Assert.Equal(0ul, preActivation.RingUsedRecords);
+                Assert.Equal(0ul, preActivation.RingHighWaterRecords);
+                registrations = feed.GetInstruments();
+                firstReader = feed.GetReader(registrations[0].Instrument);
+                secondReader = feed.GetReader(registrations[1].Instrument);
+            });
             Assert.Equal(2, registrations.Count);
             var firstTask = Task.Run(() =>
-                Drain(feed.GetReader(registrations[0].Instrument), expectedIncrement: 2));
+                Drain(firstReader!, expectedIncrement: 2));
             var secondTask = Task.Run(() =>
-                Drain(feed.GetReader(registrations[1].Instrument), expectedIncrement: 2));
+                Drain(secondReader!, expectedIncrement: 2));
             var first = await firstTask.WaitAsync(TimeSpan.FromSeconds(10));
             var second = await secondTask.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(4_000, first.Count);
@@ -123,8 +135,9 @@ public sealed class SyntheticTickerFeedTests
             DataKinds = MarketDataKinds.Quote | MarketDataKinds.Trade
         }, TimeSpan.FromSeconds(2));
 
-        feed.Start(TimeSpan.FromSeconds(5));
-        var records = Drain(feed.Reader, expectedIncrement: 1);
+        ISynchronousBatchReader<MarketDataBatch64>? reader = null;
+        feed.Start(TimeSpan.FromSeconds(5), _ => reader = feed.Reader);
+        var records = Drain(reader!, expectedIncrement: 1);
         Assert.Equal(2_000, records.Count);
         feed.Stop(TimeSpan.FromSeconds(5));
         Assert.Equal(0, feed.GetHealth().DrainAllocatedBytes);

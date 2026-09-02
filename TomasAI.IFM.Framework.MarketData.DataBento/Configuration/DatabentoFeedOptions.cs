@@ -138,7 +138,7 @@ public sealed record DatabentoFeedOptions
     public required FeedDeploymentProfile DeploymentProfile { get; init; }
     public required string Dataset { get; init; }
     public FeedDataSourceMode DataSource { get; init; } = FeedDataSourceMode.Synthetic;
-    public int RingMemoryBytes { get; init; } = 1 << 20;
+    public int RingMemoryBytes { get; init; } = 128 * 1024 * 64;
     public int ManagedChannelRecordCapacity { get; init; } = 8_192;
     public int ManagedBatchRecordCapacity { get; init; } = 512;
     public FeedCpuAffinityOptions CpuAffinity { get; init; } = new();

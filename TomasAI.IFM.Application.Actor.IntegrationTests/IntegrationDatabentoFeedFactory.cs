@@ -158,7 +158,8 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) =>
             _subscriptions = subscriptions.ToArray();
 
-        public void Start(TimeSpan timeout) { }
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer) =>
+            startConsumer(timeout);
 
         public void Stop(TimeSpan timeout) => _reader.Complete();
 
@@ -187,7 +188,8 @@ internal sealed class IntegrationDatabentoFeedFactory : IDatabentoFeedFactory
         private readonly BlockingBatchReader _reader = new();
         public ISynchronousBatchReader<MarketDataBatch64> Reader => _reader;
         public void Subscribe(OptionChainSubscription subscription, TimeSpan timeout) { }
-        public void Start(TimeSpan timeout) { }
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer) =>
+            startConsumer(timeout);
         public void Stop(TimeSpan timeout) => _reader.Complete();
         public FeedHealthSnapshot GetHealth() => HealthyFeed();
         public void Dispose() => _reader.Complete();

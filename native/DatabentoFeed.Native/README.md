@@ -12,6 +12,11 @@ replayed `StatMsg` records, and emits a per-instrument replay-complete control
 record before continuing with live statistics. The managed EOD flow uses opening
 price and trading-session high/low; quote and trade subscriptions remain live-only.
 
+Live startup stages records encountered during symbol mapping outside the SPSC
+ring. Ring publication begins only after the managed drain and its downstream
+consumer report ready; the staged records are then released in arrival order.
+The default ring holds 131,072 fixed 64-byte records (8 MiB).
+
 ## Offline synthetic build
 
 `IFM_DATABENTO_ENABLE_LIVE` defaults to `OFF`, so configuration does not fetch or link the Databento SDK:

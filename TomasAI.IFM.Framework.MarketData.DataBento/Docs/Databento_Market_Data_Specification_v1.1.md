@@ -159,7 +159,7 @@ public interface IDatabentoTickerFeed : IDisposable
         ReadOnlySpan<TickerSubscription> subscriptions,
         TimeSpan timeout);
 
-    void Start(TimeSpan timeout);
+    void Start(TimeSpan timeout, Action<TimeSpan> startConsumer);
     void Stop(TimeSpan timeout);
 
     ISynchronousBatchReader<MarketDataBatch64> GetReader(
@@ -174,7 +174,7 @@ public interface IDatabentoOptionChainFeed : IDisposable
         OptionChainSubscription subscription,
         TimeSpan timeout);
 
-    void Start(TimeSpan timeout);
+    void Start(TimeSpan timeout, Action<TimeSpan> startConsumer);
     void Stop(TimeSpan timeout);
 
     ISynchronousBatchReader<MarketDataBatch64> Reader { get; }
@@ -224,7 +224,7 @@ public interface IDatabentoFeedFactory
 }
 ```
 
-There are no `Task`, `ValueTask`, `IAsyncEnumerable`, `ChannelReader<T>`, async suffixes, managed callbacks from native code, or fire-and-forget operations in these interfaces. `Read` uses one monotonic deadline, throws the typed terminal exception when completion is faulted, and throws `TimeoutException` without consuming a batch when its timeout expires. `TryRead` never blocks. A completed reader continues to return already-published batches before exposing terminal completion.
+There are no `Task`, `ValueTask`, `IAsyncEnumerable`, `ChannelReader<T>`, async suffixes, managed callbacks from native code, or fire-and-forget operations in these interfaces. The caller-supplied `startConsumer` action runs synchronously after mappings, channels, and pools exist but before the native producer is activated; it receives the remaining startup deadline and must not return until the application consumer has entered its read loop. `Read` uses one monotonic deadline, throws the typed terminal exception when completion is faulted, and throws `TimeoutException` without consuming a batch when its timeout expires. `TryRead` never blocks. A completed reader continues to return already-published batches before exposing terminal completion.
 
 Feed `Dispose()` is deliberately nonblocking: it releases a `Created`,
 `Subscribed`, successfully `Stopped`, or fully joined `Faulted` feed, and throws
@@ -409,7 +409,7 @@ public sealed record DatabentoFeedOptions
     public required string Dataset { get; init; }
     public FeedDataSourceMode DataSource { get; init; } =
         FeedDataSourceMode.Synthetic;
-    public int RingMemoryBytes { get; init; } = 1 << 20;
+    public int RingMemoryBytes { get; init; } = 128 * 1024 * 64;
     public int ManagedChannelRecordCapacity { get; init; } = 8_192;
     public int ManagedBatchRecordCapacity { get; init; } = 512;
     public FeedCpuAffinityOptions CpuAffinity { get; init; } = new();
@@ -794,13 +794,13 @@ actualRingBytes = capacitySlots * 64
 The V1 default is:
 
 ```text
-ring_memory_bytes = 2^20 = 1,048,576 bytes = 1 MiB
-capacitySlots = 1,048,576 / 64 = 16,384 records
-actualRingBytes = 1,048,576 bytes
+ring_memory_bytes = 2^23 = 8,388,608 bytes = 8 MiB
+capacitySlots = 8,388,608 / 64 = 131,072 records
+actualRingBytes = 8,388,608 bytes
 unusedRequestedBytes = 0
 ```
 
-This allocation applies independently to each long-lived feed. With one ticker feed and one option-chain feed running, their two native record rings consume 2 MiB in total, excluding cursor metadata, signals, native session state, and managed drain buffers. The default remains caller-configurable.
+This allocation applies independently to each long-lived feed. With one ticker feed and one option-chain feed running, their two native record rings consume 16 MiB in total, excluding cursor metadata, startup staging, signals, native session state, and managed drain buffers. The default remains caller-configurable.
 
 Requirements:
 
@@ -881,7 +881,7 @@ The managed batch pool remains preallocated and allocation-free after startup, b
 
 V1 always uses the operating system's normal base-page size. Windows never passes `MEM_LARGE_PAGES` or `MEM_64K_PAGES`. Linux applies `madvise(..., MADV_NOHUGEPAGE)` to the complete ring and unmanaged read-buffer mappings before NUMA policy, prefaulting, verification, and locking.
 
-The one-MiB default ring does not justify the privilege, alignment, internal-fragmentation, startup, and deployment costs of large/huge pages. Failure to apply the required Linux no-huge-page policy is `DBF_PAGE_CONFIGURATION_FAILED` in strict paper-trading/production profiles and an explicit degraded-health warning in development. Metrics report the configured base-page size and observed Windows `LargePage`/Linux mapping state. Large/huge pages may be benchmarked in a future ABI version but are not a V1 configuration option.
+The eight-MiB default ring does not justify the privilege, alignment, internal-fragmentation, startup, and deployment costs of large/huge pages. Failure to apply the required Linux no-huge-page policy is `DBF_PAGE_CONFIGURATION_FAILED` in strict paper-trading/production profiles and an explicit degraded-health warning in development. Metrics report the configured base-page size and observed Windows `LargePage`/Linux mapping state. Large/huge pages may be benchmarked in a future ABI version but are not a V1 configuration option.
 
 ### 9.2 Producer publication
 
@@ -995,7 +995,7 @@ stateDiagram-v2
 Rules:
 
 - `Subscribe` is synchronous and cold path.
-- `Start(timeout)` blocks until Running, timeout, or fault.
+- Managed `Start(timeout, startConsumer)` blocks until Running, timeout, or fault. Native `dbf_feed_start` returns in `ConsumerSetup` so managed setup can finish before activation.
 - `Stop(timeout)` requests stop, wakes waiters, drains committed records, and joins both feed sides within the deadline.
 - A native handle starts once. Restart requires a new handle.
 - Destroy while a producer is live is rejected.
@@ -1003,18 +1003,17 @@ Rules:
 
 Managed `Start` first acquires the process coordinators. It then starts the dedicated drain thread; that thread pins
 itself, applies its priority, allocates and verifies the registered native read
-buffer, and reports drain readiness. Only after drain readiness does the control
-thread call `dbf_feed_start`, which starts the native producer and blocks on the
+buffer, and reports allocation readiness. The control thread then calls
+`dbf_feed_start`, which starts the native producer and blocks on the
 same deadline until connection, authentication, subscription, and all initial
 symbol mappings complete. The native producer then pauses in `ConsumerSetup`
 without requesting another SDK record. Managed code copies the immutable mapping
-registry, creates all channels and complete batch-pool partitions, starts their
-reader state, and calls `dbf_feed_set_consumer_ready` with the remaining deadline.
-The drain thread remains on a pre-created managed start gate and does not call
-`dbf_feed_wait` or `dbf_feed_read_batch64` before this point. Consumer readiness
-opens that gate, the native producer enters `Running` and resumes `NextRecord`,
-and the drain immediately consumes any setup-window records already in the ring;
-public `Start`
+registry, creates all channels and complete batch-pool partitions, invokes the
+caller-supplied consumer-start action, opens the drain gate, and waits for the
+drain thread to enter its native wait/read loop. Only then does managed code call
+`dbf_feed_set_consumer_ready` with the remaining deadline. Native code releases
+the staged setup-window records into the ring in arrival order while the drain is
+already active, enters `Running`, and resumes `NextRecord`; public `Start`
 returns only after both sides report ready. The option-chain feed uses the same
 handshake but creates its one known channel before signaling consumer readiness.
 Any failure reverses only the resources already acquired, including pools, the
@@ -1040,6 +1039,7 @@ client.Start();
 ReadUntilInitialMappingsResolved();
 SetConsumerSetupAndSignal();
 WaitForConsumerReady(RemainingStartDeadline());
+PublishStagedStartupRecordsInOrder();
 SetRunningAndSignal();
 
 while (!stop_requested) {
@@ -1054,12 +1054,15 @@ SetStoppedAndSignal();
 
 The API key comes from `DATABENTO_API_KEY`, is never passed as a managed string, and is never logged.
 
-While resolving initial mappings, any market-data record encountered before the
-last required mapping is normalized into the native ring in arrival order; it is
-not discarded and the managed drain does not consume it until consumer readiness.
-The normal ring-full deadline remains active, and an overrun during this bounded
-setup window fails startup rather than concealing loss. No further SDK record is
-requested while native state is `ConsumerSetup`.
+While resolving initial mappings and subscription acknowledgements, any
+market-data record encountered before the last requirement is normalized into a
+native startup vector in arrival order; no record is published into the SPSC ring
+before consumer readiness. Startup staging is bounded to the configured ring
+record capacity. Exceeding that bound fails startup with `DBF_BUFFER_TOO_SMALL`
+rather than concealing loss. No further SDK record is requested while native
+state is `ConsumerSetup`. After consumer readiness, staged records are published
+to the ring in order under the normal bounded ring-full policy while the managed
+drain is already consuming.
 
 ### 11.1 Graceful shutdown and final drain
 
@@ -1571,7 +1574,8 @@ the ABI.
 `dbf_feed_start` returns only in native `ConsumerSetup` after initial mappings are
 stable, or on timeout/fault. Mapping count/copy exports are valid only in that
 state and use the usual two-call size/copy pattern; count changes are prohibited
-there. `dbf_feed_set_consumer_ready` transitions to `Running` and fails if mapping
+there. `dbf_feed_set_consumer_ready` activates startup-record publication and
+waits for the native producer to transition to `Running`; it fails if mapping
 copy/validation did not complete. The count/copy calls are nonblocking; the
 managed control checks the remaining public `Start` deadline before and after
 them, and passes only that remaining duration to the two blocking native startup
@@ -1902,7 +1906,7 @@ Paper trading deliberately uses production strictness so permissions, CPU reserv
   disabled, NUMA disabled, low-latency GC disabled, and every platform
   `Require...` flag false.
 
-All profiles resolve the same one-MiB ring, 8,192-record channel, 512-record
+All profiles resolve the same 8-MiB (131,072-record) ring, 8,192-record channel, 512-record
 batch/read size, 8,192-record drain pass, two-millisecond native ring-full
 deadline, thread-priority requests, five-second heartbeat, one-second health poll,
 and five-second metrics export unless an allowed explicit override is supplied.
@@ -2044,8 +2048,8 @@ deferred runtime acceptance evidence tracked in `Phase6_Implementation.md`.
 - invalid ring/channel/batch/drain capacities and incompatible affinity/NUMA combinations fail before native allocation;
 - connect, authentication, subscription, record, definition, latest-price, stop, and join timeout;
 - one monotonic deadline across all stages;
-- native startup pauses in `ConsumerSetup`, buffers pre-mapping market data without reordering, requests no further SDK record while paused, and enters `Running` only after mapping copy plus consumer readiness;
-- consumer-setup timeout/overrun and managed pool-construction failure roll back the buffer, ring, channels, and coordinator leases exactly once;
+- native startup pauses in `ConsumerSetup`, stages pre-mapping market data outside the ring without reordering, requests no further SDK record while paused, and publishes no ring record until the managed drain and application consumer are ready;
+- consumer-setup timeout/staging overflow and managed pool/consumer construction failure roll back the buffer, ring, channels, and coordinator leases exactly once;
 - timeout closes temporary latest-price/definition session;
 - synthetic homogeneous and hybrid CPU-topology classification;
 - automatic placement uses distinct physical cores before P-core SMT siblings;
@@ -2183,7 +2187,7 @@ deferred runtime acceptance evidence tracked in `Phase6_Implementation.md`.
 
 ### 22.10 Performance and allocation
 
-- default `ring_memory_bytes` is exactly `2^20`, producing 16,384 64-byte slots and zero unused requested bytes;
+- default `ring_memory_bytes` is exactly `2^23`, producing 131,072 64-byte slots and zero unused requested bytes;
 - default managed channel capacity is exactly 8,192 records per channel, with batch-slot capacity derived from the configured batch record capacity;
 - default managed batch capacity is 512 records, producing 32 KiB full batches and 16 batch slots per default channel;
 - partial managed batches are published at the end of each drain pass rather than waiting to become full;

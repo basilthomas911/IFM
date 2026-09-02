@@ -209,6 +209,7 @@ struct dbf_feed {
     std::thread producer;
     std::atomic<bool> stop_requested{false};
     std::atomic<bool> producer_done{false};
+    std::atomic<bool> consumer_ready{false};
     std::atomic<std::uint32_t> state{DBF_STATE_CREATED};
     std::atomic<std::int32_t> terminal_status{DBF_OK};
     monotonic_clock::time_point start_deadline{};
@@ -1114,10 +1115,17 @@ void synthetic_producer_main(dbf_feed* feed) noexcept {
     {
         std::unique_lock lock(feed->control_mutex);
         feed->control_cv.wait(lock, [feed] {
-            const auto state = feed->state.load(std::memory_order_acquire);
-            return state == DBF_STATE_RUNNING
+            return feed->consumer_ready.load(std::memory_order_acquire)
                    || feed->stop_requested.load(std::memory_order_acquire);
         });
+    }
+
+    if (!feed->stop_requested.load(std::memory_order_acquire)) {
+        {
+            std::lock_guard lock(feed->control_mutex);
+            feed->state.store(DBF_STATE_RUNNING, std::memory_order_release);
+        }
+        feed->control_cv.notify_all();
     }
 
     const auto record_count = feed->config.synthetic_record_count == 0
@@ -1230,7 +1238,26 @@ void subscribe_group(databento::LiveBlocking& client,
     }
 }
 
-bool publish_statistics_replay_complete(dbf_feed* feed) noexcept {
+bool stage_or_publish_record(
+    dbf_feed* feed,
+    const dbf_market_record64& record,
+    std::vector<dbf_market_record64>* startup_records) {
+    if (startup_records == nullptr) {
+        return publish_record(feed, record);
+    }
+    if (startup_records->size() >= feed->ring_capacity) {
+        return fail_live(
+            feed,
+            DBF_BUFFER_TOO_SMALL,
+            "Startup replay exceeded the configured pre-activation record capacity");
+    }
+    startup_records->push_back(record);
+    return true;
+}
+
+bool publish_statistics_replay_complete(
+    dbf_feed* feed,
+    std::vector<dbf_market_record64>* startup_records = nullptr) {
     for (const auto& mapping : feed->mappings) {
         if ((mapping.data_kinds & DBF_MARKET_DATA_STATISTICS) == 0
             || mapping.instrument_id == 0 || mapping.publisher_id == 0) {
@@ -1242,14 +1269,16 @@ bool publish_statistics_replay_complete(dbf_feed* feed) noexcept {
         record.header.record_kind = DBF_RECORD_STATISTICS_REPLAY_COMPLETE;
         record.header.source_schema =
             static_cast<std::uint16_t>(databento::Schema::Statistics);
-        if (!publish_record(feed, record)) {
+        if (!stage_or_publish_record(feed, record, startup_records)) {
             return false;
         }
     }
     return true;
 }
 
-bool publish_trade_replay_complete(dbf_feed* feed) noexcept {
+bool publish_trade_replay_complete(
+    dbf_feed* feed,
+    std::vector<dbf_market_record64>* startup_records = nullptr) {
     for (const auto& mapping : feed->mappings) {
         if ((mapping.data_kinds & DBF_MARKET_DATA_SESSION_VOLUME) == 0
             || mapping.instrument_id == 0 || mapping.publisher_id == 0) {
@@ -1261,7 +1290,7 @@ bool publish_trade_replay_complete(dbf_feed* feed) noexcept {
         record.header.record_kind = DBF_RECORD_TRADE_REPLAY_COMPLETE;
         record.header.source_schema =
             static_cast<std::uint16_t>(databento::Schema::Trades);
-        if (!publish_record(feed, record)) {
+        if (!stage_or_publish_record(feed, record, startup_records)) {
             return false;
         }
     }
@@ -1338,7 +1367,8 @@ bool process_live_record(dbf_feed* feed,
                          const databento::Record& source,
                          bool initial_mapping,
                          bool& statistics_replay_pending,
-                         bool& trade_replay_pending) {
+                         bool& trade_replay_pending,
+                         std::vector<dbf_market_record64>* startup_records = nullptr) {
     feed->last_message_monotonic_ns.store(
         monotonic_nanoseconds(), std::memory_order_relaxed);
     if (const auto* error = source.GetIf<databento::ErrorMsg>()) {
@@ -1359,7 +1389,7 @@ bool process_live_record(dbf_feed* feed,
                     break;
                 }
                 statistics_replay_pending = false;
-                if (!publish_statistics_replay_complete(feed)) {
+                if (!publish_statistics_replay_complete(feed, startup_records)) {
                     return false;
                 }
                 break;
@@ -1368,7 +1398,7 @@ bool process_live_record(dbf_feed* feed,
                     break;
                 }
                 trade_replay_pending = false;
-                if (!publish_trade_replay_complete(feed)) {
+                if (!publish_trade_replay_complete(feed, startup_records)) {
                     return false;
                 }
                 break;
@@ -1407,7 +1437,7 @@ bool process_live_record(dbf_feed* feed,
     dbf_market_record64 normalized{};
     return !dbf_live::normalize(
                source, normalized, statistics_replay_pending, trade_replay)
-           || publish_record(feed, normalized);
+           || stage_or_publish_record(feed, normalized, startup_records);
 }
 
 void live_producer_main(dbf_feed* feed) noexcept {
@@ -1446,6 +1476,8 @@ void live_producer_main(dbf_feed* feed) noexcept {
                                return (mapping.data_kinds
                                        & DBF_MARKET_DATA_SESSION_VOLUME) != 0;
                            });
+        std::vector<dbf_market_record64> startup_records;
+        startup_records.reserve(static_cast<std::size_t>(feed->ring_capacity));
         for (const auto input_symbology : {1u, 2u}) {
             subscribe_group(client, feed->mappings, input_symbology,
                             DBF_MARKET_DATA_QUOTE, databento::Schema::Mbp1,
@@ -1493,7 +1525,7 @@ void live_producer_main(dbf_feed* feed) noexcept {
                 std::min<std::uint32_t>(remaining, 250u)});
             if (record != nullptr && !process_live_record(
                     feed, *record, true, statistics_replay_pending,
-                    trade_replay_pending)) {
+                    trade_replay_pending, &startup_records)) {
                 client.Stop();
                 finish_producer(feed);
                 return;
@@ -1510,9 +1542,25 @@ void live_producer_main(dbf_feed* feed) noexcept {
         {
             std::unique_lock lock(feed->control_mutex);
             feed->control_cv.wait(lock, [feed] {
-                return feed->state.load(std::memory_order_acquire) == DBF_STATE_RUNNING
+                return feed->consumer_ready.load(std::memory_order_acquire)
                        || feed->stop_requested.load(std::memory_order_acquire);
             });
+        }
+
+        if (!feed->stop_requested.load(std::memory_order_acquire)) {
+            for (const auto& record : startup_records) {
+                if (!publish_record(feed, record)) {
+                    client.Stop();
+                    finish_producer(feed);
+                    return;
+                }
+            }
+            std::vector<dbf_market_record64>().swap(startup_records);
+            {
+                std::lock_guard lock(feed->control_mutex);
+                feed->state.store(DBF_STATE_RUNNING, std::memory_order_release);
+            }
+            feed->control_cv.notify_all();
         }
 
         while (!feed->stop_requested.load(std::memory_order_acquire)
@@ -2195,7 +2243,6 @@ dbf_status DBF_CALL dbf_feed_copy_ticker_mappings(
 
 dbf_status DBF_CALL dbf_feed_set_consumer_ready(dbf_feed_t* feed,
                                                 std::uint32_t timeout_ms) {
-    (void)timeout_ms;
     if (feed == nullptr) {
         return DBF_INVALID_ARGUMENT;
     }
@@ -2204,10 +2251,25 @@ dbf_status DBF_CALL dbf_feed_set_consumer_ready(dbf_feed_t* feed,
         if (feed->state.load(std::memory_order_acquire) != DBF_STATE_CONSUMER_SETUP) {
             return DBF_INVALID_STATE;
         }
-        feed->state.store(DBF_STATE_RUNNING, std::memory_order_release);
+        feed->consumer_ready.store(true, std::memory_order_release);
     }
     feed->control_cv.notify_all();
-    return DBF_OK;
+    std::unique_lock lock(feed->control_mutex);
+    const auto predicate = [feed] {
+        const auto state = feed->state.load(std::memory_order_acquire);
+        return state == DBF_STATE_RUNNING || state == DBF_STATE_FAULTED
+               || feed->stop_requested.load(std::memory_order_acquire);
+    };
+    const bool ready = timeout_ms == DBF_WAIT_INFINITE
+                           ? (feed->control_cv.wait(lock, predicate), true)
+                           : feed->control_cv.wait_for(
+                                 lock, std::chrono::milliseconds(timeout_ms), predicate);
+    if (!ready) {
+        return DBF_TIMEOUT;
+    }
+    return feed->state.load(std::memory_order_acquire) == DBF_STATE_FAULTED
+               ? static_cast<dbf_status>(feed->terminal_status.load(std::memory_order_acquire))
+               : DBF_OK;
 }
 
 dbf_status DBF_CALL dbf_feed_wait(dbf_feed_t* feed,

@@ -341,6 +341,15 @@ void test_lifecycle_and_order() {
     assert(mappings[0].instrument_id == 1);
     assert(mappings[1].instrument_id == 2);
 
+    dbf_stats_v1 pre_activation{};
+    pre_activation.struct_size = sizeof(pre_activation);
+    pre_activation.abi_version = DBF_ABI_VERSION;
+    require(dbf_feed_get_stats(feed, &pre_activation));
+    assert(pre_activation.state == DBF_STATE_CONSUMER_SETUP);
+    assert(pre_activation.records_produced == 0);
+    assert(pre_activation.ring_used_records == 0);
+    assert(pre_activation.ring_high_water_records == 0);
+
     require(dbf_feed_set_consumer_ready(feed, 2'000));
     std::uint64_t consumed = 0;
     std::uint32_t last_sequence = 0;

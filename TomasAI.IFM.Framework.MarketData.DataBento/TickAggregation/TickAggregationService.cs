@@ -375,34 +375,40 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
             var feedStarted = false;
             try
             {
-                _feed.Start(_options.FeedStartTimeout);
-                feedStarted = true;
-                foreach (var registration in _feed.GetInstruments())
+                using var consumerReady = new ManualResetEventSlim(false);
+                _feed.Start(_options.FeedStartTimeout, remaining =>
                 {
-                    if (!_mappings.TryResolveFeedMapping(
-                            _options.Dataset,
-                            _options.DefinitionDate,
-                            registration,
-                            out var mapping))
-                        throw new KeyNotFoundException($"No tick mapping exists for {registration.Instrument}.");
-                    if (mapping.AssetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
-                        throw new InvalidOperationException(
-                            $"Tick aggregation accepts futures and futures-option mappings; " +
-                            $"{mapping.ContractId} is {mapping.AssetTypeId}.");
-                    _lastPrices?.RegisterContract(
-                        mapping.ContractId,
-                        mapping.AssetTypeId);
-                    _states.Add(registration.Instrument, new TickerState(mapping));
-                }
-                Volatile.Write(
-                    ref _statesByContractId,
-                    _states.Values.ToFrozenDictionary(
-                        state => state.Mapping.ContractId,
-                        StringComparer.Ordinal));
-                Volatile.Write(ref _activeTickers, _states.Count);
-                _reader = _feed.GetMultiplexedReader();
-                Volatile.Write(ref _running, 1);
-                _worker = Task.Run(ProcessAsync);
+                    foreach (var registration in _feed.GetInstruments())
+                    {
+                        if (!_mappings.TryResolveFeedMapping(
+                                _options.Dataset,
+                                _options.DefinitionDate,
+                                registration,
+                                out var mapping))
+                            throw new KeyNotFoundException($"No tick mapping exists for {registration.Instrument}.");
+                        if (mapping.AssetTypeId is not (AssetTypeId.Futures or AssetTypeId.FuturesOption))
+                            throw new InvalidOperationException(
+                                $"Tick aggregation accepts futures and futures-option mappings; " +
+                                $"{mapping.ContractId} is {mapping.AssetTypeId}.");
+                        _lastPrices?.RegisterContract(
+                            mapping.ContractId,
+                            mapping.AssetTypeId);
+                        _states.Add(registration.Instrument, new TickerState(mapping));
+                    }
+                    Volatile.Write(
+                        ref _statesByContractId,
+                        _states.Values.ToFrozenDictionary(
+                            state => state.Mapping.ContractId,
+                            StringComparer.Ordinal));
+                    Volatile.Write(ref _activeTickers, _states.Count);
+                    _reader = _feed.GetMultiplexedReader();
+                    Volatile.Write(ref _running, 1);
+                    _worker = Task.Run(() => ProcessAsync(consumerReady));
+                    if (!consumerReady.Wait(remaining))
+                        throw new TimeoutException(
+                            "The tick aggregation consumer did not become ready before feed activation.");
+                });
+                feedStarted = true;
             }
             catch
             {
@@ -410,6 +416,13 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
                     ref _statesByContractId,
                     FrozenDictionary<string, TickerState>.Empty);
                 Volatile.Write(ref _activeTickers, 0);
+                Volatile.Write(ref _running, 0);
+                if (_worker is not null)
+                {
+                    try { await _worker.ConfigureAwait(false); }
+                    catch { /* Preserve the original startup failure. */ }
+                    _worker = null;
+                }
                 _reader?.Dispose();
                 _reader = null;
                 if (feedStarted)
@@ -462,8 +475,9 @@ public sealed class TickAggregationService : ITickAggregationService, ITickAggre
         finally { _lifecycle.Release(); }
     }
 
-    private async Task ProcessAsync()
+    private async Task ProcessAsync(ManualResetEventSlim? startupReady = null)
     {
+        startupReady?.Set();
         while (true)
         {
             if (!_reader!.TryRead(_options.ReaderPollTimeout, out var leased))

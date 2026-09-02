@@ -55,10 +55,15 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
                         DatabentoInputSymbology.RawSymbol,
                         MarketDataKinds.Quote | MarketDataKinds.Trade)
                 ], TimeSpan.FromSeconds(10));
-                feed.Start(TimeSpan.FromSeconds(45));
-                var registration = Assert.Single(feed.GetInstruments());
+                TickerInstrumentRegistration registration = null!;
+                ISynchronousBatchReader<MarketDataBatch64> reader = null!;
+                feed.Start(TimeSpan.FromSeconds(45), _ =>
+                {
+                    registration = Assert.Single(feed.GetInstruments());
+                    reader = feed.GetReader(registration.Instrument);
+                });
                 var drain = LiveTestGate.DrainUntilCompletedAsync(
-                    feed.GetReader(registration.Instrument));
+                    reader);
                 started.Add((rootSymbol, dataset, feed, drain));
                 output.WriteLine(
                     "LIVE coexistence start: root={0}, dataset={1}, rawSymbol={2}, state={3}.",
@@ -124,13 +129,18 @@ public sealed class LiveCurrentFuturesTickSmokeTests(ITestOutputHelper output)
                 DatabentoInputSymbology.RawSymbol,
                 MarketDataKinds.Quote | MarketDataKinds.Trade)
         ], TimeSpan.FromSeconds(10));
-        feed.Start(TimeSpan.FromSeconds(45));
+        TickerInstrumentRegistration registration = null!;
+        ISynchronousBatchReader<MarketDataBatch64> reader = null!;
+        feed.Start(TimeSpan.FromSeconds(45), _ =>
+        {
+            registration = Assert.Single(feed.GetInstruments());
+            reader = feed.GetReader(registration.Instrument);
+        });
 
-        var registration = Assert.Single(feed.GetInstruments());
         var counters = new DatabentoSoakCounters(
             [registration.Instrument],
             allowPublisherAliases: true);
-        var consumer = counters.ConsumeAsync(feed.GetReader(registration.Instrument));
+        var consumer = counters.ConsumeAsync(reader);
         Exception? stopFailure = null;
         try
         {

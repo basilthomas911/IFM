@@ -208,6 +208,17 @@ fn synthetic_feed_preserves_lifecycle_mappings_and_order() {
         assert_eq!(mappings[0].instrument_id, 1);
         assert_eq!(mappings[1].instrument_id, 2);
 
+        let mut pre_activation = StatsV1 {
+            struct_size: size_of::<StatsV1>() as u32,
+            abi_version: ABI_VERSION,
+            ..StatsV1::default()
+        };
+        assert_eq!(dbf_feed_get_stats(feed.cast(), &mut pre_activation), OK);
+        assert_eq!(pre_activation.state, STATE_CONSUMER_SETUP);
+        assert_eq!(pre_activation.records_produced, 0);
+        assert_eq!(pre_activation.ring_used_records, 0);
+        assert_eq!(pre_activation.ring_high_water_records, 0);
+
         assert_eq!(dbf_feed_set_consumer_ready(feed.cast(), 2_000), OK);
         let mut expected = 1u64;
         let mut observed_statistics = [false; 3];

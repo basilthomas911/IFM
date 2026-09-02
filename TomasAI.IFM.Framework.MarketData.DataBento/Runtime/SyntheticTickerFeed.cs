@@ -22,6 +22,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
     private readonly bool _singleChannel;
     private readonly ManualResetEventSlim _drainAllocated = new(false);
     private readonly ManualResetEventSlim _drainStart = new(false);
+    private readonly ManualResetEventSlim _drainReady = new(false);
     private readonly SemaphoreSlim _multiplexedReady = new(0);
     private readonly ulong[]? _managedObservedProcessors;
     private TickerSubscription[]? _subscriptions;
@@ -169,9 +170,10 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         }
     }
 
-    public void Start(TimeSpan timeout)
+    public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
     {
         ValidateTimeout(timeout);
+        ArgumentNullException.ThrowIfNull(startConsumer);
         var deadline = new MonotonicDeadline(timeout);
         lock (_lifecycleGate)
         {
@@ -221,12 +223,24 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 _handle,
                 "Native feed start");
             BuildMappingsAndChannels();
+            startConsumer(deadline.Remaining);
+            _drainStart.Set();
+            if (!_drainReady.Wait(deadline.Remaining))
+            {
+                throw new DatabentoFeedTimeoutException(
+                    "Timed out while starting the managed drain consumer.");
+            }
+            if (_drainFailure is not null)
+            {
+                throw new DatabentoFeedException(
+                    DatabentoFeedStatus.InternalError,
+                    "Managed drain startup failed: " + _drainFailure.Message);
+            }
             NativeStatus.ThrowIfFailed(
                 NativeMethods.FeedSetConsumerReady(_handle, deadline.RemainingMilliseconds),
                 _handle,
                 "Native consumer-ready transition");
             _placementLease.Commit();
-            _drainStart.Set();
         }
         catch
         {
@@ -467,6 +481,7 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
         _placementLease = null;
         _drainAllocated.Dispose();
         _drainStart.Dispose();
+        _drainReady.Dispose();
         _multiplexedReady.Dispose();
     }
 
@@ -765,12 +780,14 @@ internal sealed unsafe class SyntheticTickerFeed : IDatabentoTickerFeed
                 "Native read-buffer allocation");
             _drainAllocated.Set();
             _drainStart.Wait();
+            _drainReady.Set();
             Interlocked.Exchange(ref _drainAllocatedBytes, DrainLoop());
         }
         catch (Exception exception)
         {
             _drainFailure = exception;
             _drainAllocated.Set();
+            _drainReady.Set();
             foreach (var state in _channelStates)
             {
                 state.Channel.Complete(exception);

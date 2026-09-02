@@ -24,14 +24,16 @@ public sealed class ApplicationStartupWorkflowTests
 
         await Event().ExecuteAsync(context, CancellationToken.None);
 
-        Assert.Equal(Enum.GetValues<ApplicationStartupActivity>(), activities.Executed);
+        Assert.Equal(
+            ApplicationStartupPlan.Activities.Select(value => value.Activity),
+            activities.Executed);
         Assert.Equal(ApplicationLifecycleState.Running, context.StartupStatusStore.Current.State);
         Assert.Equal(7, context.StartupStatusStore.Current.Activities.Length);
         Assert.Single(context.SentEvents, value => value is ApplicationStartupCompleteEvent);
     }
 
     [Fact]
-    public async Task Required_failure_skips_dependents_but_later_independent_qualification_runs()
+    public async Task Required_failure_skips_all_dependent_startup_work()
     {
         var activities = new RecordingActivities
         {
@@ -45,8 +47,7 @@ public sealed class ApplicationStartupWorkflowTests
             [
                 ApplicationStartupActivity.ResolveAuthority,
                 ApplicationStartupActivity.ReconcileReferenceData,
-                ApplicationStartupActivity.ReconcileCurrentContracts,
-                ApplicationStartupActivity.QualifyOperationalState
+                ApplicationStartupActivity.ReconcileCurrentContracts
             ],
             activities.Executed);
         var status = context.StartupStatusStore.Current;
@@ -55,7 +56,7 @@ public sealed class ApplicationStartupWorkflowTests
             ApplicationStartupActivityOutcome.SkippedDependency,
             status.Activities.Single(value => value.Activity == ApplicationStartupActivity.StartMarketData).Outcome);
         Assert.Equal(
-            ApplicationStartupActivityOutcome.AlreadySatisfied,
+            ApplicationStartupActivityOutcome.SkippedDependency,
             status.Activities.Single(value => value.Activity == ApplicationStartupActivity.QualifyOperationalState).Outcome);
         Assert.Single(context.SentEvents, value => value is ApplicationStartupFailEvent);
     }
@@ -71,9 +72,32 @@ public sealed class ApplicationStartupWorkflowTests
 
         await Event().ExecuteAsync(context, CancellationToken.None);
 
-        Assert.Equal(Enum.GetValues<ApplicationStartupActivity>(), activities.Executed);
+        Assert.Equal(
+            ApplicationStartupPlan.Activities.Select(value => value.Activity),
+            activities.Executed);
         Assert.Equal(ApplicationLifecycleState.Degraded, context.StartupStatusStore.Current.State);
         Assert.Single(context.SentEvents, value => value is ApplicationStartupDegradedEvent);
+    }
+
+    [Fact]
+    public async Task Realtime_analytics_failure_prevents_market_data_from_starting()
+    {
+        var activities = new RecordingActivities
+        {
+            Failure = ApplicationStartupActivity.StartRealtimeAnalytics
+        };
+        var context = new TestContext(activities);
+
+        await Event().ExecuteAsync(context, CancellationToken.None);
+
+        Assert.DoesNotContain(ApplicationStartupActivity.StartMarketData, activities.Executed);
+        Assert.DoesNotContain(ApplicationStartupActivity.QualifyOperationalState, activities.Executed);
+        Assert.Equal(
+            ApplicationStartupActivityOutcome.SkippedDependency,
+            context.StartupStatusStore.Current.Activities
+                .Single(value => value.Activity == ApplicationStartupActivity.StartMarketData)
+                .Outcome);
+        Assert.Equal(ApplicationLifecycleState.Failed, context.StartupStatusStore.Current.State);
     }
 
     [Fact]

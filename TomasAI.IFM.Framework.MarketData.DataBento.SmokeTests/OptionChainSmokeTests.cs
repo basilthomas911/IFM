@@ -99,8 +99,9 @@ public sealed class OptionChainSmokeTests
                 DataKinds = MarketDataKinds.Quote
             },
             TimeSpan.FromSeconds(5));
-        feed.Start(TimeSpan.FromSeconds(45));
-        var drain = LiveTestGate.DrainUntilCompletedAsync(feed.Reader);
+        ISynchronousBatchReader<MarketDataBatch64>? reader = null;
+        feed.Start(TimeSpan.FromSeconds(45), _ => reader = feed.Reader);
+        var drain = LiveTestGate.DrainUntilCompletedAsync(reader!);
         try
         {
             Assert.NotNull(feed.Reader);

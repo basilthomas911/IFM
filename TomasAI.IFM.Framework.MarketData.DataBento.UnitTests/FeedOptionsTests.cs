@@ -10,7 +10,7 @@ public sealed class FeedOptionsTests
             "SYNTHETIC");
 
         Assert.Equal(FeedDataSourceMode.Synthetic, options.DataSource);
-        Assert.Equal(1 << 20, options.RingMemoryBytes);
+        Assert.Equal(128 * 1024 * 64, options.RingMemoryBytes);
         Assert.Equal(8_192, options.ManagedChannelRecordCapacity);
         Assert.Equal(512, options.ManagedBatchRecordCapacity);
         Assert.Equal(512, options.Drain.NativeReadRecordCapacity);

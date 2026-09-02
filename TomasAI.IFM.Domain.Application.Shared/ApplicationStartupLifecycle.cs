@@ -126,10 +126,18 @@ public static class ApplicationStartupPlan
         new(ApplicationStartupActivity.ResolveAuthority, true, []),
         new(ApplicationStartupActivity.ReconcileReferenceData, false, [ApplicationStartupActivity.ResolveAuthority]),
         new(ApplicationStartupActivity.ReconcileCurrentContracts, true, [ApplicationStartupActivity.ResolveAuthority]),
-        new(ApplicationStartupActivity.StartMarketData, true, [ApplicationStartupActivity.ReconcileCurrentContracts]),
         new(ApplicationStartupActivity.WarmHistoricalAnalytics, false, [ApplicationStartupActivity.ReconcileCurrentContracts]),
-        new(ApplicationStartupActivity.StartRealtimeAnalytics, true, [ApplicationStartupActivity.StartMarketData]),
-        new(ApplicationStartupActivity.QualifyOperationalState, true, [])
+        new(ApplicationStartupActivity.StartRealtimeAnalytics, true, [ApplicationStartupActivity.ReconcileCurrentContracts]),
+        new(ApplicationStartupActivity.StartMarketData, true,
+        [
+            ApplicationStartupActivity.ReconcileCurrentContracts,
+            ApplicationStartupActivity.StartRealtimeAnalytics
+        ]),
+        new(ApplicationStartupActivity.QualifyOperationalState, true,
+        [
+            ApplicationStartupActivity.StartRealtimeAnalytics,
+            ApplicationStartupActivity.StartMarketData
+        ])
     ];
 
     public static ApplicationLifecycleState Aggregate(

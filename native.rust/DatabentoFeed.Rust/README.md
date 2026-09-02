@@ -56,6 +56,9 @@ the C++ implementation. Live smoke tests remain opt-in.
 - Fixed 64-byte quote, trade, MBO, and statistics records are normalized directly
   into an SPSC ring. Statistics can replay from a configured session-start
   timestamp and emit an explicit replay-complete control record before live updates.
+- Records observed during startup mapping are staged outside the ring and released
+  in order only after managed consumer readiness; the default managed configuration
+  uses a 131,072-record (8 MiB) ring.
 - Producer and consumer cursors occupy separate cache lines and use acquire/release
   publication.
 - The record path has no per-record heap allocation or mutex.

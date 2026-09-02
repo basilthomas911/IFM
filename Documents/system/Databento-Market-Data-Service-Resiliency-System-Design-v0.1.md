@@ -137,7 +137,7 @@ include its Rust equivalent and parity evidence in the same change set.
 Persistent live sessions treat the provider `SlowReaderWarning` as an advisory pressure signal, not
 as terminal feed completion. Both C++ and Rust increment the observable slow-reader counter and keep
 the session open while the managed consumer drains. Development and Paper/Production profiles permit
-up to 30 seconds for a full native ring to regain capacity during the startup/session replay burst;
+up to 30 seconds for a full native ring to regain capacity while the already-ready managed consumer drains a startup/session replay burst;
 the deterministic Synthetic CI profile retains its two-millisecond bound. Exhausting the configured
 ring wait or receiving a different terminal system code remains a real feed failure. The future bulk
 watchdog snapshot must expose the warning count, ring occupancy/high-water data and terminal reason

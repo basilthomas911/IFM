@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using TomasAI.IFM.Application.Storage;
-using TomasAI.IFM.Domain.Application.Actor.Command.Handlers;
+using TomasAI.IFM.Domain.Application.Actor.Command;
 using TomasAI.IFM.Domain.Application.Actor.Command.State;
 using TomasAI.IFM.Domain.Application.Shared.Commands;
 using TomasAI.IFM.Domain.Application.Shared;

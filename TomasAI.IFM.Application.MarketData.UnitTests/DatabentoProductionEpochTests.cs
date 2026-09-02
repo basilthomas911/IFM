@@ -346,9 +346,10 @@ public sealed class DatabentoProductionEpochTests
 
         public void Subscribe(ReadOnlySpan<TickerSubscription> subscriptions, TimeSpan timeout) =>
             _subscriptions = subscriptions.ToArray();
-        public void Start(TimeSpan timeout)
+        public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
         {
             StartCount++;
+            startConsumer(timeout);
             HealthState = FeedState.Running;
         }
         public void Stop(TimeSpan timeout)

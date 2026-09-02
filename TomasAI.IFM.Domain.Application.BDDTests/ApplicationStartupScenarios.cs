@@ -5,17 +5,28 @@ namespace TomasAI.IFM.Domain.Application.Actor.BDDTests;
 public sealed class ApplicationStartupScenarios
 {
     [Fact]
-    public void Given_a_healthy_boot_when_startup_is_planned_then_authority_precedes_feed_and_analytics()
+    public void Given_a_healthy_boot_when_startup_is_planned_then_the_feed_starts_after_analytics()
     {
         Assert.Equal(
-            Enum.GetValues<ApplicationStartupActivity>(),
+            [
+                ApplicationStartupActivity.ResolveAuthority,
+                ApplicationStartupActivity.ReconcileReferenceData,
+                ApplicationStartupActivity.ReconcileCurrentContracts,
+                ApplicationStartupActivity.WarmHistoricalAnalytics,
+                ApplicationStartupActivity.StartRealtimeAnalytics,
+                ApplicationStartupActivity.StartMarketData,
+                ApplicationStartupActivity.QualifyOperationalState
+            ],
             ApplicationStartupPlan.Activities.Select(value => value.Activity));
         Assert.Contains(
             ApplicationStartupActivity.ReconcileCurrentContracts,
             Definition(ApplicationStartupActivity.StartMarketData).Dependencies);
         Assert.Contains(
+            ApplicationStartupActivity.StartRealtimeAnalytics,
+            Definition(ApplicationStartupActivity.StartMarketData).Dependencies);
+        Assert.Contains(
             ApplicationStartupActivity.StartMarketData,
-            Definition(ApplicationStartupActivity.StartRealtimeAnalytics).Dependencies);
+            Definition(ApplicationStartupActivity.QualifyOperationalState).Dependencies);
     }
 
     [Fact]

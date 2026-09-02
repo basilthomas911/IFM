@@ -43,8 +43,13 @@ public sealed class DatabentoOneHourLiveSmokeTests
                 DatabentoInputSymbology.RawSymbol,
                 dataKinds)
         ], TimeSpan.FromSeconds(10));
-        feed.Start(TimeSpan.FromSeconds(60));
-        var registration = Assert.Single(feed.GetInstruments());
+        TickerInstrumentRegistration registration = null!;
+        ISynchronousBatchReader<MarketDataBatch64> reader = null!;
+        feed.Start(TimeSpan.FromSeconds(60), _ =>
+        {
+            registration = Assert.Single(feed.GetInstruments());
+            reader = feed.GetReader(registration.Instrument);
+        });
         using var csvCapture = DatabentoTickCsvCapture.CreateIfEnabled(
             "es-future",
             new Dictionary<InstrumentKey, string>
@@ -58,7 +63,7 @@ public sealed class DatabentoOneHourLiveSmokeTests
         {
             counters.PauseMeasurement();
         }
-        var consumer = counters.ConsumeAsync(feed.GetReader(registration.Instrument));
+        var consumer = counters.ConsumeAsync(reader);
 
         _output.WriteLine(
             "Starting ES future soak: symbol={0}, instrument={1}, kinds={2}, duration={3}.",
@@ -127,7 +132,8 @@ public sealed class DatabentoOneHourLiveSmokeTests
                 DataKinds = dataKinds
             },
             TimeSpan.FromSeconds(15));
-        feed.Start(TimeSpan.FromSeconds(90));
+        ISynchronousBatchReader<MarketDataBatch64> reader = null!;
+        feed.Start(TimeSpan.FromSeconds(90), _ => reader = feed.Reader);
         var expectedInstruments = contracts.Select(contract => contract.Instrument).ToHashSet();
         using var csvCapture = DatabentoTickCsvCapture.CreateIfEnabled(
             "es-futures-options",
@@ -141,7 +147,7 @@ public sealed class DatabentoOneHourLiveSmokeTests
         {
             counters.PauseMeasurement();
         }
-        var consumer = counters.ConsumeAsync(feed.Reader);
+        var consumer = counters.ConsumeAsync(reader);
 
         _output.WriteLine(
             "Starting ES option soak: underlying={0}, maturity={1:yyyy-MM-dd}, "

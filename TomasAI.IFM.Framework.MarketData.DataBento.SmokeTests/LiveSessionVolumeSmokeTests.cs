@@ -44,10 +44,15 @@ public sealed class LiveSessionVolumeSmokeTests
                 | MarketDataKinds.Statistics
                 | MarketDataKinds.SessionVolume)
         ], TimeSpan.FromSeconds(10));
-        feed.Start(TimeSpan.FromSeconds(45));
-        var registration = Assert.Single(feed.GetInstruments());
+        TickerInstrumentRegistration registration = null!;
+        ISynchronousBatchReader<MarketDataBatch64> reader = null!;
+        feed.Start(TimeSpan.FromSeconds(45), _ =>
+        {
+            registration = Assert.Single(feed.GetInstruments());
+            reader = feed.GetReader(registration.Instrument);
+        });
         var probe = new SessionReplayProbe();
-        var consumer = probe.ConsumeAsync(feed.GetReader(registration.Instrument));
+        var consumer = probe.ConsumeAsync(reader);
         try
         {
             var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(45);

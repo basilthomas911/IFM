@@ -151,10 +151,14 @@ internal sealed class SyntheticOptionChainFeed : IDatabentoOptionChainFeed
         _subscribed = true;
     }
 
-    public void Start(TimeSpan timeout)
+    public void Start(TimeSpan timeout, Action<TimeSpan> startConsumer)
     {
-        _inner.Start(timeout);
-        _firstInstrument = _inner.GetInstruments()[0].Instrument;
+        ArgumentNullException.ThrowIfNull(startConsumer);
+        _inner.Start(timeout, remaining =>
+        {
+            _firstInstrument = _inner.GetInstruments()[0].Instrument;
+            startConsumer(remaining);
+        });
     }
 
     public void Stop(TimeSpan timeout) => _inner.Stop(timeout);
