@@ -22,14 +22,19 @@ public static partial class MarketDataAnalyticsQueryExtensions
 {
 
     /// <summary>Executes the GetMarketOutlookSnapshotAsync operation.</summary>
-    public static Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
+    public static async Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
         string contractId,
-        DateOnly valueDate)
+        DateOnly valueDate,
+        bool loadPersistedBaseline = false)
     {
         try
         {
-            MarketOutlookHotCache.Shared.TryGetCurrent(
-                new MarketOutlookEntityId(contractId, valueDate), out var result);
+            var entityId = new MarketOutlookEntityId(contractId, valueDate);
+            var result = loadPersistedBaseline && context.MarketOutlookHydrator is { } hydrator
+                ? await hydrator.HydrateAsync(entityId).ConfigureAwait(false)
+                : MarketOutlookHotCache.Shared.TryGetCurrent(entityId, out var cached)
+                    ? cached
+                    : null;
             result ??= new MarketOutlookReadModel
             {
                 ContractId = contractId,
@@ -38,14 +43,12 @@ public static partial class MarketDataAnalyticsQueryExtensions
                 MissingInputs = "Market Outlook unavailable",
                 FeedHealth = "Unavailable"
             };
-            return Task.FromResult<ServiceResult<MarketOutlookReadModel>>(
-                new ServiceOk<MarketOutlookReadModel>(result!));
+            return new ServiceOk<MarketOutlookReadModel>(result!);
         }
         catch (Exception ex)
         {
-            return Task.FromResult<ServiceResult<MarketOutlookReadModel>>(
-                new ServiceFailed<MarketOutlookReadModel>(
-                    GetMarketOutlookSnapshotQuery.ErrorId, ex.Message));
+            return new ServiceFailed<MarketOutlookReadModel>(
+                GetMarketOutlookSnapshotQuery.ErrorId, ex.Message);
         }
     }
 

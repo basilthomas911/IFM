@@ -33,6 +33,8 @@ using TomasAI.IFM.Framework.Storage.Extensions;
 using TomasAI.IFM.Application.Storage.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 
 namespace TomasAI.IFM.Application.Storage.IntegrationTests.MarketDataDb;
 
@@ -175,6 +177,83 @@ public class MarketDataFixture : IDisposable
 public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<MarketDataFixture>
 {
     MarketDataFixture TestFixture { get; } = testFixture;
+
+    [Fact]
+    public async Task LatestDailyEmaAndBollingerSignals_RoundTripForMarketOutlookHydration()
+    {
+        var valueDate = new DateOnly(2098, 3, 15);
+        var asOf = new DateTimeOffset(2098, 3, 14, 21, 59, 59, TimeSpan.Zero);
+        var series = MarketSeriesIdentity.ForFuturesSeries(new FuturesSeriesId(
+            $"T{Guid.NewGuid():N}"[..8], "calendar-front", "unadjusted", 1));
+        var observationId = new FuturesTradeSessionBarId(Guid.NewGuid());
+        MarketAnalyticsSignalMetadata Metadata(
+            MarketAnalyticsSignalKind kind,
+            string configurationId) => new()
+        {
+            SignalKey = new(series, kind, TimeFrameType.Daily, configurationId),
+            ContractId = "ESH98",
+            ValueDate = valueDate,
+            ObservationId = observationId,
+            MarketDataAsOfUtc = asOf,
+            CalculatedAtUtc = asOf.AddSeconds(1),
+            SourceSequence = 901,
+            SchemaVersion = 1,
+            CalculationVersion = "integration-v1",
+            CalculationMethod = MarketSignalCalculationMethod.NormalizedHistoricalAggregate,
+            IsValid = true
+        };
+        var ema = new FuturesEmaSignalReadModel
+        {
+            Metadata = Metadata(MarketAnalyticsSignalKind.Ema, "ema-10-20-50-200-v1"),
+            Price = 6_100m,
+            Ema10 = 6_090m,
+            PreviousEma10 = 6_088m,
+            Ema10Slope = 2m,
+            Ema20 = 6_080m,
+            Ema50 = 6_050m,
+            Ema200 = 5_900m,
+            IsWarm = true
+        };
+        var bb = new FuturesBbSignalReadModel
+        {
+            Metadata = Metadata(
+                MarketAnalyticsSignalKind.BollingerBand,
+                "bb-10-20-ema-center-population-v1"),
+            Price = 6_100m,
+            Ema10Center = 6_090m,
+            StandardDeviation10 = 10m,
+            Upper10 = 6_110m,
+            Lower10 = 6_070m,
+            Width10 = 40m,
+            Position10 = 0.75m,
+            Ema20Center = 6_080m,
+            StandardDeviation20 = 15m,
+            Upper20 = 6_110m,
+            Lower20 = 6_050m,
+            Width20 = 60m,
+            Position20 = 0.83m,
+            Width20Baseline = 55m,
+            Width20Ratio = 1.09m,
+            IsWarm = true
+        };
+
+        await TestFixture.DevDatabase.InsertFuturesEmaSignalAsync(ema);
+        await TestFixture.DevDatabase.InsertFuturesBollingerBandSignalAsync(bb);
+
+        var loadedEma = await TestFixture.DevDatabase.GetLatestFuturesEmaSignalAsync(
+            series, valueDate);
+        var loadedBb = await TestFixture.DevDatabase.GetLatestFuturesBollingerBandSignalAsync(
+            series, valueDate);
+
+        loadedEma.Should().NotBeNull();
+        loadedEma!.Metadata.Should().BeEquivalentTo(ema.Metadata);
+        loadedEma.Should().BeEquivalentTo(ema, options => options.Excluding(value =>
+            value.BaselineValueDate));
+        loadedBb.Should().NotBeNull();
+        loadedBb!.Metadata.Should().BeEquivalentTo(bb.Metadata);
+        loadedBb.Should().BeEquivalentTo(bb, options => options.Excluding(value =>
+            value.BaselineValueDate));
+    }
 
     [Fact]
     public async Task HistoricalRawEodRange_ReadsAcrossMonthPartitionsInAscendingOrder()

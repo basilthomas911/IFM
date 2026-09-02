@@ -12,6 +12,7 @@ using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.FuturesTradeSignal;
 
@@ -34,8 +35,10 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
 
     public sealed class TestableFuturesTradeSignalQueryActor(
         IDbContextFactory dbFactory,
-        ILogger<FuturesTradeSignalQueryActor> logger)
-        : FuturesTradeSignalQueryActor(new FuturesTradeSignalQueryContext(Substitute.For<IActorSupervisor>(), dbFactory, logger))
+        ILogger<FuturesTradeSignalQueryActor> logger,
+        IMarketOutlookSnapshotHydrator? hydrator = null)
+        : FuturesTradeSignalQueryActor(new FuturesTradeSignalQueryContext(
+            Substitute.For<IActorSupervisor>(), dbFactory, logger, hydrator))
     {
         public IQuery InvokeParseMessage(IQueryActorContext<FuturesTradeSignalQueryActor> context, NatsMsg<byte[]> message)
             => ParseMessage(context, message);
@@ -59,13 +62,13 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
         ILogger<FuturesTradeSignalQueryActor> Logger,
         IQueryActorContext<FuturesTradeSignalQueryActor> Context);
 
-    Scenario CreateScenario()
+    Scenario CreateScenario(IMarketOutlookSnapshotHydrator? hydrator = null)
     {
         var db = Substitute.For<IMarketDataDbContext>();
         var dbFactory = Substitute.For<IDbContextFactory>();
         dbFactory.MarketDataDb.Returns(db);
         var logger = Substitute.For<ILogger<FuturesTradeSignalQueryActor>>();
-        var actor = _fixture.CreateActor(dbFactory, logger);
+        var actor = new TestableFuturesTradeSignalQueryActor(dbFactory, logger, hydrator);
         var context = Substitute.For<IQueryActorContext<FuturesTradeSignalQueryActor>>();
         context.SetMessageInfo(Arg.Any<ActorThreadId>(), Arg.Any<string>(), Arg.Any<ActorMessageInfo>())
             .Returns(true);
@@ -273,6 +276,64 @@ public class FuturesTradeSignalQueryActorTests : IClassFixture<MarketDataAnalyti
                 && result.Value.ValueDate == entityId.ValueDate
                 && result.Value.FeedHealth == "Unavailable"
                 && !result.Value.IsValid));
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_GetMarketOutlookSnapshotQuery_HydratesBeforeReplying()
+    {
+        var hydrator = Substitute.For<IMarketOutlookSnapshotHydrator>();
+        var scenario = CreateScenario(hydrator);
+        var entityId = new MarketOutlookEntityId(SampleData.ContractId, SampleData.ValueDate);
+        var query = new GetMarketOutlookSnapshotQuery(
+            entityId.ContractId,
+            entityId.ValueDate,
+            loadPersistedBaseline: true)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketOutlookSnapshotQuery.Actor,
+                GetMarketOutlookSnapshotQuery.Verb,
+                entityId.Format())
+        };
+        var expected = new MarketOutlookReadModel
+        {
+            ContractId = entityId.ContractId,
+            ValueDate = entityId.ValueDate,
+            FuturesRsiSignal = new FuturesRsiSignalReadModel { RSI = 58d, IsWarm = true }
+        };
+        hydrator.HydrateAsync(entityId, Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<MarketOutlookReadModel?>(expected));
+
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await hydrator.Received(1).HydrateAsync(entityId, Arg.Any<CancellationToken>());
+        await scenario.Context.Received(1).ReplyAsync(
+            query.Subject.ThreadId,
+            GetMarketOutlookSnapshotQuery.Verb,
+            Arg.Is<ServiceResult<MarketOutlookReadModel>>(result => result.Value == expected));
+    }
+
+    [Fact]
+    public async Task ReceiveAsync_OrdinaryMarketOutlookQuery_DoesNotReloadPersistence()
+    {
+        var hydrator = Substitute.For<IMarketOutlookSnapshotHydrator>();
+        var scenario = CreateScenario(hydrator);
+        var entityId = new MarketOutlookEntityId(SampleData.ContractId, SampleData.ValueDate);
+        var query = new GetMarketOutlookSnapshotQuery(entityId.ContractId, entityId.ValueDate)
+        {
+            Subject = new ActorSubject(
+                ActorType.Query,
+                GetMarketOutlookSnapshotQuery.Actor,
+                GetMarketOutlookSnapshotQuery.Verb,
+                entityId.Format())
+        };
+        MarketOutlookHotCache.Shared.Clear();
+
+        await scenario.Actor.InvokeReceiveAsync(scenario.Context, query);
+
+        await hydrator.DidNotReceive()
+            .HydrateAsync(Arg.Any<MarketOutlookEntityId>(), Arg.Any<CancellationToken>());
+        MarketOutlookHotCache.Shared.Clear();
     }
 
     [Theory]

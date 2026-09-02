@@ -2,6 +2,9 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.QueryParameters;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVxTermStructureSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesVwapSignal;
@@ -16,6 +19,14 @@ namespace TomasAI.IFM.Application.Storage.MarketDataDb;
 
 public interface IMarketDataDbReadContext
 {
+    Task<FuturesEmaSignalReadModel?> GetLatestFuturesEmaSignalAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default);
+    Task<FuturesBbSignalReadModel?> GetLatestFuturesBollingerBandSignalAsync(
+        MarketSeriesIdentity seriesIdentity,
+        DateOnly valueDate,
+        CancellationToken cancellationToken = default);
     /// <summary>Gets the latest projected exact VWAP for one futures session.</summary>
     Task<FuturesVwapSignalReadModel?> GetLatestFuturesVwapSignalAsync(
         string contractId, DateOnly valueDate, string configurationId,

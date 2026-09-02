@@ -9,6 +9,7 @@ public sealed record GetMarketOutlookSnapshotParameter : IActorEntityId, IQueryP
 {
     [Key(0)] public string ContractId { get; init; } = string.Empty;
     [Key(1)] public DateOnly ValueDate { get; init; }
+    [Key(2)] public bool LoadPersistedBaseline { get; init; }
 
     [IgnoreMember]
     public string? QueryParams { get; private set; }
@@ -16,11 +17,16 @@ public sealed record GetMarketOutlookSnapshotParameter : IActorEntityId, IQueryP
     public GetMarketOutlookSnapshotParameter() { }
 
     [SerializationConstructor]
-    public GetMarketOutlookSnapshotParameter(string contractId, DateOnly valueDate)
+    public GetMarketOutlookSnapshotParameter(
+        string contractId,
+        DateOnly valueDate,
+        bool loadPersistedBaseline = false)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
-        QueryParams = $"contractId={ContractId}&valueDate={ValueDate:yyyy-MM-dd}";
+        LoadPersistedBaseline = loadPersistedBaseline;
+        QueryParams = $"contractId={ContractId}&valueDate={ValueDate:yyyy-MM-dd}" +
+            $"&loadPersistedBaseline={LoadPersistedBaseline.ToString().ToLowerInvariant()}";
     }
 
     public string Format() => $"{ContractId}.{ValueDate:yyyyMMdd}";

@@ -622,6 +622,19 @@ internal readonly record struct InsertFuturesBollingerBandSignal(
     };
 }
 
+internal readonly record struct GetLatestFuturesRegimeSignal(
+    string seriesKey,
+    string timePeriod,
+    string configurationId,
+    int yearMonth,
+    DateTime marketDataAsOf) : IBindValue
+{
+    public object Bind() => new object[]
+    {
+        seriesKey, timePeriod, configurationId, yearMonth, marketDataAsOf
+    };
+}
+
 internal readonly record struct InsertFuturesVxTermStructureSignal(
     DateOnly valueDate, string configurationId, DateTime calculatedAt,
     long frontSourceSequence, long backSourceSequence,

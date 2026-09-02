@@ -10,6 +10,7 @@ using TomasAI.IFM.Shared.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.Extensions;
@@ -25,6 +26,7 @@ public interface IFuturesTradeSignalQueryContext : IQueryActorContext<FuturesTra
     IDbContextFactory DbFactory { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<FuturesTradeSignalQueryActor> Logger { get; }
+    IMarketOutlookSnapshotHydrator? MarketOutlookHydrator { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="FuturesTradeSignalQueryActor"/>.</summary>
@@ -34,12 +36,14 @@ public sealed class FuturesTradeSignalQueryContext : QueryActorContext, IQueryAc
     public FuturesTradeSignalQueryContext(
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
-        ILogger<FuturesTradeSignalQueryActor> logger)
+        ILogger<FuturesTradeSignalQueryActor> logger,
+        IMarketOutlookSnapshotHydrator? marketOutlookHydrator = null)
         : base(supervisor, new ActorMailboxId(ActorType.Query, FuturesTradeSignalQueryActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         DbFactory = IsArgumentNull.Set(dbFactory);
         Logger = IsArgumentNull.Set(logger);
+        MarketOutlookHydrator = marketOutlookHydrator;
     }
 
     /// <inheritdoc/>
@@ -48,4 +52,5 @@ public sealed class FuturesTradeSignalQueryContext : QueryActorContext, IQueryAc
     public IDbContextFactory DbFactory { get; }
     /// <inheritdoc/>
     public ILogger<FuturesTradeSignalQueryActor> Logger { get; }
+    public IMarketOutlookSnapshotHydrator? MarketOutlookHydrator { get; }
 }

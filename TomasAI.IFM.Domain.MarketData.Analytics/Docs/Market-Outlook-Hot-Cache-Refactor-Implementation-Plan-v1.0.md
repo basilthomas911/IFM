@@ -5,6 +5,8 @@
 > and dedicated `MarketOutlookHotCacheService` requirements. The retained design is a
 > non-authoritative, process-local, immutable whole-snapshot projection with independent component
 > refresh, ES-trade recalculation, typed NATS query/notification contracts and no persistence.
+> The later MDR Stage 1 plan also supersedes direct cache writers with a bounded local update
+> channel and one hosted processor; this document remains historical design context only.
 
 | Item | Value |
 | --- | --- |

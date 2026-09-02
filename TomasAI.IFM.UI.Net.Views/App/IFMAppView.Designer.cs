@@ -473,7 +473,7 @@ namespace TomasAI.IFM.UI.Net.Views.App
         private System.Windows.Forms.Panel pnlOperationView;
         private OperationsView operationsView1;
         private System.Windows.Forms.SplitContainer marketViewSplitter;
-        private System.Windows.Forms.TabControl tabTradeBlotter;
+        private DarkTabControl tabTradeBlotter;
         private System.Windows.Forms.BindingSource statusConsoleLogViewModelBindingSource;
         private System.Windows.Forms.Panel pnlAppView;
         private System.Windows.Forms.ToolStripButton tradeButton;

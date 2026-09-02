@@ -15,7 +15,7 @@ namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
 public sealed class MarketOutlookLiveRefreshSystemTests
 {
     [Fact]
-    public async Task ConsecutiveWholeSnapshots_ReplacePricePercentageTwoEmaAndFourBollingerControls()
+    public async Task ConsecutiveWholeSnapshots_ReplacePriceAnalyticsAndAllFiveItiControls()
     {
         var completion = new TaskCompletionSource<(string[] First, string[] Second)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -45,7 +45,7 @@ public sealed class MarketOutlookLiveRefreshSystemTests
         thread.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
         result.Second.Should().NotEqual(result.First);
         result.Second.Zip(result.First).Should().OnlyContain(pair => pair.First != pair.Second,
-            "each displayed price, percentage, EMA and Bollinger value must be replaced by the next whole snapshot");
+            "each displayed price, Analytics and ITI value must be replaced by the next whole snapshot");
     }
 
     static void Refresh(MarketOutlookView view, MarketOutlookReadModel snapshot)
@@ -63,7 +63,12 @@ public sealed class MarketOutlookLiveRefreshSystemTests
         Text(view, "txtStdDevRT"),
         Text(view, "txtUpperBandRT"),
         Text(view, "txtMeanRT"),
-        Text(view, "txtLowerBandRT")
+        Text(view, "txtLowerBandRT"),
+        Text(view, "txtUpTrendLimit"),
+        Text(view, "txtDownTrendLimit"),
+        Text(view, "txtExtremeLimit"),
+        Text(view, "txtReversalLimit"),
+        Text(view, "txtTrendDelta")
     ];
 
     static string Text(Control view, string name) =>
@@ -112,6 +117,19 @@ public sealed class MarketOutlookLiveRefreshSystemTests
                 Lower20 = lower,
                 Position20 = 0.5m,
                 IsWarm = true
+            },
+            LatestItiTrendSignal = new()
+            {
+                ContractId = metadata.ContractId,
+                ValueDate = metadata.ValueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = IntrinsicTimeModeType.Trending,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+                UpTrendTrigger = (double)(close + 10m),
+                DownTrendTrigger = (double)(close - 10m),
+                TrendExtreme = (double)(close + 20m),
+                TrendReversal = (double)(close - 20m),
+                TrendDelta = (double)(close - 5_000m)
             }
         };
     }

@@ -19,6 +19,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
 
 public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, ITradeOrderControl
 {
+    static readonly Color ReadOnlyInputTextColor = Color.Gray;
     readonly TradeOrderEditorForm _parentControl;
     readonly IronCondorTradeOrderViewModel _viewModel;
     long _lastErrorSequence;
@@ -39,10 +40,79 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
         IronCondorTradeOrderViewModel viewModel)
     {
         InitializeComponent();
+        ApplyInputPalette(this);
         ConfigureResponsiveLegLayout();
         _parentControl = parentControl ?? throw new ArgumentNullException(nameof(parentControl));
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _viewModel.PropertyChanged += ViewModelPropertyChanged;
+    }
+
+    static void ApplyInputPalette(Control root)
+    {
+        foreach (var control in ControlsAndSelf(root))
+        {
+            switch (control)
+            {
+                case TextBox textBox:
+                    ApplyBlackInputPalette(textBox);
+                    break;
+                case ComboBox comboBox:
+                    ApplyBlackInputPalette(comboBox);
+                    comboBox.DrawMode = DrawMode.OwnerDrawFixed;
+                    comboBox.DrawItem += DrawBlackComboBoxItem;
+                    break;
+                case NumericUpDown numericUpDown:
+                    ApplyBlackInputPalette(numericUpDown);
+                    break;
+                case DateTimePicker dateTimePicker:
+                    ApplyBlackInputPalette(dateTimePicker);
+                    dateTimePicker.CalendarForeColor = Color.White;
+                    dateTimePicker.CalendarMonthBackground = Color.Black;
+                    dateTimePicker.CalendarTitleBackColor = Color.Black;
+                    dateTimePicker.CalendarTitleForeColor = Color.White;
+                    dateTimePicker.CalendarTrailingForeColor = Color.Gray;
+                    break;
+            }
+        }
+
+        static void ApplyBlackInputPalette(Control control)
+        {
+            control.BackColor = Color.Black;
+            control.ForeColor = Color.White;
+        }
+
+        static IEnumerable<Control> ControlsAndSelf(Control parent)
+        {
+            yield return parent;
+            foreach (Control child in parent.Controls)
+            foreach (var descendant in ControlsAndSelf(child))
+                yield return descendant;
+        }
+    }
+
+    static void DrawBlackComboBoxItem(object? sender, DrawItemEventArgs e)
+    {
+        if (sender is not ComboBox comboBox || e.Bounds.Width <= 0 || e.Bounds.Height <= 0)
+            return;
+
+        using var background = new SolidBrush(Color.Black);
+        e.Graphics.FillRectangle(background, e.Bounds);
+        var text = e.Index >= 0 && e.Index < comboBox.Items.Count
+            ? comboBox.GetItemText(comboBox.Items[e.Index])
+            : comboBox.Text;
+        TextRenderer.DrawText(
+            e.Graphics,
+            text,
+            comboBox.Font,
+            e.Bounds,
+            comboBox.Enabled ? Color.White : ReadOnlyInputTextColor,
+            TextFormatFlags.Left
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.NoPrefix);
+
+        if (comboBox.Enabled && (e.State & DrawItemState.Focus) != 0)
+            e.DrawFocusRectangle();
     }
 
     void ConfigureResponsiveLegLayout()
@@ -202,7 +272,7 @@ public partial class IronCondorTradeOrderView : UserControl, IAsyncFormControl, 
 
     static void ConfigureSplitValues(Panel panel, Control left, Control right)
     {
-        panel.Margin = new Padding(panel.Margin.Left, 0, panel.Margin.Right, 0);
+        panel.Margin = new Padding(panel.Margin.Left, 2, panel.Margin.Right, 2);
         left.Dock = DockStyle.None;
         right.Dock = DockStyle.None;
         panel.Resize += (_, _) => LayoutSplitValues(panel, left, right);

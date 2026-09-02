@@ -22,6 +22,7 @@ using TomasAI.IFM.Application.MarketData.Databento;
 using TomasAI.IFM.Application.MarketData.Databento.Historical;
 using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.Historical;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Application.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Framework.MarketData.FinancialModelingPrep;
 using TomasAI.IFM.Application.EventProjector;
@@ -50,6 +51,7 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
@@ -509,6 +511,26 @@ public static class Startup
                                 1))
                     }));
             services.AddSingleton<FuturesTradeSessionBarAccumulator>();
+            services.AddSingleton(MarketOutlookHotCache.Shared);
+            services.AddSingleton<IMarketOutlookHotCache>(provider =>
+                provider.GetRequiredService<MarketOutlookHotCache>());
+            services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
+                provider.GetRequiredService<MarketOutlookHotCache>());
+            services.AddSingleton<MarketOutlookProcessorMetrics>();
+            services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
+                provider.GetRequiredService<MarketOutlookProcessorMetrics>());
+            services.AddSingleton<MarketOutlookUpdateChannel>();
+            services.AddSingleton<IMarketOutlookUpdateWriter>(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateChannel>());
+            services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateChannel>());
+            services.AddSingleton<IMarketOutlookSnapshotPublisher, ActorMarketOutlookSnapshotPublisher>();
+            services.AddSingleton<MarketOutlookUpdateProcessor>();
+            services.AddSingleton<IMarketOutlookOperations>(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            services.AddHostedService(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            services.AddSingleton<IMarketOutlookSnapshotHydrator, MarketOutlookSnapshotHydrator>();
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();

@@ -63,6 +63,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realt
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
@@ -609,7 +610,26 @@ public static class Startup
                     }));
             services.AddSingleton<FuturesTradeSessionBarAccumulator>();
             services.AddHostedService<FuturesContractRolloverStartupService>();
-            services.AddSingleton<IMarketOutlookHotCache>(MarketOutlookHotCache.Shared);
+            services.AddSingleton(MarketOutlookHotCache.Shared);
+            services.AddSingleton<IMarketOutlookHotCache>(provider =>
+                provider.GetRequiredService<MarketOutlookHotCache>());
+            services.AddSingleton<IMarketOutlookHotCacheWriter>(provider =>
+                provider.GetRequiredService<MarketOutlookHotCache>());
+            services.AddSingleton<MarketOutlookProcessorMetrics>();
+            services.AddSingleton<IMarketDataOperationsRecorder>(provider =>
+                provider.GetRequiredService<MarketOutlookProcessorMetrics>());
+            services.AddSingleton<MarketOutlookUpdateChannel>();
+            services.AddSingleton<IMarketOutlookUpdateWriter>(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateChannel>());
+            services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateChannel>());
+            services.AddSingleton<IMarketOutlookSnapshotPublisher, ActorMarketOutlookSnapshotPublisher>();
+            services.AddSingleton<MarketOutlookUpdateProcessor>();
+            services.AddSingleton<IMarketOutlookOperations>(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            services.AddHostedService(provider =>
+                provider.GetRequiredService<MarketOutlookUpdateProcessor>());
+            services.AddSingleton<IMarketOutlookSnapshotHydrator, MarketOutlookSnapshotHydrator>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")
                 .Get<FmpImportScheduleOptions>() ?? new FmpImportScheduleOptions()).Validate();

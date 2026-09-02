@@ -17,12 +17,29 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using TomasAI.IFM.UI.EventConsumer;
 using TomasAI.IFM.UI.Net.Views.Trade.IronCondor;
+using TomasAI.IFM.UI.Net.Views.Portfolio;
 using TomasAI.IFM.UI.Net.Services.Application;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Portfolio;
 
 public sealed class PortfolioTradeOrdersUiSystemTests
 {
+    [Fact]
+    [Trait("Category", "PortfolioTypography")]
+    public void Portfolio_administration_uses_Microsoft_Sans_Serif_ten_point_throughout()
+    {
+        using var form = new PortfolioAdministrationForm();
+
+        ControlsAndSelf(form).Should().OnlyContain(control =>
+            control.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(control.Font.Size - 10F) < 0.01F);
+        ControlsAndSelf(form).OfType<DataGridView>().Should().OnlyContain(grid =>
+            grid.ColumnHeadersDefaultCellStyle.Font.Name == "Microsoft Sans Serif"
+            && Math.Abs(grid.ColumnHeadersDefaultCellStyle.Font.Size - 10F) < 0.01F);
+
+        Field<Label>(form, "_menuTitle").Font.Style.Should().HaveFlag(FontStyle.Bold);
+    }
+
     [Fact]
     [Trait("Category", "TradeOrdersTypography")]
     public void Trade_Orders_uses_one_font_family_and_point_size_for_existing_and_embedded_controls()
@@ -148,6 +165,14 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         for (var parent = control.Parent; parent is not null && parent != root; parent = parent.Parent)
             bottom += parent.Top;
         return bottom;
+    }
+
+    static int TopWithin(Control control, Control root)
+    {
+        var top = control.Top;
+        for (var parent = control.Parent; parent is not null && parent != root; parent = parent.Parent)
+            top += parent.Top;
+        return top;
     }
 
     static bool FitsWithinTableCell(TableLayoutPanel table, Control control)
@@ -298,6 +323,7 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         charts.Should().OnlyContain(chart => ChartUsesTradeTypography(chart));
         charts.Should().OnlyContain(chart => chart.Titles.Count == 0 && chart.Dock == DockStyle.Fill);
         var graphTabs = Field<TabControl>(ironCondor, "_graphTabs");
+        graphTabs.GetType().Name.Should().Be("DarkTabControl");
         graphTabs.Dock.Should().Be(DockStyle.Fill);
         graphTabs.TabPages.Cast<TabPage>().Select(page => page.Text).Should().Equal(
             "Iron Condor Net Spread Path",
@@ -323,6 +349,12 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         var realTimeStatus = Field<TableLayoutPanel>(ironCondor, "pnlRt");
         var assetSplitter = Field<SplitContainer>(ironCondor, "pnlAssetSplitter");
         var logTabs = Field<TabControl>(ironCondor, "tabActionData");
+        logTabs.GetType().Name.Should().Be("DarkTabControl");
+        new[] { assetSplitter, realTimeData, historySplitter }
+            .Should().OnlyContain(splitter => splitter.BackColor.ToArgb() == Color.Black.ToArgb());
+        graphTabs.TabPages.Cast<TabPage>()
+            .Concat(logTabs.TabPages.Cast<TabPage>())
+            .Should().OnlyContain(page => page.BackColor.ToArgb() == Color.Black.ToArgb());
         realTimeData.Visible.Should().BeTrue();
         realTimeData.Dock.Should().Be(DockStyle.Fill);
         graphTabs.SelectedTab.Should().BeSameAs(graphTabs.TabPages[0]);
@@ -332,6 +364,8 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         topLayout.Width.Should().Be(realTimeData.Panel1.ClientSize.Width);
         realTimeHeader.Width.Should().Be(realTimeData.Panel2.ClientSize.Width);
         realTimeGrid.Width.Should().Be(realTimeData.Panel2.ClientSize.Width);
+        realTimeData.Panel2.BackColor.Should().Be(Color.Black);
+        realTimeGrid.BackgroundColor.Should().Be(Color.Black);
         realTimeData.Panel2.ClientSize.Height.Should().Be(169);
         realTimeHeader.Bottom.Should().BeLessThanOrEqualTo(realTimeData.Panel2.ClientSize.Height);
         (realTimeData.Panel2.ClientSize.Height - realTimeHeader.Bottom).Should().BeLessThanOrEqualTo(10);
@@ -484,6 +518,77 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         panel.Controls.Cast<Control>().Should().ContainSingle().Which.Should().BeOfType<IronCondorTradeOrderView>();
         var editor = (IronCondorTradeOrderView)panel.Controls[0];
         editor.IsHistoricalReadOnly.Should().BeTrue();
+        ControlsAndSelf(editor)
+            .Where(control => control is TextBox or ComboBox or NumericUpDown or DateTimePicker)
+            .Should().OnlyContain(control =>
+                control.BackColor.ToArgb() == Color.Black.ToArgb()
+                && control.ForeColor.ToArgb() == Color.White.ToArgb());
+        ControlsAndSelf(editor).OfType<DateTimePicker>().Should().OnlyContain(date =>
+            date.CalendarMonthBackground.ToArgb() == Color.Black.ToArgb()
+            && date.CalendarForeColor.ToArgb() == Color.White.ToArgb()
+            && date.CalendarTitleBackColor.ToArgb() == Color.Black.ToArgb()
+            && date.CalendarTitleForeColor.ToArgb() == Color.White.ToArgb());
+        ControlsAndSelf(editor).OfType<ComboBox>().Should().OnlyContain(combo =>
+            combo.DrawMode == DrawMode.OwnerDrawFixed);
+        var orderType = Field<ComboBox>(editor, "ddlOrderType");
+        Field<ComboBox>(editor, "ddlPrice").DropDownStyle.Should().Be(ComboBoxStyle.DropDownList);
+        var dateControls = ControlsAndSelf(editor).OfType<DateTimePicker>().ToArray();
+        dateControls.Should().OnlyContain(date => date.GetType().Name == "DarkDateTimePicker");
+        var readOnlyDate = dateControls[0];
+        readOnlyDate.Value = new DateTime(2024, 2, 2);
+        readOnlyDate.Enabled = false;
+        using (var renderedDate = new Bitmap(readOnlyDate.Width, readOnlyDate.Height))
+        using (var graphics = Graphics.FromImage(renderedDate))
+        {
+            graphics.Clear(Color.Magenta);
+            readOnlyDate.GetType()
+                .GetMethod("DrawDarkSurface", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(readOnlyDate, [graphics]);
+            var dateSurface = Enumerable.Range(0, renderedDate.Width)
+                .SelectMany(x => Enumerable.Range(0, renderedDate.Height)
+                    .Select(y => renderedDate.GetPixel(x, y)))
+                .ToArray();
+            dateSurface.Count(color => color.GetBrightness() < 0.08F)
+                .Should().BeGreaterThan(dateSurface.Length / 2,
+                    "the complete read-only date surface must be black");
+            dateSurface.Should().Contain(color =>
+                Math.Abs(color.R - color.G) <= 2
+                && Math.Abs(color.G - color.B) <= 2
+                && color.R >= 80
+                && color.R <= 200,
+                "read-only date text and arrow must be gray");
+        }
+        orderType.Items.Clear();
+        orderType.Items.Add("Limit");
+        orderType.SelectedIndex = 0;
+        orderType.Enabled = false;
+        using (var renderedOrderType = new Bitmap(orderType.Width, orderType.Height))
+        using (var graphics = Graphics.FromImage(renderedOrderType))
+        {
+            graphics.Clear(Color.Magenta);
+            var drawArgs = new DrawItemEventArgs(
+                graphics,
+                orderType.Font,
+                new Rectangle(0, 0, renderedOrderType.Width, renderedOrderType.Height),
+                0,
+                DrawItemState.Disabled);
+            typeof(IronCondorTradeOrderView)
+                .GetMethod("DrawBlackComboBoxItem", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, [orderType, drawArgs]);
+            var inputSurface = Enumerable.Range(0, renderedOrderType.Width)
+                .SelectMany(x => Enumerable.Range(0, renderedOrderType.Height)
+                    .Select(y => renderedOrderType.GetPixel(x, y)))
+                .ToArray();
+            inputSurface.Count(color => color.GetBrightness() < 0.08F)
+                .Should().BeGreaterThan(inputSurface.Length / 2,
+                    "the rendered disabled dropdown surface must remain black");
+            inputSurface.Should().Contain(color =>
+                Math.Abs(color.R - color.G) <= 2
+                && Math.Abs(color.G - color.B) <= 2
+                && color.R >= 80
+                && color.R <= 200,
+                "the rendered disabled dropdown text must be gray");
+        }
         var legGrid = Field<TableLayoutPanel>(editor, "pnlTradeStrategy");
         var riskGrid = Field<TableLayoutPanel>(editor, "tableLayoutPanel1");
         var fundBalance = Field<TextBox>(editor, "txtFundBalance");
@@ -509,9 +614,29 @@ public sealed class PortfolioTradeOrdersUiSystemTests
         new[] { "panel2", "panel3", "panel9", "panel10" }
             .Select(name => Field<Panel>(editor, name))
             .Should().OnlyContain(panel =>
-                panel.Margin.Top == 0
-                && panel.Margin.Bottom == 0
+                panel.Margin.Top == 2
+                && panel.Margin.Bottom == 2
                 && panel.Controls.Cast<Control>().All(control => control.Bottom <= panel.ClientSize.Height));
+        var leg1NetSpread = Field<Control>(editor, "txtLeg1NetSpread");
+        new[]
+            {
+                "txtLeg1ExpectedOTMProbability", "txtLeg1ActualOTMProbability",
+                "txtLeg1MaxLossLimit", "txtLeg1MinProfitLimit",
+            }
+            .Select(name => Field<Control>(editor, name))
+            .Should().OnlyContain(control =>
+                TopWithin(control, editor) == TopWithin(leg1NetSpread, editor)
+                && BottomWithin(control, editor) == BottomWithin(leg1NetSpread, editor));
+        var leg3NetSpread = Field<Control>(editor, "txtLeg3NetSpread");
+        new[]
+            {
+                "txtLeg3ExpectedOTMProbability", "txtLeg3ActualOTMProbability",
+                "txtLeg3MaxLossLimit", "txtLeg3MinProfitLimit",
+            }
+            .Select(name => Field<Control>(editor, name))
+            .Should().OnlyContain(control =>
+                TopWithin(control, editor) == TopWithin(leg3NetSpread, editor)
+                && BottomWithin(control, editor) == BottomWithin(leg3NetSpread, editor));
         new[]
             {
                 "lblAction", "lblLastTradeDate", "lblStrikePrice", "lblOptionType",

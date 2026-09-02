@@ -21,9 +21,13 @@ public class MarketDataAnalyticsQueryApi(IQueryServiceApi querySvc) : IMarketDat
 
     public async Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
         string contractId,
-        DateOnly valueDate)
+        DateOnly valueDate,
+        bool loadPersistedBaseline = false)
     {
-        var parameter = new GetMarketOutlookSnapshotParameter(contractId, valueDate);
+        var parameter = new GetMarketOutlookSnapshotParameter(
+            contractId,
+            valueDate,
+            loadPersistedBaseline);
         return await _querySvc.ExecuteQueryAsync<MarketOutlookReadModel>(
             MarketDataAnalyticsQueryUriPath.GetMarketOutlookSnapshot,
             parameter,

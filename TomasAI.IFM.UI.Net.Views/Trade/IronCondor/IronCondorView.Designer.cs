@@ -222,7 +222,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             colMinProfitTarget = new ColumnHeader();
             colDailyProfitTarget = new ColumnHeader();
             colFundBalance = new ColumnHeader();
-            tabActionData = new TabControl();
+            tabActionData = new TomasAI.IFM.UI.Net.Views.App.DarkTabControl();
             tabPage1 = new TabPage();
             lstTradePlanAction = new ListView();
             colActionDate = new ColumnHeader();
@@ -352,7 +352,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // pnlAssetSplitter
             // 
-            pnlAssetSplitter.BackColor = Color.FromArgb(64, 64, 64);
+            pnlAssetSplitter.BackColor = Color.Black;
             pnlAssetSplitter.Dock = DockStyle.Fill;
             pnlAssetSplitter.Location = new Point(0, 0);
             pnlAssetSplitter.Margin = new Padding(8, 2, 2, 2);
@@ -376,6 +376,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // pnlRealTimeData
             // 
             pnlRealTimeData.Dock = DockStyle.Right;
+            pnlRealTimeData.BackColor = Color.Black;
             pnlRealTimeData.Location = new Point(1051, 0);
             pnlRealTimeData.Margin = new Padding(2);
             pnlRealTimeData.Name = "pnlRealTimeData";
@@ -389,6 +390,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // pnlRealTimeData.Panel2
             // 
+            pnlRealTimeData.Panel2.BackColor = Color.Black;
             pnlRealTimeData.Panel2.Controls.Add(pnlRealTimeHeaderData);
             pnlRealTimeData.Panel2.Controls.Add(gridRealTimeOptionData);
             pnlRealTimeData.Size = new Size(1678, 535);
@@ -2171,7 +2173,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // gridRealTimeOptionData
             // 
-            gridRealTimeOptionData.BackgroundColor = Color.FromArgb(64, 64, 64);
+            gridRealTimeOptionData.BackgroundColor = Color.Black;
             dataGridViewCellStyle14.Alignment = DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle14.BackColor = SystemColors.Control;
             dataGridViewCellStyle14.Font = new Font("Microsoft Sans Serif", 7.8F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -2230,7 +2232,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // pnlTradeSplitter
             // 
-            pnlTradeSplitter.BackColor = SystemColors.ControlDarkDark;
+            pnlTradeSplitter.BackColor = Color.Black;
             pnlTradeSplitter.Dock = DockStyle.Fill;
             pnlTradeSplitter.Location = new Point(0, 0);
             pnlTradeSplitter.Margin = new Padding(2);
@@ -2530,7 +2532,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // tabPage1
             // 
-            tabPage1.BackColor = Color.FromArgb(64, 64, 64);
+            tabPage1.BackColor = Color.Black;
             tabPage1.Controls.Add(lstTradePlanAction);
             tabPage1.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             tabPage1.Location = new Point(4, 4);
@@ -2650,7 +2652,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // 
             // tabPage2
             // 
-            tabPage2.BackColor = SystemColors.ControlDarkDark;
+            tabPage2.BackColor = Color.Black;
             tabPage2.Controls.Add(lstFuturesEodData);
             tabPage2.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             tabPage2.Location = new Point(4, 4);

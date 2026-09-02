@@ -74,7 +74,7 @@ public sealed class MarketOutlookHotCacheTests
     }
 
     [Fact]
-    public async Task ConcurrentPartialWritersPreserveSiblingFieldsAndPublishAtomicSnapshots()
+    public async Task ConcurrentReadersObserveAtomicSnapshotsFromSingleWriter()
     {
         var cache = new MarketOutlookHotCache();
         var t0 = DateTime.UtcNow;
@@ -90,25 +90,20 @@ public sealed class MarketOutlookHotCacheTests
                 await Task.Yield();
             }
         });
-        var writers = new[]
+        var writer = Task.Run(() =>
         {
-            Task.Run(() =>
+            for (var index = 1; index <= 1_000; index++)
             {
-                for (var index = 1; index <= 1_000; index++)
-                    Write(cache, Id, CacheComponentType.EsTrade,
-                        new(Guid.NewGuid(), index, t0.AddTicks(index)),
-                        state => state with { CurrentEsPrice = index });
-            }),
-            Task.Run(() =>
-            {
-                for (var index = 1; index <= 1_000; index++)
-                    Write(cache, Id, CacheComponentType.Vx,
-                        new(Guid.NewGuid(), index, t0.AddTicks(index)),
-                        state => state with { VixFuturesPrice = index });
-            })
-        };
+                Write(cache, Id, CacheComponentType.EsTrade,
+                    new(Guid.NewGuid(), index * 2 - 1, t0.AddTicks(index * 2 - 1)),
+                    state => state with { CurrentEsPrice = index });
+                Write(cache, Id, CacheComponentType.Vx,
+                    new(Guid.NewGuid(), index * 2, t0.AddTicks(index * 2)),
+                    state => state with { VixFuturesPrice = index });
+            }
+        });
 
-        await Task.WhenAll(readers.Concat(writers));
+        await Task.WhenAll(readers.Append(writer));
         Write(cache, Id, CacheComponentType.EsTrade, Position(2_001),
             state => state with { CurrentEsPrice = 2_001m });
 
@@ -254,7 +249,7 @@ public sealed class MarketOutlookHotCacheTests
     }
 
     [Fact]
-    public void ComposerFailure_ReleasesWriteLockAndRetainsLastCompleteSnapshot()
+    public void ComposerFailure_RetainsLastCompleteSnapshotAndAllowsNextSingleWriterUpdate()
     {
         var cache = new MarketOutlookHotCache();
         Write(cache, Id, CacheComponentType.EsTrade, Position(1),

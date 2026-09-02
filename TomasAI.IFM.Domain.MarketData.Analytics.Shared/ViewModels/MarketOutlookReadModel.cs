@@ -12,7 +12,8 @@ public enum MarketOutlookRefreshTrigger : byte
     Component = 1,
     EsTrade = 2,
     EodSession = 3,
-    Warmup = 4
+    Warmup = 4,
+    PersistedBaseline = 5
 }
 
 /// <summary>Describes the current usability of one Market Outlook input.</summary>

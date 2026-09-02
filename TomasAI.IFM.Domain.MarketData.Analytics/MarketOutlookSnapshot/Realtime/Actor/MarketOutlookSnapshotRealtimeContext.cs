@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.Storage;
+using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesItiSignal.Event.Extensions;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command;
@@ -25,6 +26,8 @@ public interface IMarketOutlookSnapshotRealtimeContext : IRealtimeActorContext<M
     IDbContextFactory DbFactory { get; }
     /// <summary>Gets the Logger service supplied to the actor context.</summary>
     ILogger<MarketOutlookSnapshotRealtimeActor> Logger { get; }
+    /// <summary>Gets the local Market Outlook update writer.</summary>
+    IMarketOutlookUpdateWriter UpdateWriter { get; }
 }
 
 /// <summary>Provides the typed runtime context used by <see cref="MarketOutlookSnapshotRealtimeActor"/>.</summary>
@@ -34,11 +37,13 @@ public sealed class MarketOutlookSnapshotRealtimeContext : EventActorContext, IR
     public MarketOutlookSnapshotRealtimeContext(
         IActorSupervisor supervisor,
         IDbContextFactory dbFactory,
+        IMarketOutlookUpdateWriter updateWriter,
         ILogger<MarketOutlookSnapshotRealtimeActor> logger)
         : base(supervisor, new ActorMailboxId(ActorType.Realtime, MarketOutlookSnapshotRealtimeActor.ActorName))
     {
         Supervisor = IsArgumentNull.Set(supervisor);
         DbFactory = IsArgumentNull.Set(dbFactory);
+        UpdateWriter = IsArgumentNull.Set(updateWriter);
         Logger = IsArgumentNull.Set(logger);
     }
 
@@ -46,6 +51,8 @@ public sealed class MarketOutlookSnapshotRealtimeContext : EventActorContext, IR
     public IActorSupervisor Supervisor { get; }
     /// <inheritdoc/>
     public IDbContextFactory DbFactory { get; }
+    /// <inheritdoc/>
+    public IMarketOutlookUpdateWriter UpdateWriter { get; }
     /// <inheritdoc/>
     public ILogger<MarketOutlookSnapshotRealtimeActor> Logger { get; }
 }

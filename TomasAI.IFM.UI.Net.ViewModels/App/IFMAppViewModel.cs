@@ -952,7 +952,8 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
             await model.GetMarketOutlookSnapshotAsync(
                 contract.ContractId,
                 _valueDate.Value,
-                snapshot =>
+                loadPersistedBaseline: true,
+                onCompleted: snapshot =>
                 {
                     if (snapshot is not null
                         && IsMarketOutlookUpdate(contract.ContractId, snapshot.ContractId))

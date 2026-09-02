@@ -9,6 +9,7 @@ using TomasAI.IFM.Domain.Trade.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Contracts;
 using TomasAI.IFM.UI.Net.Extensions;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.Views.App;
 using TomasAI.IFM.UI.Net.ViewModels.Trade;
 using TomasAI.IFM.UI.Net.ViewModels.Trade.IronCondor;
 
@@ -107,7 +108,7 @@ public partial class IronCondorView : UserControl, IAsyncFormControl
         ironCondorPage.Controls.Add(graphSpreadDistribution);
         futuresPage.Controls.Add(graphEodData);
 
-        var tabs = new TabControl
+        var tabs = new DarkTabControl
         {
             Name = "tabGraphs",
             AccessibleName = "Iron Condor graphs",

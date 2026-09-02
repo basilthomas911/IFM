@@ -28,6 +28,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
         /// </summary>
         private void InitializeComponent()
         {
+            pnlContentFrame = new Panel();
             pnlFundSelector = new Panel();
             btnCreateFund = new Button();
             ddlFund = new ComboBox();
@@ -78,12 +79,26 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             label1 = new Label();
             btnOpenTrade = new Button();
             lblTrades = new Label();
+            pnlContentFrame.SuspendLayout();
             pnlFundSelector.SuspendLayout();
             pnlTradeOrders.SuspendLayout();
             panel1.SuspendLayout();
             pnlTradePosition.SuspendLayout();
             pnlTrades.SuspendLayout();
             SuspendLayout();
+            //
+            // pnlContentFrame
+            //
+            pnlContentFrame.BackColor = Color.Gray;
+            pnlContentFrame.Controls.Add(panel1);
+            pnlContentFrame.Controls.Add(pnlTradeOrders);
+            pnlContentFrame.Controls.Add(pnlFundSelector);
+            pnlContentFrame.Dock = DockStyle.Fill;
+            pnlContentFrame.Location = new Point(0, 0);
+            pnlContentFrame.Name = "pnlContentFrame";
+            pnlContentFrame.Padding = new Padding(3);
+            pnlContentFrame.Size = new Size(1455, 900);
+            pnlContentFrame.TabIndex = 0;
             // 
             // pnlFundSelector
             // 
@@ -680,10 +695,9 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             // 
             AutoScaleDimensions = new SizeF(9F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Color.FromArgb(64, 64, 64);
             ClientSize = new Size(1455, 900);
-            Controls.Add(panel1);
-            Controls.Add(pnlTradeOrders);
-            Controls.Add(pnlFundSelector);
+            Controls.Add(pnlContentFrame);
             Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             ForeColor = Color.Black;
             FormBorderStyle = FormBorderStyle.Sizable;
@@ -697,6 +711,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
             FormClosed += TradeOrderEditorForm_FormClosed;
             Load += TradeOrderForm_Load;
             Shown += TradeOrderEditorForm_Shown;
+            pnlContentFrame.ResumeLayout(false);
             pnlFundSelector.ResumeLayout(false);
             pnlFundSelector.PerformLayout();
             pnlTradeOrders.ResumeLayout(false);
@@ -713,6 +728,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade
 
         #endregion
 
+        private System.Windows.Forms.Panel pnlContentFrame;
         private System.Windows.Forms.Panel pnlFundSelector;
         private System.Windows.Forms.Label lblFundSelector;
         private System.Windows.Forms.ComboBox ddlFund;

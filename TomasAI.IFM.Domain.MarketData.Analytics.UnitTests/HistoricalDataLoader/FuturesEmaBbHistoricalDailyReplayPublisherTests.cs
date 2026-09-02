@@ -4,6 +4,7 @@ using TomasAI.IFM.Application.MarketData.Contracts.Historical;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
+using TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
@@ -20,6 +21,7 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
     [Fact]
     public async Task OneYearReplay_WarmsEmaAndBollingerAndReconcilesTargetValueDate()
     {
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
         var actorService = Substitute.For<IActorService>();
         var emaCommands = new List<GenerateFuturesEmaSignalCommand>();
         MarketOutlookHotCache.Shared.Clear();
@@ -33,9 +35,10 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
             .Select(index => Observation(series, firstDate.AddDays(index), index + 1))
             .ToArray();
         var targetValueDate = observations[^1].ValueDate.AddDays(1);
-        var publisher = new FuturesEmaBbHistoricalDailyReplayPublisher(actorService);
+        var publisher = new FuturesEmaBbHistoricalDailyReplayPublisher(actorService, runtime.Channel);
 
         await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
+        await runtime.DrainAsync();
 
         emaCommands.Should().HaveCount(201);
         var id = new MarketOutlookEntityId("ES-ACTIVE", targetValueDate);
@@ -66,6 +69,7 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisherTests
 
         MarketOutlookHotCache.Shared.Clear();
         await publisher.PublishAsync(observations, targetValueDate, "ES-ACTIVE", CancellationToken.None);
+        await runtime.DrainAsync();
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var repaired).Should().BeTrue();
         repaired.FuturesEmaSignal.Should().BeEquivalentTo(reconcile.FuturesEmaSignal);

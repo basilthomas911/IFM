@@ -7,6 +7,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
@@ -26,7 +27,15 @@ public static class MarketOutlookComposer
         var entityId = state.EntityId;
         var ema = liveEma ?? state.FuturesEmaSignal;
         var bb = liveBb ?? state.FuturesBbSignal;
-        var eod = ApplyLivePrice(state.FuturesEodData, entityId, state.CurrentEsPrice, bb);
+        var priceVolatility = MarketOutlookPriceVolatilityClassifier.Classify(
+            state.VixFuturesSessionOpenPrice,
+            state.VixFuturesPrice);
+        var eod = ApplyLivePrice(
+            state.FuturesEodData,
+            entityId,
+            state.CurrentEsPrice,
+            bb,
+            priceVolatility);
         var missing = MissingInputs(eod, state, ema, bb);
         var tradeSignal = ComputeTradeSignal(eod, state) ?? state.FuturesTradeSignal;
         return new MarketOutlookReadModel
@@ -118,7 +127,8 @@ public static class MarketOutlookComposer
         FuturesEodDataV2ReadModel? source,
         MarketOutlookEntityId entityId,
         decimal? currentPrice,
-        FuturesBbSignalReadModel? bb)
+        FuturesBbSignalReadModel? bb,
+        PriceVolatilityType priceVolatility)
     {
         var eod = source ?? new FuturesEodDataV2ReadModel
         {
@@ -127,7 +137,7 @@ public static class MarketOutlookComposer
             Symbol = "ES"
         };
         if (currentPrice is not > 0)
-            return eod;
+            return eod with { PriceVolatility = priceVolatility };
         var price = currentPrice.Value;
         var open = eod.OpenPrice;
         var change = open > 0 ? (double)((price - open) / open) : 0d;
@@ -140,7 +150,8 @@ public static class MarketOutlookComposer
             HighPrice = eod.HighPrice <= 0 ? price : Math.Max(eod.HighPrice, price),
             LowPrice = eod.LowPrice <= 0 ? price : Math.Min(eod.LowPrice, price),
             DailyPercentChange = change,
-            MarketDirectionIndicator = mdi
+            MarketDirectionIndicator = mdi,
+            PriceVolatility = priceVolatility
         };
     }
 

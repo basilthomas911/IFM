@@ -1,62 +1,141 @@
 using FluentAssertions;
 using MessagePack;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Shared.EventModelActor;
-using TomasAI.IFM.Shared.EventSourcing;
-using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.MarketOutlookSnapshot;
 
 public sealed class MarketOutlookHotCachePipelineIntegrationTests
 {
     [Fact]
-    public void ComponentToProjectionToNotification_RoundTripsTheCommittedCacheValue()
+    public async Task ComponentToChannelToProjectionToNotification_RoundTripsCommittedValue()
     {
         var id = new MarketOutlookEntityId("ESZ26", new DateOnly(2026, 9, 1));
-        var cache = new MarketOutlookHotCache();
-        var current = cache.Write(id,
-            [new(CacheComponentType.Vx, new(Guid.NewGuid(), 1, DateTime.UtcNow))],
-            state => state with { VixFuturesPrice = 22.75m },
-            state => MarketOutlookComposer.Compose(
-                state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow)).Snapshot;
-        var notification = new MarketOutlookUpdatedNotifyEvent
+        await using var runtime = await Runtime.StartAsync();
+        var now = DateTime.UtcNow;
+
+        runtime.Channel.Submit(new HydrateMarketOutlookUpdate
         {
-            Subject = new(ActorType.Notify, MarketOutlookUpdatedNotifyEvent.Actor,
-                MarketOutlookUpdatedNotifyEvent.Verb, id.Format()),
-            Id = Guid.NewGuid(),
-            CommandId = Guid.NewGuid(),
+            UpdateId = Guid.NewGuid(),
             EntityId = id,
-            ReceivedOn = DateTime.UtcNow,
-            MarketOutlook = current
-        };
+            ReceivedAtUtc = now,
+            MarketDataAsOfUtc = now,
+            Baseline = new MarketOutlookInputState
+            {
+                EntityId = id,
+                VixFuturesSessionOpenPrice = 20m,
+                VixFuturesPrice = 19m,
+                MarketDataAsOfUtc = now
+            }
+        });
+        (await runtime.Processor.WaitForIdleAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
 
+        runtime.Channel.Submit(new VixPriceMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = id,
+            ReceivedAtUtc = now,
+            MarketDataAsOfUtc = now,
+            Price = 22.75m,
+            CommandId = Guid.NewGuid(),
+            EventSource = "integration-test"
+        });
+
+        (await runtime.Processor.WaitForIdleAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
+        runtime.Publisher.Notification.Should().NotBeNull();
         var received = MessagePackSerializer.Deserialize<MarketOutlookUpdatedNotifyEvent>(
-            MessagePackSerializer.Serialize(notification));
+            MessagePackSerializer.Serialize(runtime.Publisher.Notification!));
 
-        cache.TryGetCurrent(id, out var queried).Should().BeTrue();
+        runtime.Cache.TryGetCurrent(id, out var queried).Should().BeTrue();
         received.MarketOutlook.Should().Be(queried);
         queried.VixFuturesPrice.Should().Be(22.75m);
+        queried.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Rising);
+        runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.VixPrice].Published.Should().Be(1);
     }
 
     [Fact]
-    public void Cache_IsImmediatelyWritableWithoutFeedActivationAndOnlyExplicitClearRemovesState()
+    public async Task Channel_IsImmediatelyWritableWithoutFeedActivation_AndOnlyClearRemovesState()
     {
         var id = new MarketOutlookEntityId("ESZ26", new DateOnly(2026, 9, 1));
-        var cache = new MarketOutlookHotCache();
-        cache.Write(id,
-            [new(CacheComponentType.Vx, new(Guid.NewGuid(), 1, DateTime.UtcNow))],
-            state => state with { VixFuturesPrice = 20m },
-            state => MarketOutlookComposer.Compose(
-                state, MarketOutlookRefreshTrigger.Component, DateTime.UtcNow));
+        await using var runtime = await Runtime.StartAsync();
+        var now = DateTime.UtcNow;
+        runtime.Channel.Submit(new VixPriceMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = id,
+            ReceivedAtUtc = now,
+            MarketDataAsOfUtc = now,
+            Price = 20m
+        });
 
-        cache.TryGetCurrent(id, out var current).Should().BeTrue();
+        (await runtime.Processor.WaitForIdleAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
+        runtime.Cache.TryGetCurrent(id, out var current).Should().BeTrue();
         current.VixFuturesPrice.Should().Be(20m);
 
-        cache.Clear();
-        cache.TryGetInputs(id, out _).Should().BeFalse();
+        runtime.Cache.Clear();
+        runtime.Cache.TryGetInputs(id, out _).Should().BeFalse();
+    }
+
+    sealed class CapturingPublisher : IMarketOutlookSnapshotPublisher
+    {
+        public MarketOutlookUpdatedNotifyEvent? Notification { get; private set; }
+
+        public ValueTask PublishAsync(
+            MarketOutlookUpdate update,
+            MarketOutlookReadModel snapshot,
+            CancellationToken cancellationToken)
+        {
+            Notification = new()
+            {
+                Subject = new(ActorType.Notify, MarketOutlookUpdatedNotifyEvent.Actor,
+                    MarketOutlookUpdatedNotifyEvent.Verb, update.EntityId.Format()),
+                Id = Guid.NewGuid(),
+                EntityId = update.EntityId,
+                CommandId = update.CommandId,
+                EventSource = update.EventSource,
+                ReceivedOn = DateTime.UtcNow,
+                MarketOutlook = snapshot
+            };
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    sealed class Runtime : IAsyncDisposable
+    {
+        Runtime()
+        {
+            Cache = new();
+            var metrics = new MarketOutlookProcessorMetrics();
+            Channel = new(metrics);
+            Publisher = new();
+            Processor = new(
+                Channel, Channel, Cache, Cache, Publisher, metrics,
+                Substitute.For<ILogger<MarketOutlookUpdateProcessor>>());
+        }
+
+        public MarketOutlookHotCache Cache { get; }
+        public MarketOutlookUpdateChannel Channel { get; }
+        public CapturingPublisher Publisher { get; }
+        public MarketOutlookUpdateProcessor Processor { get; }
+
+        public static async ValueTask<Runtime> StartAsync()
+        {
+            var runtime = new Runtime();
+            await runtime.Processor.StartAsync(CancellationToken.None);
+            return runtime;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Processor.StopAsync(CancellationToken.None);
+            Processor.Dispose();
+        }
     }
 }

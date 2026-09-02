@@ -10,15 +10,16 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesTradeSessionBarSignal;
 using TomasAI.IFM.Shared.EventModelActor;
 using TomasAI.IFM.Shared.EventModelActor.Contracts;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
 
 /// <summary>Replays completed Daily sessions through the event-sourced EMA-to-Bollinger chain.</summary>
-public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(IActorService actorService)
+public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(
+    IActorService actorService,
+    IMarketOutlookUpdateWriter updateWriter)
     : IHistoricalDailyReplayPublisher
 {
     /// <inheritdoc />
@@ -97,36 +98,28 @@ public sealed class FuturesEmaBbHistoricalDailyReplayPublisher(IActorService act
         if (string.IsNullOrWhiteSpace(resolvedTargetContractId))
             return;
         var outlookEntityId = new MarketOutlookEntityId(resolvedTargetContractId, targetValueDate);
-        var position = new MarketOutlookSourcePosition(
-            latestEsEma.Metadata.ObservationId.Value,
-            latestEsEma.Metadata.SourceSequence,
-            latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime);
         // The ordered local replay is authoritative for the process-local completed-session
         // baseline even when the durable event-sourced accumulator is already current and emits no
-        // new projection event. Publish it directly so every subsequent ES trade can preview from it.
+        // new projection event. Submit it locally so every subsequent ES trade can preview from it.
         RegimeDiscoverySignalCacheAdapter.PublishDailyBaseline(
             resolvedTargetContractId,
             latestEsEma,
             latestEsEmaCheckpoint,
             latestEsBb,
             latestEsBbCheckpoint);
-        var cache = MarketOutlookHotCache.Shared;
-        cache.Write(
-            outlookEntityId,
-            [
-                new(CacheComponentType.Ema, position),
-                new(CacheComponentType.BollingerBand,
-                    position with { SourceId = latestEsBb.Metadata.ObservationId.Value })
-            ],
-            state => state with
-            {
-                FuturesEmaSignal = latestEsEma,
-                FuturesBbSignal = latestEsBb
-            },
-            state => MarketOutlookComposer.Compose(
-                state,
-                MarketOutlookRefreshTrigger.Warmup,
-                DateTime.UtcNow));
+        updateWriter.Submit(new HistoricalWarmupMarketOutlookUpdate
+        {
+            UpdateId = latestEsEma.Metadata.ObservationId.Value,
+            EntityId = outlookEntityId,
+            ReceivedAtUtc = DateTime.UtcNow,
+            MarketDataAsOfUtc = latestEsEma.Metadata.MarketDataAsOfUtc.UtcDateTime,
+            CommandId = latestEsEma.Metadata.ObservationId.Value,
+            AggregateId = outlookEntityId.Format(),
+            EventSource = nameof(FuturesEmaBbHistoricalDailyReplayPublisher),
+            SourceSequence = latestEsEma.Metadata.SourceSequence,
+            Ema = latestEsEma,
+            BollingerBand = latestEsBb
+        });
     }
 
     static bool IsEsSeries(MarketSeriesIdentity series) =>

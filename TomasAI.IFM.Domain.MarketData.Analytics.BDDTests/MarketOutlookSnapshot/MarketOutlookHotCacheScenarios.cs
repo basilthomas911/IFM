@@ -1,10 +1,14 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
+using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
@@ -28,22 +32,38 @@ public sealed class MarketOutlookHotCacheScenarios
 
     [Theory]
     [MemberData(nameof(IndependentComponents))]
-    public void GivenOneComponent_WhenItArrives_ThenItCanPublishWithoutWaitingForSiblings(
+    public async Task GivenOneComponent_WhenItArrives_ThenItCanPublishWithoutWaitingForSiblings(
         CacheComponentType component)
     {
         var cache = new MarketOutlookHotCache();
+        var metrics = new MarketOutlookProcessorMetrics();
+        var channel = new MarketOutlookUpdateChannel(metrics);
+        var publisher = Substitute.For<IMarketOutlookSnapshotPublisher>();
+        using var processor = new MarketOutlookUpdateProcessor(
+            channel, channel, cache, cache, publisher, metrics,
+            Substitute.For<ILogger<MarketOutlookUpdateProcessor>>());
         var timestamp = DateTime.UtcNow;
+        await processor.StartAsync(CancellationToken.None);
+        try
+        {
+            channel.Submit(Update(component, timestamp));
+            (await processor.WaitForIdleAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
 
-        cache.Write(Id,
-            [new(component, new(Guid.NewGuid(), 1, timestamp))],
-            state => Add(component, state),
-            state => MarketOutlookComposer.Compose(
-                state, MarketOutlookRefreshTrigger.Component, timestamp));
-
-        cache.TryGetCurrent(Id, out var current).Should().BeTrue();
-        current.IsValid.Should().BeTrue();
-        current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.Component);
-        current.MissingInputs.Should().NotBeNull();
+            cache.TryGetCurrent(Id, out var current).Should().BeTrue();
+            current.IsValid.Should().BeTrue();
+            current.RefreshTrigger.Should().Be(component == CacheComponentType.Eod
+                ? MarketOutlookRefreshTrigger.EodSession
+                : MarketOutlookRefreshTrigger.Component);
+            current.MissingInputs.Should().NotBeNull();
+            await publisher.Received(1).PublishAsync(
+                Arg.Any<MarketOutlookUpdate>(),
+                Arg.Any<MarketOutlookReadModel>(),
+                Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            await processor.StopAsync(CancellationToken.None);
+        }
     }
 
     [Theory]
@@ -90,6 +110,30 @@ public sealed class MarketOutlookHotCacheScenarios
         projection.EsPriceAvailability.Should().Be(MarketOutlookInputAvailability.Stale);
     }
 
+    [Theory]
+    [InlineData(18, 19, PriceVolatilityType.Rising)]
+    [InlineData(18, 17, PriceVolatilityType.Falling)]
+    [InlineData(18, 18, PriceVolatilityType.Flat)]
+    public void GivenVxSessionOpenAndCurrentPrice_WhenMarketOutlookComposes_ThenPriceVolatilityIsClassified(
+        decimal sessionOpen,
+        decimal current,
+        PriceVolatilityType expected)
+    {
+        var state = new MarketOutlookInputState
+        {
+            EntityId = Id,
+            VixFuturesSessionOpenPrice = sessionOpen,
+            VixFuturesPrice = current
+        };
+
+        var projection = MarketOutlookComposer.Compose(
+            state,
+            MarketOutlookRefreshTrigger.Component,
+            DateTime.UtcNow);
+
+        projection.FuturesEodData.PriceVolatility.Should().Be(expected);
+    }
+
     static MarketOutlookInputState Add(CacheComponentType component, MarketOutlookInputState state) => component switch
     {
         CacheComponentType.Rsi => state with { FuturesRsiSignal = new FuturesRsiSignalReadModel() },
@@ -113,5 +157,55 @@ public sealed class MarketOutlookHotCacheScenarios
         CacheComponentType.BollingerBand => state with { FuturesBbSignal = new FuturesBbSignalReadModel() },
         CacheComponentType.TradeSignal => state with { FuturesTradeSignal = new FuturesTradeSignalV2ReadModel() },
         _ => state
+    };
+
+    static MarketOutlookUpdate Update(CacheComponentType component, DateTime timestamp) => component switch
+    {
+        CacheComponentType.Rsi => new RsiMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Signal = new()
+        },
+        CacheComponentType.Tdi => new TdiMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Signal = new()
+        },
+        CacheComponentType.ItiLatest => new ItiMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Signal = new()
+        },
+        CacheComponentType.Vx => new VixPriceMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Price = 20m
+        },
+        CacheComponentType.Eod => new EodMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp,
+            Eod = new()
+            {
+                Symbol = "ES", ContractId = Id.ContractId, ValueDate = Id.ValueDate,
+                OpenPrice = 5_000m, HighPrice = 5_100m, LowPrice = 4_900m, ClosePrice = 5_050m
+            }
+        },
+        CacheComponentType.Ema => new EmaMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Signal = new()
+        },
+        CacheComponentType.BollingerBand => new BollingerBandMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Signal = new()
+        },
+        CacheComponentType.TradeSignal => new TradeSignalMarketOutlookUpdate
+        {
+            UpdateId = Guid.NewGuid(), EntityId = Id, ReceivedAtUtc = timestamp,
+            MarketDataAsOfUtc = timestamp, Signal = new()
+        },
+        _ => throw new ArgumentOutOfRangeException(nameof(component), component, null)
     };
 }

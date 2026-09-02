@@ -39,8 +39,13 @@ public sealed class FuturesTradeSignalUIViewModelTests
         model.TrendReversal.Should().Be("N/A");
     }
 
-    [Fact]
-    public void PartialSnapshot_UsesEachItiModeOnlyForItsOwnDisplayField()
+    [Theory]
+    [InlineData(IntrinsicTimeModeType.Trending)]
+    [InlineData(IntrinsicTimeModeType.TrendDirectionChanged)]
+    [InlineData(IntrinsicTimeModeType.TrendExtremeChanged)]
+    [InlineData(IntrinsicTimeModeType.TrendReversalChanged)]
+    public void LatestItiSignal_RefreshesEveryLiveItiDisplayField(
+        IntrinsicTimeModeType mode)
     {
         var valueDate = new DateOnly(2026, 8, 21);
         var snapshot = new MarketOutlookReadModel
@@ -48,20 +53,43 @@ public sealed class FuturesTradeSignalUIViewModelTests
             ContractId = "ESU26",
             ValueDate = valueDate,
             UpdatedAtUtc = DateTime.UtcNow,
+            LatestItiTrendSignal = new FuturesItiSignalV2ReadModel
+            {
+                ContractId = "ESU26",
+                ValueDate = valueDate,
+                TimePeriod = TimeFrameType.Daily,
+                IntrinsicTimeMode = mode,
+                IntrinsicTimeTrend = IntrinsicTimeTrendType.UpTrend,
+                UpTrendTrigger = 6_530.25,
+                DownTrendTrigger = 6_480.75,
+                TrendExtreme = 6_525.5,
+                TrendReversal = 6_490.25,
+                TrendDelta = 35.25
+            },
             TrendExtremeChange = new FuturesItiSignalV2ReadModel
             {
                 ContractId = "ESU26",
                 ValueDate = valueDate,
                 IntrinsicTimeMode = IntrinsicTimeModeType.TrendExtremeChanged,
-                TrendExtreme = 6_525.5
+                TrendExtreme = 1
+            },
+            TrendReversalChange = new FuturesItiSignalV2ReadModel
+            {
+                ContractId = "ESU26",
+                ValueDate = valueDate,
+                IntrinsicTimeMode = IntrinsicTimeModeType.TrendReversalChanged,
+                TrendReversal = 2
             }
         };
 
         var model = new FuturesTradeSignalUIViewModel(snapshot);
 
+        model.UpTrendLimit.Should().Be("6530.25");
+        model.DownLimitTrigger.Should().Be("6480.75");
         model.TrendExtreme.Should().Be("6525.50");
-        model.Trend.Should().Be("N/A");
-        model.TrendReversal.Should().Be("N/A");
+        model.TrendReversal.Should().Be("6490.25");
+        model.TrendDelta.Should().Be("35.25");
+        model.Trend.Should().Be("UpTrending");
     }
 
     [Fact]

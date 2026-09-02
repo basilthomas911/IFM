@@ -16,10 +16,25 @@ public class MarketDataAnalyticsQueryService(IMarketDataAnalyticsQueryApi queryA
     public async Task GetMarketOutlookSnapshotAsync(
         string contractId,
         DateOnly valueDate,
+        bool loadPersistedBaseline,
         Action<MarketOutlookReadModel> onCompleted)
         => await ExecuteAsync(
-            () => _queryApi.GetMarketOutlookSnapshotAsync(contractId, valueDate),
+            () => _queryApi.GetMarketOutlookSnapshotAsync(
+                contractId,
+                valueDate,
+                loadPersistedBaseline),
             onCompleted);
+
+    /// <summary>Reads the current process-local Market Outlook without reloading storage.</summary>
+    public Task GetMarketOutlookSnapshotAsync(
+        string contractId,
+        DateOnly valueDate,
+        Action<MarketOutlookReadModel> onCompleted) =>
+        GetMarketOutlookSnapshotAsync(
+            contractId,
+            valueDate,
+            loadPersistedBaseline: false,
+            onCompleted: onCompleted);
 
     /// <summary>
     /// load futures trade signal

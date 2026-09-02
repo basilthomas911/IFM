@@ -70,14 +70,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             txtLeg2BidPrice = new TextBox();
             ddlLeg2OptionType = new ComboBox();
             ddlLeg2StrikePrice = new ComboBox();
-            dtmLeg2LastTradeDate = new DateTimePicker();
+            dtmLeg2LastTradeDate = new DarkDateTimePicker();
             ddlLeg2Action = new ComboBox();
             pnlAction = new Panel();
             lblAction = new Label();
             pnlLastTradeDate = new Panel();
             lblLastTradeDate = new Label();
             ddlLeg1Action = new ComboBox();
-            dtmLeg1LastTradeDate = new DateTimePicker();
+            dtmLeg1LastTradeDate = new DarkDateTimePicker();
             pnlStrikePrice = new Panel();
             lblStrikePrice = new Label();
             ddlLeg1StrikePrice = new ComboBox();
@@ -103,14 +103,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             lblOTMProbability = new Label();
             txtLeg1TradeValue = new TextBox();
             ddlLeg3Action = new ComboBox();
-            dtmLeg3LastTradeDate = new DateTimePicker();
+            dtmLeg3LastTradeDate = new DarkDateTimePicker();
             ddlLeg3StrikePrice = new ComboBox();
             ddlLeg3OptionType = new ComboBox();
             txtLeg3BidPrice = new TextBox();
             txtLeg3AskPrice = new TextBox();
             txtLeg3NetSpread = new TextBox();
             txtLeg3TradeValue = new TextBox();
-            dtmLeg4LastTradeDate = new DateTimePicker();
+            dtmLeg4LastTradeDate = new DarkDateTimePicker();
             ddlLeg4StrikePrice = new ComboBox();
             ddlLeg4OptionType = new ComboBox();
             txtLeg4BidPrice = new TextBox();
@@ -547,7 +547,7 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
             // ddlPrice
             // 
             ddlPrice.BackColor = Color.Black;
-            ddlPrice.DropDownStyle = ComboBoxStyle.Simple;
+            ddlPrice.DropDownStyle = ComboBoxStyle.DropDownList;
             ddlPrice.FlatStyle = FlatStyle.System;
             ddlPrice.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Bold, GraphicsUnit.Point, 0);
             ddlPrice.ForeColor = Color.White;
@@ -1675,14 +1675,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
         private System.Windows.Forms.TextBox txtLeg2BidPrice;
         private System.Windows.Forms.ComboBox ddlLeg2OptionType;
         private System.Windows.Forms.ComboBox ddlLeg2StrikePrice;
-        private System.Windows.Forms.DateTimePicker dtmLeg2LastTradeDate;
+        private DarkDateTimePicker dtmLeg2LastTradeDate;
         private System.Windows.Forms.ComboBox ddlLeg2Action;
         private System.Windows.Forms.Panel pnlAction;
         private System.Windows.Forms.Label lblAction;
         private System.Windows.Forms.Panel pnlLastTradeDate;
         private System.Windows.Forms.Label lblLastTradeDate;
         private System.Windows.Forms.ComboBox ddlLeg1Action;
-        private System.Windows.Forms.DateTimePicker dtmLeg1LastTradeDate;
+        private DarkDateTimePicker dtmLeg1LastTradeDate;
         private System.Windows.Forms.Panel pnlStrikePrice;
         private System.Windows.Forms.Label lblStrikePrice;
         private System.Windows.Forms.ComboBox ddlLeg1StrikePrice;
@@ -1708,14 +1708,14 @@ namespace TomasAI.IFM.UI.Net.Views.Trade.IronCondor
         private System.Windows.Forms.Label lblOTMProbability;
         private System.Windows.Forms.TextBox txtLeg1TradeValue;
         private System.Windows.Forms.ComboBox ddlLeg3Action;
-        private System.Windows.Forms.DateTimePicker dtmLeg3LastTradeDate;
+        private DarkDateTimePicker dtmLeg3LastTradeDate;
         private System.Windows.Forms.ComboBox ddlLeg3StrikePrice;
         private System.Windows.Forms.ComboBox ddlLeg3OptionType;
         private System.Windows.Forms.TextBox txtLeg3BidPrice;
         private System.Windows.Forms.TextBox txtLeg3AskPrice;
         private System.Windows.Forms.TextBox txtLeg3NetSpread;
         private System.Windows.Forms.TextBox txtLeg3TradeValue;
-        private System.Windows.Forms.DateTimePicker dtmLeg4LastTradeDate;
+        private DarkDateTimePicker dtmLeg4LastTradeDate;
         private System.Windows.Forms.ComboBox ddlLeg4StrikePrice;
         private System.Windows.Forms.ComboBox ddlLeg4OptionType;
         private System.Windows.Forms.TextBox txtLeg4BidPrice;

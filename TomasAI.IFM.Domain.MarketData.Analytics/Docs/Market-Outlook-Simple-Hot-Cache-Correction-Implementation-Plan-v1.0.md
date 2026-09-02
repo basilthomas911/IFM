@@ -3,19 +3,26 @@
 | Item | Value |
 | --- | --- |
 | Plan ID | `MOSC` |
-| Status | Complete |
+| Status | Complete; write-synchronization mechanics superseded by MDR Stage 1 |
 | Date | 2026-09-01 |
 | Scope | Replace Market Outlook generation fencing and update rejection with one always-writable partial-state cache and atomic whole-snapshot reads; restore and enforce Databento C++/Rust native ABI and behavioral parity |
 | Supersedes | The cache admission, source-position rejection, generation-fence, activation-polling and derived-state lifecycle decisions in `Market-Outlook-Hot-Cache-Refactor-Implementation-Plan-v1.0.md` |
 | Retains | Existing Market Outlook DTO, pure calculations, component ownership, NATS query/notification contracts, UI presentation and Databento feed ownership |
 | Explicitly out of scope | Native Databento watchdog/reset implementation, persistent feed-health storage, Aspire extraction and changes to authoritative market-signal persistence; native ABI alignment and parity testing are explicitly in scope |
 
+> **Stage 1 concurrency amendment (2026-09-01).** The completed `MOSC` behavioral decisions remain
+> authoritative for unconditional latest-arrival writes, OR composition, immutable whole-snapshot
+> reads and feed-health separation. The system-wide MDR three-stage implementation plan supersedes
+> this document's direct-writer and cache-lock mechanics.
+> Producers now submit typed local updates to one bounded MPSC channel; one hosted processor alone
+> merges, composes, atomically publishes the input/display pair and sends the existing notification.
+
 ## 1. Objective
 
 Market Outlook shall behave as a simple, process-local, latest-arrival hot cache. Every relevant,
-valid signal routed to the cache updates only the fields it owns. One write lock serializes partial
-state changes, composes the entire immutable Market Outlook snapshot, and atomically publishes that
-snapshot. Readers return the latest published snapshot without taking a read lock.
+valid signal routed to the cache updates only the fields it owns. One channel consumer serializes
+partial state changes, composes the entire immutable Market Outlook snapshot, and atomically
+publishes the input/display pair. Readers return the latest published snapshot without a lock.
 
 The cache shall not reject an otherwise valid routed update because of a generation identifier,
 source position, sequence comparison, timestamp comparison, startup ordering, value-date activation
@@ -29,10 +36,10 @@ reset state and failure reasons; it does not control Market Outlook cache admiss
 
 1. The cache is available immediately when its singleton is constructed; it has no activation
    phase and no active-generation fence.
-2. One write synchronization boundary protects every partial-state merge and compose operation.
+2. One hosted channel consumer owns every partial-state merge and compose operation.
 3. The mutable working state is never returned to callers.
 4. Each successful write publishes a new immutable `MarketOutlookReadModel` reference atomically.
-5. Reads use an atomic reference read and do not acquire the write lock. A reader sees the complete
+5. Reads use an atomic reference read and do not acquire a lock. A reader sees the complete
    snapshot before or after a write, never a torn or partially mutated snapshot.
 6. Cache identity remains `(contract ID, value date)` solely to prevent values belonging to
    different instruments or sessions from being combined. Identity is not an admission fence.
@@ -76,12 +83,12 @@ reset state and failure reasons; it does not control Market Outlook cache admiss
 ```text
 validated component or ES trade arrives
   -> select cache identity (contract ID, value date)
-  -> enter single cache write lock
+  -> submit one strongly typed local update to the bounded MPSC channel
+  -> one hosted processor reads the update
   -> merge only the fields owned by that input
   -> recalculate every affected derived field
   -> compose one complete immutable MarketOutlookReadModel
-  -> atomically replace the published snapshot reference
-  -> leave write lock
+  -> atomically replace the published input/display pair
   -> publish/coalesce latest-value UI notification
 
 typed query or UI refresh
@@ -102,26 +109,27 @@ native Databento implementation selection
 
 ### 3.1 Concurrency contract
 
-The preferred implementation is a single `lock` for working-state mutation and an atomic reference
-for publication:
+The implemented Stage 1 contract uses a single channel reader and an atomic immutable pair for
+publication:
 
 ```text
-write:
-  lock (writeGate)
-    workingState = Merge(workingState, update)
-    publishedSnapshot = Compose(workingState)
-    Volatile.Write(ref currentSnapshot, publishedSnapshot)
+producer:
+  updateWriter.Submit(typedLocalUpdate)
+
+single processor:
+  workingState = Merge(currentInputs, typedLocalUpdate)
+  publishedSnapshot = Compose(workingState)
+  Volatile.Write(ref publishedState, (workingState, publishedSnapshot))
 
 read:
-  return Volatile.Read(ref currentSnapshot)
+  return Volatile.Read(ref publishedState).Snapshot
 ```
 
 An explicit reader-priority reader/writer lock is prohibited because frequent UI/API reads could
 starve feed writers. Atomic immutable reads provide non-blocking read precedence without that risk.
 
-If multiple identities are retained, the implementation may publish an immutable identity map or
-use identity cells, but all writes still pass through the one approved write synchronization
-boundary and every cell exposes only an atomic immutable snapshot.
+Multiple identities use separate identity cells, but all writes pass through the one processor and
+every cell exposes only one atomically replaced immutable input/display pair.
 
 ## 4. Component write ownership
 
@@ -309,7 +317,7 @@ Deliverables:
 
 - exercise concurrent warmup, ES, RSI, TDI, ITI, VX, trade-signal and query activity;
 - inject composer, notification and shutdown failures at their actual boundaries;
-- prove the write lock is always released and the last published snapshot remains readable;
+- prove processor failure isolation leaves the last published snapshot readable;
 - measure lock hold time, write throughput, query latency and allocation behavior; and
 - run through value-date and ES contract rollover while feeds remain running.
 
@@ -500,3 +508,40 @@ The Windows interactive automation helper remained unavailable with
 claim is made that an automation cursor visually inspected the running desktop. Acceptance instead
 uses the real live NATS command/query path plus the WinForms control-level system test, avoiding a
 manual-only release gate while still verifying both sides of the UI boundary.
+
+### 9.4 Durable restart hydration - 2026-09-01
+
+The composite Market Outlook remains a non-authoritative process-local hot cache and is not written
+on every ES trade. The explicit UI-startup query reconstructs a restart baseline from the latest durable
+ScyllaDB source projections for EOD, trade signal, 15-second RSI, 15-second TDI, latest ITI plus the
+three ITI milestone modes, the currently traded VX contract's EOD close baseline, and Daily
+EMA/Bollinger values. Daily EMA/Bollinger storage now exposes
+typed latest-value reads over the current and preceding month partitions.
+
+Hydration is submitted through the same single-consumer channel as live updates. At the explicit
+UI-startup boundary, every available persisted component replaces the corresponding cache component,
+even if that component received a live value before the startup write completed. Any live update
+arriving after hydration replaces the stored baseline normally. Ordinary snapshot reads never query
+storage and therefore cannot roll current live values back to persisted data. The UI retains its
+subscribe-before-query ordering, so notifications cannot be missed between baseline retrieval and
+live consumption. A hydrated snapshot identifies its refresh trigger as `PersistedBaseline`.
+
+Qualification recorded 107 Market Outlook/query unit tests, 13 Market Outlook BDD tests, two Market
+Outlook integration tests, and a live ScyllaDB EMA/Bollinger round-trip integration test passing.
+Both the API Server and actor-integration host compile with zero warnings and errors.
+
+### 9.5 VX price-volatility classification - 2026-09-01
+
+`PriceVolatility` retains its original market meaning: the direction of the currently traded VX
+futures price relative to that value date's VX session open. Startup hydration now retains both the
+persisted VX session open and latest price instead of reducing the VX record to one price. The pure
+Analytics classifier returns `Rising`, `Falling`, or `Flat` by direct decimal comparison and returns
+`Unknown` only when the session open or current price is absent or invalid.
+
+Every accepted `VixPriceMarketOutlookUpdate` replaces the current VX price through the existing
+single-consumer channel. Snapshot composition reclassifies price volatility from the retained open
+and latest price on every publication, so subsequent RSI, TDI, ITI, ES, EMA, Bollinger, EOD, and
+health refreshes preserve the same derived result. A new Market Outlook value-date key receives its
+own hydrated VX session baseline, preventing prior-session leakage. This classification remains
+separate from ES `MarketVolatility` and does not restore the removed legacy combined EOD/Bollinger
+calculator.

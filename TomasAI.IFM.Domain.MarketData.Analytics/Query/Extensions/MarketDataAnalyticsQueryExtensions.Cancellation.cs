@@ -14,22 +14,27 @@ public static partial class MarketDataAnalyticsQueryExtensions
     public static Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
         string contractId,
         DateOnly valueDate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool loadPersistedBaseline = false)
         => ExecuteAsync(
             GetMarketOutlookSnapshotQuery.ErrorId,
             cancellationToken,
-            () =>
+            async () =>
             {
-                MarketOutlookHotCache.Shared.TryGetCurrent(
-                    new MarketOutlookEntityId(contractId, valueDate), out var result);
-                return Task.FromResult(result ?? new MarketOutlookReadModel
+                var entityId = new MarketOutlookEntityId(contractId, valueDate);
+                var result = loadPersistedBaseline && context.MarketOutlookHydrator is { } hydrator
+                    ? await hydrator.HydrateAsync(entityId, cancellationToken).ConfigureAwait(false)
+                    : MarketOutlookHotCache.Shared.TryGetCurrent(entityId, out var cached)
+                        ? cached
+                        : null;
+                return result ?? new MarketOutlookReadModel
                 {
                     ContractId = contractId,
                     ValueDate = valueDate,
                     UpdatedAtUtc = DateTime.UtcNow,
                     MissingInputs = "Market Outlook unavailable",
                     FeedHealth = "Unavailable"
-                });
+                };
             });
 
     /// <summary>Executes the GetFuturesTradeSignalAsync operation.</summary>

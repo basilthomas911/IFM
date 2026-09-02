@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Plan ID | `MDR` |
-| Status | Approved execution sequence; Stage 1 ready |
+| Status | Stage 1 complete; Stage 2 not started |
 | Date | 2026-09-01 |
 | Design authority | `Documents/system/Databento-Market-Data-Service-Resiliency-System-Design-v0.1.md` |
 | Stage 1 | Local Market Outlook update processor |
@@ -496,7 +496,71 @@ At each stage boundary record:
 - documentation changes; and
 - explicit user acceptance before starting the next stage.
 
-## 10. Immediate next action
+## 10. Stage 1 execution record - 2026-09-01
 
-Begin only Stage 1, gate MOUP-01. Do not begin DBR or MDOH production implementation until the
-preceding stage has completed and been accepted.
+### 10.1 Gate status
+
+| Gate | Status | Recorded evidence |
+| --- | --- | --- |
+| `MOUP-01` | Complete | The two production writers (realtime actor and historical EMA/BB replay), three direct query locations and the notification owner were inventoried. Characterization, atomic-reader and architecture tests preserve the baseline behavior while prohibiting a second production mutation owner. |
+| `MOUP-02` | Complete | Twelve strongly typed local update records cover RSI, TDI, ITI, EMA, Bollinger, ES trade, VX, EOD, trade signal, feed health, warmup and recompose. Reflection tests prove they implement no actor command/event/query/message contract. |
+| `MOUP-03` | Complete | One singleton bounded `Channel<MarketOutlookUpdate>` is MPSC/single-reader. Capacity is 8,192; overflow explicitly retains and measures the latest update per entity/kind. Readiness, pending depth, oldest pending time, receipt, enqueue and coalescing are queryable. Telemetry failure cannot escape submission. |
+| `MOUP-04` | Complete | `MarketOutlookUpdateProcessor` is API-hosted, processes one update at a time, isolates malformed inputs, becomes Ready on execution, accounts for in-flight work and performs a bounded five-second graceful drain before host cancellation. |
+| `MOUP-05` | Complete | The application write lock was removed. The processor is the sole production `IMarketOutlookHotCacheWriter`; each identity atomically replaces one immutable input/display pair and queries use lock-free whole-reference reads. Latest-arrival and all 127 non-empty availability combinations remain qualified. |
+| `MOUP-06` | Complete | Component, EOD and ES-trade actor paths and historical EMA/Bollinger warmup now only submit typed local updates. Actor subjects and public NATS DTOs are unchanged; all four ITI languages and missing-sibling OR behavior remain covered. |
+| `MOUP-07` | Complete | `IMarketOutlookSnapshotPublisher` wraps the existing actor notification. Publication occurs after cache commit; injected publication failure increments metrics, retains queryable state and does not stop the processor. |
+| `MOUP-08` | Complete | The minimal shared operations-recorder boundary and per-kind received/enqueued/applied/changed/composed/published/failed/coalesced counters are implemented with last activity, market-data-as-of, update ID, queue depth/age and queue/processing/publication latency. Recompose republishes current state without fabricating source time or a changed count. |
+| `MOUP-09` | Complete | Unit, BDD, integration, concurrency, saturation, graceful-shutdown, publication-failure, architecture, UI presentation/system and runtime-host qualification all pass. |
+| `MOUP-10` | Complete | The technical acceptance boundary is satisfied and this evidence is recorded. Databento lifecycle code was not changed. Stage 2 remains unstarted and requires explicit user direction. |
+
+### 10.2 Automated qualification
+
+| Suite | Result |
+| --- | --- |
+| MarketData Analytics unit | 988 passed after Stage 1 additions |
+| MarketData Analytics BDD | 478 passed |
+| MarketData Analytics integration | 50 passed |
+| Application MarketData unit | 93 passed |
+| Market Outlook UI presentation | 3 passed |
+| Market Outlook UI system | 6 passed |
+| API Server build | succeeded with 0 warnings and 0 errors |
+| Focused processor/warmup unit qualification | 46 passed |
+| Focused channel-to-cache-to-notification integration | 2 passed |
+
+The first complete Analytics integration attempt exposed a missing Stage 1 registration in its
+embedded API host. The fixture was corrected to use the same singleton channel, processor, cache,
+publisher, metrics and hosted-service wiring as production; the complete suite then passed 50/50.
+
+### 10.3 Concurrency and resource evidence
+
+- Two simultaneous producer tasks submitted 1,000 accepted updates; all 1,000 were applied and
+  published with sibling state retained.
+- The capacity-one saturation test retained the bounded-lane update plus the latest overflow value,
+  explicitly reporting both diverted submissions.
+- The isolated sustained-burst test applied and published 10,000/10,000 updates in 160.8 ms,
+  approximately 62,198 updates/second, with 29,703,464 bytes allocated and zero pending work.
+- Concurrent lock-free readers observed only complete immutable snapshots during 2,001 sequential
+  writes, and the 10,000-live-preview verification retained immutable Daily accumulator state.
+
+### 10.4 Runtime and live evidence
+
+At 18:32-18:34 Toronto time, the real Development API Server was started on an isolated port with
+the Synthetic data source and historical acquisition disabled. Readiness was `Healthy`, all 125
+actors started, both configured market routes were running and publication/processing failures were
+zero. Two typed Market Outlook queries 500 ms apart advanced `UpdatedAtUtc` and ES close from
+`100.775` to `100.781`, proving the hosted actor-to-local-channel-to-processor-to-query path was
+live. The host then shut down through its normal cancellation path.
+
+At 18:47-18:48 Toronto time, a second isolated host used the configured `DatabentoLive` source.
+The native feed was up and running, the host had received 1,784 source trade records, ES source and
+accepted-cache timestamps were current, and both processing and publication failures were zero.
+The typed Market Outlook remained valid, its ES close advanced from `7644.25` to `7644.5`, and its
+`UpdatedAtUtc` continued advancing through `2026-09-01T22:48:31.9849576Z`. Overall readiness was
+`Degraded` only because the current VX contract had no accepted off-hours update within fifteen
+minutes; the ES live path and the Stage 1 processor were operating. The isolated live host was then
+shut down normally.
+
+## 11. Next action
+
+Review and accept the Stage 1 evidence. Do not begin DBR Stage 2 or MDOH Stage 3 production work
+without explicit user direction.

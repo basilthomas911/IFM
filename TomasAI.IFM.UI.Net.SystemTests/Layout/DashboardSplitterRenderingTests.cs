@@ -236,6 +236,63 @@ public sealed class DashboardSplitterRenderingTests
         renderings.Should().OnlyContain(rendering => rendering.BlackColumns == 4);
     }
 
+    [Fact]
+    public async Task MainTradeTabCloseGlyphUsesWiderHeaderAndRunsAsyncCloseLifecycle()
+    {
+        var completion = new TaskCompletionSource<TradeTabCloseResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var form = CreateForm();
+                var tabs = form.Controls.Find("tabTradeBlotter", true)
+                    .OfType<TabControl>()
+                    .Single();
+                using var trade = new CloseTrackingTradeControl();
+                var page = new TabPage("1084:1090") { Tag = trade };
+                page.Controls.Add(trade);
+                tabs.TabPages.Add(page);
+                tabs.Visible = true;
+                tabs.CreateControl();
+                tabs.PerformLayout();
+
+                var tabBounds = tabs.GetTabRect(0);
+                var click = new MouseEventArgs(
+                    MouseButtons.Left,
+                    1,
+                    tabBounds.Right - 13,
+                    tabBounds.Top + (tabBounds.Height / 2),
+                    0);
+                tabs.GetType()
+                    .GetMethod("OnMouseDown", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(tabs, [click]);
+
+                completion.SetResult(new TradeTabCloseResult(
+                    (bool)tabs.GetType().GetProperty("ShowCloseButtons")!.GetValue(tabs)!,
+                    tabs.Padding.X,
+                    trade.Closed,
+                    tabs.TabPages.Count,
+                    tabs.Visible));
+            }
+            catch (Exception exception)
+            {
+                completion.SetException(exception);
+            }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+
+        var result = await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        thread.Join(TimeSpan.FromSeconds(10)).Should().BeTrue();
+
+        result.ShowCloseButtons.Should().BeTrue();
+        result.HorizontalPadding.Should().BeGreaterThan(12);
+        result.AsyncCloseCalled.Should().BeTrue();
+        result.RemainingTabs.Should().Be(0);
+        result.TabsVisible.Should().BeFalse();
+    }
+
     static SplitterRendering CaptureSplitter(Control parent, string name)
     {
         var splitter = parent.Controls.Find(name, true).OfType<SplitContainer>().Single();
@@ -293,4 +350,28 @@ public sealed class DashboardSplitterRenderingTests
         int BlackColumns);
 
     sealed record StatusBarRendering(Color[] TopRow, Color[] SecondRow);
+
+    sealed record TradeTabCloseResult(
+        bool ShowCloseButtons,
+        int HorizontalPadding,
+        bool AsyncCloseCalled,
+        int RemainingTabs,
+        bool TabsVisible);
+
+    sealed class CloseTrackingTradeControl : UserControl, IAsyncFormControl
+    {
+        public bool Closed { get; private set; }
+
+        public void Open() { }
+
+        public void Resize(Control parentControl) { }
+
+        public void Close() => Closed = true;
+
+        public ValueTask CloseAsync()
+        {
+            Closed = true;
+            return ValueTask.CompletedTask;
+        }
+    }
 }

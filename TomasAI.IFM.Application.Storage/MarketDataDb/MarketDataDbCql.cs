@@ -87,6 +87,48 @@ internal static class MarketDataDbCql
         );
         """;
 
+    public const string GetLatestFuturesEmaSignal = """
+        SELECT seriesKey AS "SeriesKey", timePeriod AS "TimePeriod",
+            configurationId AS "ConfigurationId", marketDataAsOf AS "MarketDataAsOf",
+            observationId AS "ObservationId", contractId AS "ContractId",
+            valueDate AS "ValueDate", price AS "Price", ema10 AS "Ema10",
+            previousEma10 AS "PreviousEma10", ema10Slope AS "Ema10Slope",
+            ema20 AS "Ema20", previousEma20 AS "PreviousEma20",
+            ema20Slope AS "Ema20Slope", ema50 AS "Ema50",
+            previousEma50 AS "PreviousEma50", ema50Slope AS "Ema50Slope",
+            ema200 AS "Ema200", previousEma200 AS "PreviousEma200",
+            ema200Slope AS "Ema200Slope", isWarm AS "IsWarm",
+            sourceSequence AS "SourceSequence", calculatedAt AS "CalculatedAt",
+            schemaVersion AS "SchemaVersion", calculationVersion AS "CalculationVersion",
+            calculationMethod AS "CalculationMethod", isValid AS "IsValid"
+        FROM futures_ema_signal
+        WHERE seriesKey = :seriesKey AND timePeriod = :timePeriod
+            AND configurationId = :configurationId AND yearMonth = :yearMonth
+            AND marketDataAsOf <= :marketDataAsOf
+        LIMIT 1;
+        """;
+
+    public const string GetLatestFuturesBollingerBandSignal = """
+        SELECT seriesKey AS "SeriesKey", timePeriod AS "TimePeriod",
+            configurationId AS "ConfigurationId", marketDataAsOf AS "MarketDataAsOf",
+            observationId AS "ObservationId", contractId AS "ContractId",
+            valueDate AS "ValueDate", price AS "Price", ema10Center AS "Ema10Center",
+            standardDeviation10 AS "StandardDeviation10", upper10 AS "Upper10",
+            lower10 AS "Lower10", width10 AS "Width10", position10 AS "Position10",
+            ema20Center AS "Ema20Center", standardDeviation20 AS "StandardDeviation20",
+            upper20 AS "Upper20", lower20 AS "Lower20", width20 AS "Width20",
+            position20 AS "Position20", width20Baseline AS "Width20Baseline",
+            width20Ratio AS "Width20Ratio", isWarm AS "IsWarm",
+            sourceSequence AS "SourceSequence", calculatedAt AS "CalculatedAt",
+            schemaVersion AS "SchemaVersion", calculationVersion AS "CalculationVersion",
+            calculationMethod AS "CalculationMethod", isValid AS "IsValid"
+        FROM futures_bollinger_band_signal
+        WHERE seriesKey = :seriesKey AND timePeriod = :timePeriod
+            AND configurationId = :configurationId AND yearMonth = :yearMonth
+            AND marketDataAsOf <= :marketDataAsOf
+        LIMIT 1;
+        """;
+
     public const string InsertFuturesVxTermStructureSignal = """
         INSERT INTO futures_vx_term_structure_signal (
             valueDate, configurationId, calculatedAt, frontSourceSequence,

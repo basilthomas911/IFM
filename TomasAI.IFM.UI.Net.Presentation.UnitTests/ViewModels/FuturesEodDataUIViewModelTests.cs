@@ -39,9 +39,23 @@ public sealed class FuturesEodDataUIViewModelTests
         second.DailyPercentChange.Should().NotBe(first.DailyPercentChange);
     }
 
+    [Theory]
+    [InlineData(PriceVolatilityType.Rising)]
+    [InlineData(PriceVolatilityType.Falling)]
+    [InlineData(PriceVolatilityType.Flat)]
+    public void Price_volatility_classification_is_displayed_without_reinterpretation(
+        PriceVolatilityType priceVolatility)
+    {
+        var viewModel = new FuturesEodDataUIViewModel(
+            Eod(0.0046, PriceDirectionType.Rising, priceVolatility));
+
+        viewModel.PriceVolatility.Should().Be(priceVolatility.ToString());
+    }
+
     static FuturesEodDataV2ReadModel Eod(
         double dailyPercentChange,
-        PriceDirectionType direction) => new(
+        PriceDirectionType direction,
+        PriceVolatilityType priceVolatility = PriceVolatilityType.Unknown) => new(
             "ES20260918",
             new DateOnly(2026, 8, 21),
             "ES",
@@ -51,5 +65,6 @@ public sealed class FuturesEodDataUIViewModelTests
             5425m,
             100_000,
             dailyPercentChange,
-            priceDirection: direction);
+            priceDirection: direction,
+            priceVolatility: priceVolatility);
 }

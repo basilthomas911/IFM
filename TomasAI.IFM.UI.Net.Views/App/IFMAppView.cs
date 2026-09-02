@@ -63,6 +63,8 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
         _referenceDataService = referenceDataService;
         _economicCalendarService = economicCalendarService;
         InitializeComponent();
+        tabTradeBlotter.ShowCloseButtons = true;
+        tabTradeBlotter.TabCloseRequested += tabTradeBlotter_TabCloseRequested;
         DashboardTypography.ApplyFamilyAndSize(operationViewSplitter);
         operationViewSplitter.Paint += DashboardSplitter_Paint;
         marketViewSplitter.Paint += DashboardSplitter_Paint;
@@ -531,16 +533,37 @@ public partial class IFMAppView : Form, IForm<IFMAppView>, IFormControl, IIFMApp
 
     private async void btnCloseOrder_Click(object sender, EventArgs e)
     {
-        var tabPage = tabTradeBlotter.SelectedTab!;
-        if (tabPage.Tag is IFormControl tradeControl)
+        if (tabTradeBlotter.SelectedTab is { } tabPage)
+            await CloseTradeTabAsync(tabPage);
+    }
+
+    private async void tabTradeBlotter_TabCloseRequested(
+        object? sender,
+        TabCloseRequestedEventArgs e)
+        => await CloseTradeTabAsync(e.TabPage);
+
+    async Task CloseTradeTabAsync(TabPage tabPage)
+    {
+        if (!tabTradeBlotter.TabPages.Contains(tabPage))
+            return;
+
+        var tradeControl = tabPage.Tag as IFormControl
+            ?? tabPage.Controls.OfType<IFormControl>().FirstOrDefault();
+        if (tradeControl is not null)
             await CloseControlAsync(tradeControl);
+
         tabPage.Controls.Clear();
         tabTradeBlotter.TabPages.Remove(tabPage);
         if (tabTradeBlotter.TabPages.Count == 0)
         {
             btnCloseOrder.Visible = false;
             tabTradeBlotter.Visible = false;
+            return;
         }
+
+        btnCloseOrder.Text = $"Close Trade: {tabTradeBlotter.SelectedTab!.Text}";
+        btnCloseOrder.Visible = true;
+        ResizeTabPages();
     }
 
     private void operationViewSplitter_SplitterMoved(object sender, SplitterEventArgs e)

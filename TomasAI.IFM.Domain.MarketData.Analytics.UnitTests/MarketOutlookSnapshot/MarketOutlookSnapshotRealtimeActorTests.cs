@@ -29,7 +29,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
     [Fact]
     public async Task EligibleComponent_ReplacesCacheAndNotifiesImmediately()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var id = Id();
         var rsi = SampleData.AtrRsiSignals[0] with
@@ -42,18 +43,22 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         };
 
         await actor.Receive(context, Component(id, 1) with { FuturesRsiSignal = rsi });
+        await runtime.DrainAsync();
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.FuturesRsiSignal.Should().Be(rsi);
         current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.Component);
-        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Is<MarketOutlookUpdatedNotifyEvent>(value => value.MarketOutlook == current));
+        await runtime.Publisher.Received(1).PublishAsync(
+            Arg.Is<MarketOutlookUpdate>(value => value.Kind == MarketOutlookUpdateKind.Rsi),
+            Arg.Is<MarketOutlookReadModel>(value => value == current),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task InvalidItiSibling_DoesNotSuppressValidVx()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var id = Id();
         var invalidIti = SampleData.StartOfDayEvent.FuturesItiSignal! with
@@ -69,6 +74,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
             FuturesItiSignal = invalidIti,
             VixFuturesPrice = 22.25m
         });
+        await runtime.DrainAsync();
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.VixFuturesPrice.Should().Be(22.25m);
@@ -78,7 +84,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
     [Fact]
     public async Task UnsupportedComponentAlone_IsIgnoredWithoutExceptionOrNotification()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var id = Id();
         var invalidIti = SampleData.StartOfDayEvent.FuturesItiSignal! with
@@ -95,33 +102,39 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         }).AsTask();
 
         await action.Should().NotThrowAsync();
+        await runtime.DrainAsync();
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out _).Should().BeFalse();
-        await context.DidNotReceiveWithAnyArgs()
-            .SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(default!);
+        await runtime.Publisher.DidNotReceiveWithAnyArgs().PublishAsync(
+            default!, default!, default);
     }
 
     [Fact]
     public async Task EsTrade_RefreshesEvenWhenDailyAnalyticsAreNotWarm()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var trade = WithCurrentTimestamp(
             MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_100m, 1));
         var id = new MarketOutlookEntityId(trade.Price.ContractId, trade.Price.ValueDate);
         await actor.Receive(context, trade);
+        await runtime.DrainAsync();
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.EsTrade);
         current.FuturesEodData.ClosePrice.Should().Be(7_100m);
         current.EsPriceAvailability.Should().Be(MarketOutlookInputAvailability.Available);
-        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Is<MarketOutlookUpdatedNotifyEvent>(value => value.MarketOutlook == current));
+        await runtime.Publisher.Received(1).PublishAsync(
+            Arg.Is<MarketOutlookUpdate>(value => value.Kind == MarketOutlookUpdateKind.EsTrade),
+            Arg.Is<MarketOutlookReadModel>(value => value == current),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task RepeatedAndOrdinalGapTrades_AreAllLatestArrivalWrites()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var first = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_100m, 1);
         var gap = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_102m, 3) with
@@ -138,9 +151,12 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         await actor.Receive(context, first);
         await actor.Receive(context, first);
         await actor.Receive(context, gap);
+        await runtime.DrainAsync();
 
-        await context.Received(3).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Any<MarketOutlookUpdatedNotifyEvent>());
+        await runtime.Publisher.Received(3).PublishAsync(
+            Arg.Any<MarketOutlookUpdate>(),
+            Arg.Any<MarketOutlookReadModel>(),
+            Arg.Any<CancellationToken>());
         var id = new MarketOutlookEntityId(gap.Price.ContractId, gap.Price.ValueDate);
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.FuturesEodData.ClosePrice.Should().Be(7_102m);
@@ -149,7 +165,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
     [Fact]
     public async Task EsTrade_DiagnosticLineageCannotSuppressLatestArrivalWrite()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var source = MarketOutlookDailyPreviewCalculatorTests.Trade("ESZ00", 7_103m, 1);
         var trade = source.Price.Trade!.Value with
@@ -160,19 +177,23 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         source = source with { Price = source.Price with { Trade = trade } };
 
         await actor.Receive(context, source);
+        await runtime.DrainAsync();
 
         var id = new MarketOutlookEntityId(source.Price.ContractId, source.Price.ValueDate);
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.FuturesEodData.ClosePrice.Should().Be(7_103m);
         current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.EsTrade);
-        await context.Received(1).SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-            Arg.Any<MarketOutlookUpdatedNotifyEvent>());
+        await runtime.Publisher.Received(1).PublishAsync(
+            Arg.Any<MarketOutlookUpdate>(),
+            Arg.Any<MarketOutlookReadModel>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task EodUpdate_IsAnIndependentRefresh()
     {
-        var context = Context();
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
         var actor = new TestActor(context);
         var id = Id();
         var eod = SampleData.EodData with
@@ -193,6 +214,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
             FuturesEodData = eod
         };
         await actor.Receive(context, source);
+        await runtime.DrainAsync();
 
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.EodSession);
@@ -202,9 +224,12 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
     [Fact]
     public async Task NotificationFailure_DoesNotRollbackCacheOrEscapeActorHandler()
     {
-        var context = Context();
-        context.SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-                Arg.Any<MarketOutlookUpdatedNotifyEvent>())
+        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
+        var context = Context(runtime.Channel);
+        runtime.Publisher.PublishAsync(
+                Arg.Any<MarketOutlookUpdate>(),
+                Arg.Any<MarketOutlookReadModel>(),
+                Arg.Any<CancellationToken>())
             .Returns(_ => ValueTask.FromException(new IOException("injected transport failure")));
         var actor = new TestActor(context);
         var id = Id();
@@ -215,6 +240,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         }).AsTask();
 
         await action.Should().NotThrowAsync();
+        await runtime.DrainAsync();
         MarketOutlookHotCache.Shared.TryGetCurrent(id, out var current).Should().BeTrue();
         current.VixFuturesPrice.Should().Be(19.5m);
     }
@@ -246,7 +272,8 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
             }
         };
 
-    static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context()
+    static IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor> Context(
+        IMarketOutlookUpdateWriter writer)
     {
         var context = Substitute.For<
             IRealtimeActorContext<MarketOutlookSnapshotRealtimeActor>,
@@ -254,6 +281,7 @@ public sealed class MarketOutlookSnapshotRealtimeActorTests : IDisposable
         var typed = (IMarketOutlookSnapshotRealtimeContext)context;
         typed.DbFactory.Returns(Substitute.For<IDbContextFactory>());
         typed.Logger.Returns(Substitute.For<ILogger<MarketOutlookSnapshotRealtimeActor>>());
+        typed.UpdateWriter.Returns(writer);
         return context;
     }
 

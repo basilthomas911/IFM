@@ -223,6 +223,8 @@ public class FuturesTradeSignalUIViewModel
             DownLimitTrigger = $"{direction.DownTrendTrigger:F2}";
             TradeEntry = $"{direction.IntrinsicPrice:F2}";
             TrendDelta = $"{direction.TrendDelta:F2}";
+            TrendExtreme = $"{direction.TrendExtreme:F2}";
+            TrendReversal = $"{direction.TrendReversal:F2}";
         }
         else
         {
@@ -232,14 +234,9 @@ public class FuturesTradeSignalUIViewModel
             TradeEntry = Unavailable;
             TradeExit = Unavailable;
             TrendDelta = Unavailable;
+            TrendExtreme = Unavailable;
+            TrendReversal = Unavailable;
         }
-
-        TrendExtreme = snapshot.TrendExtremeChange is { } extreme
-            ? $"{extreme.TrendExtreme:F2}"
-            : Unavailable;
-        TrendReversal = snapshot.TrendReversalChange is { } reversal
-            ? $"{reversal.TrendReversal:F2}"
-            : Unavailable;
 
         if (snapshot.FuturesTdiSignal is { } tdi)
         {

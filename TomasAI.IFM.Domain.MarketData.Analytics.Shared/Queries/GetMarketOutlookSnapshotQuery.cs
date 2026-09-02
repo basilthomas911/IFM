@@ -20,14 +20,22 @@ public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookReadMod
     [IgnoreMember] public string? QueryParams { get; init; }
     [Key(2)] public string ContractId { get; init; } = string.Empty;
     [Key(3)] public DateOnly ValueDate { get; init; }
+    [Key(4)] public bool LoadPersistedBaseline { get; init; }
 
     public GetMarketOutlookSnapshotQuery() { }
 
-    public GetMarketOutlookSnapshotQuery(string contractId, DateOnly valueDate)
+    public GetMarketOutlookSnapshotQuery(
+        string contractId,
+        DateOnly valueDate,
+        bool loadPersistedBaseline = false)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
-        EntityId = new GetMarketOutlookSnapshotParameter(ContractId, valueDate);
+        LoadPersistedBaseline = loadPersistedBaseline;
+        EntityId = new GetMarketOutlookSnapshotParameter(
+            ContractId,
+            valueDate,
+            loadPersistedBaseline);
     }
 
     [SerializationConstructor]
@@ -35,6 +43,7 @@ public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookReadMod
         ActorSubject subject,
         IActorEntityId entityId,
         string contractId,
-        DateOnly valueDate)
-        : this(contractId, valueDate) => Subject = subject;
+        DateOnly valueDate,
+        bool loadPersistedBaseline)
+        : this(contractId, valueDate, loadPersistedBaseline) => Subject = subject;
 }

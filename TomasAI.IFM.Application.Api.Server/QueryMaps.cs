@@ -607,9 +607,15 @@ public static class MarketDataAnalyticsQueries
     public static IEndpointRouteBuilder MapMarketDataAnalyticsQueries(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetMarketOutlookSnapshot, async (
-            IActorService e, string contractId, DateOnly valueDate) =>
+            IActorService e,
+            string contractId,
+            DateOnly valueDate,
+            bool? loadPersistedBaseline) =>
         {
-            var query = new GetMarketOutlookSnapshotQuery(contractId, valueDate);
+            var query = new GetMarketOutlookSnapshotQuery(
+                contractId,
+                valueDate,
+                loadPersistedBaseline == true);
             query = query with
             {
                 Subject = new ActorSubject(

@@ -9,7 +9,7 @@ static class PortfolioUiStyle
     public const int BorderWidth = 3;
     public static readonly Color DataSurface = Color.Black;
     public static readonly Color Foreground = Color.White;
-    public static readonly Font BodyFont = new("Microsoft Sans Serif", 12F, FontStyle.Regular, GraphicsUnit.Point);
+    public static readonly Font BodyFont = new("Microsoft Sans Serif", 10F, FontStyle.Regular, GraphicsUnit.Point);
 
     public static void Apply(Form form)
     {
