@@ -173,7 +173,7 @@ public class IFMAppViewModelTests
     }
 
     [Fact]
-    public void MarketDataSnapshots_AreObservableSortedAndBoundedPerSymbol()
+    public void MarketDataSnapshots_AreObservableSortedAndCompletePerSymbol()
     {
         var marketCurrentTime = new DateTimeOffset(2026, 8, 11, 16, 0, 0, TimeSpan.Zero);
         var viewModel = CreateSubject(new ManualTimeProvider(marketCurrentTime));
@@ -206,10 +206,11 @@ public class IFMAppViewModelTests
 
         viewModel.MarketOutlook.Should().NotBeNull();
         viewModel.MarketOutlook!.ClosePrice.Should().Be("5050.00");
-        viewModel.FuturesBarSnapshots["ES"].Should().HaveCount(2_048);
-        viewModel.FuturesBarSnapshots["ES"].Should().BeInAscendingOrder(bar => bar.BarDate);
+        viewModel.FuturesBarSnapshots["ES"].Bars.Should().HaveCount(2_055);
+        viewModel.FuturesBarSnapshots["ES"].Bars.Should().BeInAscendingOrder(bar => bar.BarDate);
         viewModel.LatestFuturesBarSnapshot!.Symbol.Should().Be("ES");
-        viewModel.LatestFuturesBarSnapshot.Bars.Should().BeSameAs(viewModel.FuturesBarSnapshots["ES"]);
+        viewModel.LatestFuturesBarSnapshot.Bars.Should().BeSameAs(
+            viewModel.FuturesBarSnapshots["ES"].Bars);
         changed.Should().Contain(nameof(IFMAppViewModel.MarketOutlook));
         changed.Should().Contain(nameof(IFMAppViewModel.FuturesBarSnapshots));
         changed.Should().Contain(nameof(IFMAppViewModel.LatestFuturesBarSnapshot));
@@ -288,7 +289,7 @@ public class IFMAppViewModelTests
     }
 
     [Fact]
-    public void MarketDataSnapshots_KeepOnlyNewestContinuousFifteenSecondSegment()
+    public void MarketDataSnapshots_KeepAllFifteenSecondBarsInsideSixHourWindow()
     {
         var marketCurrentTime = new DateTimeOffset(2026, 8, 11, 16, 0, 0, TimeSpan.Zero);
         var viewModel = CreateSubject(new ManualTimeProvider(marketCurrentTime));
@@ -315,9 +316,13 @@ public class IFMAppViewModelTests
 
         viewModel.PublishFuturesBarSnapshot("ES", bars);
 
-        viewModel.FuturesBarSnapshots["ES"]
+        viewModel.FuturesBarSnapshots["ES"].Bars
             .Select(bar => bar.BarValue)
-            .Should().Equal(5_200m, 5_201m, 5_202m);
+            .Should().Equal(5_000m, 5_001m, 5_200m, 5_201m, 5_202m);
+        viewModel.FuturesBarSnapshots["ES"].WindowStartUtc
+            .Should().Be(marketCurrentTime.UtcDateTime.AddHours(-6));
+        viewModel.FuturesBarSnapshots["ES"].WindowEndUtc
+            .Should().Be(marketCurrentTime.UtcDateTime);
     }
 
     [Fact]
@@ -328,7 +333,7 @@ public class IFMAppViewModelTests
         var (startDate, endDate) = IFMAppViewModel.GetFuturesBarChartWindow(marketCurrentTime);
 
         startDate.Should().Be(marketCurrentTime.AddHours(-6));
-        endDate.Should().Be(marketCurrentTime.AddSeconds(1));
+        endDate.Should().Be(marketCurrentTime);
     }
 
     [Fact]

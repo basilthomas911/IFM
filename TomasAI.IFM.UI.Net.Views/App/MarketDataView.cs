@@ -1,6 +1,7 @@
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
 using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.App;
 
 namespace TomasAI.IFM.UI.Net.Views.App;
 
@@ -44,14 +45,16 @@ public partial class MarketDataView : UserControl
     }
 
     /// <summary>
-    /// refreshes the view with the latest futures bar data for the specified symbol.
+    /// Refreshes the view with every futures bar in the snapshot's fixed wall-clock window.
     /// </summary>
-    /// <param name="symbol"></param>
-    /// <param name="futuresBarData"></param>
-    public void RefreshView(string symbol, FuturesBarDataReadModel[] futuresBarData)
+    /// <param name="snapshot">The symbol, six-hour UTC window, and persisted bars to render.</param>
+    public void RefreshView(FuturesBarChartSnapshot snapshot)
     {
         try
         {
+            ArgumentNullException.ThrowIfNull(snapshot);
+            var symbol = snapshot.Symbol;
+            var futuresBarData = snapshot.Bars;
             if (futuresBarData?.Length  == 0) 
                 return;
             var graph = default(Chart);
@@ -96,19 +99,18 @@ public partial class MarketDataView : UserControl
             var marketBarDates = futuresBarData
                 .Select(e => EasternTime.FromUtc(e.BarDate))
                 .ToArray();
-            var earliestBarDate = marketBarDates.Min();
-            var latestBarDate = marketBarDates.Max();
-            if (earliestBarDate == latestBarDate)
-            {
-                earliestBarDate = earliestBarDate.AddSeconds(-7.5);
-                latestBarDate = latestBarDate.AddSeconds(7.5);
-            }
+            var windowStart = EasternTime.FromUtc(snapshot.WindowStartUtc);
+            var windowEnd = EasternTime.FromUtc(snapshot.WindowEndUtc);
             graph.ChartAreas[0].AxisX.ScaleView.ZoomReset(0);
-            graph.ChartAreas[0].AxisX.Minimum = earliestBarDate.ToOADate();
-            graph.ChartAreas[0].AxisX.Maximum = latestBarDate.ToOADate();
+            graph.ChartAreas[0].AxisX.Minimum = windowStart.ToOADate();
+            graph.ChartAreas[0].AxisX.Maximum = windowEnd.ToOADate();
             graph.ChartAreas[0].AxisX.LabelStyle.Format = "h:mm:ss tt";
             graph.Series[0].Points.Clear();
-            graph.Series[0].MarkerStyle = futuresBarData.Length == 1
+            var extendSingleObservation = futuresBarData.Length == 1
+                && marketBarDates[0] < windowEnd;
+            graph.Series[0].MarkerStyle = extendSingleObservation
+                ? MarkerStyle.None
+                : futuresBarData.Length == 1
                 ? MarkerStyle.Circle
                 : MarkerStyle.None;
             graph.Series[0].MarkerSize = 6;
@@ -126,6 +128,16 @@ public partial class MarketDataView : UserControl
                 {
                     graph.Series[1].Points.AddXY(marketBarDate, upTrendTrigger);
                     graph.Series[2].Points.AddXY(marketBarDate, downTrendTrigger);
+                }
+            }
+            if (extendSingleObservation)
+            {
+                var onlyBar = futuresBarData[0];
+                graph.Series[0].Points.AddXY(windowEnd, onlyBar.BarValue);
+                if (graph.Series.Count > 1)
+                {
+                    graph.Series[1].Points.AddXY(windowEnd, upTrendTrigger);
+                    graph.Series[2].Points.AddXY(windowEnd, downTrendTrigger);
                 }
             }
             graph.ChartAreas[0].RecalculateAxesScale();

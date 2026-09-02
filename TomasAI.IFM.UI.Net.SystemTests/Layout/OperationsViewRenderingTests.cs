@@ -4,6 +4,10 @@ using System.Reflection;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared;
+using TomasAI.IFM.Domain.MarketData.Feed.Shared.ViewModels;
+using TomasAI.IFM.UI.Net.Models;
+using TomasAI.IFM.UI.Net.ViewModels.App;
 using TomasAI.IFM.UI.Net.Views.App;
 
 namespace TomasAI.IFM.UI.Net.SystemTests.Layout;
@@ -173,6 +177,40 @@ public sealed class OperationsViewRenderingTests
             && chart.Series.All(series =>
                 series.Font.Name == "Microsoft Sans Serif"
                 && Math.Abs(series.Font.Size - 10F) < 0.01F));
+    }
+
+    [Fact]
+    public void MarketDataChart_UsesFullWindowAndExtendsSingleObservationFlat()
+    {
+        using var view = new MarketDataView();
+        var windowStartUtc = new DateTime(2026, 8, 11, 10, 0, 0, DateTimeKind.Utc);
+        var windowEndUtc = windowStartUtc.AddHours(6);
+        const decimal value = 5_250m;
+        var bar = new FuturesBarDataReadModel(
+            "ESZ26",
+            "ES",
+            new DateOnly(2026, 8, 11),
+            windowStartUtc,
+            BarRateType.FifteenSeconds,
+            value,
+            0,
+            0);
+
+        view.RefreshView(new FuturesBarChartSnapshot(
+            "ES",
+            windowStartUtc,
+            windowEndUtc,
+            [bar]));
+
+        var chart = view.Controls.Find("graphES", true).OfType<Chart>().Single();
+        var expectedStart = EasternTime.FromUtc(windowStartUtc).ToOADate();
+        var expectedEnd = EasternTime.FromUtc(windowEndUtc).ToOADate();
+        chart.ChartAreas[0].AxisX.Minimum.Should().BeApproximately(expectedStart, 0.000_000_1);
+        chart.ChartAreas[0].AxisX.Maximum.Should().BeApproximately(expectedEnd, 0.000_000_1);
+        chart.Series[0].Points.Should().HaveCount(2);
+        chart.Series[0].Points[0].XValue.Should().BeApproximately(expectedStart, 0.000_000_1);
+        chart.Series[0].Points[1].XValue.Should().BeApproximately(expectedEnd, 0.000_000_1);
+        chart.Series[0].Points.Should().OnlyContain(point => point.YValues[0] == (double)value);
     }
 
     [Fact]
