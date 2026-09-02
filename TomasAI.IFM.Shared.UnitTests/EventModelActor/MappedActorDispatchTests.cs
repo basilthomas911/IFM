@@ -32,7 +32,7 @@ public sealed class MappedActorDispatchTests
     }
 
     [Fact]
-    public void Event_receive_resolution_rejects_an_unregistered_concrete_type()
+    public void Event_receive_resolution_returns_a_no_op_for_an_unregistered_concrete_type()
     {
         var actor = CreateEventActor();
         IReadOnlyDictionary<Type, Func<IEvent, string>> receiveMap =
@@ -41,10 +41,21 @@ public sealed class MappedActorDispatchTests
                 [typeof(MappedEvent)] = static _ => "mapped"
             };
 
-        var action = () => actor.Resolve(new UnregisteredEvent(), receiveMap);
+        actor.Resolve(new UnregisteredEvent(), receiveMap)(new UnregisteredEvent())
+            .Should().BeNull();
+    }
 
-        action.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Unable to resolve MappedEvent event*");
+    [Fact]
+    public async Task Event_receive_resolution_returns_a_completed_task_no_op()
+    {
+        var actor = CreateEventActor();
+        IReadOnlyDictionary<Type, Func<IEvent, Task>> receiveMap =
+            new Dictionary<Type, Func<IEvent, Task>>();
+
+        var task = actor.Resolve(new UnregisteredEvent(), receiveMap)(new UnregisteredEvent());
+
+        task.Should().BeSameAs(Task.CompletedTask);
+        await task;
     }
 
     [Fact]
@@ -173,6 +184,18 @@ public sealed class MappedActorDispatchTests
 
         actor.Resolve(first, receiveMap)(first).Should().Be("first");
         actor.Resolve(second, receiveMap)(second).Should().Be("second");
+    }
+
+    [Fact]
+    public void Realtime_receive_resolution_returns_a_no_op_for_an_unregistered_concrete_type()
+    {
+        var actor = CreateRealtimeActor();
+        IReadOnlyDictionary<Type, Func<IEvent, ValueTask>> receiveMap =
+            new Dictionary<Type, Func<IEvent, ValueTask>>();
+
+        var result = actor.Resolve(new UnregisteredEvent(), receiveMap)(new UnregisteredEvent());
+
+        result.IsCompletedSuccessfully.Should().BeTrue();
     }
 
     [Fact]

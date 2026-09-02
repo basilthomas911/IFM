@@ -5,7 +5,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 
 /// <summary>
 /// Defines which asynchronous signal variants can contribute to a Market Outlook snapshot.

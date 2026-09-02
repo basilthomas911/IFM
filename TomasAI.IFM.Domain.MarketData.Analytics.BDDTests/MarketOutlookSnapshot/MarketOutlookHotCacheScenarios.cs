@@ -2,8 +2,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
@@ -32,13 +32,13 @@ public sealed class MarketOutlookHotCacheScenarios
 
     [Theory]
     [MemberData(nameof(IndependentComponents))]
-    public async Task GivenOneComponent_WhenItArrives_ThenItCanPublishWithoutWaitingForSiblings(
+    public async Task GivenOneComponent_WhenItArrives_ThenItUpdatesHotCacheAndOnlyCompleteEodPersists(
         CacheComponentType component)
     {
         var cache = new MarketOutlookHotCache();
         var metrics = new MarketOutlookProcessorMetrics();
         var channel = new MarketOutlookUpdateChannel(metrics);
-        var publisher = Substitute.For<IMarketOutlookSnapshotPublisher>();
+        var publisher = Substitute.For<IMarketOutlookSnapshotCommandWriter>();
         using var processor = new MarketOutlookUpdateProcessor(
             channel, channel, cache, cache, publisher, metrics,
             Substitute.For<ILogger<MarketOutlookUpdateProcessor>>());
@@ -55,7 +55,7 @@ public sealed class MarketOutlookHotCacheScenarios
                 ? MarketOutlookRefreshTrigger.EodSession
                 : MarketOutlookRefreshTrigger.Component);
             current.MissingInputs.Should().NotBeNull();
-            await publisher.Received(1).PublishAsync(
+            await publisher.Received(component == CacheComponentType.Eod ? 1 : 0).PublishAsync(
                 Arg.Any<MarketOutlookUpdate>(),
                 Arg.Any<MarketOutlookReadModel>(),
                 Arg.Any<CancellationToken>());

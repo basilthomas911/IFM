@@ -225,7 +225,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
     [Theory]
     [MemberData(nameof(AllTimePeriods))]
-    public async Task ReceiveAsync_GivenUnsupportedGeneratedEvent_WhenReceived_ThenRejectsEvent(
+    public async Task ReceiveAsync_GivenUnsupportedGeneratedEvent_WhenReceived_ThenNoOps(
         TimeFrameType timePeriod)
     {
         var scenario = CreateScenario();
@@ -233,8 +233,7 @@ public class FuturesTdiSignalEventActorTests : IClassFixture<MarketDataAnalytics
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, @event);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesTdiSignalEventActor.Actor} event from message:*");
+        await act.Should().NotThrowAsync();
     }
 
     // OnExceptionAsync

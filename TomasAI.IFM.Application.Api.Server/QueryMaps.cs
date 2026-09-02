@@ -609,13 +609,9 @@ public static class MarketDataAnalyticsQueries
         endpoints.MapGet(MarketDataAnalyticsQueryUriPath.GetMarketOutlookSnapshot, async (
             IActorService e,
             string contractId,
-            DateOnly valueDate,
-            bool? loadPersistedBaseline) =>
+            DateOnly valueDate) =>
         {
-            var query = new GetMarketOutlookSnapshotQuery(
-                contractId,
-                valueDate,
-                loadPersistedBaseline == true);
+            var query = new GetMarketOutlookSnapshotQuery(contractId, valueDate);
             query = query with
             {
                 Subject = new ActorSubject(

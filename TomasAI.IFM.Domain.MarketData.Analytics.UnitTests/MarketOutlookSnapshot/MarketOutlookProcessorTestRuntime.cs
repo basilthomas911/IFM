@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot;
 
@@ -13,7 +13,7 @@ internal sealed class MarketOutlookProcessorTestRuntime : IAsyncDisposable
         Cache.Clear();
         Metrics = new MarketOutlookProcessorMetrics();
         Channel = new MarketOutlookUpdateChannel(Metrics);
-        Publisher = Substitute.For<IMarketOutlookSnapshotPublisher>();
+        Publisher = Substitute.For<IMarketOutlookSnapshotCommandWriter>();
         Processor = new MarketOutlookUpdateProcessor(
             Channel,
             Channel,
@@ -27,7 +27,7 @@ internal sealed class MarketOutlookProcessorTestRuntime : IAsyncDisposable
     internal MarketOutlookHotCache Cache { get; }
     internal MarketOutlookProcessorMetrics Metrics { get; }
     internal MarketOutlookUpdateChannel Channel { get; }
-    internal IMarketOutlookSnapshotPublisher Publisher { get; }
+    internal IMarketOutlookSnapshotCommandWriter Publisher { get; }
     internal MarketOutlookUpdateProcessor Processor { get; }
 
     internal static async ValueTask<MarketOutlookProcessorTestRuntime> StartAsync()

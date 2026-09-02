@@ -179,6 +179,95 @@ public class MarketDataDbTests(MarketDataFixture testFixture) : IClassFixture<Ma
     MarketDataFixture TestFixture { get; } = testFixture;
 
     [Fact]
+    public async Task MarketOutlookSnapshot_UpsertsAndReturnsLatestValidRowFromScylla()
+    {
+        const string deleteCql = "DELETE FROM market_outlook_snapshot WHERE contractId = :contractId;";
+        const string corruptCql = """
+            UPDATE market_outlook_snapshot
+            SET snapshot = :snapshot
+            WHERE contractId = :contractId AND valueDate = :valueDate;
+            """;
+        var db = TestFixture.DevDatabase;
+        var contractId = $"MOS{Guid.NewGuid():N}";
+        var firstDate = new DateOnly(2098, 9, 1);
+        var secondDate = firstDate.AddDays(1);
+        var first = Snapshot(firstDate, 5_050m, "first");
+        var replacement = Snapshot(firstDate, 5_075m, "replacement");
+        var second = Snapshot(secondDate, 5_100m, "second");
+
+        try
+        {
+            (await db.GetMarketOutlookSnapshotAsync(contractId, secondDate))
+                .Should().BeNull();
+
+            await db.UpsertMarketOutlookSnapshotAsync(first, 1);
+            (await db.GetMarketOutlookSnapshotAsync(contractId, firstDate))
+                .Should().BeEquivalentTo(first);
+
+            await db.UpsertMarketOutlookSnapshotAsync(replacement, 2);
+            (await db.GetMarketOutlookSnapshotAsync(contractId, firstDate))
+                .Should().BeEquivalentTo(replacement);
+
+            await db.UpsertMarketOutlookSnapshotAsync(second, 3);
+            (await db.GetMarketOutlookSnapshotAsync(contractId, firstDate))
+                .Should().BeEquivalentTo(replacement);
+            (await db.GetMarketOutlookSnapshotAsync(contractId, secondDate.AddDays(30)))
+                .Should().BeEquivalentTo(second);
+
+            await db.Use($"{nameof(MarketDataDbTests)}.CorruptMarketOutlookSnapshot", corruptCql)
+                .SetParameters(new CorruptMarketOutlookSnapshot(
+                    [0xC1, 0x01, 0x02], contractId, secondDate))
+                .ExecuteCommandAsync();
+
+            var readCorrupt = async () =>
+                await db.GetMarketOutlookSnapshotAsync(contractId, secondDate);
+            await readCorrupt.Should().ThrowAsync<Exception>();
+        }
+        finally
+        {
+            await db.Use($"{nameof(MarketDataDbTests)}.DeleteMarketOutlookSnapshots", deleteCql)
+                .SetParameters(new MarketOutlookSnapshotPartition(contractId))
+                .ExecuteCommandAsync();
+        }
+
+        MarketOutlookReadModel Snapshot(DateOnly valueDate, decimal close, string missingInputs) =>
+            new()
+            {
+                ContractId = contractId,
+                ValueDate = valueDate,
+                UpdatedAtUtc = new DateTime(2098, 9, valueDate.Day, 20, 0, 0, DateTimeKind.Utc),
+                MarketDataAsOfUtc = new DateTime(2098, 9, valueDate.Day, 19, 59, 0, DateTimeKind.Utc),
+                RefreshTrigger = MarketOutlookRefreshTrigger.EodSession,
+                MissingInputs = missingInputs,
+                VixFuturesPrice = 18.25m,
+                FeedHealth = "Green",
+                FuturesEodData = new FuturesEodDataV2ReadModel(
+                    contractId,
+                    valueDate,
+                    "ES",
+                    close - 25m,
+                    close + 50m,
+                    close - 75m,
+                    close,
+                    123_456,
+                    0.0123)
+            };
+    }
+
+    readonly record struct MarketOutlookSnapshotPartition(string ContractId) : IBindValue
+    {
+        public object Bind() => new object[] { ContractId };
+    }
+
+    readonly record struct CorruptMarketOutlookSnapshot(
+        byte[] Snapshot,
+        string ContractId,
+        DateOnly ValueDate) : IBindValue
+    {
+        public object Bind() => new object[] { Snapshot, ContractId, ValueDate };
+    }
+
+    [Fact]
     public async Task LatestDailyEmaAndBollingerSignals_RoundTripForMarketOutlookHydration()
     {
         var valueDate = new DateOnly(2098, 3, 15);

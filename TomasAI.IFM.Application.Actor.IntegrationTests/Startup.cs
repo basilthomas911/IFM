@@ -51,7 +51,7 @@ using TomasAI.IFM.Application.Storage.ConfigurationDb;
 using TomasAI.IFM.Application.Storage.ConfigurationDb.Schema;
 using TomasAI.IFM.Domain.MarketData.Analytics.RegimeDiscovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.RegimeDiscovery;
 using TomasAI.IFM.Framework.Caching;
 using TomasAI.IFM.Framework.Caching.Redis;
@@ -528,13 +528,12 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
             services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
-            services.AddSingleton<IMarketOutlookSnapshotPublisher, ActorMarketOutlookSnapshotPublisher>();
+            services.AddSingleton<IMarketOutlookSnapshotCommandWriter, ActorMarketOutlookSnapshotCommandWriter>();
             services.AddSingleton<MarketOutlookUpdateProcessor>();
             services.AddSingleton<IMarketOutlookOperations>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
-            services.AddSingleton<IMarketOutlookSnapshotHydrator, MarketOutlookSnapshotHydrator>();
 
 
             //services.AddSingleton<IMarketDataFeedEventConsumer, MarketDataFeedEventConsumer>();

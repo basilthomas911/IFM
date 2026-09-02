@@ -321,7 +321,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
     }
 
     [Fact]
-    public async Task ReceiveAsync_UnsupportedEvent_ThrowsInvalidOperationException()
+    public async Task ReceiveAsync_UnsupportedEvent_NoOps()
     {
         var scenario = CreateScenario();
         var @event = Substitute.For<IEvent>();
@@ -333,8 +333,7 @@ public class FuturesTradeSignalEventActorTests : IClassFixture<MarketDataAnalyti
 
         var act = async () => await scenario.Actor.InvokeReceiveAsync(scenario.Context, @event);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesTradeSignalEventActor.Actor} event from message:*");
+        await act.Should().NotThrowAsync();
     }
 
     // OnExceptionAsync

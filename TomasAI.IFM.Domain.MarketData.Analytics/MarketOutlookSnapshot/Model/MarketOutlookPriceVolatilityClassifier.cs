@@ -1,6 +1,6 @@
 using TomasAI.IFM.Domain.MarketData.Shared;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 
 /// <summary>
 /// Classifies the direction of the currently traded VX futures price relative to its

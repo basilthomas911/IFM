@@ -6,7 +6,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ServiceApi;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
 using TomasAI.IFM.Shared.Extensions;
-using TomasAI.IFM.Application.MarketData.MarketOutlook;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 
@@ -20,37 +19,6 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 /// </remarks>
 public static partial class MarketDataAnalyticsQueryExtensions
 {
-
-    /// <summary>Executes the GetMarketOutlookSnapshotAsync operation.</summary>
-    public static async Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
-        string contractId,
-        DateOnly valueDate,
-        bool loadPersistedBaseline = false)
-    {
-        try
-        {
-            var entityId = new MarketOutlookEntityId(contractId, valueDate);
-            var result = loadPersistedBaseline && context.MarketOutlookHydrator is { } hydrator
-                ? await hydrator.HydrateAsync(entityId).ConfigureAwait(false)
-                : MarketOutlookHotCache.Shared.TryGetCurrent(entityId, out var cached)
-                    ? cached
-                    : null;
-            result ??= new MarketOutlookReadModel
-            {
-                ContractId = contractId,
-                ValueDate = valueDate,
-                UpdatedAtUtc = DateTime.UtcNow,
-                MissingInputs = "Market Outlook unavailable",
-                FeedHealth = "Unavailable"
-            };
-            return new ServiceOk<MarketOutlookReadModel>(result!);
-        }
-        catch (Exception ex)
-        {
-            return new ServiceFailed<MarketOutlookReadModel>(
-                GetMarketOutlookSnapshotQuery.ErrorId, ex.Message);
-        }
-    }
 
     /// <summary>
     /// Gets futures trade signal.

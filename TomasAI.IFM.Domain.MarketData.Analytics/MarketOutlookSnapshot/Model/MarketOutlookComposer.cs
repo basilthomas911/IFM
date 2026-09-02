@@ -11,7 +11,7 @@ using TomasAI.IFM.Domain.MarketData.Shared;
 using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 
 /// <summary>Pure versionless Market Outlook hot-cache composer.</summary>
 public static class MarketOutlookComposer

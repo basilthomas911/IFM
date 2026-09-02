@@ -2,7 +2,7 @@ using FluentAssertions;
 using NSubstitute;
 using System.Diagnostics;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Shared;
@@ -28,7 +28,7 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
             throw new InvalidOperationException("injected metrics failure");
     }
 
-    sealed class CountingPublisher : IMarketOutlookSnapshotPublisher
+    sealed class CountingPublisher : IMarketOutlookSnapshotCommandWriter
     {
         long count;
         public long Count => Interlocked.Read(ref count);
@@ -72,7 +72,7 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
             reader,
             Substitute.For<IMarketOutlookHotCache>(),
             Substitute.For<IMarketOutlookHotCacheWriter>(),
-            Substitute.For<IMarketOutlookSnapshotPublisher>(),
+            Substitute.For<IMarketOutlookSnapshotCommandWriter>(),
             new MarketOutlookProcessorMetrics(),
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MarketOutlookUpdateProcessor>>());
 
@@ -133,7 +133,8 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         metrics.Updates[MarketOutlookUpdateKind.VixPrice].Received.Should().Be(updatesPerKind);
         metrics.Updates[MarketOutlookUpdateKind.FeedHealth].Received.Should().Be(updatesPerKind);
         metrics.Updates.Values.Sum(value => value.Applied).Should().Be(1_000);
-        metrics.Updates.Values.Sum(value => value.Published).Should().Be(1_000);
+        metrics.Updates.Values.Sum(value => value.Published).Should().Be(0,
+            "component-only snapshots without a valid OHLC baseline are not durable");
     }
 
     [Fact]
@@ -142,7 +143,7 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         var cache = new MarketOutlookHotCache();
         var metrics = new MarketOutlookProcessorMetrics();
         var channel = new MarketOutlookUpdateChannel(metrics, 1);
-        var publisher = Substitute.For<IMarketOutlookSnapshotPublisher>();
+        var publisher = Substitute.For<IMarketOutlookSnapshotCommandWriter>();
         var processor = new MarketOutlookUpdateProcessor(
             channel, channel, cache, cache, publisher, metrics,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MarketOutlookUpdateProcessor>>());
@@ -233,12 +234,12 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
                 Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromException(new IOException("injected publication failure")));
 
-        runtime.Channel.Submit(Vix(21));
+        runtime.Channel.Submit(Eod());
         await runtime.DrainAsync();
 
         runtime.Cache.TryGetCurrent(Id, out var current).Should().BeTrue();
-        current.VixFuturesPrice.Should().Be(21m);
-        var values = runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.VixPrice];
+        current.FuturesEodData.OpenPrice.Should().BeGreaterThan(0m);
+        var values = runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Eod];
         values.Applied.Should().Be(1);
         values.Published.Should().Be(0);
         values.Failed.Should().Be(1);
@@ -250,6 +251,7 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
     {
         await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
         var sourceTime = DateTime.UtcNow.AddMinutes(-2);
+        runtime.Channel.Submit(Eod(sourceTime));
         runtime.Channel.Submit(Vix(20, sourceTime));
         await runtime.DrainAsync();
         runtime.Cache.TryGetCurrent(Id, out var before).Should().BeTrue();
@@ -265,65 +267,6 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
             .Should().Be(1);
         runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.Recompose].Changed
             .Should().Be(0, "republishing current inputs does not claim a source-value change");
-    }
-
-    [Fact]
-    public async Task StartupHydration_ReplacesPersistedComponents_ThenLiveUpdatesReplaceBaseline()
-    {
-        await using var runtime = await MarketOutlookProcessorTestRuntime.StartAsync();
-        runtime.Channel.Submit(Vix(31m));
-        await runtime.DrainAsync();
-
-        runtime.Channel.Submit(new HydrateMarketOutlookUpdate
-        {
-            UpdateId = Guid.NewGuid(),
-            EntityId = Id,
-            ReceivedAtUtc = DateTime.UtcNow,
-            MarketDataAsOfUtc = DateTime.UtcNow.AddMinutes(-5),
-            Baseline = new MarketOutlookInputState
-            {
-                EntityId = Id,
-                VixFuturesSessionOpenPrice = 20m,
-                VixFuturesPrice = 18m,
-                FuturesTradeSignal = new FuturesTradeSignalV2ReadModel
-                {
-                    ContractId = Id.ContractId,
-                    ValueDate = Id.ValueDate,
-                    FuturesPrice = 6_100d
-                },
-                CurrentEsPrice = 6_100m,
-                MarketDataAsOfUtc = DateTime.UtcNow.AddMinutes(-5)
-            }
-        });
-        await runtime.DrainAsync();
-
-        runtime.Cache.TryGetCurrent(Id, out var current).Should().BeTrue();
-        current.VixFuturesPrice.Should().Be(18m, "startup persistence establishes the baseline");
-        current.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Falling);
-        current.FuturesTradeSignal.Should().NotBeNull("the stored value is restored");
-        current.RefreshTrigger.Should().Be(MarketOutlookRefreshTrigger.PersistedBaseline);
-
-        runtime.Channel.Submit(Vix(32m));
-        await runtime.DrainAsync();
-
-        runtime.Cache.TryGetCurrent(Id, out current).Should().BeTrue();
-        current.VixFuturesPrice.Should().Be(32m, "live updates replace the startup baseline");
-        current.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Rising);
-
-        runtime.Channel.Submit(new RsiMarketOutlookUpdate
-        {
-            UpdateId = Guid.NewGuid(),
-            EntityId = Id,
-            ReceivedAtUtc = DateTime.UtcNow,
-            MarketDataAsOfUtc = DateTime.UtcNow,
-            Signal = new FuturesRsiSignalReadModel { RSI = 55d, IsWarm = true }
-        });
-        await runtime.DrainAsync();
-
-        runtime.Cache.TryGetCurrent(Id, out current).Should().BeTrue();
-        current.FuturesEodData.PriceVolatility.Should().Be(
-            PriceVolatilityType.Rising,
-            "unrelated component refreshes preserve the VX-derived classification");
     }
 
     [Fact]
@@ -348,7 +291,7 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         var cache = new MarketOutlookHotCache();
         var metrics = new MarketOutlookProcessorMetrics();
         var channel = new MarketOutlookUpdateChannel(metrics);
-        var publisher = Substitute.For<IMarketOutlookSnapshotPublisher>();
+        var publisher = Substitute.For<IMarketOutlookSnapshotCommandWriter>();
         using var processor = new MarketOutlookUpdateProcessor(
             channel, channel, cache, cache, publisher, metrics,
             Substitute.For<Microsoft.Extensions.Logging.ILogger<MarketOutlookUpdateProcessor>>());
@@ -361,7 +304,7 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
 
         var snapshot = processor.GetMetrics();
         snapshot.PendingCount.Should().Be(0);
-        snapshot.Updates[MarketOutlookUpdateKind.VixPrice].Published.Should().Be(100);
+        snapshot.Updates[MarketOutlookUpdateKind.VixPrice].Published.Should().Be(0);
         snapshot.IsProcessorReady.Should().BeFalse();
     }
 
@@ -388,8 +331,8 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
         var snapshot = processor.GetMetrics();
         snapshot.Updates[MarketOutlookUpdateKind.VixPrice].Received.Should().Be(10_000);
         snapshot.Updates[MarketOutlookUpdateKind.VixPrice].Applied.Should().Be(10_000);
-        snapshot.Updates[MarketOutlookUpdateKind.VixPrice].Published.Should().Be(10_000);
-        publisher.Count.Should().Be(10_000);
+        snapshot.Updates[MarketOutlookUpdateKind.VixPrice].Published.Should().Be(0);
+        publisher.Count.Should().Be(0);
         allocatedBytes.Should().BeLessThan(512L * 1024 * 1024);
         stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15));
         output.WriteLine(
@@ -426,6 +369,25 @@ public sealed class MarketOutlookUpdateProcessorTests(ITestOutputHelper output)
             MarketDataAsOfUtc = now,
             Price = price,
             EventSource = "unit-test"
+        };
+    }
+
+    static EodMarketOutlookUpdate Eod(DateTime? marketTime = null)
+    {
+        var now = marketTime ?? DateTime.UtcNow;
+        return new()
+        {
+            UpdateId = Guid.NewGuid(),
+            EntityId = Id,
+            ReceivedAtUtc = DateTime.UtcNow,
+            MarketDataAsOfUtc = now,
+            Eod = SampleData.EodData with
+            {
+                Symbol = "ES",
+                ContractId = Id.ContractId,
+                ValueDate = Id.ValueDate
+            },
+            EventSource = "unit-test-eod"
         };
     }
 }

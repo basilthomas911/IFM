@@ -22,17 +22,10 @@ public class MarketDataAnalyticsQueryApi(IActorProducer actorProducer)
 {
     public async Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(
         string contractId,
-        DateOnly valueDate,
-        bool loadPersistedBaseline = false)
+        DateOnly valueDate)
     {
-        var entityId = new GetMarketOutlookSnapshotParameter(
-            contractId,
-            valueDate,
-            loadPersistedBaseline);
-        var query = new GetMarketOutlookSnapshotQuery(
-            contractId,
-            valueDate,
-            loadPersistedBaseline)
+        var entityId = new GetMarketOutlookSnapshotParameter(contractId, valueDate);
+        var query = new GetMarketOutlookSnapshotQuery(contractId, valueDate)
         {
             Subject = new ActorSubject(
                 ActorType.Query,

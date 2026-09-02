@@ -16,17 +16,17 @@ public sealed class MarketOutlookUIEventConsumer(
 {
     const string ConsumerName = "MarketOutlookUIEventConsumer";
     readonly ILogger _logger = logger;
-    readonly ConcurrentDictionary<Guid, Action<MarketOutlookUpdatedNotifyEvent>> _actions = new();
+    readonly ConcurrentDictionary<Guid, Action<MarketOutlookSnapshotInsertedEvent>> _actions = new();
     readonly SemaphoreSlim _gate = new(1, 1);
     readonly Dictionary<ActorMailboxId, List<string>> _eventMap = new()
     {
-        [new ActorMailboxId(ActorType.Notify, MarketOutlookUpdatedNotifyEvent.Actor)] =
-            [MarketOutlookUpdatedNotifyEvent.Verb]
+        [new ActorMailboxId(ActorType.Realtime, MarketOutlookSnapshotInsertedEvent.Actor)] =
+            [MarketOutlookSnapshotInsertedEvent.Verb]
     };
 
     public async ValueTask StartAsync(
         Guid siteId,
-        Action<MarketOutlookUpdatedNotifyEvent> action)
+        Action<MarketOutlookSnapshotInsertedEvent> action)
     {
         if (siteId == Guid.Empty)
             throw new ArgumentException("A non-empty UI site identifier is required.", nameof(siteId));
@@ -69,13 +69,13 @@ public sealed class MarketOutlookUIEventConsumer(
     {
         try
         {
-            if (eventVerb != MarketOutlookUpdatedNotifyEvent.Verb)
+            if (eventVerb != MarketOutlookSnapshotInsertedEvent.Verb)
                 return;
-            var notification = message.AsEvent<MarketOutlookUpdatedNotifyEvent>();
-            if (notification?.IsValid != true)
+            var inserted = message.AsEvent<MarketOutlookSnapshotInsertedEvent>();
+            if (inserted?.IsValid != true)
                 return;
             foreach (var action in _actions.Values)
-                action(notification);
+                action(inserted);
         }
         catch (Exception exception)
         {
@@ -91,6 +91,6 @@ public sealed class MarketOutlookUIEventConsumer(
 
 public interface IMarketOutlookUIEventConsumer
 {
-    ValueTask StartAsync(Guid siteId, Action<MarketOutlookUpdatedNotifyEvent> action);
+    ValueTask StartAsync(Guid siteId, Action<MarketOutlookSnapshotInsertedEvent> action);
     ValueTask StopAsync(Guid siteId);
 }

@@ -66,7 +66,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realt
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSessionBarSignal.Realtime.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesVwapSignal.Recovery;
 using TomasAI.IFM.Domain.MarketData.Analytics.HistoricalDataLoader;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Common;
 using TomasAI.IFM.Framework.MarketData.Contracts.Historical;
 using TomasAI.IFM.Domain.MarketData.Feed;
@@ -627,14 +627,13 @@ public static class Startup
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
             services.AddSingleton<IMarketOutlookUpdateReader>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateChannel>());
-            services.AddSingleton<IMarketOutlookSnapshotPublisher, ActorMarketOutlookSnapshotPublisher>();
+            services.AddSingleton<IMarketOutlookSnapshotCommandWriter, ActorMarketOutlookSnapshotCommandWriter>();
             services.AddSingleton<MarketOutlookUpdateProcessor>();
             services.AddSingleton<IMarketOutlookOperations>(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService(provider =>
                 provider.GetRequiredService<MarketOutlookUpdateProcessor>());
             services.AddHostedService<ApplicationStartupCommandDispatcher>();
-            services.AddSingleton<IMarketOutlookSnapshotHydrator, MarketOutlookSnapshotHydrator>();
             var fmpScheduleOptions = (config
                 .GetSection("AppSettings:Fmp:Schedule")
                 .Get<FmpImportScheduleOptions>() ?? new FmpImportScheduleOptions()).Validate();

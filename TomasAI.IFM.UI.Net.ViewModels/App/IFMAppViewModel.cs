@@ -8,6 +8,7 @@ using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.Reference.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventChannel;
 using TomasAI.IFM.Shared.EventSourcing;
@@ -879,7 +880,7 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
     }
 
     /// <summary>
-    /// Subscribes before reading the current process-local composite value.
+    /// Subscribes before reading the latest durable snapshot so realtime cannot be missed during startup.
     /// </summary>
     async Task StartMarketOutlookEventConsumer(CancellationToken cancellationToken)
     {
@@ -915,11 +916,20 @@ public sealed class IFMAppViewModel : ObservableObject, IAsyncLifecycle, IAsyncD
         await _appRoot.Services.AnalyticsQueries.ExecuteAsync(async model =>
         {
             model.OnError((errorCode, errorMessage) =>
-                PublishError(errorCode, errorMessage, "Loading Market Outlook Snapshot Error"));
+            {
+                if (errorCode == GetMarketOutlookSnapshotQuery.ErrorId
+                    && errorMessage.StartsWith(
+                        "No Market Outlook snapshot is available",
+                        StringComparison.Ordinal))
+                {
+                    MarketOutlookSnapshotStatus = "Market Outlook: no persisted snapshot";
+                    return;
+                }
+                PublishError(errorCode, errorMessage, "Loading Market Outlook Snapshot Error");
+            });
             await model.GetMarketOutlookSnapshotAsync(
                 contract.ContractId,
                 _valueDate.Value,
-                loadPersistedBaseline: true,
                 onCompleted: snapshot =>
                 {
                     if (snapshot is not null

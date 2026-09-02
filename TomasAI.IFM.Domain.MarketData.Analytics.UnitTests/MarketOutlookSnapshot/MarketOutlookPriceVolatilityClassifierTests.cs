@@ -1,5 +1,5 @@
 using FluentAssertions;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 using TomasAI.IFM.Domain.MarketData.Shared;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.UnitTests.MarketOutlookSnapshot;

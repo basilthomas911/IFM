@@ -1,39 +1,42 @@
 using FluentAssertions;
-using MessagePack;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
-using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
-using TomasAI.IFM.Domain.MarketData.Shared;
-using TomasAI.IFM.Shared.EventModelActor;
+using TomasAI.IFM.Domain.MarketData.Shared.ViewModels;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.IntegrationTests.MarketOutlookSnapshot;
 
 public sealed class MarketOutlookHotCachePipelineIntegrationTests
 {
     [Fact]
-    public async Task ComponentToChannelToProjectionToNotification_RoundTripsCommittedValue()
+    public async Task ComponentToChannelToProjectionToCommandPublisher_RoundTripsCommittedValue()
     {
         var id = new MarketOutlookEntityId("ESZ26", new DateOnly(2026, 9, 1));
         await using var runtime = await Runtime.StartAsync();
         var now = DateTime.UtcNow;
 
-        runtime.Channel.Submit(new HydrateMarketOutlookUpdate
+        runtime.Channel.Submit(new EodMarketOutlookUpdate
         {
             UpdateId = Guid.NewGuid(),
             EntityId = id,
             ReceivedAtUtc = now,
             MarketDataAsOfUtc = now,
-            Baseline = new MarketOutlookInputState
+            Eod = new FuturesEodDataV2ReadModel
             {
-                EntityId = id,
-                VixFuturesSessionOpenPrice = 20m,
-                VixFuturesPrice = 19m,
-                MarketDataAsOfUtc = now
-            }
+                Symbol = "ES",
+                ContractId = id.ContractId,
+                ValueDate = id.ValueDate,
+                OpenPrice = 6_400m,
+                HighPrice = 6_450m,
+                LowPrice = 6_375m,
+                ClosePrice = 6_425m,
+                Volume = 100
+            },
+            CommandId = Guid.NewGuid(),
+            EventSource = "integration-test-eod"
         });
         (await runtime.Processor.WaitForIdleAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
 
@@ -49,14 +52,11 @@ public sealed class MarketOutlookHotCachePipelineIntegrationTests
         });
 
         (await runtime.Processor.WaitForIdleAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
-        runtime.Publisher.Notification.Should().NotBeNull();
-        var received = MessagePackSerializer.Deserialize<MarketOutlookUpdatedNotifyEvent>(
-            MessagePackSerializer.Serialize(runtime.Publisher.Notification!));
+        runtime.Publisher.Snapshot.Should().NotBeNull();
 
         runtime.Cache.TryGetCurrent(id, out var queried).Should().BeTrue();
-        received.MarketOutlook.Should().Be(queried);
+        runtime.Publisher.Snapshot.Should().Be(queried);
         queried.VixFuturesPrice.Should().Be(22.75m);
-        queried.FuturesEodData.PriceVolatility.Should().Be(PriceVolatilityType.Rising);
         runtime.Processor.GetMetrics().Updates[MarketOutlookUpdateKind.VixPrice].Published.Should().Be(1);
     }
 
@@ -83,26 +83,16 @@ public sealed class MarketOutlookHotCachePipelineIntegrationTests
         runtime.Cache.TryGetInputs(id, out _).Should().BeFalse();
     }
 
-    sealed class CapturingPublisher : IMarketOutlookSnapshotPublisher
+    sealed class CapturingPublisher : IMarketOutlookSnapshotCommandWriter
     {
-        public MarketOutlookUpdatedNotifyEvent? Notification { get; private set; }
+        public MarketOutlookReadModel? Snapshot { get; private set; }
 
         public ValueTask PublishAsync(
             MarketOutlookUpdate update,
             MarketOutlookReadModel snapshot,
             CancellationToken cancellationToken)
         {
-            Notification = new()
-            {
-                Subject = new(ActorType.Notify, MarketOutlookUpdatedNotifyEvent.Actor,
-                    MarketOutlookUpdatedNotifyEvent.Verb, update.EntityId.Format()),
-                Id = Guid.NewGuid(),
-                EntityId = update.EntityId,
-                CommandId = update.CommandId,
-                EventSource = update.EventSource,
-                ReceivedOn = DateTime.UtcNow,
-                MarketOutlook = snapshot
-            };
+            Snapshot = snapshot;
             return ValueTask.CompletedTask;
         }
     }

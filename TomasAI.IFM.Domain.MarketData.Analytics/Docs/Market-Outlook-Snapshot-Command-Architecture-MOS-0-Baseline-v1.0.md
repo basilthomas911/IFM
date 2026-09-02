@@ -4,6 +4,27 @@
 > and active database route described here were superseded and removed by the implemented
 > `Market-Outlook-Hot-Cache-Refactor-Implementation-Plan-v1.0`.
 
+## Current durable snapshot architecture (2026-09-02)
+
+The active design is defined by `Market-Outlook-Durable-Snapshot-Implementation-Plan-v1.0`:
+
+- `MarketOutlookUpdateProcessor` remains the single in-memory composition writer.
+- Only snapshots with a matching ES identity, non-zero consistent OHLC, and valid UTC timestamps
+  cross the durable boundary.
+- `InsertMarketOutlookSnapshotCommand` is the only durable snapshot write entry point.
+- `MarketOutlookSnapshotCommandState` is restored from and mutated by the full replacement
+  `MarketOutlookSnapshotInsertedEvent`.
+- The state repository saves the event before synchronously invoking the custom projector.
+- The projector upserts `market_outlook_snapshot` and only then publishes that same event contract
+  through Realtime/Core NATS. It defines no complete or failure event.
+- `MarketOutlookSnapshotRealtimeActor` has `_parseMap`/`_receiveMap` dispatch and an explicit empty
+  inserted-event handler. Unmapped event types are no-ops; command and query maps remain strict.
+- `MarketOutlookSnapshotQueryActor` reads the newest row at or before the requested value date.
+- UI startup subscribes to the inserted event before issuing that durable query. The former Notify
+  event and component hydration path no longer exist.
+
+The remaining sections are retained only as history for the superseded MOS migration.
+
 ## Purpose
 
 This baseline defines the incremental migration of Market Outlook accumulation from

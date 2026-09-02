@@ -263,7 +263,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_ThrowsInvalidOperationException_WhenEventUnsupported()
+    public async Task ReceiveAsync_NoOps_WhenEventUnsupported()
     {
         var mockSupervisor = Substitute.For<IActorSupervisor>();
         var mockLogger = Substitute.For<ILogger<FundEventActor>>();
@@ -275,8 +275,7 @@ public class FundEventActorTests : IClassFixture<FundTestFixture>
 
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, unknownEvent);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FundEventActor.Actor} event from message:*");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

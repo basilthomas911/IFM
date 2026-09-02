@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Realtime;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
+using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Commands;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;
@@ -15,7 +16,7 @@ using TomasAI.IFM.Shared.EventModelActor.Contracts;
 using TomasAI.IFM.Shared.EventSourcing;
 using CacheComponentType = TomasAI.IFM.Application.MarketData.MarketOutlook.MarketOutlookComponentType;
 
-namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+namespace TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 
 public sealed record RsiMarketOutlookUpdate : MarketOutlookUpdate
 {
@@ -85,21 +86,12 @@ public sealed record HistoricalWarmupMarketOutlookUpdate : MarketOutlookUpdate
     public required FuturesBbSignalReadModel BollingerBand { get; init; }
 }
 
-/// <summary>
-/// Writes the durable UI-startup baseline. Later live updates overwrite these components normally.
-/// </summary>
-public sealed record HydrateMarketOutlookUpdate : MarketOutlookUpdate
-{
-    public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Hydration;
-    public required MarketOutlookInputState Baseline { get; init; }
-}
-
 public sealed record RecomposeMarketOutlookUpdate : MarketOutlookUpdate
 {
     public override MarketOutlookUpdateKind Kind => MarketOutlookUpdateKind.Recompose;
 }
 
-public interface IMarketOutlookSnapshotPublisher
+public interface IMarketOutlookSnapshotCommandWriter
 {
     ValueTask PublishAsync(
         MarketOutlookUpdate update,
@@ -107,41 +99,34 @@ public interface IMarketOutlookSnapshotPublisher
         CancellationToken cancellationToken);
 }
 
-/// <summary>Publishes the already committed local snapshot through the existing Notify transport.</summary>
-public sealed class ActorMarketOutlookSnapshotPublisher(IActorSupervisor supervisor)
-    : IMarketOutlookSnapshotPublisher
+/// <summary>Sends each complete local snapshot through the sole durable insert command.</summary>
+public sealed class ActorMarketOutlookSnapshotCommandWriter(IActorSupervisor supervisor)
+    : IMarketOutlookSnapshotCommandWriter
 {
     static readonly ActorMailboxId PublisherId = new(
-        ActorType.Realtime,
-        TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Actor
-            .MarketOutlookSnapshotRealtimeActor.ActorName);
+        ActorType.Command,
+        InsertMarketOutlookSnapshotCommand.Actor);
     IActorProducer? producer;
 
-    public ValueTask PublishAsync(
+    public async ValueTask PublishAsync(
         MarketOutlookUpdate update,
         MarketOutlookReadModel snapshot,
         CancellationToken cancellationToken)
     {
-        var notification = new MarketOutlookUpdatedNotifyEvent
+        var command = new InsertMarketOutlookSnapshotCommand(snapshot) with
         {
-            Subject = new ActorSubject(
-                ActorType.Notify,
-                MarketOutlookUpdatedNotifyEvent.Actor,
-                MarketOutlookUpdatedNotifyEvent.Verb,
-                update.EntityId.Format()),
-            Id = Guid.NewGuid(),
-            EntityId = update.EntityId,
-            CommandId = update.CommandId == Guid.Empty ? update.UpdateId : update.CommandId,
-            AggregateId = update.AggregateId,
-            EventSource = update.EventSource,
-            ReceivedOn = DateTime.UtcNow,
-            MarketOutlook = snapshot
+            CommandId = update.UpdateId == Guid.Empty ? Guid.NewGuid() : update.UpdateId
         };
-        return (producer ??= supervisor.GetProducer(PublisherId))
-            .SendAsync<MarketOutlookUpdatedNotifyEvent, MarketOutlookEntityId>(
-                notification.Subject,
-                notification,
-                cancellationToken);
+        var result = await (producer ??= supervisor.GetProducer(PublisherId))
+            .RequestAsync<InsertMarketOutlookSnapshotCommand, MarketOutlookEntityId, GuidResult>(
+                command.Subject,
+                command,
+                command.EntityId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (result?.Success != true)
+            throw new InvalidOperationException(
+                result?.ErrorMessage ?? "Market Outlook snapshot insert command failed.");
     }
 }
 
@@ -154,7 +139,7 @@ public sealed class MarketOutlookUpdateProcessor(
     IMarketOutlookUpdateReader reader,
     IMarketOutlookHotCache readCache,
     IMarketOutlookHotCacheWriter cache,
-    IMarketOutlookSnapshotPublisher publisher,
+    IMarketOutlookSnapshotCommandWriter publisher,
     MarketOutlookProcessorMetrics metrics,
     ILogger<MarketOutlookUpdateProcessor> logger)
     : BackgroundService, IMarketOutlookOperations
@@ -336,6 +321,13 @@ public sealed class MarketOutlookUpdateProcessor(
             Stopwatch.GetElapsedTime(started)));
 
         var publicationStarted = Stopwatch.GetTimestamp();
+        if (!IsPersistable(result.Snapshot))
+        {
+            logger.LogDebug(
+                "Skipped durable Market Outlook snapshot for {EntityId}: a positive, internally consistent ES OHLC baseline is not available",
+                update.EntityId.Format());
+            return;
+        }
         try
         {
             await publisher.PublishAsync(update, result.Snapshot, cancellationToken).ConfigureAwait(false);
@@ -430,12 +422,6 @@ public sealed class MarketOutlookUpdateProcessor(
                     FuturesBbSignal = value.BollingerBand
                 },
                 MarketOutlookRefreshTrigger.Warmup, now),
-            HydrateMarketOutlookUpdate value => Write(
-                update,
-                HydrationComponents(value.Baseline),
-                state => MergeHydration(state, value.Baseline),
-                MarketOutlookRefreshTrigger.PersistedBaseline,
-                now),
             RecomposeMarketOutlookUpdate => Write(
                 update, [], static state => state,
                 MarketOutlookRefreshTrigger.Component, now),
@@ -505,63 +491,33 @@ public sealed class MarketOutlookUpdateProcessor(
             ? signal : state.TrendReversalChange
     };
 
-    static IReadOnlyCollection<MarketOutlookComponentWrite> HydrationComponents(
-        MarketOutlookInputState baseline)
-    {
-        List<MarketOutlookComponentWrite> components = [];
-        Add(CacheComponentType.Rsi, baseline.FuturesRsiSignal is not null,
-            baseline.FuturesRsiSignal?.Metadata?.MarketDataAsOfUtc.UtcDateTime);
-        Add(CacheComponentType.Tdi, baseline.FuturesTdiSignal is not null, null);
-        Add(CacheComponentType.ItiLatest, baseline.LatestItiTrendSignal is not null, null);
-        Add(CacheComponentType.ItiDirection, baseline.TrendDirectionChange is not null, null);
-        Add(CacheComponentType.ItiExtreme, baseline.TrendExtremeChange is not null, null);
-        Add(CacheComponentType.ItiReversal, baseline.TrendReversalChange is not null, null);
-        Add(CacheComponentType.Vx, baseline.VixFuturesPrice is > 0, null);
-        Add(CacheComponentType.Eod, baseline.FuturesEodData is not null, null);
-        Add(CacheComponentType.Ema, baseline.FuturesEmaSignal is not null,
-            baseline.FuturesEmaSignal?.Metadata.MarketDataAsOfUtc.UtcDateTime);
-        Add(CacheComponentType.BollingerBand, baseline.FuturesBbSignal is not null,
-            baseline.FuturesBbSignal?.Metadata.MarketDataAsOfUtc.UtcDateTime);
-        Add(CacheComponentType.EsTrade, baseline.CurrentEsPrice is > 0, null);
-        Add(CacheComponentType.TradeSignal, baseline.FuturesTradeSignal is not null, null);
-        return components;
-
-        void Add(CacheComponentType component, bool present, DateTime? timestamp)
-        {
-            if (!present)
-                return;
-            components.Add(new(component, new(
-                Guid.NewGuid(), 0, timestamp ?? baseline.MarketDataAsOfUtc)));
-        }
-    }
-
-    static MarketOutlookInputState MergeHydration(
-        MarketOutlookInputState state,
-        MarketOutlookInputState baseline) => state with
-    {
-        FuturesEodData = baseline.FuturesEodData ?? state.FuturesEodData,
-        FuturesTradeSignal = baseline.FuturesTradeSignal ?? state.FuturesTradeSignal,
-        FuturesRsiSignal = baseline.FuturesRsiSignal ?? state.FuturesRsiSignal,
-        FuturesTdiSignal = baseline.FuturesTdiSignal ?? state.FuturesTdiSignal,
-        TrendDirectionChange = baseline.TrendDirectionChange ?? state.TrendDirectionChange,
-        TrendExtremeChange = baseline.TrendExtremeChange ?? state.TrendExtremeChange,
-        TrendReversalChange = baseline.TrendReversalChange ?? state.TrendReversalChange,
-        LatestItiTrendSignal = baseline.LatestItiTrendSignal ?? state.LatestItiTrendSignal,
-        VixFuturesSessionOpenPrice = baseline.VixFuturesSessionOpenPrice
-            ?? state.VixFuturesSessionOpenPrice,
-        VixFuturesPrice = baseline.VixFuturesPrice ?? state.VixFuturesPrice,
-        FuturesEmaSignal = baseline.FuturesEmaSignal ?? state.FuturesEmaSignal,
-        FuturesBbSignal = baseline.FuturesBbSignal ?? state.FuturesBbSignal,
-        CurrentEsPrice = baseline.CurrentEsPrice
-            ?? (baseline.FuturesTradeSignal?.FuturesPrice > 0d
-                ? Convert.ToDecimal(baseline.FuturesTradeSignal.FuturesPrice)
-                : state.CurrentEsPrice)
-    };
-
     static DateTime NormalizeUtc(DateTime value) => value.Kind switch
     {
         DateTimeKind.Utc => value,
         DateTimeKind.Local => value.ToUniversalTime(),
         _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
     };
+
+    static bool IsPersistable(MarketOutlookReadModel snapshot)
+    {
+        var eod = snapshot.FuturesEodData;
+        return !string.IsNullOrWhiteSpace(snapshot.ContractId)
+            && snapshot.ValueDate != default
+            && string.Equals(eod.Symbol, "ES", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(eod.ContractId, snapshot.ContractId, StringComparison.Ordinal)
+            && eod.ValueDate == snapshot.ValueDate
+            && eod.OpenPrice > 0m
+            && eod.HighPrice > 0m
+            && eod.LowPrice > 0m
+            && eod.ClosePrice > 0m
+            && eod.HighPrice >= eod.LowPrice
+            && eod.OpenPrice >= eod.LowPrice
+            && eod.OpenPrice <= eod.HighPrice
+            && eod.ClosePrice >= eod.LowPrice
+            && eod.ClosePrice <= eod.HighPrice
+            && snapshot.UpdatedAtUtc != default
+            && snapshot.UpdatedAtUtc.Kind == DateTimeKind.Utc
+            && snapshot.MarketDataAsOfUtc != default
+            && snapshot.MarketDataAsOfUtc.Kind == DateTimeKind.Utc;
+    }
 }

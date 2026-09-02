@@ -188,7 +188,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
     }
 
     [Fact]
-    public async Task ReceiveAsync_GivenAnyEvent_WhenExecuted_ThenThrowsInvalidOperationException()
+    public async Task ReceiveAsync_GivenUnregisteredEvent_WhenExecuted_ThenNoOps()
     {
         // Arrange - an unrelated event type is not registered in the receive map.
         var actor = _fixture.CreateActor(Substitute.For<IActorSupervisor>(), Substitute.For<ILogger<FundTransactionEventActor>>());
@@ -199,8 +199,7 @@ public class FundTransactionEventActorTests : IClassFixture<FundTestFixture>
         Func<Task> act = async () => await actor.InvokeReceiveAsync(context, @event);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FundTransactionEventActor.Actor} event from message:*");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

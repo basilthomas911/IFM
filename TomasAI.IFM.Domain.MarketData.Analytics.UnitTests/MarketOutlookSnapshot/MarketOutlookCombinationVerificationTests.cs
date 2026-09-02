@@ -1,6 +1,6 @@
 using FluentAssertions;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesBbSignal;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.FuturesEmaSignal;

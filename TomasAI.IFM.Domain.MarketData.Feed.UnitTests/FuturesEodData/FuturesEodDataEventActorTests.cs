@@ -330,7 +330,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     [Fact]
-    public async Task ReceiveAsync_UnsupportedEvent_ThrowsInvalidOperationException()
+    public async Task ReceiveAsync_UnsupportedEvent_NoOps()
     {
         var harness = CreateHarness();
         var @event = Substitute.For<IEvent>();
@@ -340,8 +340,7 @@ public class FuturesEodDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         Func<Task> act = () => harness.Actor.InvokeReceiveAsync(
             harness.Actor.Context, @event).AsTask();
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesEodDataEventActor.Actor} event from message: *");
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]

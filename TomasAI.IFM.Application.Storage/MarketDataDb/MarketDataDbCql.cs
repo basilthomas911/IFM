@@ -3524,6 +3524,7 @@ internal static class MarketDataDbCql
         FROM market_outlook_snapshot
         WHERE contractId = :contractId
         AND valueDate <= :valueDate
+        ORDER BY valueDate DESC
         LIMIT 1;
     """;
 

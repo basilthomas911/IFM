@@ -58,12 +58,15 @@ public sealed record MarketOutlookEodUpdatedRealtimeEvent : IEvent<MarketOutlook
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
 }
 
-/// <summary>Only frontend notification used to refresh the complete Market Outlook.</summary>
+/// <summary>
+/// Full replacement snapshot event persisted by the command state and published through realtime
+/// only after the ScyllaDB projection succeeds.
+/// </summary>
 [MessagePackObject(AllowPrivate = true)]
-public sealed record MarketOutlookUpdatedNotifyEvent : IEvent<MarketOutlookEntityId>
+public sealed record MarketOutlookSnapshotInsertedEvent : IEvent<MarketOutlookEntityId>
 {
-    [IgnoreMember] public const string Actor = "MarketOutlookNotification";
-    [IgnoreMember] public const string Verb = "Updated";
+    [IgnoreMember] public const string Actor = "MarketOutlook";
+    [IgnoreMember] public const string Verb = "SnapshotInserted";
 
     [Key(0)] public ActorSubject Subject { get; init; }
     [Key(1)] public Guid Id { get; init; }
@@ -76,7 +79,28 @@ public sealed record MarketOutlookUpdatedNotifyEvent : IEvent<MarketOutlookEntit
     [Key(8)] public MarketOutlookReadModel MarketOutlook { get; init; } = new();
 
     [IgnoreMember] public string UserName => string.Empty;
-    [IgnoreMember] public string EventName => nameof(MarketOutlookUpdatedNotifyEvent);
+    [IgnoreMember] public string EventName => nameof(MarketOutlookSnapshotInsertedEvent);
     [IgnoreMember] public EventType EventType => EventType.DomainEvent;
-    [IgnoreMember] public bool IsValid => CommandId != Guid.Empty && MarketOutlook.IsValid;
+    [IgnoreMember] public bool IsValid
+    {
+        get
+        {
+            var eod = MarketOutlook.FuturesEodData;
+            return CommandId != Guid.Empty
+                && EntityId.ContractId == MarketOutlook.ContractId
+                && EntityId.ValueDate == MarketOutlook.ValueDate
+                && string.Equals(eod.Symbol, "ES", StringComparison.OrdinalIgnoreCase)
+                && eod.ContractId == MarketOutlook.ContractId
+                && eod.ValueDate == MarketOutlook.ValueDate
+                && eod.OpenPrice > 0m
+                && eod.HighPrice > 0m
+                && eod.LowPrice > 0m
+                && eod.ClosePrice > 0m
+                && eod.HighPrice >= eod.LowPrice
+                && eod.OpenPrice >= eod.LowPrice
+                && eod.OpenPrice <= eod.HighPrice
+                && eod.ClosePrice >= eod.LowPrice
+                && eod.ClosePrice <= eod.HighPrice;
+        }
+    }
 }

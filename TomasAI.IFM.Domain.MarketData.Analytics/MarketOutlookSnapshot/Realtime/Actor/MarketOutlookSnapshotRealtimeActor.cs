@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging;
 using TomasAI.IFM.Application.MarketData.MarketOutlook;
 using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Extensions;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Model.Processing;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Feed.Shared.FuturesMarketPrice.Events;
@@ -27,7 +28,7 @@ public class MarketOutlookSnapshotRealtimeActor(
         FuturesMarketPriceUpdatedRealtimeEvent.Actor,
         FuturesMarketPriceUpdatedRealtimeEvent.Verb);
 
-    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> ParseMap =
+    static readonly IReadOnlyDictionary<string, Func<IActorMessage, IEvent>> _parseMap =
         new Dictionary<string, Func<IActorMessage, IEvent>>(StringComparer.Ordinal)
         {
             [MarketOutlookComponentChangedRealtimeEvent.Verb] =
@@ -35,7 +36,33 @@ public class MarketOutlookSnapshotRealtimeActor(
             [FuturesMarketPriceUpdatedRealtimeEvent.Verb] =
                 message => message.AsEvent<FuturesMarketPriceUpdatedRealtimeEvent>()!,
             [MarketOutlookEodUpdatedRealtimeEvent.Verb] =
-                message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!
+                message => message.AsEvent<MarketOutlookEodUpdatedRealtimeEvent>()!,
+            [MarketOutlookSnapshotInsertedEvent.Verb] =
+                message => message.AsEvent<MarketOutlookSnapshotInsertedEvent>()!
+        };
+
+    static readonly IReadOnlyDictionary<Type, Func<IEvent,
+        IEventActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>> _receiveMap =
+        new Dictionary<Type, Func<IEvent,
+            IEventActorContext<MarketOutlookSnapshotRealtimeActor>, ValueTask>>
+        {
+            [typeof(MarketOutlookComponentChangedRealtimeEvent)] = static (@event, context) =>
+            {
+                SubmitComponent((MarketOutlookComponentChangedRealtimeEvent)@event, context);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(MarketOutlookEodUpdatedRealtimeEvent)] = static (@event, context) =>
+            {
+                SubmitEod((MarketOutlookEodUpdatedRealtimeEvent)@event, context);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(FuturesMarketPriceUpdatedRealtimeEvent)] = static (@event, context) =>
+            {
+                SubmitEsTrade((FuturesMarketPriceUpdatedRealtimeEvent)@event, context);
+                return ValueTask.CompletedTask;
+            },
+            [typeof(MarketOutlookSnapshotInsertedEvent)] = static (@event, context) =>
+                ((MarketOutlookSnapshotInsertedEvent)@event).ExecuteAsync(context)
         };
 
     protected override ValueTask OnStartup(IEventActorContext<MarketOutlookSnapshotRealtimeActor> context)
@@ -52,26 +79,14 @@ public class MarketOutlookSnapshotRealtimeActor(
 
     protected override IEvent ParseMessage(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
-        IActorMessage message) => ParseMappedRealtimeEvent(context, message, ParseMap);
+        IActorMessage message) => ParseMappedRealtimeEvent(context, message, _parseMap);
 
     protected override ValueTask ReceiveAsync(
         IEventActorContext<MarketOutlookSnapshotRealtimeActor> context,
         IEvent @event)
-    {
-        switch (@event)
-        {
-            case MarketOutlookComponentChangedRealtimeEvent component:
-                SubmitComponent(component, context);
-                break;
-            case MarketOutlookEodUpdatedRealtimeEvent eod:
-                SubmitEod(eod, context);
-                break;
-            case FuturesMarketPriceUpdatedRealtimeEvent price:
-                SubmitEsTrade(price, context);
-                break;
-        }
-        return ValueTask.CompletedTask;
-    }
+        => _receiveMap.TryGetValue(@event.GetType(), out var receive)
+            ? receive(@event, context)
+            : ValueTask.CompletedTask;
 
     static void SubmitComponent(
         MarketOutlookComponentChangedRealtimeEvent source,

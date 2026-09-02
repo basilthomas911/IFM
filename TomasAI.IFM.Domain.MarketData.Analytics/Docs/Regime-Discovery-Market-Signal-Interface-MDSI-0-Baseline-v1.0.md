@@ -70,7 +70,7 @@ upsert directly and therefore is the seventh realtime actor without a matching
 | TDI | Yes | Yes | Yes | Yes | Routed RSI collection event | `FuturesTdiSignalRealtimeProjector` and durable Event projector |
 | ITI | Yes | Yes | Yes | Yes | Routed `FuturesMarketPriceUpdatedRealtimeEvent` | `FuturesItiSignalRealtimeProjector` and durable Event projector |
 | Trade Signal | Yes | Yes | Yes | No | Durable ITI/TDI orchestration | Command Event projector |
-| Market Outlook | No | No | Query is handled by Trade Signal query actor | Yes | Completed component realtime events | Direct `market_outlook_snapshot` upsert |
+| Market Outlook | Insert snapshot | Snapshot inserted (no complete/fail) | Dedicated snapshot query actor | Yes | Valid composed snapshot command | Event-saved custom `market_outlook_snapshot` upsert |
 
 All actor families use closed generic framework contexts plus their typed
 domain context interfaces. This is the constructor/context convention retained

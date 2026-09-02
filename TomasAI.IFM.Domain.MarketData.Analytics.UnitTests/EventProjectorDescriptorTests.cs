@@ -12,6 +12,7 @@ using TomasAI.IFM.Domain.MarketData.Analytics.FuturesMacdSignal.Command.EventPro
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesRsiSignal.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTdiSignal.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Command.EventProjector;
+using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Command.EventProjector;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Events;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
@@ -37,10 +38,12 @@ public sealed class EventProjectorDescriptorTests
             new FuturesRsiSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesRsiSignalEventProjector>>()),
             new FuturesItiSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesItiSignalEventProjector>>()),
             new FuturesTdiSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTdiSignalEventProjector>>()),
-            new FuturesTradeSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTradeSignalEventProjector>>())
+            new FuturesTradeSignalEventProjector(dbFactory, queue, eventSource, blackboard, Substitute.For<ILogger<FuturesTradeSignalEventProjector>>()),
+            new MarketOutlookSnapshotEventProjector(dbFactory, queue, eventSource, blackboard,
+                Substitute.For<ILogger<MarketOutlookSnapshotEventProjector>>())
         ];
 
-        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(22);
+        projectors.SelectMany(projector => projector.ProjectionDescriptors).Should().HaveCount(23);
         foreach (var projector in projectors)
         {
             projector.ProjectionDescriptors.Select(descriptor => descriptor.SourceEventType)
@@ -52,6 +55,27 @@ public sealed class EventProjectorDescriptorTests
                 descriptor.UseDurableReplay.Should().Be(!isLifecycle);
             }
         }
+    }
+
+    [Fact]
+    public void Market_outlook_projection_is_durable_source_only_without_lifecycle_events()
+    {
+        var dbFactory = Substitute.For<IDbContextFactory>();
+        var projector = new MarketOutlookSnapshotEventProjector(
+            dbFactory,
+            Substitute.For<IDurableReplayQueue>(),
+            Substitute.For<IEventSourceActorDbContext>(),
+            Substitute.For<IBlackboardService>(),
+            Substitute.For<ILogger<MarketOutlookSnapshotEventProjector>>());
+        var descriptor = projector.ProjectionDescriptors.Should().ContainSingle().Subject;
+        var source = new MarketOutlookSnapshotInsertedEvent();
+
+        descriptor.SourceEventType.Should().Be(typeof(MarketOutlookSnapshotInsertedEvent));
+        descriptor.UseDurableReplay.Should().BeTrue();
+        descriptor.PublishProcessingEvent.Should().BeFalse();
+        descriptor.PublishTerminalEvent.Should().BeFalse();
+        descriptor.CompletedEventFactory(source).Should().BeNull();
+        descriptor.FailedEventFactory(source, new IOException("test")).Should().BeNull();
     }
 
     [Fact]

@@ -180,7 +180,7 @@ namespace TomasAI.IFM.UI.Net.Services.Analytics
         /// <summary>Executes or exposes a documented UI service operation.</summary>
         public async Task StartMarketOutlookEventConsumerAsync(
             Guid siteId,
-            Action<MarketOutlookUpdatedNotifyEvent> listenerAction)
+            Action<MarketOutlookSnapshotInsertedEvent> listenerAction)
             => await _marketOutlookEventConsumer.StartAsync(siteId, listenerAction);
 
         /// <summary>Executes or exposes a documented UI service operation.</summary>

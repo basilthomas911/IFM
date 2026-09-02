@@ -3,40 +3,12 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 using TomasAI.IFM.Shared.EventSourcing;
-using TomasAI.IFM.Application.MarketData.MarketOutlook;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.Query.Extensions;
 
 /// <summary>Provides the MarketDataAnalyticsQueryExtensions implementation.</summary>
 public static partial class MarketDataAnalyticsQueryExtensions
 {
-    /// <summary>Executes the GetMarketOutlookSnapshotAsync operation.</summary>
-    public static Task<ServiceResult<MarketOutlookReadModel>> GetMarketOutlookSnapshotAsync(this IFuturesTradeSignalQueryContext context,
-        string contractId,
-        DateOnly valueDate,
-        CancellationToken cancellationToken,
-        bool loadPersistedBaseline = false)
-        => ExecuteAsync(
-            GetMarketOutlookSnapshotQuery.ErrorId,
-            cancellationToken,
-            async () =>
-            {
-                var entityId = new MarketOutlookEntityId(contractId, valueDate);
-                var result = loadPersistedBaseline && context.MarketOutlookHydrator is { } hydrator
-                    ? await hydrator.HydrateAsync(entityId, cancellationToken).ConfigureAwait(false)
-                    : MarketOutlookHotCache.Shared.TryGetCurrent(entityId, out var cached)
-                        ? cached
-                        : null;
-                return result ?? new MarketOutlookReadModel
-                {
-                    ContractId = contractId,
-                    ValueDate = valueDate,
-                    UpdatedAtUtc = DateTime.UtcNow,
-                    MissingInputs = "Market Outlook unavailable",
-                    FeedHealth = "Unavailable"
-                };
-            });
-
     /// <summary>Executes the GetFuturesTradeSignalAsync operation.</summary>
     public static Task<ServiceResult<FuturesTradeSignalV2ReadModel>> GetFuturesTradeSignalAsync(this IFuturesTradeSignalQueryContext context,
         string contractId,

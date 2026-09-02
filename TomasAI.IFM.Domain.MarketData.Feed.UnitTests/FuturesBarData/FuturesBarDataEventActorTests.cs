@@ -305,7 +305,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
     }
 
     [Fact]
-    public async Task ReceiveAsync_UnsupportedEvent_ThrowsInvalidOperationException()
+    public async Task ReceiveAsync_UnsupportedEvent_NoOps()
     {
         var actor = CreateActor();
         var @event = Substitute.For<IEvent>();
@@ -315,7 +315,7 @@ public class FuturesBarDataEventActorTests : IClassFixture<MarketDataFeedTestFix
         Func<Task> act = () => actor.InvokeReceiveAsync(
             actor.Context, @event).AsTask();
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]

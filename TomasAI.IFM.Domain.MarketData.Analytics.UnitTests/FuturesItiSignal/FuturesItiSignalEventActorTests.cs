@@ -436,7 +436,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     #region ReceiveAsync Tests - Happy Paths
 
     [Fact]
-    public async Task ReceiveAsync_WithLegacyEodDataInsertedCompleteEvent_ShouldThrow()
+    public async Task ReceiveAsync_WithLegacyEodDataInsertedCompleteEvent_ShouldNoOp()
     {
         // Arrange
         var actor = _fixture.CreateActor();
@@ -447,7 +447,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, @event);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]
@@ -538,7 +538,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
     }
 
     [Fact]
-    public async Task ReceiveAsync_WithUnknownEventType_ShouldThrowInvalidOperationException()
+    public async Task ReceiveAsync_WithUnknownEventType_ShouldNoOp()
     {
         // Arrange
         var actor = _fixture.CreateActor();
@@ -551,8 +551,7 @@ public class FuturesItiSignalEventActorTests : IClassFixture<MarketDataAnalytics
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, unknownEvent);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesItiSignalEventActor.Actor} event from message:*");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

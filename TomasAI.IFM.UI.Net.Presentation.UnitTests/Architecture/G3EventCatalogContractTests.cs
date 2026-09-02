@@ -81,7 +81,7 @@ public sealed class G3EventCatalogContractTests
         tdiConsumer.Should().Contain("FuturesTdiSignalGeneratedCompleteEvent");
         var marketOutlookConsumer = Read(
             "TomasAI.IFM.UI.EventConsumer/MarketOutlookUIEventConsumer.cs");
-        marketOutlookConsumer.Should().Contain("MarketOutlookUpdatedNotifyEvent");
+        marketOutlookConsumer.Should().Contain("MarketOutlookSnapshotInsertedEvent");
     }
 
     [Fact]

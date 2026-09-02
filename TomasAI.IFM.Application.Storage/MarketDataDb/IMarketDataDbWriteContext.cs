@@ -93,6 +93,8 @@ public interface IMarketDataDbWriteContext
     Task DeleteFuturesAdxSignalAsync(string contractId, DateOnly valueDate, TimeFrameType timePeriod, int periodLength);
     Task DeleteTradeLiveFeedAsync(int orderid, int tradeId);
     Task InsertFuturesTradeSignalAsync(FuturesTradeSignalV2ReadModel e);
+    Task UpsertMarketOutlookSnapshotAsync(MarketOutlookReadModel snapshot, long revision = 0,
+        CancellationToken cancellationToken = default);
     Task InsertFuturesTradeSignalsAsync(ICollection<FuturesTradeSignalV2ReadModel> futuresTradeSignals);
     Task<long> InsertFuturesTradeSignalsAsync(IEnumerable<FuturesTradeSignalV2ReadModel> futuresTradeSignals);
     Task InsertRateOfReturnAsync(RateOfReturnReadModel e);

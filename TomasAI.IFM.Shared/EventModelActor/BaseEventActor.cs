@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Linq.Expressions;
 using NATS.Client.Core;
 using System.Threading;
 using TomasAI.IFM.Shared.EventModelActor;
@@ -300,7 +301,9 @@ public abstract class BaseEventActor<TActor>(
     }
 
     /// <summary>
-    /// Resolves an event receive handler by the event's exact concrete CLR type.
+    /// Resolves an event receive handler by the event's exact concrete CLR type. Missing event
+    /// handlers intentionally resolve to a no-op; event delivery may fan out to actors that do not
+    /// consume every materialized event type.
     /// </summary>
     protected THandler ResolveMappedEventHandler<THandler>(
         IEvent @event,
@@ -310,11 +313,36 @@ public abstract class BaseEventActor<TActor>(
         ArgumentNullException.ThrowIfNull(@event);
         ArgumentNullException.ThrowIfNull(receiveMap);
 
-        if (!receiveMap.TryGetValue(@event.GetType(), out var handler))
-            throw new InvalidOperationException(
-                $"Unable to resolve {Id.Name} event from message: {@event.Subject}");
+        return receiveMap.TryGetValue(@event.GetType(), out var handler)
+            ? handler
+            : NoOpEventHandler<THandler>.Instance;
+    }
 
-        return handler;
+    static class NoOpEventHandler<THandler> where THandler : Delegate
+    {
+        internal static readonly THandler Instance = Create();
+
+        static THandler Create()
+        {
+            var invoke = typeof(THandler).GetMethod(nameof(Action.Invoke))
+                ?? throw new InvalidOperationException($"{typeof(THandler).FullName} is not invokable.");
+            var parameters = invoke.GetParameters()
+                .Select(parameter => Expression.Parameter(parameter.ParameterType, parameter.Name))
+                .ToArray();
+            Expression body = invoke.ReturnType == typeof(void)
+                ? Expression.Empty()
+                : invoke.ReturnType == typeof(Task)
+                    ? Expression.Property(null, typeof(Task), nameof(Task.CompletedTask))
+                    : invoke.ReturnType.IsGenericType
+                      && invoke.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
+                        ? Expression.Call(
+                            typeof(Task),
+                            nameof(Task.FromResult),
+                            [invoke.ReturnType.GetGenericArguments()[0]],
+                            Expression.Default(invoke.ReturnType.GetGenericArguments()[0]))
+                        : Expression.Default(invoke.ReturnType);
+            return Expression.Lambda<THandler>(body, parameters).Compile();
+        }
     }
 
     void HandleEventParseFailure(IActorMessage message, Exception exception) =>

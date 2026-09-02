@@ -12,8 +12,6 @@ using TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 using TomasAI.IFM.Domain.MarketData.Analytics.Shared.ViewModels;
 
 using TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Extensions;
-using TomasAI.IFM.Application.MarketData.MarketOutlook;
-using TomasAI.IFM.Domain.MarketData.Analytics.MarketOutlookSnapshot.Processing;
 
 namespace TomasAI.IFM.Domain.MarketData.Analytics.FuturesTradeSignal.Query.Actor;
 
@@ -51,7 +49,6 @@ public class FuturesTradeSignalQueryActor(
     static readonly Dictionary<string, Func<IActorMessage, IQuery>> _parseMap = new()
     {
         [GetFuturesTradeSignalQuery.Verb] = msg => msg.AsQuery<GetFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>()!,
-        [GetMarketOutlookSnapshotQuery.Verb] = msg => msg.AsQuery<GetMarketOutlookSnapshotQuery, MarketOutlookReadModel>()!,
         [GetLastFuturesTradeSignalQuery.Verb] = msg => msg.AsQuery<GetLastFuturesTradeSignalQuery, FuturesTradeSignalV2ReadModel>()!,
         [GetFuturesTradeSignalIdsQuery.Verb] = msg => msg.AsQuery<GetFuturesTradeSignalIdsQuery, FuturesTradeSignalId[]>()!
     };
@@ -79,39 +76,16 @@ public class FuturesTradeSignalQueryActor(
             dispatchContext,
             ActorContext.DbFactory,
             query,
-            cancellationToken,
-            ActorContext.MarketOutlookHydrator).ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Provides a mapping from query type names to delegate functions that execute the corresponding futures trade signal query
     /// logic against the query state.
     /// </summary>
-    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, IMarketOutlookSnapshotHydrator?, ValueTask>> _receiveMap = new()
+    static readonly Dictionary<Type, Func<IQueryActorContext<FuturesTradeSignalQueryActor>, IDbContextFactory, IQuery, CancellationToken, ValueTask>> _receiveMap = new()
     {
-        [typeof(GetMarketOutlookSnapshotQuery)] = async (ctx, db, q, cancellationToken, hydrator) =>
-        {
-            var query = (GetMarketOutlookSnapshotQuery)q;
-            cancellationToken.ThrowIfCancellationRequested();
-            var entityId = new MarketOutlookEntityId(query.ContractId, query.ValueDate);
-            var result = query.LoadPersistedBaseline && hydrator is not null
-                ? await hydrator.HydrateAsync(entityId, cancellationToken).ConfigureAwait(false)
-                : MarketOutlookHotCache.Shared.TryGetCurrent(entityId, out var cached)
-                    ? cached
-                    : null;
-            result ??= new MarketOutlookReadModel
-            {
-                ContractId = query.ContractId,
-                ValueDate = query.ValueDate,
-                UpdatedAtUtc = DateTime.UtcNow,
-                MissingInputs = "Market Outlook unavailable",
-                FeedHealth = "Unavailable"
-            };
-            cancellationToken.ThrowIfCancellationRequested();
-            await ctx.ReplyAsync(q.Subject.ThreadId, GetMarketOutlookSnapshotQuery.Verb,
-                new ServiceResult<MarketOutlookReadModel>(result)).ConfigureAwait(false);
-        },
-        [typeof(GetFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken, _) =>
+        [typeof(GetFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesTradeSignalQuery)!;
             var result = await query.GetFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
@@ -119,7 +93,7 @@ public class FuturesTradeSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetFuturesTradeSignalQuery.Verb,
                 new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
         },
-        [typeof(GetLastFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken, _) =>
+        [typeof(GetLastFuturesTradeSignalQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetLastFuturesTradeSignalQuery)!;
             var result = await query.GetLastFuturesTradeSignalAsync(db, cancellationToken).ConfigureAwait(false);
@@ -127,7 +101,7 @@ public class FuturesTradeSignalQueryActor(
             await ctx.ReplyAsync(q.Subject.ThreadId, GetLastFuturesTradeSignalQuery.Verb,
                 new ServiceResult<FuturesTradeSignalV2ReadModel?>(result)).ConfigureAwait(false);
         },
-        [typeof(GetFuturesTradeSignalIdsQuery)] = async (ctx, db, q, cancellationToken, _) =>
+        [typeof(GetFuturesTradeSignalIdsQuery)] = async (ctx, db, q, cancellationToken) =>
         {
             var query = (q as GetFuturesTradeSignalIdsQuery)!;
             var result = await query.GetFuturesTradeSignalIdsAsync(db, cancellationToken).ConfigureAwait(false);

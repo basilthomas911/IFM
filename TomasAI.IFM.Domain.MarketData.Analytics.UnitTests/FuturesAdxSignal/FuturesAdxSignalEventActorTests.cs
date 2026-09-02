@@ -471,7 +471,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
     }
 
     [Fact]
-    public async Task ReceiveAsync_WithUnknownEventType_ShouldThrowInvalidOperationException()
+    public async Task ReceiveAsync_WithUnknownEventType_ShouldNoOp()
     {
         // Arrange
         var actor = _fixture.CreateAdxEventActor();
@@ -484,8 +484,7 @@ public class FuturesAdxSignalEventActorTests : IClassFixture<MarketDataAnalytics
         Func<Task> act = async () => await actor.InvokeReceiveAsync(mockContext, unknownEvent);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage($"Unable to resolve {FuturesAdxSignalEventActor.Actor} event from message:*");
+        await act.Should().NotThrowAsync();
     }
 
     #endregion

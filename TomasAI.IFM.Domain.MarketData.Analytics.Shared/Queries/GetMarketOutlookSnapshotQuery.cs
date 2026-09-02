@@ -10,7 +10,7 @@ namespace TomasAI.IFM.Domain.MarketData.Analytics.Shared.Queries;
 [MessagePackObject(AllowPrivate = true)]
 public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookReadModel>
 {
-    [IgnoreMember] public const string Actor = "FuturesTradeSignalQuery";
+    [IgnoreMember] public const string Actor = "MarketOutlookSnapshotQuery";
     [IgnoreMember] public const string Verb = "GetMarketOutlookSnapshot";
     [IgnoreMember] public const int ErrorId = 1019;
 
@@ -20,22 +20,16 @@ public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookReadMod
     [IgnoreMember] public string? QueryParams { get; init; }
     [Key(2)] public string ContractId { get; init; } = string.Empty;
     [Key(3)] public DateOnly ValueDate { get; init; }
-    [Key(4)] public bool LoadPersistedBaseline { get; init; }
 
     public GetMarketOutlookSnapshotQuery() { }
 
     public GetMarketOutlookSnapshotQuery(
         string contractId,
-        DateOnly valueDate,
-        bool loadPersistedBaseline = false)
+        DateOnly valueDate)
     {
         ContractId = contractId ?? string.Empty;
         ValueDate = valueDate;
-        LoadPersistedBaseline = loadPersistedBaseline;
-        EntityId = new GetMarketOutlookSnapshotParameter(
-            ContractId,
-            valueDate,
-            loadPersistedBaseline);
+        EntityId = new GetMarketOutlookSnapshotParameter(ContractId, valueDate);
     }
 
     [SerializationConstructor]
@@ -43,7 +37,6 @@ public sealed record GetMarketOutlookSnapshotQuery : IQuery<MarketOutlookReadMod
         ActorSubject subject,
         IActorEntityId entityId,
         string contractId,
-        DateOnly valueDate,
-        bool loadPersistedBaseline)
-        : this(contractId, valueDate, loadPersistedBaseline) => Subject = subject;
+        DateOnly valueDate)
+        : this(contractId, valueDate) => Subject = subject;
 }

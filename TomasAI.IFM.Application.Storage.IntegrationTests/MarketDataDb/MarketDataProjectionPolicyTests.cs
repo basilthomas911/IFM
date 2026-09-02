@@ -18,6 +18,19 @@ public sealed class MarketDataProjectionPolicyTests
         throwOnError: true)!;
 
     [Fact]
+    public void MarketOutlookSnapshot_UsesOneUpsertRowPerDateAndLatestCutoffQuery()
+    {
+        var schema = GetSchemaCql("CreateMarketOutlookSnapshotTable");
+        schema.ShouldContain("PRIMARY KEY ((contractId), valueDate)");
+        schema.ShouldContain("CLUSTERING ORDER BY (valueDate DESC)");
+        GetCql("UpsertMarketOutlookSnapshot").ShouldContain("INSERT INTO market_outlook_snapshot");
+        var query = GetCql("GetMarketOutlookSnapshot");
+        query.ShouldContain("valueDate <= :valueDate");
+        query.ShouldContain("ORDER BY valueDate DESC");
+        query.ShouldContain("LIMIT 1");
+    }
+
+    [Fact]
     public void FuturesEodSchema_PersistsMovingAveragesAndSupportsAdditiveUpgrade()
     {
         GetSchemaCql("CreateFuturesEodDataTable").ShouldContain("fiftyDMA decimal");

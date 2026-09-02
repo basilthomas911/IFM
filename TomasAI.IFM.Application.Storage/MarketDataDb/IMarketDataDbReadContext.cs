@@ -142,6 +142,8 @@ public interface IMarketDataDbReadContext
     Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength);
     Task<FuturesAdxSignalReadModel?> GetLastFuturesAdxDailySignalAsync(string contractId, TimeFrameType timePeriod, int periodLength, CancellationToken cancellationToken);
     Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(string contractId, DateOnly valueDate);
+    Task<MarketOutlookReadModel?> GetMarketOutlookSnapshotAsync(
+        string contractId, DateOnly valueDate, CancellationToken cancellationToken = default);
     Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(string contractId, DateOnly valueDate, CancellationToken cancellationToken);
     Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync();
     Task<FuturesTradeSignalV2ReadModel?> GetLastFuturesTradeSignalAsync(CancellationToken cancellationToken);
